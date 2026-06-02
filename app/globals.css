@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5f7fb;
+  --foreground: #17202a;
+  --muted: #667085;
+  --line: #d9e2ec;
+  --blue: #2f6fed;
+  --green: #1a9b71;
+  --yellow: #d79018;
+  --red: #d45145;
+  --nav: #202a3a;
+  --surface: #ffffff;
+  --surface-muted: #f7f8fa;
+  --app-ui-font: var(--font-geist-sans);
+  --app-code-font: var(--font-geist-mono);
+  --app-ui-font-size: 14px;
+  --app-code-font-size: 12px;
+  --settings-sidebar-bg: linear-gradient(180deg, rgba(234, 248, 251, 0.88) 0%, rgba(244, 252, 216, 0.88) 100%);
+  --settings-sidebar-text: #11181c;
+  --settings-selected-bg: rgba(0, 122, 204, 0.1);
+  --app-sidebar-bg: var(--settings-sidebar-bg);
+  --app-sidebar-text: #1f2a2e;
+  --app-sidebar-hover: rgba(0, 122, 204, 0.08);
+  --diff-added-bg: rgba(220, 252, 231, 0.78);
+  --diff-added-text: #064e3b;
+  --diff-added-line: #16a34a;
+  --diff-removed-bg: rgba(254, 226, 226, 0.88);
+  --diff-removed-text: #7f1d1d;
+  --diff-removed-line: #ef4444;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-blue: var(--blue);
+  --color-green: var(--green);
+  --color-yellow: var(--yellow);
+  --color-red: var(--red);
+  --color-nav: var(--nav);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--app-ui-font), var(--font-geist-sans), system-ui, sans-serif;
+  font-size: var(--app-ui-font-size);
+  letter-spacing: 0;
+}
+
+code,
+pre {
+  font-family: var(--app-code-font), var(--font-geist-mono), ui-monospace, monospace;
+  font-size: var(--app-code-font-size);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+body[data-pointer-cursor="false"] button,
+body[data-pointer-cursor="false"] summary,
+body[data-pointer-cursor="false"] label {
+  cursor: default;
+}
+
+body[data-reduced-motion="true"] *,
+body[data-reduced-motion="true"] *::before,
+body[data-reduced-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
+}
+
+body[data-theme="dark"] .bg-white {
+  background-color: var(--surface);
+}
+
+body[data-theme="dark"] .bg-slate-50,
+body[data-theme="dark"] .bg-slate-100 {
+  background-color: var(--surface-muted);
+}
+
+body[data-theme="dark"] .border-line,
+body[data-theme="dark"] .border-slate-100,
+body[data-theme="dark"] .border-slate-200,
+body[data-theme="dark"] .border-slate-300 {
+  border-color: var(--line);
+}
+
+body[data-theme="dark"] .text-slate-600,
+body[data-theme="dark"] .text-slate-700,
+body[data-theme="dark"] .text-muted {
+  color: var(--muted);
+}
+
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+  background-color: var(--surface);
+  color: var(--foreground);
+}
+
+input,
+select,
+textarea {
+  outline: none;
+}
+
+input[type="range"] {
+  min-width: 0;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.14);
+}
+
+/* 隐藏横向导航的原生滚动条，保留触控和鼠标滚动能力。 */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
