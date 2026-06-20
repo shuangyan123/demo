@@ -1,13 +1,44 @@
-import { reviewDb } from "../db/review-db";
+import { reviewDb } from "../db/review-db.ts";
 import type { AppearanceSettings, ThemeConfig } from "../types/review";
 
 const SETTINGS_ID = "default";
+
+export const DEFAULT_UI_FONT_STACK = 'var(--font-noto-sans-sc), "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif';
+
+// 这些字体栈只来自旧版内置主题；命中时升级为新默认字体，其他用户自定义值原样保留。
+const LEGACY_BUILT_IN_UI_FONTS = new Set([
+  "Geist, Inter, system-ui, sans-serif",
+  "-apple-system, BlinkMacSystemFont, Geist, Inter, system-ui, sans-serif",
+  "-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif",
+]);
 
 type RgbColor = {
   r: number;
   g: number;
   b: number;
 };
+
+type LegacyThemeConfig = Partial<ThemeConfig> & {
+  translucentSidebar?: boolean;
+};
+
+const LEGACY_PRESET_CONTRAST = new Map<string, number>([
+  ["纯白极简", 12],
+  ["GitHub Light", 22],
+  ["米白极简", 12],
+  ["Codex", 60],
+  ["VS Code Dark", 54],
+  ["Graphite", 72],
+]);
+
+const LEGACY_PRESET_NAMES = new Map<string, string>([
+  ["纯白极简", "晴空"],
+  ["GitHub Light", "晴空"],
+  ["米白极简", "米白"],
+  ["Codex", "深海"],
+  ["VS Code Dark", "石墨"],
+  ["Graphite", "石墨"],
+]);
 
 // 生成 ISO 时间戳，供外观设置保存时记录最近更新时间。
 function nowStamp(): string {
@@ -37,16 +68,71 @@ function rgba(color: RgbColor, alpha: number): string {
   return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha.toFixed(3)})`;
 }
 
+// 旋转强调色的色相，为弥散背景生成协调但不单调的辅助色。
+function shiftHue(color: RgbColor, degrees: number): RgbColor {
+  const red = color.r / 255;
+  const green = color.g / 255;
+  const blue = color.b / 255;
+  const maximum = Math.max(red, green, blue);
+  const minimum = Math.min(red, green, blue);
+  const lightness = (maximum + minimum) / 2;
+  const delta = maximum - minimum;
+  let hue = 0;
+  const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
+  if (delta !== 0) {
+    if (maximum === red) hue = 60 * (((green - blue) / delta) % 6);
+    else if (maximum === green) hue = 60 * ((blue - red) / delta + 2);
+    else hue = 60 * ((red - green) / delta + 4);
+  }
+  hue = (hue + degrees + 360) % 360;
+
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const secondary = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const offset = lightness - chroma / 2;
+  const sectors = [
+    [chroma, secondary, 0], [secondary, chroma, 0], [0, chroma, secondary],
+    [0, secondary, chroma], [secondary, 0, chroma], [chroma, 0, secondary],
+  ];
+  const [shiftedRed, shiftedGreen, shiftedBlue] = sectors[Math.floor(hue / 60) % 6];
+  return {
+    r: Math.round((shiftedRed + offset) * 255),
+    g: Math.round((shiftedGreen + offset) * 255),
+    b: Math.round((shiftedBlue + offset) * 255),
+  };
+}
+
+// 在两个颜色间做线性混合，用主题本身的背景和前景生成稳定的中性侧栏。
+function mixRgb(background: RgbColor, foreground: RgbColor, foregroundRatio: number): RgbColor {
+  return {
+    r: Math.round(background.r * (1 - foregroundRatio) + foreground.r * foregroundRatio),
+    g: Math.round(background.g * (1 - foregroundRatio) + foreground.g * foregroundRatio),
+    b: Math.round(background.b * (1 - foregroundRatio) + foreground.b * foregroundRatio),
+  };
+}
+
+// 把 RGB 转回不透明颜色，侧栏不再依赖透明背景或 backdrop-filter。
+function rgbHex(color: RgbColor): string {
+  return `#${[color.r, color.g, color.b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+// 公开侧栏底色解析供迁移契约验证；所有主题遵循同一套中性混合规则。
+export function resolveSidebarBackground(theme: ThemeConfig, key: "light" | "dark"): string {
+  const isDark = key === "dark";
+  const background = hexToRgb(theme.background, isDark ? { r: 24, g: 24, b: 24 } : { r: 255, g: 255, b: 255 });
+  const foreground = hexToRgb(theme.foreground, isDark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 });
+  return rgbHex(mixRgb(background, foreground, isDark ? 0.055 : 0.035));
+}
+
 // 返回截图规格中的浅色主题默认值，避免调用方直接修改共享对象。
 function defaultLightTheme(): ThemeConfig {
   return {
-    name: "VS Code Plus",
-    accent: "#007ACC",
+    name: "晴空",
+    accent: "#2563EB",
     background: "#FFFFFF",
-    foreground: "#000000",
-    uiFont: "Geist, Inter, system-ui, sans-serif",
+    foreground: "#111827",
+    uiFont: DEFAULT_UI_FONT_STACK,
     codeFont: '"Geist Mono", ui-monospace, SFMono-Regular, Consolas, monospace',
-    translucentSidebar: true,
+    diffuseGradient: true,
     contrast: 0,
   };
 }
@@ -54,14 +140,14 @@ function defaultLightTheme(): ThemeConfig {
 // 返回截图规格中的深色主题默认值，供系统深色模式和手动深色模式使用。
 function defaultDarkTheme(): ThemeConfig {
   return {
-    name: "Codex",
+    name: "深海",
     accent: "#339CFF",
     background: "#181818",
     foreground: "#FFFFFF",
-    uiFont: "-apple-system, BlinkMacSystemFont, Geist, Inter, system-ui, sans-serif",
+    uiFont: DEFAULT_UI_FONT_STACK,
     codeFont: 'ui-monospace, "SFMono-Regular", "Geist Mono", Consolas, monospace',
-    translucentSidebar: true,
-    contrast: 60,
+    diffuseGradient: true,
+    contrast: 0,
   };
 }
 
@@ -69,7 +155,7 @@ function defaultDarkTheme(): ThemeConfig {
 export function createDefaultAppearanceSettings(): AppearanceSettings {
   return {
     id: SETTINGS_ID,
-    mode: "system",
+    mode: "light",
     lightTheme: defaultLightTheme(),
     darkTheme: defaultDarkTheme(),
     pointerCursor: false,
@@ -83,18 +169,21 @@ export function createDefaultAppearanceSettings(): AppearanceSettings {
 }
 
 // 合并主题字段，保证旧版本 IndexedDB 中缺少的新字段能自动补齐。
-function mergeThemeConfig(input: Partial<ThemeConfig> | undefined, fallback: ThemeConfig): ThemeConfig {
+function mergeThemeConfig(input: LegacyThemeConfig | undefined, fallback: ThemeConfig): ThemeConfig {
+  const savedUiFont = input?.uiFont?.trim();
+  const savedContrast = Number.isFinite(input?.contrast) ? Number(input?.contrast) : fallback.contrast;
+  const legacyPresetContrast = input?.name ? LEGACY_PRESET_CONTRAST.get(input.name) : undefined;
   return {
     ...fallback,
     ...input,
-    name: input?.name?.trim() || fallback.name,
+    name: (LEGACY_PRESET_NAMES.get(input?.name?.trim() ?? "") ?? input?.name?.trim()) || fallback.name,
     accent: input?.accent || fallback.accent,
     background: input?.background || fallback.background,
     foreground: input?.foreground || fallback.foreground,
-    uiFont: input?.uiFont?.trim() || fallback.uiFont,
+    uiFont: savedUiFont && !LEGACY_BUILT_IN_UI_FONTS.has(savedUiFont) ? savedUiFont : fallback.uiFont,
     codeFont: input?.codeFont?.trim() || fallback.codeFont,
-    translucentSidebar: input?.translucentSidebar ?? fallback.translucentSidebar,
-    contrast: Number.isFinite(input?.contrast) ? Number(input?.contrast) : fallback.contrast,
+    diffuseGradient: input?.diffuseGradient ?? input?.translucentSidebar ?? fallback.diffuseGradient,
+    contrast: savedContrast === legacyPresetContrast ? 0 : savedContrast,
   };
 }
 
@@ -106,8 +195,8 @@ export function normalizeAppearanceSettings(input?: Partial<AppearanceSettings> 
     ...input,
     id: SETTINGS_ID,
     mode: input?.mode ?? fallback.mode,
-    lightTheme: mergeThemeConfig(input?.lightTheme, fallback.lightTheme),
-    darkTheme: mergeThemeConfig(input?.darkTheme, fallback.darkTheme),
+    lightTheme: mergeThemeConfig(input?.lightTheme as LegacyThemeConfig | undefined, fallback.lightTheme),
+    darkTheme: mergeThemeConfig(input?.darkTheme as LegacyThemeConfig | undefined, fallback.darkTheme),
     pointerCursor: input?.pointerCursor ?? fallback.pointerCursor,
     reducedMotion: input?.reducedMotion ?? fallback.reducedMotion,
     uiFontSize: Number.isFinite(input?.uiFontSize) ? Number(input?.uiFontSize) : fallback.uiFontSize,
@@ -141,21 +230,33 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   const body = document.body;
   const isDark = key === "dark";
   const contrast = clampPercent(theme.contrast);
+  const contrastRatio = contrast / 100;
   const accent = hexToRgb(theme.accent, isDark ? { r: 51, g: 156, b: 255 } : { r: 0, g: 122, b: 204 });
   const foreground = hexToRgb(theme.foreground, isDark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 });
-  const lineAlpha = isDark ? 0.14 + contrast / 250 : 0.07 + contrast / 360;
-  const selectedAlpha = isDark ? 0.16 + contrast / 420 : 0.08 + contrast / 520;
-  const hoverAlpha = isDark ? 0.08 + contrast / 640 : 0.05 + contrast / 700;
-  const diffAlpha = isDark ? 0.2 + contrast / 460 : 0.14 + contrast / 600;
-  const sidebarBg = isDark
-    ? theme.translucentSidebar
-      ? "linear-gradient(180deg, rgba(24,24,24,0.90) 0%, rgba(24,30,36,0.90) 100%)"
-      : "#181818"
-    : theme.translucentSidebar
-      ? "linear-gradient(180deg, rgba(234,248,251,0.88) 0%, rgba(244,252,216,0.88) 100%)"
-      : "#eaf8fb";
+  const lineAlpha = isDark ? 0.16 + contrastRatio * 0.2 : 0.07 + contrastRatio * 0.16;
+  const selectedAlpha = 0.08 + contrastRatio * 0.12;
+  const hoverAlpha = 0.055 + contrastRatio * 0.085;
+  const diffAlpha = isDark ? 0.2 + contrastRatio * 0.2 : 0.14 + contrastRatio * 0.12;
+  const neutralColor = isDark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 };
+  const chromeSelectedColor = accent;
+  const chromeBorderAlpha = 0.1 + contrastRatio * 0.16;
+  const sidebarBg = resolveSidebarBackground(theme, key);
+  const diffuseEnabled = theme.diffuseGradient;
+  const diffuseCompanionOne = shiftHue(accent, 46);
+  const diffuseCompanionTwo = shiftHue(accent, -58);
+  const diffuseWarm = shiftHue(accent, 156);
+  const windowDiffuseBackground = diffuseEnabled
+    ? `radial-gradient(ellipse 62% 48% at 8% 8%, ${rgba(accent, isDark ? 0.17 : 0.13)}, transparent 72%), radial-gradient(ellipse 48% 58% at 88% 16%, ${rgba(diffuseCompanionTwo, isDark ? 0.13 : 0.095)}, transparent 74%), radial-gradient(ellipse 58% 46% at 72% 88%, ${rgba(diffuseCompanionOne, isDark ? 0.12 : 0.085)}, transparent 76%), radial-gradient(ellipse 42% 38% at 24% 82%, ${rgba(diffuseWarm, isDark ? 0.095 : 0.06)}, transparent 75%), radial-gradient(ellipse 34% 28% at 54% 44%, ${rgba(accent, isDark ? 0.07 : 0.045)}, transparent 78%)`
+    : "none";
+  const sidebarDiffuseBackground = diffuseEnabled
+    ? `radial-gradient(ellipse 92% 34% at 8% 8%, ${rgba(accent, isDark ? 0.09 : 0.065)}, transparent 76%), radial-gradient(ellipse 86% 38% at 92% 72%, ${rgba(diffuseCompanionTwo, isDark ? 0.065 : 0.04)}, transparent 78%)`
+    : "none";
+  const scrollbarTrackAlpha = 0.34 + contrastRatio * 0.28;
+  const scrollbarThumbAlpha = 0.28 + contrastRatio * 0.38;
+  const scrollbarHoverAlpha = 0.44 + contrastRatio * 0.28;
 
   body.dataset.theme = key;
+  body.dataset.diffuseGradient = diffuseEnabled ? "true" : "false";
   body.dataset.pointerCursor = settings.pointerCursor ? "true" : "false";
   body.dataset.reducedMotion = resolveReducedMotion(settings) ? "true" : "false";
   root.style.colorScheme = key;
@@ -170,18 +271,31 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--app-code-font", theme.codeFont);
   root.style.setProperty("--app-ui-font-size", `${settings.uiFontSize}px`);
   root.style.setProperty("--app-code-font-size", `${settings.codeFontSize}px`);
+  root.style.setProperty("--chrome-sidebar-width", "248px");
+  root.style.setProperty("--chrome-topbar-height", "52px");
+  root.style.setProperty("--chrome-window-bg", theme.background);
+  root.style.setProperty("--chrome-window-diffuse", windowDiffuseBackground);
+  root.style.setProperty("--chrome-topbar-bg", theme.background);
+  root.style.setProperty("--chrome-sidebar-bg", sidebarBg);
+  root.style.setProperty("--chrome-sidebar-diffuse", sidebarDiffuseBackground);
+  root.style.setProperty("--chrome-sidebar-border", rgba(neutralColor, chromeBorderAlpha));
+  root.style.setProperty("--chrome-selected-bg", rgba(chromeSelectedColor, selectedAlpha));
+  root.style.setProperty("--chrome-hover-bg", rgba(chromeSelectedColor, hoverAlpha));
   root.style.setProperty("--settings-sidebar-bg", sidebarBg);
   root.style.setProperty("--settings-sidebar-text", isDark ? "#f4f4f5" : "#11181c");
-  root.style.setProperty("--settings-selected-bg", rgba(accent, selectedAlpha));
+  root.style.setProperty("--settings-selected-bg", rgba(chromeSelectedColor, selectedAlpha));
   root.style.setProperty("--app-sidebar-bg", sidebarBg);
   root.style.setProperty("--app-sidebar-text", isDark ? "#f4f4f5" : "#1f2a2e");
-  root.style.setProperty("--app-sidebar-hover", rgba(accent, hoverAlpha));
+  root.style.setProperty("--app-sidebar-hover", rgba(chromeSelectedColor, hoverAlpha));
   root.style.setProperty("--diff-added-bg", isDark ? rgba({ r: 34, g: 197, b: 94 }, diffAlpha) : rgba({ r: 220, g: 252, b: 231 }, 0.78));
   root.style.setProperty("--diff-added-text", isDark ? "#dcfce7" : "#064e3b");
   root.style.setProperty("--diff-added-line", "#16a34a");
   root.style.setProperty("--diff-removed-bg", isDark ? rgba({ r: 248, g: 113, b: 113 }, diffAlpha) : rgba({ r: 254, g: 226, b: 226 }, 0.88));
   root.style.setProperty("--diff-removed-text", isDark ? "#fee2e2" : "#7f1d1d");
   root.style.setProperty("--diff-removed-line", "#ef4444");
+  root.style.setProperty("--settings-scrollbar-track", isDark ? rgba({ r: 44, g: 44, b: 44 }, scrollbarTrackAlpha) : rgba({ r: 244, g: 246, b: 248 }, scrollbarTrackAlpha));
+  root.style.setProperty("--settings-scrollbar-thumb", isDark ? rgba({ r: 150, g: 150, b: 150 }, scrollbarThumbAlpha) : rgba({ r: 142, g: 148, b: 154 }, scrollbarThumbAlpha));
+  root.style.setProperty("--settings-scrollbar-thumb-hover", isDark ? rgba({ r: 170, g: 170, b: 170 }, scrollbarHoverAlpha) : rgba({ r: 118, g: 124, b: 132 }, scrollbarHoverAlpha));
 }
 
 export const appearanceSettingsRepository = {

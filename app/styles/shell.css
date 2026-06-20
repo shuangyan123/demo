@@ -1,0 +1,167 @@
+/* 侧栏始终使用不透明底色；弥散渐变只叠加低透明色场，不读取背后内容。 */
+.diffuse-sidebar {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--chrome-sidebar-bg);
+}
+
+.diffuse-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: var(--chrome-sidebar-diffuse);
+}
+
+.diffuse-sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 工作台只占一个 100dvh 视口，顶部栏保持纯色，侧栏可独立启用弥散色场。 */
+.chrome-shell {
+  background: var(--chrome-window-bg);
+}
+
+.chrome-topbar {
+  height: var(--chrome-topbar-height);
+  background: var(--chrome-topbar-bg);
+}
+
+/* 展开时保留 248px 侧栏，折叠时把左列压到 0，让主内容自然顶到窗口左侧。 */
+.chrome-layout {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  height: calc(100dvh - var(--chrome-topbar-height));
+  grid-template-columns: var(--chrome-sidebar-width) minmax(0, 1fr);
+  background-color: var(--chrome-window-bg);
+  background-image: var(--chrome-window-diffuse);
+  transition: grid-template-columns var(--motion-structure) var(--motion-ease);
+}
+
+/* 极淡噪点只给弥散背景增加纸面质感，不覆盖顶栏和内容卡片。 */
+body[data-diffuse-gradient="true"] .chrome-layout::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.16;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.18) 0.45px, transparent 0.55px);
+  background-size: 3px 3px;
+}
+
+.chrome-layout[data-sidebar="collapsed"],
+.chrome-layout.is-sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+/* 侧栏本体承载不透明底色、装饰层、内容和边框。 */
+.chrome-sidebar {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  width: 100%;
+  transition:
+    opacity var(--motion-structure) var(--motion-ease),
+    transform var(--motion-structure) var(--motion-ease),
+    padding var(--motion-structure) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.chrome-content {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    border-radius var(--motion-fast) var(--motion-ease);
+}
+
+body[data-diffuse-gradient="true"] .chrome-content {
+  background-color: transparent;
+}
+
+.chrome-layout.is-sidebar-expanded .chrome-sidebar {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+.chrome-layout[data-sidebar="collapsed"] .chrome-sidebar,
+.chrome-layout.is-sidebar-collapsed .chrome-sidebar {
+  border-inline-end-width: 0 !important;
+  border-right-color: transparent !important;
+  border-right-width: 0 !important;
+  opacity: 0;
+  overflow: hidden !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  pointer-events: none;
+  transform: translateX(-8px);
+}
+
+.chrome-layout[data-sidebar="collapsed"] .chrome-sidebar::before,
+.chrome-layout.is-sidebar-collapsed .chrome-sidebar::before {
+  opacity: 0;
+}
+
+/* 设置页折叠侧栏后要取消原来贴着侧栏的圆角和边框，视觉上进入无侧栏工作区。 */
+.chrome-layout[data-sidebar="collapsed"] .settings-content,
+.chrome-layout.is-sidebar-collapsed .settings-content {
+  border-left-color: transparent;
+  border-top-left-radius: 0;
+}
+
+.sidebar-toggle-button:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.sidebar-toggle-button:focus-visible {
+  outline: 1px solid rgba(0, 0, 0, 0.16);
+  outline-offset: 2px;
+}
+
+body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
+  outline-color: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 1024px) {
+  .chrome-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .chrome-sidebar {
+    max-height: 8.5rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--chrome-sidebar-border);
+  }
+
+  .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar,
+  .chrome-layout.is-sidebar-collapsed .chrome-sidebar {
+    display: none;
+  }
+}
+
+body[data-reduced-motion="true"] .chrome-layout,
+body[data-reduced-motion="true"] .chrome-sidebar,
+body[data-reduced-motion="true"] .chrome-content,
+body[data-reduced-motion="true"] .settings-section-enter,
+body[data-reduced-motion="true"] .ui-toast {
+  transition: none;
+  animation: none;
+}
+
+/* 隐藏横向导航的原生滚动条，保留触控和鼠标滚动能力。 */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

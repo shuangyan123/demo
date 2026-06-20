@@ -1,0 +1,72 @@
+/* 主题 token 集中维护，供 Tailwind v4 语义色和自定义 CSS 共同消费。 */
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+  --muted: #667085;
+  --line: #d9e2ec;
+  --blue: #2563eb;
+  --green: #1a9b71;
+  --yellow: #d79018;
+  --red: #d45145;
+  --nav: #202a3a;
+  --surface: #ffffff;
+  --surface-muted: #f7f8fa;
+  --app-ui-font: var(--font-noto-sans-sc), "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --app-code-font: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --app-ui-font-size: 14px;
+  --app-code-font-size: 12px;
+  --settings-sidebar-bg: #ffffff;
+  --settings-sidebar-text: #11181c;
+  --settings-selected-bg: rgba(0, 122, 204, 0.1);
+  --app-sidebar-bg: #ffffff;
+  --app-sidebar-text: #1f2a2e;
+  --app-sidebar-hover: rgba(0, 122, 204, 0.08);
+  --diff-added-bg: rgba(220, 252, 231, 0.78);
+  --diff-added-text: #064e3b;
+  --diff-added-line: #16a34a;
+  --diff-removed-bg: rgba(254, 226, 226, 0.88);
+  --diff-removed-text: #7f1d1d;
+  --diff-removed-line: #ef4444;
+  --settings-scrollbar-track: rgba(244, 246, 248, 0.72);
+  --settings-scrollbar-thumb: rgba(155, 160, 166, 0.42);
+  --settings-scrollbar-thumb-hover: rgba(135, 141, 148, 0.58);
+  --chrome-sidebar-width: 248px;
+  --chrome-topbar-height: 52px;
+  --chrome-window-bg: #ffffff;
+  --chrome-window-diffuse: none;
+  --chrome-topbar-bg: #ffffff;
+  --chrome-sidebar-bg: #ffffff;
+  --chrome-sidebar-diffuse: none;
+  --chrome-sidebar-border: rgba(0, 0, 0, 0.08);
+  --chrome-selected-bg: rgba(0, 122, 204, 0.08);
+  --chrome-hover-bg: rgba(0, 122, 204, 0.052);
+  --motion-fast: 120ms;
+  --motion-structure: 180ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ui-radius: 0.5rem;
+  --ui-radius-lg: 0.75rem;
+  --ui-control-height: 2.625rem;
+}
+
+/* Tailwind v4 主题映射，只把稳定语义 token 暴露给 utility。 */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-blue: var(--blue);
+  --color-green: var(--green);
+  --color-yellow: var(--yellow);
+  --color-red: var(--red);
+  --color-nav: var(--nav);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-chrome-hover: var(--chrome-hover-bg);
+  --color-chrome-selected: var(--chrome-selected-bg);
+  --color-chrome-sidebar-border: var(--chrome-sidebar-border);
+  --color-settings-selected: var(--settings-selected-bg);
+  --color-app-sidebar-text: var(--app-sidebar-text);
+  --color-settings-sidebar-text: var(--settings-sidebar-text);
+  --font-sans: var(--app-ui-font);
+  --font-mono: var(--app-code-font);
+}
