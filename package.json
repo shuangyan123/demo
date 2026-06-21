@@ -5,12 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test:contracts": "node --test --experimental-strip-types app/server/ai/provider-adapter.contract.test.ts app/services/ai-connection-client.contract.test.ts app/services/ai-connections-repository.contract.test.ts app/services/appearance-settings-repository.contract.test.ts app/services/personalization-settings-repository.contract.test.ts",
+    "test:contracts": "node --test --experimental-strip-types app/server/ai/provider-adapter.contract.test.ts app/services/ai-connection-client.contract.test.ts app/services/ai-connections-repository.contract.test.ts app/services/appearance-settings-repository.contract.test.ts app/services/obsidian-knowledge.contract.test.ts app/services/personalization-settings-repository.contract.test.ts",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "dexie": "^4.2.1",
+    "js-yaml": "^5.0.0",
     "mammoth": "^1.12.0",
     "next": "16.2.6",
     "pdfjs-dist": "^6.0.227",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

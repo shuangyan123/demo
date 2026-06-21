@@ -1,6 +1,7 @@
 import { reviewDb } from "../db/review-db";
 import { relativeDate, toISODate } from "../lib/review-utils";
 import type { KnowledgeAttempt, KnowledgeCategory, KnowledgeEntry, KnowledgeImportDraft, KnowledgeStarterTemplate, KnowledgeTrainingSnapshot, Mistake, ReviewResult } from "../types/review";
+import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository";
 
 type KnowledgeInput = Omit<KnowledgeEntry, "id" | "createdAt" | "updatedAt" | "mastery" | "nextReviewAt" | "lastReviewedAt" | "reviewCount"> &
   Partial<Pick<KnowledgeEntry, "mastery" | "nextReviewAt" | "lastReviewedAt" | "reviewCount">>;
@@ -289,6 +290,7 @@ export const knowledgeRepository = {
       ...patch,
       updatedAt: todayStamp(today),
     });
+    await obsidianKnowledgeRepository.markLocalChanged(id, today);
   },
 
   // 切换收藏状态；收藏用于筛选高频资料和常看知识点。

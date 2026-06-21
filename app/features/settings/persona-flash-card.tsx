@@ -56,7 +56,7 @@ export function PersonaFlashCard({
               alt={`${persona.name}角色图`}
               className="persona-card-art object-cover"
               fill
-              sizes="(max-width: 640px) 44vw, (max-width: 1200px) 24vw, 190px"
+              sizes="(max-width: 640px) 30vw, (max-width: 1200px) 18vw, 150px"
               src={imageSrc}
               unoptimized={imageSrc.startsWith("data:")}
             />
@@ -65,10 +65,10 @@ export function PersonaFlashCard({
               <span><span aria-hidden="true" className="persona-card-placeholder-plus">＋</span><span className="mt-2 block text-sm">添加角色图片</span></span>
             </span>
           )}
-          <span aria-hidden="true" className="persona-card-vignette absolute inset-0" />
+          {imageSrc ? <span aria-hidden="true" className="persona-card-vignette absolute inset-0" /> : null}
           <span aria-hidden="true" className="persona-card-foil absolute inset-0" />
-          <span className="persona-card-name absolute inset-x-5 bottom-[7%] z-20 text-center">
-            <strong className="text-sm font-semibold tracking-[0.06em]">{persona.name}</strong>
+          <span className={`persona-card-name absolute inset-x-3 bottom-[6%] z-20 text-center ${imageSrc ? "" : "is-placeholder"}`}>
+            <strong className="text-[11px] font-semibold tracking-[0.04em]">{persona.name}</strong>
           </span>
         </button>
         <Image
@@ -77,11 +77,11 @@ export function PersonaFlashCard({
           className="persona-card-frame-image pointer-events-none absolute inset-0 z-40 h-full w-full"
           fill
           loading="eager"
-          sizes="(max-width: 640px) 44vw, (max-width: 1200px) 24vw, 190px"
+          sizes="(max-width: 640px) 30vw, (max-width: 1200px) 18vw, 150px"
           src="/personas/persona-card-frame-2x3.png"
           unoptimized
         />
-        <div className="persona-card-actions absolute right-3 top-3 z-50 flex gap-2">
+        <div className="persona-card-actions absolute right-2 top-2 z-50 flex gap-1">
           <button className="persona-card-icon-button" type="button" aria-label={`更换${persona.name}角色图`} onClick={() => fileInputRef.current?.click()}>
             <svg aria-hidden="true" fill="none" viewBox="0 0 24 24"><path d="M4 16.5V20h3.5L18 9.5 14.5 6 4 16.5Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8"/><path d="m13.5 7 3.5 3.5" stroke="currentColor" strokeWidth="1.8"/></svg>
           </button>

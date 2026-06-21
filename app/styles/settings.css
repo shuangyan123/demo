@@ -202,8 +202,8 @@ body[data-theme="dark"] .color-picker:focus-within {
 
 .persona-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 190px));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 150px));
+  gap: 0.5rem;
   align-items: start;
 }
 
@@ -222,9 +222,9 @@ body[data-theme="dark"] .color-picker:focus-within {
 
 .persona-card-front {
   height: 100%;
-  border: 1px solid rgba(93, 61, 10, 0.82);
+  border: 0;
   border-radius: 0.45rem;
-  background: #11110f;
+  background: linear-gradient(145deg, #f8fafc 0%, #edf3f8 52%, #fffaf0 100%);
   box-shadow:
     0 18px 34px rgba(28, 22, 14, 0.22),
     0 0 0 1px rgba(244, 199, 54, 0.28);
@@ -255,8 +255,8 @@ body[data-theme="dark"] .color-picker:focus-within {
 
 .persona-card-icon-button {
   display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: 1.65rem;
+  height: 1.65rem;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 999px;
@@ -265,7 +265,7 @@ body[data-theme="dark"] .color-picker:focus-within {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
 }
 
-.persona-card-icon-button svg { width: 1rem; height: 1rem; }
+.persona-card-icon-button svg { width: 0.82rem; height: 0.82rem; }
 .persona-card-icon-button:hover { background: rgba(12, 13, 16, 0.9); }
 .persona-card-icon-button.is-danger:hover { color: #ffd6d2; background: rgba(126, 31, 28, 0.92); }
 
@@ -308,25 +308,30 @@ body[data-theme="dark"] .color-picker:focus-within {
   transform: perspective(180px) rotateX(3deg);
 }
 
+.persona-card-name.is-placeholder {
+  color: #23425f;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: none;
+}
+
 .persona-card-placeholder {
   position: relative;
   z-index: 1;
-  color: #c6ad75;
+  color: #425a70;
   background:
-    radial-gradient(circle at 50% 42%, rgba(124, 96, 48, 0.27), transparent 30%),
-    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 5px),
-    #151411;
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.96), transparent 30%),
+    linear-gradient(145deg, #f8fafc 0%, #eaf2f8 58%, #fff8e8 100%);
 }
 
 .persona-card-placeholder-plus {
   display: grid;
-  width: 3.25rem;
-  height: 3.25rem;
+  width: 2.6rem;
+  height: 2.6rem;
   margin-inline: auto;
   place-items: center;
-  border: 1px solid rgba(240, 198, 44, 0.58);
+  border: 1px solid rgba(25, 75, 116, 0.3);
   border-radius: 999px;
-  font-size: 1.8rem;
+  font-size: 1.45rem;
   font-weight: 300;
 }
 
@@ -446,8 +451,8 @@ body[data-theme="dark"] .color-picker:focus-within {
 
 @media (max-width: 760px) {
   .persona-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
   }
 
   .persona-flash-card { width: 100%; }

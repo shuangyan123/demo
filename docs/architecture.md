@@ -40,6 +40,18 @@ IndexedDB 读取 → repository 一次性迁移与归一化 → 页面本地草�
 
 `TutoringWorkspace → useTutoringMedia → useFrameSampler → tutoring AI service` 保持单向依赖。`MediaStream` 和最近关键帧只存在浏览器内存；浏览器停止共享时立即清理采样状态。多模态连接只接收手动或三秒低频采样的 JPEG，不接收连续视频或系统音频。
 
+## Obsidian 知识图谱桥接
+
+```text
+KnowledgeView → useObsidianKnowledgeBridge → knowledge evolution service
+→ obsidian-knowledge-repository → Vault adapter / IndexedDB v12
+```
+
+- React 只保存 `ObsidianVaultSnapshot`、映射和提案；`FileSystemDirectoryHandle` 仅由 repository 与 Vault adapter 读取。
+- Vault 的 `AI知识库/政治理论|常识判断|申论` 是 Markdown 正文和 Wikilink 主源；IndexedDB 保存正文镜像、训练状态、三方哈希与冲突。
+- 手动同步以最后同步哈希为基线：单边变化自动同步，双边变化保留两份内容并等待选择，文件消失只标记断开。
+- AI 自动收集错题、面试复盘、辅导摘要和知识条目作为候选，但只生成 `create | merge | link` 提案；确认后才修改显式 AI 演进区块并写入 Vault。
+
 ## 扩展原则
 
 新增人设字段时先扩展 `PersonaCustomization` 和 repository 归一化，再分别接入默认编辑器或定制卡背。新增主题只需增加预设，不得为单个主题新增名称判断或固定色分支。

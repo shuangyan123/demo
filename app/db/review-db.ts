@@ -16,9 +16,12 @@ import type {
   InterviewTurn,
   KnowledgeAttempt,
   KnowledgeEntry,
+  KnowledgeEvolutionProposal,
   KnowledgeInternalizationDraft,
   KnowledgeMistakeLink,
   Mistake,
+  ObsidianNoteMapping,
+  ObsidianVaultConfig,
   PersistedImportDraft,
   PersonalizationSettings,
   TutoringLink,
@@ -55,6 +58,9 @@ class ReviewDexieDatabase extends Dexie {
   tutoringTurns!: Table<TutoringTurn, string>;
   tutoringPlans!: Table<TutoringPlan, string>;
   tutoringLinks!: Table<TutoringLink, string>;
+  obsidianVaultConfigs!: Table<ObsidianVaultConfig, string>;
+  obsidianNoteMappings!: Table<ObsidianNoteMapping, string>;
+  knowledgeEvolutionProposals!: Table<KnowledgeEvolutionProposal, string>;
 
   // 初始化 Dexie 数据库版本；历史版本保留用于旧数据无损升级。
   constructor() {
@@ -217,6 +223,36 @@ class ReviewDexieDatabase extends Dexie {
           updatedAt: legacySetting.updatedAt,
         });
       });
+    this.version(12).stores({
+      mistakes: "&id, board, nextReviewAt, mastery, createdAt, updatedAt",
+      attempts: "&id, mistakeId, reviewedAt, result",
+      importJobs: "&id, type, status, createdAt",
+      apiSettings: "&id, provider, updatedAt",
+      apiConnectionProfiles: "&id, provider, updatedAt, createdAt",
+      apiConnectionDefaults: "&id, updatedAt",
+      appearanceSettings: "&id, updatedAt",
+      personalizationSettings: "&id, updatedAt",
+      knowledgeEntries: "&id, category, favorite, nextReviewAt, mastery, updatedAt, createdAt",
+      knowledgeAttempts: "&id, knowledgeId, reviewedAt, result",
+      knowledgeMistakeLinks: "&id, mistakeId, knowledgeId, kind, [mistakeId+knowledgeId], updatedAt, createdAt",
+      knowledgeInternalizationDrafts: "&id, mode, targetKnowledgeId, createdAt, updatedAt",
+      importBatches: "&id, source, status, createdAt, updatedAt",
+      importDrafts: "&id, batchId, board, selected, needsReview, createdAt, updatedAt",
+      interviewQuestions: "&id, type, difficulty, favorite, lastPracticedAt, practiceCount, createdAt, updatedAt",
+      interviewQuestionSets: "&id, type, createdAt, updatedAt",
+      interviewPracticePlans: "&id, type, status, sourceSetId, nextPracticeAt, createdAt, updatedAt",
+      interviewSessions: "&id, questionId, planId, type, status, stage, createdAt, updatedAt",
+      interviewTurns: "&id, sessionId, stage, createdAt",
+      interviewEvaluations: "&id, sessionId, type, createdAt, updatedAt",
+      interviewLinks: "&id, sourceType, sourceId, targetType, targetId, [sourceType+sourceId], [targetType+targetId], createdAt, updatedAt",
+      tutoringSessions: "&id, mode, status, startedAt, completedAt, createdAt, updatedAt",
+      tutoringTurns: "&id, sessionId, speaker, createdAt",
+      tutoringPlans: "&id, status, nextPracticeAt, createdAt, updatedAt",
+      tutoringLinks: "&id, sourceType, sourceId, targetType, targetId, [sourceType+sourceId], [targetType+targetId], createdAt, updatedAt",
+      obsidianVaultConfigs: "&id, updatedAt",
+      obsidianNoteMappings: "&path, &knowledgeId, category, status, updatedAt",
+      knowledgeEvolutionProposals: "&id, mode, status, sourceType, targetKnowledgeId, createdAt, updatedAt",
+    });
   }
 }
 

@@ -67,6 +67,11 @@ export type PersonaStrictness = "gentle" | "balanced" | "strict";
 export type PersonaVerbosity = "concise" | "balanced" | "detailed";
 export type KnowledgeLinkKind = "related" | "internalized";
 export type KnowledgeInternalizationMode = "create" | "merge";
+export type KnowledgeEvolutionMode = "create" | "merge" | "link";
+export type KnowledgeEvolutionSourceType = "mistake" | "interview" | "tutoring" | "knowledge";
+export type KnowledgeEvolutionStatus = "pending" | "accepted" | "rejected";
+export type ObsidianSyncStatus = "synced" | "local_changed" | "vault_changed" | "conflict" | "disconnected";
+export type ObsidianPermissionState = "granted" | "prompt" | "denied" | "unsupported";
 export type ThemeMode = "light" | "dark" | "system";
 export type ReducedMotionMode = "system" | "on" | "off";
 export type DifferenceMarker = "color" | "symbol";
@@ -113,6 +118,69 @@ export type KnowledgeEntry = {
   reviewCount: number;
   createdAt: string;
   updatedAt: string;
+};
+
+/** Obsidian Vault 连接只在 repository 内保留目录句柄，React 只消费可序列化快照。 */
+export type ObsidianVaultConfig = {
+  id: "default";
+  vaultName: string;
+  managedRoot: string;
+  directoryHandle?: FileSystemDirectoryHandle;
+  lastSyncedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ObsidianVaultSnapshot = Omit<ObsidianVaultConfig, "directoryHandle"> & {
+  connected: boolean;
+  permission: ObsidianPermissionState;
+  mappedCount: number;
+  conflictCount: number;
+  pendingProposalCount: number;
+};
+
+export type ObsidianNoteMapping = {
+  path: string;
+  knowledgeId: string;
+  category: KnowledgeCategory;
+  baseHash: string;
+  vaultHash: string;
+  appHash: string;
+  status: ObsidianSyncStatus;
+  wikilinks: string[];
+  sourceRefs: string[];
+  conflictVaultMarkdown?: string;
+  conflictAppMarkdown?: string;
+  lastSyncedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeEvolutionProposal = {
+  id: string;
+  mode: KnowledgeEvolutionMode;
+  status: KnowledgeEvolutionStatus;
+  category: KnowledgeCategory;
+  sourceType: KnowledgeEvolutionSourceType;
+  sourceIds: string[];
+  targetKnowledgeId?: string;
+  title: string;
+  summary: string;
+  content: string;
+  tags: string[];
+  proposedLinks: string[];
+  reason: string;
+  confidence: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ObsidianSyncReport = {
+  imported: number;
+  exported: number;
+  unchanged: number;
+  conflicts: number;
+  disconnected: number;
 };
 
 export type ImportDraft = {

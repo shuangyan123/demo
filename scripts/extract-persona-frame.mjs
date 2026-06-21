@@ -22,6 +22,10 @@ async function main() {
   }
 
   const rgba = Buffer.alloc(info.width * info.height * 4);
+  let minX = info.width;
+  let minY = info.height;
+  let maxX = -1;
+  let maxY = -1;
   for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
     const sourceOffset = pixel * info.channels;
     const outputOffset = pixel * 4;
@@ -34,12 +38,28 @@ async function main() {
     rgba[outputOffset + 1] = green;
     rgba[outputOffset + 2] = blue;
     rgba[outputOffset + 3] = alpha;
+    if (alpha >= 32) {
+      const x = pixel % info.width;
+      const y = Math.floor(pixel / info.width);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
   }
 
+  if (maxX < minX || maxY < minY) throw new Error("参考图中没有检测到有效镶边像素");
+  const contentHeight = maxY - minY + 1;
+  const cropWidth = Math.floor((contentHeight * 2) / 3);
+  const contentCenterX = (minX + maxX) / 2;
+  const cropLeft = Math.max(0, Math.min(info.width - cropWidth, Math.round(contentCenterX - cropWidth / 2)));
+
   await sharp(rgba, { raw: { width: info.width, height: info.height, channels: 4 } })
+    .extract({ left: cropLeft, top: minY, width: cropWidth, height: contentHeight })
+    .resize(EXPECTED_WIDTH, EXPECTED_HEIGHT, { fit: "fill", kernel: sharp.kernel.lanczos3 })
     .png({ adaptiveFiltering: true, compressionLevel: 9 })
     .toFile(outputPath);
-  process.stdout.write(`已生成 ${path.resolve(outputPath)}\n`);
+  process.stdout.write(`已生成 ${path.resolve(outputPath)}，有效镶边已裁到 2:3 卡边\n`);
 }
 
 main().catch((error) => {

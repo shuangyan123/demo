@@ -6,6 +6,8 @@ import { AssociationPanel } from "../shared/association-panel";
 import { BulkToolbar, Button, CardButton, Chip, ConfirmDialog, DetailBlock, DetailCard, EmptyState, MasteryDots, MetricCard, Panel, SelectField, SoftBlock, TextAreaField, TextField } from "../shared/ui-primitives";
 import { useBulkSelection } from "../shared/use-bulk-selection";
 import { KnowledgeInternalizationPanel } from "./knowledge-internalization-panel";
+import { ObsidianKnowledgePanel } from "./obsidian-knowledge-panel";
+import { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
 import type { KnowledgeInternalizationController } from "./use-knowledge-internalization";
 import { splitInput, textValue, toListText } from "../../lib/form-utils";
 import { formatShortDate, masteryLabel } from "../../lib/review-utils";
@@ -13,6 +15,7 @@ import type { KnowledgeMatch, RelatedMistakeMatch } from "../../services/associa
 import {
   KNOWLEDGE_CATEGORIES,
   type AssociationSuggestion,
+  type ApiConnectionProfile,
   type ExportFormat,
   type ExportScope,
   type KnowledgeCategory,
@@ -22,6 +25,7 @@ import {
   type KnowledgeMistakeLink,
   type KnowledgeQueueFilter,
   type Mistake,
+  type PersonalizationSettings,
   type ReviewResult,
 } from "../../types/review";
 
@@ -321,6 +325,10 @@ export function KnowledgeView({
   onToggleAssociationSuggestion,
   onToggleFavorite,
   onUpdateEntry,
+  onKnowledgeChanged,
+  onNotice,
+  personalizationSettings,
+  textConnection,
 }: {
   aiAssociationBusy: boolean;
   apiReady: boolean;
@@ -353,6 +361,10 @@ export function KnowledgeView({
   onToggleAssociationSuggestion: (id: string, selected: boolean) => void;
   onToggleFavorite: (entry: KnowledgeEntry) => void;
   onUpdateEntry: (id: string, patch: Partial<Omit<KnowledgeEntry, "id" | "createdAt" | "updatedAt">>) => void;
+  onKnowledgeChanged: () => Promise<void>;
+  onNotice: (message: string) => void;
+  personalizationSettings: PersonalizationSettings;
+  textConnection?: ApiConnectionProfile;
 }) {
   const total = summaries.reduce((sum, item) => sum + item.total, 0);
   const favorites = summaries.reduce((sum, item) => sum + item.favorites, 0);
@@ -361,6 +373,7 @@ export function KnowledgeView({
   const visibleEntryIds = useMemo(() => entries.map((entry) => entry.id), [entries]);
   const bulkSelection = useBulkSelection(visibleEntryIds);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const obsidian = useObsidianKnowledgeBridge({ entries: allKnowledgeEntries, personalization: personalizationSettings, textConnection, onChanged: onKnowledgeChanged, onNotice });
   const selectedEntries = useMemo(
     () => entries.filter((entry) => bulkSelection.state.ids.has(entry.id)),
     [bulkSelection.state.ids, entries],
@@ -389,6 +402,8 @@ export function KnowledgeView({
       </div>
 
       <KnowledgeInternalizationPanel controller={internalization} entries={allKnowledgeEntries} mistakes={allMistakes} onOpenSettings={onOpenSettings} />
+
+      <ObsidianKnowledgePanel controller={obsidian} />
 
       <Panel title="三类知识中枢" eyebrow="Knowledge Hub">
         <div className="grid grid-cols-3 gap-3 max-xl:grid-cols-1">
@@ -460,6 +475,7 @@ export function KnowledgeView({
             onToggleAssociationSuggestion={onToggleAssociationSuggestion}
             onToggleFavorite={onToggleFavorite}
             onUpdateEntry={onUpdateEntry}
+            obsidianUri={selectedEntry ? obsidian.uriForKnowledge(selectedEntry.id) : undefined}
           />
           <KnowledgeCreateForm defaultCategory={filters.category === "全部" ? "政治理论" : filters.category} onAddEntry={onAddEntry} />
         </div>
@@ -651,6 +667,7 @@ function KnowledgeEntryEditor({
   onToggleAssociationSuggestion,
   onToggleFavorite,
   onUpdateEntry,
+  obsidianUri,
 }: {
   aiAssociationBusy: boolean;
   apiReady: boolean;
@@ -672,6 +689,7 @@ function KnowledgeEntryEditor({
   onToggleAssociationSuggestion: (id: string, selected: boolean) => void;
   onToggleFavorite: (entry: KnowledgeEntry) => void;
   onUpdateEntry: (id: string, patch: Partial<Omit<KnowledgeEntry, "id" | "createdAt" | "updatedAt">>) => void;
+  obsidianUri?: string;
 }) {
   if (!entry) {
     return (
@@ -703,6 +721,7 @@ function KnowledgeEntryEditor({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Chip tone="blue">{entry.category}</Chip>
           <div className="flex gap-2">
+            {obsidianUri ? <a className="ui-button ui-button-outline ui-button-sm" href={obsidianUri}>在 Obsidian 打开</a> : null}
             <Button size="sm" type="button" variant="soft" onClick={() => onStartTraining(entry.id)}>
               训练
             </Button>

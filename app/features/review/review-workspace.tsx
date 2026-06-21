@@ -52,6 +52,7 @@ import { analyzeKnowledgeMistakeAssociations, analyzeMistakeKnowledgeAssociation
 import { associationRepository, suggestionToLinkInput } from "../../services/association-repository";
 import { downloadExportFile, exportKnowledgeEntries, exportMistakes } from "../../services/export-service";
 import { knowledgeRepository } from "../../services/knowledge-repository";
+import { obsidianKnowledgeRepository } from "../../services/obsidian-knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
 import {
   makeToday,
@@ -513,7 +514,10 @@ export function ReviewWorkspace() {
 
   // 删除知识库条目并清理当前选中状态。
   async function deleteKnowledgeEntry(id: string) {
-    if (!window.confirm("确定删除这条知识资料吗？")) return;
+    const mapping = await obsidianKnowledgeRepository.mappingForKnowledge(id);
+    const message = mapping ? "这条资料已映射到 Obsidian。确定同时删除 Vault 托管笔记、本地训练记录和关联吗？" : "确定删除这条知识资料吗？";
+    if (!window.confirm(message)) return;
+    if (mapping) await obsidianKnowledgeRepository.removeManagedNotes([id]);
     await knowledgeRepository.remove(id);
     setSelectedKnowledgeId(null);
     setNotice("知识条目已删除");
@@ -657,6 +661,9 @@ export function ReviewWorkspace() {
       setNotice("请先选择要删除的知识资料");
       return;
     }
+    const mapped = (await Promise.all(ids.map((id) => obsidianKnowledgeRepository.mappingForKnowledge(id)))).filter(Boolean);
+    if (mapped.length && !window.confirm(`其中 ${mapped.length} 条已映射到 Obsidian。继续会同时删除对应 Vault 托管笔记，确定继续吗？`)) return;
+    if (mapped.length) await obsidianKnowledgeRepository.removeManagedNotes(ids);
     const idSet = new Set(ids);
     await knowledgeRepository.removeMany(ids);
     if (selectedKnowledgeId && idSet.has(selectedKnowledgeId)) {
@@ -972,6 +979,10 @@ export function ReviewWorkspace() {
             onToggleFavorite={toggleKnowledgeFavorite}
             onToggleAssociationSuggestion={toggleAssociationSuggestion}
             onUpdateEntry={updateKnowledgeEntry}
+            onKnowledgeChanged={refreshData}
+            onNotice={setNotice}
+            personalizationSettings={personalization.settings}
+            textConnection={aiConnections.textConnection}
           />
         )}
         {view === "interview" && (
