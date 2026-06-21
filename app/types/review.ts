@@ -505,6 +505,9 @@ export type VoiceProfile = {
 
 export type PersonaDisplayMode = "default" | "custom";
 
+/** 定制人设库的视觉密度模式；不改变默认/定制两类业务模式。 */
+export type CustomPersonaViewMode = "flashcard" | "avatar";
+
 export type PersonaCustomization = {
   name?: string;
   role?: string;
@@ -520,6 +523,7 @@ export type PersonaCustomization = {
 export type PersonalizationSettings = {
   id: "default";
   personaDisplayMode: PersonaDisplayMode;
+  customPersonaViewMode: CustomPersonaViewMode;
   defaultPersonaId: string;
   modulePersonaIds: Partial<Record<PersonaModule, string>>;
   customPersonas: PersonaProfile[];

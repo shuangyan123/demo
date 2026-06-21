@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type RefObject, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type RefObject, type SyntheticEvent } from "react";
 import {
   Button,
   CardButton,
@@ -91,8 +91,14 @@ export function TutoringWorkspace({
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const media = useTutoringMedia();
   const sampler = useFrameSampler(media.captureFrame);
+  const clearSampler = sampler.clear;
   const speech = useTutoringSpeech(resolvePersonaVoice(personalizationSettings, "tutoring"), speechConnection);
   const tutoring = useTutoringFlow({ textConnection, visionConnection, knowledgeEntries, mistakes, onNotice, personalizationSettings });
+
+  // 媒体源结束后同步停止低频采样并清除最近帧，避免继续分析陈旧画面。
+  useEffect(() => {
+    if (media.status !== "ready") clearSampler();
+  }, [clearSampler, media.status]);
 
   const activeLinks = useMemo(
     () => (tutoring.activeSession ? tutoring.snapshot.links.filter((link) => link.sourceType === "session" && link.sourceId === tutoring.activeSession?.id) : []),
@@ -328,15 +334,16 @@ function LiveTutoringView({
           lastFrameDataUrl={sampler.lastFrameDataUrl}
           mode={media.mode}
           status={media.status}
+          sourceLabel={media.sourceLabel}
           uploadedFileName={media.uploadedFileName}
           videoRef={media.videoRef}
         />
         <div className="mt-4 grid gap-3">
           <Toolbar>
-            <Button size="sm" variant={media.mode === "camera" ? "primary" : "outline"} onClick={() => void media.startCamera()}>
+            <Button size="sm" variant={media.mode === "camera" && (media.status === "starting" || media.status === "ready") ? "primary" : "outline"} onClick={() => void media.startCamera()}>
               摄像头
             </Button>
-            <Button size="sm" variant={media.mode === "screen" ? "primary" : "outline"} onClick={() => void media.startScreen()}>
+            <Button size="sm" variant={media.mode === "screen" && (media.status === "starting" || media.status === "ready") ? "primary" : "outline"} onClick={() => void media.startScreen()}>
               屏幕共享
             </Button>
             <label className="ui-button ui-button-outline ui-button-sm cursor-pointer">
@@ -364,6 +371,8 @@ function LiveTutoringView({
             </Button>
           </Toolbar>
           {(media.error || sampler.error) && <p className="text-sm text-red">{media.error || sampler.error}</p>}
+          {media.notice && !media.error ? <p className="text-sm text-muted" role="status">{media.notice}</p> : null}
+          {media.mode === "screen" && media.status === "ready" ? <p className="text-xs text-muted">仅发送当前关键帧，不上传连续视频或系统音频。</p> : null}
           <TextAreaField label="画面补充说明" value={frameDescription} placeholder="例如：题目在左上角，我卡在第二步公式转换。" onChange={onSetFrameDescription} />
         </div>
       </Panel>
@@ -437,12 +446,14 @@ function LiveTutoringView({
 function DevicePreview({
   lastFrameDataUrl,
   mode,
+  sourceLabel,
   status,
   uploadedFileName,
   videoRef,
 }: {
   lastFrameDataUrl: string;
   mode: TutoringMode;
+  sourceLabel: string;
   status: string;
   uploadedFileName: string;
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -466,6 +477,7 @@ function DevicePreview({
           选择摄像头、屏幕共享或上传截图，模拟未来眼镜传输的第一视角。
         </div>
       )}
+      {hasPreviewSource && sourceLabel ? <span className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-black/65 px-3 py-1 text-xs text-white">{sourceLabel}</span> : null}
     </div>
   );
 }

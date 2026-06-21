@@ -16,7 +16,8 @@ ReviewWorkspace → feature hook → AI service
 
 ## 模块边界
 
-- `persona-flash-card.tsx`：只负责 3:4 卡片正面、原始 PNG 镶边与悬停操作。
+- `persona-flash-card.tsx`：只负责 2:3 卡片正面、原始 PNG 镶边与悬停操作。
+- `persona-avatar-card.tsx`：复用同一人设数据和编辑动作，提供更高密度的头像视图。
 - `persona-card-back-dialog.tsx`：只负责定制角色的名称、描述和独立音色。
 - `persona-default-editor.tsx`：只负责默认人设头像及完整字段，采用固定外壳和独立滚动区。
 - `personalization-settings-repository.ts`：负责旧数据迁移、归一化、独立音色解析和 IndexedDB 持久化。
@@ -33,7 +34,11 @@ IndexedDB 读取 → repository 一次性迁移与归一化 → 页面本地草�
 
 ## 资产策略
 
-`public/personas/persona-card-frame-3x4.png` 由 `scripts/extract-persona-frame.mjs` 对多张参考卡做透视校正和像素共识提取。前端仅等比缩放，保留金色纹理、抗锯齿及底部蓝色，不再使用 SVG 或 CSS 重画。
+`public/personas/persona-card-frame-2x3.png` 由 `scripts/extract-persona-frame.mjs` 对用户确认的 1024×1536 参考图执行确定性透明化。前端仅等比缩放，保留金色纹理、抗锯齿及底部蓝色，不使用 SVG 或生成式重画。
+
+## 屏幕共享边界
+
+`TutoringWorkspace → useTutoringMedia → useFrameSampler → tutoring AI service` 保持单向依赖。`MediaStream` 和最近关键帧只存在浏览器内存；浏览器停止共享时立即清理采样状态。多模态连接只接收手动或三秒低频采样的 JPEG，不接收连续视频或系统音频。
 
 ## 扩展原则
 

@@ -1,6 +1,6 @@
 import { reviewDb } from "../db/review-db.ts";
 import { toISODate } from "../lib/review-utils.ts";
-import type { PersonaCustomization, PersonaDisplayMode, PersonaModule, PersonaProfile, PersonalizationSettings, VoiceProfile } from "../types/review";
+import type { CustomPersonaViewMode, PersonaCustomization, PersonaDisplayMode, PersonaModule, PersonaProfile, PersonalizationSettings, VoiceProfile } from "../types/review";
 
 type LegacyVoiceProfile = Partial<VoiceProfile> & {
   mode?: "system" | "cloud";
@@ -95,6 +95,7 @@ export function createDefaultPersonalizationSettings(today = new Date()): Person
   return {
     id: "default",
     personaDisplayMode: "default",
+    customPersonaViewMode: "flashcard",
     defaultPersonaId: BUILT_IN_PERSONAS[0].id,
     modulePersonaIds: {},
     customPersonas: [],
@@ -107,6 +108,11 @@ export function createDefaultPersonalizationSettings(today = new Date()): Person
 function normalizeDisplayMode(value: LegacyPersonalizationSettings["personaDisplayMode"]): PersonaDisplayMode {
   if (value === "custom" || value === "flashcard") return "custom";
   return "default";
+}
+
+/** 未保存或异常的定制视图统一回到闪卡，保证旧数据无需升级表版本。 */
+function normalizeCustomPersonaViewMode(value: CustomPersonaViewMode | undefined): CustomPersonaViewMode {
+  return value === "avatar" ? "avatar" : "flashcard";
 }
 
 // 归一化每个人设的覆盖字段，并把旧版头像、音色字典合并到同一份定制记录。
@@ -153,6 +159,7 @@ export function normalizePersonalizationSettings(input?: LegacyPersonalizationSe
     ...defaults,
     id: "default",
     personaDisplayMode: normalizeDisplayMode(input.personaDisplayMode),
+    customPersonaViewMode: normalizeCustomPersonaViewMode(input.customPersonaViewMode),
     defaultPersonaId: input.defaultPersonaId ?? defaults.defaultPersonaId,
     modulePersonaIds: input.modulePersonaIds ?? {},
     customPersonas: Array.isArray(input.customPersonas) ? input.customPersonas : [],

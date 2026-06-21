@@ -1,10 +1,10 @@
 /**
- * 把用户上传的高清角色图裁成统一 3:4，并压缩为适合 IndexedDB 持久化的 WebP。
+ * 把用户上传的高清角色图裁成统一 2:3，并压缩为适合 IndexedDB 持久化的 WebP。
  * 原图只在浏览器内解码，不上传服务器，也不保留额外副本。
  */
 
 const MAX_WIDTH = 2400;
-const MAX_HEIGHT = 3200;
+const MAX_HEIGHT = 3600;
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 const QUALITY_STEPS = [0.92, 0.88, 0.84, 0.8, 0.76];
 
@@ -30,13 +30,13 @@ export async function preparePersonaImage(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
   try {
     const sourceRatio = bitmap.width / bitmap.height;
-    const targetRatio = 3 / 4;
+    const targetRatio = 2 / 3;
     const cropWidth = sourceRatio > targetRatio ? bitmap.height * targetRatio : bitmap.width;
     const cropHeight = sourceRatio > targetRatio ? bitmap.height : bitmap.width / targetRatio;
     const sourceX = (bitmap.width - cropWidth) / 2;
     const sourceY = (bitmap.height - cropHeight) / 2;
-    let width = Math.min(MAX_WIDTH, Math.max(3, Math.round(cropWidth)));
-    let height = Math.min(MAX_HEIGHT, Math.max(4, Math.round(width / targetRatio)));
+    let width = Math.min(MAX_WIDTH, Math.max(2, Math.round(cropWidth)));
+    let height = Math.min(MAX_HEIGHT, Math.max(3, Math.round(width / targetRatio)));
     if (height > MAX_HEIGHT) {
       height = MAX_HEIGHT;
       width = Math.round(height * targetRatio);

@@ -29,9 +29,26 @@ test("旧闪卡模式、头像和音色字典迁移到定制记录", () => {
   assert.equal(migrated.personaCustomizations["patient-teacher"].voice?.voiceId, "teacher");
 });
 
-test("旧卡片比例被移除并统一使用固定 3:4 布局", () => {
+test("旧卡片比例被移除并统一使用固定 2:3 布局", () => {
   assert.equal("personaCardRatio" in normalizePersonalizationSettings({ personaCardRatio: "1:1" }, today), false);
   assert.equal("personaCardRatio" in normalizePersonalizationSettings({ personaCardRatio: "invalid" }, today), false);
+});
+
+test("定制人设视图默认使用闪卡并只接受已知模式", () => {
+  assert.equal(createDefaultPersonalizationSettings(today).customPersonaViewMode, "flashcard");
+  assert.equal(normalizePersonalizationSettings({ customPersonaViewMode: "avatar" }, today).customPersonaViewMode, "avatar");
+  assert.equal(normalizePersonalizationSettings({ customPersonaViewMode: "unknown" as "avatar" }, today).customPersonaViewMode, "flashcard");
+});
+
+test("定制人设视图与既有图片数据在保存后保持", async () => {
+  await reviewDb.personalizationSettings.clear();
+  const settings = createDefaultPersonalizationSettings(today);
+  settings.customPersonaViewMode = "avatar";
+  settings.personaCustomizations["patient-teacher"] = { imageDataUrl: "data:image/webp;base64,legacy-three-four" };
+  await personalizationSettingsRepository.save(settings, today);
+  const reloaded = await personalizationSettingsRepository.load(today);
+  assert.equal(reloaded.customPersonaViewMode, "avatar");
+  assert.equal(reloaded.personaCustomizations["patient-teacher"].imageDataUrl, "data:image/webp;base64,legacy-three-four");
 });
 
 test("新建角色先创建未持久化草稿且不冒充内置人设", () => {

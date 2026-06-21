@@ -24,7 +24,6 @@ import { PersonaDefaultPanel } from "./persona-default-panel";
 // 个性化页只编排模式、持久化和连接状态；头像列表、定制卡库与弹层由独立组件维护。
 export function PersonalizationSettingsView({
   onChanged,
-  onOpenConnections,
 }: {
   onChanged?: (settings: PersonalizationSettings) => void;
   onOpenConnections?: () => void;
@@ -165,6 +164,7 @@ export function PersonalizationSettingsView({
             <PersonaCustomGallery
               draftPersona={draftPersona}
               personas={customPersonas}
+              viewMode={settings.customPersonaViewMode}
               resolveImage={(personaId) => resolvePersonaImage(settings, personaId)}
               onAddDraft={() => setDraftPersona(createCustomPersonaDraft(crypto.randomUUID()))}
               onDelete={(persona, isDraft) => {
@@ -174,17 +174,9 @@ export function PersonalizationSettingsView({
               }}
               onEdit={setEditingPersonaId}
               onImageChange={(persona, file, isDraft) => void loadPersonaImage(persona, file, isDraft)}
+              onViewModeChange={(customPersonaViewMode) => setSettings((current) => ({ ...current, customPersonaViewMode }))}
             />
           )}
-        </section>
-
-        <section className="rounded-xl border border-line bg-surface p-5">
-          <h2 className="text-lg font-semibold">语音连接</h2>
-          <p className="mt-1 text-sm text-muted">音色在每个角色中单独配置；朗读只使用默认语音连接，缺失配置时保持静音。</p>
-          <div className="mt-4 flex min-h-11 items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3 py-2.5 text-sm">
-            <span className="truncate">{selectedSpeechConnection ? `${selectedSpeechConnection.label} · ${selectedSpeechConnection.maskedKey}` : "未配置默认语音连接"}</span>
-            {onOpenConnections ? <Button type="button" size="sm" variant="ghost" onClick={onOpenConnections}>前往 AI 连接</Button> : null}
-          </div>
         </section>
       </div>
 

@@ -46,18 +46,18 @@ export function PersonaDefaultPanel({
           </label>
         ))}
       </div>
-      <div className="persona-default-list mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="persona-default-list mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {personas.map((persona) => {
           const image = resolveImage(persona.id);
           const selected = persona.id === defaultPersonaId;
           return (
             <article
               key={persona.id}
-              className={`persona-default-persona grid min-h-20 grid-cols-[1fr_auto] items-center gap-2 rounded-xl border p-2 ${selected ? "border-blue bg-surface-muted" : "border-line"}`}
+              className={`persona-default-persona grid min-h-16 grid-cols-[1fr_auto] items-center gap-1 rounded-xl border p-1.5 ${selected ? "border-blue bg-surface-muted" : "border-line"}`}
             >
-              <button className="grid min-w-0 grid-cols-[52px_1fr] items-center gap-3 rounded-lg p-1.5 text-left hover:bg-surface" type="button" onClick={() => onEdit(persona.id)}>
-                <span className="relative h-[52px] w-[52px] overflow-hidden rounded-full border border-line bg-surface-muted">
-                  {image ? <Image alt={`${persona.name}头像`} className="object-cover object-center" fill sizes="52px" src={image} unoptimized={image.startsWith("data:")} /> : <span className="grid h-full place-items-center font-semibold">{persona.name.slice(0, 1)}</span>}
+              <button className="grid min-w-0 grid-cols-[42px_1fr] items-center gap-2 rounded-lg p-1 text-left hover:bg-surface" type="button" onClick={() => onEdit(persona.id)}>
+                <span className="relative h-[42px] w-[42px] overflow-hidden rounded-full border border-line bg-surface-muted">
+                  {image ? <Image alt={`${persona.name}头像`} className="object-cover object-center" fill sizes="42px" src={image} unoptimized={image.startsWith("data:")} /> : <span className="grid h-full place-items-center font-semibold">{persona.name.slice(0, 1)}</span>}
                 </span>
                 <span className="min-w-0"><strong className="block truncate text-sm">{persona.name}</strong><span className="mt-1 block truncate text-xs text-muted">{persona.role}</span></span>
               </button>

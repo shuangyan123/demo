@@ -56,7 +56,7 @@ export function PersonaFlashCard({
               alt={`${persona.name}角色图`}
               className="persona-card-art object-cover"
               fill
-              sizes="(max-width: 640px) 86vw, (max-width: 1200px) 38vw, 280px"
+              sizes="(max-width: 640px) 44vw, (max-width: 1200px) 24vw, 190px"
               src={imageSrc}
               unoptimized={imageSrc.startsWith("data:")}
             />
@@ -67,8 +67,8 @@ export function PersonaFlashCard({
           )}
           <span aria-hidden="true" className="persona-card-vignette absolute inset-0" />
           <span aria-hidden="true" className="persona-card-foil absolute inset-0" />
-          <span className="persona-card-name absolute inset-x-7 bottom-[7%] z-20 text-center">
-            <strong className="text-base font-semibold tracking-[0.08em]">{persona.name}</strong>
+          <span className="persona-card-name absolute inset-x-5 bottom-[7%] z-20 text-center">
+            <strong className="text-sm font-semibold tracking-[0.06em]">{persona.name}</strong>
           </span>
         </button>
         <Image
@@ -77,8 +77,8 @@ export function PersonaFlashCard({
           className="persona-card-frame-image pointer-events-none absolute inset-0 z-40 h-full w-full"
           fill
           loading="eager"
-          sizes="(max-width: 640px) 86vw, (max-width: 1200px) 38vw, 280px"
-          src="/personas/persona-card-frame-3x4.png"
+          sizes="(max-width: 640px) 44vw, (max-width: 1200px) 24vw, 190px"
+          src="/personas/persona-card-frame-2x3.png"
           unoptimized
         />
         <div className="persona-card-actions absolute right-3 top-3 z-50 flex gap-2">

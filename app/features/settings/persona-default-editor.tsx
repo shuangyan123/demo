@@ -37,8 +37,8 @@ export function PersonaDefaultEditor({
 
   return (
     <PersonaEditorDialog label={`编辑${persona.name}`} variant="default" onClose={onClose}>
-      <div className="persona-default-editor-content h-full overflow-y-auto p-6 max-sm:p-5">
-        <header className="sticky top-0 z-10 -mx-6 -mt-6 flex items-center justify-between gap-3 border-b border-line bg-surface px-6 py-4 max-sm:-mx-5 max-sm:-mt-5 max-sm:px-5">
+      <div className="persona-default-editor-content grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
+        <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-6 py-4 max-sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-line bg-surface-muted">
               {imageSrc ? <Image alt={`${persona.name}头像`} className="object-cover" fill sizes="56px" src={imageSrc} unoptimized={imageSrc.startsWith("data:")} /> : <span className="grid h-full place-items-center font-semibold">{persona.name.slice(0, 1)}</span>}
@@ -48,7 +48,8 @@ export function PersonaDefaultEditor({
           <button className="rounded-full border border-line px-3 py-1.5 text-xs text-muted hover:text-foreground" type="button" onClick={onClose}>完成</button>
         </header>
 
-        <div className="mt-5 grid grid-cols-2 gap-4 max-md:grid-cols-1">
+        <div className="min-h-0 overflow-y-auto px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 max-sm:px-5">
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
           <label className="grid gap-1.5 text-xs font-medium">角色名称
             <input className={inputClass} value={persona.name} onChange={(event) => onUpdate({ name: event.target.value })} />
           </label>
@@ -96,6 +97,7 @@ export function PersonaDefaultEditor({
           speechError={speechError}
           speaking={speaking}
         />
+        </div>
       </div>
     </PersonaEditorDialog>
   );

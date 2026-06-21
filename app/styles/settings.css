@@ -202,13 +202,13 @@ body[data-theme="dark"] .color-picker:focus-within {
 
 .persona-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
-  gap: 1.35rem;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 190px));
+  gap: 1rem;
   align-items: start;
 }
 
 .persona-card-grid.is-empty {
-  min-height: 270px;
+  min-height: 230px;
   place-content: center;
 }
 
@@ -217,7 +217,7 @@ body[data-theme="dark"] .color-picker:focus-within {
   --foil-y: 35%;
   width: 100%;
   min-width: 0;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 2 / 3;
 }
 
 .persona-card-front {
@@ -235,9 +235,9 @@ body[data-theme="dark"] .color-picker:focus-within {
   overflow: hidden;
 }
 
-/* 透明 PNG 直接来自十二张参考卡片的像素共识，不在 CSS 中重画或拉伸纹样。 */
+/* 透明 PNG 来自用户确认的 2:3 参考边框，前端只做等比缩放。 */
 .persona-card-frame-image {
-  object-fit: fill;
+  object-fit: contain;
   filter: drop-shadow(0 1px 0 rgba(72, 42, 3, 0.82));
 }
 
@@ -359,6 +359,42 @@ body[data-theme="dark"] .color-picker:focus-within {
 .persona-add-button:hover { color: var(--foreground); transform: translateY(-2px); }
 .persona-add-button:hover .persona-add-icon { border-color: var(--blue); }
 
+.persona-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 112px));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.persona-avatar-grid.is-empty {
+  min-height: 180px;
+  place-content: center;
+}
+
+.persona-avatar-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.65rem 0.45rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--surface);
+}
+
+.persona-avatar-main {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  justify-items: center;
+  gap: 0.45rem;
+}
+
+.persona-avatar-image { width: 4.5rem; height: 4.5rem; }
+.persona-avatar-actions { display: flex; gap: 0.5rem; font-size: 0.68rem; color: var(--muted); }
+.persona-avatar-actions button:hover { color: var(--foreground); }
+.persona-avatar-actions .is-danger:hover { color: var(--red); }
+
 .persona-default-persona {
   transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
 }
@@ -410,12 +446,14 @@ body[data-theme="dark"] .color-picker:focus-within {
 
 @media (max-width: 760px) {
   .persona-card-grid {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
   }
 
-  .persona-flash-card { width: min(100%, 340px); }
+  .persona-flash-card { width: 100%; }
   .persona-card-grid.is-empty { min-height: 220px; }
+
+  .persona-avatar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
   .persona-editor-backdrop { padding: 0.5rem; }
   .persona-editor-dialog,

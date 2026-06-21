@@ -1,35 +1,36 @@
 # 视觉差异记录
 
-验收日期：2026-06-20
+验收日期：2026-06-21
 
 ## 桌面端 1536×1024
 
-- 正面镶边加载原始透明 PNG，源尺寸 1200×1600；页面实测 278×371.33，比例 0.7487，未发生非等比拉伸。
-- 四角金色卷草和底部连续卷草与参考图结构一致，底部蓝色带作为原图细节保留；中央人物区域保持透明。
-- 悬停操作键均为 32×32 图标按钮；删除键不再使用冗长文字。
-- 定制卡背实测镶边元素数量为 0、头像上传元素数量为 0，只保留名称、描述和独立音色。
-- 独立 Voice ID 在关闭、保存和刷新后仍为 `persona-test-voice`，没有全局音色回退。
-- 弥散由五组非对称页面色场和两组侧栏色场组成；侧栏底色为不透明十六进制色，`backdrop-filter` 为 `none`。
+- 默认人设卡高度压缩到 64px，桌面三列排列；页面级“语音连接”区已移除。
+- 默认人设弹层实测 900×760，头部固定在独立网格行，正文滚动区高 670px、内容高 849px；底部角色音色输入可聚焦访问。
+- 定制闪卡实测 190×285，比例 0.667；网格可排列五列，边框加载 `persona-card-frame-2x3.png`。
+- 头像模式使用 72×72 头像；保存并刷新后仍保持头像模式，未持久化的无图草稿不会复活。
 
 截图：
 
-- `test-results/persona-card-front-desktop.png`
-- `test-results/persona-card-back-desktop.png`
-- `test-results/theme-diffuse-desktop.png`
+- `test-results/persona-default-editor-fixed.png`
+- `test-results/persona-flashcard-2x3-desktop.png`
 
 ## 移动端 390×844
 
 - 页面 `scrollWidth` 与 `clientWidth` 均为 390，无横向溢出。
-- 默认人设弹层左右各保留 8px，宽 374px；内容区高度 826px、滚动内容高度 1323px，头像与完成操作固定可见，底部音色可滚动访问。
-- 卡片保持 3:4，操作图标在触摸宽度下直接可见。
+- 头像模式三列排列，卡片约 98×138、头像 72×72。
+- 闪卡模式为双列，单卡约 147×221，比例保持 0.667。
+- 默认人设弹层实测 374×828；正文可用高度 738px、内容高度 1232px，头部和完成按钮不参与正文滚动。
+- 屏幕共享取消后显示明确授权提示、视频流为空且按钮恢复描边态，不再伪装为共享中。
 
 截图：
 
-- `test-results/persona-card-front-mobile.png`
-- `test-results/persona-default-editor-mobile.png`
+- `test-results/persona-avatar-mobile-390x844.png`
+- `test-results/persona-flashcard-mobile-390x844.png`
+- `test-results/persona-default-editor-mobile-390x844.png`
+- `test-results/tutoring-screen-share-error-mobile.png`
 
-## 主题与可访问性
+## 可访问性与运行状态
 
-- 菜单依次显示晴空、米白、薄荷、晨雾、深海、暮紫、石墨、夜樱。
-- 键盘 `ArrowDown` 可打开主题菜单，`End` 聚焦晨雾，`Escape` 关闭并恢复触发器焦点。
-- 浏览器控制台错误 0，页面运行时错误 0；桌面和移动端均无横向溢出。
+- 闪卡/头像切换使用 `aria-pressed`，编辑弹层保留焦点锁定、Escape、遮罩关闭和触发器焦点恢复。
+- 应用内浏览器控制台错误和警告均为 0，未出现 Next.js 错误覆盖层。
+- 应用内浏览器的系统共享选择器自动返回取消，因此真实共享轨道的浏览器工具栏停止事件仍需在 Chrome、Edge 等目标浏览器复测。
