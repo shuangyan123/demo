@@ -1,0 +1,811 @@
+/* 通用 UI 语义类集中承载高频卡片、按钮、表单和列表样式，降低 JSX 中长 class 串重复。 */
+.ui-panel,
+.ui-card {
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+}
+
+.ui-panel {
+  padding: 1rem;
+}
+
+.ui-panel-eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ui-panel-title {
+  margin: 0.25rem 0 1rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.ui-card {
+  padding: 1rem;
+}
+
+.ui-card-muted {
+  border-color: rgba(226, 232, 240, 0.9);
+  background: var(--surface-muted);
+}
+
+.ui-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.ui-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.ui-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 1rem;
+}
+
+.ui-detail-card {
+  min-height: 28rem;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+  padding: 1rem;
+}
+
+.ui-soft-block {
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: var(--ui-radius);
+  background: var(--surface-muted);
+  padding: 1rem;
+}
+
+.ui-data-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ui-data-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: var(--ui-radius);
+  padding: 0.75rem;
+}
+
+.ui-meter-track {
+  height: 0.625rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+}
+
+.ui-board-panel {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+}
+
+.ui-board-header {
+  display: flex;
+  min-height: 4.875rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+  padding: 0 1.75rem;
+  color: var(--foreground);
+}
+
+.ui-board-header-badge {
+  border-radius: var(--ui-radius);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: #7180a4;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.ui-board-title {
+  color: #1d3854;
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.ui-board-row {
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.ui-board-row:last-child {
+  border-bottom: 0;
+}
+
+.ui-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.72);
+  border-radius: var(--ui-radius);
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.ui-detail-block {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  padding-top: 1rem;
+}
+
+.ui-detail-title {
+  margin-bottom: 0.5rem;
+  display: block;
+  font-weight: 800;
+}
+
+.ui-detail-content {
+  color: #334155;
+  line-height: 1.65;
+}
+
+body[data-theme="dark"] .ui-detail-content {
+  color: var(--muted);
+}
+
+.ui-field {
+  display: grid;
+  gap: 0.5rem;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.ui-input,
+.ui-select,
+.ui-textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+  color: var(--foreground);
+  outline: none;
+}
+
+.ui-input,
+.ui-select {
+  min-height: var(--ui-control-height);
+  padding: 0.625rem 0.75rem;
+}
+
+.ui-textarea {
+  min-height: 8rem;
+  resize: vertical;
+  padding: 0.625rem 0.75rem;
+}
+
+.ui-input:focus,
+.ui-select:focus,
+.ui-textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+}
+
+.ui-button {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--ui-radius);
+  border: 1px solid transparent;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.ui-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ui-button-sm {
+  min-height: 2.125rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.ui-button-primary {
+  background: var(--blue);
+  color: #ffffff;
+}
+
+.ui-button-primary:hover {
+  background: color-mix(in srgb, var(--blue) 88%, #000 12%);
+}
+
+.ui-button-soft {
+  border-color: color-mix(in srgb, var(--blue) 22%, transparent);
+  background: color-mix(in srgb, var(--blue) 10%, transparent);
+  color: var(--blue);
+}
+
+.ui-button-soft:hover {
+  background: color-mix(in srgb, var(--blue) 15%, transparent);
+}
+
+.ui-button-outline {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.ui-button-outline:hover,
+.ui-button-ghost:hover {
+  border-color: color-mix(in srgb, var(--blue) 28%, var(--line));
+  background: color-mix(in srgb, var(--blue) 6%, var(--surface));
+  color: var(--blue);
+}
+
+.ui-button-danger {
+  border-color: color-mix(in srgb, var(--red) 26%, transparent);
+  background: color-mix(in srgb, var(--red) 7%, transparent);
+  color: var(--red);
+}
+
+.ui-button-danger:hover {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+
+.ui-button-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.ui-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.ui-button:focus-visible,
+.ui-card:focus-visible,
+.ui-list-row:focus-visible,
+.ui-input:focus-visible,
+.ui-select:focus-visible,
+.ui-textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--blue) 38%, transparent);
+  outline-offset: 2px;
+}
+
+.ui-list-row {
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: var(--ui-radius);
+  padding: 0.75rem;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.ui-list-row:hover {
+  border-color: color-mix(in srgb, var(--blue) 28%, rgba(226, 232, 240, 0.9));
+  background: color-mix(in srgb, var(--blue) 5%, var(--surface));
+}
+
+.ui-list-row-active {
+  border-color: color-mix(in srgb, var(--blue) 30%, transparent);
+  background: color-mix(in srgb, var(--blue) 10%, transparent);
+}
+
+.ui-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ui-segmented-tabs {
+  display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.ui-segmented-tab {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.375rem;
+  border-bottom: 2px solid transparent;
+  padding: 0.45rem 0.15rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition:
+    border-color var(--motion-structure) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.ui-segmented-tab:hover {
+  color: var(--foreground);
+}
+
+.ui-segmented-tab-active {
+  border-bottom-color: var(--blue);
+  color: var(--blue);
+}
+
+.settings-section-enter {
+  animation: settings-section-enter var(--motion-structure) var(--motion-ease) both;
+}
+
+.ui-toast {
+  border-radius: var(--ui-radius);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
+  animation: ui-toast-enter var(--motion-structure) var(--motion-ease) both;
+}
+
+.ui-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: ui-spin 700ms linear infinite;
+}
+
+@keyframes settings-section-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ui-toast-enter {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes ui-spin {
+  to { transform: rotate(360deg); }
+}
+
+body[data-reduced-motion="true"] .ui-button:active:not(:disabled) {
+  transform: none;
+}
+
+/* 批量工具条统一错题库和知识库的多选、删除和导出操作，避免列表页重复布局代码。 */
+.ui-bulk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+  padding: 0.625rem 0.75rem;
+}
+
+.ui-checkbox {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+  accent-color: var(--blue);
+}
+
+.ui-checkbox-row {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.625rem;
+}
+
+.ui-export-menu {
+  position: relative;
+}
+
+.ui-export-menu > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.ui-export-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ui-export-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 30;
+  min-width: 8.5rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+}
+
+.ui-export-item {
+  display: block;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.ui-export-item:hover {
+  background: var(--surface-muted);
+}
+
+.ui-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.18);
+  padding: 1rem;
+}
+
+.ui-dialog {
+  width: min(28rem, 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--surface);
+  padding: 1.25rem;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.2);
+}
+
+.ui-form-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ui-tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ui-score-bar {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ui-score-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.ui-score-bar-head strong {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-score-bar-track {
+  display: block;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
+.ui-score-bar-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+}
+
+.ui-timeline {
+  display: grid;
+  gap: 0.7rem;
+  list-style: none;
+  padding: 0;
+}
+
+.ui-timeline-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.9rem minmax(0, 1fr);
+  gap: 0.75rem;
+  color: var(--muted);
+}
+
+.ui-timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 0.39rem;
+  top: 1rem;
+  bottom: -0.8rem;
+  width: 1px;
+  background: color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.ui-timeline-item:last-child::before {
+  display: none;
+}
+
+.ui-timeline-dot {
+  margin-top: 0.25rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 2px solid color-mix(in srgb, var(--muted) 36%, transparent);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.ui-timeline-item strong {
+  display: block;
+  color: var(--foreground);
+}
+
+.ui-timeline-item p {
+  margin-top: 0.2rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.ui-timeline-item-active .ui-timeline-dot,
+.ui-timeline-item-done .ui-timeline-dot {
+  border-color: var(--blue);
+  background: var(--blue);
+}
+
+.ui-stage-rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  gap: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: var(--ui-radius);
+  background: var(--surface-muted);
+  padding: 0.6rem;
+}
+
+.ui-stage-step {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.ui-stage-step i {
+  width: 100%;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
+.ui-stage-step-done i {
+  background: color-mix(in srgb, var(--blue) 45%, transparent);
+}
+
+.ui-stage-step-active {
+  color: var(--foreground);
+}
+
+.ui-stage-step-active i {
+  background: var(--blue);
+}
+
+/* 粉笔导入批次行统一展示解析状态、数量和错误摘要。 */
+.ui-import-batch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+  padding: 0.85rem 1rem;
+}
+
+/* 导入草稿工具栏承载批量选择和入库操作，移动端自动纵向堆叠。 */
+.ui-import-toolbar {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: var(--ui-radius);
+  background: var(--surface-muted);
+  padding: 0.85rem 1rem;
+}
+
+/* 批量修改区域将板块、来源、标签和应用按钮保持同一视觉节奏。 */
+.ui-import-bulk-grid {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: 12rem minmax(10rem, 1fr) minmax(10rem, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+/* 复盘计时条把高频训练状态集中展示，避免倒计时、暂停和超时样式散落在题卡里。 */
+.ui-timer-panel {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.82fr) minmax(0, 1.18fr);
+  gap: 1rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: var(--ui-radius-lg);
+  background: var(--surface);
+  padding: 1rem;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
+}
+
+.ui-timer-panel-timeout {
+  border-color: color-mix(in srgb, var(--red) 38%, var(--line));
+  background: color-mix(in srgb, var(--red) 5%, var(--surface));
+}
+
+.ui-timer-display {
+  display: block;
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.ui-timer-caption {
+  margin-top: 0.5rem;
+  display: block;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.ui-timer-controls {
+  display: grid;
+  align-content: center;
+  justify-items: end;
+  gap: 0.75rem;
+}
+
+.ui-timer-segment {
+  display: inline-flex;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  padding: 0.25rem;
+}
+
+.ui-timer-segment button,
+.ui-timer-chip {
+  min-height: 2rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.ui-timer-segment button:hover,
+.ui-timer-chip:hover {
+  background: color-mix(in srgb, var(--blue) 8%, transparent);
+  color: var(--foreground);
+}
+
+.ui-timer-segment button.active,
+.ui-timer-chip.active {
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.08);
+}
+
+.ui-timer-custom {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.ui-timer-custom input {
+  width: 4.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  outline: none;
+}
+
+/* AI 辅导实时课堂使用三栏工作台：视角、老师对话、课堂笔记在桌面端并排，移动端自然堆叠。 */
+.tutoring-live-grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(24rem, 1.25fr) minmax(18rem, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+/* 辅导预览区固定比例，避免摄像头、屏幕共享和截图上传切换时页面跳动。 */
+.tutoring-preview {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: var(--ui-radius-lg);
+  background: var(--surface-muted);
+}
+
+@media (max-width: 1280px) {
+  .ui-stat-grid,
+  .ui-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ui-content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tutoring-live-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .ui-stat-grid,
+  .ui-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ui-board-header {
+    padding: 0 1rem;
+  }
+
+  .ui-data-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ui-timer-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ui-timer-controls {
+    justify-items: stretch;
+  }
+
+  .ui-import-batch,
+  .ui-import-toolbar,
+  .ui-import-bulk-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ui-import-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -1,22 +1,5 @@
 import type { ApiProvider } from "../types/review";
 
-export type ProviderPreset = {
-  provider: ApiProvider;
-  label: string;
-  baseUrl: string;
-  model: string;
-};
-
-export const providerPresets: ProviderPreset[] = [
-  { provider: "openai", label: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
-  { provider: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
-  { provider: "qwen", label: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-vl-max" },
-  { provider: "zhipu", label: "智谱", baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4v-flash" },
-  { provider: "kimi", label: "Kimi", baseUrl: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k-vision-preview" },
-  { provider: "doubao", label: "豆包", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-1.5-vision-pro" },
-  { provider: "custom", label: "自定义", baseUrl: "", model: "" },
-];
-
 export type ChatMessageContent =
   | string
   | Array<
@@ -25,27 +8,63 @@ export type ChatMessageContent =
     >;
 
 export type ChatMessage = {
-  role: "system" | "user";
+  role: "system" | "user" | "assistant";
   content: ChatMessageContent;
 };
 
-// 通过本地 Next API route 代理 OpenAI-compatible 请求，避免浏览器直接跨域调用厂商接口。
-export async function callOpenAiCompatibleApi(input: {
+export type AiGenerateRequest = {
+  provider: ApiProvider;
+  apiKey: string;
+  baseUrl: string;
+  maxOutputTokens?: number;
+  model: string;
+  messages: ChatMessage[];
+  temperature?: number;
+  providerOptions?: Record<string, string>;
+};
+
+export type AiGenerateResult = {
+  content: string;
+  requestId?: string;
+  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+};
+
+export type AiSpeechRequest = {
+  provider: ApiProvider;
   apiKey: string;
   baseUrl: string;
   model: string;
-  messages: ChatMessage[];
-}) {
-  const response = await fetch("/api/ai", {
+  voiceId: string;
+  text: string;
+  style?: string;
+  speed?: number;
+  providerOptions?: Record<string, string>;
+};
+
+// 调用统一生成路由，客户端不再拼接各厂商 endpoint 或解析厂商响应。
+export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenerateResult> {
+  const response = await fetch("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `API 请求失败：${response.status}`);
   }
+  return (await response.json()) as AiGenerateResult;
+}
 
-  return (await response.json()) as { content: string };
+// 调用云端语音路由并返回临时音频 Blob；调用方负责撤销对应 object URL。
+export async function callAiSpeech(input: AiSpeechRequest): Promise<Blob> {
+  const response = await fetch("/api/ai/speech", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `语音 API 请求失败：${response.status}`);
+  }
+  return response.blob();
 }

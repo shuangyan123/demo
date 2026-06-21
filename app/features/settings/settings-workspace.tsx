@@ -17,6 +17,7 @@ const settingsSections = [
 
 type SettingsWorkspaceProps = {
   appearanceSettings: AppearanceSettings;
+  initialSection?: SettingsSectionKey;
   sidebarCollapsed: boolean;
   onAppearanceChange: (settings: AppearanceSettings) => void;
   onBack: () => void;
@@ -29,6 +30,7 @@ type SettingsWorkspaceProps = {
 // 设置壳层只负责全局导航和分区切换，各分区的表单与数据状态由独立组件维护。
 export function SettingsWorkspace({
   appearanceSettings,
+  initialSection = "appearance",
   sidebarCollapsed,
   onAppearanceChange,
   onBack,
@@ -37,7 +39,7 @@ export function SettingsWorkspace({
   onPersonalizationChange,
   onToggleSidebar,
 }: SettingsWorkspaceProps) {
-  const [activeSection, setActiveSection] = useState<SettingsSectionKey>("appearance");
+  const [activeSection, setActiveSection] = useState<SettingsSectionKey>(initialSection);
   const [toast, setToast] = useState("");
 
   useEffect(() => {

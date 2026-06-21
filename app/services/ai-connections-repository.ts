@@ -29,6 +29,27 @@ function emptyDefaults(today: Date): AiConnectionDefaults {
   return { id: "default", updatedAt: toISODate(today) };
 }
 
+// 清理不存在或能力不匹配的默认连接，避免编辑连接能力后继续把错误档案注入业务模块。
+function normalizeDefaults(
+  profiles: ApiConnectionProfile[],
+  input: AiConnectionDefaults,
+  today: Date,
+): { changed: boolean; defaults: AiConnectionDefaults } {
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const defaults = { ...input };
+  let changed = false;
+  for (const purpose of ["text", "vision", "speech"] as const) {
+    const key = `${purpose}ConnectionId` as const;
+    const connectionId = defaults[key];
+    if (connectionId && !profilesById.get(connectionId)?.capabilities.includes(purpose)) {
+      defaults[key] = undefined;
+      changed = true;
+    }
+  }
+  if (changed) defaults.updatedAt = toISODate(today);
+  return { changed, defaults };
+}
+
 // 把文本默认连接同步到旧表，供旧版本回退读取；新业务流程不得直接访问该表。
 async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, updatedAt: string): Promise<void> {
   if (!profile) {
@@ -92,8 +113,17 @@ export const aiConnectionsRepository = {
         await reviewDb.apiConnectionDefaults.put(defaults!);
       });
     }
+    const previousTextConnectionId = defaults?.textConnectionId;
+    const normalized = normalizeDefaults(profiles, defaults ?? emptyDefaults(today), today);
+    if (normalized.changed) {
+      await reviewDb.apiConnectionDefaults.put(normalized.defaults);
+      if (previousTextConnectionId !== normalized.defaults.textConnectionId) {
+        const textProfile = profiles.find((profile) => profile.id === normalized.defaults.textConnectionId);
+        await syncLegacyTextSetting(textProfile, normalized.defaults.updatedAt);
+      }
+    }
     // 这里只读取旧连接 ID；全局音色复制和旧字段清理统一由个性化 repository 一次性完成，避免并发加载时丢失迁移源。
-    return { profiles, defaults: defaults ?? emptyDefaults(today) };
+    return { profiles, defaults: normalized.defaults };
   },
 
   // 新增或更新连接；未输入新 Key 时沿用原有密文，避免设置页回填明文。
@@ -128,6 +158,9 @@ export const aiConnectionsRepository = {
     const snapshot = await this.loadSnapshot(input.today);
     if (!snapshot.defaults.textConnectionId && profile.capabilities.includes("text")) {
       await this.setDefault("text", profile.id, input.today);
+    } else if (snapshot.defaults.textConnectionId === profile.id) {
+      // 默认文本连接的地址、模型或密钥变化时同步刷新旧表，保证旧版本回退读取的是最新配置。
+      await syncLegacyTextSetting(profile, timestamp);
     }
     return profile;
   },

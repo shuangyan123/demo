@@ -1,4 +1,4 @@
-import { BOARD_OPTIONS, type ImportDraft } from "../types/review";
+import { BOARD_OPTIONS, type ImportDraft, type ImportDraftIssue } from "../types/review";
 import { normalizeBoard } from "../lib/review-utils";
 
 type DraftInput = {
@@ -25,14 +25,21 @@ function asList(value: unknown): string[] {
 // 将任意来源的解析结果规范化为可编辑导入草稿。
 export function normalizeDraft(input: DraftInput): ImportDraft {
   const boardResult = normalizeBoard(input.board);
+  const issues = new Set<ImportDraftIssue>();
+  if (boardResult.needsReview) issues.add("unknown_board");
+  if (!input.answer) issues.add("missing_answer");
+  if (typeof input.confidence === "number" && input.confidence < 0.7) issues.add("low_confidence");
   return {
     id: crypto.randomUUID(),
     selected: true,
-    needsReview: boardResult.needsReview || !input.answer || !input.explanation,
+    needsReview: boardResult.needsReview || !input.answer || !input.explanation || issues.size > 0,
+    issues: Array.from(issues),
     board: boardResult.board,
     source: String(input.source ?? "粉笔导入").trim() || "粉笔导入",
     stem: String(input.stem ?? "").trim(),
+    options: [],
     answer: String(input.answer ?? "").trim(),
+    myAnswer: "",
     explanation: String(input.explanation ?? "").trim(),
     reasons: asList(input.reasons).length ? asList(input.reasons) : ["待归因"],
     tags: asList(input.tags),

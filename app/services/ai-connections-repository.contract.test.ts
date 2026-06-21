@@ -121,11 +121,87 @@ test("OpenAI 兼容本地语音连接允许无 API Key 并保存为无鉴权", a
   assert.equal(await aiConnectionsRepository.resolveSecret(profile), "");
 });
 
+test("读取快照会清理不存在或能力不匹配的默认连接", async () => {
+  await resetDatabase();
+  const speechProfile: ApiConnectionProfile = {
+    id: "speech-only",
+    label: "仅语音",
+    provider: "custom",
+    apiFormat: "chat_completions",
+    baseUrl: "http://127.0.0.1:8000/v1",
+    model: "local-tts",
+    capabilities: ["speech"],
+    encryptedKey: "ciphertext",
+    iv: "iv",
+    maskedKey: "无鉴权",
+    providerOptions: {},
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  };
+  await reviewDb.apiConnectionProfiles.put(speechProfile);
+  await reviewDb.apiConnectionDefaults.put({
+    id: "default",
+    textConnectionId: speechProfile.id,
+    visionConnectionId: "missing-profile",
+    speechConnectionId: speechProfile.id,
+    updatedAt: today.toISOString(),
+  });
+
+  const snapshot = await aiConnectionsRepository.loadSnapshot(today);
+  assert.equal(snapshot.defaults.textConnectionId, undefined);
+  assert.equal(snapshot.defaults.visionConnectionId, undefined);
+  assert.equal(snapshot.defaults.speechConnectionId, speechProfile.id);
+  assert.deepEqual(await reviewDb.apiConnectionDefaults.get("default"), snapshot.defaults);
+});
+
+test("编辑默认文本连接会同步旧表，移除文本能力时会清理默认值和旧记录", async () => {
+  await resetDatabase();
+  localStorageValues.clear();
+  const profile = await aiConnectionsRepository.saveProfile({
+    label: "本地多模态",
+    provider: "custom",
+    capabilities: ["text", "vision"],
+    baseUrl: "http://127.0.0.1:8000/v1",
+    model: "model-v1",
+    apiKey: "",
+    today,
+  });
+  await aiConnectionsRepository.setDefault("vision", profile.id, today);
+
+  await aiConnectionsRepository.saveProfile({
+    id: profile.id,
+    label: profile.label,
+    provider: profile.provider,
+    capabilities: ["text", "vision"],
+    baseUrl: profile.baseUrl,
+    model: "model-v2",
+    apiKey: "",
+    today,
+  });
+  assert.equal((await reviewDb.apiSettings.get("default"))?.model, "model-v2");
+
+  await aiConnectionsRepository.saveProfile({
+    id: profile.id,
+    label: profile.label,
+    provider: profile.provider,
+    capabilities: ["vision"],
+    baseUrl: profile.baseUrl,
+    model: "vision-only",
+    apiKey: "",
+    today,
+  });
+  const snapshot = await aiConnectionsRepository.loadSnapshot(today);
+  assert.equal(snapshot.defaults.textConnectionId, undefined);
+  assert.equal(snapshot.defaults.visionConnectionId, profile.id);
+  assert.equal(await reviewDb.apiSettings.get("default"), undefined);
+});
+
 test("核心业务文件不再依赖旧 apiSetting 或兼容请求器", async () => {
   const files = [
     "../features/review/review-workspace.tsx",
     "../features/interview/use-interview-data.ts",
     "../features/tutoring/use-tutoring-flow.ts",
+    "../features/settings/api-connections-settings-view.tsx",
     "../features/import/use-import-drafts.ts",
     "./interview-ai-service.ts",
     "./tutoring-ai-service.ts",
@@ -134,8 +210,9 @@ test("核心业务文件不再依赖旧 apiSetting 或兼容请求器", async ()
   ];
   const sources = await Promise.all(files.map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const source of sources) {
-    assert.doesNotMatch(source, /\bapiSetting\b|\bApiSetting\b|callOpenAiCompatibleApi/);
+    assert.doesNotMatch(source, /\bapiSetting\b|\bApiSetting\b|callOpenAiCompatibleApi|callAiGenerate|resolveSecret\(/);
   }
+  await assert.rejects(readFile(new URL("../api/ai/route.ts", import.meta.url), "utf8"));
 });
 
 test("朗读主流程不再引用浏览器系统音色或静默回退", async () => {
@@ -150,6 +227,13 @@ test("朗读主流程不再引用浏览器系统音色或静默回退", async ()
   for (const source of sources) {
     assert.doesNotMatch(source, /speechSynthesis|SpeechSynthesisUtterance|localVoiceUri|fallbackToSystem|voice\.mode\b/);
   }
+});
+
+test("辅导关键帧严格使用多模态连接且缺失时给出明确提示", async () => {
+  const source = await readFile(new URL("../features/tutoring/use-tutoring-flow.ts", import.meta.url), "utf8");
+  assert.match(source, /input\.frameDataUrl \? visionConnection : textConnection/);
+  assert.match(source, /请先在 AI 连接中配置默认多模态连接，再分析当前画面/);
+  assert.match(source, /请先在 AI 连接中配置默认文本连接，再使用 AI 辅导/);
 });
 
 test.after(async () => {

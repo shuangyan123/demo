@@ -1,6 +1,6 @@
 import { reviewDb } from "../db/review-db";
 import { buildAttempt, nextStateAfterReview, normalizeBoard, toISODate } from "../lib/review-utils";
-import type { ApiSetting, ImportJob, Mistake, ReviewResult, ReviewSnapshot } from "../types/review";
+import type { ImportJob, Mistake, ReviewResult, ReviewSnapshot } from "../types/review";
 
 type LegacyMistake = Mistake & {
   module?: string;
@@ -40,14 +40,13 @@ export const reviewRepository = {
   // 读取页面启动所需的完整快照，统一在这里做历史数据兼容。
   async loadSnapshot(today: Date): Promise<ReviewSnapshot> {
     await cleanupDemoData(today);
-    const [mistakes, attempts, importJobs, apiSetting] = await Promise.all([
+    const [mistakes, attempts, importJobs] = await Promise.all([
       reviewDb.mistakes.orderBy("createdAt").reverse().toArray(),
       reviewDb.attempts.orderBy("reviewedAt").reverse().toArray(),
       reviewDb.importJobs.orderBy("createdAt").reverse().toArray(),
-      reviewDb.apiSettings.get("default"),
     ]);
 
-    return { mistakes, attempts, importJobs, apiSetting };
+    return { mistakes, attempts, importJobs };
   },
 
   // 新增单条错题，调用方负责提供已校验的六大板块字段。
@@ -63,10 +62,10 @@ export const reviewRepository = {
     return mistake;
   },
 
-  // 记录一次复盘结果，并同步更新错题掌握度和下次复盘日期。
-  async recordReview(mistake: Mistake, result: ReviewResult, today: Date) {
+  // 记录一次复盘结果，并同步更新错题掌握度、下次复盘日期和本次真实用时。
+  async recordReview(mistake: Mistake, result: ReviewResult, today: Date, durationSec?: number) {
     const nextState = nextStateAfterReview(mistake, result, today);
-    const attempt = buildAttempt(mistake.id, result, nextState.mastery, today);
+    const attempt = buildAttempt(mistake.id, result, nextState.mastery, today, durationSec);
 
     await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, async () => {
       await reviewDb.mistakes.update(mistake.id, nextState);
@@ -87,6 +86,29 @@ export const reviewRepository = {
     return mistakes;
   },
 
+  // 删除单道错题，并同步清理复盘记录、知识关联、面试关联和辅导关联；不影响知识库、导入任务或应用设置。
+  async removeMistake(id: string): Promise<void> {
+    await reviewDb.transaction("rw", [reviewDb.mistakes, reviewDb.attempts, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
+      await reviewDb.mistakes.delete(id);
+      await reviewDb.attempts.where("mistakeId").equals(id).delete();
+      await reviewDb.knowledgeMistakeLinks.where("mistakeId").equals(id).delete();
+      await reviewDb.interviewLinks.where("[targetType+targetId]").equals(["mistake", id]).delete();
+      await reviewDb.tutoringLinks.where("[targetType+targetId]").equals(["mistake", id]).delete();
+    });
+  },
+
+  // 批量删除错题，并在同一事务中清理复盘记录、知识关联、面试关联和辅导关联，避免留下悬空数据。
+  async removeMistakes(ids: string[]): Promise<void> {
+    if (!ids.length) return;
+    await reviewDb.transaction("rw", [reviewDb.mistakes, reviewDb.attempts, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
+      await reviewDb.mistakes.bulkDelete(ids);
+      await reviewDb.attempts.where("mistakeId").anyOf(ids).delete();
+      await reviewDb.knowledgeMistakeLinks.where("mistakeId").anyOf(ids).delete();
+      await reviewDb.interviewLinks.where("[targetType+targetId]").anyOf(ids.map((id) => ["mistake", id] as const)).delete();
+      await reviewDb.tutoringLinks.where("[targetType+targetId]").anyOf(ids.map((id) => ["mistake", id] as const)).delete();
+    });
+  },
+
   // 记录一次导入任务，保留导入类型、状态、解析数量和错误信息。
   async createImportJob(input: Omit<ImportJob, "id" | "createdAt">, today: Date): Promise<ImportJob> {
     const job: ImportJob = {
@@ -98,17 +120,48 @@ export const reviewRepository = {
     return job;
   },
 
-  // 保存已加密的 API 设置，用于保留旧 Key 时只更新厂商、模型或地址。
-  async saveApiSetting(setting: ApiSetting) {
-    await reviewDb.apiSettings.put(setting);
-  },
-
-  // 清空本地错题、复盘记录和导入任务，但保留 API 设置。
+  // 清空本地错题、复盘记录、导入任务、未确认草稿、面试训练和辅导记录，但保留 API 设置。
   async clearAll() {
-    await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, reviewDb.importJobs, async () => {
-      await reviewDb.mistakes.clear();
-      await reviewDb.attempts.clear();
-      await reviewDb.importJobs.clear();
-    });
+    await reviewDb.transaction(
+      "rw",
+      [
+        reviewDb.mistakes,
+        reviewDb.attempts,
+        reviewDb.importJobs,
+        reviewDb.knowledgeMistakeLinks,
+        reviewDb.importBatches,
+        reviewDb.importDrafts,
+        reviewDb.interviewQuestions,
+        reviewDb.interviewQuestionSets,
+        reviewDb.interviewPracticePlans,
+        reviewDb.interviewSessions,
+        reviewDb.interviewTurns,
+        reviewDb.interviewEvaluations,
+        reviewDb.interviewLinks,
+        reviewDb.tutoringSessions,
+        reviewDb.tutoringTurns,
+        reviewDb.tutoringPlans,
+        reviewDb.tutoringLinks,
+      ],
+      async () => {
+        await reviewDb.mistakes.clear();
+        await reviewDb.attempts.clear();
+        await reviewDb.importJobs.clear();
+        await reviewDb.knowledgeMistakeLinks.clear();
+        await reviewDb.importBatches.clear();
+        await reviewDb.importDrafts.clear();
+        await reviewDb.interviewQuestions.clear();
+        await reviewDb.interviewQuestionSets.clear();
+        await reviewDb.interviewPracticePlans.clear();
+        await reviewDb.interviewSessions.clear();
+        await reviewDb.interviewTurns.clear();
+        await reviewDb.interviewEvaluations.clear();
+        await reviewDb.interviewLinks.clear();
+        await reviewDb.tutoringSessions.clear();
+        await reviewDb.tutoringTurns.clear();
+        await reviewDb.tutoringPlans.clear();
+        await reviewDb.tutoringLinks.clear();
+      },
+    );
   },
 };

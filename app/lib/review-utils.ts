@@ -1,4 +1,4 @@
-import { BOARD_OPTIONS, type Attempt, type Board, type ImportDraft, type Mistake, type ReviewResult } from "../types/review";
+import { BOARD_OPTIONS, type Attempt, type Board, type ImportDraft, type Mistake, type ReviewResult } from "../types/review.ts";
 
 // 生成应用内统一使用的“今天”，固定到上午 8 点避免时区边界抖动。
 export function makeToday(): Date {
@@ -54,13 +54,14 @@ export function nextStateAfterReview(
   };
 }
 
-// 构造一条复盘尝试记录。
-export function buildAttempt(mistakeId: string, result: ReviewResult, confidence: number, today: Date): Attempt {
+// 构造一条复盘尝试记录；durationSec 只记录用户确认提交时的真实用时。
+export function buildAttempt(mistakeId: string, result: ReviewResult, confidence: number, today: Date, durationSec?: number): Attempt {
   return {
     id: crypto.randomUUID(),
     mistakeId,
     result,
     confidence,
+    durationSec,
     reviewedAt: toISODate(today),
   };
 }

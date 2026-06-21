@@ -1,4 +1,18 @@
-# 人设与主题架构
+# 应用架构
+
+## AI 连接边界
+
+```text
+ReviewWorkspace → feature hook → AI service
+→ ai-connection-client → /api/ai/generate|speech → provider adapter
+```
+
+- `ReviewWorkspace` 只向业务模块注入已按用途解析的 `ApiConnectionProfile`。
+- 文本、关键帧和朗读分别声明 `text`、`vision`、`speech` 能力；连接级客户端在解密前拒绝能力不匹配的请求。
+- `ai-connections-repository` 统一维护默认连接、密钥密文、旧表同步和失效默认值清理。业务 service 不读取 `apiSettings`，也不推断厂商协议。
+- `/api/ai/generate` 与 `/api/ai/speech` 是仅有的浏览器代理入口，厂商 endpoint、鉴权和响应解析集中在 provider adapter。
+
+## 人设与主题架构
 
 ## 模块边界
 
