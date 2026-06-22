@@ -308,12 +308,6 @@ body[data-theme="dark"] .color-picker:focus-within {
   transform: perspective(180px) rotateX(3deg);
 }
 
-.persona-card-name.is-placeholder {
-  color: #23425f;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform: none;
-}
-
 .persona-card-placeholder {
   position: relative;
   z-index: 1;

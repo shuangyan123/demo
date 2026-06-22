@@ -62,14 +62,12 @@ export function PersonaFlashCard({
             />
           ) : (
             <span className="persona-card-placeholder grid h-full place-items-center text-center">
-              <span><span aria-hidden="true" className="persona-card-placeholder-plus">＋</span><span className="mt-2 block text-sm">添加角色图片</span></span>
+              <span aria-hidden="true" className="persona-card-placeholder-plus">＋</span>
             </span>
           )}
           {imageSrc ? <span aria-hidden="true" className="persona-card-vignette absolute inset-0" /> : null}
           <span aria-hidden="true" className="persona-card-foil absolute inset-0" />
-          <span className={`persona-card-name absolute inset-x-3 bottom-[6%] z-20 text-center ${imageSrc ? "" : "is-placeholder"}`}>
-            <strong className="text-[11px] font-semibold tracking-[0.04em]">{persona.name}</strong>
-          </span>
+          {imageSrc ? <span className="persona-card-name absolute inset-x-3 bottom-[6%] z-20 text-center"><strong className="text-[11px] font-semibold tracking-[0.04em]">{persona.name}</strong></span> : null}
         </button>
         <Image
           aria-hidden="true"
