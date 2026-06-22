@@ -658,6 +658,65 @@ export type KnowledgeStarterTemplate = {
   mastery: number;
 };
 
+/** 自动化内置模板；custom 表示用户自行维护提示词。 */
+export type AutomationTemplateId = "daily_review" | "knowledge_evolution" | "weekly_progress" | "custom";
+
+/** 自动化只读取用户明确选择的数据范围。 */
+export type AutomationSourceScope = "mistakes" | "knowledge" | "interview" | "tutoring" | "obsidian";
+
+/** 自动化调度配置；所有时间按 definition.timeZone 解释。 */
+export type AutomationSchedule =
+  | { kind: "interval"; intervalMinutes: number }
+  | { kind: "daily"; time: string }
+  | { kind: "weekly"; weekday: number; time: string }
+  | { kind: "cron"; expression: string };
+
+/** 本地自动化定义；租约字段只由 repository 更新，避免多标签重复执行。 */
+export type AutomationDefinition = {
+  id: string;
+  name: string;
+  templateId: AutomationTemplateId;
+  prompt: string;
+  sourceScopes: AutomationSourceScope[];
+  enabled: boolean;
+  timeZone: string;
+  schedule: AutomationSchedule;
+  nextRunAt?: string;
+  lastRunAt?: string;
+  leaseOwner?: string;
+  leaseExpiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** 运行记录只保存实际进入执行后的状态，不保留未实现的队列态。 */
+export type AutomationRunStatus = "running" | "succeeded" | "failed";
+export type AutomationRunTrigger = "manual" | "scheduled" | "catchup";
+
+/** 每次自动化运行都进入收件箱，AI 结果只保存文本和待确认提案引用。 */
+export type AutomationRun = {
+  id: string;
+  automationId: string;
+  automationName: string;
+  status: AutomationRunStatus;
+  trigger: AutomationRunTrigger;
+  scheduledAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  result?: string;
+  error?: string;
+  unread: boolean;
+  missedCount: number;
+  proposalIds: string[];
+  createdAt: string;
+};
+
+export type AutomationSnapshot = {
+  definitions: AutomationDefinition[];
+  runs: AutomationRun[];
+  unreadCount: number;
+};
+
 export type Filters = {
   board: Board | "全部";
   mastery: "all" | "low" | "mid" | "high";
@@ -671,4 +730,4 @@ export type KnowledgeFilters = {
   favoriteOnly: boolean;
 };
 
-export type ViewKey = "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "interview" | "tutoring" | "import" | "entry" | "settings";
+export type ViewKey = "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry" | "settings";

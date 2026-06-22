@@ -91,7 +91,7 @@ export function SidebarNav<T extends string>({
   onSelect,
 }: {
   activeKey: T;
-  items: Array<{ key: T; label: string; icon: string }>;
+  items: Array<{ key: T; label: string; icon: string; badge?: ReactNode }>;
   renderIcon: (icon: string) => ReactNode;
   onSelect: (key: T) => void;
 }) {
@@ -100,7 +100,7 @@ export function SidebarNav<T extends string>({
       {items.map((item) => (
         <button
           key={item.key}
-          className={`grid min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:min-w-36 ${
+          className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:min-w-36 ${
             activeKey === item.key ? "bg-chrome-selected" : "hover:bg-chrome-hover"
           }`}
           type="button"
@@ -108,6 +108,7 @@ export function SidebarNav<T extends string>({
         >
           {renderIcon(item.icon)}
           <span className="truncate">{item.label}</span>
+          {item.badge ? <span className="inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-blue px-1 text-[11px] text-white">{item.badge}</span> : null}
         </button>
       ))}
     </nav>

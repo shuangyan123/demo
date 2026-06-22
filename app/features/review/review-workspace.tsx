@@ -21,6 +21,8 @@ import { SettingsWorkspace } from "../settings/settings-workspace";
 import { useAiConnections } from "../settings/use-ai-connections";
 import { usePersonalizationSettings } from "../settings/use-personalization-settings";
 import { useKnowledgeInternalization } from "../knowledge/use-knowledge-internalization";
+import { AutomationView } from "../automation/automation-view";
+import { useAutomationCenter } from "../automation/use-automation-center";
 import { Button } from "../shared/ui-primitives";
 import { SidebarNav, ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
 import { useWorkspaceNavigation } from "../shared/use-workspace-navigation";
@@ -76,7 +78,7 @@ import {
 } from "../../types/review";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
-type NavIconName = "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "interview" | "tutoring" | "import" | "entry" | "settings";
+type NavIconName = "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry" | "settings";
 
 const navItems: Array<{ key: ViewKey; label: string; icon: NavIconName }> = [
   { key: "dashboard", label: "总览", icon: "dashboard" },
@@ -84,6 +86,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: NavIconName }> = [
   { key: "review", label: "开始复盘", icon: "review" },
   { key: "knowledge", label: "知识库", icon: "knowledge" },
   { key: "knowledgeTraining", label: "知识训练", icon: "knowledgeTraining" },
+  { key: "automation", label: "自动化", icon: "automation" },
   { key: "interview", label: "面试训练", icon: "interview" },
   { key: "tutoring", label: "AI 辅导", icon: "tutoring" },
   { key: "stats", label: "薄弱分析", icon: "stats" },
@@ -100,6 +103,7 @@ const viewTitles: Record<ViewKey, string> = {
   tutoring: "AI 辅导",
   stats: "薄弱分析",
   knowledge: "知识库",
+  automation: "自动化",
   import: "导入",
   entry: "手动录入",
   settings: "设置",
@@ -138,6 +142,12 @@ export function ReviewWorkspace() {
   } = useReviewWorkspaceData(today);
   const aiConnections = useAiConnections(setNotice);
   const personalization = usePersonalizationSettings(setNotice);
+  const automation = useAutomationCenter({
+    connection: aiConnections.textConnection,
+    personalization: personalization.settings,
+    onChanged: refreshData,
+    onNotice: setNotice,
+  });
   const internalization = useKnowledgeInternalization({
     connection: aiConnections.textConnection,
     entries: knowledgeEntries,
@@ -778,7 +788,7 @@ export function ReviewWorkspace() {
         <>
           <SidebarNav
             activeKey={view}
-            items={navItems}
+            items={navItems.map((item) => item.key === "automation" ? { ...item, badge: automation.snapshot.unreadCount || undefined } : item)}
             renderIcon={(icon) => <SidebarIcon name={icon as NavIconName} />}
             onSelect={switchView}
           />
@@ -932,6 +942,7 @@ export function ReviewWorkspace() {
             onToggleAnswer={() => setKnowledgeAnswerOpen((value) => !value)}
           />
         )}
+        {view === "automation" && <AutomationView center={automation} onNotice={setNotice} />}
         {view === "stats" && (
           <StatsView
             attempts={attempts}
@@ -1089,6 +1100,16 @@ function SidebarIcon({ name }: { name: NavIconName }) {
         <path d="M8 8h5.5" />
         <path d="M8 11.5h4" />
         <path d="m14.5 14.5 1.6 1.6 3-3.3" />
+      </svg>
+    );
+  }
+
+  if (name === "automation") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <path d="M6 5.5h12v13H6z" />
+        <path d="M9 3v4M15 3v4M8.5 10h7" />
+        <path d="M9 14h2l1.2-2 1.4 4 1-2H17" />
       </svg>
     );
   }

@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test:contracts": "node --test --experimental-strip-types app/server/ai/provider-adapter.contract.test.ts app/services/ai-connection-client.contract.test.ts app/services/ai-connections-repository.contract.test.ts app/services/appearance-settings-repository.contract.test.ts app/services/obsidian-knowledge.contract.test.ts app/services/personalization-settings-repository.contract.test.ts",
+    "test:contracts": "node --test --experimental-strip-types app/server/ai/provider-adapter.contract.test.ts app/features/settings/persona-flash-card.contract.test.ts app/services/ai-connection-client.contract.test.ts app/services/ai-connections-repository.contract.test.ts app/services/appearance-settings-repository.contract.test.ts app/services/automation.contract.test.ts app/services/obsidian-knowledge.contract.test.ts app/services/personalization-settings-repository.contract.test.ts",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "cron-parser": "^5.6.0",
     "dexie": "^4.2.1",
     "js-yaml": "^5.0.0",
     "mammoth": "^1.12.0",

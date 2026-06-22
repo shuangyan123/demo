@@ -55,3 +55,16 @@ KnowledgeView → useObsidianKnowledgeBridge → knowledge evolution service
 ## 扩展原则
 
 新增人设字段时先扩展 `PersonaCustomization` 和 repository 归一化，再分别接入默认编辑器或定制卡背。新增主题只需增加预设，不得为单个主题新增名称判断或固定色分支。
+
+## 本地自动化中心
+
+```text
+AutomationView → TaskList / Editor / Inbox → useAutomationCenter
+→ scheduler / executor → automation-repository
+→ IndexedDB v13 / 默认文本连接
+```
+
+- 自动化定义和运行收件箱由 IndexedDB 管理；React 只保存可序列化快照，任务运行次数一次遍历派生，定时器、Web Locks 和租约留在 hook/repository。
+- 应用启动、恢复可见和网络恢复时检查到期任务。关闭期间的多个周期合并为一次补跑，执行后直接推进到下一计划时间。
+- 自定义任务只读取明确勾选的错题、知识、面试、辅导或 Obsidian 映射；知识演进来源和候选知识同样按范围读取。除保存待确认知识演进提案外，不修改业务数据。
+- 多标签页先申请 Web Lock，再由 IndexedDB 五分钟可续期租约兜底；计划执行前校验定义版本，提交结果前复核所有者。任务失败同样写入收件箱并推进计划，避免无限重试。

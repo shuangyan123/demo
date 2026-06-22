@@ -27,3 +27,9 @@
 Obsidian 不新增服务端 API，也不安装第三方插件。浏览器通过 File System Access API 读写用户明确选择的 Vault，并只访问配置的托管目录。Markdown 使用 YAML Properties 保存 `review-id`、分类、标签和来源引用，正文使用标准 `[[Wikilink]]`；Firefox、Safari 等不支持写目录的环境只提供一次性 `.md` 文件夹导入。
 
 知识演进仍调用 `/api/ai/generate` 的默认文本连接。模型只能返回待确认 JSON 提案，不能获取目录句柄、直接写文件或绕过冲突检查。
+
+## 自动化调用约定
+
+自动化不新增服务端 Route。每日简报、每周总结和自定义任务通过 `generateWithConnection(connection, "text", input)` 调用默认文本连接；缺少连接时只写入失败运行记录。自动化上下文按用户选择的范围在本地临时组装，不包含密钥、目录句柄或未授权模块数据。
+
+知识演进自动化复用既有提案 JSON 契约，只把提案保存为 `pending`。来源表按勾选范围读取；未勾选知识库时不得读取或发送候选知识条目，此时模型只能生成新增提案。用户确认前不得更新知识条目、映射或 Vault 文件。

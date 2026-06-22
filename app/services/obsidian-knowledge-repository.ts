@@ -223,13 +223,14 @@ export const obsidianKnowledgeRepository = {
     return reviewDb.knowledgeEvolutionProposals.orderBy("createdAt").reverse().toArray();
   },
 
-  /** 自动收集已完成学习记录，但只形成候选上下文，不调用 AI 或写入 Vault。 */
-  async loadEvolutionSources(limit = 12): Promise<KnowledgeEvolutionSource[]> {
+  /** 自动收集已完成学习记录；传入范围时不会读取未授权业务表。 */
+  async loadEvolutionSources(limit = 12, scopes?: KnowledgeEvolutionSource["type"][]): Promise<KnowledgeEvolutionSource[]> {
+    const allowed = scopes ? new Set(scopes) : undefined;
     const [mistakes, evaluations, tutoringSessions, knowledgeEntries, proposals] = await Promise.all([
-      reviewDb.mistakes.orderBy("updatedAt").reverse().limit(limit).toArray(),
-      reviewDb.interviewEvaluations.orderBy("updatedAt").reverse().limit(limit).toArray(),
-      reviewDb.tutoringSessions.orderBy("updatedAt").reverse().limit(limit).toArray(),
-      reviewDb.knowledgeEntries.orderBy("updatedAt").reverse().limit(limit).toArray(),
+      !allowed || allowed.has("mistake") ? reviewDb.mistakes.orderBy("updatedAt").reverse().limit(limit).toArray() : Promise.resolve([]),
+      !allowed || allowed.has("interview") ? reviewDb.interviewEvaluations.orderBy("updatedAt").reverse().limit(limit).toArray() : Promise.resolve([]),
+      !allowed || allowed.has("tutoring") ? reviewDb.tutoringSessions.orderBy("updatedAt").reverse().limit(limit).toArray() : Promise.resolve([]),
+      !allowed || allowed.has("knowledge") ? reviewDb.knowledgeEntries.orderBy("updatedAt").reverse().limit(limit).toArray() : Promise.resolve([]),
       reviewDb.knowledgeEvolutionProposals.toArray(),
     ]);
     const used = new Set(proposals.flatMap((item) => item.sourceIds));
