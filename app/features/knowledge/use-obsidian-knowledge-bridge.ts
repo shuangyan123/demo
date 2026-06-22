@@ -8,6 +8,7 @@ import type { ApiConnectionProfile, KnowledgeEntry, KnowledgeEvolutionProposal, 
 
 const EMPTY_SNAPSHOT: ObsidianVaultSnapshot = {
   id: "default", vaultName: "", managedRoot: "AI知识库", connected: false, permission: "denied",
+  recovery: "none",
   mappedCount: 0, conflictCount: 0, pendingProposalCount: 0, createdAt: "", updatedAt: "",
 };
 
@@ -52,8 +53,11 @@ export function useObsidianKnowledgeBridge({
     setBusy(true);
     try {
       const message = await task();
-      await Promise.all([refresh(), onChanged()]);
       if (message) onNotice(message);
+      const refreshResults = await Promise.allSettled([refresh(), onChanged()]);
+      if (refreshResults.some((result) => result.status === "rejected")) {
+        onNotice("操作已完成，但界面状态刷新失败；请手动刷新页面确认最新结果");
+      }
     } catch (error) {
       onNotice(error instanceof Error ? error.message : fallback);
     } finally {
@@ -73,7 +77,8 @@ export function useObsidianKnowledgeBridge({
 
   const sync = useCallback(() => run(async () => {
     const report = await obsidianKnowledgeRepository.sync();
-    return `同步完成：导入 ${report.imported}、写回 ${report.exported}、冲突 ${report.conflicts}、断开 ${report.disconnected}`;
+    const warning = report.warnings.length ? `；提示：${report.warnings.join("、")}` : "";
+    return `同步完成：导入 ${report.imported}、写回 ${report.exported}、冲突 ${report.conflicts}、断开 ${report.disconnected}${warning}`;
   }, "Obsidian 同步失败"), [run]);
 
   const importFiles = useCallback((files: File[]) => run(async () => {

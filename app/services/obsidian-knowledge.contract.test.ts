@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
-import type { KnowledgeEntry, ObsidianVaultConfig } from "../types/review.ts";
+import type { KnowledgeEntry, KnowledgeEvolutionProposal, ObsidianVaultConfig } from "../types/review.ts";
 import {
   applyAiEvolutionSection,
   buildObsidianNotePath,
@@ -11,7 +11,7 @@ import {
   serializeObsidianEntry,
 } from "./obsidian-markdown.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
-import { obsidianVaultAdapter } from "./obsidian-vault-adapter.ts";
+import { normalizeObsidianPath, ObsidianVaultError, obsidianVaultAdapter } from "./obsidian-vault-adapter.ts";
 
 const today = new Date("2026-06-21T08:00:00.000Z");
 
@@ -68,6 +68,7 @@ test("Vault 三方同步区分导入、应用写回、冲突和文件断开", as
     const imported = await obsidianKnowledgeRepository.sync(today);
     assert.equal(imported.imported, 1);
     assert.equal((await reviewDb.knowledgeEntries.get("knowledge-1"))?.title, "行政许可");
+    assert.equal((await reviewDb.knowledgeEntries.get("knowledge-1"))?.nextReviewAt, "2026-06-21");
     assert.equal((await reviewDb.obsidianNoteMappings.get("常识判断/行政许可.md"))?.status, "synced");
 
     await reviewDb.knowledgeEntries.update("knowledge-1", { content: "# 行政许可\n\n应用侧补充。", updatedAt: "2026-06-21T09:00:00.000Z" });
@@ -88,6 +89,127 @@ test("Vault 三方同步区分导入、应用写回、冲突和文件断开", as
   } finally {
     obsidianVaultAdapter.permission = originalPermission;
     obsidianVaultAdapter.listMarkdown = originalList;
+    obsidianVaultAdapter.writeMarkdown = originalWrite;
+    await reviewDb.delete();
+  }
+});
+
+test("Vault 路径、权限状态和失效句柄在浏览器边界被明确区分", async () => {
+  assert.equal(normalizeObsidianPath("AI知识库/常识判断"), "AI知识库/常识判断");
+  assert.throws(() => normalizeObsidianPath("../私有目录"), (error) => error instanceof ObsidianVaultError && error.code === "path_invalid");
+  const originalWindow = globalThis.window;
+  Object.assign(globalThis, { window: { showDirectoryPicker: async () => ({}) } });
+  try {
+    const promptHandle = { queryPermission: async () => "prompt" } as unknown as FileSystemDirectoryHandle;
+    const deniedHandle = { queryPermission: async () => "denied" } as unknown as FileSystemDirectoryHandle;
+    const invalidHandle = { queryPermission: async () => { throw new DOMException("stale", "InvalidStateError"); } } as unknown as FileSystemDirectoryHandle;
+    assert.equal(await obsidianVaultAdapter.permission(promptHandle), "prompt");
+    assert.equal(await obsidianVaultAdapter.permission(deniedHandle), "denied");
+    await assert.rejects(obsidianVaultAdapter.permission(invalidHandle), (error) => error instanceof ObsidianVaultError && error.code === "handle_invalid");
+  } finally {
+    if (originalWindow) Object.assign(globalThis, { window: originalWindow });
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
+test("同步预检失败不会更新映射或最后同步时间", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const fakeHandle = { name: "测试 Vault" } as unknown as FileSystemDirectoryHandle;
+  await reviewDb.obsidianVaultConfigs.put({ id: "default", vaultName: "测试 Vault", managedRoot: "AI知识库", directoryHandle: fakeHandle, lastSyncedAt: today.toISOString(), createdAt: today.toISOString(), updatedAt: today.toISOString() });
+  const duplicateMarkdown = await serializeObsidianEntry(knowledgeEntry("duplicate-id"), [], []);
+  const originalPermission = obsidianVaultAdapter.permission;
+  const originalList = obsidianVaultAdapter.listMarkdown;
+  obsidianVaultAdapter.permission = async () => "granted";
+  obsidianVaultAdapter.listMarkdown = async () => [
+    { path: "常识判断/甲.md", markdown: duplicateMarkdown },
+    { path: "常识判断/乙.md", markdown: duplicateMarkdown },
+  ];
+  try {
+    await assert.rejects(obsidianKnowledgeRepository.sync(), /重复 review-id/);
+    assert.equal(await reviewDb.obsidianNoteMappings.count(), 0);
+    assert.equal((await reviewDb.obsidianVaultConfigs.get("default"))?.lastSyncedAt, today.toISOString());
+    obsidianVaultAdapter.listMarkdown = async () => { throw new ObsidianVaultError("managed_root_missing", "托管目录不存在"); };
+    await assert.rejects(obsidianKnowledgeRepository.sync(), /托管目录不存在/);
+    assert.equal(await reviewDb.obsidianNoteMappings.count(), 0);
+    let releaseList = () => undefined;
+    let markEntered = () => undefined;
+    const entered = new Promise<void>((resolve) => { markEntered = resolve; });
+    obsidianVaultAdapter.listMarkdown = async () => new Promise((resolve) => {
+      markEntered();
+      releaseList = () => resolve([]);
+    });
+    const firstSync = obsidianKnowledgeRepository.sync();
+    await entered;
+    await assert.rejects(obsidianKnowledgeRepository.sync(), /正在进行/);
+    releaseList();
+    await firstSync;
+  } finally {
+    obsidianVaultAdapter.permission = originalPermission;
+    obsidianVaultAdapter.listMarkdown = originalList;
+    await reviewDb.delete();
+  }
+});
+
+test("过期冲突拒绝覆盖，提案失败可重试且 link 不修改正文", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const fakeHandle = { name: "测试 Vault" } as unknown as FileSystemDirectoryHandle;
+  await reviewDb.obsidianVaultConfigs.put({ id: "default", vaultName: "测试 Vault", managedRoot: "AI知识库", directoryHandle: fakeHandle, createdAt: today.toISOString(), updatedAt: today.toISOString() });
+  const originalMarkdown = await serializeObsidianEntry(knowledgeEntry("knowledge-1"), [], []);
+  let vaultMarkdown = originalMarkdown;
+  let failNextWrite = false;
+  const originalPermission = obsidianVaultAdapter.permission;
+  const originalList = obsidianVaultAdapter.listMarkdown;
+  const originalRead = obsidianVaultAdapter.readMarkdown;
+  const originalWrite = obsidianVaultAdapter.writeMarkdown;
+  obsidianVaultAdapter.permission = async () => "granted";
+  obsidianVaultAdapter.listMarkdown = async () => [{ path: "常识判断/行政许可.md", markdown: vaultMarkdown }];
+  obsidianVaultAdapter.readMarkdown = async () => vaultMarkdown;
+  obsidianVaultAdapter.writeMarkdown = async (_handle, _root, _path, markdown) => {
+    if (failNextWrite) { failNextWrite = false; throw new Error("模拟磁盘写入失败"); }
+    vaultMarkdown = markdown;
+  };
+  try {
+    await obsidianKnowledgeRepository.sync(today);
+    await reviewDb.knowledgeEntries.update("knowledge-1", { content: "# 行政许可\n\n应用修改。" });
+    vaultMarkdown = originalMarkdown.replace("行政机关依法审查申请。", "Vault 修改。");
+    await obsidianKnowledgeRepository.sync(new Date("2026-06-21T09:00:00.000Z"));
+    vaultMarkdown = vaultMarkdown.replace("Vault 修改。", "Vault 再次修改。");
+    await assert.rejects(obsidianKnowledgeRepository.resolveConflict("常识判断/行政许可.md", "app"), /又发生变化/);
+    assert.equal((await reviewDb.obsidianNoteMappings.get("常识判断/行政许可.md"))?.status, "conflict");
+
+    // 先采用 Vault 恢复干净基线，再验证 link 提案只改链接且写入失败可重试。
+    await obsidianKnowledgeRepository.sync(new Date("2026-06-21T10:00:00.000Z"));
+    await obsidianKnowledgeRepository.resolveConflict("常识判断/行政许可.md", "vault");
+    const before = await reviewDb.knowledgeEntries.get("knowledge-1");
+    const proposal: KnowledgeEvolutionProposal = {
+      id: "proposal-link", mode: "link", status: "pending", category: "常识判断", sourceType: "mistake",
+      sourceIds: ["mistake:1"], targetKnowledgeId: "knowledge-1", title: "建立关联", summary: "不得写入",
+      content: "不得写入正文", tags: ["不得写入"], proposedLinks: ["行政处罚"], reason: "测试", confidence: 0.9,
+      createdAt: today.toISOString(), updatedAt: today.toISOString(),
+    };
+    await reviewDb.knowledgeEvolutionProposals.put(proposal);
+    failNextWrite = true;
+    await assert.rejects(obsidianKnowledgeRepository.acceptProposal(proposal.id), /模拟磁盘写入失败/);
+    assert.equal((await reviewDb.knowledgeEvolutionProposals.get(proposal.id))?.status, "pending");
+    assert.equal((await reviewDb.knowledgeEntries.get("knowledge-1"))?.content, before?.content);
+    await obsidianKnowledgeRepository.acceptProposal(proposal.id);
+    const after = await reviewDb.knowledgeEntries.get("knowledge-1");
+    assert.equal(after?.content, before?.content);
+    assert.equal(after?.summary, before?.summary);
+    assert.equal(vaultMarkdown.includes("[[行政处罚]]"), true);
+    assert.equal((await reviewDb.knowledgeEvolutionProposals.get(proposal.id))?.status, "accepted");
+
+    const blockedProposal = { ...proposal, id: "proposal-blocked", status: "pending" as const, updatedAt: new Date().toISOString() };
+    await reviewDb.knowledgeEvolutionProposals.put(blockedProposal);
+    await reviewDb.obsidianNoteMappings.update("常识判断/行政许可.md", { status: "disconnected" });
+    await assert.rejects(obsidianKnowledgeRepository.acceptProposal(blockedProposal.id), /disconnected/);
+    assert.equal((await reviewDb.knowledgeEvolutionProposals.get(blockedProposal.id))?.status, "pending");
+  } finally {
+    obsidianVaultAdapter.permission = originalPermission;
+    obsidianVaultAdapter.listMarkdown = originalList;
+    obsidianVaultAdapter.readMarkdown = originalRead;
     obsidianVaultAdapter.writeMarkdown = originalWrite;
     await reviewDb.delete();
   }

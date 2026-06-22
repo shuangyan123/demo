@@ -51,6 +51,8 @@ KnowledgeView → useObsidianKnowledgeBridge → knowledge evolution service
 - Vault 的 `AI知识库/政治理论|常识判断|申论` 是 Markdown 正文和 Wikilink 主源；IndexedDB 保存正文镜像、训练状态、三方哈希与冲突。
 - 手动同步以最后同步哈希为基线：单边变化自动同步，双边变化保留两份内容并等待选择，文件消失只标记断开。
 - AI 自动收集错题、面试复盘、辅导摘要和知识条目作为候选，但只生成 `create | merge | link` 提案；确认后才修改显式 AI 演进区块并写入 Vault。
+- 同步采用“完整遍历与重复 ID 预检 → Vault 写入 → IndexedDB 事务提交”；预检或文件写入失败时不得更新同步基线。托管根目录缺失属于连接故障，不等同于空目录。
+- 冲突选择和提案确认都会重新读取 Vault 并校验三方哈希，过期页面不得覆盖新版本；`link` 提案只更新 Wikilink 和来源引用。
 
 ## 扩展原则
 

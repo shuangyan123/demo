@@ -51,6 +51,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 应用只读写可配置托管根目录（默认 `AI知识库`）及政治理论、常识判断、申论子目录；目录句柄只能保存在 repository/IndexedDB，React 状态不得持有。
 - Markdown Properties 使用稳定 `review-id`，关系使用标准 Wikilink。同步采用基础/Vault/应用三方哈希；双边修改必须进入冲突，不得静默覆盖，文件删除只标记断开。
 - 错题、面试、辅导和知识资料可自动进入本地候选；AI 仅通过默认文本连接生成 `create | merge | link` 提案。用户确认前不得写知识库或 Vault，确认后也只能修改显式 AI 演进区块和托管链接。
+- Vault 同步必须先完成目录遍历、重复 `review-id` 和三方哈希预检，再写文件并提交 IndexedDB 基线；托管根目录缺失不得标记全部映射断开。
+- 冲突选择与提案确认前必须复读 Vault 并拒绝过期哈希；`link` 提案只更新 Wikilink 和来源引用，失败重试不得生成重复知识条目。
 
 ## 本地自动化约定
 

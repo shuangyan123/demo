@@ -72,6 +72,7 @@ export type KnowledgeEvolutionSourceType = "mistake" | "interview" | "tutoring" 
 export type KnowledgeEvolutionStatus = "pending" | "accepted" | "rejected";
 export type ObsidianSyncStatus = "synced" | "local_changed" | "vault_changed" | "conflict" | "disconnected";
 export type ObsidianPermissionState = "granted" | "prompt" | "denied" | "unsupported";
+export type ObsidianConnectionRecovery = "none" | "reauthorize" | "reselect" | "unsupported";
 export type ThemeMode = "light" | "dark" | "system";
 export type ReducedMotionMode = "system" | "on" | "off";
 export type DifferenceMarker = "color" | "symbol";
@@ -134,6 +135,7 @@ export type ObsidianVaultConfig = {
 export type ObsidianVaultSnapshot = Omit<ObsidianVaultConfig, "directoryHandle"> & {
   connected: boolean;
   permission: ObsidianPermissionState;
+  recovery: ObsidianConnectionRecovery;
   mappedCount: number;
   conflictCount: number;
   pendingProposalCount: number;
@@ -181,6 +183,7 @@ export type ObsidianSyncReport = {
   unchanged: number;
   conflicts: number;
   disconnected: number;
+  warnings: string[];
 };
 
 export type ImportDraft = {
