@@ -39,6 +39,7 @@
 - `create`、`merge`、`link` 必须保持不同写入语义，尤其 `link` 只能维护托管链接和来源引用，不能借机改写正文。
 - 知识演进不得把目标知识自身作为唯一来源或生成指向自身标题的 Wikilink；service 先过滤，repository 写入前再次防御。
 - `KnowledgeEntry.nextReviewAt` 必须保持 `YYYY-MM-DD`；Vault 导入或迁移不能把完整 ISO 时间戳送入 `formatShortDate()`。
+- CI 只验证静态质量、契约和生产构建；真实 Vault 与 AI 密钥必须留在本地浏览器验收，不得写入 Actions secrets 或测试夹具。
 
 ## 自动化实现经验
 

@@ -1,5 +1,9 @@
 # 部署与验证
 
+## GitHub Actions 质量门
+
+Pull Request 和 `main` 推送统一使用 Node.js 20 执行 `npm ci`、ESLint、契约测试和生产构建；全部通过后方可合并。真实 Vault 与外部 AI 连接只在本地 Chrome/Edge 验收，不向 CI 上传目录内容或 API Key。
+
 ## 构建要求
 
 ```bash

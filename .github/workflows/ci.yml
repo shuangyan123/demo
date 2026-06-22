@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Type Check, ESLint, Contracts, Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # 固定官方 Node 20 LTS 环境，并复用 npm 下载缓存。
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Contract tests
+        run: npm run test:contracts
+
+      - name: Production build and type check
+        run: npm run build
