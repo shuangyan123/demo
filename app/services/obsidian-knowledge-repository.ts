@@ -50,6 +50,11 @@ function normalizeKnowledgeDay(value: string | undefined, fallback: string): str
   return Number.isNaN(parsed.getTime()) ? fallback : dayStamp(parsed);
 }
 
+/** Wikilink 不允许指向当前笔记自身，避免模型提案制造无意义自环。 */
+function withoutSelfLinks(links: string[], title: string): string[] {
+  return links.filter((link) => link.trim() && link.trim() !== title.trim());
+}
+
 function entryFromNote(note: Awaited<ReturnType<typeof parseObsidianMarkdown>>, path: string, today: Date, existing?: KnowledgeEntry): KnowledgeEntry {
   const now = dayStamp(today);
   return {
@@ -396,7 +401,7 @@ export const obsidianKnowledgeRepository = {
         mapping = {
           path: buildObsidianNotePath(entry), knowledgeId: entry.id, category: entry.category,
           baseHash: "", vaultHash: "", appHash: "", status: "local_changed",
-          wikilinks: proposal.proposedLinks, sourceRefs: proposal.sourceIds,
+          wikilinks: withoutSelfLinks(proposal.proposedLinks, entry.title), sourceRefs: proposal.sourceIds,
           createdAt: timestamp, updatedAt: timestamp,
         };
       } else {
@@ -418,7 +423,7 @@ export const obsidianKnowledgeRepository = {
         };
         mapping = {
           ...mapping,
-          wikilinks: Array.from(new Set([...mapping.wikilinks, ...proposal.proposedLinks])),
+          wikilinks: Array.from(new Set([...mapping.wikilinks, ...withoutSelfLinks(proposal.proposedLinks, entry.title)])),
           sourceRefs: Array.from(new Set([...mapping.sourceRefs, ...proposal.sourceIds])),
         };
       }

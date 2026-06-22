@@ -71,6 +71,7 @@ export async function requestKnowledgeEvolutionProposals(input: {
     const requestedMode = item.mode === "merge" || item.mode === "link" ? item.mode : "create";
     const mode = requestedMode !== "create" && !targetKnowledgeId ? "create" : requestedMode;
     const source = input.sources.find((candidate) => sourceIds.includes(candidate.id)) ?? input.sources[0];
+    const target = targetKnowledgeId ? input.entries.find((entry) => entry.id === targetKnowledgeId) : undefined;
     const rawCategory = String(item.category ?? "");
     const category: KnowledgeCategory = rawCategory === "政治理论" || rawCategory === "申论" ? rawCategory : "常识判断";
     return {
@@ -85,11 +86,14 @@ export async function requestKnowledgeEvolutionProposals(input: {
       summary: String(item.summary ?? "").trim(),
       content: String(item.content ?? "").trim(),
       tags: textList(item.tags),
-      proposedLinks: textList(item.proposedLinks),
+      proposedLinks: textList(item.proposedLinks).filter((link) => link !== target?.title && link !== String(item.title ?? "知识演进提案").trim()),
       reason: String(item.reason ?? "由长期学习记录归纳").trim(),
       confidence: Math.max(0, Math.min(1, Number(item.confidence) || 0.6)),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-  }).filter((item) => item.content || item.proposedLinks.length);
+  }).filter((item) => (
+    (item.content || item.proposedLinks.length)
+    && !(item.targetKnowledgeId && item.sourceIds.includes(`knowledge:${item.targetKnowledgeId}`))
+  ));
 }

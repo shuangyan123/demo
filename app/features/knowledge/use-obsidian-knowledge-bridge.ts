@@ -53,10 +53,12 @@ export function useObsidianKnowledgeBridge({
     setBusy(true);
     try {
       const message = await task();
-      if (message) onNotice(message);
       const refreshResults = await Promise.allSettled([refresh(), onChanged()]);
       if (refreshResults.some((result) => result.status === "rejected")) {
         onNotice("操作已完成，但界面状态刷新失败；请手动刷新页面确认最新结果");
+      } else if (message) {
+        // 父级刷新可能写入通用状态；成功文案必须最后发布，避免真实写入结果被覆盖。
+        onNotice(message);
       }
     } catch (error) {
       onNotice(error instanceof Error ? error.message : fallback);

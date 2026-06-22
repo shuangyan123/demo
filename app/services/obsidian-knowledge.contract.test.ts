@@ -186,7 +186,7 @@ test("过期冲突拒绝覆盖，提案失败可重试且 link 不修改正文",
     const proposal: KnowledgeEvolutionProposal = {
       id: "proposal-link", mode: "link", status: "pending", category: "常识判断", sourceType: "mistake",
       sourceIds: ["mistake:1"], targetKnowledgeId: "knowledge-1", title: "建立关联", summary: "不得写入",
-      content: "不得写入正文", tags: ["不得写入"], proposedLinks: ["行政处罚"], reason: "测试", confidence: 0.9,
+      content: "不得写入正文", tags: ["不得写入"], proposedLinks: ["行政处罚", "行政许可"], reason: "测试", confidence: 0.9,
       createdAt: today.toISOString(), updatedAt: today.toISOString(),
     };
     await reviewDb.knowledgeEvolutionProposals.put(proposal);
@@ -199,6 +199,7 @@ test("过期冲突拒绝覆盖，提案失败可重试且 link 不修改正文",
     assert.equal(after?.content, before?.content);
     assert.equal(after?.summary, before?.summary);
     assert.equal(vaultMarkdown.includes("[[行政处罚]]"), true);
+    assert.equal(vaultMarkdown.includes("[[行政许可]]"), false);
     assert.equal((await reviewDb.knowledgeEvolutionProposals.get(proposal.id))?.status, "accepted");
 
     const blockedProposal = { ...proposal, id: "proposal-blocked", status: "pending" as const, updatedAt: new Date().toISOString() };

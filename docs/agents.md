@@ -37,6 +37,7 @@
 - 冲突按钮展示的内容可能在用户确认前再次变化，覆盖前必须复读文件并同时校验 Vault 与应用哈希。
 - 文件系统和 IndexedDB 无法组成同一事务；先写带稳定 `review-id` 的确定性文件，再事务提交本地状态，可让提案失败后安全重试。
 - `create`、`merge`、`link` 必须保持不同写入语义，尤其 `link` 只能维护托管链接和来源引用，不能借机改写正文。
+- 知识演进不得把目标知识自身作为唯一来源或生成指向自身标题的 Wikilink；service 先过滤，repository 写入前再次防御。
 - `KnowledgeEntry.nextReviewAt` 必须保持 `YYYY-MM-DD`；Vault 导入或迁移不能把完整 ISO 时间戳送入 `formatShortDate()`。
 
 ## 自动化实现经验
