@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results/*
+/.playwright-mcp/
+/.trunk/
 
 # next.js
 /.next/
@@ -23,6 +26,7 @@
 # misc
 .DS_Store
 *.pem
+/.codex/config.toml
 
 # debug
 npm-debug.log*
