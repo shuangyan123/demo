@@ -8,6 +8,7 @@
 - 统一迁移早期 Vault 导入的完整时间戳为 `YYYY-MM-DD`，修复知识训练日期显示 `NaN/NaN`。
 - 修复提案成功提示被刷新状态覆盖，并拒绝知识演进生成指向当前笔记自身的 Wikilink。
 - 新增 GitHub Actions 质量门，统一检查 ESLint、契约测试、TypeScript 与生产构建。
+- 修正 GitHub Actions 运行环境为 Node.js 22，匹配契约测试的 TypeScript 运行参数，避免 Node 20 阶段性失败。
 
 ## 2026-06-21
 

@@ -40,6 +40,7 @@
 - 知识演进不得把目标知识自身作为唯一来源或生成指向自身标题的 Wikilink；service 先过滤，repository 写入前再次防御。
 - `KnowledgeEntry.nextReviewAt` 必须保持 `YYYY-MM-DD`；Vault 导入或迁移不能把完整 ISO 时间戳送入 `formatShortDate()`。
 - CI 只验证静态质量、契约和生产构建；真实 Vault 与 AI 密钥必须留在本地浏览器验收，不得写入 Actions secrets 或测试夹具。
+- 契约测试使用 `--experimental-strip-types`，GitHub Actions 与本地交付基线应使用 Node.js 22，避免 Node 20 无法识别该运行参数导致质量门误失败。
 
 ## 自动化实现经验
 

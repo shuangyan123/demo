@@ -16,14 +16,14 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      # 固定官方 Node 20 LTS 环境，并复用 npm 下载缓存。
+      # 固定官方 Node 22 LTS 环境，并复用 npm 下载缓存。
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
