@@ -94,6 +94,41 @@ test("Vault 三方同步区分导入、应用写回、冲突和文件断开", as
   }
 });
 
+test("本地未映射知识资料首次同步会写入托管 Vault", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const fakeHandle = { name: "测试 Vault" } as unknown as FileSystemDirectoryHandle;
+  await reviewDb.obsidianVaultConfigs.put({ id: "default", vaultName: "测试 Vault", managedRoot: "AI知识库", directoryHandle: fakeHandle, createdAt: today.toISOString(), updatedAt: today.toISOString() });
+  await reviewDb.knowledgeEntries.put(knowledgeEntry("local-knowledge-1"));
+  const writes: Array<{ path: string; markdown: string }> = [];
+  const originalPermission = obsidianVaultAdapter.permission;
+  const originalList = obsidianVaultAdapter.listMarkdown;
+  const originalWrite = obsidianVaultAdapter.writeMarkdown;
+  obsidianVaultAdapter.permission = async () => "granted";
+  obsidianVaultAdapter.listMarkdown = async () => [];
+  obsidianVaultAdapter.writeMarkdown = async (_handle, _root, path, markdown) => { writes.push({ path, markdown }); };
+
+  try {
+    const report = await obsidianKnowledgeRepository.sync(today);
+    assert.equal(report.exported, 1);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].path.startsWith("常识判断/行政许可--local-kn"), true);
+    assert.equal(writes[0].markdown.includes("review-id: local-knowledge-1"), true);
+    const mapping = await reviewDb.obsidianNoteMappings.where("knowledgeId").equals("local-knowledge-1").first();
+    assert.equal(mapping?.status, "synced");
+    assert.equal(mapping?.path, writes[0].path);
+
+    const second = await obsidianKnowledgeRepository.sync(new Date("2026-06-21T09:00:00.000Z"));
+    assert.equal(second.exported, 0);
+    assert.equal(writes.length, 1);
+  } finally {
+    obsidianVaultAdapter.permission = originalPermission;
+    obsidianVaultAdapter.listMarkdown = originalList;
+    obsidianVaultAdapter.writeMarkdown = originalWrite;
+    await reviewDb.delete();
+  }
+});
+
 test("Vault 路径、权限状态和失效句柄在浏览器边界被明确区分", async () => {
   assert.equal(normalizeObsidianPath("AI知识库/常识判断"), "AI知识库/常识判断");
   assert.throws(() => normalizeObsidianPath("../私有目录"), (error) => error instanceof ObsidianVaultError && error.code === "path_invalid");

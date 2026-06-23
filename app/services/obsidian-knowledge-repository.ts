@@ -269,6 +269,29 @@ export const obsidianKnowledgeRepository = {
         }
       }
 
+      for (const entry of entries) {
+        if (seenKnowledgeIds.has(entry.id) || mappingByKnowledge.has(entry.id)) continue;
+        const path = buildObsidianNotePath(entry);
+        if (seenPaths.has(path)) {
+          report.warnings.push(`本地知识“${entry.title}”目标路径已存在，已跳过首次写回`);
+          continue;
+        }
+        const hash = await semanticHash(entry, []);
+        vaultWrites.push({ path, markdown: await serializeObsidianEntry(entry, [], []) });
+        const created: ObsidianNoteMapping = {
+          path, knowledgeId: entry.id, category: entry.category,
+          baseHash: hash, vaultHash: hash, appHash: hash, status: "synced",
+          wikilinks: [], sourceRefs: [],
+          lastSyncedAt: timestamp, createdAt: timestamp, updatedAt: timestamp,
+        };
+        mappingPuts.push(created);
+        mappingByPath.set(path, created);
+        mappingByKnowledge.set(entry.id, created);
+        seenPaths.add(path);
+        seenKnowledgeIds.add(entry.id);
+        report.exported += 1;
+      }
+
       for (const mapping of mappings) {
         if (seenPaths.has(mapping.path) || seenKnowledgeIds.has(mapping.knowledgeId)) continue;
         mappingPuts.push({ ...mapping, status: "disconnected", updatedAt: timestamp });
