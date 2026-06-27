@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "test:contracts": "node --test --experimental-strip-types app/server/ai/provider-adapter.contract.test.ts app/features/settings/persona-flash-card.contract.test.ts app/services/ai-connection-client.contract.test.ts app/services/ai-connections-repository.contract.test.ts app/services/appearance-settings-repository.contract.test.ts app/services/automation.contract.test.ts app/services/obsidian-knowledge.contract.test.ts app/services/personalization-settings-repository.contract.test.ts",
+    "test:e2e": "playwright test",
     "start": "next start",
     "lint": "eslint"
   },
@@ -20,6 +21,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@tailwindcss/postcss": "^4",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",

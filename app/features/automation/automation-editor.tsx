@@ -68,7 +68,10 @@ export function AutomationEditor({
         </label>
         <label className="grid min-w-0 gap-1 text-sm">
           模板
-          <select className="min-h-10 min-w-0 rounded-lg border border-line bg-background px-3" value={draft.templateId} onChange={(event) => chooseTemplate(event.currentTarget.value as AutomationTemplateId)}>
+          <select className="min-h-10 min-w-0 rounded-lg border border-line bg-background px-3" value={draft.templateId} onChange={(event) => {
+            const templateId = event.currentTarget.value as AutomationTemplateId;
+            chooseTemplate(templateId);
+          }}>
             {AUTOMATION_TEMPLATES.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
@@ -105,7 +108,10 @@ export function AutomationEditor({
         <div className="grid min-w-0 grid-cols-2 gap-3 max-sm:grid-cols-1">
           <label className="grid min-w-0 gap-1 text-sm">
             周期
-            <select className="min-h-10 min-w-0 rounded-lg border border-line bg-background px-3" value={draft.schedule.kind} onChange={(event) => changeSchedule(event.currentTarget.value as AutomationSchedule["kind"])}>
+            <select className="min-h-10 min-w-0 rounded-lg border border-line bg-background px-3" value={draft.schedule.kind} onChange={(event) => {
+              const kind = event.currentTarget.value as AutomationSchedule["kind"];
+              changeSchedule(kind);
+            }}>
               <option value="interval">固定间隔</option>
               <option value="daily">每天</option>
               <option value="weekly">每周</option>

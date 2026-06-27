@@ -11,9 +11,9 @@ permissions:
 
 jobs:
   quality:
-    name: Type Check, ESLint, Contracts, Build
+    name: Type Check, ESLint, Contracts, Build, E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       # 固定官方 Node 22 LTS 环境，并复用 npm 下载缓存。
@@ -37,3 +37,9 @@ jobs:
 
       - name: Production build and type check
         run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e

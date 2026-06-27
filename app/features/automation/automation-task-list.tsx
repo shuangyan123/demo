@@ -61,7 +61,10 @@ export function AutomationTaskList({
                     <p className="mt-1 text-xs text-muted">运行 {runsByTask.get(definition.id) ?? 0} 次 · {sourceLabels}</p>
                   </div>
                   <label className="flex flex-none items-center gap-2 whitespace-nowrap text-sm">
-                    <input type="checkbox" checked={definition.enabled} onChange={(event) => runAction(center.toggle(definition.id, event.currentTarget.checked), "自动化状态更新失败")} />
+                    <input type="checkbox" checked={definition.enabled} onChange={(event) => {
+                      const enabled = event.currentTarget.checked;
+                      runAction(center.toggle(definition.id, enabled), "自动化状态更新失败");
+                    }} />
                     启用
                   </label>
                 </div>
