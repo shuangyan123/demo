@@ -1,7 +1,7 @@
 "use client";
 
 import type { SyntheticEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   KnowledgeTrainingView,
   KnowledgeView,
@@ -23,6 +23,8 @@ import { usePersonalizationSettings } from "../settings/use-personalization-sett
 import { useKnowledgeInternalization } from "../knowledge/use-knowledge-internalization";
 import { AutomationView } from "../automation/automation-view";
 import { useAutomationCenter } from "../automation/use-automation-center";
+import { ConfigurationHealthPanel } from "../onboarding/configuration-health-panel";
+import { useConfigurationHealth, type ConfigurationHealthAction } from "../onboarding/use-configuration-health";
 import { useWorkspaceNavigation } from "../shared/use-workspace-navigation";
 import { useWorkspaceSidebar } from "../shared/use-workspace-sidebar";
 import { ReviewWorkspaceShell } from "./review-workspace-shell";
@@ -257,6 +259,23 @@ export function ReviewWorkspace() {
     () => calculateCorrectRate(knowledgeAttemptsCount, knowledgeCorrectCount),
     [knowledgeAttemptsCount, knowledgeCorrectCount],
   );
+  const configurationHealthInput = useMemo(
+    () => ({
+      aiSnapshot: aiConnections.snapshot,
+      automationSnapshot: automation.snapshot,
+      dueKnowledgeCount: dueKnowledgeEntries.length,
+      dueMistakeCount: dueMistakes.length,
+      importJobs,
+      knowledgeEntries,
+      mistakes,
+    }),
+    [aiConnections.snapshot, automation.snapshot, dueKnowledgeEntries.length, dueMistakes.length, importJobs, knowledgeEntries, mistakes],
+  );
+  const { health: configurationHealth, refreshObsidianHealth } = useConfigurationHealth(configurationHealthInput);
+  const refreshWorkspaceAndObsidianHealth = useCallback(async () => {
+    await refreshData();
+    await refreshObsidianHealth();
+  }, [refreshData, refreshObsidianHealth]);
   // 切换主视图，并在进入复盘时重置当前复盘会话状态。
   function switchView(nextView: ViewKey) {
     navigateView(nextView);
@@ -305,6 +324,35 @@ export function ReviewWorkspace() {
     setSettingsInitialSection("configuration");
     setView("settings");
     setNotice(message);
+  }
+
+  // 配置健康面板只做导航，不在 CTA 中自动保存配置、创建任务或请求外部服务。
+  function openConfigurationHealthAction(action: ConfigurationHealthAction) {
+    if (action === "ai-connections") {
+      openApiSettings("请先补齐默认 AI 连接，再继续使用对应能力");
+      return;
+    }
+    if (action === "obsidian") {
+      switchView("knowledge");
+      return;
+    }
+    if (action === "automation") {
+      switchView("automation");
+      return;
+    }
+    if (action === "import") {
+      switchView("import");
+      return;
+    }
+    if (action === "entry") {
+      switchView("entry");
+      return;
+    }
+    if (action === "review") {
+      switchView("review");
+      return;
+    }
+    switchView("knowledgeTraining");
   }
 
   // 从知识库中枢进入指定分类，保留空状态但先把筛选切到目标分类。
@@ -767,6 +815,7 @@ export function ReviewWorkspace() {
           <DashboardView
             avgMastery={avgMastery}
             boardStats={boardStats}
+            configurationHealth={<ConfigurationHealthPanel health={configurationHealth} onAction={openConfigurationHealthAction} />}
             correctRate={correctRate}
             dueKnowledgeEntries={dueKnowledgeEntries}
             dueMistakes={dueMistakes}
@@ -907,7 +956,7 @@ export function ReviewWorkspace() {
             onToggleFavorite={toggleKnowledgeFavorite}
             onToggleAssociationSuggestion={toggleAssociationSuggestion}
             onUpdateEntry={updateKnowledgeEntry}
-            onKnowledgeChanged={refreshData}
+            onKnowledgeChanged={refreshWorkspaceAndObsidianHealth}
             onNotice={setNotice}
             personalizationSettings={personalization.settings}
             textConnection={aiConnections.textConnection}

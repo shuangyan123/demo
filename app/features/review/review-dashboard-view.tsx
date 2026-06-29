@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Button, CardButton, Chip, DataList, DataRow, EmptyState, MasteryDots, MetricCard, Panel, StatGrid } from "../shared/ui-primitives";
 import type { BoardStat } from "../../lib/review-selectors";
 import type { Board, KnowledgeCategory, KnowledgeCategorySummary, KnowledgeEntry, Mistake } from "../../types/review";
@@ -7,6 +8,7 @@ const colors = ["#2f6fed", "#1a9b71", "#d79018", "#d45145", "#7a5bd4", "#1c8c9a"
 type DashboardViewProps = {
   avgMastery: string;
   boardStats: BoardStat[];
+  configurationHealth?: ReactNode;
   correctRate: number;
   dueKnowledgeEntries: KnowledgeEntry[];
   dueMistakes: Mistake[];
@@ -26,6 +28,7 @@ type DashboardViewProps = {
 export function DashboardView({
   avgMastery,
   boardStats,
+  configurationHealth,
   correctRate,
   dueKnowledgeEntries,
   dueMistakes,
@@ -42,6 +45,8 @@ export function DashboardView({
 }: DashboardViewProps) {
   return (
     <section className="space-y-4">
+      {configurationHealth}
+
       <StatGrid>
         <MetricCard label="今日待复盘" value={dueMistakes.length} hint="按到期和薄弱度排序" tone="text-blue" />
         <MetricCard label="今日知识训练" value={dueKnowledgeEntries.length} hint={`历史正确率 ${knowledgeCorrectRate}%`} tone="text-blue" />

@@ -15,6 +15,7 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
+  await expect(page.getByRole("heading", { name: "配置健康" })).toBeVisible();
   await expect(page.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
   await expect(page.getByRole("button", { name: "知识库" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
@@ -23,9 +24,9 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await page.getByRole("button", { name: "收起侧边栏" }).click();
   await expect(page.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
   await page.getByRole("button", { name: "展开侧边栏" }).click();
-  await expect(page.getByRole("button", { name: "自动化" })).toBeVisible();
+  await expect(page.getByLabel("侧栏导航").getByRole("button", { name: "自动化" })).toBeVisible();
 
-  await page.getByRole("button", { name: "自动化" }).click();
+  await page.getByLabel("侧栏导航").getByRole("button", { name: "自动化" }).click();
   await expect(page.getByRole("heading", { name: "自动化", exact: true })).toBeVisible();
   await page.getByLabel("名称").fill("移动视口回归");
   await expect(page.getByLabel("名称")).toHaveValue("移动视口回归");

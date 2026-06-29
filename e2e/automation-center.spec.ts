@@ -6,7 +6,7 @@ test("自动化中心表单完整交互不会触发空事件目标运行时错�
 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
-  await page.getByRole("button", { name: "自动化" }).click();
+  await page.getByLabel("侧栏导航").getByRole("button", { name: "自动化" }).click();
 
   await expect(page.getByRole("heading", { name: "自动化", exact: true })).toBeVisible();
   await expect(page.getByText("新建自动化")).toBeVisible();

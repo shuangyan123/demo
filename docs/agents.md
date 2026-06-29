@@ -57,3 +57,5 @@
 - 移动视口至少保留一条 Chromium E2E 烟测，覆盖侧栏折叠展开、关键入口可达和页面级横向溢出检查；新增全局导航或关键表单时同步扩展 `e2e/mobile-critical-flows.mobile.spec.ts`。
 - 用户动作成功提示必须在数据刷新完成后发布，或刷新函数不得覆盖动作级反馈；新增保存、确认入库、删除、收藏等流程时要用 E2E 锁定最终可见提示。
 - `ReviewWorkspace` 只保留业务编排和跨模块 wiring；导航、页头、侧栏入口和顶部状态展示放在 `ReviewWorkspaceShell`，同步/失败通知放在 `useReviewNotice`，后续瘦身不得把 shell 职责重新塞回主工作台。
+- 配置健康检查只能只读聚合已有快照：AI 连接、自动化、学习数据来自工作台状态，Obsidian 只读取 repository 暴露的可序列化 snapshot；不得把 Vault 目录句柄放入 React 状态。
+- 配置健康 CTA 只负责导航到补齐入口，不得自动保存连接、创建自动化、连接真实 Vault、测试模型或发起外部请求；新增健康项时必须同步扩展契约测试和 E2E。
