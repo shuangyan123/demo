@@ -54,3 +54,4 @@
 - React 表单事件不要在函数式 state updater 或异步调用链里读取 `event.currentTarget`；必须先把 `value`、`checked`、`files` 等拷贝到局部 primitive，再传入状态更新或 service 调用。
 - 自动化中心表单交互必须保留 Chromium E2E 覆盖；新增模板、周期或数据范围控件时，同步扩展 `e2e/automation-center.spec.ts`，并确保控制台和 `pageerror` 无运行时错误。
 - AI 连接、Obsidian 桥接、导入/手动录入和个性化人设属于关键交互；修改这些入口、表单或错误提示时必须同步维护对应 E2E，并继续避免真实 API、Vault 或文件上传依赖进入 CI。
+- 移动视口至少保留一条 Chromium E2E 烟测，覆盖侧栏折叠展开、关键入口可达和页面级横向溢出检查；新增全局导航或关键表单时同步扩展 `e2e/mobile-critical-flows.mobile.spec.ts`。
