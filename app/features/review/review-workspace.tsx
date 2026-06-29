@@ -511,15 +511,15 @@ export function ReviewWorkspace() {
     setSelectedKnowledgeId(entry.id);
     setKnowledgeFilters((current) => ({ ...current, category }));
     setView("knowledge");
-    setNotice("知识条目已保存");
     await refreshData();
+    setNotice("知识条目已保存");
   }
 
   // 保存知识库条目的编辑结果，只更新知识库表，不影响错题库。
   async function updateKnowledgeEntry(id: string, patch: Partial<Omit<KnowledgeEntry, "id" | "createdAt" | "updatedAt">>) {
     await knowledgeRepository.update(id, patch, today);
-    setNotice("知识条目已更新");
     await refreshData();
+    setNotice("知识条目已更新");
   }
 
   // 删除知识库条目并清理当前选中状态。
@@ -530,15 +530,15 @@ export function ReviewWorkspace() {
     if (mapping) await obsidianKnowledgeRepository.removeManagedNotes([id]);
     await knowledgeRepository.remove(id);
     setSelectedKnowledgeId(null);
-    setNotice("知识条目已删除");
     await refreshData();
+    setNotice("知识条目已删除");
   }
 
   // 切换知识条目的收藏状态，用于后续快速筛选常用资料。
   async function toggleKnowledgeFavorite(entry: KnowledgeEntry) {
     await knowledgeRepository.toggleFavorite(entry, today);
-    setNotice(entry.favorite ? "已取消收藏" : "已收藏知识条目");
     await refreshData();
+    setNotice(entry.favorite ? "已取消收藏" : "已收藏知识条目");
   }
 
   // 把导入页粘贴的资料拆成可编辑草稿，确认前不写入知识库表。
@@ -589,8 +589,8 @@ export function ReviewWorkspace() {
     setKnowledgeFilters((current) => ({ ...current, category: entries[0]?.category ?? current.category }));
     setSelectedKnowledgeId(entries[0]?.id ?? null);
     setView("knowledge");
-    setNotice(`已保存 ${entries.length} 条知识资料`);
     await refreshData();
+    setNotice(`已保存 ${entries.length} 条知识资料`);
   }
 
   // 生成知识库搭建模板草稿，供空库或新分类快速建立整理框架；草稿确认前不会写入 IndexedDB。
