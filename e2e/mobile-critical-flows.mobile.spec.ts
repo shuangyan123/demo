@@ -45,6 +45,9 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await page.getByLabel("Base URL").fill("http://127.0.0.1:9999/v1");
   await page.getByLabel("模型").fill("mobile-e2e-model");
   await expect(page.getByLabel("连接名称")).toHaveValue("E2E 移动本地连接");
+  await page.getByRole("button", { name: "诊断" }).click();
+  await expect(page.getByRole("heading", { name: "诊断", exact: true })).toBeVisible();
+  await expect(page.getByLabel("诊断报告")).toContainText("本地诊断报告");
 
   await expectNoFrameworkOverlay(page);
   await expectNoDocumentHorizontalOverflow(page);

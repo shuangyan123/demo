@@ -8,7 +8,7 @@ import { ColorPickerField, isValidHexColor } from "./color-picker-field";
 import { cloneTheme, darkThemePresets, lightThemePresets, type ThemePreset } from "./theme-presets";
 import { ThemePresetSelect } from "./theme-preset-select";
 
-export type SettingsIconName = "appearance" | "back" | "configuration" | "personalization" | "dark" | "light" | "motion" | "none" | "system";
+export type SettingsIconName = "appearance" | "back" | "configuration" | "diagnostics" | "personalization" | "dark" | "light" | "motion" | "none" | "system";
 
 // 把数字限制在控件允许范围内，防止字号和对比度写入异常值。
 function clampNumber(value: number, min: number, max: number): number {
@@ -437,6 +437,7 @@ export function SettingsNavIcon({ name, small = false }: { name: SettingsIconNam
     back: <path d="M19 12H5m6-6-6 6 6 6" />,
     appearance: <path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4-1.4 1.4M7 17l-1.4 1.4m0-12.8L7 7m10 10 1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />,
     configuration: <path d="M4 7h16M7 12h10M10 17h4M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />,
+    diagnostics: <path d="M4 19h16M6 17l3-7 4 4 3-8 2 5M5 5h14M5 5v14M19 5v14" />,
     personalization: <path d="M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM5 21a7 7 0 0 1 14 0M19 8v4m-2-2h4" />,
     dark: <path d="M21 14.5A7.5 7.5 0 0 1 9.5 3a8 8 0 1 0 11.5 11.5Z" />,
     light: <path d="M12 4V2m0 20v-2m8-8h2M2 12h2m14.4-6.4 1.4-1.4M4.2 19.8l1.4-1.4m0-12.8L4.2 4.2m15.6 15.6-1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />,

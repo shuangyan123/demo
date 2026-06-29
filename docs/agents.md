@@ -59,3 +59,5 @@
 - `ReviewWorkspace` 只保留业务编排和跨模块 wiring；导航、页头、侧栏入口和顶部状态展示放在 `ReviewWorkspaceShell`，同步/失败通知放在 `useReviewNotice`，后续瘦身不得把 shell 职责重新塞回主工作台。
 - 配置健康检查只能只读聚合已有快照：AI 连接、自动化、学习数据来自工作台状态，Obsidian 只读取 repository 暴露的可序列化 snapshot；不得把 Vault 目录句柄放入 React 状态。
 - 配置健康 CTA 只负责导航到补齐入口，不得自动保存连接、创建自动化、连接真实 Vault、测试模型或发起外部请求；新增健康项时必须同步扩展契约测试和 E2E。
+- 本地诊断面板只能展示当前快照和脱敏复制报告；不得持久化错误日志，不得写入 IndexedDB schema，不得请求 AI、连接 Vault、测试模型或申请浏览器权限。
+- 诊断报告只能包含 label/provider/model/testStatus、Vault 状态、自动化失败摘要、浏览器能力和应用版本；禁止输出 API Key、`encryptedKey`、`iv`、目录句柄或完整 Vault 内容。

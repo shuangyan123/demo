@@ -2,27 +2,32 @@
 
 import { useEffect, useState } from "react";
 import type { AppearanceSettings, PersonalizationSettings } from "../../types/review";
+import { LocalDiagnosticsPanel } from "../diagnostics/local-diagnostics-panel";
+import { useLocalDiagnostics, type LocalDiagnosticAction, type LocalDiagnosticsHookInput } from "../diagnostics/use-local-diagnostics";
 import { SidebarNav, WorkspaceShell } from "../shared/workspace-shell";
 import { ApiConnectionsSettingsView } from "./api-connections-settings-view";
 import { AppearanceSettingsView, SettingsNavIcon, type SettingsIconName } from "./appearance-settings-view";
 import { PersonalizationSettingsView } from "./personalization-settings-view";
 
-type SettingsSectionKey = "appearance" | "configuration" | "personalization";
+export type SettingsSectionKey = "appearance" | "configuration" | "personalization" | "diagnostics";
 
 const settingsSections = [
   { key: "appearance", label: "外观", icon: "appearance" },
   { key: "configuration", label: "AI 连接", icon: "configuration" },
   { key: "personalization", label: "个性化", icon: "personalization" },
-] satisfies Array<{ key: SettingsSectionKey; label: string; icon: "appearance" | "configuration" | "personalization" }>;
+  { key: "diagnostics", label: "诊断", icon: "diagnostics" },
+] satisfies Array<{ key: SettingsSectionKey; label: string; icon: "appearance" | "configuration" | "personalization" | "diagnostics" }>;
 
 type SettingsWorkspaceProps = {
   appearanceSettings: AppearanceSettings;
+  diagnosticsInput: LocalDiagnosticsHookInput;
   initialSection?: SettingsSectionKey;
   sidebarCollapsed: boolean;
   onAppearanceChange: (settings: AppearanceSettings) => void;
   onBack: () => void;
   onClearLocalRecords?: () => void;
   onConfigurationChanged?: () => void;
+  onOpenDiagnosticsTarget: (action: Exclude<LocalDiagnosticAction, "ai-connections">) => void;
   onPersonalizationChange?: (settings: PersonalizationSettings) => void;
   onToggleSidebar: () => void;
 };
@@ -30,17 +35,20 @@ type SettingsWorkspaceProps = {
 // 设置壳层只负责全局导航和分区切换，各分区的表单与数据状态由独立组件维护。
 export function SettingsWorkspace({
   appearanceSettings,
+  diagnosticsInput,
   initialSection = "appearance",
   sidebarCollapsed,
   onAppearanceChange,
   onBack,
   onClearLocalRecords,
   onConfigurationChanged,
+  onOpenDiagnosticsTarget,
   onPersonalizationChange,
   onToggleSidebar,
 }: SettingsWorkspaceProps) {
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>(initialSection);
   const [toast, setToast] = useState("");
+  const { diagnostics, refresh: refreshDiagnostics, refreshing: diagnosticsRefreshing } = useLocalDiagnostics(diagnosticsInput);
 
   useEffect(() => {
     if (!toast) return;
@@ -55,7 +63,23 @@ export function SettingsWorkspace({
     if (activeSection === "configuration") {
       return <ApiConnectionsSettingsView onChanged={onConfigurationChanged} onClearLocalRecords={onClearLocalRecords} />;
     }
-    return <PersonalizationSettingsView onChanged={onPersonalizationChange} onOpenConnections={() => setActiveSection("configuration")} />;
+    if (activeSection === "personalization") {
+      return <PersonalizationSettingsView onChanged={onPersonalizationChange} onOpenConnections={() => setActiveSection("configuration")} />;
+    }
+    return (
+      <LocalDiagnosticsPanel
+        diagnostics={diagnostics}
+        refreshing={diagnosticsRefreshing}
+        onAction={(action) => {
+          if (action === "ai-connections") {
+            setActiveSection("configuration");
+            return;
+          }
+          onOpenDiagnosticsTarget(action);
+        }}
+        onRefresh={refreshDiagnostics}
+      />
+    );
   }
 
   return (

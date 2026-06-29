@@ -23,25 +23,32 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
   const [knowledgeAttemptsCount, setKnowledgeAttemptsCount] = useState(0);
   const [knowledgeCorrectCount, setKnowledgeCorrectCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [readError, setReadError] = useState("");
 
   // 从 repository 读取最新快照，并同步页面上所有派生计数的基础数据。
   const refreshData = useCallback(async () => {
-    const [snapshot, knowledgeTraining, links] = await Promise.all([
-      reviewRepository.loadSnapshot(today),
-      knowledgeRepository.loadTrainingSnapshot(today),
-      associationRepository.listAll(),
-    ]);
-    setMistakes(snapshot.mistakes);
-    setKnowledgeEntries(knowledgeTraining.entries);
-    setAssociationLinks(links);
-    setImportJobs(snapshot.importJobs);
-    setAttempts(snapshot.attempts);
-    setAttemptsCount(snapshot.attempts.length);
-    setCorrectCount(snapshot.attempts.filter((item) => item.result === "correct").length);
-    setKnowledgeAttemptsCount(knowledgeTraining.attempts.length);
-    setKnowledgeCorrectCount(knowledgeTraining.attempts.filter((item) => item.result === "correct").length);
-    notice.onSynced();
-    setLoading(false);
+    try {
+      const [snapshot, knowledgeTraining, links] = await Promise.all([
+        reviewRepository.loadSnapshot(today),
+        knowledgeRepository.loadTrainingSnapshot(today),
+        associationRepository.listAll(),
+      ]);
+      setMistakes(snapshot.mistakes);
+      setKnowledgeEntries(knowledgeTraining.entries);
+      setAssociationLinks(links);
+      setImportJobs(snapshot.importJobs);
+      setAttempts(snapshot.attempts);
+      setAttemptsCount(snapshot.attempts.length);
+      setCorrectCount(snapshot.attempts.filter((item) => item.result === "correct").length);
+      setKnowledgeAttemptsCount(knowledgeTraining.attempts.length);
+      setKnowledgeCorrectCount(knowledgeTraining.attempts.filter((item) => item.result === "correct").length);
+      setReadError("");
+      notice.onSynced();
+      setLoading(false);
+    } catch (error) {
+      setReadError(error instanceof Error ? error.message : "本地数据读取失败");
+      throw error;
+    }
   }, [notice, today]);
 
   useEffect(() => {
@@ -63,6 +70,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
     knowledgeEntries,
     loading,
     mistakes,
+    readError,
     refreshData,
   };
 }

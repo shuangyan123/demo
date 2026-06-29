@@ -13,11 +13,12 @@ import { EntryView } from "./review-entry-view";
 import { ImportView } from "../import/review-import-view";
 import { InterviewWorkspace } from "../interview/interview-workspace";
 import { TutoringWorkspace } from "../tutoring/tutoring-workspace";
+import packageJson from "../../../package.json";
 import { useImportDrafts } from "../import/use-import-drafts";
 import { LibraryView } from "./review-library-view";
 import { ReviewView } from "./review-session-view";
 import { StatsView } from "./review-stats-view";
-import { SettingsWorkspace } from "../settings/settings-workspace";
+import { SettingsWorkspace, type SettingsSectionKey } from "../settings/settings-workspace";
 import { useAiConnections } from "../settings/use-ai-connections";
 import { usePersonalizationSettings } from "../settings/use-personalization-settings";
 import { useKnowledgeInternalization } from "../knowledge/use-knowledge-internalization";
@@ -110,6 +111,7 @@ export function ReviewWorkspace() {
     knowledgeEntries,
     loading,
     mistakes,
+    readError: dataReadError,
     refreshData,
   } = useReviewWorkspaceData(today, dataNotice);
   const aiConnections = useAiConnections(setNotice);
@@ -134,7 +136,7 @@ export function ReviewWorkspace() {
   });
   const [associationSuggestions, setAssociationSuggestions] = useState<AssociationSuggestion[]>([]);
   const [appearanceSettings, setAppearanceSettings] = useState<AppearanceSettings>(() => createDefaultAppearanceSettings());
-  const [settingsInitialSection, setSettingsInitialSection] = useState<"appearance" | "configuration">("appearance");
+  const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSectionKey>("appearance");
   const { lastAppView, setView, switchView: navigateView, view } = useWorkspaceNavigation<ViewKey>("dashboard", "settings");
   const { sidebarCollapsed, toggleSidebar } = useWorkspaceSidebar();
   const [filters, setFilters] = useState<Filters>(initialFilters);
@@ -272,6 +274,19 @@ export function ReviewWorkspace() {
     [aiConnections.snapshot, automation.snapshot, dueKnowledgeEntries.length, dueMistakes.length, importJobs, knowledgeEntries, mistakes],
   );
   const { health: configurationHealth, refreshObsidianHealth } = useConfigurationHealth(configurationHealthInput);
+  const diagnosticsInput = useMemo(
+    () => ({
+      aiReadError: aiConnections.readError,
+      aiSnapshot: aiConnections.snapshot,
+      appVersion: packageJson.version,
+      automationSnapshot: automation.snapshot,
+      dataReadError,
+      importJobs,
+      knowledgeEntryCount: knowledgeEntries.length,
+      mistakeCount: mistakes.length,
+    }),
+    [aiConnections.readError, aiConnections.snapshot, automation.snapshot, dataReadError, importJobs, knowledgeEntries.length, mistakes.length],
+  );
   const refreshWorkspaceAndObsidianHealth = useCallback(async () => {
     await refreshData();
     await refreshObsidianHealth();
@@ -777,6 +792,7 @@ export function ReviewWorkspace() {
     return (
       <SettingsWorkspace
         appearanceSettings={appearanceSettings}
+        diagnosticsInput={diagnosticsInput}
         initialSection={settingsInitialSection}
         sidebarCollapsed={sidebarCollapsed}
         onAppearanceChange={updateAppearanceSettings}
@@ -788,6 +804,10 @@ export function ReviewWorkspace() {
         onConfigurationChanged={() => {
           void aiConnections.refresh();
           void refreshData();
+        }}
+        onOpenDiagnosticsTarget={(action) => {
+          setSettingsInitialSection("appearance");
+          switchView(action === "knowledge" ? "knowledge" : "automation");
         }}
         onPersonalizationChange={personalization.setSettings}
         onToggleSidebar={toggleSidebar}

@@ -8,10 +8,17 @@ import type { AiConnectionSnapshot } from "../../types/review";
 export function useAiConnections(onError: (message: string) => void) {
   const [snapshot, setSnapshot] = useState<AiConnectionSnapshot>({ profiles: [], defaults: { id: "default", updatedAt: "" } });
   const [loading, setLoading] = useState(true);
+  const [readError, setReadError] = useState("");
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      setSnapshot(await aiConnectionsRepository.loadSnapshot());
+      const nextSnapshot = await aiConnectionsRepository.loadSnapshot();
+      setSnapshot(nextSnapshot);
+      setReadError("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI 连接读取失败";
+      setReadError(message);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -23,5 +30,5 @@ export function useAiConnections(onError: (message: string) => void) {
   const textConnection = snapshot.profiles.find((profile) => profile.id === snapshot.defaults.textConnectionId);
   const visionConnection = snapshot.profiles.find((profile) => profile.id === snapshot.defaults.visionConnectionId);
   const speechConnection = snapshot.profiles.find((profile) => profile.id === snapshot.defaults.speechConnectionId);
-  return { loading, refresh, snapshot, speechConnection, textConnection, visionConnection };
+  return { loading, readError, refresh, snapshot, speechConnection, textConnection, visionConnection };
 }
