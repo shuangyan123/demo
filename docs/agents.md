@@ -56,3 +56,4 @@
 - AI 连接、Obsidian 桥接、导入/手动录入和个性化人设属于关键交互；修改这些入口、表单或错误提示时必须同步维护对应 E2E，并继续避免真实 API、Vault 或文件上传依赖进入 CI。
 - 移动视口至少保留一条 Chromium E2E 烟测，覆盖侧栏折叠展开、关键入口可达和页面级横向溢出检查；新增全局导航或关键表单时同步扩展 `e2e/mobile-critical-flows.mobile.spec.ts`。
 - 用户动作成功提示必须在数据刷新完成后发布，或刷新函数不得覆盖动作级反馈；新增保存、确认入库、删除、收藏等流程时要用 E2E 锁定最终可见提示。
+- `ReviewWorkspace` 只保留业务编排和跨模块 wiring；导航、页头、侧栏入口和顶部状态展示放在 `ReviewWorkspaceShell`，同步/失败通知放在 `useReviewNotice`，后续瘦身不得把 shell 职责重新塞回主工作台。

@@ -6,8 +6,13 @@ import { knowledgeRepository } from "../../services/knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
 import type { Attempt, ImportJob, KnowledgeEntry, KnowledgeMistakeLink, Mistake } from "../../types/review";
 
+type ReviewWorkspaceDataNotice = {
+  onReadFailed: (error: unknown) => void;
+  onSynced: () => void;
+};
+
 // 集中读取错题、知识库、导入任务和关联快照；AI 连接由独立 hook 管理。
-export function useReviewWorkspaceData(today: Date) {
+export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataNotice) {
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [attemptsCount, setAttemptsCount] = useState(0);
@@ -18,7 +23,6 @@ export function useReviewWorkspaceData(today: Date) {
   const [knowledgeAttemptsCount, setKnowledgeAttemptsCount] = useState(0);
   const [knowledgeCorrectCount, setKnowledgeCorrectCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState("正在读取本地题库");
 
   // 从 repository 读取最新快照，并同步页面上所有派生计数的基础数据。
   const refreshData = useCallback(async () => {
@@ -36,17 +40,17 @@ export function useReviewWorkspaceData(today: Date) {
     setCorrectCount(snapshot.attempts.filter((item) => item.result === "correct").length);
     setKnowledgeAttemptsCount(knowledgeTraining.attempts.length);
     setKnowledgeCorrectCount(knowledgeTraining.attempts.filter((item) => item.result === "correct").length);
-    setNotice("本地题库已同步");
+    notice.onSynced();
     setLoading(false);
-  }, [today]);
+  }, [notice, today]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshData().catch((error) => {
-      setNotice(error instanceof Error ? error.message : "读取失败");
+      notice.onReadFailed(error);
       setLoading(false);
     });
-  }, [refreshData]);
+  }, [notice, refreshData]);
 
   return {
     associationLinks,
@@ -59,8 +63,6 @@ export function useReviewWorkspaceData(today: Date) {
     knowledgeEntries,
     loading,
     mistakes,
-    notice,
     refreshData,
-    setNotice,
   };
 }
