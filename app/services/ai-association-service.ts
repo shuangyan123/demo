@@ -1,5 +1,6 @@
 import type { ApiConnectionProfile, AssociationSuggestion, KnowledgeEntry, Mistake } from "../types/review";
 import { generateWithConnection } from "./ai-connection-client";
+import { parseAiJsonValue } from "./ai-json.ts";
 
 type AiAssociationItem = {
   targetId?: unknown;
@@ -17,8 +18,7 @@ function compactText(value: string, maxLength = 700): string {
 
 // 兼容 AI 返回 markdown 代码块的情况，只解析 JSON 主体。
 function parseAiAssociationJson(content: string): AiAssociationItem[] {
-  const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
-  const parsed = JSON.parse(cleaned) as { items?: AiAssociationItem[] } | AiAssociationItem[];
+  const parsed = parseAiJsonValue<{ items?: AiAssociationItem[] } | AiAssociationItem[]>(content);
   return Array.isArray(parsed) ? parsed : parsed.items ?? [];
 }
 

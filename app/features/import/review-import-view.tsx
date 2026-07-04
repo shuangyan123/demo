@@ -3,6 +3,7 @@
 import type { SyntheticEvent } from "react";
 import { useMemo, useState } from "react";
 import { Button, Chip, ConfirmDialog, EmptyState, Panel, SelectField, SoftBlock, TextAreaField, TextField } from "../shared/ui-primitives";
+import { useVisibleLimit } from "../shared/use-visible-limit";
 import { toListText } from "../../lib/form-utils";
 import {
   BOARD_OPTIONS,
@@ -19,6 +20,8 @@ import {
 } from "../../types/review";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
+
+const IMPORT_DRAFT_VISIBLE_STEP = 60;
 
 // 导入页只负责展示导入入口和草稿编辑；实际解析、入库和 API 调用都由父级状态编排传入。
 export function ImportView({
@@ -297,9 +300,13 @@ function ImportDrafts({
   const [bulkSource, setBulkSource] = useState("");
   const [bulkTags, setBulkTags] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const visibleResetKey = `${drafts.length}|${drafts[0]?.id ?? "empty"}|${drafts.at(-1)?.id ?? "empty"}`;
+  const { loadMore: loadMoreDrafts, visibleLimit } = useVisibleLimit(visibleResetKey, IMPORT_DRAFT_VISIBLE_STEP);
+  const visibleDrafts = useMemo(() => drafts.slice(0, visibleLimit), [drafts, visibleLimit]);
   const selectedIds = useMemo(() => drafts.filter((draft) => draft.selected).map((draft) => draft.id), [drafts]);
   const selectedCount = selectedIds.length;
-  const allDraftIds = useMemo(() => drafts.map((draft) => draft.id), [drafts]);
+  const allDraftIds = useMemo(() => visibleDrafts.map((draft) => draft.id), [visibleDrafts]);
+  const hasMoreDrafts = visibleDrafts.length < drafts.length;
 
   // 将批量输入写回选中草稿，空字段不覆盖已有内容。
   function applyBulkPatch() {
@@ -317,7 +324,7 @@ function ImportDrafts({
           <p className="mt-1 text-xs text-muted">低置信度、缺答案、疑似重复和板块不确定会标记为需确认。</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" type="button" variant="outline" disabled={!drafts.length || selectedCount === drafts.length} onClick={() => onBulkUpdateDrafts(allDraftIds, { selected: true })}>
+          <Button size="sm" type="button" variant="outline" disabled={!visibleDrafts.length || visibleDrafts.every((draft) => draft.selected)} onClick={() => onBulkUpdateDrafts(allDraftIds, { selected: true })}>
             全选
           </Button>
           <Button size="sm" type="button" variant="ghost" disabled={!selectedCount} onClick={() => onBulkUpdateDrafts(selectedIds, { selected: false })}>
@@ -341,7 +348,7 @@ function ImportDrafts({
       </div>
       {drafts.length ? (
         <div className="grid gap-4">
-          {drafts.map((draft) => (
+          {visibleDrafts.map((draft) => (
             <article key={draft.id} className="ui-card ui-card-muted">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <label className="inline-flex items-center gap-2 text-sm font-bold">
@@ -382,6 +389,13 @@ function ImportDrafts({
               </div>
             </article>
           ))}
+          {hasMoreDrafts && (
+            <div className="text-center">
+              <Button type="button" variant="soft" onClick={loadMoreDrafts}>
+                显示更多（{visibleDrafts.length}/{drafts.length}）
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <EmptyState>导入后会先生成可编辑草稿</EmptyState>

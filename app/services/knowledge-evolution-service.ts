@@ -1,5 +1,6 @@
 import type { ApiConnectionProfile, KnowledgeCategory, KnowledgeEntry, KnowledgeEvolutionProposal, PersonalizationSettings } from "../types/review";
 import { generateWithConnection } from "./ai-connection-client.ts";
+import { parseAiJsonArray } from "./ai-json.ts";
 import type { KnowledgeEvolutionSource } from "./obsidian-knowledge-repository";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
 
@@ -23,9 +24,11 @@ function textList(value: unknown, limit = 12): string[] {
 }
 
 function parsePayload(content: string): ProposalPayload[] {
-  const clean = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
-  const parsed = JSON.parse(clean) as unknown;
-  return Array.isArray(parsed) ? parsed as ProposalPayload[] : [];
+  try {
+    return parseAiJsonArray<ProposalPayload>(content);
+  } catch {
+    return [];
+  }
 }
 
 /** AI 只产生可审查提案；调用方确认前不会更新知识库或 Obsidian。 */

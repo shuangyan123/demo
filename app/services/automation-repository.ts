@@ -8,7 +8,8 @@ import type {
   PersonalizationSettings,
 } from "../types/review.ts";
 import { calculateDueAutomation, nextAutomationRun, validateAutomationSchedule } from "./automation-schedule.ts";
-import { executeAutomation } from "./automation-executor.ts";
+import { executeAutomation, previewAutomationDefinition } from "./automation-executor.ts";
+import { classifyAutomationError } from "./automation-failure.ts";
 
 const LEASE_DURATION_MS = 5 * 60 * 1000;
 const LEASE_RENEW_INTERVAL_MS = 60 * 1000;
@@ -159,6 +160,7 @@ export const automationRepository = {
     const definition = await acquireLease(input.definition.id, owner, now, input.expectedUpdatedAt);
     if (!definition) return undefined;
     const timestamp = nowIso(now);
+    const preview = await previewAutomationDefinition(definition);
     const run: AutomationRun = {
       id: owner,
       automationId: definition.id,
@@ -170,6 +172,8 @@ export const automationRepository = {
       unread: false,
       missedCount: input.missedCount ?? 0,
       proposalIds: [],
+      contextSummary: preview.summary,
+      contextCharCount: preview.contextCharCount,
       createdAt: timestamp,
     };
     await reviewDb.automationRuns.add(run);
@@ -179,7 +183,16 @@ export const automationRepository = {
     try {
       const output = await executeAutomation({ definition, connection: input.connection, personalization: input.personalization });
       const finishedAt = nowIso();
-      const completed: AutomationRun = { ...run, status: "succeeded", result: output.result, proposalIds: output.proposalIds, unread: true, finishedAt };
+      const completed: AutomationRun = {
+        ...run,
+        status: "succeeded",
+        result: output.result,
+        proposalIds: output.proposalIds,
+        contextSummary: output.contextSummary,
+        contextCharCount: output.contextCharCount,
+        unread: true,
+        finishedAt,
+      };
       await reviewDb.transaction("rw", [reviewDb.automationDefinitions, reviewDb.automationRuns], async () => {
         await reviewDb.automationRuns.put(completed);
         const current = await reviewDb.automationDefinitions.get(definition.id);
@@ -190,7 +203,16 @@ export const automationRepository = {
       return completed;
     } catch (error) {
       const finishedAt = nowIso();
-      const failed: AutomationRun = { ...run, status: "failed", error: error instanceof Error ? error.message : "自动化执行失败", unread: true, finishedAt };
+      const diagnosis = classifyAutomationError(error, { online: typeof navigator === "undefined" ? undefined : navigator.onLine });
+      const failed: AutomationRun = {
+        ...run,
+        status: "failed",
+        error: diagnosis.message,
+        failureCategory: diagnosis.category,
+        failureRecoveryAction: diagnosis.recoveryAction,
+        unread: true,
+        finishedAt,
+      };
       await reviewDb.transaction("rw", [reviewDb.automationDefinitions, reviewDb.automationRuns], async () => {
         await reviewDb.automationRuns.put(failed);
         const current = await reviewDb.automationDefinitions.get(definition.id);

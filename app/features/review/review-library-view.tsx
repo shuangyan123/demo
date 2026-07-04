@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AssociationPanel } from "../shared/association-panel";
 import { BulkToolbar, Button, Chip, ConfirmDialog, DetailBlock, DetailCard, EmptyState, MasteryDots, SelectField, SoftBlock } from "../shared/ui-primitives";
 import { useBulkSelection } from "../shared/use-bulk-selection";
+import { useVisibleLimit } from "../shared/use-visible-limit";
 import type { BoardStat } from "../../lib/review-selectors";
 import { formatShortDate, masteryLabel } from "../../lib/review-utils";
 import type { KnowledgeMatch } from "../../services/association-matcher";
@@ -55,6 +56,8 @@ type LibraryViewProps = {
   onToggleAssociationSuggestion: (id: string, selected: boolean) => void;
 };
 
+const MISTAKE_VISIBLE_STEP = 80;
+
 // 渲染错题库页的六大板块列表；只负责列表交互，数据刷新由主工作台统一编排。
 export function LibraryView({
   aiAssociationBusy,
@@ -92,13 +95,17 @@ export function LibraryView({
   onRemoveAssociationLink,
   onToggleAssociationSuggestion,
 }: LibraryViewProps) {
-  const visibleMistakeIds = useMemo(() => filteredMistakes.map((item) => item.id), [filteredMistakes]);
+  const visibleResetKey = `${selectedBoard ?? "all"}|${filters.board}|${filters.mastery}|${filters.search}|${reasonFilter}|${tagFilter}`;
+  const { loadMore: loadMoreMistakes, visibleLimit } = useVisibleLimit(visibleResetKey, MISTAKE_VISIBLE_STEP);
+  const visibleMistakes = useMemo(() => filteredMistakes.slice(0, visibleLimit), [filteredMistakes, visibleLimit]);
+  const visibleMistakeIds = useMemo(() => visibleMistakes.map((item) => item.id), [visibleMistakes]);
   const bulkSelection = useBulkSelection(visibleMistakeIds);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const selectedMistakes = useMemo(
     () => filteredMistakes.filter((item) => bulkSelection.state.ids.has(item.id)),
     [bulkSelection.state.ids, filteredMistakes],
   );
+  const hasMoreMistakes = visibleMistakes.length < filteredMistakes.length;
 
   // 根据用户选择的范围导出错题，导出文件生成交给父级统一处理通知。
   function exportMistakeScope(scope: ExportScope, format: ExportFormat) {
@@ -155,6 +162,7 @@ export function LibraryView({
                       reasonOptions={reasonOptions}
                       selectedId={selectedId}
                       selectedMistake={selectedMistake}
+                      visibleMistakes={visibleMistakes}
                       setFilters={setFilters}
                       setReasonFilter={setReasonFilter}
                       setSelectedId={setSelectedId}
@@ -168,6 +176,7 @@ export function LibraryView({
                       onBulkDelete={() => setBulkDeleteOpen(true)}
                       onBulkSelectAll={bulkSelection.selectAllVisible}
                       onBulkToggleMistake={bulkSelection.toggle}
+                      onLoadMoreMistakes={loadMoreMistakes}
                       onAnalyzeMistakeAssociations={onAnalyzeMistakeAssociations}
                       onClearAssociationSuggestions={onClearAssociationSuggestions}
                       onConfirmAssociationSuggestions={onConfirmAssociationSuggestions}
@@ -180,6 +189,7 @@ export function LibraryView({
                       onOpenSettings={onOpenSettings}
                       onRemoveAssociationLink={onRemoveAssociationLink}
                       onToggleAssociationSuggestion={onToggleAssociationSuggestion}
+                      hasMoreMistakes={hasMoreMistakes}
                     />
                   </div>
                 )}
@@ -215,6 +225,7 @@ function LibraryBoardList({
   reasonOptions,
   selectedId,
   selectedMistake,
+  visibleMistakes,
   setFilters,
   setReasonFilter,
   setSelectedId,
@@ -228,6 +239,7 @@ function LibraryBoardList({
   onBulkDelete,
   onBulkSelectAll,
   onBulkToggleMistake,
+  onLoadMoreMistakes,
   onAnalyzeMistakeAssociations,
   onClearAssociationSuggestions,
   onConfirmAssociationSuggestions,
@@ -240,16 +252,20 @@ function LibraryBoardList({
   onOpenSettings,
   onRemoveAssociationLink,
   onToggleAssociationSuggestion,
+  hasMoreMistakes,
 }: Omit<LibraryViewProps, "boardStats" | "selectedBoard" | "setSelectedBoard" | "onBulkDeleteMistakes" | "onExportMistakes"> & {
   bulkAllVisibleSelected: boolean;
   bulkSelectedCount: number;
   bulkSelectedIds: Set<string>;
+  hasMoreMistakes: boolean;
+  visibleMistakes: Mistake[];
   onBulkClearSelection: () => void;
   onBulkDelete: () => void;
   onBulkSelectAll: () => void;
   onBulkToggleMistake: (id: string, checked: boolean) => void;
   onExportFiltered: (format: ExportFormat) => void;
   onExportSelected: (format: ExportFormat) => void;
+  onLoadMoreMistakes: () => void;
 }) {
   return (
     <SoftBlock className="space-y-4">
@@ -281,7 +297,7 @@ function LibraryBoardList({
       <BulkToolbar
         allVisibleSelected={bulkAllVisibleSelected}
         selectedCount={bulkSelectedCount}
-        totalCount={filteredMistakes.length}
+        totalCount={visibleMistakes.length}
         onClearSelection={onBulkClearSelection}
         onDeleteSelected={onBulkDelete}
         onExportFiltered={onExportFiltered}
@@ -299,7 +315,7 @@ function LibraryBoardList({
             <span>掌握</span>
           </div>
           {filteredMistakes.length ? (
-            filteredMistakes.map((item) => (
+            visibleMistakes.map((item) => (
               <article
                 key={item.id}
                 className={`grid w-full grid-cols-[36px_minmax(260px,1fr)_150px_120px_96px] items-center gap-3 border-t border-line px-4 py-3 text-left hover:bg-blue/5 max-lg:grid-cols-[36px_minmax(0,1fr)] ${
@@ -329,6 +345,13 @@ function LibraryBoardList({
           ) : (
             <div className="m-4">
               <EmptyState>没有匹配的错题</EmptyState>
+            </div>
+          )}
+          {hasMoreMistakes && (
+            <div className="border-t border-line p-4 text-center">
+              <Button type="button" variant="soft" onClick={onLoadMoreMistakes}>
+                显示更多（{visibleMistakes.length}/{filteredMistakes.length}）
+              </Button>
             </div>
           )}
         </section>

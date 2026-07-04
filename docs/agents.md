@@ -1,5 +1,25 @@
 # 项目经验沉淀
 
+## KnowledgeWorkspace 瘦身经验
+
+- 知识资料列表的渐进渲染、批量选择、批量删除和导出范围计算应保留在 `useKnowledgeListController`，不要重新塞回 `knowledge-workspace.tsx`。
+- Obsidian repository 与知识演进 AI service 属于知识库低频重服务，只能在刷新或用户动作中通过动态 `import()` 加载；React 状态仍只保存可序列化 snapshot、mapping 和 proposal。
+
+## TutoringWorkspace 瘦身经验
+
+- 实时辅导的媒体源、关键帧采样、语音转写/朗读、本地草稿和当前轮次提交应保留在 `useTutoringSessionController`，`tutoring-workspace.tsx` 只做 tab、计划、关联和设备视图接线。
+- 辅导仍必须遵守能力边界：纯文本轮次使用默认文本连接，携带关键帧时使用默认多模态连接，朗读只使用默认语音连接；缺连接时明确提示，不做本机或跨能力回退。
+
+## AI JSON 解析经验
+
+- 模型返回 JSON 必须通过 `app/services/ai-json.ts` 统一清理和解析；业务 service 不再手写 markdown fence 清理、对象/数组截取或裸 `JSON.parse`。
+- 统一 helper 只负责解析稳定性，不改变 prompt 契约和字段 schema；字段缺失、空数组和业务归一化仍留在各自 service 的 normalize/validate 逻辑。
+
+## 数据性能与发布验收经验
+
+- 没有真实慢查询证据时，不升级 Dexie schema、不新增索引；需要先记录页面、操作、数据量、耗时和 repository 调用路径。
+- 真实 Vault 验收保留在人工 smoke：connect、sync、conflict、proposal confirm 四条路径必须逐项记录；CI 只验证契约和 mock provider，不接真实 Vault 或外网模型。
+
 ## AI 连接收尾经验
 
 - 默认连接 ID 不能只在写入时校验；编辑连接能力后也必须在 repository 读取边界归一化，否则 React 会继续拿到能力不匹配的档案。
@@ -43,6 +63,7 @@
 - CI 只验证静态质量、契约和生产构建；真实 Vault 与 AI 密钥必须留在本地浏览器验收，不得写入 Actions secrets 或测试夹具。
 - 契约测试使用 `--experimental-strip-types`，GitHub Actions 与本地交付基线应使用 Node.js 22，避免 Node 20 无法识别该运行参数导致质量门误失败。
 
+- 知识演进确认闭环必须区分 `create`、`merge`、`link`：`merge` 只能替换显式 AI 演进区并维护摘要、标签、托管链接和来源引用，`link` 只能维护 Wikilink/sourceRefs；两者确认前都要复读 Vault 并校验过期 hash，写入失败后 proposal 必须保持 pending 以便重试。
 ## 自动化实现经验
 
 - 浏览器本地自动化必须把“准时后台执行”和“打开后补跑”区分清楚；没有常驻进程时不得承诺关闭页面仍运行。
@@ -57,7 +78,22 @@
 - 移动视口至少保留一条 Chromium E2E 烟测，覆盖侧栏折叠展开、关键入口可达和页面级横向溢出检查；新增全局导航或关键表单时同步扩展 `e2e/mobile-critical-flows.mobile.spec.ts`。
 - 用户动作成功提示必须在数据刷新完成后发布，或刷新函数不得覆盖动作级反馈；新增保存、确认入库、删除、收藏等流程时要用 E2E 锁定最终可见提示。
 - `ReviewWorkspace` 只保留业务编排和跨模块 wiring；导航、页头、侧栏入口和顶部状态展示放在 `ReviewWorkspaceShell`，同步/失败通知放在 `useReviewNotice`，后续瘦身不得把 shell 职责重新塞回主工作台。
+- 配置健康、诊断输入和恢复 CTA 导航属于工作台 glue code，必须保留在专用 hook 中；`ReviewWorkspace` 不得重新直接导入配置健康 hook、诊断 hook 或 `package.json` 版本信息。
 - 配置健康检查只能只读聚合已有快照：AI 连接、自动化、学习数据来自工作台状态，Obsidian 只读取 repository 暴露的可序列化 snapshot；不得把 Vault 目录句柄放入 React 状态。
 - 配置健康 CTA 只负责导航到补齐入口，不得自动保存连接、创建自动化、连接真实 Vault、测试模型或发起外部请求；新增健康项时必须同步扩展契约测试和 E2E。
 - 本地诊断面板只能展示当前快照和脱敏复制报告；不得持久化错误日志，不得写入 IndexedDB schema，不得请求 AI、连接 Vault、测试模型或申请浏览器权限。
 - 诊断报告只能包含 label/provider/model/testStatus、Vault 状态、自动化失败摘要、浏览器能力和应用版本；禁止输出 API Key、`encryptedKey`、`iv`、目录句柄或完整 Vault 内容。
+- 自动化预览只能本地读取授权范围并展示摘要，不得调用 AI、保存任务、推进调度或写入运行收件箱。
+- 自动化试运行可在用户显式点击后调用默认文本连接，但必须保持临时态：不创建 run、不写 proposal、不保存定义、不更新 `nextRunAt`。
+- 自动化运行详情只允许持久化 scope、数量、样本标题、上下文字符数、失败分类和恢复动作；不得保存完整上下文 JSON、完整题干集合、完整知识正文或完整 prompt。
+- 自动化失败恢复 CTA 只能导航或提示，不能自动重试运行、测试连接、选择 Vault、创建任务或触发外部请求。
+- 自动化 AI 成功态回归必须使用 E2E 本地 mock provider 覆盖真实 UI 配置默认文本连接、试运行成功、立即运行成功和详情展开；不得在 CI 中依赖真实 API Key、真实模型服务或外网。
+- 知识演进自动化成功态回归必须使用 E2E 本地 mock JSON provider；CI 只验证待确认提案生成和展示，不得连接真实 Vault、确认写入 Vault 或请求外网模型。
+
+## 性能与包体经验
+
+- `ReviewWorkspace` 首屏只保留总览、错题、复盘、知识库和统计等核心路径；导入、自动化、设置、面试、辅导等低频视图必须用 `next/dynamic` 动态加载，不得重新静态引入主工作台。
+- 导入页的 `useImportDrafts` 必须留在导入视图内部 wrapper 中；`pdfjs-dist`、`mammoth` 等文件解析依赖只能在实际解析函数里 `await import()`，避免进入首屏包体。
+- AI 关联分析、Obsidian repository 等重型服务应在用户触发对应动作时按需加载；React 状态仍不得持有 Vault 目录句柄。
+- 大列表第一阶段采用渐进显示：错题和知识资料默认 80 条、导入草稿默认 60 条，批量全选只覆盖当前显示项，导出筛选结果仍保留完整筛选语义。
+- IndexedDB 索引优化必须基于真实页面访问路径和慢查询证据；没有 repository 级分页或明确性能瓶颈时，不为前端列表切片单独升级 Dexie schema。

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { AutomationDefinition, AutomationTemplateId } from "../../types/review";
+import type { AutomationDefinition, AutomationRecoveryAction, AutomationTemplateId } from "../../types/review";
+import { automationRecoveryLabel } from "../../services/automation-failure";
 import { AutomationEditor } from "./automation-editor";
 import { AutomationInbox } from "./automation-inbox";
 import { AutomationTaskList } from "./automation-task-list";
@@ -18,9 +19,17 @@ const INITIAL_EDITOR_STATE: EditorState = { templateId: "daily_review", revision
 /** 自动化中心组合视图：只负责编辑器选择和三块业务面板布局。 */
 export function AutomationView({
   center,
+  onOpenEntry,
+  onOpenImport,
+  onOpenKnowledge,
+  onOpenSettings,
   onNotice,
 }: {
   center: ReturnType<typeof useAutomationCenter>;
+  onOpenEntry: () => void;
+  onOpenImport: () => void;
+  onOpenKnowledge: () => void;
+  onOpenSettings: () => void;
   onNotice: (message: string) => void;
 }) {
   const [editor, setEditor] = useState<EditorState>(INITIAL_EDITOR_STATE);
@@ -40,6 +49,27 @@ export function AutomationView({
     startCreate("daily_review");
   }
 
+  /** 恢复动作只做导航或提示，不直接重试运行或触发外部能力。 */
+  function handleRecoveryAction(action: AutomationRecoveryAction): void {
+    if (action === "configure_ai_connection") {
+      onOpenSettings();
+      return;
+    }
+    if (action === "open_knowledge") {
+      onOpenKnowledge();
+      return;
+    }
+    if (action === "open_import") {
+      onOpenImport();
+      return;
+    }
+    if (action === "open_entry") {
+      onOpenEntry();
+      return;
+    }
+    onNotice(automationRecoveryLabel(action));
+  }
+
   return (
     <div className="grid gap-6">
       <section className="grid grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)] gap-6 max-xl:grid-cols-1">
@@ -49,11 +79,12 @@ export function AutomationView({
           center={center}
           definition={editor.definition}
           initialTemplateId={editor.templateId}
+          onRecoveryAction={handleRecoveryAction}
           onFinished={resetEditor}
           onNotice={onNotice}
         />
       </section>
-      <AutomationInbox center={center} onNotice={onNotice} />
+      <AutomationInbox center={center} onNotice={onNotice} onRecoveryAction={handleRecoveryAction} />
     </div>
   );
 }

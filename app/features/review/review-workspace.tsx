@@ -1,7 +1,8 @@
 "use client";
 
 import type { SyntheticEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   KnowledgeTrainingView,
   KnowledgeView,
@@ -10,24 +11,18 @@ import {
 } from "../knowledge/knowledge-workspace";
 import { DashboardView } from "./review-dashboard-view";
 import { EntryView } from "./review-entry-view";
-import { ImportView } from "../import/review-import-view";
-import { InterviewWorkspace } from "../interview/interview-workspace";
-import { TutoringWorkspace } from "../tutoring/tutoring-workspace";
-import packageJson from "../../../package.json";
-import { useImportDrafts } from "../import/use-import-drafts";
 import { LibraryView } from "./review-library-view";
 import { ReviewView } from "./review-session-view";
 import { StatsView } from "./review-stats-view";
-import { SettingsWorkspace, type SettingsSectionKey } from "../settings/settings-workspace";
 import { useAiConnections } from "../settings/use-ai-connections";
 import { usePersonalizationSettings } from "../settings/use-personalization-settings";
 import { useKnowledgeInternalization } from "../knowledge/use-knowledge-internalization";
-import { AutomationView } from "../automation/automation-view";
 import { useAutomationCenter } from "../automation/use-automation-center";
 import { ConfigurationHealthPanel } from "../onboarding/configuration-health-panel";
-import { useConfigurationHealth, type ConfigurationHealthAction } from "../onboarding/use-configuration-health";
 import { useWorkspaceNavigation } from "../shared/use-workspace-navigation";
 import { useWorkspaceSidebar } from "../shared/use-workspace-sidebar";
+import { useReviewWorkspaceHealth } from "./use-review-workspace-health";
+import { useReviewWorkspaceRecoveryNavigation } from "./use-review-workspace-recovery-navigation";
 import { ReviewWorkspaceShell } from "./review-workspace-shell";
 import { useReviewNotice } from "./use-review-notice";
 import { useReviewTimer } from "./use-review-timer";
@@ -53,11 +48,9 @@ import {
 } from "../../lib/review-selectors";
 import { appearanceSettingsRepository, applyAppearanceSettings, createDefaultAppearanceSettings } from "../../services/appearance-settings-repository";
 import { findRelatedKnowledgeEntries, findRelatedMistakesForKnowledge } from "../../services/association-matcher";
-import { analyzeKnowledgeMistakeAssociations, analyzeMistakeKnowledgeAssociations } from "../../services/ai-association-service";
 import { associationRepository, suggestionToLinkInput } from "../../services/association-repository";
 import { downloadExportFile, exportKnowledgeEntries, exportMistakes } from "../../services/export-service";
 import { knowledgeRepository } from "../../services/knowledge-repository";
-import { obsidianKnowledgeRepository } from "../../services/obsidian-knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
 import {
   makeToday,
@@ -81,6 +74,23 @@ import {
 } from "../../types/review";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
+
+// 低频工作区用动态加载保持首屏包体收敛；loading 只占位，不触发业务读取。
+function WorkspaceViewLoading() {
+  return <div className="ui-card px-5 py-4 text-sm font-bold text-muted">正在加载模块...</div>;
+}
+
+const SettingsWorkspace = dynamic(() => import("../settings/settings-workspace").then((module) => module.SettingsWorkspace), { loading: WorkspaceViewLoading });
+const AutomationView = dynamic(() => import("../automation/automation-view").then((module) => module.AutomationView), { loading: WorkspaceViewLoading });
+const InterviewWorkspace = dynamic(() => import("../interview/interview-workspace").then((module) => module.InterviewWorkspace), { loading: WorkspaceViewLoading });
+const TutoringWorkspace = dynamic(() => import("../tutoring/tutoring-workspace").then((module) => module.TutoringWorkspace), { loading: WorkspaceViewLoading });
+const ImportWorkspace = dynamic(() => import("../import/import-workspace").then((module) => module.ImportWorkspace), { loading: WorkspaceViewLoading });
+
+// Obsidian 仓库只在删除映射资料时加载，避免总览首屏携带 Vault 同步实现。
+async function loadObsidianKnowledgeRepository() {
+  const { obsidianKnowledgeRepository } = await import("../../services/obsidian-knowledge-repository");
+  return obsidianKnowledgeRepository;
+}
 
 const initialFilters: Filters = {
   board: "全部",
@@ -136,7 +146,6 @@ export function ReviewWorkspace() {
   });
   const [associationSuggestions, setAssociationSuggestions] = useState<AssociationSuggestion[]>([]);
   const [appearanceSettings, setAppearanceSettings] = useState<AppearanceSettings>(() => createDefaultAppearanceSettings());
-  const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSectionKey>("appearance");
   const { lastAppView, setView, switchView: navigateView, view } = useWorkspaceNavigation<ViewKey>("dashboard", "settings");
   const { sidebarCollapsed, toggleSidebar } = useWorkspaceSidebar();
   const [filters, setFilters] = useState<Filters>(initialFilters);
@@ -153,15 +162,6 @@ export function ReviewWorkspace() {
   const [knowledgeQueueFilter, setKnowledgeQueueFilter] = useState<KnowledgeQueueFilter>("due");
   const [knowledgeDrafts, setKnowledgeDrafts] = useState<KnowledgeImportDraft[]>([]);
   const [associationBusy, setAssociationBusy] = useState(false);
-  const importDraftFlow = useImportDrafts({
-    textConnection: aiConnections.textConnection,
-    visionConnection: aiConnections.visionConnection,
-    importJobs,
-    mistakes,
-    onRefreshWorkspace: refreshData,
-    setNotice,
-    today,
-  });
 
   useEffect(() => {
     let active = true;
@@ -261,36 +261,25 @@ export function ReviewWorkspace() {
     () => calculateCorrectRate(knowledgeAttemptsCount, knowledgeCorrectCount),
     [knowledgeAttemptsCount, knowledgeCorrectCount],
   );
-  const configurationHealthInput = useMemo(
-    () => ({
-      aiSnapshot: aiConnections.snapshot,
-      automationSnapshot: automation.snapshot,
-      dueKnowledgeCount: dueKnowledgeEntries.length,
-      dueMistakeCount: dueMistakes.length,
-      importJobs,
-      knowledgeEntries,
-      mistakes,
-    }),
-    [aiConnections.snapshot, automation.snapshot, dueKnowledgeEntries.length, dueMistakes.length, importJobs, knowledgeEntries, mistakes],
-  );
-  const { health: configurationHealth, refreshObsidianHealth } = useConfigurationHealth(configurationHealthInput);
-  const diagnosticsInput = useMemo(
-    () => ({
-      aiReadError: aiConnections.readError,
-      aiSnapshot: aiConnections.snapshot,
-      appVersion: packageJson.version,
-      automationSnapshot: automation.snapshot,
-      dataReadError,
-      importJobs,
-      knowledgeEntryCount: knowledgeEntries.length,
-      mistakeCount: mistakes.length,
-    }),
-    [aiConnections.readError, aiConnections.snapshot, automation.snapshot, dataReadError, importJobs, knowledgeEntries.length, mistakes.length],
-  );
-  const refreshWorkspaceAndObsidianHealth = useCallback(async () => {
-    await refreshData();
-    await refreshObsidianHealth();
-  }, [refreshData, refreshObsidianHealth]);
+  const {
+    openApiSettings,
+    openConfigurationHealthAction,
+    openDiagnosticsTarget,
+    resetSettingsSection,
+    settingsInitialSection,
+  } = useReviewWorkspaceRecoveryNavigation({ setNotice, switchView });
+  const { configurationHealth, diagnosticsInput, refreshWorkspaceAndObsidianHealth } = useReviewWorkspaceHealth({
+    aiReadError: aiConnections.readError,
+    aiSnapshot: aiConnections.snapshot,
+    automationSnapshot: automation.snapshot,
+    dataReadError,
+    dueKnowledgeCount: dueKnowledgeEntries.length,
+    dueMistakeCount: dueMistakes.length,
+    importJobs,
+    knowledgeEntries,
+    mistakes,
+    refreshData,
+  });
   // 切换主视图，并在进入复盘时重置当前复盘会话状态。
   function switchView(nextView: ViewKey) {
     navigateView(nextView);
@@ -332,42 +321,6 @@ export function ReviewWorkspace() {
     setKnowledgeFilters({ ...initialKnowledgeFilters, category: entry.category });
     setSelectedKnowledgeId(entry.id);
     setView("knowledge");
-  }
-
-  // 跳转到 AI 连接分区并保留调用场景提示，避免被无关的关联分析文案覆盖。
-  function openApiSettings(message = "请在 AI 连接中配置所需的默认连接后再继续") {
-    setSettingsInitialSection("configuration");
-    setView("settings");
-    setNotice(message);
-  }
-
-  // 配置健康面板只做导航，不在 CTA 中自动保存配置、创建任务或请求外部服务。
-  function openConfigurationHealthAction(action: ConfigurationHealthAction) {
-    if (action === "ai-connections") {
-      openApiSettings("请先补齐默认 AI 连接，再继续使用对应能力");
-      return;
-    }
-    if (action === "obsidian") {
-      switchView("knowledge");
-      return;
-    }
-    if (action === "automation") {
-      switchView("automation");
-      return;
-    }
-    if (action === "import") {
-      switchView("import");
-      return;
-    }
-    if (action === "entry") {
-      switchView("entry");
-      return;
-    }
-    if (action === "review") {
-      switchView("review");
-      return;
-    }
-    switchView("knowledgeTraining");
   }
 
   // 从知识库中枢进入指定分类，保留空状态但先把筛选切到目标分类。
@@ -416,6 +369,7 @@ export function ReviewWorkspace() {
 
     setAssociationBusy(true);
     try {
+      const { analyzeMistakeKnowledgeAssociations } = await import("../../services/ai-association-service");
       const suggestions = await analyzeMistakeKnowledgeAssociations({ mistake, candidates, connection: aiConnections.textConnection });
       setAssociationSuggestions((current) => [
         ...suggestions,
@@ -446,6 +400,7 @@ export function ReviewWorkspace() {
 
     setAssociationBusy(true);
     try {
+      const { analyzeKnowledgeMistakeAssociations } = await import("../../services/ai-association-service");
       const suggestions = await analyzeKnowledgeMistakeAssociations({ entry, candidates, connection: aiConnections.textConnection });
       setAssociationSuggestions((current) => [
         ...suggestions,
@@ -557,6 +512,7 @@ export function ReviewWorkspace() {
 
   // 删除知识库条目并清理当前选中状态。
   async function deleteKnowledgeEntry(id: string) {
+    const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
     const mapping = await obsidianKnowledgeRepository.mappingForKnowledge(id);
     const message = mapping ? "这条资料已映射到 Obsidian。确定同时删除 Vault 托管笔记、本地训练记录和关联吗？" : "确定删除这条知识资料吗？";
     if (!window.confirm(message)) return;
@@ -704,6 +660,7 @@ export function ReviewWorkspace() {
       setNotice("请先选择要删除的知识资料");
       return;
     }
+    const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
     const mapped = (await Promise.all(ids.map((id) => obsidianKnowledgeRepository.mappingForKnowledge(id)))).filter(Boolean);
     if (mapped.length && !window.confirm(`其中 ${mapped.length} 条已映射到 Obsidian。继续会同时删除对应 Vault 托管笔记，确定继续吗？`)) return;
     if (mapped.length) await obsidianKnowledgeRepository.removeManagedNotes(ids);
@@ -775,7 +732,6 @@ export function ReviewWorkspace() {
     if (!window.confirm("确定清空本地错题、复盘记录和导入任务吗？API 设置会保留。")) return;
     await reviewRepository.clearAll();
     setKnowledgeDrafts([]);
-    await importDraftFlow.refreshImportDrafts();
     await refreshData();
     setNotice("本地错题与导入记录已清空");
   }
@@ -797,7 +753,7 @@ export function ReviewWorkspace() {
         sidebarCollapsed={sidebarCollapsed}
         onAppearanceChange={updateAppearanceSettings}
         onBack={() => {
-          setSettingsInitialSection("appearance");
+          resetSettingsSection();
           switchView(lastAppView);
         }}
         onClearLocalRecords={clearLocalRecords}
@@ -805,10 +761,7 @@ export function ReviewWorkspace() {
           void aiConnections.refresh();
           void refreshData();
         }}
-        onOpenDiagnosticsTarget={(action) => {
-          setSettingsInitialSection("appearance");
-          switchView(action === "knowledge" ? "knowledge" : "automation");
-        }}
+        onOpenDiagnosticsTarget={openDiagnosticsTarget}
         onPersonalizationChange={personalization.setSettings}
         onToggleSidebar={toggleSidebar}
       />
@@ -928,7 +881,16 @@ export function ReviewWorkspace() {
             onToggleAnswer={() => setKnowledgeAnswerOpen((value) => !value)}
           />
         )}
-        {view === "automation" && <AutomationView center={automation} onNotice={setNotice} />}
+        {view === "automation" && (
+          <AutomationView
+            center={automation}
+            onNotice={setNotice}
+            onOpenEntry={() => switchView("entry")}
+            onOpenImport={() => switchView("import")}
+            onOpenKnowledge={() => switchView("knowledge")}
+            onOpenSettings={() => openApiSettings("请先配置默认文本连接，再运行自动化")}
+          />
+        )}
         {view === "stats" && (
           <StatsView
             attempts={attempts}
@@ -1006,27 +968,21 @@ export function ReviewWorkspace() {
           />
         )}
         {view === "import" && (
-          <ImportView
+          <ImportWorkspace
             textConnection={aiConnections.textConnection}
             visionConnection={aiConnections.visionConnection}
-            batches={importDraftFlow.batches}
-            drafts={importDraftFlow.drafts}
-            importBusy={importDraftFlow.importBusy}
             importJobs={importJobs}
             knowledgeDrafts={knowledgeDrafts}
-            onBulkUpdateDrafts={importDraftFlow.updateDrafts}
-            onConfirmDrafts={importDraftFlow.confirmDrafts}
+            mistakes={mistakes}
+            today={today}
             onConfirmKnowledgeDrafts={confirmKnowledgeDrafts}
-            onDeleteDrafts={importDraftFlow.deleteDrafts}
             onDeleteKnowledgeDraft={deleteKnowledgeDraft}
             onImportKnowledgeText={importKnowledgeText}
-            onParseFileImport={importDraftFlow.parseFileImport}
-            onParseTextImport={importDraftFlow.parseTextImport}
+            onRefreshWorkspace={refreshData}
             onSwitchSettings={() => switchView("settings")}
-            onUpdateDraft={importDraftFlow.updateDraft}
-            onUpdateDraftList={importDraftFlow.updateDraftList}
             onUpdateKnowledgeDraft={updateKnowledgeDraft}
             onUpdateKnowledgeDraftList={updateKnowledgeDraftList}
+            setNotice={setNotice}
           />
         )}
         {view === "entry" && <EntryView onSubmit={addMistake} />}

@@ -1,5 +1,6 @@
 import { BOARD_OPTIONS, type ImportDraft, type ImportDraftIssue } from "../types/review";
 import { normalizeBoard } from "../lib/review-utils";
+import { parseAiJsonValue } from "./ai-json.ts";
 
 type DraftInput = {
   board?: unknown;
@@ -141,8 +142,7 @@ export function parseJson(rawText: string): ImportDraft[] {
 
 // 解析 AI 返回的 JSON 文本，兼容模型偶尔包裹的 markdown 代码块。
 export function parseAiJson(content: string): ImportDraft[] {
-  const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
-  const parsed = JSON.parse(cleaned) as { items?: DraftInput[] } | DraftInput[];
+  const parsed = parseAiJsonValue<{ items?: DraftInput[] } | DraftInput[]>(content);
   const items = Array.isArray(parsed) ? parsed : parsed.items ?? [];
   return items.map(normalizeDraft).filter((draft) => draft.stem);
 }

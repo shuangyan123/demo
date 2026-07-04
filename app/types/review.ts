@@ -696,6 +696,19 @@ export type AutomationDefinition = {
 export type AutomationRunStatus = "running" | "succeeded" | "failed";
 export type AutomationRunTrigger = "manual" | "scheduled" | "catchup";
 
+/** 自动化运行只持久化摘要，不保存完整上下文或完整提示词。 */
+export type AutomationContextSummary = {
+  scope: AutomationSourceScope;
+  label: string;
+  count: number;
+  sampleTitles: string[];
+  warning?: string;
+};
+
+/** 自动化失败分类用于给出可恢复动作，避免只展示原始错误。 */
+export type AutomationFailureCategory = "missing_connection" | "network" | "permission" | "model" | "empty_scope" | "unknown";
+export type AutomationRecoveryAction = "configure_ai_connection" | "open_knowledge" | "open_import" | "open_entry" | "check_network" | "retry" | "none";
+
 /** 每次自动化运行都进入收件箱，AI 结果只保存文本和待确认提案引用。 */
 export type AutomationRun = {
   id: string;
@@ -711,6 +724,10 @@ export type AutomationRun = {
   unread: boolean;
   missedCount: number;
   proposalIds: string[];
+  contextSummary?: AutomationContextSummary[];
+  contextCharCount?: number;
+  failureCategory?: AutomationFailureCategory;
+  failureRecoveryAction?: AutomationRecoveryAction;
   createdAt: string;
 };
 

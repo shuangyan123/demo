@@ -40,5 +40,30 @@ test("自动化中心表单完整交互不会触发空事件目标运行时错�
   await expect(page.getByLabel("辅导")).toBeChecked();
   await expect(page.getByLabel("错题")).not.toBeChecked();
   await expect(page.getByLabel("知识库")).not.toBeChecked();
+
+  await page.getByRole("button", { name: "预览读取范围" }).click();
+  const previewPanel = page.getByRole("region", { name: "自动化读取范围预览" });
+  await expect(previewPanel).toBeVisible();
+  await expect(previewPanel.getByText("面试")).toBeVisible();
+  await expect(previewPanel.getByText("辅导")).toBeVisible();
+
+  await page.getByRole("button", { name: "试运行", exact: true }).click();
+  await expect(page.getByText("试运行失败", { exact: true })).toBeVisible();
+  await expect(page.getByText("缺少默认文本连接")).toBeVisible();
+  await expect(page.getByRole("button", { name: "配置 AI 连接" })).toBeVisible();
+
+  await page.getByRole("button", { name: "创建自动化" }).click();
+  const taskCard = page.locator("article").filter({ hasText: "事件生命周期回归" }).first();
+  await expect(taskCard).toBeVisible();
+  await taskCard.getByRole("button", { name: "立即运行" }).click();
+
+  const inbox = page.locator("section").filter({ hasText: "运行收件箱" }).first();
+  await expect(inbox.getByText("请先配置默认文本连接")).toBeVisible();
+  await inbox.getByRole("button", { name: "查看详情" }).first().click();
+  await expect(inbox.getByText("触发方式：手动")).toBeVisible();
+  await expect(inbox.getByText("读取摘要")).toBeVisible();
+  await expect(inbox.getByText("缺少默认文本连接")).toBeVisible();
+  await inbox.getByRole("button", { name: "配置 AI 连接" }).last().click();
+  await expect(page.getByRole("heading", { name: "AI 连接" })).toBeVisible();
   expectNoRuntimeErrors(runtimeErrors);
 });

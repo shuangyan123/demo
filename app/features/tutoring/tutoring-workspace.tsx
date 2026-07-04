@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type RefObject, type SyntheticEvent } from "react";
+import { useMemo, useState, type RefObject, type SyntheticEvent } from "react";
 import {
   Button,
   CardButton,
@@ -21,11 +21,8 @@ import {
   Timeline,
   Toolbar,
 } from "../shared/ui-primitives";
-import { useFrameSampler } from "./use-frame-sampler";
 import { useTutoringFlow } from "./use-tutoring-flow";
-import { useTutoringMedia } from "./use-tutoring-media";
-import { useTutoringSpeech } from "./use-tutoring-speech";
-import { resolvePersonaVoice } from "../../services/personalization-settings-repository";
+import { useTutoringSessionController, type TutoringMediaController, type TutoringSamplerController, type TutoringSpeechController } from "./use-tutoring-session-controller";
 import type { ApiConnectionProfile, KnowledgeEntry, Mistake, PersonalizationSettings, TutoringLink, TutoringMode, TutoringPlan, TutoringSession, TutoringTurn } from "../../types/review";
 
 type TutoringTab = "live" | "records" | "plans" | "links" | "devices";
@@ -84,21 +81,24 @@ export function TutoringWorkspace({
   onOpenSettings: () => void;
 }) {
   const [tab, setTab] = useState<TutoringTab>("live");
-  const [draftText, setDraftText] = useState("");
-  const [frameDescription, setFrameDescription] = useState("");
-  const [sessionGoal, setSessionGoal] = useState("像老师现场辅导一样，先看我当前卡点，再一步一步讲清楚。");
-  const [sessionTopic, setSessionTopic] = useState("实时学习辅导");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const media = useTutoringMedia();
-  const sampler = useFrameSampler(media.captureFrame);
-  const clearSampler = sampler.clear;
-  const speech = useTutoringSpeech(resolvePersonaVoice(personalizationSettings, "tutoring"), speechConnection);
   const tutoring = useTutoringFlow({ textConnection, visionConnection, knowledgeEntries, mistakes, onNotice, personalizationSettings });
-
-  // 媒体源结束后同步停止低频采样并清除最近帧，避免继续分析陈旧画面。
-  useEffect(() => {
-    if (media.status !== "ready") clearSampler();
-  }, [clearSampler, media.status]);
+  const {
+    captureCurrentFrame,
+    createSession,
+    draftText,
+    frameDescription,
+    media,
+    sampler,
+    sessionGoal,
+    sessionTopic,
+    setDraftText,
+    setFrameDescription,
+    setSessionGoal,
+    setSessionTopic,
+    speech,
+    submitTutorTurn,
+  } = useTutoringSessionController({ onNotice, personalizationSettings, speechConnection, tutoring });
 
   const activeLinks = useMemo(
     () => (tutoring.activeSession ? tutoring.snapshot.links.filter((link) => link.sourceType === "session" && link.sourceId === tutoring.activeSession?.id) : []),
@@ -112,53 +112,6 @@ export function TutoringWorkspace({
     { key: "links" as const, label: "资料关联", count: tutoring.snapshot.links.length },
     { key: "devices" as const, label: "设备设置" },
   ];
-
-  // 创建一场会话，使用当前媒体模式作为视角来源。
-  async function createSession() {
-    const session = await tutoring.startSession({
-      goal: sessionGoal,
-      mode: media.mode,
-      topic: sessionTopic,
-    });
-    tutoring.setActiveSessionId(session.id);
-  }
-
-  // 手动截取一帧并给用户反馈；关键帧只存在当前内存中。
-  function captureCurrentFrame() {
-    try {
-      sampler.captureNow();
-      onNotice("已截取当前关键帧，发送时会随本轮问题一起分析");
-    } catch (error) {
-      onNotice(error instanceof Error ? error.message : "关键帧截取失败");
-    }
-  }
-
-  // 提交当前轮次给 AI 老师；请求完成后清空文字稿但保留会话。
-  async function submitTutorTurn() {
-    if (!tutoring.activeSession) {
-      onNotice("请先创建一场实时辅导会话");
-      return;
-    }
-    let frameDataUrl = sampler.lastFrameDataUrl;
-    if (!frameDataUrl && media.hasFrame) {
-      try {
-        frameDataUrl = sampler.captureNow();
-      } catch {
-        frameDataUrl = "";
-      }
-    }
-    const reply = await tutoring.submitStudentMessage({
-      frameDataUrl,
-      frameDescription,
-      session: tutoring.activeSession,
-      studentText: draftText || speech.transcript,
-    });
-    if (reply) {
-      setDraftText("");
-      speech.reset();
-      speech.speak(reply.teacherMessage);
-    }
-  }
 
   // 新建辅导计划，计划只保存文字目标和本地资料 ID 引用。
   async function addPlan(event: SubmitReactEvent) {
@@ -309,12 +262,12 @@ function LiveTutoringView({
   busy: boolean;
   draftText: string;
   frameDescription: string;
-  media: ReturnType<typeof useTutoringMedia>;
-  sampler: ReturnType<typeof useFrameSampler>;
+  media: TutoringMediaController;
+  sampler: TutoringSamplerController;
   session: TutoringSession | null;
   sessionGoal: string;
   sessionTopic: string;
-  speech: ReturnType<typeof useTutoringSpeech>;
+  speech: TutoringSpeechController;
   turns: TutoringTurn[];
   onCaptureFrame: () => void;
   onCreateSession: () => void;

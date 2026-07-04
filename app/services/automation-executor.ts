@@ -1,12 +1,13 @@
 import type {
   ApiConnectionProfile,
+  AutomationContextSummary,
   AutomationDefinition,
   AutomationSourceScope,
   AutomationTemplateId,
   PersonalizationSettings,
 } from "../types/review.ts";
 import { generateWithConnection } from "./ai-connection-client.ts";
-import { buildAutomationContext } from "./automation-context-service.ts";
+import { buildAutomationContextPreview, buildAutomationContextResult, type AutomationContextPreview } from "./automation-context-service.ts";
 import { requestKnowledgeEvolutionProposals } from "./knowledge-evolution-service.ts";
 import { obsidianKnowledgeRepository, type KnowledgeEvolutionSource } from "./obsidian-knowledge-repository.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
@@ -19,14 +20,35 @@ export const AUTOMATION_TEMPLATES: Array<{ id: AutomationTemplateId; name: strin
   { id: "custom", name: "自定义任务", description: "使用自定义提示词分析明确选择的本地数据。", prompt: "", scopes: [] },
 ];
 
-export type AutomationExecutionResult = { result: string; proposalIds: string[] };
+export type AutomationExecutionResult = {
+  result: string;
+  proposalIds: string[];
+  contextSummary: AutomationContextSummary[];
+  contextCharCount: number;
+};
+
+/** 预览只返回摘要和字符数，不把完整上下文交给 UI。 */
+export async function previewAutomationDefinition(input: { sourceScopes: AutomationSourceScope[] }): Promise<AutomationContextPreview> {
+  return buildAutomationContextPreview(input.sourceScopes);
+}
+
+/** 试运行允许调用模型，但禁止写入运行记录、调度状态或知识演进提案。 */
+export async function trialAutomationDefinition(input: {
+  definition: AutomationDefinition;
+  connection?: ApiConnectionProfile;
+  personalization: PersonalizationSettings;
+}): Promise<AutomationExecutionResult> {
+  return executeAutomation({ ...input, persistProposals: false });
+}
 
 /** 执行只读自动化；除保存待确认提案外，不更新任何业务数据。 */
 export async function executeAutomation(input: {
   definition: AutomationDefinition;
   connection?: ApiConnectionProfile;
   personalization: PersonalizationSettings;
+  persistProposals?: boolean;
 }): Promise<AutomationExecutionResult> {
+  const contextResult = await buildAutomationContextResult(input.definition.sourceScopes);
   if (!input.connection) throw new Error("请先配置默认文本连接，再运行自动化");
 
   if (input.definition.templateId === "knowledge_evolution") {
@@ -42,14 +64,17 @@ export async function executeAutomation(input: {
       allowed.has("knowledge") ? reviewDb.knowledgeEntries.toArray() : Promise.resolve([]),
     ]);
     const proposals = await requestKnowledgeEvolutionProposals({ connection: input.connection, personalization: input.personalization, sources, entries });
-    await obsidianKnowledgeRepository.saveProposals(proposals);
+    if (input.persistProposals !== false) await obsidianKnowledgeRepository.saveProposals(proposals);
     return {
-      result: proposals.length ? `已生成 ${proposals.length} 条知识演进提案。确认前不会修改知识库或 Vault。` : "本次没有发现值得新增、合并或建链的知识候选。",
+      result: proposals.length
+        ? `${input.persistProposals === false ? "试运行生成" : "已生成"} ${proposals.length} 条知识演进提案。确认前不会修改知识库或 Vault。`
+        : "本次没有发现值得新增、合并或建链的知识候选。",
       proposalIds: proposals.map((item) => item.id),
+      contextSummary: contextResult.summary,
+      contextCharCount: contextResult.contextCharCount,
     };
   }
 
-  const context = await buildAutomationContext(input.definition.sourceScopes);
   const persona = resolvePersona(input.personalization, "knowledge_internalization");
   const prompt = input.definition.prompt.trim() || AUTOMATION_TEMPLATES.find((item) => item.id === input.definition.templateId)?.prompt || "总结当前训练状态并给出下一步建议。";
   const response = await generateWithConnection(input.connection, "text", {
@@ -64,8 +89,13 @@ export async function executeAutomation(input: {
           buildPersonaPrompt(persona),
         ].join("\n\n"),
       },
-      { role: "user", content: JSON.stringify({ task: prompt, context }) },
+      { role: "user", content: JSON.stringify({ task: prompt, context: contextResult.context }) },
     ],
   });
-  return { result: response.content.trim(), proposalIds: [] };
+  return {
+    result: response.content.trim(),
+    proposalIds: [],
+    contextSummary: contextResult.summary,
+    contextCharCount: contextResult.contextCharCount,
+  };
 }

@@ -250,3 +250,124 @@ test("过期冲突拒绝覆盖，提案失败可重试且 link 不修改正文",
     await reviewDb.delete();
   }
 });
+
+test("merge 提案只替换 AI 演进区并保留用户手写正文", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const fakeHandle = { name: "测试 Vault" } as unknown as FileSystemDirectoryHandle;
+  await reviewDb.obsidianVaultConfigs.put({ id: "default", vaultName: "测试 Vault", managedRoot: "AI知识库", directoryHandle: fakeHandle, createdAt: today.toISOString(), updatedAt: today.toISOString() });
+  const originalEntry = knowledgeEntry("knowledge-merge", "# 行政许可\n\nUSER_WRITTEN_BODY\n\nUser keeps this paragraph.");
+  const originalMarkdown = await serializeObsidianEntry(originalEntry, ["原有关联"], ["mistake:old"]);
+  let vaultMarkdown = originalMarkdown;
+  const originalPermission = obsidianVaultAdapter.permission;
+  const originalList = obsidianVaultAdapter.listMarkdown;
+  const originalRead = obsidianVaultAdapter.readMarkdown;
+  const originalWrite = obsidianVaultAdapter.writeMarkdown;
+  obsidianVaultAdapter.permission = async () => "granted";
+  obsidianVaultAdapter.listMarkdown = async () => [{ path: "常识判断/行政许可.md", markdown: vaultMarkdown }];
+  obsidianVaultAdapter.readMarkdown = async () => vaultMarkdown;
+  obsidianVaultAdapter.writeMarkdown = async (_handle, _root, _path, markdown) => { vaultMarkdown = markdown; };
+
+  try {
+    await obsidianKnowledgeRepository.sync(today);
+    const proposal: KnowledgeEvolutionProposal = {
+      id: "proposal-merge",
+      mode: "merge",
+      status: "pending",
+      category: "常识判断",
+      sourceType: "mistake",
+      sourceIds: ["mistake:new"],
+      targetKnowledgeId: "knowledge-merge",
+      title: "补充行政许可边界",
+      summary: "AI updated summary",
+      content: "AI_EVOLUTION_BLOCK",
+      tags: ["法律", "新标签"],
+      proposedLinks: ["新增关联", originalEntry.title],
+      reason: "验证 merge 只维护托管区块",
+      confidence: 0.91,
+      createdAt: today.toISOString(),
+      updatedAt: today.toISOString(),
+    };
+    await reviewDb.knowledgeEvolutionProposals.put(proposal);
+
+    const accepted = await obsidianKnowledgeRepository.acceptProposal(proposal.id, new Date("2026-06-21T12:00:00.000Z"));
+    const stored = await reviewDb.knowledgeEntries.get("knowledge-merge");
+    const mapping = await reviewDb.obsidianNoteMappings.where("knowledgeId").equals("knowledge-merge").first();
+
+    assert.equal(accepted.content.includes("USER_WRITTEN_BODY"), true);
+    assert.equal(accepted.content.includes("AI_EVOLUTION_BLOCK"), true);
+    assert.equal(accepted.content.match(/review-workspace:ai-start/g)?.length, 1);
+    assert.equal(stored?.summary, proposal.summary);
+    assert.equal(stored?.tags.includes("法律"), true);
+    assert.equal(stored?.tags.includes("新标签"), true);
+    assert.equal(mapping?.status, "synced");
+    assert.equal(mapping?.sourceRefs.includes("mistake:old"), true);
+    assert.equal(mapping?.sourceRefs.includes("mistake:new"), true);
+    assert.equal(mapping?.wikilinks.includes("原有关联"), true);
+    assert.equal(mapping?.wikilinks.includes("新增关联"), true);
+    assert.equal(mapping?.wikilinks.includes(originalEntry.title), false);
+    assert.equal(vaultMarkdown.includes("USER_WRITTEN_BODY"), true);
+    assert.equal(vaultMarkdown.includes("AI_EVOLUTION_BLOCK"), true);
+    assert.equal(vaultMarkdown.includes("[[新增关联]]"), true);
+    assert.equal((await reviewDb.knowledgeEvolutionProposals.get(proposal.id))?.status, "accepted");
+  } finally {
+    obsidianVaultAdapter.permission = originalPermission;
+    obsidianVaultAdapter.listMarkdown = originalList;
+    obsidianVaultAdapter.readMarkdown = originalRead;
+    obsidianVaultAdapter.writeMarkdown = originalWrite;
+    await reviewDb.delete();
+  }
+});
+
+test("确认演进提案前复读 Vault 并拒绝过期 hash", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const fakeHandle = { name: "测试 Vault" } as unknown as FileSystemDirectoryHandle;
+  await reviewDb.obsidianVaultConfigs.put({ id: "default", vaultName: "测试 Vault", managedRoot: "AI知识库", directoryHandle: fakeHandle, createdAt: today.toISOString(), updatedAt: today.toISOString() });
+  const originalEntry = knowledgeEntry("knowledge-stale", "# 行政许可\n\nUSER_WRITTEN_BODY");
+  const originalMarkdown = await serializeObsidianEntry(originalEntry, [], []);
+  let vaultMarkdown = originalMarkdown;
+  const originalPermission = obsidianVaultAdapter.permission;
+  const originalList = obsidianVaultAdapter.listMarkdown;
+  const originalRead = obsidianVaultAdapter.readMarkdown;
+  const originalWrite = obsidianVaultAdapter.writeMarkdown;
+  obsidianVaultAdapter.permission = async () => "granted";
+  obsidianVaultAdapter.listMarkdown = async () => [{ path: "常识判断/行政许可.md", markdown: vaultMarkdown }];
+  obsidianVaultAdapter.readMarkdown = async () => vaultMarkdown;
+  obsidianVaultAdapter.writeMarkdown = async (_handle, _root, _path, markdown) => { vaultMarkdown = markdown; };
+
+  try {
+    await obsidianKnowledgeRepository.sync(today);
+    const proposal: KnowledgeEvolutionProposal = {
+      id: "proposal-stale",
+      mode: "link",
+      status: "pending",
+      category: "常识判断",
+      sourceType: "mistake",
+      sourceIds: ["mistake:stale"],
+      targetKnowledgeId: "knowledge-stale",
+      title: "过期确认",
+      summary: "不得写入",
+      content: "STALE_AI_CONTENT",
+      tags: ["不得写入"],
+      proposedLinks: ["新增关联"],
+      reason: "验证确认前复读",
+      confidence: 0.8,
+      createdAt: today.toISOString(),
+      updatedAt: today.toISOString(),
+    };
+    await reviewDb.knowledgeEvolutionProposals.put(proposal);
+    vaultMarkdown = originalMarkdown.replace("USER_WRITTEN_BODY", "VAULT_CHANGED_AFTER_PREVIEW");
+
+    await assert.rejects(obsidianKnowledgeRepository.acceptProposal(proposal.id), /发生变化/);
+    assert.equal((await reviewDb.knowledgeEvolutionProposals.get(proposal.id))?.status, "pending");
+    assert.equal((await reviewDb.knowledgeEntries.get("knowledge-stale"))?.content.includes("STALE_AI_CONTENT"), false);
+    assert.equal(vaultMarkdown.includes("[[新增关联]]"), false);
+  } finally {
+    obsidianVaultAdapter.permission = originalPermission;
+    obsidianVaultAdapter.listMarkdown = originalList;
+    obsidianVaultAdapter.readMarkdown = originalRead;
+    obsidianVaultAdapter.writeMarkdown = originalWrite;
+    await reviewDb.delete();
+  }
+});

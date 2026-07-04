@@ -1,0 +1,59 @@
+import type { AutomationFailureCategory, AutomationRecoveryAction } from "../types/review.ts";
+
+export type AutomationFailureDiagnosis = {
+  category: AutomationFailureCategory;
+  recoveryAction: AutomationRecoveryAction;
+  message: string;
+};
+
+const CATEGORY_TEXT: Record<AutomationFailureCategory, string> = {
+  missing_connection: "缺少默认文本连接",
+  network: "网络不可用或请求中断",
+  permission: "浏览器或 Vault 权限异常",
+  model: "模型服务返回异常",
+  empty_scope: "可读取数据为空",
+  unknown: "未知错误",
+};
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === "string" ? error : "自动化执行失败";
+}
+
+/** 将原始异常归类为用户可恢复的自动化错误。 */
+export function classifyAutomationError(error: unknown, options: { online?: boolean } = {}): AutomationFailureDiagnosis {
+  const message = errorMessage(error);
+  const normalized = message.toLowerCase();
+  if (message.includes("默认文本连接") || message.includes("AI 连接") || normalized.includes("connection")) {
+    return { category: "missing_connection", recoveryAction: "configure_ai_connection", message };
+  }
+  if (options.online === false || /failed to fetch|networkerror|network request|offline|断网|网络/.test(normalized)) {
+    return { category: "network", recoveryAction: "check_network", message };
+  }
+  if (/notallowed|permission|security|vault|obsidian|directory|授权|权限/.test(normalized)) {
+    return { category: "permission", recoveryAction: "open_knowledge", message };
+  }
+  if (/api|model|provider|http|json|token|key|quota|rate|模型|密钥|供应商/.test(normalized)) {
+    return { category: "model", recoveryAction: "configure_ai_connection", message };
+  }
+  if (/至少选择|暂无可读取|没有可读取|empty|no data/.test(normalized)) {
+    return { category: "empty_scope", recoveryAction: "open_import", message };
+  }
+  return { category: "unknown", recoveryAction: "retry", message };
+}
+
+/** 将失败分类展示为详情页中的稳定中文标签。 */
+export function automationFailureLabel(category?: AutomationFailureCategory): string {
+  return category ? CATEGORY_TEXT[category] : CATEGORY_TEXT.unknown;
+}
+
+/** 恢复动作只做导航或提示，不直接触发外部请求。 */
+export function automationRecoveryLabel(action?: AutomationRecoveryAction): string {
+  if (action === "configure_ai_connection") return "配置 AI 连接";
+  if (action === "open_knowledge") return "打开知识库";
+  if (action === "open_import") return "导入资料";
+  if (action === "open_entry") return "手动录入";
+  if (action === "check_network") return "检查网络后重试";
+  if (action === "retry") return "稍后重试";
+  return "无需操作";
+}

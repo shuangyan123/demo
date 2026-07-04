@@ -1,4 +1,5 @@
 import { generateWithConnection } from "./ai-connection-client";
+import { parseAiJsonObject } from "./ai-json.ts";
 import { buildEmptyInterviewDimensions, interviewRubrics, interviewTypeLabels } from "./interview-rubric";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
 import type {
@@ -50,10 +51,7 @@ function resolveQuestionMaterial(question: InterviewQuestion | InterviewSession)
 
 // 从模型返回中提取 JSON，兼容模型额外包裹 Markdown 代码块的情况。
 function parseJsonObject(content: string): Record<string, unknown> {
-  const trimmed = content.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
-  const jsonText = fenced ?? trimmed.slice(trimmed.indexOf("{"), trimmed.lastIndexOf("}") + 1);
-  const parsed = JSON.parse(jsonText) as unknown;
+  const parsed = parseAiJsonObject(content, "AI 返回不是有效 JSON 对象");
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("AI 返回不是有效 JSON 对象");
   }

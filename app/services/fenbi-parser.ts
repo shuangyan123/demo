@@ -1,6 +1,7 @@
 import { splitInput } from "../lib/form-utils";
 import { normalizeBoard } from "../lib/review-utils";
 import { BOARD_OPTIONS, type Board, type ImportDraft, type ImportDraftIssue } from "../types/review";
+import { parseAiJsonValue } from "./ai-json.ts";
 import { normalizeDraft, parseAiJson, parseCsv, parseJson, parsePlainText } from "./import-parser";
 
 type FenbiDraftInput = {
@@ -60,8 +61,7 @@ export function normalizeFenbiDraft(input: FenbiDraftInput): ImportDraft {
 // 解析 AI 返回的粉笔 JSON，兼容 items 包裹和直接数组两种输出。
 export function parseFenbiAiJson(content: string): ImportDraft[] {
   try {
-    const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
-    const parsed = JSON.parse(cleaned) as { items?: FenbiDraftInput[] } | FenbiDraftInput[];
+    const parsed = parseAiJsonValue<{ items?: FenbiDraftInput[] } | FenbiDraftInput[]>(content);
     const items = Array.isArray(parsed) ? parsed : parsed.items ?? [];
     return items.map(normalizeFenbiDraft).filter((draft) => draft.stem);
   } catch {

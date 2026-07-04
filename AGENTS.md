@@ -54,10 +54,37 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Vault 同步必须先完成目录遍历、重复 `review-id` 和三方哈希预检，再写文件并提交 IndexedDB 基线；托管根目录缺失不得标记全部映射断开。
 - 冲突选择与提案确认前必须复读 Vault 并拒绝过期哈希；`link` 提案只更新 Wikilink 和来源引用，失败重试不得生成重复知识条目。
 
+- 知识演进确认闭环必须区分 `create`、`merge`、`link`：`merge` 只能替换显式 AI 演进区并维护摘要、标签、托管链接和来源引用，`link` 只能维护 Wikilink/sourceRefs；两者确认前都要复读 Vault 并校验过期 hash，写入失败后 proposal 必须保持 pending 以便重试。
 ## 本地自动化约定
 
 - 自动化只在应用打开时执行；启动、恢复可见和网络恢复时可合并补跑一次，不得暗示浏览器关闭后仍会后台运行。
 - 调度支持不少于五分钟的固定间隔、每日、每周和五段式 Cron；使用任务保存的 IANA 时区，并由 Web Locks 与可续期 IndexedDB 租约双重去重。
 - 自动化严格使用默认文本连接，不回退多模态或语音。缺连接、断网和模型失败必须进入运行收件箱，并推进到下一计划时间。
 - 自定义任务只能读取用户勾选的数据范围；知识演进的来源和候选知识也必须分别受范围约束。除创建待确认提案外，不得自动修改知识库、训练计划、Obsidian 或文件。
+- 预览读取范围只展示本地摘要，不调用 AI、不保存任务、不推进调度；试运行只在用户显式点击后调用默认文本连接，且不得创建 run、写 proposal、保存定义或更新 `nextRunAt`。
+- 运行详情只持久化 scope、数量、样本标题、上下文字符数、失败分类和恢复动作；不得保存完整上下文 JSON、完整题干集合、完整知识正文或完整 prompt。
+- 失败恢复 CTA 只能导航或提示，不得自动重试运行、测试连接、选择 Vault、创建任务或触发外部请求。
+- 自动化 AI 成功态回归必须使用 E2E 本地 mock provider 覆盖真实 UI 配置默认文本连接、试运行成功、立即运行成功和详情展开；不得在 CI 中依赖真实 API Key、真实模型服务或外网。
+- 知识演进自动化成功态回归必须使用 E2E 本地 mock JSON provider；CI 只验证待确认提案生成和展示，不得连接真实 Vault、确认写入 Vault 或请求外网模型。
 - 空白闪卡正面只显示加号，不显示“添加角色图片”或“未命名角色”；已有图片的角色仍显示名称，上传入口保留无障碍标签。
+
+## 性能与包体约定
+
+- `ReviewWorkspace` 首屏只保留总览、错题、复盘、知识库和统计等核心路径；导入、自动化、设置、面试、辅导等低频视图必须使用 `next/dynamic` 动态加载，不得重新静态引入主工作台。
+- 导入页的 `useImportDrafts` 必须留在导入视图内部 wrapper 中；`pdfjs-dist`、`mammoth` 等文件解析依赖只能在实际解析函数里 `await import()`，避免进入首屏包体。
+- AI 关联分析、Obsidian repository 等重型服务应在用户触发对应动作时按需加载；React 状态仍不得持有 Vault 目录句柄。
+- KnowledgeWorkspace 的列表分页、批量选择、批量删除和导出范围计算应保留在 `useKnowledgeListController`；Obsidian repository 与知识演进 AI service 只能在刷新或用户动作中动态加载，不得通过知识库视图静态回到核心首屏链路。
+- TutoringWorkspace 的实时媒体源、关键帧采样、语音转写/朗读、本地草稿和当前轮次提交应保留在 `useTutoringSessionController`；主工作台只接线 tab、计划、关联和设备视图，且不得破坏默认文本/多模态/语音连接边界。
+- 大列表第一阶段采用渐进显示：错题和知识资料默认 80 条、导入草稿默认 60 条，批量全选只覆盖当前显示项，导出筛选结果仍保留完整筛选语义。
+- IndexedDB 索引优化必须基于真实页面访问路径和慢查询证据；没有 repository 级分页或明确性能瓶颈时，不为前端列表切片单独升级 Dexie schema。
+- 配置健康、诊断输入和恢复 CTA 导航属于工作台 glue code，必须保留在专用 hook 中；`ReviewWorkspace` 不得重新直接导入配置健康 hook、诊断 hook 或 `package.json` 版本信息。
+
+## AI JSON 约定
+
+- 模型返回 JSON 必须通过 `app/services/ai-json.ts` 统一处理 Markdown fence、对象/数组主体提取和稳定错误消息；业务 service 不得重新手写 fence 清理或裸 `JSON.parse`。
+- JSON helper 只负责解析稳定性，不改变现有 prompt 契约、不引入额外 schema 依赖；字段缺失、空数组和业务归一化继续由各业务 service 自己处理。
+
+## 发布验收与数据性能约定
+
+- 数据层性能第二阶段必须先记录真实页面访问路径和慢查询证据；没有页面级分页需求或明确慢查询时，不得升级 Dexie schema 或新增索引。
+- 真实浏览器与 Vault 发布验收按 `docs/release-smoke.md` 执行，重点覆盖 connect、sync、conflict、proposal confirm；CI 不得连接真实 Vault、真实模型服务或外网 API Key。

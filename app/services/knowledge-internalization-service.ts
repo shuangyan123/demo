@@ -6,6 +6,7 @@ import type {
   PersonalizationSettings,
 } from "../types/review";
 import { generateWithConnection } from "./ai-connection-client";
+import { parseAiJsonValue } from "./ai-json.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
 
 type InternalizationPayload = {
@@ -33,8 +34,7 @@ function compact(value: string, maxLength: number): string {
 
 // 清理模型可能返回的 Markdown 代码块并提取 JSON 主体。
 function parseJson(content: string): InternalizationPayload {
-  const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
-  return JSON.parse(cleaned) as InternalizationPayload;
+  return parseAiJsonValue<InternalizationPayload>(content, "object");
 }
 
 // 把不可信的列表字段转换成短文本数组。

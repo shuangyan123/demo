@@ -1,12 +1,12 @@
 "use client";
 
 import type { SyntheticEvent } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AssociationPanel } from "../shared/association-panel";
 import { BulkToolbar, Button, CardButton, Chip, ConfirmDialog, DetailBlock, DetailCard, EmptyState, MasteryDots, MetricCard, Panel, SelectField, SoftBlock, TextAreaField, TextField } from "../shared/ui-primitives";
-import { useBulkSelection } from "../shared/use-bulk-selection";
 import { KnowledgeInternalizationPanel } from "./knowledge-internalization-panel";
 import { ObsidianKnowledgePanel } from "./obsidian-knowledge-panel";
+import { useKnowledgeListController } from "./use-knowledge-list-controller";
 import { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
 import type { KnowledgeInternalizationController } from "./use-knowledge-internalization";
 import { splitInput, textValue, toListText } from "../../lib/form-utils";
@@ -370,26 +370,8 @@ export function KnowledgeView({
   const favorites = summaries.reduce((sum, item) => sum + item.favorites, 0);
   const dueCount = summaries.reduce((sum, item) => sum + item.due, 0);
   const weakCount = summaries.reduce((sum, item) => sum + item.weak, 0);
-  const visibleEntryIds = useMemo(() => entries.map((entry) => entry.id), [entries]);
-  const bulkSelection = useBulkSelection(visibleEntryIds);
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const obsidian = useObsidianKnowledgeBridge({ entries: allKnowledgeEntries, personalization: personalizationSettings, textConnection, onChanged: onKnowledgeChanged, onNotice });
-  const selectedEntries = useMemo(
-    () => entries.filter((entry) => bulkSelection.state.ids.has(entry.id)),
-    [bulkSelection.state.ids, entries],
-  );
-
-  // 根据用户选择的范围导出知识资料，导出文件和通知由父级统一处理。
-  function exportKnowledgeScope(scope: ExportScope, format: ExportFormat) {
-    onExportKnowledgeEntries(scope === "selected" ? selectedEntries : entries, format, scope);
-  }
-
-  // 确认批量删除后清空选择，避免筛选切换后旧选区继续参与操作。
-  function confirmBulkDelete() {
-    onBulkDeleteEntries(Array.from(bulkSelection.state.ids));
-    bulkSelection.clear();
-    setBulkDeleteOpen(false);
-  }
+  const knowledgeList = useKnowledgeListController({ entries, filters, onBulkDeleteEntries, onExportKnowledgeEntries });
 
   return (
     <section className="space-y-4">
@@ -435,21 +417,24 @@ export function KnowledgeView({
         <div className="space-y-4">
           <KnowledgeFiltersPanel filters={filters} summaries={summaries} tagOptions={tagOptions} onChangeFilters={onChangeFilters} />
           <BulkToolbar
-            allVisibleSelected={bulkSelection.state.allVisibleSelected}
-            selectedCount={bulkSelection.state.count}
-            totalCount={entries.length}
-            onClearSelection={bulkSelection.clear}
-            onDeleteSelected={() => setBulkDeleteOpen(true)}
-            onExportFiltered={(format) => exportKnowledgeScope("filtered", format)}
-            onExportSelected={(format) => exportKnowledgeScope("selected", format)}
-            onSelectAllVisible={bulkSelection.selectAllVisible}
+            allVisibleSelected={knowledgeList.bulkSelection.state.allVisibleSelected}
+            selectedCount={knowledgeList.bulkSelection.state.count}
+            totalCount={knowledgeList.visibleEntries.length}
+            onClearSelection={knowledgeList.bulkSelection.clear}
+            onDeleteSelected={() => knowledgeList.setBulkDeleteOpen(true)}
+            onExportFiltered={(format) => knowledgeList.exportKnowledgeScope("filtered", format)}
+            onExportSelected={(format) => knowledgeList.exportKnowledgeScope("selected", format)}
+            onSelectAllVisible={knowledgeList.bulkSelection.selectAllVisible}
           />
           <KnowledgeEntryList
-            entries={entries}
+            entries={knowledgeList.visibleEntries}
+            hasMoreEntries={knowledgeList.hasMoreEntries}
             selectedEntry={selectedEntry}
-            selectedIds={bulkSelection.state.ids}
+            selectedIds={knowledgeList.bulkSelection.state.ids}
+            totalCount={entries.length}
+            onLoadMore={knowledgeList.loadMoreEntries}
             onSelectEntry={onSelectEntry}
-            onToggleSelected={bulkSelection.toggle}
+            onToggleSelected={knowledgeList.bulkSelection.toggle}
           />
         </div>
 
@@ -482,11 +467,11 @@ export function KnowledgeView({
       </div>
       <ConfirmDialog
         confirmLabel="删除"
-        description={`将删除 ${bulkSelection.state.count} 条知识资料，并同步清理训练记录和错题关联。此操作不会删除错题、API 设置或导入任务。`}
-        open={bulkDeleteOpen}
+        description={`将删除 ${knowledgeList.bulkSelection.state.count} 条知识资料，并同步清理训练记录和错题关联。此操作不会删除错题、API 设置或导入任务。`}
+        open={knowledgeList.bulkDeleteOpen}
         title="确认批量删除知识资料？"
-        onCancel={() => setBulkDeleteOpen(false)}
-        onConfirm={confirmBulkDelete}
+        onCancel={() => knowledgeList.setBulkDeleteOpen(false)}
+        onConfirm={knowledgeList.confirmBulkDelete}
       />
     </section>
   );
@@ -588,14 +573,20 @@ function KnowledgeFiltersPanel({
 // 渲染知识库条目列表，列表中直接展示训练状态，便于快速扫弱项。
 function KnowledgeEntryList({
   entries,
+  hasMoreEntries,
   selectedEntry,
   selectedIds,
+  totalCount,
+  onLoadMore,
   onSelectEntry,
   onToggleSelected,
 }: {
   entries: KnowledgeEntry[];
+  hasMoreEntries: boolean;
   selectedEntry: KnowledgeEntry | null;
   selectedIds: Set<string>;
+  totalCount: number;
+  onLoadMore: () => void;
   onSelectEntry: (id: string) => void;
   onToggleSelected: (id: string, checked: boolean) => void;
 }) {
@@ -639,6 +630,13 @@ function KnowledgeEntryList({
           ))
         ) : (
           <EmptyState>暂无匹配资料</EmptyState>
+        )}
+        {hasMoreEntries && (
+          <div className="text-center">
+            <Button type="button" variant="soft" onClick={onLoadMore}>
+              显示更多（{entries.length}/{totalCount}）
+            </Button>
+          </div>
         )}
       </div>
     </Panel>

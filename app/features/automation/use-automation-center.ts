@@ -2,9 +2,36 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { automationRepository, type AutomationDefinitionInput } from "../../services/automation-repository";
-import type { ApiConnectionProfile, AutomationRun, AutomationSnapshot, PersonalizationSettings } from "../../types/review";
+import { previewAutomationDefinition, trialAutomationDefinition } from "../../services/automation-executor";
+import { classifyAutomationError } from "../../services/automation-failure";
+import type {
+  ApiConnectionProfile,
+  AutomationContextSummary,
+  AutomationDefinition,
+  AutomationFailureCategory,
+  AutomationRecoveryAction,
+  AutomationRun,
+  AutomationSnapshot,
+  PersonalizationSettings,
+} from "../../types/review";
 
 const EMPTY_SNAPSHOT: AutomationSnapshot = { definitions: [], runs: [], unreadCount: 0 };
+
+export type AutomationPreviewResult = {
+  summary: AutomationContextSummary[];
+  contextCharCount: number;
+};
+
+export type AutomationTrialResult = {
+  status: "succeeded" | "failed";
+  result?: string;
+  error?: string;
+  proposalCount: number;
+  contextSummary: AutomationContextSummary[];
+  contextCharCount: number;
+  failureCategory?: AutomationFailureCategory;
+  failureRecoveryAction?: AutomationRecoveryAction;
+};
 
 /** 浏览器支持 Web Locks 时只允许当前标签页立即获得的任务进入 repository。 */
 async function withBrowserLock<T>(name: string, task: () => Promise<T>): Promise<T | undefined> {
@@ -21,6 +48,21 @@ function notifyRun(run: AutomationRun): void {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   const body = run.status === "succeeded" ? run.result || "自动化已完成" : run.error || "自动化执行失败";
   new Notification(run.automationName, { body: body.slice(0, 180), tag: `automation-${run.id}` });
+}
+
+/** 将尚未保存的表单草稿转换成只供试运行使用的临时定义，不写入仓储。 */
+function draftToTrialDefinition(input: AutomationDefinitionInput): AutomationDefinition {
+  const timestamp = new Date().toISOString();
+  return {
+    ...input,
+    id: `trial-${crypto.randomUUID()}`,
+    name: input.name.trim() || "试运行自动化",
+    prompt: input.prompt.trim(),
+    sourceScopes: [...input.sourceScopes],
+    schedule: { ...input.schedule },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
 }
 
 /** 自动化中心 hook 只维护可序列化快照，调度、租约和执行均委托给服务层。 */
@@ -106,6 +148,39 @@ export function useAutomationCenter({
     onNotice(id ? "自动化已更新" : "自动化已创建");
   }, [onNotice, refresh]);
 
+  const preview = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationPreviewResult> => {
+    return previewAutomationDefinition(input);
+  }, []);
+
+  const trialRun = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationTrialResult> => {
+    const previewResult = await previewAutomationDefinition(input);
+    try {
+      const output = await trialAutomationDefinition({
+        definition: draftToTrialDefinition(input),
+        connection,
+        personalization,
+      });
+      return {
+        status: "succeeded",
+        result: output.result,
+        proposalCount: output.proposalIds.length,
+        contextSummary: output.contextSummary,
+        contextCharCount: output.contextCharCount,
+      };
+    } catch (error) {
+      const diagnosis = classifyAutomationError(error, { online: navigator.onLine });
+      return {
+        status: "failed",
+        error: diagnosis.message,
+        proposalCount: 0,
+        contextSummary: previewResult.summary,
+        contextCharCount: previewResult.contextCharCount,
+        failureCategory: diagnosis.category,
+        failureRecoveryAction: diagnosis.recoveryAction,
+      };
+    }
+  }, [connection, personalization]);
+
   const remove = useCallback(async (id: string) => {
     await automationRepository.remove(id);
     await refresh();
@@ -141,8 +216,8 @@ export function useAutomationCenter({
 
   return useMemo(() => ({
     busyIds, duplicate, markAllRead, markRead, processDue, refresh, remove, requestNotifications,
-    runNow: runDefinition, save, snapshot, toggle,
-  }), [busyIds, duplicate, markAllRead, markRead, processDue, refresh, remove, requestNotifications, runDefinition, save, snapshot, toggle]);
+    preview, runNow: runDefinition, save, snapshot, toggle, trialRun,
+  }), [busyIds, duplicate, markAllRead, markRead, preview, processDue, refresh, remove, requestNotifications, runDefinition, save, snapshot, toggle, trialRun]);
 }
 
 /** 自动化子组件共享的 hook 返回类型。 */

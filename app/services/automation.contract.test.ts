@@ -5,8 +5,10 @@ import Dexie from "dexie";
 import { reviewDb } from "../db/review-db.ts";
 import type { AutomationDefinition, Mistake } from "../types/review.ts";
 import { createDefaultPersonalizationSettings } from "./personalization-settings-repository.ts";
-import { buildAutomationContext } from "./automation-context-service.ts";
+import { buildAutomationContext, buildAutomationContextResult } from "./automation-context-service.ts";
 import { automationRepository, renewAutomationLease } from "./automation-repository.ts";
+import { classifyAutomationError } from "./automation-failure.ts";
+import { trialAutomationDefinition } from "./automation-executor.ts";
 import { calculateDueAutomation, nextAutomationRun, validateAutomationSchedule } from "./automation-schedule.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
 
@@ -65,6 +67,11 @@ test("上下文只读取授权范围，租约阻止重复运行，失败结果�
   const context = await buildAutomationContext(["mistakes"]);
   assert.equal("mistakes" in context, true);
   assert.equal("knowledge" in context, false);
+  const contextResult = await buildAutomationContextResult(["mistakes"]);
+  assert.equal(contextResult.summary.length, 1);
+  assert.equal(contextResult.summary[0].scope, "mistakes");
+  assert.equal(contextResult.summary[0].count, 1);
+  assert.equal("context" in (contextResult.summary[0] as Record<string, unknown>), false);
   const evolutionSources = await obsidianKnowledgeRepository.loadEvolutionSources(12, ["mistake"]);
   assert.deepEqual(Array.from(new Set(evolutionSources.map((item) => item.type))), ["mistake"]);
 
@@ -78,12 +85,38 @@ test("上下文只读取授权范围，租约阻止重复运行，失败结果�
   const failed = await automationRepository.run({ definition, personalization: createDefaultPersonalizationSettings(baseTime), trigger: "scheduled", scheduledAt: baseTime.toISOString(), nextRunAt: "2026-06-21T01:00:00.000Z", now: baseTime });
   assert.equal(failed?.status, "failed");
   assert.match(failed?.error ?? "", /默认文本连接/);
+  assert.equal(failed?.failureCategory, "missing_connection");
+  assert.equal(failed?.failureRecoveryAction, "configure_ai_connection");
+  assert.equal(failed?.contextSummary?.[0].scope, "mistakes");
+  assert.equal("context" in (failed as unknown as Record<string, unknown>), false);
   assert.equal((await automationRepository.loadSnapshot()).unreadCount, 1);
   assert.equal((await reviewDb.automationDefinitions.get(definition.id))?.nextRunAt, "2026-06-21T01:00:00.000Z");
   await automationRepository.markAllRead();
   assert.equal((await automationRepository.loadSnapshot()).unreadCount, 0);
   assert.equal((await reviewDb.knowledgeEntries.get("knowledge-1"))?.content, "正文");
   await reviewDb.delete();
+});
+
+test("试运行缺默认文本连接时不创建运行记录、提案或任务变更", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const definition = dueDefinition({ id: "trial-missing-connection" });
+  await assert.rejects(() => trialAutomationDefinition({
+    definition,
+    personalization: createDefaultPersonalizationSettings(baseTime),
+  }), /默认文本连接/);
+  assert.equal(await reviewDb.automationRuns.count(), 0);
+  assert.equal(await reviewDb.automationDefinitions.count(), 0);
+  assert.equal(await reviewDb.knowledgeEvolutionProposals.count(), 0);
+  await reviewDb.delete();
+});
+
+test("自动化失败分类给出稳定恢复动作", () => {
+  assert.deepEqual(classifyAutomationError(new Error("请先配置默认文本连接")).category, "missing_connection");
+  assert.deepEqual(classifyAutomationError(new Error("Failed to fetch"), { online: false }).recoveryAction, "check_network");
+  assert.deepEqual(classifyAutomationError(new Error("Vault permission denied")).recoveryAction, "open_knowledge");
+  assert.deepEqual(classifyAutomationError(new Error("HTTP 401 model error")).category, "model");
+  assert.deepEqual(classifyAutomationError(new Error("没有可读取数据")).recoveryAction, "open_import");
 });
 
 test("租约可续期且旧所有者不能覆盖新租约", async () => {
