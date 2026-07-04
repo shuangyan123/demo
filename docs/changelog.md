@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-04
+
+- 修复 Node 26 下生产构建输出 `[DEP0205] module.register()` 弃用警告：Tailwind 相关依赖升级到 4.3.2，使 `@tailwindcss/node` 优先使用 `module.registerHooks()`。
+- 固定项目运行时基线为 Node.js 22，新增 `.nvmrc`、`.node-version` 和 `package.json` `engines.node`，保持本地开发、CI 与契约测试运行环境一致。
+
 ## 2026-06-23
 
 - 修复自动化中心表单运行时崩溃：表单变更事件先提取 `value` / `checked` 到局部值，再进入 `setDraft` 或异步任务，避免 React 事件目标释放后读取 `null`。

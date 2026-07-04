@@ -97,3 +97,9 @@
 - AI 关联分析、Obsidian repository 等重型服务应在用户触发对应动作时按需加载；React 状态仍不得持有 Vault 目录句柄。
 - 大列表第一阶段采用渐进显示：错题和知识资料默认 80 条、导入草稿默认 60 条，批量全选只覆盖当前显示项，导出筛选结果仍保留完整筛选语义。
 - IndexedDB 索引优化必须基于真实页面访问路径和慢查询证据；没有 repository 级分页或明确性能瓶颈时，不为前端列表切片单独升级 Dexie schema。
+
+## Node.js 与 Tailwind 运行时经验
+
+- 项目本地开发、CI 和发布验证统一使用 Node.js 22；契约测试依赖 `node --test --experimental-strip-types`，不得回退到 Node 20。
+- 如果 Node 26 运行 `next build` 出现 `[DEP0205] module.register()`，优先检查 `@tailwindcss/node` 版本；4.3.2 已改为优先使用 `module.registerHooks()`，不要用忽略 deprecation warning 的方式掩盖问题。
+- Tailwind 运行时问题只接受同一补丁线内的最小升级，升级后必须跑 `npm run lint`、`npm run test:contracts` 和 `npm run build`，并用 `node --trace-deprecation ./node_modules/next/dist/bin/next build` 验证 warning 已消失。
