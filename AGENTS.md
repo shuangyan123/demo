@@ -101,3 +101,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 常规依赖维护只集中更新同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本；ESLint、TypeScript、Node 类型等 major 变更必须单独开预研 PR。
 - Next、React、React DOM 和 `eslint-config-next` 使用精确版本，避免框架核心版本在 `package.json` 范围内漂移；其他工具依赖沿用既有范围策略，并由 lockfile 固定解析版本。
 - `npm audit` 禁止使用 `--force` 自动跨 major 或降级修复；若修复建议要求退回不可接受的旧 Next 主版本，应记录为上游未提供稳定可接受修复并持续跟踪。
+- `docs/dependency-maintenance.md` 是包更新与 audit 跟踪入口；每次维护必须记录 outdated、audit、质量门、CI 链接和剩余风险。
+- ESLint 10 在 `eslint-config-next@16.2.10` 依赖链下会因 `eslint-plugin-react` 调用 `contextOrFilename.getFilename` 失败而阻断 lint，等待 Next 兼容后再升级。
+- TypeScript 6 和 `@types/node` 26 的本地通过结果只作为后续单独升级依据，不得改变 Node.js 22 runtime 基线。

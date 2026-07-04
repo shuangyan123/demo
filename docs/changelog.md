@@ -2,6 +2,8 @@
 
 ## 2026-07-04
 
+- 合并依赖维护 PR #4 到 `main`，并新增 `docs/dependency-maintenance.md` 作为后续包更新、major 预研和 audit 残留跟踪入口。
+- 完成 ESLint 10、TypeScript 6、`@types/node` 26 预研：ESLint 10 被 `eslint-config-next` 依赖链 lint 兼容性阻断；TypeScript 6 和 Node 26 类型本地质量门通过但不直接升级。
 - 维护安全范围内的依赖补丁：Next/React 更新到 16.2.10/19.2.7，Playwright、Dexie、cron-parser、js-yaml、pdfjs-dist 和 React 类型同步到当前稳定补丁线。
 - 将 `@types/node` 对齐到 Node.js 22 类型基线，并把 GitHub Actions `checkout` / `setup-node` 升级到 v5，减少 Actions Node 20 runtime deprecated annotation。
 - 保留 TypeScript 5、ESLint 9、Tailwind 4.3.2 和 Node `>=22 <23` 约束；ESLint 10、TypeScript 6、`@types/node` 26 等 major 变更继续作为单独预研。
