@@ -92,6 +92,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Node.js 与 Tailwind 运行时约定
 
 - 项目本地开发、CI 和发布验证统一以 Node.js 22 为基线；`.nvmrc`、`.node-version` 和 `package.json` `engines.node` 必须保持一致。
-- 契约测试使用 `node --test --experimental-strip-types`，GitHub Actions 继续使用 `actions/setup-node@v4` 的 Node 22，不得回退到 Node 20。
+- 契约测试使用 `node --test --experimental-strip-types`，GitHub Actions 继续使用 `actions/setup-node` 的 Node 22，不得回退到 Node 20。
 - Node 26 下若出现 `[DEP0205] module.register()`，先检查 Tailwind 运行时依赖；`@tailwindcss/node` 需保持在已优先调用 `module.registerHooks()` 的 4.3.2 或同补丁线后续版本。
 - 处理运行时 deprecation warning 不得通过隐藏 warning 交付，必须定位调用栈、更新依赖或锁定受支持运行时，并完成 lint、contracts、build 验证。
+
+## 依赖维护约定
+
+- 常规依赖维护只集中更新同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本；ESLint、TypeScript、Node 类型等 major 变更必须单独开预研 PR。
+- Next、React、React DOM 和 `eslint-config-next` 使用精确版本，避免框架核心版本在 `package.json` 范围内漂移；其他工具依赖沿用既有范围策略，并由 lockfile 固定解析版本。
+- `npm audit` 禁止使用 `--force` 自动跨 major 或降级修复；若修复建议要求退回不可接受的旧 Next 主版本，应记录为上游未提供稳定可接受修复并持续跟踪。

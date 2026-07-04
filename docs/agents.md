@@ -103,3 +103,9 @@
 - 项目本地开发、CI 和发布验证统一使用 Node.js 22；契约测试依赖 `node --test --experimental-strip-types`，不得回退到 Node 20。
 - 如果 Node 26 运行 `next build` 出现 `[DEP0205] module.register()`，优先检查 `@tailwindcss/node` 版本；4.3.2 已改为优先使用 `module.registerHooks()`，不要用忽略 deprecation warning 的方式掩盖问题。
 - Tailwind 运行时问题只接受同一补丁线内的最小升级，升级后必须跑 `npm run lint`、`npm run test:contracts` 和 `npm run build`，并用 `node --trace-deprecation ./node_modules/next/dist/bin/next build` 验证 warning 已消失。
+
+## 依赖维护经验
+
+- 常规依赖维护优先集中处理同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本更新；破坏性 major 变更必须单独预研，不混入安全补丁 PR。
+- Next、React、React DOM 和 `eslint-config-next` 保持精确版本，避免框架核心在 lockfile 之外漂移；工具库可沿用现有 caret 范围，但必须通过 `package-lock.json` 锁定实际解析结果。
+- `npm audit` 不得使用 `--force` 自动降级或跨 major 修复；如果修复建议要求退回不可接受的旧 Next 主版本，只能记录为上游未提供可接受稳定修复并继续跟踪。
