@@ -1,0 +1,480 @@
+/* 弥散侧栏仍保留独立滚动，避免装饰层影响设置导航。 */
+.settings-sidebar-scroll.diffuse-sidebar {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* 设置页使用接近 Codex 的浅灰滚动条，避免系统默认滚动条显得过重。 */
+.settings-main-scroll,
+.settings-sidebar-scroll {
+  scrollbar-color: var(--settings-scrollbar-thumb) var(--settings-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.settings-main-scroll::-webkit-scrollbar,
+.settings-sidebar-scroll::-webkit-scrollbar {
+  height: 12px;
+  width: 12px;
+}
+
+.settings-main-scroll::-webkit-scrollbar-track,
+.settings-sidebar-scroll::-webkit-scrollbar-track {
+  background: var(--settings-scrollbar-track);
+  border-radius: 999px;
+}
+
+.settings-main-scroll::-webkit-scrollbar-thumb,
+.settings-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: var(--settings-scrollbar-thumb);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+.settings-main-scroll::-webkit-scrollbar-thumb:hover,
+.settings-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--settings-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+/* 设置页输入和下拉只保留轻量焦点反馈，不再出现醒目的蓝色阴影。 */
+.settings-input,
+.settings-select {
+  box-shadow: none;
+}
+
+.settings-input:focus,
+.settings-select:focus {
+  border-color: var(--line);
+  box-shadow: none;
+  outline: none;
+}
+
+.settings-input:focus-visible,
+.settings-select:focus-visible,
+.theme-menu-trigger:focus-visible,
+.color-swatch:focus-visible,
+.color-picker:focus-within {
+  outline: 1px solid rgba(0, 0, 0, 0.16);
+  outline-offset: 2px;
+}
+
+body[data-theme="dark"] .settings-input:focus-visible,
+body[data-theme="dark"] .settings-select:focus-visible,
+body[data-theme="dark"] .theme-menu-trigger:focus-visible,
+body[data-theme="dark"] .color-swatch:focus-visible,
+body[data-theme="dark"] .color-picker:focus-within {
+  outline-color: rgba(255, 255, 255, 0.2);
+}
+
+.theme-menu-trigger:hover {
+  background: color-mix(in srgb, var(--surface-muted) 88%, #000 12%);
+}
+
+.theme-menu-popover,
+.color-palette-popover {
+  color: var(--foreground);
+}
+
+.color-swatch {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.color-sv-plane {
+  touch-action: none;
+}
+
+.color-sv-white {
+  background: linear-gradient(to right, #fff, transparent);
+}
+
+.color-sv-black {
+  background: linear-gradient(to top, #000, transparent);
+}
+
+.color-hue-slider {
+  appearance: none;
+  height: 14px;
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+}
+
+.color-hue-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.color-hue-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+/* 自定义对比度滑杆，使用细轨道和固定圆球，避免原生 range 拖动时的抖动和蓝色阴影。 */
+.contrast-slider {
+  --slider-progress: 0%;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.contrast-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--blue) 0 var(--slider-progress), rgba(148, 163, 184, 0.35) var(--slider-progress) 100%);
+}
+
+.contrast-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -8px;
+  border: 0;
+  border-radius: 999px;
+  background: #050505;
+  box-shadow: none;
+}
+
+.contrast-slider::-moz-range-track {
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+}
+
+.contrast-slider::-moz-range-progress {
+  height: 2px;
+  border-radius: 999px;
+  background: var(--blue);
+}
+
+.contrast-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #050505;
+  box-shadow: none;
+}
+
+/* 设置页代码预览统一使用外观配置里的代码字号，避免 JSX 中散落任意值 class。 */
+.settings-code-preview {
+  font-size: var(--app-code-font-size);
+}
+
+.contrast-slider:focus,
+.contrast-slider:focus-visible {
+  box-shadow: none;
+  outline: none;
+}
+
+.contrast-slider:hover::-webkit-slider-thumb {
+  background: #000000;
+}
+
+.contrast-slider:hover::-moz-range-thumb {
+  background: #000000;
+}
+
+/* 定制页只用微弱纸面底纹承托卡框，不复用内置头像作为卡面。 */
+.persona-custom-surface {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(194, 153, 82, 0.07), transparent 28%),
+    var(--surface);
+}
+
+.persona-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 150px));
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.persona-card-grid.is-empty {
+  min-height: 230px;
+  place-content: center;
+}
+
+.persona-flash-card {
+  --foil-x: 50%;
+  --foil-y: 35%;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 2 / 3;
+}
+
+.persona-card-front {
+  height: 100%;
+  border: 0;
+  border-radius: 0.45rem;
+  background: linear-gradient(145deg, #f8fafc 0%, #edf3f8 52%, #fffaf0 100%);
+  box-shadow:
+    0 18px 34px rgba(28, 22, 14, 0.22),
+    0 0 0 1px rgba(244, 199, 54, 0.28);
+}
+
+.persona-card-front-button {
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+/* 透明 PNG 来自用户确认的 2:3 参考边框，前端只做等比缩放。 */
+.persona-card-frame-image {
+  object-fit: contain;
+  filter: drop-shadow(0 1px 0 rgba(72, 42, 3, 0.82));
+}
+
+.persona-card-actions {
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
+}
+
+.persona-flash-card:hover .persona-card-actions,
+.persona-flash-card:focus-within .persona-card-actions {
+  opacity: 1;
+  transform: none;
+}
+
+.persona-card-icon-button {
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(12, 13, 16, 0.7);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+}
+
+.persona-card-icon-button svg { width: 0.82rem; height: 0.82rem; }
+.persona-card-icon-button:hover { background: rgba(12, 13, 16, 0.9); }
+.persona-card-icon-button.is-danger:hover { color: #ffd6d2; background: rgba(126, 31, 28, 0.92); }
+
+.persona-card-art {
+  transform: scale(1.01);
+  transition: transform 420ms var(--motion-ease);
+}
+
+.persona-card-front-button:hover .persona-card-art {
+  transform: scale(1.035);
+}
+
+.persona-card-vignette {
+  z-index: 12;
+  background: linear-gradient(to bottom, transparent 58%, rgba(7, 6, 4, 0.64) 94%);
+}
+
+.persona-card-foil {
+  z-index: 13;
+  opacity: 0;
+  background:
+    radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255, 255, 255, 0.44), transparent 17%),
+    linear-gradient(116deg, transparent 35%, rgba(106, 226, 255, 0.16) 43%, rgba(255, 220, 105, 0.24) 49%, transparent 58%);
+  mix-blend-mode: screen;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.persona-flash-card:hover .persona-card-foil,
+.persona-card-front-button:focus-visible .persona-card-foil {
+  opacity: 0.7;
+}
+
+.persona-card-name {
+  color: #f5d760;
+  font-family: Georgia, "Times New Roman", var(--font-noto-sans-sc), serif;
+  text-shadow:
+    0 2px 2px rgba(0, 0, 0, 0.92),
+    0 0 5px rgba(0, 0, 0, 0.82),
+    0 0 1px #4c2c00;
+  transform: perspective(180px) rotateX(3deg);
+}
+
+.persona-card-placeholder {
+  position: relative;
+  z-index: 1;
+  color: #425a70;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.96), transparent 30%),
+    linear-gradient(145deg, #f8fafc 0%, #eaf2f8 58%, #fff8e8 100%);
+}
+
+.persona-card-placeholder-plus {
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  margin-inline: auto;
+  place-items: center;
+  border: 1px solid rgba(25, 75, 116, 0.3);
+  border-radius: 999px;
+  font-size: 1.45rem;
+  font-weight: 300;
+}
+
+.persona-add-button {
+  display: inline-flex;
+  width: max-content;
+  min-height: 2.75rem;
+  align-self: center;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 0.75rem;
+  color: var(--muted);
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.persona-add-icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, var(--muted) 55%, transparent);
+  border-radius: 999px;
+  font-size: 1.5rem;
+  font-weight: 300;
+}
+.persona-add-button strong { font-size: 0.78rem; font-weight: 600; }
+.persona-add-button:hover { color: var(--foreground); transform: translateY(-2px); }
+.persona-add-button:hover .persona-add-icon { border-color: var(--blue); }
+
+.persona-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 112px));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.persona-avatar-grid.is-empty {
+  min-height: 180px;
+  place-content: center;
+}
+
+.persona-avatar-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.65rem 0.45rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--surface);
+}
+
+.persona-avatar-main {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  justify-items: center;
+  gap: 0.45rem;
+}
+
+.persona-avatar-image { width: 4.5rem; height: 4.5rem; }
+.persona-avatar-actions { display: flex; gap: 0.5rem; font-size: 0.68rem; color: var(--muted); }
+.persona-avatar-actions button:hover { color: var(--foreground); }
+.persona-avatar-actions .is-danger:hover { color: var(--red); }
+
+.persona-default-persona {
+  transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
+}
+
+.persona-default-persona:hover { background: var(--surface-muted); }
+.persona-default-select:hover { background: var(--surface); color: var(--foreground); }
+
+.persona-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(3, 8, 15, 0.965);
+}
+
+.persona-editor-dialog {
+  min-width: 0;
+  outline: none;
+}
+
+.persona-editor-dialog[data-variant="default"] {
+  width: min(900px, calc(100vw - 2.5rem));
+  height: min(760px, calc(100dvh - 2.5rem));
+}
+
+.persona-editor-dialog[data-variant="card-back"] {
+  width: min(560px, calc(100vw - 2.5rem));
+  height: min(680px, calc(100dvh - 2.5rem));
+}
+
+.persona-editor-dialog-panel {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.62);
+}
+
+.persona-default-editor-content,
+.persona-card-back-content {
+  scrollbar-width: thin;
+  scrollbar-color: var(--settings-scrollbar-thumb) transparent;
+}
+
+@media (max-width: 760px) {
+  .persona-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .persona-flash-card { width: 100%; }
+  .persona-card-grid.is-empty { min-height: 220px; }
+
+  .persona-avatar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .persona-editor-backdrop { padding: 0.5rem; }
+  .persona-editor-dialog,
+  .persona-editor-dialog[data-variant="card-back"],
+  .persona-editor-dialog[data-variant="default"] {
+    width: 100%;
+    height: calc(100dvh - 1rem);
+    max-height: none;
+  }
+
+  .persona-editor-dialog-panel {
+    height: 100%;
+    max-height: none;
+  }
+
+  .persona-card-actions { opacity: 1; transform: none; }
+}
+
+body[data-reduced-motion="true"] .persona-card-art,
+body[data-reduced-motion="true"] .persona-add-button {
+  transition: none;
+  transform: none;
+}
+
+body[data-reduced-motion="true"] .persona-card-foil { display: none; }

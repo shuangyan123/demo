@@ -1,0 +1,94 @@
+/* 基础层只放全局 reset、字体、暗色适配和可访问性焦点，不承载页面专属布局。 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--app-ui-font);
+  font-size: var(--app-ui-font-size);
+  letter-spacing: 0;
+}
+
+code,
+pre {
+  font-family: var(--app-code-font);
+  font-size: var(--app-code-font-size);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+body[data-pointer-cursor="false"] button,
+body[data-pointer-cursor="false"] summary,
+body[data-pointer-cursor="false"] label {
+  cursor: default;
+}
+
+body[data-reduced-motion="true"] *,
+body[data-reduced-motion="true"] *::before,
+body[data-reduced-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
+}
+
+body[data-theme="dark"] .bg-white {
+  background-color: var(--surface);
+}
+
+body[data-theme="dark"] .bg-slate-50,
+body[data-theme="dark"] .bg-slate-100 {
+  background-color: var(--surface-muted);
+}
+
+body[data-theme="dark"] .border-line,
+body[data-theme="dark"] .border-slate-100,
+body[data-theme="dark"] .border-slate-200,
+body[data-theme="dark"] .border-slate-300 {
+  border-color: var(--line);
+}
+
+body[data-theme="dark"] .text-slate-600,
+body[data-theme="dark"] .text-slate-700,
+body[data-theme="dark"] .text-muted {
+  color: var(--muted);
+}
+
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+  background-color: var(--surface);
+  color: var(--foreground);
+}
+
+input,
+select,
+textarea {
+  outline: none;
+}
+
+input[type="range"] {
+  min-width: 0;
+}
+
+input:not(.settings-input):not(.contrast-slider):not(.ui-input):focus,
+select:not(.settings-select):not(.ui-select):focus,
+textarea:not(.ui-textarea):focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.14);
+}
