@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ApiConnectionProfile, KnowledgeEntry, KnowledgeEvolutionProposal, ObsidianNoteMapping, ObsidianVaultSnapshot, PersonalizationSettings } from "../../types/review";
+import type { ApiConnectionProfile, KnowledgeEntry, KnowledgeEvolutionGenerationResult, KnowledgeEvolutionProposal, ObsidianGraphSnapshot, ObsidianNoteMapping, ObsidianVaultSnapshot, PersonalizationSettings } from "../../types/review";
+import { emitAiActivity } from "../../services/ai-activity-events";
 
 const EMPTY_SNAPSHOT: ObsidianVaultSnapshot = {
   id: "default", vaultName: "", managedRoot: "AI知识库", connected: false, permission: "denied",
   recovery: "none",
   mappedCount: 0, conflictCount: 0, pendingProposalCount: 0, createdAt: "", updatedAt: "",
 };
+
+const EMPTY_GRAPH: ObsidianGraphSnapshot = { nodes: [], edges: [], syncedCount: 0, externalCount: 0, issueCount: 0 };
 
 /** 编排 Obsidian 的可序列化 UI 状态；目录句柄和文件 I/O 始终留在仓储层。 */
 async function loadObsidianKnowledgeRepository() {
@@ -34,18 +37,22 @@ export function useObsidianKnowledgeBridge({
 }) {
   const [snapshot, setSnapshot] = useState<ObsidianVaultSnapshot>(EMPTY_SNAPSHOT);
   const [mappings, setMappings] = useState<ObsidianNoteMapping[]>([]);
+  const [graph, setGraph] = useState<ObsidianGraphSnapshot>(EMPTY_GRAPH);
   const [proposals, setProposals] = useState<KnowledgeEvolutionProposal[]>([]);
+  const [lastGenerationResult, setLastGenerationResult] = useState<KnowledgeEvolutionGenerationResult>();
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
-    const [nextSnapshot, nextMappings, nextProposals] = await Promise.all([
+    const [nextSnapshot, nextMappings, nextGraph, nextProposals] = await Promise.all([
       obsidianKnowledgeRepository.loadSnapshot(),
       obsidianKnowledgeRepository.listMappings(),
+      obsidianKnowledgeRepository.loadGraphSnapshot(),
       obsidianKnowledgeRepository.listProposals(),
     ]);
     setSnapshot(nextSnapshot);
     setMappings(nextMappings);
+    setGraph(nextGraph);
     setProposals(nextProposals);
   }, []);
 
@@ -103,10 +110,18 @@ export function useObsidianKnowledgeBridge({
     if (!textConnection) throw new Error("请先配置默认文本连接，再生成知识演进提案");
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
     const { requestKnowledgeEvolutionProposals } = await import("../../services/knowledge-evolution-service");
+    const activityRunId = crypto.randomUUID();
     const sources = await obsidianKnowledgeRepository.loadEvolutionSources();
-    const generated = await requestKnowledgeEvolutionProposals({ connection: textConnection, personalization, sources, entries });
-    await obsidianKnowledgeRepository.saveProposals(generated);
-    return `已生成 ${generated.length} 条知识演进提案，确认前不会写入 Vault`;
+    const graphSnapshot = await obsidianKnowledgeRepository.loadGraphSnapshot();
+    const result = await requestKnowledgeEvolutionProposals({ connection: textConnection, personalization, sources, entries, graph: graphSnapshot, activityRunId });
+    emitAiActivity({ runId: activityRunId, module: "Obsidian 插件", purpose: "知识演进提案", phase: "waiting", label: `${textConnection.provider} · ${textConnection.model}`, stepId: "save", connectionLabel: textConnection.label, model: textConnection.model, text: `正在保存 ${result.proposals.length} 条 pending 提案` });
+    await obsidianKnowledgeRepository.saveProposals(result.proposals);
+    setLastGenerationResult(result);
+    emitAiActivity({ runId: activityRunId, module: "Obsidian 插件", purpose: "知识演进提案", phase: "done", label: `${textConnection.provider} · ${textConnection.model}`, stepId: "saved", connectionLabel: textConnection.label, model: textConnection.model, text: result.proposals.length ? `已保存 ${result.proposals.length} 条待确认提案` : result.emptyReason });
+    const diagnosticSuffix = result.diagnostics.length ? `；诊断 ${result.diagnostics.length} 条` : "";
+    return result.proposals.length
+      ? `已生成 ${result.proposals.length} 条知识演进提案，确认前不会写入 Vault${diagnosticSuffix}`
+      : `${result.emptyReason ?? "未生成可用提案"}${diagnosticSuffix}`;
   }, "知识演进提案生成失败"), [entries, personalization, run, textConnection]);
 
   const acceptProposal = useCallback((id: string) => run(async () => {
@@ -147,7 +162,7 @@ export function useObsidianKnowledgeBridge({
   }, [mappings, snapshot.managedRoot, snapshot.vaultName]);
 
   return useMemo(() => ({
-    acceptProposal, busy, connect, detach, generateProposals, importFiles, issues, mappings, pendingProposals,
+    acceptProposal, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals,
     recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, uriForKnowledge,
-  }), [acceptProposal, busy, connect, detach, generateProposals, importFiles, issues, mappings, pendingProposals, recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, uriForKnowledge]);
+  }), [acceptProposal, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals, recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, uriForKnowledge]);
 }

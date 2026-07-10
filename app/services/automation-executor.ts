@@ -41,7 +41,7 @@ export async function trialAutomationDefinition(input: {
   return executeAutomation({ ...input, persistProposals: false });
 }
 
-/** 执行只读自动化；除保存待确认提案外，不更新任何业务数据。 */
+/** 执行只读已安排任务；除保存待确认提案外，不更新任何业务数据。 */
 export async function executeAutomation(input: {
   definition: AutomationDefinition;
   connection?: ApiConnectionProfile;
@@ -49,7 +49,7 @@ export async function executeAutomation(input: {
   persistProposals?: boolean;
 }): Promise<AutomationExecutionResult> {
   const contextResult = await buildAutomationContextResult(input.definition.sourceScopes);
-  if (!input.connection) throw new Error("请先配置默认文本连接，再运行自动化");
+  if (!input.connection) throw new Error("请先配置默认文本连接，再运行已安排任务");
 
   if (input.definition.templateId === "knowledge_evolution") {
     const allowed = new Set(input.definition.sourceScopes);
@@ -63,7 +63,8 @@ export async function executeAutomation(input: {
       obsidianKnowledgeRepository.loadEvolutionSources(12, evolutionScopes),
       allowed.has("knowledge") ? reviewDb.knowledgeEntries.toArray() : Promise.resolve([]),
     ]);
-    const proposals = await requestKnowledgeEvolutionProposals({ connection: input.connection, personalization: input.personalization, sources, entries });
+    const generation = await requestKnowledgeEvolutionProposals({ connection: input.connection, personalization: input.personalization, sources, entries });
+    const proposals = generation.proposals;
     if (input.persistProposals !== false) await obsidianKnowledgeRepository.saveProposals(proposals);
     return {
       result: proposals.length
@@ -84,7 +85,7 @@ export async function executeAutomation(input: {
       {
         role: "system",
         content: [
-          "你正在执行一个本地学习自动化。只分析提供的只读上下文，不得声称已经修改知识库、训练计划、文件或 Obsidian。",
+          "你正在执行一个本地已安排学习任务。只分析提供的只读上下文，不得声称已经修改知识库、训练计划、文件或 Obsidian。",
           "输出简洁的 Markdown。证据不足时明确说明，不得编造数据。涉及新增、合并、建链或删除时，只能写成待用户确认的建议。",
           buildPersonaPrompt(persona),
         ].join("\n\n"),

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
-/** 断言移动视口没有页面级横向溢出；横向侧栏导航应只在自身容器内滚动。 */
+/** 断言移动视口没有页面级横向溢出；横向工作台导航应只在自身容器内滚动。 */
 async function expectNoDocumentHorizontalOverflow(page: Page) {
   const viewport = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
@@ -17,22 +17,22 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await expect(page).toHaveTitle("错题复盘");
   await expect(page.getByRole("heading", { name: "配置健康" })).toBeVisible();
   await expect(page.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "知识库" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "知识库", exact: true })).toBeVisible();
   await expectNoFrameworkOverlay(page);
   await expectNoDocumentHorizontalOverflow(page);
 
   await page.getByRole("button", { name: "收起侧边栏" }).click();
   await expect(page.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
   await page.getByRole("button", { name: "展开侧边栏" }).click();
-  await expect(page.getByLabel("侧栏导航").getByRole("button", { name: "自动化" })).toBeVisible();
+  await expect(page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" })).toBeVisible();
 
-  await page.getByLabel("侧栏导航").getByRole("button", { name: "自动化" }).click();
-  await expect(page.getByRole("heading", { name: "自动化", exact: true })).toBeVisible();
+  await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
+  await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
   await page.getByLabel("名称").fill("移动视口回归");
   await expect(page.getByLabel("名称")).toHaveValue("移动视口回归");
   await expectNoDocumentHorizontalOverflow(page);
 
-  await page.getByRole("button", { name: "知识库" }).click();
+  await page.getByRole("button", { name: "知识库", exact: true }).click();
   await expect(page.getByText("Obsidian 知识图谱")).toBeVisible();
   await expect(page.getByRole("button", { name: "连接 Vault 文件夹" })).toBeVisible();
   await expectNoDocumentHorizontalOverflow(page);

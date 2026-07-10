@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
-test("导入页可生成知识资料草稿并确认入库", async ({ page }) => {
+test("粉笔导入插件可生成知识资料草稿并确认入库", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
-  await page.getByLabel("侧栏导航").getByRole("button", { name: "导入" }).click();
+  await page.getByRole("button", { name: "粉笔导入插件" }).first().click();
+  await expect(page.getByRole("heading", { name: "插件" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /粉笔导入 已打开/ })).toBeVisible();
 
   const knowledgeImportForm = page.locator("form").filter({ has: page.getByRole("button", { name: "生成资料草稿" }) });
   await knowledgeImportForm.getByLabel("资料文本").fill("E2E 知识资料标题\n\n这是一段用于端到端测试的知识资料正文。");
@@ -29,7 +31,7 @@ test("手动录入可保存错题并在错题库中展示", async ({ page }) => 
 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
-  await page.getByLabel("侧栏导航").getByRole("button", { name: "手动录入" }).click();
+  await page.getByRole("button", { name: "手动录入" }).first().click();
 
   const entryForm = page.locator("form").filter({ has: page.getByRole("button", { name: "保存错题" }) });
   await entryForm.getByLabel("板块").selectOption("资料分析");

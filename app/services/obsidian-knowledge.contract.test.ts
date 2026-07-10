@@ -129,6 +129,54 @@ test("本地未映射知识资料首次同步会写入托管 Vault", async () =>
   }
 });
 
+test("Obsidian 图谱从 Wikilink 生成内部和外部关系", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const entryA = knowledgeEntry("knowledge-a", "# 行政许可\n\nA");
+  const entryB = { ...knowledgeEntry("knowledge-b", "# 行政处罚\n\nB"), title: "行政处罚" };
+  await reviewDb.knowledgeEntries.bulkPut([entryA, entryB]);
+  await reviewDb.obsidianNoteMappings.bulkPut([
+    {
+      path: "常识判断/行政许可.md",
+      knowledgeId: entryA.id,
+      category: entryA.category,
+      baseHash: "base-a",
+      vaultHash: "base-a",
+      appHash: "base-a",
+      status: "synced",
+      wikilinks: ["行政处罚", "外部概念"],
+      sourceRefs: [],
+      createdAt: today.toISOString(),
+      updatedAt: today.toISOString(),
+    },
+    {
+      path: "常识判断/行政处罚.md",
+      knowledgeId: entryB.id,
+      category: entryB.category,
+      baseHash: "base-b",
+      vaultHash: "base-b",
+      appHash: "base-b",
+      status: "conflict",
+      wikilinks: [],
+      sourceRefs: [],
+      createdAt: today.toISOString(),
+      updatedAt: today.toISOString(),
+    },
+  ]);
+  try {
+    const graph = await obsidianKnowledgeRepository.loadGraphSnapshot();
+    assert.equal(graph.nodes.length, 3);
+    assert.equal(graph.edges.length, 2);
+    assert.equal(graph.syncedCount, 1);
+    assert.equal(graph.issueCount, 1);
+    assert.equal(graph.externalCount, 1);
+    assert.equal(graph.edges.some((edge) => edge.sourceId === "knowledge-a" && edge.targetId === "knowledge-b"), true);
+    assert.equal(graph.nodes.some((node) => node.id === "external:外部概念" && node.status === "external"), true);
+  } finally {
+    await reviewDb.delete();
+  }
+});
+
 test("Vault 路径、权限状态和失效句柄在浏览器边界被明确区分", async () => {
   assert.equal(normalizeObsidianPath("AI知识库/常识判断"), "AI知识库/常识判断");
   assert.throws(() => normalizeObsidianPath("../私有目录"), (error) => error instanceof ObsidianVaultError && error.code === "path_invalid");

@@ -4,6 +4,20 @@
 
 - 知识资料列表的渐进渲染、批量选择、批量删除和导出范围计算应保留在 `useKnowledgeListController`，不要重新塞回 `knowledge-workspace.tsx`。
 - Obsidian repository 与知识演进 AI service 属于知识库低频重服务，只能在刷新或用户动作中通过动态 `import()` 加载；React 状态仍只保存可序列化 snapshot、mapping 和 proposal。
+- Obsidian Vault 和 AI 额度必须通过“设置 → 插件”集中呈现；AI 连接页只管理模型调用连接，不再承载额度配置。
+
+## 专项学习与插件化经验
+
+- 顶层工作台采用 Codex 式入口：新对话、搜索、已安排、插件和项目；“公考”是首个专项学习项目，后续专项通过 `StudyDomainDefinition` 注册，不再把功能平铺到主侧栏。
+- 专项首页要优先展示学习链路和下一步，而不是只罗列模块；公考当前链路是导入/错题、知识沉淀、知识训练、AI 辅导、已安排复盘和 Obsidian 输出。
+- “已安排”是原本本地自动化的产品入口；底层 automation 类型、表和仓储可继续复用，命名调整不得为了 UI 文案升级 Dexie schema。
+- 粉笔导入属于设置插件，不再作为主导航板块；解析能力通过 `ImportProviderPlugin` 包装，UI 只能消费插件结果和诊断，不能重新直接绑定粉笔 parser。
+- 插件页采用 Codex 目录式 UI，首屏只放搜索、已安装图标、分类列表、短描述、短状态徽标和主操作；健康摘要、隐私说明、诊断和业务面板必须点击插件后再进入页面内 inspector。
+- 插件目录字段必须来自注册表，不能在 UI 中硬编码 provider 特例；运行态摘要只接收脱敏数量与连接可用性，不能读取 prompt、Vault 正文、截图或完整厂商响应。
+- AI 额度 provider 采用 CodexBar 式 descriptor/fetch strategy 思路，provider 卡片、官网入口、状态页、刷新周期和 unsupported 原因都从注册表读取，通用 client 不写厂商账单分支。
+- MCP 必须从插件目录移出，单独放在 `设置 → MCP`；本轮只保存 server 配置和 discovery 摘要，真实 tools/resources/prompts 调用后续通过 conversation run/step 展示。
+- AI 对话面板按 Codex 风格展示会话、消息、composer 摘要和工具链；点击“新对话”只进入空白草稿，发送首条消息后才落库。工具链默认在消息流中折叠为“已运行 N 条命令”，会话和项目通过 IndexedDB v14 持久化，但只能保存可见消息、附件摘要、run/step 和 usage。
+- 公考项目在侧栏默认只显示一个项目入口，模块和六大板块必须收进公考内部折叠入口；板块只作为错题筛选，不再与项目并列。
 
 ## TutoringWorkspace 瘦身经验
 
@@ -17,13 +31,19 @@
 
 ## 数据性能与发布验收经验
 
-- 没有真实慢查询证据时，不升级 Dexie schema、不新增索引；需要先记录页面、操作、数据量、耗时和 repository 调用路径。
+- 没有真实慢查询证据时，不为性能或列表切片升级 Dexie schema、不新增索引；通用 AI 会话持久化是业务建模升级，v14 只能新增会话/项目相关表。
 - 真实 Vault 验收保留在人工 smoke：connect、sync、conflict、proposal confirm 四条路径必须逐项记录；CI 只验证契约和 mock provider，不接真实 Vault 或外网模型。
 
 ## AI 连接收尾经验
 
 - 默认连接 ID 不能只在写入时校验；编辑连接能力后也必须在 repository 读取边界归一化，否则 React 会继续拿到能力不匹配的档案。
 - 连接级客户端必须接收明确任务用途，并在解密密钥前校验能力。设置页测试也属于真实调用方，不能绕过该客户端。
+- 流式输出只能在 provider adapter 层解析厂商事件，业务 UI 消费统一 `status/delta/usage/done/error`；结构化 JSON 任务仍等完整内容结束后走 `ai-json.ts`。
+- AI 活动可视化按 run/step 展示工具链阶段、短文本片段和 usage 摘要，不得持久化 prompt、截图、完整上下文、Vault 正文或厂商原始事件。
+- AI 连接模型选择使用下拉列表加手动模型 ID 兜底；模型能力和推荐状态作为说明展示，不再把推荐模型铺成按钮列表。
+- 额度查询必须做成独立插件适配层，账单凭据与普通模型 Key 分开保存；没有官方账单 API 时只显示 unsupported/manual，不抓取网页后台。
+- 额度 UI 采用紧凑厂商卡展示用量条、周期、刷新时间、来源标签和 unsupported/error 徽标；OpenAI 官方接口没有余额字段时必须明说，不得伪装余额。
+- 额度插件配置使用本地加密存储即可，不为这类小型设置升级 Dexie schema；无慢查询证据时继续遵守不新增索引约定。
 - 兼容旧表不仅要处理首次迁移；默认文本连接的模型、地址或密钥变更也要同步，清空或移除文本能力时则必须删除旧记录。
 - 缺少默认连接时可以保留不发起 AI 请求的本地保存能力，但提示必须明确说明降级结果，不能伪装成 AI 摘要成功。
 - 共享壳层接收状态文案时必须实际渲染并声明 `role="status"`；只把提示保存在上层状态会造成业务逻辑正确但用户完全不可见。
@@ -60,16 +80,18 @@
 - `create`、`merge`、`link` 必须保持不同写入语义，尤其 `link` 只能维护托管链接和来源引用，不能借机改写正文。
 - 知识演进不得把目标知识自身作为唯一来源或生成指向自身标题的 Wikilink；service 先过滤，repository 写入前再次防御。
 - `KnowledgeEntry.nextReviewAt` 必须保持 `YYYY-MM-DD`；Vault 导入或迁移不能把完整 ISO 时间戳送入 `formatShortDate()`。
+- Obsidian 图谱由同步后的 mapping 和 Wikilink 派生；React 只持有可序列化 `ObsidianGraphSnapshot`，AI 提案只接收节点/边摘要，不读取未授权 Vault 全文。
 - CI 只验证静态质量、契约和生产构建；真实 Vault 与 AI 密钥必须留在本地浏览器验收，不得写入 Actions secrets 或测试夹具。
 - 契约测试使用 `--experimental-strip-types`，GitHub Actions 与本地交付基线应使用 Node.js 22，避免 Node 20 无法识别该运行参数导致质量门误失败。
 
 - 知识演进确认闭环必须区分 `create`、`merge`、`link`：`merge` 只能替换显式 AI 演进区并维护摘要、标签、托管链接和来源引用，`link` 只能维护 Wikilink/sourceRefs；两者确认前都要复读 Vault 并校验过期 hash，写入失败后 proposal 必须保持 pending 以便重试。
-## 自动化实现经验
+- 知识演进生成必须返回可见诊断：解析数量、过滤数量、空结果原因和过滤说明都要在 UI 可见，不能只显示空状态。
+## 已安排实现经验
 
-- 浏览器本地自动化必须把“准时后台执行”和“打开后补跑”区分清楚；没有常驻进程时不得承诺关闭页面仍运行。
+- 浏览器本地已安排任务必须把“准时后台执行”和“打开后补跑”区分清楚；没有常驻进程时不得承诺关闭页面仍运行。
 - 调度去重需要双层保护：Web Locks 处理同源标签页，IndexedDB 到期租约处理不支持 Locks 的浏览器和崩溃恢复；长请求必须续租，提交结果前还要复核租约所有者。
 - 漏跑不能逐次轰炸 AI 服务；保留最新计划时间、记录跳过数量并只生成一条运行记录更可控。
-- 自动化上下文必须按数据范围现场组装，不能把完整应用快照或目录句柄交给自定义提示词；知识演进候选库也不能绕过范围授权。
+- 已安排上下文必须按数据范围现场组装，不能把完整应用快照或目录句柄交给自定义提示词；知识演进候选库也不能绕过范围授权。
 - 计划任务执行前应比较定义版本和启用状态，避免另一标签页编辑或停用后仍使用旧快照请求模型。
 - 失败运行也要推进下次计划并进入收件箱，否则缺连接或断网会形成每分钟重试循环。
 - React 表单事件不要在函数式 state updater 或异步调用链里读取 `event.currentTarget`；必须先把 `value`、`checked`、`files` 等拷贝到局部 primitive，再传入状态更新或 service 调用。

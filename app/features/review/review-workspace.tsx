@@ -1,7 +1,7 @@
 "use client";
 
 import type { SyntheticEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   KnowledgeTrainingView,
@@ -27,6 +27,7 @@ import { ReviewWorkspaceShell } from "./review-workspace-shell";
 import { useReviewNotice } from "./use-review-notice";
 import { useReviewTimer } from "./use-review-timer";
 import { useReviewWorkspaceData } from "./use-review-workspace-data";
+import { CommandSearchPalette } from "../conversation/command-search-palette";
 import { splitInput, textValue } from "../../lib/form-utils";
 import {
   buildBoardStats,
@@ -49,6 +50,8 @@ import {
 import { appearanceSettingsRepository, applyAppearanceSettings, createDefaultAppearanceSettings } from "../../services/appearance-settings-repository";
 import { findRelatedKnowledgeEntries, findRelatedMistakesForKnowledge } from "../../services/association-matcher";
 import { associationRepository, suggestionToLinkInput } from "../../services/association-repository";
+import { buildCommandSearchResults } from "../../services/command-search";
+import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository";
 import { downloadExportFile, exportKnowledgeEntries, exportMistakes } from "../../services/export-service";
 import { knowledgeRepository } from "../../services/knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
@@ -58,6 +61,7 @@ import {
 } from "../../lib/review-utils";
 import {
   type AssociationSuggestion,
+  type AiConversation,
   type AppearanceSettings,
   type Board,
   type ExportFormat,
@@ -85,6 +89,7 @@ const AutomationView = dynamic(() => import("../automation/automation-view").the
 const InterviewWorkspace = dynamic(() => import("../interview/interview-workspace").then((module) => module.InterviewWorkspace), { loading: WorkspaceViewLoading });
 const TutoringWorkspace = dynamic(() => import("../tutoring/tutoring-workspace").then((module) => module.TutoringWorkspace), { loading: WorkspaceViewLoading });
 const ImportWorkspace = dynamic(() => import("../import/import-workspace").then((module) => module.ImportWorkspace), { loading: WorkspaceViewLoading });
+const ConversationWorkspace = dynamic(() => import("../conversation/conversation-workspace").then((module) => module.ConversationWorkspace), { loading: WorkspaceViewLoading });
 
 // Obsidian 仓库只在删除映射资料时加载，避免总览首屏携带 Vault 同步实现。
 async function loadObsidianKnowledgeRepository() {
@@ -162,6 +167,10 @@ export function ReviewWorkspace() {
   const [knowledgeQueueFilter, setKnowledgeQueueFilter] = useState<KnowledgeQueueFilter>("due");
   const [knowledgeDrafts, setKnowledgeDrafts] = useState<KnowledgeImportDraft[]>([]);
   const [associationBusy, setAssociationBusy] = useState(false);
+  const [conversationSnapshot, setConversationSnapshot] = useState<ConversationSnapshot>({ projects: [], conversations: [], messages: [], runSteps: [] });
+  const [activeConversationId, setActiveConversationId] = useState<string | null | undefined>();
+  const [commandSearchOpen, setCommandSearchOpen] = useState(false);
+  const [commandSearchQuery, setCommandSearchQuery] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -179,6 +188,47 @@ export function ReviewWorkspace() {
       active = false;
     };
   }, [setNotice]);
+
+  const refreshConversationSnapshot = useCallback(async () => {
+    const snapshot = await conversationRepository.loadSnapshot(today);
+    setConversationSnapshot(snapshot);
+    setActiveConversationId((current) => current === null ? null : current ?? snapshot.conversations.find((conversation) => conversation.status === "active")?.id);
+  }, [today]);
+
+  useEffect(() => {
+    let active = true;
+    conversationRepository
+      .loadSnapshot(today)
+      .then((snapshot) => {
+        if (!active) return;
+        setConversationSnapshot(snapshot);
+        setActiveConversationId((current) => current === null ? null : current ?? snapshot.conversations.find((conversation) => conversation.status === "active")?.id);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setNotice(error instanceof Error ? error.message : "对话读取失败");
+      });
+    return () => {
+      active = false;
+    };
+  }, [setNotice, today]);
+
+  function openBlankConversation() {
+    setActiveConversationId(null);
+    switchView("conversation");
+  }
+
+  async function createConversationForFirstMessage(): Promise<AiConversation> {
+    const conversation = await conversationRepository.createConversation({ today, title: "新对话", kind: "general" });
+    await refreshConversationSnapshot();
+    setActiveConversationId(conversation.id);
+    return conversation;
+  }
+
+  function openConversation(id: string) {
+    setActiveConversationId(id);
+    switchView("conversation");
+  }
 
   useEffect(() => {
     applyAppearanceSettings(appearanceSettings);
@@ -265,10 +315,13 @@ export function ReviewWorkspace() {
     openApiSettings,
     openConfigurationHealthAction,
     openDiagnosticsTarget,
+    openMcpSettings,
+    openPluginSettings,
     resetSettingsSection,
+    settingsInitialPluginId,
     settingsInitialSection,
   } = useReviewWorkspaceRecoveryNavigation({ setNotice, switchView });
-  const { configurationHealth, diagnosticsInput, refreshWorkspaceAndObsidianHealth } = useReviewWorkspaceHealth({
+  const { configurationHealth, diagnosticsInput, obsidianSnapshot, refreshWorkspaceAndObsidianHealth } = useReviewWorkspaceHealth({
     aiReadError: aiConnections.readError,
     aiSnapshot: aiConnections.snapshot,
     automationSnapshot: automation.snapshot,
@@ -279,6 +332,67 @@ export function ReviewWorkspace() {
     knowledgeEntries,
     mistakes,
     refreshData,
+  });
+  const commandSearchResults = useMemo(
+    () => buildCommandSearchResults({
+      projects: conversationSnapshot.projects,
+      conversations: conversationSnapshot.conversations,
+      mistakes,
+      knowledgeEntries,
+      automationSnapshot: automation.snapshot,
+    }, commandSearchQuery),
+    [automation.snapshot, commandSearchQuery, conversationSnapshot.conversations, conversationSnapshot.projects, knowledgeEntries, mistakes],
+  );
+
+  async function selectCommandSearchResult(result: (typeof commandSearchResults)[number]) {
+    setCommandSearchOpen(false);
+    if (result.id === "new-chat") {
+      openBlankConversation();
+      return;
+    }
+    if (result.conversationId) {
+      openConversation(result.conversationId);
+      return;
+    }
+    if (result.pluginId) {
+      openPluginSettings("插件已打开", result.pluginId as Parameters<typeof openPluginSettings>[1]);
+      return;
+    }
+    if (result.settingsSection === "configuration") {
+      openApiSettings("已打开 AI 连接设置");
+      return;
+    }
+    if (result.settingsSection === "mcp") {
+      openMcpSettings("已打开 MCP 设置");
+      return;
+    }
+    if (result.settingsSection === "plugins") {
+      openPluginSettings("已打开插件目录");
+      return;
+    }
+    if (result.view) switchView(result.view);
+  }
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandSearchOpen(true);
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        openBlankConversation();
+      }
+      if ((event.ctrlKey || event.metaKey) && /^[1-9]$/.test(event.key) && commandSearchOpen) {
+        const result = commandSearchResults[Number(event.key) - 1];
+        if (result) {
+          event.preventDefault();
+          void selectCommandSearchResult(result);
+        }
+      }
+    }
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
   });
   // 切换主视图，并在进入复盘时重置当前复盘会话状态。
   function switchView(nextView: ViewKey) {
@@ -531,13 +645,13 @@ export function ReviewWorkspace() {
   }
 
   // 把导入页粘贴的资料拆成可编辑草稿，确认前不写入知识库表。
-  async function importKnowledgeText(event: SubmitReactEvent) {
+  async function importKnowledgeText(event: SubmitReactEvent, noticeSink: (message: string) => void = setNotice) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
     const rawText = textValue(formData.get("knowledgeText"));
     if (!rawText) {
-      setNotice("请先粘贴知识库资料");
+      noticeSink("请先粘贴知识库资料");
       return;
     }
     const category = textValue(formData.get("knowledgeCategory")) as KnowledgeCategory;
@@ -548,7 +662,7 @@ export function ReviewWorkspace() {
       source: textValue(formData.get("knowledgeSource")) || "文本导入",
     });
     setKnowledgeDrafts(parsedDrafts);
-    setNotice(`已生成 ${parsedDrafts.length} 条知识资料草稿，请确认后入库`);
+    noticeSink(`已生成 ${parsedDrafts.length} 条知识资料草稿，请确认后入库`);
   }
 
   // 更新知识库导入草稿的普通字段，供预览区编辑分类、标题、摘要和正文。
@@ -587,8 +701,7 @@ export function ReviewWorkspace() {
     const starterDrafts = knowledgeRepository.createStarterDrafts(category);
     setKnowledgeDrafts((current) => [...starterDrafts, ...current]);
     setKnowledgeFilters({ ...initialKnowledgeFilters, category: category ?? "全部" });
-    setView("import");
-    setNotice(`已生成 ${starterDrafts.length} 条知识库模板草稿，请编辑确认后入库`);
+    openPluginSettings(`已生成 ${starterDrafts.length} 条知识库模板草稿，请在粉笔导入插件中编辑确认后入库`, "fenbi-import");
   }
 
   // 把当前错题沉淀为知识库草稿，用户确认前只停留在导入页预览区。
@@ -596,8 +709,7 @@ export function ReviewWorkspace() {
     const draft = knowledgeRepository.createDraftFromMistake(mistake);
     setKnowledgeDrafts((current) => [draft, ...current]);
     setKnowledgeFilters({ ...initialKnowledgeFilters, category: draft.category });
-    setView("import");
-    setNotice("已从错题生成知识资料草稿，请编辑确认后入库");
+    openPluginSettings("已从错题生成知识资料草稿，请在粉笔导入插件中编辑确认后入库", "fenbi-import");
   }
 
   // 记录一次复盘结果，并刷新列表、计数和队列。
@@ -749,8 +861,17 @@ export function ReviewWorkspace() {
       <SettingsWorkspace
         appearanceSettings={appearanceSettings}
         diagnosticsInput={diagnosticsInput}
+        importJobs={importJobs}
+        knowledgeEntries={knowledgeEntries}
+        knowledgeDrafts={knowledgeDrafts}
+        initialPluginId={settingsInitialPluginId}
         initialSection={settingsInitialSection}
+        mistakes={mistakes}
+        personalizationSettings={personalization.settings}
         sidebarCollapsed={sidebarCollapsed}
+        textConnection={aiConnections.textConnection}
+        visionConnection={aiConnections.visionConnection}
+        today={today}
         onAppearanceChange={updateAppearanceSettings}
         onBack={() => {
           resetSettingsSection();
@@ -761,9 +882,19 @@ export function ReviewWorkspace() {
           void aiConnections.refresh();
           void refreshData();
         }}
+        onConfirmKnowledgeDrafts={confirmKnowledgeDrafts}
+        onDeleteKnowledgeDraft={deleteKnowledgeDraft}
+        onImportKnowledgeText={importKnowledgeText}
+        onObsidianChanged={async () => {
+          await refreshData();
+          await refreshWorkspaceAndObsidianHealth();
+        }}
         onOpenDiagnosticsTarget={openDiagnosticsTarget}
         onPersonalizationChange={personalization.setSettings}
+        onRefreshWorkspace={refreshData}
         onToggleSidebar={toggleSidebar}
+        onUpdateKnowledgeDraft={updateKnowledgeDraft}
+        onUpdateKnowledgeDraftList={updateKnowledgeDraftList}
       />
     );
   }
@@ -772,35 +903,66 @@ export function ReviewWorkspace() {
     <ReviewWorkspaceShell
       automationUnreadCount={automation.snapshot.unreadCount}
       boardStats={boardStats}
+      activeConversationId={activeConversationId}
+      conversations={conversationSnapshot.conversations.filter((conversation) => conversation.status === "active")}
       notice={notice}
       selectedBoard={selectedBoard}
       sidebarCollapsed={sidebarCollapsed}
       today={today}
       view={view}
       onOpenBoard={openBoard}
+      onOpenConversation={openConversation}
       onOpenEntry={() => switchView("entry")}
-      onOpenImport={() => switchView("import")}
+      onOpenImport={() => openPluginSettings("粉笔导入已移到插件中", "fenbi-import")}
+      onOpenPlugins={() => openPluginSettings()}
+      onOpenSearch={() => setCommandSearchOpen(true)}
       onOpenSettings={() => switchView("settings")}
+      onStartNewConversation={openBlankConversation}
       onSelectView={switchView}
       onToggleSidebar={toggleSidebar}
     >
+        {view === "conversation" && (
+          <ConversationWorkspace
+            activeConversationId={activeConversationId}
+            snapshot={conversationSnapshot}
+            textConnection={aiConnections.textConnection}
+            onConversationSelected={setActiveConversationId}
+            onCreateConversation={createConversationForFirstMessage}
+            onNotice={setNotice}
+            onOpenConnections={() => openApiSettings("请先配置默认文本连接，再继续使用新对话")}
+            onRefresh={refreshConversationSnapshot}
+          />
+        )}
         {view === "dashboard" && (
           <DashboardView
             avgMastery={avgMastery}
+            automationActiveCount={automation.snapshot.definitions.filter((definition) => definition.enabled).length}
+            automationUnreadCount={automation.snapshot.unreadCount}
             boardStats={boardStats}
             configurationHealth={<ConfigurationHealthPanel health={configurationHealth} onAction={openConfigurationHealthAction} />}
             correctRate={correctRate}
             dueKnowledgeEntries={dueKnowledgeEntries}
             dueMistakes={dueMistakes}
+            importDraftCount={knowledgeDrafts.length}
+            importJobCount={importJobs.length}
             knowledgeCategorySummaries={knowledgeCategorySummaries}
             knowledgeCorrectRate={knowledgeCorrectRate}
             lowMistakes={lowMistakes}
+            obsidianConnected={obsidianSnapshot.connected}
+            pendingProposalCount={obsidianSnapshot.pendingProposalCount}
+            onOpenAutomation={() => switchView("automation")}
             onOpenBoard={openBoard}
+            onOpenImport={() => openPluginSettings("粉笔导入已移到插件中", "fenbi-import")}
+            onOpenKnowledge={() => switchView("knowledge")}
             onOpenInterview={() => switchView("interview")}
             onOpenTutoring={() => switchView("tutoring")}
             onOpenKnowledgeCategory={openKnowledgeCategory}
             onOpenKnowledgeTraining={openKnowledgeTrainingEntry}
             onCreateKnowledgeStarterDrafts={createKnowledgeStarterDrafts}
+            onOpenReviewQueue={() => {
+              setAnswerOpen(false);
+              setView("review");
+            }}
             onOpenReview={(id) => {
               setReviewIndex(Math.max(0, dueMistakes.findIndex((item) => item.id === id)));
               setAnswerOpen(false);
@@ -886,7 +1048,7 @@ export function ReviewWorkspace() {
             center={automation}
             onNotice={setNotice}
             onOpenEntry={() => switchView("entry")}
-            onOpenImport={() => switchView("import")}
+            onOpenImport={() => openPluginSettings("粉笔导入已移到插件中", "fenbi-import")}
             onOpenKnowledge={() => switchView("knowledge")}
             onOpenSettings={() => openApiSettings("请先配置默认文本连接，再运行自动化")}
           />
@@ -986,6 +1148,13 @@ export function ReviewWorkspace() {
           />
         )}
         {view === "entry" && <EntryView onSubmit={addMistake} />}
+        <CommandSearchPalette
+          open={commandSearchOpen}
+          results={commandSearchResults}
+          onClose={() => setCommandSearchOpen(false)}
+          onQueryChange={setCommandSearchQuery}
+          onSelect={(result) => void selectCommandSearchResult(result)}
+        />
     </ReviewWorkspaceShell>
   );
 }

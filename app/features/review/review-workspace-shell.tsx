@@ -2,12 +2,18 @@
 
 import type { ReactNode } from "react";
 import { toISODate } from "../../lib/review-utils";
-import type { Board, ViewKey } from "../../types/review";
+import type { AiConversation, Board, ViewKey } from "../../types/review";
 import type { BoardStat } from "../../lib/review-selectors";
 import { Button } from "../shared/ui-primitives";
-import { SidebarNav, ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
+import { AiActivityPanel } from "../shared/ai-activity-panel";
+import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
+import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../study/study-registry";
 
 type ReviewNavIconName =
+  | "newChat"
+  | "search"
+  | "scheduled"
+  | "plugins"
   | "dashboard"
   | "library"
   | "review"
@@ -19,40 +25,34 @@ type ReviewNavIconName =
   | "tutoring"
   | "import"
   | "entry"
+  | "project"
   | "settings";
 
 type ReviewWorkspaceShellProps = {
   automationUnreadCount: number;
   boardStats: BoardStat[];
   children: ReactNode;
+  conversations: AiConversation[];
+  activeConversationId?: string | null;
   notice: string;
   selectedBoard: Board | null;
   sidebarCollapsed: boolean;
   today: Date;
   view: ViewKey;
   onOpenBoard: (board: Board) => void;
+  onOpenConversation: (id: string) => void;
   onOpenEntry: () => void;
   onOpenImport: () => void;
+  onOpenPlugins: () => void;
+  onOpenSearch: () => void;
   onOpenSettings: () => void;
+  onStartNewConversation: () => void;
   onSelectView: (view: ViewKey) => void;
   onToggleSidebar: () => void;
 };
 
-const navItems: Array<{ key: ViewKey; label: string; icon: ReviewNavIconName }> = [
-  { key: "dashboard", label: "总览", icon: "dashboard" },
-  { key: "library", label: "错题库", icon: "library" },
-  { key: "review", label: "开始复盘", icon: "review" },
-  { key: "knowledge", label: "知识库", icon: "knowledge" },
-  { key: "knowledgeTraining", label: "知识训练", icon: "knowledgeTraining" },
-  { key: "automation", label: "自动化", icon: "automation" },
-  { key: "interview", label: "面试训练", icon: "interview" },
-  { key: "tutoring", label: "AI 辅导", icon: "tutoring" },
-  { key: "stats", label: "薄弱分析", icon: "stats" },
-  { key: "import", label: "导入", icon: "import" },
-  { key: "entry", label: "手动录入", icon: "entry" },
-];
-
 const viewTitles: Record<ViewKey, string> = {
+  conversation: "新对话",
   dashboard: "总览",
   library: "错题库",
   review: "开始复盘",
@@ -61,8 +61,8 @@ const viewTitles: Record<ViewKey, string> = {
   tutoring: "AI 辅导",
   stats: "薄弱分析",
   knowledge: "知识库",
-  automation: "自动化",
-  import: "导入",
+  automation: "已安排",
+  import: "粉笔导入",
   entry: "手动录入",
   settings: "设置",
 };
@@ -72,18 +72,47 @@ export function ReviewWorkspaceShell({
   automationUnreadCount,
   boardStats,
   children,
+  conversations,
+  activeConversationId,
   notice,
   selectedBoard,
   sidebarCollapsed,
   today,
   view,
   onOpenBoard,
+  onOpenConversation,
   onOpenEntry,
   onOpenImport,
+  onOpenPlugins,
+  onOpenSearch,
   onOpenSettings,
+  onStartNewConversation,
   onSelectView,
   onToggleSidebar,
 }: ReviewWorkspaceShellProps) {
+  const civilServiceDomain = studyDomainDefinitions[0];
+  const projectActive = view === "conversation" || isStudyModuleView(view);
+  const topActions: Array<{
+    id: string;
+    label: string;
+    icon: ReviewNavIconName;
+    active?: boolean;
+    badge?: number;
+    onClick: () => void;
+  }> = [
+    { id: "new-chat", label: "新对话", icon: "newChat", active: view === "conversation", onClick: onStartNewConversation },
+    { id: "search", label: "搜索", icon: "search", onClick: onOpenSearch },
+    {
+      id: "scheduled",
+      label: scheduledWorkspaceDefinition.label,
+      icon: "scheduled",
+      active: view === scheduledWorkspaceDefinition.viewKey,
+      badge: automationUnreadCount || undefined,
+      onClick: () => onSelectView(scheduledWorkspaceDefinition.viewKey),
+    },
+    { id: "plugins", label: "插件", icon: "plugins", onClick: onOpenPlugins },
+  ];
+
   return (
     <WorkspaceShell
       contentClassName="px-7 py-7 max-sm:px-4"
@@ -93,12 +122,37 @@ export function ReviewWorkspaceShell({
       onToggleSidebar={onToggleSidebar}
       sidebar={
         <>
-          <SidebarNav
-            activeKey={view}
-            items={navItems.map((item) => item.key === "automation" ? { ...item, badge: automationUnreadCount || undefined } : item)}
-            renderIcon={(icon) => <ReviewNavIcon name={icon as ReviewNavIconName} />}
-            onSelect={onSelectView}
-          />
+          <nav className="grid gap-1" aria-label="工作台快捷入口">
+            {topActions.map((item) => (
+              <button
+                key={item.id}
+                className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium ${
+                  item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"
+                }`}
+                type="button"
+                onClick={item.onClick}
+              >
+                <ReviewNavIcon name={item.icon} />
+                <span className="truncate">{item.label}</span>
+                {item.badge ? <span className="inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-blue px-1 text-[11px] text-white">{item.badge}</span> : null}
+              </button>
+            ))}
+          </nav>
+          <section className={`mt-3 hidden gap-2 overflow-x-auto pb-1 ${projectActive ? "max-lg:flex" : "max-lg:hidden"}`} aria-label="公考项目模块">
+            {civilServiceDomain.modules.map((module) => (
+              <button
+                key={module.id}
+                className={`min-h-10 min-w-24 shrink-0 rounded-lg px-3 text-sm font-medium ${
+                  view === module.id ? "bg-chrome-selected text-foreground" : "text-muted hover:bg-chrome-hover hover:text-foreground"
+                }`}
+                type="button"
+                title={module.description}
+                onClick={() => onSelectView(module.id)}
+              >
+                {module.label}
+              </button>
+            ))}
+          </section>
           <button
             className="hidden min-h-10 min-w-36 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
             type="button"
@@ -108,22 +162,85 @@ export function ReviewWorkspaceShell({
             <span>设置</span>
           </button>
 
-          <section className="mt-8 min-h-0 flex-1 overflow-y-auto pr-1 max-lg:hidden" aria-label="板块快捷入口">
-            <p className="mb-2 px-3 text-xs font-medium text-muted">板块</p>
+          <section className="mt-7 min-h-0 flex-1 overflow-y-auto pr-1 max-lg:hidden" aria-label="项目和对话">
+            <div className="mb-2 flex items-center justify-between gap-2 px-3">
+              <p className="text-xs font-medium text-muted">项目</p>
+              <span className="text-[11px] text-muted">专项学习</span>
+            </div>
+            <div className="rounded-lg bg-chrome-selected/60 p-1">
+              <button
+                className={`grid min-h-10 w-full grid-cols-[20px_1fr] items-center gap-2.5 rounded-md px-2 text-left text-sm font-semibold ${
+                  projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"
+                }`}
+                type="button"
+                onClick={() => onSelectView("dashboard")}
+              >
+                <ReviewNavIcon name="project" />
+                <span className="truncate">{civilServiceDomain.label}</span>
+              </button>
+              <details className="mt-1 group">
+                <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-xs font-medium text-muted hover:bg-chrome-hover hover:text-foreground [&::-webkit-details-marker]:hidden">
+                  <span>模块</span>
+                  <span className="transition group-open:rotate-90">›</span>
+                </summary>
+                <div className="mt-1 grid gap-0.5 pl-2">
+                  {civilServiceDomain.modules.map((module) => (
+                    <button
+                      key={module.id}
+                      className={`grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-md px-2 text-left text-sm ${
+                        view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"
+                      }`}
+                      type="button"
+                      title={module.description}
+                      onClick={() => onSelectView(module.id)}
+                    >
+                      <ReviewNavIcon name={module.icon as ReviewNavIconName} />
+                      <span className="truncate">{module.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </details>
+              <details className="mt-1 group">
+                <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-xs font-medium text-muted hover:bg-chrome-hover hover:text-foreground [&::-webkit-details-marker]:hidden">
+                  <span>板块筛选</span>
+                  <span className="transition group-open:rotate-90">›</span>
+                </summary>
+                <div className="mt-1 grid gap-0.5 pl-2">
+                  {boardStats.map((stat) => (
+                    <button
+                      key={stat.board}
+                      className={`grid min-h-8 w-full grid-cols-[1fr_auto] items-center gap-3 rounded-md px-2 text-left text-xs ${
+                        selectedBoard === stat.board ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"
+                      }`}
+                      type="button"
+                      onClick={() => onOpenBoard(stat.board)}
+                    >
+                      <span className="truncate">{stat.board}</span>
+                      <span>{stat.total}</span>
+                    </button>
+                  ))}
+                </div>
+              </details>
+            </div>
+
+            <p className="mb-2 mt-6 px-3 text-xs font-medium text-muted">对话</p>
             <div className="grid gap-1">
-              {boardStats.map((stat) => (
+              {conversations.slice(0, 12).map((conversation) => (
                 <button
-                  key={stat.board}
+                  key={conversation.id}
                   className={`grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 rounded-lg px-3 text-left text-sm ${
-                    selectedBoard === stat.board ? "bg-chrome-selected" : "hover:bg-chrome-hover"
+                    activeConversationId === conversation.id ? "bg-chrome-selected" : "hover:bg-chrome-hover"
                   }`}
                   type="button"
-                  onClick={() => onOpenBoard(stat.board)}
+                  onClick={() => onOpenConversation(conversation.id)}
                 >
-                  <span className="truncate">{stat.board}</span>
-                  <span className="text-sm text-muted">{stat.total}</span>
+                  <span className="truncate">{conversation.title}</span>
+                  <span className="text-xs text-muted">{conversation.messageCount}</span>
                 </button>
               ))}
+              {!conversations.length ? (
+                <p className="px-3 py-2 text-sm text-muted">发送第一条消息后会自动保存。</p>
+              ) : null}
             </div>
           </section>
 
@@ -138,21 +255,24 @@ export function ReviewWorkspaceShell({
         </>
       }
     >
-      <ViewHeader
-        actions={
-          <>
-            <Button variant="outline" onClick={onOpenImport}>
-              导入
-            </Button>
-            <Button variant="primary" onClick={onOpenEntry}>
-              手动录入
-            </Button>
-          </>
-        }
-        eyebrow={`${toISODate(today)} · ${notice}`}
-        title={viewTitles[view]}
-      />
+      {view !== "conversation" ? (
+        <ViewHeader
+          actions={
+            <>
+              <Button variant="outline" onClick={onOpenImport}>
+                粉笔导入插件
+              </Button>
+              <Button variant="primary" onClick={onOpenEntry}>
+                手动录入
+              </Button>
+            </>
+          }
+          eyebrow={`${toISODate(today)} · ${notice}`}
+          title={viewTitles[view]}
+        />
+      ) : null}
       {children}
+      <AiActivityPanel />
     </WorkspaceShell>
   );
 }
@@ -168,6 +288,51 @@ function ReviewNavIcon({ name }: { name: ReviewNavIconName }) {
     strokeWidth: 1.9,
     viewBox: "0 0 24 24",
   };
+
+  if (name === "newChat") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    );
+  }
+
+  if (name === "search") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <circle cx="11" cy="11" r="6" />
+        <path d="m16 16 4 4" />
+      </svg>
+    );
+  }
+
+  if (name === "scheduled") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <circle cx="12" cy="12" r="8" />
+        <path d="M12 7.5V12l3 2" />
+      </svg>
+    );
+  }
+
+  if (name === "plugins") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <path d="M8 4.5v4M16 4.5v4" />
+        <path d="M6.5 8.5h11v3.2a5.5 5.5 0 0 1-11 0Z" />
+        <path d="M12 17.2v2.3" />
+      </svg>
+    );
+  }
+
+  if (name === "project") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <path d="M4.5 6.5h6l1.5 2h7.5v9a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2Z" />
+        <path d="M8 12.5h8" />
+      </svg>
+    );
+  }
 
   if (name === "dashboard") {
     return (

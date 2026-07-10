@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-07-09
+
+- 新对话改为 Codex 式空白草稿：点击或 `Ctrl+N` 只进入 composer，发送第一条消息后才创建会话记录。
+- 对话工具链从右侧常驻栏移入消息流，按 run 折叠为“正在运行... / 已运行 N 条命令 / 运行失败”，点击后展开步骤。
+- 左侧项目区默认只显示“公考”，模块和六大板块都收进公考内部折叠入口；板块点击只作为错题库筛选。
+- AI 连接模型选择从推荐按钮列表改为下拉选择，并保留手动模型 ID 兜底。
+- 新增 Codex 式通用会话工作区：会话支持消息流、底部 composer、连接/模型调用、工具步骤摘要和刷新恢复。
+- IndexedDB 升级到 v14，仅新增 AI 项目、会话、消息、附件和 run step 表；性能边界契约继续禁止没有慢查询证据的列表索引升级。
+- 左侧项目与板块入口归入“项目 → 公考”，板块统计作为公考内部筛选显示；顶层保留新对话、搜索、已安排、插件和项目。
+- 新增 Codex 式命令面板，`Ctrl+K` 搜索会话、项目、公考模块、错题、知识、已安排、插件和设置，`Ctrl+N` 创建新对话。
+- 插件页继续使用 Codex 插件目录，但详情改为页面内 inspector；插件/技能切换固定宽度和滚动容器，避免右侧偏移，MCP 不再作为插件条目。
+- 新增 `设置 → MCP`，支持 MCP server 本地配置、启用/禁用、删除和脱敏 discovery 摘要；真实工具调用后续接入会话 run/step。
+- AI 连接 provider catalog 扩展到 OpenAI、Azure OpenAI、Anthropic、Gemini、DeepSeek、Qwen、火山、SiliconFlow、OpenRouter、xAI、Groq、Mistral、Kimi、智谱、百度千帆、腾讯混元和自定义 OpenAI 兼容，并展示模型能力标签与手动模型兜底。
+- 新增会话仓储、命令搜索、MCP 设置和 provider catalog 契约测试。
+
+## 2026-07-06
+
+- 设置插件页改为 Codex 目录式 UI：搜索、已安装图标、Featured/分类列表和轻量操作留在首屏，Obsidian、AI 额度、粉笔导入与 MCP 详情改为点击后抽屉加载。
+- 设置插件注册表新增目录字段、短状态徽标、主操作、更多菜单和 MCP 分类入口；首屏不再铺开健康摘要、隐私说明和能力长列表。
+- 公考总览升级为学习链路仪表盘，直接展示导入/错题、知识沉淀、知识训练、AI 辅导、已安排复盘和 Obsidian 输出的闭环状态与跳转。
+- 设置插件卡新增分类、健康摘要、最近活动和推荐动作；粉笔导入插件声明诊断能力、AI 能力、重试策略和草稿落点。
+- AI 活动工具步骤固定为准备上下文、选择连接、调用模型、流式输出、解析结果、保存记录、记录用量和完成/错误；知识演进提案事件携带公考项目上下文和附件摘要。
+- 工作台导航改为 Codex 式结构：顶层提供新对话、搜索、已安排、插件和项目，“公考”作为首个专项学习项目聚合错题、复盘、知识、面试、辅导和薄弱分析。
+- “自动化”对外更名为“已安排”，继续复用本地 IndexedDB/Web Locks/租约执行架构，不升级 Dexie schema。
+- 粉笔导入移入“设置 → 插件”，新增内部 `ImportProviderPlugin`，复用现有本地解析、AI 文本解析、多模态 OCR、导入批次和草稿确认流程。
+- AI 额度插件补齐 CodexBar 风格 descriptor/fetch strategy；OpenAI 保持官方 Admin Usage/Costs API，其它厂商含硅基流动以 unsupported/manual 插件卡展示。
+- AI 活动面板升级为更完整的 Codex 式对话面板，展开后显示会话列表、消息流、底部 composer 摘要和工具链步骤。
+- 新增专项学习 registry、导入插件、额度 descriptor 和 AI 活动扩展契约测试。
+
+## 2026-07-05
+
+- 新增 AI 流式生成通道：`/api/ai/generate` 支持 SSE，客户端统一消费 `status/delta/usage/done/error` 事件，普通 JSON 调用保持兼容。
+- AI 活动浮层升级为 Codex 式交互面板，按 run 展示消息摘要、工具步骤、流式片段、usage 和错误；不持久化 prompt、截图、Vault 正文或厂商原始响应。
+- 新增“设置 → 插件”分区，集中承载 Obsidian Vault 与 AI 额度；AI 连接页只保留模型调用连接配置。
+- 新增 AI 额度插件面板和内部插件接口；OpenAI 读取官方 Admin Costs/Usage API，其它厂商以预留/unsupported 状态展示，禁止网页抓取或伪造实时余额。
+- 辅导实时会话区分默认文本与默认多模态连接；有摄像头、屏幕共享或上传截图帧时，明确要求多模态连接并发送文本 + 图像。
+- Obsidian 面板新增 Wikilink 关系图谱统计和边列表；知识演进提案会接收同步后的图谱摘要作为上下文。
+- 知识演进提案生成新增可见诊断，展示解析、过滤、空结果原因，并让设置插件和知识库面板都能确认或忽略 pending 提案。
+- 语音 Voice ID 编辑支持按默认语音连接展示官方内置音色列表，并保留自定义 voice ID 输入。
+- 新增设置插件、额度插件、AI 活动 reducer、提案诊断、流式 provider 和 Obsidian 图谱契约测试；`test:contracts` 已接入新测试文件。
+
 ## 2026-07-04
 
 - 维护安全范围内的依赖补丁：Next/React 更新到 16.2.10/19.2.7，Playwright、Dexie、cron-parser、js-yaml、pdfjs-dist 和 React 类型同步到当前稳定补丁线。

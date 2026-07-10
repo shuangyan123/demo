@@ -63,6 +63,35 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
           {snapshot.lastSyncedAt ? <Chip>上次同步 {new Date(snapshot.lastSyncedAt).toLocaleString("zh-CN")}</Chip> : null}
         </div>
 
+        <div className="grid gap-3 rounded-lg border border-line bg-surface-muted p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h4 className="font-semibold">关系图谱</h4>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Chip tone="green">已同步 {controller.graph.syncedCount}</Chip>
+              <Chip tone={controller.graph.issueCount ? "red" : "blue"}>待处理 {controller.graph.issueCount}</Chip>
+              <Chip tone="yellow">外部链接 {controller.graph.externalCount}</Chip>
+              <Chip>关系 {controller.graph.edges.length}</Chip>
+            </div>
+          </div>
+          {controller.graph.edges.length ? (
+            <div className="grid max-h-44 gap-2 overflow-y-auto pr-1">
+              {controller.graph.edges.slice(0, 12).map((edge) => {
+                const source = controller.graph.nodes.find((node) => node.id === edge.sourceId);
+                const target = controller.graph.nodes.find((node) => node.id === edge.targetId);
+                return (
+                  <p key={edge.id} className="truncate text-sm text-muted">
+                    <span className="font-medium text-foreground">{source?.title ?? edge.sourceId}</span>
+                    <span aria-hidden="true"> → </span>
+                    <span>{target?.title ?? edge.label}</span>
+                  </p>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">同步后会从 Markdown Wikilink 派生知识关系，并作为 AI 提案上下文。</p>
+          )}
+        </div>
+
         {snapshot.permission === "unsupported" || !snapshot.connected ? (
           <SoftBlock>
             <p className="text-sm leading-6 text-muted">请选择整个 Obsidian Vault 根文件夹，不要选择单个 .md 文件。双向目录桥接需要 Chrome 或 Edge 的安全上下文；不支持时可一次性导入 Markdown 文件夹，导入后不会继续同步。</p>
@@ -107,6 +136,21 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
 
         <div className="grid gap-3">
           <h4 className="font-semibold">知识演进提案</h4>
+          {controller.lastGenerationResult ? (
+            <div className="rounded-lg border border-line bg-surface-muted p-3 text-sm">
+              <div className="flex flex-wrap gap-2">
+                <Chip tone={controller.lastGenerationResult.proposals.length ? "green" : "yellow"}>可用 {controller.lastGenerationResult.proposals.length}</Chip>
+                <Chip>解析 {controller.lastGenerationResult.parsedCount}</Chip>
+                <Chip tone={controller.lastGenerationResult.filteredCount ? "yellow" : "blue"}>过滤 {controller.lastGenerationResult.filteredCount}</Chip>
+              </div>
+              {controller.lastGenerationResult.emptyReason ? <p className="mt-2 text-muted">{controller.lastGenerationResult.emptyReason}</p> : null}
+              {controller.lastGenerationResult.diagnostics.length ? (
+                <ul className="mt-2 grid gap-1 text-xs text-muted">
+                  {controller.lastGenerationResult.diagnostics.slice(0, 4).map((item) => <li key={item.id}>{item.message}</li>)}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
           {controller.pendingProposals.length ? controller.pendingProposals.map((proposal) => (
             <article key={proposal.id} className="ui-card ui-card-muted p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">

@@ -1,8 +1,8 @@
-import { splitInput } from "../lib/form-utils";
-import { normalizeBoard } from "../lib/review-utils";
-import { BOARD_OPTIONS, type Board, type ImportDraft, type ImportDraftIssue } from "../types/review";
+import { splitInput } from "../lib/form-utils.ts";
+import { normalizeBoard } from "../lib/review-utils.ts";
+import { BOARD_OPTIONS, type Board, type ImportDraft, type ImportDraftIssue } from "../types/review.ts";
 import { parseAiJsonValue } from "./ai-json.ts";
-import { normalizeDraft, parseAiJson, parseCsv, parseJson, parsePlainText } from "./import-parser";
+import { normalizeDraft, parseAiJson, parseCsv, parseJson, parsePlainText } from "./import-parser.ts";
 
 type FenbiDraftInput = {
   board?: unknown;

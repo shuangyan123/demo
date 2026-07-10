@@ -384,6 +384,271 @@ body[data-reduced-motion="true"] .ui-button:active:not(:disabled) {
   transform: none;
 }
 
+.conversation-workspace {
+  display: block;
+  min-height: calc(100dvh - var(--chrome-topbar-height) - 3.5rem);
+}
+
+.conversation-main {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: var(--ui-radius-lg);
+  background: var(--surface);
+}
+
+.conversation-main {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.conversation-thread-header {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.85rem 1rem;
+}
+
+.conversation-message-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem;
+}
+
+.conversation-message {
+  display: flex;
+  margin-bottom: 1rem;
+}
+
+.conversation-message.is-user {
+  justify-content: flex-end;
+}
+
+.conversation-message-bubble {
+  max-width: min(48rem, 86%);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 1.15rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface-muted);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+}
+
+.conversation-message.is-user .conversation-message-bubble {
+  border-color: color-mix(in srgb, var(--blue) 20%, var(--line));
+  background: color-mix(in srgb, var(--blue) 7%, var(--surface));
+}
+
+.conversation-message-bubble p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+
+.conversation-tool-summary {
+  margin: -0.15rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.conversation-tool-summary summary {
+  display: inline-grid;
+  min-height: 2rem;
+  cursor: pointer;
+  list-style: none;
+  grid-template-columns: 1rem auto;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.conversation-tool-summary summary::-webkit-details-marker {
+  display: none;
+}
+
+.conversation-tool-summary summary:hover,
+.conversation-tool-summary[open] summary {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.conversation-tool-summary.is-error summary {
+  color: var(--red);
+}
+
+.conversation-tool-summary.is-running summary {
+  color: var(--blue);
+}
+
+.conversation-tool-summary-icon {
+  display: grid;
+  height: 1rem;
+  width: 1rem;
+  place-items: center;
+  color: currentColor;
+  font-size: 0.75rem;
+}
+
+.conversation-tool-summary ol {
+  margin: 0.35rem 0 0 0.4rem;
+  display: grid;
+  max-width: min(42rem, 100%);
+  gap: 0.4rem;
+  border-left: 1px solid var(--line);
+  padding-left: 0.8rem;
+}
+
+.conversation-tool-summary li {
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr);
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.conversation-tool-summary strong,
+.conversation-tool-summary small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-tool-summary small {
+  margin-top: 0.15rem;
+  color: var(--muted);
+}
+
+.conversation-empty-prompt {
+  margin: 12vh auto 0;
+  max-width: 34rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.conversation-empty-prompt h2 {
+  color: var(--foreground);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.conversation-empty-prompt p {
+  margin-top: 0.65rem;
+  line-height: 1.7;
+}
+
+.conversation-composer {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) 2.4rem;
+  align-items: end;
+  gap: 0.65rem;
+  margin: 0 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1.1rem;
+  background: var(--surface);
+  padding: 0.55rem;
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.12);
+}
+
+.conversation-composer textarea {
+  max-height: 9rem;
+  min-height: 2.25rem;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  outline: none;
+}
+
+.conversation-composer-icon,
+.conversation-send {
+  display: grid;
+  height: 2.25rem;
+  width: 2.25rem;
+  place-items: center;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.conversation-composer-icon {
+  color: var(--muted);
+}
+
+.conversation-composer-icon:hover {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.conversation-send {
+  background: #111827;
+  color: #ffffff;
+}
+
+.conversation-send:disabled {
+  opacity: 0.35;
+}
+
+.command-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  padding: 5vh 1rem 1rem;
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.command-palette {
+  width: min(48rem, 100%);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--surface);
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.24);
+}
+
+.command-palette input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 1rem;
+  outline: none;
+  padding: 1rem 1.25rem;
+}
+
+.command-result {
+  display: grid;
+  min-height: 3.25rem;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+}
+
+.command-result:hover,
+.command-result.is-active {
+  background: var(--surface-muted);
+}
+
+.plugin-detail-inline {
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: var(--ui-radius-lg);
+  background: var(--surface);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+}
+
 /* 批量工具条统一错题库和知识库的多选、删除和导出操作，避免列表页重复布局代码。 */
 .ui-bulk-toolbar {
   display: flex;
@@ -774,6 +1039,7 @@ body[data-reduced-motion="true"] .ui-button:active:not(:disabled) {
   .tutoring-live-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
 }
 
 @media (max-width: 640px) {
@@ -807,5 +1073,26 @@ body[data-reduced-motion="true"] .ui-button:active:not(:disabled) {
   .ui-import-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .conversation-workspace {
+    min-height: calc(100dvh - var(--chrome-topbar-height) - 2rem);
+  }
+
+  .conversation-thread-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .conversation-message-list {
+    padding: 1rem 0.75rem;
+  }
+
+  .conversation-message-bubble {
+    max-width: 94%;
+  }
+
+  .conversation-composer {
+    margin-inline: 0.65rem;
   }
 }

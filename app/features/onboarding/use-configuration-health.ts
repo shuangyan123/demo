@@ -100,11 +100,11 @@ export function buildConfigurationHealth(input: ConfigurationHealthInput): Confi
 
   const aiItems: ConfigurationHealthItem[] = [
     hasTextConnection
-      ? readyItem("ai-text", "默认文本连接已配置", "文本生成、关联分析和自动化可使用默认文本模型。")
+      ? readyItem("ai-text", "默认文本连接已配置", "文本生成、关联分析和已安排任务可使用默认文本模型。")
       : {
           id: "ai-text",
           title: "默认文本连接未配置",
-          description: "文本生成、关联分析和自动化需要默认文本连接。",
+          description: "文本生成、关联分析和已安排任务需要默认文本连接。",
           status: "missing",
           action: "ai-connections",
           actionLabel: "配置 AI 连接",
@@ -194,25 +194,25 @@ export function buildConfigurationHealth(input: ConfigurationHealthInput): Confi
   if (!input.automationSnapshot.definitions.length) {
     automationItems.push({
       id: "automation-empty",
-      title: "尚未创建自动化任务",
-      description: "自动化只会在应用打开时运行，需要先创建任务并选择数据范围。",
+      title: "尚未创建已安排任务",
+      description: "已安排任务只会在应用打开时运行，需要先创建任务并选择数据范围。",
       status: "missing",
       action: "automation",
-      actionLabel: "设置自动化",
+      actionLabel: "设置已安排",
     });
   } else if (!enabledAutomations.length) {
     automationItems.push({
       id: "automation-disabled",
-      title: "自动化任务均未启用",
+      title: "已安排任务均未启用",
       description: "已有任务不会执行，启用后才会按计划在应用打开时运行。",
       status: "warning",
       action: "automation",
-      actionLabel: "启用自动化",
+      actionLabel: "启用已安排",
     });
   } else if (!hasTextConnection) {
     automationItems.push({
       id: "automation-no-text",
-      title: "自动化缺少默认文本连接",
+      title: "已安排缺少默认文本连接",
       description: "已有启用任务，但运行时需要默认文本连接生成结果。",
       status: "missing",
       action: "ai-connections",
@@ -221,14 +221,14 @@ export function buildConfigurationHealth(input: ConfigurationHealthInput): Confi
   } else if (input.automationSnapshot.unreadCount > 0) {
     automationItems.push({
       id: "automation-unread",
-      title: "有未读自动化运行结果",
+      title: "有未读已安排运行结果",
       description: `收件箱里还有 ${input.automationSnapshot.unreadCount} 条结果需要查看。`,
       status: "warning",
       action: "automation",
       actionLabel: "查看收件箱",
     });
   } else {
-    automationItems.push(readyItem("automation-ready", "自动化已就绪", "启用任务会在应用打开、恢复可见或网络恢复时按规则补跑。"));
+    automationItems.push(readyItem("automation-ready", "已安排已就绪", "启用任务会在应用打开、恢复可见或网络恢复时按规则补跑。"));
   }
 
   const learningItems: ConfigurationHealthItem[] = [];
@@ -285,7 +285,7 @@ export function buildConfigurationHealth(input: ConfigurationHealthInput): Confi
   const sections: ConfigurationHealthSection[] = [
     { id: "ai", title: "AI 连接", status: sectionStatus(aiItems), items: aiItems },
     { id: "obsidian", title: "Obsidian", status: sectionStatus(obsidianItems), items: obsidianItems },
-    { id: "automation", title: "自动化", status: sectionStatus(automationItems), items: automationItems },
+    { id: "automation", title: "已安排", status: sectionStatus(automationItems), items: automationItems },
     { id: "learning", title: "学习数据", status: sectionStatus(learningItems), items: learningItems },
   ];
   const allItems = sections.flatMap((section) => section.items);
@@ -339,5 +339,5 @@ export function useConfigurationHealth(input: Omit<ConfigurationHealthInput, "ob
     [input, obsidianError, obsidianSnapshot],
   );
 
-  return { health, refreshObsidianHealth };
+  return { health, obsidianSnapshot, refreshObsidianHealth };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import type { PersonaCustomization, PersonaProfile } from "../../types/review";
+import type { ApiConnectionProfile, PersonaCustomization, PersonaProfile } from "../../types/review";
 import { PersonaEditorDialog } from "./persona-editor-dialog";
 import { PersonaVoiceSection } from "./persona-voice-section";
 
@@ -15,6 +15,7 @@ export function PersonaCardBackDialog({
   onStopVoice,
   onUpdate,
   speechError,
+  speechConnection,
   speaking,
 }: {
   customization: PersonaCustomization;
@@ -24,6 +25,7 @@ export function PersonaCardBackDialog({
   onStopVoice: () => void;
   onUpdate: (patch: Partial<PersonaCustomization>) => void;
   speechError?: string;
+  speechConnection?: ApiConnectionProfile;
   speaking: boolean;
 }) {
   const inputClass = "settings-input rounded-lg border border-line bg-surface px-3 py-2 text-sm";
@@ -50,6 +52,7 @@ export function PersonaCardBackDialog({
           onStopVoice={onStopVoice}
           onUpdate={onUpdate}
           speechError={speechError}
+          speechConnection={speechConnection}
           speaking={speaking}
         />
       </div>

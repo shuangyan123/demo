@@ -1,5 +1,5 @@
 import { normalizeVoiceProfile } from "../../services/personalization-settings-repository";
-import type { PersonaCustomization } from "../../types/review";
+import type { ApiConnectionProfile, PersonaCustomization } from "../../types/review";
 import { VoiceProfileEditor } from "./voice-profile-editor";
 
 /**
@@ -11,6 +11,7 @@ export function PersonaVoiceSection({
   onStopVoice,
   onUpdate,
   speechError,
+  speechConnection,
   speaking,
 }: {
   customization: PersonaCustomization;
@@ -18,6 +19,7 @@ export function PersonaVoiceSection({
   onStopVoice: () => void;
   onUpdate: (patch: Partial<PersonaCustomization>) => void;
   speechError?: string;
+  speechConnection?: ApiConnectionProfile;
   speaking: boolean;
 }) {
   const dedicatedVoice = customization.voice;
@@ -38,6 +40,7 @@ export function PersonaVoiceSection({
       <div className="mt-3">
         <VoiceProfileEditor
           disabled={!dedicatedVoice}
+          speechConnection={speechConnection}
           voice={dedicatedVoice ?? emptyVoice}
           onChange={(patch) => onUpdate({ voice: { ...(dedicatedVoice ?? emptyVoice), ...patch } })}
         />

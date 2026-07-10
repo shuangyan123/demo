@@ -195,6 +195,7 @@ export function PersonalizationSettingsView({
             onStopVoice={speech.stopSpeaking}
             onUpdate={(patch) => updateCustomization(editingPersona.id, patch)}
             speechError={speech.error}
+            speechConnection={selectedSpeechConnection}
             speaking={speech.speaking}
           />
         ) : (
@@ -206,6 +207,7 @@ export function PersonalizationSettingsView({
             onStopVoice={speech.stopSpeaking}
             onUpdate={(patch) => updateCustomization(editingPersona.id, patch)}
             speechError={speech.error}
+            speechConnection={selectedSpeechConnection}
             speaking={speech.speaking}
           />
         )

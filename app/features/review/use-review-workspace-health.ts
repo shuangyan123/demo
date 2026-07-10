@@ -45,7 +45,7 @@ export function useReviewWorkspaceHealth(input: ReviewWorkspaceHealthInput) {
     }),
     [aiSnapshot, automationSnapshot, dueKnowledgeCount, dueMistakeCount, importJobs, knowledgeEntries, mistakes],
   );
-  const { health: configurationHealth, refreshObsidianHealth } = useConfigurationHealth(configurationHealthInput);
+  const { health: configurationHealth, obsidianSnapshot, refreshObsidianHealth } = useConfigurationHealth(configurationHealthInput);
 
   const diagnosticsInput = useMemo<LocalDiagnosticsHookInput>(
     () => ({
@@ -66,5 +66,5 @@ export function useReviewWorkspaceHealth(input: ReviewWorkspaceHealthInput) {
     await refreshObsidianHealth();
   }, [refreshData, refreshObsidianHealth]);
 
-  return { configurationHealth, diagnosticsInput, refreshWorkspaceAndObsidianHealth };
+  return { configurationHealth, diagnosticsInput, obsidianSnapshot, refreshWorkspaceAndObsidianHealth };
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import type { AiGenerateRequest } from "../../../services/api-client";
-import { buildGenerateProviderRequest, parseGenerateProviderResponse } from "../../../server/ai/provider-adapter.ts";
+import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from "../../../services/api-client";
+import { buildGenerateProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent } from "../../../server/ai/provider-adapter.ts";
 
 // 校验统一生成请求的最小字段，避免把任意 URL 或空密钥转发到外部服务。
 function isGenerateRequest(value: unknown): value is AiGenerateRequest {
@@ -8,6 +8,61 @@ function isGenerateRequest(value: unknown): value is AiGenerateRequest {
   const input = value as Partial<AiGenerateRequest>;
   const hasValidKey = input.provider === "custom" || Boolean(input.apiKey);
   return Boolean(input.provider && hasValidKey && input.baseUrl && input.model && Array.isArray(input.messages));
+}
+
+function encodeSse(event: AiGenerateStreamEvent): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+async function pipeProviderStream(body: AiGenerateRequest, response: Response): Promise<Response> {
+  if (!response.body) return new NextResponse("厂商未返回可读取的流", { status: 502 });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let finalUsage: AiGenerateResult["usage"];
+  let requestId: string | undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      controller.enqueue(encodeSse({ type: "status", message: "已连接厂商，正在等待模型输出" }));
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split(/\r?\n\r?\n/);
+          buffer = chunks.pop() ?? "";
+          for (const chunk of chunks) {
+            const dataLines = chunk.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim());
+            if (!dataLines.length) continue;
+            const data = dataLines.join("\n");
+            if (data === "[DONE]") continue;
+            const events = parseGenerateProviderStreamEvent(body, JSON.parse(data) as unknown, response.headers);
+            for (const event of events) {
+              if (event.type === "delta") content += event.text;
+              if (event.type === "usage") {
+                finalUsage = event.usage;
+                requestId = event.requestId;
+              }
+              controller.enqueue(encodeSse(event));
+            }
+          }
+        }
+        controller.enqueue(encodeSse({ type: "done", content, requestId, usage: finalUsage }));
+      } catch (error) {
+        controller.enqueue(encodeSse({ type: "error", message: error instanceof Error ? error.message : "流式响应解析失败" }));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Cache-Control": "no-cache, no-transform",
+      "Content-Type": "text/event-stream; charset=utf-8",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 // 代理文本、视觉和结构化输出请求；Key 只存在于本次请求内存，不在服务端持久化。
@@ -25,6 +80,7 @@ export async function POST(request: Request) {
     if (!response.ok) {
       return new NextResponse(`厂商 API 请求失败（${response.status}）`, { status: response.status });
     }
+    if (body.stream) return pipeProviderStream(body, response);
     const payload: unknown = await response.json();
     return NextResponse.json(parseGenerateProviderResponse(body, payload, response.headers));
   } catch (error) {

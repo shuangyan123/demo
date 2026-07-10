@@ -1,4 +1,5 @@
 import type { ApiProvider } from "../types/review";
+import { emitAiActivity } from "./ai-activity-events.ts";
 
 export type ChatMessageContent =
   | string
@@ -19,8 +20,18 @@ export type AiGenerateRequest = {
   maxOutputTokens?: number;
   model: string;
   messages: ChatMessage[];
+  stream?: boolean;
   temperature?: number;
   providerOptions?: Record<string, string>;
+  activity?: {
+    runId?: string;
+    conversationId?: string;
+    projectId?: string;
+    studyDomainId?: string;
+    module?: string;
+    purpose?: string;
+    connectionLabel?: string;
+  };
 };
 
 export type AiGenerateResult = {
@@ -28,6 +39,13 @@ export type AiGenerateResult = {
   requestId?: string;
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
 };
+
+export type AiGenerateStreamEvent =
+  | { type: "status"; message: string }
+  | { type: "delta"; text: string }
+  | { type: "usage"; requestId?: string; usage?: AiGenerateResult["usage"] }
+  | { type: "done"; content: string; requestId?: string; usage?: AiGenerateResult["usage"] }
+  | { type: "error"; message: string };
 
 export type AiSpeechRequest = {
   provider: ApiProvider;
@@ -43,6 +61,18 @@ export type AiSpeechRequest = {
 
 // 调用统一生成路由，客户端不再拼接各厂商 endpoint 或解析厂商响应。
 export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenerateResult> {
+  const runId = input.activity?.runId ?? crypto.randomUUID();
+  const activityBase = {
+    runId,
+    conversationId: input.activity?.conversationId,
+    projectId: input.activity?.projectId,
+    studyDomainId: input.activity?.studyDomainId,
+    module: input.activity?.module,
+    purpose: input.activity?.purpose,
+    connectionLabel: input.activity?.connectionLabel,
+    model: input.model,
+  };
+  emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在准备 AI 请求" });
   const response = await fetch("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -50,9 +80,64 @@ export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenera
   });
   if (!response.ok) {
     const text = await response.text();
+    emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
     throw new Error(text || `API 请求失败：${response.status}`);
   }
-  return (await response.json()) as AiGenerateResult;
+  const result = (await response.json()) as AiGenerateResult;
+  emitAiActivity({ ...activityBase, phase: "usage", label: `${input.provider} · ${input.model}`, stepId: "usage", text: result.usage?.totalTokens ? `${result.usage.totalTokens} tokens` : "厂商未返回用量", usage: result.usage });
+  emitAiActivity({ ...activityBase, phase: "done", label: `${input.provider} · ${input.model}`, stepId: "done", text: "完成", usage: result.usage });
+  return result;
+}
+
+/** 读取统一 SSE 流；每行只承载归一化事件，不暴露厂商原始响应。 */
+export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGenerator<AiGenerateStreamEvent> {
+  const runId = input.activity?.runId ?? crypto.randomUUID();
+  const activityBase = {
+    runId,
+    conversationId: input.activity?.conversationId,
+    projectId: input.activity?.projectId,
+    studyDomainId: input.activity?.studyDomainId,
+    module: input.activity?.module,
+    purpose: input.activity?.purpose,
+    connectionLabel: input.activity?.connectionLabel,
+    model: input.model,
+  };
+  emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在建立流式连接" });
+  const response = await fetch("/api/ai/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...input, stream: true }),
+  });
+  if (!response.ok || !response.body) {
+    const text = await response.text();
+    emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
+    throw new Error(text || `API 请求失败：${response.status}`);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const data = part.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
+      if (!data) continue;
+      const event = JSON.parse(data) as AiGenerateStreamEvent;
+      emitAiActivity({ ...activityBase, phase: event.type === "delta" ? "delta" : event.type === "error" ? "error" : event.type === "done" ? "done" : event.type === "usage" ? "usage" : "waiting", label: `${input.provider} · ${input.model}`, stepId: event.type === "delta" ? "stream" : event.type, text: "text" in event ? event.text : "message" in event ? event.message : event.type, usage: "usage" in event ? event.usage : undefined });
+      yield event;
+    }
+  }
+  if (buffer.trim()) {
+    const data = buffer.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
+    if (data) {
+      const event = JSON.parse(data) as AiGenerateStreamEvent;
+      emitAiActivity({ ...activityBase, phase: event.type === "delta" ? "delta" : event.type === "error" ? "error" : event.type === "done" ? "done" : event.type === "usage" ? "usage" : "waiting", label: `${input.provider} · ${input.model}`, stepId: event.type === "delta" ? "stream" : event.type, text: "text" in event ? event.text : "message" in event ? event.message : event.type, usage: "usage" in event ? event.usage : undefined });
+      yield event;
+    }
+  }
 }
 
 // 调用云端语音路由并返回临时音频 Blob；调用方负责撤销对应 object URL。

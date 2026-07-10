@@ -1,4 +1,4 @@
-import type { AiGenerateRequest, AiGenerateResult, AiSpeechRequest, ChatMessage, ChatMessageContent } from "../../services/api-client";
+import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent, AiSpeechRequest, ChatMessage, ChatMessageContent } from "../../services/api-client";
 import { getProviderContract } from "../../services/provider-contracts.ts";
 
 type ProviderHttpRequest = {
@@ -84,6 +84,7 @@ function buildResponsesRequest(input: AiGenerateRequest): ProviderHttpRequest {
       input: conversation.map((message) => ({ role: message.role, content: toResponsesContent(message.content) })),
       instructions: system || undefined,
       max_output_tokens: input.maxOutputTokens,
+      ...(input.stream ? { stream: true } : {}),
       temperature: input.temperature ?? 0.1,
     },
   };
@@ -92,7 +93,7 @@ function buildResponsesRequest(input: AiGenerateRequest): ProviderHttpRequest {
 function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const { system, conversation } = splitSystemMessages(input.messages);
   return {
-    url: `${normalizeBaseUrl(input.baseUrl)}/models/${encodeURIComponent(input.model)}:generateContent`,
+    url: `${normalizeBaseUrl(input.baseUrl)}/models/${encodeURIComponent(input.model)}:${input.stream ? "streamGenerateContent?alt=sse" : "generateContent"}`,
     headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json" },
     body: {
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
@@ -115,6 +116,7 @@ function buildAnthropicRequest(input: AiGenerateRequest): ProviderHttpRequest {
       max_tokens: input.maxOutputTokens ?? 1024,
       system: system || undefined,
       messages: conversation.map((message) => ({ role: message.role, content: toAnthropicContent(message.content) })),
+      ...(input.stream ? { stream: true } : {}),
       temperature: input.temperature ?? 0.1,
     },
   };
@@ -128,6 +130,7 @@ function buildChatCompletionsRequest(input: AiGenerateRequest): ProviderHttpRequ
       model: input.model,
       messages: input.messages,
       max_tokens: input.maxOutputTokens,
+      ...(input.stream ? { stream: true, stream_options: { include_usage: true } } : {}),
       temperature: input.temperature ?? 0.1,
     },
   };
@@ -195,6 +198,53 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
     requestId: headers.get("x-request-id") ?? (typeof root.id === "string" ? root.id : undefined),
     usage: usageResult(usage.prompt_tokens, usage.completion_tokens, usage.total_tokens),
   };
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function usageFromRecord(record: JsonRecord, kind: "openai" | "google" | "anthropic" | "chat"): AiGenerateResult["usage"] | undefined {
+  if (!Object.keys(record).length) return undefined;
+  if (kind === "google") return usageResult(record.promptTokenCount, record.candidatesTokenCount, record.totalTokenCount);
+  if (kind === "anthropic") return usageResult(record.input_tokens, record.output_tokens, Number(record.input_tokens) + Number(record.output_tokens));
+  if (kind === "chat") return usageResult(record.prompt_tokens, record.completion_tokens, record.total_tokens);
+  return usageResult(record.input_tokens, record.output_tokens, record.total_tokens);
+}
+
+/** 把厂商流式事件归一为应用内部事件，避免 UI 依赖厂商私有字段。 */
+export function parseGenerateProviderStreamEvent(input: AiGenerateRequest, payload: unknown, headers: Headers): AiGenerateStreamEvent[] {
+  const root = asRecord(payload);
+  const format = getProviderContract(input.provider).apiFormat;
+  if (format === "responses") {
+    const eventType = stringValue(root.type);
+    if (eventType === "response.output_text.delta") return [{ type: "delta", text: stringValue(root.delta) }];
+    const response = asRecord(root.response);
+    const usage = usageFromRecord(asRecord(response.usage), "openai");
+    if (eventType === "response.completed") {
+      return [{ type: "usage", requestId: stringValue(response.id) || headers.get("x-request-id") || undefined, usage }];
+    }
+    return [];
+  }
+  if (format === "google_generate_content") {
+    const candidate = asRecord(Array.isArray(root.candidates) ? root.candidates[0] : undefined);
+    const parts = asRecord(candidate.content).parts;
+    const text = (Array.isArray(parts) ? parts : []).map((part) => stringValue(asRecord(part).text)).join("");
+    const usage = usageFromRecord(asRecord(root.usageMetadata), "google");
+    return [...(text ? [{ type: "delta" as const, text }] : []), ...(usage ? [{ type: "usage" as const, requestId: headers.get("x-request-id") ?? undefined, usage }] : [])];
+  }
+  if (format === "anthropic_messages") {
+    const eventType = stringValue(root.type);
+    const delta = asRecord(root.delta);
+    if (eventType === "content_block_delta") return [{ type: "delta", text: stringValue(delta.text) }];
+    const usage = usageFromRecord(asRecord(delta.usage), "anthropic");
+    return usage ? [{ type: "usage", requestId: (headers.get("request-id") ?? stringValue(asRecord(root.message).id)) || undefined, usage }] : [];
+  }
+  const choices = Array.isArray(root.choices) ? root.choices : [];
+  const delta = asRecord(asRecord(choices[0]).delta);
+  const text = stringValue(delta.content);
+  const usage = usageFromRecord(asRecord(root.usage), "chat");
+  return [...(text ? [{ type: "delta" as const, text }] : []), ...(usage ? [{ type: "usage" as const, requestId: (headers.get("x-request-id") ?? stringValue(root.id)) || undefined, usage }] : [])];
 }
 
 function escapeXml(value: string): string {

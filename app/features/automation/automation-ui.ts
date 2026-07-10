@@ -8,7 +8,7 @@ import type {
   AutomationTemplateId,
 } from "../../types/review";
 
-/** 自动化编辑器可选择的只读数据范围。 */
+/** 已安排编辑器可选择的只读数据范围。 */
 export const AUTOMATION_SOURCE_OPTIONS: Array<{ id: AutomationSourceScope; label: string }> = [
   { id: "mistakes", label: "错题" },
   { id: "knowledge", label: "知识库" },
@@ -25,7 +25,7 @@ function localTimeZone(): string {
 /** 根据内置模板创建一份互不共享引用的表单草稿。 */
 export function createAutomationDraft(templateId: AutomationTemplateId = "daily_review"): AutomationDefinitionInput {
   const template = AUTOMATION_TEMPLATES.find((item) => item.id === templateId);
-  if (!template) throw new Error("自动化模板不存在");
+  if (!template) throw new Error("已安排模板不存在");
   return {
     name: template.name,
     templateId,

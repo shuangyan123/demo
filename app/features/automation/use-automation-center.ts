@@ -46,7 +46,7 @@ async function withBrowserLock<T>(name: string, task: () => Promise<T>): Promise
 /** 在用户主动授权后发送运行结果通知，通知正文只截取收件箱文本。 */
 function notifyRun(run: AutomationRun): void {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const body = run.status === "succeeded" ? run.result || "自动化已完成" : run.error || "自动化执行失败";
+  const body = run.status === "succeeded" ? run.result || "已安排任务已完成" : run.error || "已安排任务执行失败";
   new Notification(run.automationName, { body: body.slice(0, 180), tag: `automation-${run.id}` });
 }
 
@@ -56,7 +56,7 @@ function draftToTrialDefinition(input: AutomationDefinitionInput): AutomationDef
   return {
     ...input,
     id: `trial-${crypto.randomUUID()}`,
-    name: input.name.trim() || "试运行自动化",
+    name: input.name.trim() || "试运行已安排任务",
     prompt: input.prompt.trim(),
     sourceScopes: [...input.sourceScopes],
     schedule: { ...input.schedule },
@@ -65,7 +65,7 @@ function draftToTrialDefinition(input: AutomationDefinitionInput): AutomationDef
   };
 }
 
-/** 自动化中心 hook 只维护可序列化快照，调度、租约和执行均委托给服务层。 */
+/** 已安排 hook 只维护可序列化快照，调度、租约和执行均委托给服务层。 */
 export function useAutomationCenter({
   connection,
   personalization,
@@ -85,7 +85,7 @@ export function useAutomationCenter({
 
   const runDefinition = useCallback(async (definitionId: string, scheduled?: { scheduledAt: string; nextRunAt: string; missedCount: number; expectedUpdatedAt: string }) => {
     const definition = (await automationRepository.loadSnapshot()).definitions.find((item) => item.id === definitionId);
-    if (!definition) throw new Error("自动化任务不存在");
+    if (!definition) throw new Error("已安排任务不存在");
     setBusyIds((current) => current.includes(definitionId) ? current : [...current, definitionId]);
     try {
       const run = await withBrowserLock(`review-automation:${definitionId}`, () => automationRepository.run({
@@ -119,7 +119,7 @@ export function useAutomationCenter({
         await runDefinition(item.definition.id, item);
       }
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "自动化调度失败");
+      onNotice(error instanceof Error ? error.message : "已安排调度失败");
     } finally {
       schedulerRunning.current = false;
     }
@@ -127,7 +127,7 @@ export function useAutomationCenter({
 
   useEffect(() => {
     const initialTimer = window.setTimeout(() => {
-      void refresh().then(processDue).catch((error) => onNotice(error instanceof Error ? error.message : "自动化读取失败"));
+      void refresh().then(processDue).catch((error) => onNotice(error instanceof Error ? error.message : "已安排读取失败"));
     }, 0);
     const interval = window.setInterval(() => void processDue(), 60_000);
     const handleResume = () => void processDue();
@@ -145,7 +145,7 @@ export function useAutomationCenter({
     if (id) await automationRepository.update(id, input);
     else await automationRepository.create(input);
     await refresh();
-    onNotice(id ? "自动化已更新" : "自动化已创建");
+    onNotice(id ? "已安排任务已更新" : "已安排任务已创建");
   }, [onNotice, refresh]);
 
   const preview = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationPreviewResult> => {
@@ -184,13 +184,13 @@ export function useAutomationCenter({
   const remove = useCallback(async (id: string) => {
     await automationRepository.remove(id);
     await refresh();
-    onNotice("自动化及其运行记录已删除");
+    onNotice("已安排任务及其运行记录已删除");
   }, [onNotice, refresh]);
 
   const duplicate = useCallback(async (id: string) => {
     await automationRepository.duplicate(id);
     await refresh();
-    onNotice("已创建停用的自动化副本");
+    onNotice("已创建停用的已安排任务副本");
   }, [onNotice, refresh]);
 
   const toggle = useCallback(async (id: string, enabled: boolean) => {

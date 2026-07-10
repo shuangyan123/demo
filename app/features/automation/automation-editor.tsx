@@ -15,7 +15,7 @@ import {
   createSchedule,
 } from "./automation-ui";
 
-/** 渲染自动化创建/编辑表单，并在保存前执行最小业务校验。 */
+/** 渲染已安排任务创建/编辑表单，并在保存前执行最小业务校验。 */
 export function AutomationEditor({
   center,
   definition,
@@ -51,8 +51,8 @@ export function AutomationEditor({
 
   /** 预览、试运行和保存共享同一组表单底线校验。 */
   function validateDraft(): void {
-    if (!draft.name.trim()) throw new Error("请输入自动化名称");
-    if (draft.templateId === "custom" && !draft.prompt.trim()) throw new Error("自定义自动化必须填写提示词");
+    if (!draft.name.trim()) throw new Error("请输入已安排任务名称");
+    if (draft.templateId === "custom" && !draft.prompt.trim()) throw new Error("自定义已安排任务必须填写提示词");
     if (!draft.sourceScopes.length) throw new Error("请至少选择一个数据范围");
   }
 
@@ -79,9 +79,9 @@ export function AutomationEditor({
       const result = await center.trialRun(draft);
       setTrialResult(result);
       setPreviewResult({ summary: result.contextSummary, contextCharCount: result.contextCharCount });
-      onNotice(result.status === "succeeded" ? "自动化试运行完成，结果未写入收件箱" : `试运行失败：${result.error}`);
+      onNotice(result.status === "succeeded" ? "已安排任务试运行完成，结果未写入收件箱" : `试运行失败：${result.error}`);
     } catch (error) {
-      onNotice(automationErrorMessage(error, "自动化试运行失败"));
+      onNotice(automationErrorMessage(error, "已安排任务试运行失败"));
     } finally {
       setTrialBusy(false);
     }
@@ -95,12 +95,12 @@ export function AutomationEditor({
       await center.save({ ...draft, name: draft.name.trim(), prompt: draft.prompt.trim() }, definition?.id);
       onFinished();
     } catch (error) {
-      onNotice(automationErrorMessage(error, "自动化保存失败"));
+      onNotice(automationErrorMessage(error, "已安排任务保存失败"));
     }
   }
 
   return (
-    <Panel title={definition ? "编辑自动化" : "新建自动化"} eyebrow="AI 结果进入收件箱，不会自动改写数据">
+    <Panel title={definition ? "编辑已安排" : "新建已安排"} eyebrow="AI 结果进入收件箱，不会自动改写数据">
       <form className="grid min-w-0 gap-4" onSubmit={submit}>
         <label className="grid min-w-0 gap-1 text-sm">
           名称
@@ -228,7 +228,7 @@ export function AutomationEditor({
         {previewResult ? <AutomationContextSummaryView result={previewResult} /> : null}
         {trialResult ? <AutomationTrialResultView result={trialResult} onRecoveryAction={onRecoveryAction} /> : null}
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" type="submit">{definition ? "保存修改" : "创建自动化"}</Button>
+          <Button variant="primary" type="submit">{definition ? "保存修改" : "创建已安排"}</Button>
           {definition ? <Button variant="outline" onClick={onFinished}>取消编辑</Button> : null}
         </div>
       </form>
@@ -239,7 +239,7 @@ export function AutomationEditor({
 /** 展示上下文摘要，避免在表单里暴露完整题干或知识正文。 */
 function AutomationContextSummaryView({ result }: { result: AutomationPreviewResult }) {
   return (
-    <div aria-label="自动化读取范围预览" className="rounded-lg border border-line bg-surface-muted p-3" role="region">
+    <div aria-label="已安排读取范围预览" className="rounded-lg border border-line bg-surface-muted p-3" role="region">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <strong className="text-sm">读取范围预览</strong>
         <Chip tone="blue">约 {result.contextCharCount} 字符</Chip>

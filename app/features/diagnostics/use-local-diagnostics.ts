@@ -182,7 +182,7 @@ export function buildLocalDiagnostics(input: LocalDiagnosticsInput): LocalDiagno
       : item("ai-read", "AI 连接快照可读取", `已保存 ${input.aiSnapshot.profiles.length} 个连接档案。`, "ready"),
     hasTextConnection
       ? item("ai-text", "默认文本连接可用", defaultConnectionDescription(input.aiSnapshot, input.aiSnapshot.defaults.textConnectionId), "ready")
-      : item("ai-text", "默认文本连接缺失", "文本生成、关联分析和自动化运行会受影响。", "error", "ai-connections", "配置 AI 连接"),
+      : item("ai-text", "默认文本连接缺失", "文本生成、关联分析和已安排任务会受影响。", "error", "ai-connections", "配置 AI 连接"),
     hasVisionConnection
       ? item("ai-vision", "默认多模态连接可用", defaultConnectionDescription(input.aiSnapshot, input.aiSnapshot.defaults.visionConnectionId), "ready")
       : item("ai-vision", "默认多模态连接缺失", "OCR、截图和关键帧分析暂不可用。", "warning", "ai-connections", "配置 AI 连接"),
@@ -215,7 +215,7 @@ export function buildLocalDiagnostics(input: LocalDiagnosticsInput): LocalDiagno
       ? item("data-read", "本地数据读取失败", input.dataReadError, "error")
       : item("data-read", "本地数据快照可读取", `错题 ${input.mistakeCount} 道，知识资料 ${input.knowledgeEntryCount} 条，导入任务 ${input.importJobs.length} 个。`, "ready"),
     input.browserCapabilities.indexedDb
-      ? item("data-indexeddb", "IndexedDB 可用", "本地题库、知识库和自动化记录可持久化。", "ready")
+      ? item("data-indexeddb", "IndexedDB 可用", "本地题库、知识库和已安排记录可持久化。", "ready")
       : item("data-indexeddb", "IndexedDB 不可用", "本地数据无法可靠保存，请检查浏览器隐私模式或权限。", "error"),
   ];
   if (failedImportJobs.length) {
@@ -224,19 +224,19 @@ export function buildLocalDiagnostics(input: LocalDiagnosticsInput): LocalDiagno
 
   const automationItems: LocalDiagnosticItem[] = [];
   if (!input.automationSnapshot.definitions.length) {
-    automationItems.push(item("automation-empty", "尚未创建自动化任务", "自动化中心没有任务定义。", "warning", "automation", "打开自动化中心"));
+    automationItems.push(item("automation-empty", "尚未创建已安排任务", "已安排中没有任务定义。", "warning", "automation", "打开已安排"));
   } else if (!enabledDefinitions.length) {
-    automationItems.push(item("automation-disabled", "自动化任务均未启用", "已有任务不会执行。", "warning", "automation", "打开自动化中心"));
+    automationItems.push(item("automation-disabled", "已安排任务均未启用", "已有任务不会执行。", "warning", "automation", "打开已安排"));
   } else if (!hasTextConnection) {
-    automationItems.push(item("automation-no-text", "启用任务缺少默认文本连接", "自动化运行需要默认文本连接。", "error", "ai-connections", "配置 AI 连接"));
+    automationItems.push(item("automation-no-text", "启用任务缺少默认文本连接", "已安排运行需要默认文本连接。", "error", "ai-connections", "配置 AI 连接"));
   } else {
-    automationItems.push(item("automation-ready", "自动化定义可运行", `已启用 ${enabledDefinitions.length} 个任务；应用关闭时不会后台运行。`, "ready"));
+    automationItems.push(item("automation-ready", "已安排定义可运行", `已启用 ${enabledDefinitions.length} 个任务；应用关闭时不会后台运行。`, "ready"));
   }
   if (input.automationSnapshot.unreadCount > 0) {
-    automationItems.push(item("automation-unread", "有未读运行结果", `${input.automationSnapshot.unreadCount} 条运行结果未读。`, "warning", "automation", "打开自动化中心"));
+    automationItems.push(item("automation-unread", "有未读运行结果", `${input.automationSnapshot.unreadCount} 条运行结果未读。`, "warning", "automation", "打开已安排"));
   }
   for (const run of failedRuns) {
-    automationItems.push(item(`automation-failed-${run.id}`, `最近失败：${run.automationName}`, `${formatDateTime(run.createdAt)}，${run.error || "自动化执行失败"}`, "error", "automation", "打开自动化中心"));
+    automationItems.push(item(`automation-failed-${run.id}`, `最近失败：${run.automationName}`, `${formatDateTime(run.createdAt)}，${run.error || "已安排执行失败"}`, "error", "automation", "打开已安排"));
   }
 
   const browserItems: LocalDiagnosticItem[] = [
@@ -250,11 +250,11 @@ export function buildLocalDiagnostics(input: LocalDiagnosticsInput): LocalDiagno
       ? item("browser-fsa", "File System Access 可用", "可通过用户点击选择 Obsidian Vault 文件夹。", "ready")
       : item("browser-fsa", "File System Access 不可用", "当前浏览器无法直接桥接 Vault，可使用一次性 Markdown 导入。", "warning"),
     input.browserCapabilities.webLocks
-      ? item("browser-locks", "Web Locks 可用", "多标签自动化去重可使用浏览器锁。", "ready")
-      : item("browser-locks", "Web Locks 不可用", "自动化会退回 IndexedDB 租约兜底去重。", "warning"),
+      ? item("browser-locks", "Web Locks 可用", "多标签已安排去重可使用浏览器锁。", "ready")
+      : item("browser-locks", "Web Locks 不可用", "已安排会退回 IndexedDB 租约兜底去重。", "warning"),
     input.browserCapabilities.notifications
       ? item("browser-notification", "通知 API 可用", `当前通知权限：${input.browserCapabilities.notificationPermission}。`, "ready")
-      : item("browser-notification", "通知 API 不可用", "自动化完成后无法弹出系统通知。", "warning"),
+      : item("browser-notification", "通知 API 不可用", "已安排完成后无法弹出系统通知。", "warning"),
     input.browserCapabilities.clipboard
       ? item("browser-clipboard", "剪贴板 API 可用", "可一键复制诊断报告。", "ready")
       : item("browser-clipboard", "剪贴板 API 不可用", "可手动选择诊断报告文本复制。", "warning"),
@@ -269,7 +269,7 @@ export function buildLocalDiagnostics(input: LocalDiagnosticsInput): LocalDiagno
     { id: "ai", title: "AI 连接", items: aiItems, status: sectionStatus(aiItems) },
     { id: "obsidian", title: "Obsidian Vault", items: obsidianItems, status: sectionStatus(obsidianItems) },
     { id: "data", title: "本地数据", items: dataItems, status: sectionStatus(dataItems) },
-    { id: "automation", title: "自动化", items: automationItems, status: sectionStatus(automationItems) },
+    { id: "automation", title: "已安排", items: automationItems, status: sectionStatus(automationItems) },
     { id: "browser", title: "浏览器能力", items: browserItems, status: sectionStatus(browserItems) },
     { id: "app", title: "应用信息", items: appItems, status: sectionStatus(appItems) },
   ];

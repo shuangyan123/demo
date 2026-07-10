@@ -37,7 +37,7 @@ function proposalResponse(request: MockAiRequest): string {
   ]);
 }
 
-test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ page }) => {
+test("知识演进已安排任务可通过 mock JSON 生成待确认提案", async ({ page }) => {
   const provider = await startMockAiProvider({ response: proposalResponse });
   const runtimeErrors = collectRuntimeErrors(page);
 
@@ -45,7 +45,7 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     await page.goto("/");
     await expect(page).toHaveTitle("错题复盘");
 
-    await page.getByLabel("侧栏导航").getByRole("button", { name: "手动录入" }).click();
+    await page.getByRole("button", { name: "手动录入" }).first().click();
     const entryForm = page.locator("form").filter({ has: page.getByRole("button", { name: "保存错题" }) });
     await entryForm.getByLabel("板块").selectOption("资料分析");
     await entryForm.getByLabel("来源").fill("E2E 知识演进数据");
@@ -70,8 +70,8 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     await expect(page.getByRole("status")).toContainText("默认文本已更新");
 
     await page.goto("/");
-    await page.getByLabel("侧栏导航").getByRole("button", { name: "自动化" }).click();
-    await expect(page.getByRole("heading", { name: "自动化", exact: true })).toBeVisible();
+    await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
+    await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
     await page.getByLabel("模板").selectOption("knowledge_evolution");
     await page.getByLabel("名称").fill("E2E 知识演进闭环");
     await page.getByRole("checkbox", { name: "知识库" }).uncheck();
@@ -79,7 +79,7 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     await page.getByRole("checkbox", { name: "辅导" }).uncheck();
 
     await page.getByRole("button", { name: "预览读取范围" }).click();
-    const previewPanel = page.getByRole("region", { name: "自动化读取范围预览" });
+    const previewPanel = page.getByRole("region", { name: "已安排读取范围预览" });
     await expect(previewPanel).toBeVisible();
     await expect(previewPanel.getByText("错题", { exact: true })).toBeVisible();
     await expect(previewPanel.getByText("资料分析 · E2E 知识演进错题")).toBeVisible();
@@ -101,7 +101,7 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     expect(JSON.stringify(trialPayload)).not.toContain("interview:");
     expect(JSON.stringify(trialPayload)).not.toContain("tutoring:");
 
-    await page.getByRole("button", { name: "创建自动化" }).click();
+    await page.getByRole("button", { name: "创建已安排" }).click();
     const taskCard = page.locator("article").filter({ hasText: "E2E 知识演进闭环" }).first();
     await expect(taskCard).toBeVisible();
     await taskCard.getByRole("button", { name: "立即运行" }).click();
@@ -118,7 +118,7 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     expect(runPayload.sources?.map((source) => source.type)).toEqual(["mistake"]);
     expect(runPayload.candidates ?? []).toHaveLength(0);
 
-    await page.getByLabel("侧栏导航").getByRole("button", { name: "知识库" }).click();
+    await page.getByRole("button", { name: "知识库" }).first().click();
     await expect(page.getByRole("heading", { name: "知识演进提案" })).toBeVisible();
     await expect(page.getByText(proposalTitle)).toBeVisible();
     await expect(page.getByText("错题解析暴露出增长率判断步骤混淆。")).toBeVisible();

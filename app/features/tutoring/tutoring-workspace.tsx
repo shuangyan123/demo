@@ -141,7 +141,7 @@ export function TutoringWorkspace({
           <p className="max-w-3xl text-sm leading-6 text-muted">
             浏览器 MVP 用摄像头、屏幕共享或截图模拟眼镜视角。默认不保存原始音视频和连续画面，只保存文字稿、摘要、建议和用户确认的关联。
           </p>
-          {!textConnection && (
+          {(!textConnection || !visionConnection) && (
             <Button variant="primary" onClick={onOpenSettings}>
               配置 AI 连接
             </Button>
@@ -161,7 +161,6 @@ export function TutoringWorkspace({
 
       {tab === "live" && (
         <LiveTutoringView
-          apiReady={Boolean(textConnection)}
           busy={tutoring.busy}
           draftText={draftText || speech.transcript}
           frameDescription={frameDescription}
@@ -171,7 +170,9 @@ export function TutoringWorkspace({
           sessionGoal={sessionGoal}
           sessionTopic={sessionTopic}
           speech={speech}
+          textReady={Boolean(textConnection)}
           turns={tutoring.activeTurns}
+          visionReady={Boolean(visionConnection)}
           onCaptureFrame={captureCurrentFrame}
           onCreateSession={createSession}
           onFinishSession={() => tutoring.activeSession && void tutoring.finishSession(tutoring.activeSession)}
@@ -236,7 +237,6 @@ export function TutoringWorkspace({
 
 // 渲染实时辅导主界面，包含画面源、会话目标、文字稿和 AI 老师对话。
 function LiveTutoringView({
-  apiReady,
   busy,
   draftText,
   frameDescription,
@@ -246,7 +246,9 @@ function LiveTutoringView({
   sessionGoal,
   sessionTopic,
   speech,
+  textReady,
   turns,
+  visionReady,
   onCaptureFrame,
   onCreateSession,
   onFinishSession,
@@ -258,7 +260,6 @@ function LiveTutoringView({
   onSubmitTurn,
   onUpdateSessionStatus,
 }: {
-  apiReady: boolean;
   busy: boolean;
   draftText: string;
   frameDescription: string;
@@ -268,7 +269,9 @@ function LiveTutoringView({
   sessionGoal: string;
   sessionTopic: string;
   speech: TutoringSpeechController;
+  textReady: boolean;
   turns: TutoringTurn[];
+  visionReady: boolean;
   onCaptureFrame: () => void;
   onCreateSession: () => void;
   onFinishSession: () => void;
@@ -280,6 +283,11 @@ function LiveTutoringView({
   onSubmitTurn: () => void;
   onUpdateSessionStatus: (session: TutoringSession, status: TutoringSession["status"]) => Promise<void>;
 }) {
+  const activeTurnRequiresVision = Boolean(sampler.lastFrameDataUrl || media.hasFrame || frameDescription.trim());
+  const canSubmitToAi = activeTurnRequiresVision ? visionReady : textReady;
+  const missingConnectionText = activeTurnRequiresVision
+    ? "当前轮次包含画面，必须配置默认多模态连接后才能发送文本 + 图像。"
+    : "请先配置默认文本连接后再发送纯文本辅导。";
   return (
     <div className="tutoring-live-grid">
       <Panel className="min-h-[34rem]" eyebrow="VIEW" title="眼镜视角模拟">
@@ -349,7 +357,7 @@ function LiveTutoringView({
               </Button>
             </>
           )}
-          {!apiReady && (
+          {!canSubmitToAi && (
             <Button variant="soft" onClick={onOpenSettings}>
               去配置 AI 连接
             </Button>
@@ -368,6 +376,13 @@ function LiveTutoringView({
             <p className="text-sm text-muted">先选择画面来源并创建会话，再发送问题给 AI 老师。</p>
           )}
         </SoftBlock>
+        {!canSubmitToAi ? (
+          <SoftBlock className="mt-3">
+            <p className="text-sm leading-6 text-muted">{missingConnectionText}</p>
+          </SoftBlock>
+        ) : activeTurnRequiresVision ? (
+          <p className="mt-3 text-xs text-muted">本轮会把学生输入和当前关键帧一起发送给默认多模态连接。</p>
+        ) : null}
 
         <ConversationList turns={turns} />
 
@@ -380,7 +395,7 @@ function LiveTutoringView({
             <Button size="sm" variant="ghost" onClick={speech.reset}>
               清空语音稿
             </Button>
-            <Button disabled={!session || busy} variant="primary" onClick={onSubmitTurn}>
+            <Button disabled={!session || busy || !canSubmitToAi} variant="primary" onClick={onSubmitTurn}>
               {busy ? "分析中..." : "发送给 AI 老师"}
             </Button>
           </Toolbar>

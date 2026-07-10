@@ -34,7 +34,7 @@ export function ConfigurationHealthPanel({ health, onAction }: ConfigurationHeal
     <Panel title="配置健康" eyebrow="Configuration Health">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm text-muted">快速确认 AI、Obsidian、自动化和学习数据闭环是否可用。</p>
+          <p className="text-sm text-muted">快速确认 AI、Obsidian、已安排和学习数据闭环是否可用。</p>
           <strong className="mt-1 block text-2xl leading-tight">{health.summary}</strong>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -4,9 +4,8 @@ import type { SyntheticEvent } from "react";
 import { useEffect, useState } from "react";
 import { splitInput, textValue } from "../../lib/form-utils";
 import { markDuplicateDrafts } from "../../services/dedupe-service";
-import { parseFenbiFile, parseFenbiTextWithAi } from "../../services/fenbi-import-service";
-import { parseFenbiTextByName } from "../../services/fenbi-parser";
 import { importDraftRepository } from "../../services/import-draft-repository";
+import { getImportProviderPlugin } from "../../services/import-provider-plugins";
 import { reviewRepository } from "../../services/review-repository";
 import type { ApiConnectionProfile, ImportBatch, ImportDraft, ImportJob, Mistake, PersistedImportDraft } from "../../types/review";
 
@@ -43,6 +42,7 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [drafts, setDrafts] = useState<PersistedImportDraft[]>([]);
   const [importBusy, setImportBusy] = useState(false);
+  const fenbiProvider = getImportProviderPlugin("fenbi");
 
   // 刷新导入批次和持久草稿，和主工作台快照分离，避免每次编辑草稿都重读错题库。
   async function refreshImportDrafts() {
@@ -123,7 +123,12 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     );
     try {
       await importDraftRepository.updateBatch(batch.id, { status: "parsing" }, today);
-      const parsedDrafts = mode === "ai" ? await parseFenbiTextWithAi(rawText, requireTextConnection(textConnection)) : parseFenbiTextByName(rawText, "paste.txt");
+      const result = await fenbiProvider.parseText({
+        rawText,
+        mode,
+        textConnection: mode === "ai" ? requireTextConnection(textConnection) : textConnection,
+      });
+      const parsedDrafts = result.drafts;
       await persistParsedDrafts({
         batchId: batch.id,
         drafts: parsedDrafts,
@@ -137,7 +142,7 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
       form.reset();
       await refreshImportDrafts();
       await onRefreshWorkspace();
-      setNotice(`已生成 ${parsedDrafts.length} 条粉笔错题草稿`);
+      setNotice(result.diagnostics.map((diagnostic) => diagnostic.message).join(" "));
     } catch (error) {
       const message = error instanceof Error ? error.message : "导入失败";
       await importDraftRepository.updateBatch(batch.id, { status: "failed", error: message, message }, today);
@@ -178,7 +183,8 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
       await importDraftRepository.updateBatch(batch.id, { status: "parsing" }, today);
       for (const file of files) {
         try {
-          const parsedDrafts = await parseFenbiFile(file, visionConnection);
+          const result = await fenbiProvider.parseFile({ file, visionConnection });
+          const parsedDrafts = result.drafts;
           totalParsed += parsedDrafts.length;
           await persistParsedDrafts({
             batchId: batch.id,

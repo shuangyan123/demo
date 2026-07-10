@@ -142,6 +142,10 @@ export const reviewRepository = {
         reviewDb.tutoringTurns,
         reviewDb.tutoringPlans,
         reviewDb.tutoringLinks,
+        reviewDb.aiConversations,
+        reviewDb.aiConversationAttachments,
+        reviewDb.aiConversationMessages,
+        reviewDb.aiConversationRunSteps,
       ],
       async () => {
         await reviewDb.mistakes.clear();
@@ -161,6 +165,10 @@ export const reviewRepository = {
         await reviewDb.tutoringTurns.clear();
         await reviewDb.tutoringPlans.clear();
         await reviewDb.tutoringLinks.clear();
+        await reviewDb.aiConversations.clear();
+        await reviewDb.aiConversationAttachments.clear();
+        await reviewDb.aiConversationMessages.clear();
+        await reviewDb.aiConversationRunSteps.clear();
       },
     );
   },

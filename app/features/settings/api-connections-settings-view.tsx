@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { generateWithConnection, type GenerateConnectionPurpose } from "../../services/ai-connection-client";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
-import { creatableProviderContracts, getProviderContract, getProviderModels, type ProviderContract } from "../../services/provider-contracts";
-import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile, ApiProvider } from "../../types/review";
+import { creatableProviderContracts, getProviderContract, getProviderModelCatalog, getProviderModels, type ProviderContract } from "../../services/provider-contracts";
+import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, AiModelCatalogEntry, ApiConnectionProfile, ApiProvider } from "../../types/review";
 import { Button, EmptyState, SegmentedTabs, cx } from "../shared/ui-primitives";
 
 type SubmitEvent = SyntheticEvent<HTMLFormElement, globalThis.SubmitEvent>;
@@ -27,6 +27,7 @@ const purposeTabs: Array<{ key: AiConnectionPurpose; label: string }> = [
   { key: "vision", label: "多模态" },
   { key: "speech", label: "语音合成" },
 ];
+const manualModelOption = "__manual__";
 
 function capabilitiesForPurpose(contract: ProviderContract, purpose: AiConnectionPurpose): AiCapability[] {
   if (purpose === "text") return contract.capabilities.filter((capability) => capability === "text" || capability === "structured_output");
@@ -66,8 +67,21 @@ function InlineStatus({ feedback }: { feedback: Feedback }) {
   );
 }
 
+function modelStatusLabel(model?: AiModelCatalogEntry): string {
+  if (!model) return "内置";
+  if (model.status === "recommended") return "推荐";
+  if (model.status === "preview") return "预览";
+  if (model.status === "deprecated") return "弃用";
+  return model.source === "official" ? "官方" : "手动";
+}
+
+function modelCapabilityText(model?: AiModelCatalogEntry): string {
+  if (!model) return "保存后用测试连接确认";
+  return model.capabilities.map((capability) => capabilityLabels[capability] ?? capability).join(" / ");
+}
+
 // 配置多厂商连接、能力默认值和连接测试；厂商协议细节只存在于服务端适配器。
-export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: { onChanged?: () => void; onClearLocalRecords?: () => void }) {
+export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords, onOpenPlugins }: { onChanged?: () => void; onClearLocalRecords?: () => void; onOpenPlugins?: () => void }) {
   const [snapshot, setSnapshot] = useState<AiConnectionSnapshot>({ profiles: [], defaults: { id: "default", updatedAt: "" } });
   const [activePurpose, setActivePurpose] = useState<AiConnectionPurpose>("text");
   const [form, setForm] = useState<ConnectionForm>(() => createForm());
@@ -75,6 +89,14 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const contract = useMemo(() => getProviderContract(form.provider), [form.provider]);
   const modelOptions = useMemo(() => getProviderModels(form.provider, activePurpose), [activePurpose, form.provider]);
+  const modelCatalog = useMemo(() => getProviderModelCatalog(form.provider, activePurpose), [activePurpose, form.provider]);
+  const modelChoices = useMemo(() => {
+    const catalogById = new Map(modelCatalog.map((item) => [item.id, item]));
+    return Array.from(new Set([...modelCatalog.map((item) => item.id), ...modelOptions])).map((id) => ({ id, catalog: catalogById.get(id) }));
+  }, [modelCatalog, modelOptions]);
+  const selectedModelCatalog = modelCatalog.find((item) => item.id === form.model);
+  const selectedModelValue = modelChoices.some((item) => item.id === form.model) ? form.model : manualModelOption;
+  const manualModelActive = selectedModelValue === manualModelOption;
 
   const refresh = useCallback(async () => setSnapshot(await aiConnectionsRepository.loadSnapshot()), []);
 
@@ -237,6 +259,13 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">AI 连接</h1>
         <p className="mt-2 text-sm text-muted">管理文本、多模态与语音服务。API Key 使用 Web Crypto 加密，仅在请求前解密。</p>
+        {onOpenPlugins ? (
+          <p className="mt-2 text-sm text-muted">
+            额度、Obsidian Vault 和后续厂商适配已集中到
+            <button className="ml-1 font-semibold text-blue hover:underline" type="button" onClick={onOpenPlugins}>插件</button>
+            。
+          </p>
+        ) : null}
       </header>
 
       <div className="mt-7">
@@ -306,9 +335,30 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
               <input className="ui-input" placeholder={form.provider === "azure" ? "https://<region>.tts.speech.microsoft.com/cognitiveservices/v1" : undefined} value={form.baseUrl} onChange={(event) => setForm({ ...form, baseUrl: event.target.value })} />
             </label>
             <label className="ui-field">模型
-              <input className="ui-input" list="provider-model-options" placeholder={modelOptions.length ? undefined : "填写官方控制台中的模型 ID"} value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} />
-              <datalist id="provider-model-options">{modelOptions.map((model) => <option key={model} value={model} />)}</datalist>
+              <select
+                className="ui-select"
+                value={selectedModelValue}
+                onChange={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setForm({ ...form, model: nextValue === manualModelOption ? "" : nextValue });
+                }}
+              >
+                {modelChoices.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.id} · {modelStatusLabel(item.catalog)}
+                  </option>
+                ))}
+                <option value={manualModelOption}>手动填写模型 ID</option>
+              </select>
+              <span className="text-xs leading-5 text-muted">
+                {manualModelActive ? "手动模型会在保存后通过“测试连接”确认真实可用性。" : `${modelStatusLabel(selectedModelCatalog)} · ${modelCapabilityText(selectedModelCatalog)}`}
+              </span>
             </label>
+            {manualModelActive ? (
+              <label className="ui-field">手动模型 ID
+                <input className="ui-input" placeholder="填写官方控制台中的模型 ID" value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} />
+              </label>
+            ) : null}
             {form.provider === "azure" ? <label className="ui-field">语音语言<input className="ui-input" value={form.language} onChange={(event) => setForm({ ...form, language: event.target.value })} /></label> : null}
             <fieldset className="grid gap-2">
               <legend className="text-sm font-semibold">连接能力</legend>
@@ -326,7 +376,12 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
             </label>
           </div>
 
-          <p className="mt-3 text-xs text-muted">{contract.verifiedAt ? `官方契约核对日期：${contract.verifiedAt}` : "默认模型未完成官方核验，因此不会自动填入。"}</p>
+          <p className="mt-3 text-xs text-muted">
+            {contract.verifiedAt ? `官方契约核对日期：${contract.verifiedAt}` : "默认模型需要手动核验。"}
+            {" · "}
+            {contract.modelListStrategy === "official_api" ? "支持通过官方模型接口核验；本页保存连接后用测试连接确认。" : contract.modelListStrategy === "static_catalog" ? "使用官方文档静态目录。" : "使用手动模型目录。"}
+            {contract.documentationUrl ? <a className="ml-1 font-semibold text-blue hover:underline" href={contract.documentationUrl} rel="noreferrer" target="_blank">文档</a> : null}
+          </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? <><span className="ui-spinner" />保存中</> : "保存"}</Button>
             <Button type="button" variant="outline" disabled={!form.id || Boolean(busyAction)} onClick={() => { const profile = snapshot.profiles.find((item) => item.id === form.id); if (profile) void testConnection(profile); }}>

@@ -1,7 +1,9 @@
 import type { ApiConnectionProfile } from "../types/review";
 import {
   callAiGenerate,
+  callAiGenerateStream,
   callAiSpeech,
+  type AiGenerateStreamEvent,
   type AiGenerateRequest,
   type AiGenerateResult,
   type AiSpeechRequest,
@@ -25,6 +27,29 @@ export async function generateWithConnection(
   }
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
   return callAiGenerate({
+    ...input,
+    provider: connection.provider,
+    apiKey,
+    baseUrl: connection.baseUrl,
+    model: connection.model,
+    providerOptions: connection.providerOptions,
+  });
+}
+
+/** 使用连接档案发起流式生成；调用方只能消费归一化事件，不能接触明文 Key。 */
+export async function* generateWithConnectionStream(
+  connection: ApiConnectionProfile,
+  purpose: GenerateConnectionPurpose,
+  input: ConnectionGenerateInput,
+): AsyncGenerator<AiGenerateStreamEvent> {
+  if (!connection.capabilities.includes(purpose)) {
+    throw new Error(`当前连接不支持${purpose === "vision" ? "多模态" : "文本"}能力`);
+  }
+  if (!connection.capabilities.includes("streaming")) {
+    throw new Error("当前连接未声明流式输出能力");
+  }
+  const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  yield* callAiGenerateStream({
     ...input,
     provider: connection.provider,
     apiKey,

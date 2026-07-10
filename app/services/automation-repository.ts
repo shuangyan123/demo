@@ -67,7 +67,7 @@ async function releaseLease(id: string, owner: string): Promise<void> {
   if (definition?.leaseOwner === owner) await reviewDb.automationDefinitions.update(id, { leaseOwner: undefined, leaseExpiresAt: undefined });
 }
 
-/** 自动化仓储统一管理定义、运行收件箱、租约和调度推进。 */
+/** 已安排仓储统一管理定义、运行收件箱、租约和调度推进。 */
 export const automationRepository = {
   async loadSnapshot(): Promise<AutomationSnapshot> {
     const [definitions, runs, unreadCount] = await Promise.all([
@@ -94,7 +94,7 @@ export const automationRepository = {
 
   async update(id: string, input: AutomationDefinitionInput, now = new Date()): Promise<void> {
     const current = await reviewDb.automationDefinitions.get(id);
-    if (!current) throw new Error("自动化任务不存在");
+    if (!current) throw new Error("已安排任务不存在");
     await validateAutomationSchedule(input.schedule, input.timeZone, now);
     await reviewDb.automationDefinitions.put({
       ...current,
@@ -108,7 +108,7 @@ export const automationRepository = {
 
   async duplicate(id: string, now = new Date()): Promise<AutomationDefinition> {
     const current = await reviewDb.automationDefinitions.get(id);
-    if (!current) throw new Error("自动化任务不存在");
+    if (!current) throw new Error("已安排任务不存在");
     return this.create({
       name: `${current.name} 副本`, templateId: current.templateId, prompt: current.prompt,
       sourceScopes: [...current.sourceScopes], enabled: false, timeZone: current.timeZone, schedule: { ...current.schedule },
@@ -117,7 +117,7 @@ export const automationRepository = {
 
   async toggle(id: string, enabled: boolean, now = new Date()): Promise<void> {
     const definition = await reviewDb.automationDefinitions.get(id);
-    if (!definition) throw new Error("自动化任务不存在");
+    if (!definition) throw new Error("已安排任务不存在");
     await reviewDb.automationDefinitions.update(id, {
       enabled,
       nextRunAt: enabled ? (await nextAutomationRun(definition.schedule, definition.timeZone, now)).toISOString() : definition.nextRunAt,

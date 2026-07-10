@@ -62,11 +62,16 @@ test("TutoringWorkspace 把实时会话媒体和语音控制交给专用 control
   assert.doesNotMatch(source, /resolvePersonaVoice/);
 });
 
-test("数据层性能二阶段没有在缺少慢查询证据时升级 Dexie schema", async () => {
+test("Dexie v14 只用于通用 AI 会话持久化", async () => {
   const source = await readSource("../../db/review-db.ts");
 
   assert.match(source, /this\.version\(13\)\.stores/);
-  assert.doesNotMatch(source, /this\.version\(14\)\.stores/);
+  assert.match(source, /this\.version\(14\)\.stores/);
+  assert.match(source, /aiProjects:\s*"&id, studyDomainId, updatedAt, createdAt"/);
+  assert.match(source, /aiConversations:\s*"&id, projectId, studyDomainId, kind, status, updatedAt, createdAt, \[projectId\+updatedAt\]"/);
+  assert.match(source, /aiConversationMessages:\s*"&id, conversationId, role, createdAt"/);
+  assert.match(source, /aiConversationRunSteps:\s*"&id, conversationId, runId, state, updatedAt"/);
+  assert.doesNotMatch(source, /\[(?:board|category|mastery)\+(?:updatedAt|createdAt|nextReviewAt)\]/);
 });
 
 test("PDF 和 DOCX 解析依赖只在文件解析时动态加载", async () => {

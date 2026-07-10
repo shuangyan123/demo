@@ -2,50 +2,126 @@ import type { ReactNode } from "react";
 import { Button, CardButton, Chip, DataList, DataRow, EmptyState, MasteryDots, MetricCard, Panel, StatGrid } from "../shared/ui-primitives";
 import type { BoardStat } from "../../lib/review-selectors";
 import type { Board, KnowledgeCategory, KnowledgeCategorySummary, KnowledgeEntry, Mistake } from "../../types/review";
+import { studyDomainDefinitions } from "../study/study-registry";
 
 const colors = ["#2f6fed", "#1a9b71", "#d79018", "#d45145", "#7a5bd4", "#1c8c9a"];
+const civilServiceDomain = studyDomainDefinitions[0]!;
 
 type DashboardViewProps = {
   avgMastery: string;
+  automationActiveCount: number;
+  automationUnreadCount: number;
   boardStats: BoardStat[];
   configurationHealth?: ReactNode;
   correctRate: number;
   dueKnowledgeEntries: KnowledgeEntry[];
   dueMistakes: Mistake[];
+  importDraftCount: number;
+  importJobCount: number;
   knowledgeCategorySummaries: KnowledgeCategorySummary[];
   knowledgeCorrectRate: number;
   lowMistakes: Mistake[];
+  obsidianConnected: boolean;
+  pendingProposalCount: number;
+  onOpenAutomation: () => void;
   onCreateKnowledgeStarterDrafts: (category?: KnowledgeCategory) => void;
   onOpenBoard: (board: Board) => void;
+  onOpenImport: () => void;
+  onOpenKnowledge: () => void;
   onOpenKnowledgeCategory: (category: KnowledgeCategory) => void;
   onOpenKnowledgeTraining: (entryId?: string) => void;
   onOpenInterview: () => void;
   onOpenReview: (id: string) => void;
+  onOpenReviewQueue: () => void;
   onOpenTutoring: () => void;
 };
 
 // 渲染总览页，包括指标、六大板块概览和今日复盘队列；这里只消费派生数据，不直接读取仓储。
 export function DashboardView({
   avgMastery,
+  automationActiveCount,
+  automationUnreadCount,
   boardStats,
   configurationHealth,
   correctRate,
   dueKnowledgeEntries,
   dueMistakes,
+  importDraftCount,
+  importJobCount,
   knowledgeCategorySummaries,
   knowledgeCorrectRate,
   lowMistakes,
+  obsidianConnected,
+  pendingProposalCount,
+  onOpenAutomation,
   onCreateKnowledgeStarterDrafts,
   onOpenBoard,
+  onOpenImport,
+  onOpenKnowledge,
   onOpenKnowledgeCategory,
   onOpenKnowledgeTraining,
   onOpenInterview,
   onOpenReview,
+  onOpenReviewQueue,
   onOpenTutoring,
 }: DashboardViewProps) {
+  const knowledgeTotal = knowledgeCategorySummaries.reduce((total, item) => total + item.total, 0);
+  const flowActions: Record<string, () => void> = {
+    import: onOpenImport,
+    mistake: onOpenReviewQueue,
+    knowledge: onOpenKnowledge,
+    training: () => onOpenKnowledgeTraining(),
+    tutoring: onOpenTutoring,
+    scheduled: onOpenAutomation,
+    obsidian: onOpenKnowledge,
+  };
+  const flowMeta: Record<string, { count: string; tone: "blue" | "green" | "yellow" | "red" | "neutral" }> = {
+    import: {
+      count: importDraftCount ? `${importDraftCount} 条草稿待确认` : importJobCount ? `${importJobCount} 个导入批次` : "可从粉笔插件开始",
+      tone: importDraftCount ? "yellow" : "blue",
+    },
+    mistake: { count: `${dueMistakes.length} 道到期`, tone: dueMistakes.length ? "yellow" : "green" },
+    knowledge: { count: `${knowledgeTotal} 条资料`, tone: knowledgeTotal ? "green" : "yellow" },
+    training: { count: `${dueKnowledgeEntries.length} 条待训`, tone: dueKnowledgeEntries.length ? "yellow" : "green" },
+    tutoring: { count: "多模态辅导入口", tone: "blue" },
+    scheduled: { count: automationUnreadCount ? `${automationUnreadCount} 条未读` : `${automationActiveCount} 个启用任务`, tone: automationUnreadCount ? "yellow" : automationActiveCount ? "green" : "neutral" },
+    obsidian: { count: pendingProposalCount ? `${pendingProposalCount} 条提案待确认` : obsidianConnected ? "Vault 已连接" : "待连接 Vault", tone: pendingProposalCount ? "yellow" : obsidianConnected ? "green" : "neutral" },
+  };
+
   return (
     <section className="space-y-4">
       {configurationHealth}
+
+      <Panel title="公考学习链路" eyebrow="Study Flow">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="max-w-3xl text-sm leading-6 text-muted">{civilServiceDomain.dashboard.headline}</p>
+          <div className="flex flex-wrap gap-2">
+            {civilServiceDomain.dashboard.defaultNextActions.map((action) => <Chip key={action} tone="blue">{action}</Chip>)}
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {civilServiceDomain.dashboard.flow.map((step, index) => {
+            const meta = flowMeta[step.id] ?? { count: "待处理", tone: "neutral" as const };
+            return (
+              <button
+                key={step.id}
+                className="grid min-h-36 rounded-lg border border-line bg-surface-muted p-4 text-left transition hover:border-blue/40 hover:bg-blue/5"
+                type="button"
+                onClick={flowActions[step.id]}
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span>
+                    <small className="text-xs font-semibold text-muted">{String(index + 1).padStart(2, "0")}</small>
+                    <strong className="mt-1 block">{step.label}</strong>
+                  </span>
+                  <Chip tone={meta.tone}>{meta.count}</Chip>
+                </span>
+                <span className="mt-3 text-sm leading-6 text-muted">{step.description}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Panel>
 
       <StatGrid>
         <MetricCard label="今日待复盘" value={dueMistakes.length} hint="按到期和薄弱度排序" tone="text-blue" />

@@ -13,7 +13,7 @@ import {
   formatSchedule,
 } from "./automation-ui";
 
-/** 渲染自动化定义列表，并将异步操作错误统一反馈到应用通知。 */
+/** 渲染已安排任务列表，并将异步操作错误统一反馈到应用通知。 */
 export function AutomationTaskList({
   center,
   onCreateTemplate,
@@ -33,7 +33,7 @@ export function AutomationTaskList({
   }
 
   return (
-    <Panel title="自动化任务" eyebrow="应用打开时执行 · 漏跑合并一次">
+    <Panel title="已安排任务" eyebrow="应用打开时执行 · 漏跑合并一次">
       <div className="mb-4 flex flex-wrap gap-2">
         {AUTOMATION_TEMPLATES.map((template) => (
           <Button key={template.id} variant="outline" onClick={() => onCreateTemplate(template.id)}>{template.name}</Button>
@@ -63,17 +63,17 @@ export function AutomationTaskList({
                   <label className="flex flex-none items-center gap-2 whitespace-nowrap text-sm">
                     <input type="checkbox" checked={definition.enabled} onChange={(event) => {
                       const enabled = event.currentTarget.checked;
-                      runAction(center.toggle(definition.id, enabled), "自动化状态更新失败");
+                      runAction(center.toggle(definition.id, enabled), "已安排状态更新失败");
                     }} />
                     启用
                   </label>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="primary" disabled={busy} onClick={() => runAction(center.runNow(definition.id), "自动化运行失败")}>{busy ? "运行中" : "立即运行"}</Button>
+                  <Button variant="primary" disabled={busy} onClick={() => runAction(center.runNow(definition.id), "已安排任务运行失败")}>{busy ? "运行中" : "立即运行"}</Button>
                   <Button variant="outline" onClick={() => onEdit(definition)}>编辑</Button>
-                  <Button variant="outline" onClick={() => runAction(center.duplicate(definition.id), "自动化复制失败")}>复制</Button>
+                  <Button variant="outline" onClick={() => runAction(center.duplicate(definition.id), "已安排任务复制失败")}>复制</Button>
                   <Button variant="outline" onClick={() => {
-                    if (window.confirm(`删除“${definition.name}”及其运行记录？`)) runAction(center.remove(definition.id), "自动化删除失败");
+                    if (window.confirm(`删除“${definition.name}”及其运行记录？`)) runAction(center.remove(definition.id), "已安排任务删除失败");
                   }}>删除</Button>
                 </div>
               </article>
@@ -81,7 +81,7 @@ export function AutomationTaskList({
           })}
         </div>
       ) : (
-        <EmptyState><strong>还没有自动化</strong><p className="mt-2">选择上方模板，或创建一个只读的自定义任务。</p></EmptyState>
+        <EmptyState><strong>还没有已安排任务</strong><p className="mt-2">选择上方模板，或创建一个只读的自定义任务。</p></EmptyState>
       )}
     </Panel>
   );

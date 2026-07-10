@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildGenerateProviderRequest, buildSpeechProviderRequest, parseGenerateProviderResponse, parseSpeechJsonResponse } from "./provider-adapter.ts";
+import { buildGenerateProviderRequest, buildSpeechProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent, parseSpeechJsonResponse } from "./provider-adapter.ts";
 import type { AiGenerateRequest, AiSpeechRequest } from "../../services/api-client.ts";
 import { POST as speechPost } from "../../api/ai/speech/route.ts";
 
@@ -69,8 +69,8 @@ test("Anthropic fixture：Messages 鉴权、system 和内容块保持厂商原�
   );
 });
 
-test("xAI、DeepSeek 与 Qwen fixture：统一消息映射到兼容 Chat Completions", () => {
-  for (const provider of ["xai", "deepseek", "qwen"] as const) {
+test("OpenAI-compatible providers map to Chat Completions", () => {
+  for (const provider of ["xai", "deepseek", "qwen", "openrouter", "groq", "mistral", "siliconflow", "zhipu", "kimi", "doubao", "baidu", "tencent"] as const) {
     const input: AiGenerateRequest = { ...baseGenerate, provider };
     const request = buildGenerateProviderRequest(input);
     assert.equal(request.url, "https://provider.example/v1/chat/completions");
@@ -80,6 +80,28 @@ test("xAI、DeepSeek 与 Qwen fixture：统一消息映射到兼容 Chat Complet
       { content: "完成", requestId: "chat_1", usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 } },
     );
   }
+});
+
+test("流式生成请求会启用厂商原生 stream 字段并归一化 delta 与 usage", () => {
+  const openaiInput: AiGenerateRequest = { ...baseGenerate, provider: "openai", stream: true };
+  const openaiRequest = buildGenerateProviderRequest(openaiInput);
+  assert.equal((openaiRequest.body as { stream?: boolean }).stream, true);
+  assert.deepEqual(
+    parseGenerateProviderStreamEvent(openaiInput, { type: "response.output_text.delta", delta: "你好" }, new Headers()),
+    [{ type: "delta", text: "你好" }],
+  );
+  assert.deepEqual(
+    parseGenerateProviderStreamEvent(openaiInput, { type: "response.completed", response: { id: "resp_1", usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 } } }, new Headers()),
+    [{ type: "usage", requestId: "resp_1", usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 } }],
+  );
+
+  const chatInput: AiGenerateRequest = { ...baseGenerate, provider: "deepseek", stream: true };
+  const chatRequest = buildGenerateProviderRequest(chatInput);
+  assert.deepEqual((chatRequest.body as { stream_options?: unknown }).stream_options, { include_usage: true });
+  assert.deepEqual(
+    parseGenerateProviderStreamEvent(chatInput, { id: "chat_1", choices: [{ delta: { content: "世界" } }] }, new Headers()),
+    [{ type: "delta", text: "世界" }],
+  );
 });
 
 const speechBase: Omit<AiSpeechRequest, "provider"> = {

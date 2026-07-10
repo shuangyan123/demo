@@ -47,17 +47,24 @@ export type ImportStatus = "draft" | "parsing" | "parsed" | "saved" | "pending_o
 
 export type ApiProvider =
   | "openai"
+  | "azure_openai"
   | "google"
   | "anthropic"
   | "xai"
   | "deepseek"
   | "qwen"
+  | "openrouter"
+  | "groq"
+  | "mistral"
   | "elevenlabs"
   | "azure"
   | "minimax"
   | "zhipu"
   | "kimi"
   | "doubao"
+  | "siliconflow"
+  | "baidu"
+  | "tencent"
   | "custom";
 export type ApiFormat = "responses" | "chat_completions" | "google_generate_content" | "anthropic_messages" | "azure_speech" | "qwen_multimodal";
 export type AiCapability = "text" | "vision" | "structured_output" | "speech" | "streaming";
@@ -158,6 +165,30 @@ export type ObsidianNoteMapping = {
   updatedAt: string;
 };
 
+export type ObsidianGraphNode = {
+  id: string;
+  title: string;
+  category?: KnowledgeCategory;
+  knowledgeId?: string;
+  path?: string;
+  status: "synced" | "issue" | "external";
+};
+
+export type ObsidianGraphEdge = {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  label: string;
+};
+
+export type ObsidianGraphSnapshot = {
+  nodes: ObsidianGraphNode[];
+  edges: ObsidianGraphEdge[];
+  syncedCount: number;
+  externalCount: number;
+  issueCount: number;
+};
+
 export type KnowledgeEvolutionProposal = {
   id: string;
   mode: KnowledgeEvolutionMode;
@@ -175,6 +206,20 @@ export type KnowledgeEvolutionProposal = {
   confidence: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type KnowledgeEvolutionGenerationDiagnostic = {
+  id: string;
+  tone: "info" | "warning" | "error";
+  message: string;
+};
+
+export type KnowledgeEvolutionGenerationResult = {
+  proposals: KnowledgeEvolutionProposal[];
+  diagnostics: KnowledgeEvolutionGenerationDiagnostic[];
+  parsedCount: number;
+  filteredCount: number;
+  emptyReason?: string;
 };
 
 export type ObsidianSyncReport = {
@@ -510,6 +555,51 @@ export type FenbiParseResult = {
   drafts: PersistedImportDraft[];
 };
 
+/** 导入插件支持的输入类型；粉笔先作为公考专项的首个内置 provider。 */
+export type ImportProviderInputKind = "text" | "file" | "image" | "pdf" | "docx";
+
+/** 导入插件解析模式；local 不调用 AI，ai 只使用默认文本连接。 */
+export type ImportProviderParseMode = "local" | "ai";
+
+/** 导入插件诊断只保存摘要，不持久化完整原文。 */
+export type ImportProviderDiagnostic = {
+  tone: "info" | "warning" | "error";
+  message: string;
+};
+
+/** 导入插件统一解析结果，供设置插件页和旧导入视图复用。 */
+export type ImportProviderParseResult = {
+  providerId: string;
+  sourceLabel: string;
+  mode: ImportProviderParseMode | "file";
+  drafts: ImportDraft[];
+  diagnostics: ImportProviderDiagnostic[];
+};
+
+/** 应用内部导入插件接口，不执行第三方动态代码。 */
+export type ImportProviderPlugin = {
+  id: "fenbi";
+  label: string;
+  description: string;
+  category: "civil-service";
+  privacyNote: string;
+  supportedInputs: ImportProviderInputKind[];
+  requiredConnections: AiConnectionPurpose[];
+  diagnosticCapabilities: string[];
+  retryPolicy: "safe-reparse" | "manual-only";
+  draftSink: "import-drafts";
+  aiCapabilities: Array<"text-parse" | "vision-ocr">;
+  parseText: (input: {
+    rawText: string;
+    mode: ImportProviderParseMode;
+    textConnection?: ApiConnectionProfile;
+  }) => Promise<ImportProviderParseResult>;
+  parseFile: (input: {
+    file: File;
+    visionConnection?: ApiConnectionProfile;
+  }) => Promise<ImportProviderParseResult>;
+};
+
 export type ApiSetting = {
   id: "default";
   provider: ApiProvider;
@@ -552,6 +642,86 @@ export type AiConnectionDefaults = {
 export type AiConnectionSnapshot = {
   profiles: ApiConnectionProfile[];
   defaults: AiConnectionDefaults;
+};
+
+export type AiUsageRecord = {
+  id: string;
+  provider: ApiProvider;
+  connectionId?: string;
+  model?: string;
+  purpose: "text" | "vision" | "speech" | "quota";
+  module: string;
+  requestId?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  estimatedAmount?: number;
+  currency?: string;
+  status: "succeeded" | "failed";
+  error?: string;
+  createdAt: string;
+};
+
+export type AiQuotaPluginConfig = {
+  id: ApiProvider | "manual";
+  provider: ApiProvider | "custom";
+  label: string;
+  enabled: boolean;
+  encryptedKey?: string;
+  iv?: string;
+  maskedKey?: string;
+  monthlyBudget?: number;
+  manualRemaining?: number;
+  currency: string;
+  updatedAt: string;
+};
+
+export type AiQuotaSourceMode = "official_api" | "manual" | "unsupported";
+
+/** CodexBar 风格的 provider 描述，作为额度卡片和刷新策略的单一事实源。 */
+export type AiQuotaProviderDescriptor = {
+  id: ApiProvider | "manual";
+  label: string;
+  shortLabel: string;
+  documentationUrl: string;
+  dashboardUrl?: string;
+  statusUrl?: string;
+  defaultEnabled: boolean;
+  refreshCadenceSeconds: number;
+  sourceModes: AiQuotaSourceMode[];
+  branding: {
+    color: string;
+    iconLabel: string;
+  };
+};
+
+/** 额度刷新策略只声明受支持的数据来源，不把抓取逻辑写入通用 client。 */
+export type AiQuotaFetchStrategy = {
+  id: string;
+  kind: AiQuotaSourceMode;
+  label: string;
+  sourceLabel: string;
+  timeoutMs: number;
+  unsupportedReason?: string;
+};
+
+export type AiQuotaSnapshot = {
+  id: string;
+  provider: ApiProvider | "custom";
+  label: string;
+  status: "ready" | "unsupported" | "error";
+  source: "official" | "manual" | "unavailable";
+  usedAmount?: number;
+  remainingAmount?: number;
+  currency?: string;
+  periodLabel?: string;
+  resetAt?: string;
+  sourceLabel?: string;
+  usageRatio?: number;
+  officialRemainingAvailable: boolean;
+  message: string;
+  documentationUrl?: string;
+  refreshedAt: string;
 };
 
 export type PersonaProfile = {
@@ -750,4 +920,189 @@ export type KnowledgeFilters = {
   favoriteOnly: boolean;
 };
 
-export type ViewKey = "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry" | "settings";
+export type ViewKey = "conversation" | "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry" | "settings";
+
+export type StudyDomainId = "civil-service";
+
+/** 专项学习模块声明；视图仍复用现有工作台 key。 */
+export type StudyModuleDefinition = {
+  id: Exclude<ViewKey, "automation" | "import" | "settings">;
+  label: string;
+  description: string;
+  icon: string;
+  capabilities: string[];
+  healthSignals?: Array<"review" | "knowledge" | "ai" | "schedule" | "obsidian" | "import">;
+  recommendedActionLabel?: string;
+};
+
+/** 专项首页的学习链路声明，供不同考试项目复用同一仪表盘结构。 */
+export type StudyDomainFlowStep = {
+  id: "import" | "mistake" | "knowledge" | "training" | "tutoring" | "scheduled" | "obsidian";
+  label: string;
+  description: string;
+  moduleId: ViewKey | "plugins";
+};
+
+/** 专项学习项目声明；公考是第一组，后续专项按同一 registry 扩展。 */
+export type StudyDomainDefinition = {
+  id: StudyDomainId;
+  label: string;
+  description: string;
+  modules: StudyModuleDefinition[];
+  dashboard: {
+    headline: string;
+    flow: StudyDomainFlowStep[];
+    defaultNextActions: string[];
+  };
+};
+
+/** “已安排”是原本自动化能力的产品入口，不新增调度数据结构。 */
+export type ScheduledWorkspaceState = {
+  viewKey: "automation";
+  label: "已安排";
+  description: string;
+  unreadCount: number;
+};
+
+export type AiConversationKind = "general" | "tutoring" | "interview" | "knowledge" | "import";
+export type AiConversationStatus = "active" | "archived";
+export type AiConversationRole = "user" | "assistant" | "system" | "tool";
+export type AiConversationSourceType = "manual" | "tutoring" | "interview" | "import" | "knowledge";
+
+export type AiProject = {
+  id: string;
+  label: string;
+  description: string;
+  studyDomainId?: StudyDomainId;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiConversationAttachment = {
+  id: string;
+  conversationId: string;
+  messageId?: string;
+  kind: "image" | "file" | "vault" | "context";
+  label: string;
+  summary: string;
+  createdAt: string;
+};
+
+export type AiConversation = {
+  id: string;
+  projectId: string;
+  studyDomainId?: StudyDomainId;
+  title: string;
+  kind: AiConversationKind;
+  status: AiConversationStatus;
+  sourceType: AiConversationSourceType;
+  sourceId?: string;
+  summary?: string;
+  lastMessagePreview?: string;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiConversationMessage = {
+  id: string;
+  conversationId: string;
+  role: AiConversationRole;
+  content: string;
+  attachmentIds: string[];
+  usage?: AiUsageRecord;
+  createdAt: string;
+};
+
+export type AiConversationRunStep = {
+  id: string;
+  conversationId: string;
+  runId: string;
+  label: string;
+  state: "pending" | "running" | "done" | "error";
+  text?: string;
+  usage?: AiUsageRecord["totalTokens"];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommandSearchResult = {
+  id: string;
+  group: "chat" | "project" | "study" | "mistake" | "knowledge" | "scheduled" | "plugin" | "settings";
+  label: string;
+  description: string;
+  shortcut?: string;
+  view?: ViewKey;
+  projectId?: string;
+  conversationId?: string;
+  pluginId?: string;
+  settingsSection?: string;
+};
+
+export type McpServerProfile = {
+  id: string;
+  label: string;
+  endpoint: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type McpDiscoveryResult = {
+  serverId: string;
+  status: "untested" | "ready" | "error";
+  tools: string[];
+  resources: string[];
+  prompts: string[];
+  message: string;
+  checkedAt?: string;
+};
+
+export type AiModelCatalogEntry = {
+  id: string;
+  label: string;
+  provider: ApiProvider;
+  purposes: AiConnectionPurpose[];
+  capabilities: AiCapability[];
+  status: "recommended" | "stable" | "preview" | "deprecated" | "manual";
+  source: "official" | "manual";
+  documentationUrl?: string;
+  verifiedAt?: string;
+};
+
+export type AiProviderCatalogEntry = {
+  provider: ApiProvider;
+  label: string;
+  baseUrl: string;
+  apiFormat: ApiFormat;
+  capabilities: AiCapability[];
+  documentationUrl: string;
+  modelListStrategy: "official_api" | "static_catalog" | "manual";
+  models: AiModelCatalogEntry[];
+};
+
+export type CodexMessage = {
+  id: string;
+  role: AiConversationRole;
+  text: string;
+  createdAt: string;
+};
+
+export type CodexToolStep = {
+  id: string;
+  label: string;
+  state: "pending" | "running" | "done" | "error";
+  text?: string;
+  updatedAt: string;
+};
+
+export type CodexConversation = {
+  id: string;
+  title: string;
+  projectId?: string;
+  studyDomainId?: StudyDomainId;
+  messages: CodexMessage[];
+  toolSteps: CodexToolStep[];
+  usage?: AiUsageRecord;
+  updatedAt: string;
+};

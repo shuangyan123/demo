@@ -1,6 +1,11 @@
 import Dexie, { type Table } from "dexie";
 import type {
   AiConnectionDefaults,
+  AiConversation,
+  AiConversationAttachment,
+  AiConversationMessage,
+  AiConversationRunStep,
+  AiProject,
   ApiConnectionProfile,
   ApiSetting,
   AppearanceSettings,
@@ -65,6 +70,11 @@ class ReviewDexieDatabase extends Dexie {
   knowledgeEvolutionProposals!: Table<KnowledgeEvolutionProposal, string>;
   automationDefinitions!: Table<AutomationDefinition, string>;
   automationRuns!: Table<AutomationRun, string>;
+  aiProjects!: Table<AiProject, string>;
+  aiConversations!: Table<AiConversation, string>;
+  aiConversationAttachments!: Table<AiConversationAttachment, string>;
+  aiConversationMessages!: Table<AiConversationMessage, string>;
+  aiConversationRunSteps!: Table<AiConversationRunStep, string>;
 
   // 初始化 Dexie 数据库版本；历史版本保留用于旧数据无损升级。
   constructor() {
@@ -288,6 +298,43 @@ class ReviewDexieDatabase extends Dexie {
       knowledgeEvolutionProposals: "&id, mode, status, sourceType, targetKnowledgeId, createdAt, updatedAt",
       automationDefinitions: "&id, enabled, nextRunAt, updatedAt",
       automationRuns: "&id, automationId, status, unread, scheduledAt, createdAt, [automationId+scheduledAt]",
+    });
+    this.version(14).stores({
+      mistakes: "&id, board, nextReviewAt, mastery, createdAt, updatedAt",
+      attempts: "&id, mistakeId, reviewedAt, result",
+      importJobs: "&id, type, status, createdAt",
+      apiSettings: "&id, provider, updatedAt",
+      apiConnectionProfiles: "&id, provider, updatedAt, createdAt",
+      apiConnectionDefaults: "&id, updatedAt",
+      appearanceSettings: "&id, updatedAt",
+      personalizationSettings: "&id, updatedAt",
+      knowledgeEntries: "&id, category, favorite, nextReviewAt, mastery, updatedAt, createdAt",
+      knowledgeAttempts: "&id, knowledgeId, reviewedAt, result",
+      knowledgeMistakeLinks: "&id, mistakeId, knowledgeId, kind, [mistakeId+knowledgeId], updatedAt, createdAt",
+      knowledgeInternalizationDrafts: "&id, mode, targetKnowledgeId, createdAt, updatedAt",
+      importBatches: "&id, source, status, createdAt, updatedAt",
+      importDrafts: "&id, batchId, board, selected, needsReview, createdAt, updatedAt",
+      interviewQuestions: "&id, type, difficulty, favorite, lastPracticedAt, practiceCount, createdAt, updatedAt",
+      interviewQuestionSets: "&id, type, createdAt, updatedAt",
+      interviewPracticePlans: "&id, type, status, sourceSetId, nextPracticeAt, createdAt, updatedAt",
+      interviewSessions: "&id, questionId, planId, type, status, stage, createdAt, updatedAt",
+      interviewTurns: "&id, sessionId, stage, createdAt",
+      interviewEvaluations: "&id, sessionId, type, createdAt, updatedAt",
+      interviewLinks: "&id, sourceType, sourceId, targetType, targetId, [sourceType+sourceId], [targetType+targetId], createdAt, updatedAt",
+      tutoringSessions: "&id, mode, status, startedAt, completedAt, createdAt, updatedAt",
+      tutoringTurns: "&id, sessionId, speaker, createdAt",
+      tutoringPlans: "&id, status, nextPracticeAt, createdAt, updatedAt",
+      tutoringLinks: "&id, sourceType, sourceId, targetType, targetId, [sourceType+sourceId], [targetType+targetId], createdAt, updatedAt",
+      obsidianVaultConfigs: "&id, updatedAt",
+      obsidianNoteMappings: "&path, &knowledgeId, category, status, updatedAt",
+      knowledgeEvolutionProposals: "&id, mode, status, sourceType, targetKnowledgeId, createdAt, updatedAt",
+      automationDefinitions: "&id, enabled, nextRunAt, updatedAt",
+      automationRuns: "&id, automationId, status, unread, scheduledAt, createdAt, [automationId+scheduledAt]",
+      aiProjects: "&id, studyDomainId, updatedAt, createdAt",
+      aiConversations: "&id, projectId, studyDomainId, kind, status, updatedAt, createdAt, [projectId+updatedAt]",
+      aiConversationAttachments: "&id, conversationId, messageId, kind, createdAt",
+      aiConversationMessages: "&id, conversationId, role, createdAt",
+      aiConversationRunSteps: "&id, conversationId, runId, state, updatedAt",
     });
   }
 }
