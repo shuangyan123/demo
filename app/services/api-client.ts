@@ -75,6 +75,24 @@ export type AiTranscriptionResult = {
   requestId?: string;
 };
 
+export type AiModelDirectoryEntry = {
+  id: string;
+  label: string;
+  capabilities: Array<"text" | "vision" | "speech" | "transcription">;
+  source: "official_api";
+};
+
+export type AiModelsRequest = {
+  provider: ApiProvider;
+  apiKey: string;
+  baseUrl: string;
+};
+
+export type AiModelsResult = {
+  models: AiModelDirectoryEntry[];
+  fetchedAt: string;
+};
+
 // 调用统一生成路由，客户端不再拼接各厂商 endpoint 或解析厂商响应。
 export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenerateResult> {
   const runId = input.activity?.runId ?? crypto.randomUUID();
@@ -182,4 +200,15 @@ export async function callAiTranscription(input: AiTranscriptionRequest): Promis
     throw new Error(text || `转写 API 请求失败：${response.status}`);
   }
   return response.json() as Promise<AiTranscriptionResult>;
+}
+
+/** 读取归一化厂商模型目录；调用方只能缓存公开模型元数据。 */
+export async function callAiModels(input: AiModelsRequest): Promise<AiModelsResult> {
+  const response = await fetch("/api/ai/models", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error((await response.text()) || `模型目录读取失败：${response.status}`);
+  return response.json() as Promise<AiModelsResult>;
 }

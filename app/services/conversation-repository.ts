@@ -217,6 +217,25 @@ export const conversationRepository = {
     await reviewDb.aiConversations.update(id, { status: "archived", updatedAt: nowIso(today) });
   },
 
+  /** 永久删除单条对话及其附件摘要、消息和工具步骤。 */
+  async deleteConversation(id: string): Promise<void> {
+    await reviewDb.transaction(
+      "rw",
+      reviewDb.aiConversations,
+      reviewDb.aiConversationAttachments,
+      reviewDb.aiConversationMessages,
+      reviewDb.aiConversationRunSteps,
+      async () => {
+        await Promise.all([
+          reviewDb.aiConversationAttachments.where("conversationId").equals(id).delete(),
+          reviewDb.aiConversationMessages.where("conversationId").equals(id).delete(),
+          reviewDb.aiConversationRunSteps.where("conversationId").equals(id).delete(),
+        ]);
+        await reviewDb.aiConversations.delete(id);
+      },
+    );
+  },
+
   async createAttachment(input: CreateConversationAttachmentInput): Promise<AiConversationAttachment> {
     const attachment: AiConversationAttachment = {
       id: crypto.randomUUID(),

@@ -384,6 +384,84 @@ body[data-reduced-motion="true"] .ui-button:active:not(:disabled) {
   transform: none;
 }
 
+/* 普通文字不显示浏览器光标浏览 caret，真实表单仍保留原生输入光标。 */
+body {
+  caret-color: transparent;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  caret-color: auto;
+}
+
+.provider-icon {
+  display: block;
+  flex: none;
+  object-fit: contain;
+}
+
+.ai-connection-picker {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.6fr) minmax(12rem, 1fr) minmax(14rem, 1.4fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.ai-connection-picker label,
+.ai-connection-advanced label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ai-connection-picker select,
+.ai-provider-select {
+  min-height: 2.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.ai-connection-picker select {
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+}
+
+.ai-provider-select {
+  display: grid;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  align-items: center;
+  padding-left: 0.65rem;
+}
+
+.ai-provider-select select {
+  border: 0;
+  background: transparent;
+}
+
+.ai-connection-advanced {
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+}
+
+.ai-connection-advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .ai-connection-picker {
+    grid-template-columns: 1fr;
+  }
+}
+
 .conversation-workspace {
   display: block;
   min-height: calc(100dvh - var(--chrome-topbar-height) - 3.5rem);
@@ -834,6 +912,170 @@ body[data-reduced-motion="true"] .ui-button:active:not(:disabled) {
   padding: 0.25rem 0.65rem;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.conversation-tree {
+  margin-top: 1.25rem;
+}
+
+.conversation-tree-heading,
+.conversation-tree-folder-row,
+.conversation-tree-chat {
+  display: grid;
+  align-items: center;
+}
+
+.conversation-tree-heading {
+  grid-template-columns: 1fr auto;
+  padding: 0 0.6rem 0.4rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.conversation-tree-heading button,
+.conversation-tree-folder-row > button:first-child,
+.conversation-tree-folder-row > button:last-child,
+.conversation-tree-chat > button:last-child {
+  display: grid;
+  min-height: 1.8rem;
+  min-width: 1.8rem;
+  place-items: center;
+  border-radius: 0.4rem;
+  color: var(--muted);
+}
+
+.conversation-tree-heading button:hover,
+.conversation-tree-folder-row button:hover,
+.conversation-tree-chat button:hover {
+  background: var(--chrome-hover);
+  color: var(--foreground);
+}
+
+.conversation-tree-folder-row {
+  grid-template-columns: 1.8rem minmax(0, 1fr) 1.8rem;
+  border-radius: 0.45rem;
+}
+
+.conversation-tree-folder-row.is-drop-target,
+.conversation-tree-root.is-drop-target {
+  outline: 1px solid var(--blue);
+  background: color-mix(in srgb, var(--blue) 9%, transparent);
+}
+
+.conversation-tree-folder-label,
+.conversation-tree-chat > button:first-child {
+  display: grid;
+  min-height: 2rem;
+  min-width: 0;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  text-align: left;
+  font-size: 0.8rem;
+}
+
+.conversation-tree-folder-label small {
+  color: var(--muted);
+}
+
+.conversation-tree-chat {
+  grid-template-columns: minmax(0, 1fr) 1.8rem;
+  border-radius: 0.45rem;
+  padding-left: 1.8rem;
+}
+
+.conversation-tree-chat.is-active {
+  background: var(--chrome-selected);
+}
+
+.conversation-tree-chat > button:first-child {
+  grid-template-columns: 1rem minmax(0, 1fr);
+}
+
+.conversation-tree-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.3rem;
+  padding: 0 0.3rem 0.45rem;
+}
+
+.conversation-tree-create input,
+.conversation-tree-drawer input,
+.conversation-tree-drawer select {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: var(--surface);
+  padding: 0.35rem 0.5rem;
+}
+
+.conversation-tree-create button,
+.conversation-tree-drawer section > button {
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.conversation-tree-empty {
+  padding: 0.35rem 0.65rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.conversation-tree-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  align-items: end;
+}
+
+.conversation-tree-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 14, 23, 0.5);
+}
+
+.conversation-tree-drawer section {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(26rem, 100%);
+  justify-self: center;
+  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--surface);
+  padding: 1rem;
+  box-shadow: 0 -20px 55px rgba(0, 0, 0, 0.3);
+}
+
+.conversation-tree-drawer-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.conversation-tree-drawer label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.conversation-tree-drawer .is-danger {
+  color: var(--red);
+}
+
+@media (min-width: 1024px) {
+  .conversation-tree-drawer {
+    align-items: center;
+    justify-items: center;
+  }
+
+  .conversation-tree-drawer section {
+    border-radius: 1rem;
+  }
 }
 
 .conversation-send {

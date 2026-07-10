@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { aiQuotaRepository } from "../../../../services/ai-quota-repository";
 import type { AiQuotaPluginConfig, AiQuotaSnapshot, ApiProvider } from "../../../../types/review";
 import { Button, Chip, EmptyState } from "../../../shared/ui-primitives";
+import { ProviderIcon } from "../../../shared/provider-icon";
 
 type QuotaFormState = Record<string, { enabled: boolean; apiKey: string; monthlyBudget: string; manualRemaining: string }>;
 
@@ -106,38 +107,21 @@ export function AiQuotaSettingsPanel() {
           const form = forms[plugin.id] ?? formFromConfig(configById.get(plugin.id));
           const snapshot = snapshotById.get(plugin.id);
           const config = configById.get(plugin.id);
-          const strategy = plugin.fetchStrategies[0];
           const percent = usagePercent(snapshot);
           const statusTone = snapshot?.status === "ready" ? "green" : snapshot?.status === "error" ? "red" : "yellow";
           return (
-            <article key={plugin.id} className="rounded-lg border border-line bg-surface p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] gap-3">
-                  <span
-                    className="grid h-9 w-9 place-items-center rounded-lg text-xs font-extrabold text-white"
-                    style={{ backgroundColor: plugin.descriptor.branding.color }}
-                    aria-hidden="true"
-                  >
-                    {plugin.descriptor.branding.iconLabel}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong>{plugin.label}</strong>
-                      <Chip tone="neutral">{strategy?.sourceLabel ?? plugin.descriptor.sourceModes[0]}</Chip>
-                    <Chip tone={plugin.supportsOfficialRefresh ? "green" : "yellow"}>{plugin.refreshStrategy === "official_api" ? "官方 API" : plugin.refreshStrategy === "manual" ? "手动" : "插件预留"}</Chip>
-                    <Chip tone={statusTone}>{snapshot?.status ?? (form.enabled ? "待刷新" : "未启用")}</Chip>
-                    </div>
-                    <p className="mt-1 text-sm text-muted">{snapshot?.message ?? plugin.unsupportedReason ?? "可查询官方费用数据；余额字段以厂商官方 API 返回为准。"}</p>
-                    {config?.maskedKey ? <p className="mt-1 text-xs text-muted">额度 Key：{config.maskedKey}</p> : null}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
+            <details key={plugin.id} className="rounded-lg border border-line bg-surface">
+              <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[2rem_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
+                <ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={28} />
+                <span className="min-w-0"><strong className="block truncate">{plugin.label}</strong><small className="text-muted">已用 {currency(snapshot?.usedAmount, snapshot?.currency)} · 剩余 {currency(snapshot?.remainingAmount, snapshot?.currency)}</small></span>
+                <Chip tone={statusTone}>{snapshot?.status ?? (form.enabled ? "待刷新" : "未启用")}</Chip><span aria-hidden="true">›</span>
+              </summary>
+              <div className="border-t border-line p-4">
+                <div className="flex flex-wrap justify-end gap-2">
                   {plugin.dashboardUrl ? <a className="ui-button ui-button-sm ui-button-outline" href={plugin.dashboardUrl} rel="noreferrer" target="_blank">官网账单</a> : null}
                   <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void save(plugin.id)}>保存</Button>
                   <Button size="sm" variant="soft" disabled={Boolean(busy) || !form.enabled} onClick={() => void refreshQuota(plugin.id)}>{busy === `refresh:${plugin.id}` ? "刷新中" : "刷新额度"}</Button>
                 </div>
-              </div>
-
               <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
                 <div>
                   <div className="flex items-center justify-between gap-3 text-xs text-muted">
@@ -177,7 +161,8 @@ export function AiQuotaSettingsPanel() {
                   {plugin.statusUrl ? <a className="text-blue" href={plugin.statusUrl} rel="noreferrer" target="_blank">厂商状态</a> : null}
                 </div>
               ) : null}
-            </article>
+              </div>
+            </details>
           );
         }) : <EmptyState>暂无额度配置。</EmptyState>}
       </div>

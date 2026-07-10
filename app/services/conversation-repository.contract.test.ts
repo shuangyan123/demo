@@ -63,6 +63,21 @@ test("conversation folders support nesting, rename, move and attachment summarie
   assert.equal(JSON.stringify(snapshot.attachments).includes("data:image"), false);
 });
 
+test("deleteConversation cascades conversation summaries and tool history", async () => {
+  await resetDatabase();
+  const conversation = await conversationRepository.createConversation({ today, title: "待删除" });
+  const attachment = await conversationRepository.createAttachment({ conversationId: conversation.id, kind: "file", label: "a.txt", summary: "摘要", today });
+  await conversationRepository.appendMessage({ conversationId: conversation.id, role: "user", content: "内容", attachmentIds: [attachment.id], today });
+  await conversationRepository.appendRunStep({ conversationId: conversation.id, runId: "delete-run", label: "工具", state: "done", today });
+
+  await conversationRepository.deleteConversation(conversation.id);
+  const snapshot = await conversationRepository.loadSnapshot(today);
+  assert.equal(snapshot.conversations.some((item) => item.id === conversation.id), false);
+  assert.equal(snapshot.attachments.some((item) => item.conversationId === conversation.id), false);
+  assert.equal(snapshot.messages.some((item) => item.conversationId === conversation.id), false);
+  assert.equal(snapshot.runSteps.some((item) => item.conversationId === conversation.id), false);
+});
+
 test.after(async () => {
   reviewDb.close();
   await reviewDb.delete();

@@ -10,7 +10,7 @@
 
 ## 通用对话
 
-通用 AI 会话不新增服务端 API。`ConversationRepository` 通过 IndexedDB v14 保存 `AiProject`、`AiConversation`、`AiConversationMessage`、`AiConversationAttachment` 和 `AiConversationRunStep`，用于“新对话”、AI 辅导和面试训练共享同一套会话外壳。点击“新对话”只打开空白草稿，发送第一条消息后才调用 `createConversation()` 落库。
+通用 AI 会话不新增服务端 API。`ConversationRepository` 通过 IndexedDB v16 保存项目、文件夹、会话、消息、附件摘要和工具步骤。点击“新对话”只打开空白草稿，发送第一条消息后才调用 `createConversation()` 落库；`deleteConversation()` 在单一事务中级联删除关联摘要。
 
 会话消息只保存用户可见文本、附件摘要、连接标签、模型和 usage；不得保存截图原文、Vault 正文、完整 prompt 或厂商原始响应。缺少默认文本连接时仍可保存用户消息，但助手回复必须明确提示需要配置连接，不得伪装 AI 已执行。
 
@@ -22,7 +22,7 @@
 
 `AiProviderCatalogEntry` 描述厂商连接协议、默认 base URL、能力、官方文档链接、模型列表刷新策略和手动模型兜底。`AiModelCatalogEntry` 描述模型 ID、文本/视觉/语音/流式/结构化能力、推荐/预览/弃用状态、来源和最后验证时间。
 
-设置页展示的厂商与模型必须来自 provider catalog。模型选择使用下拉列表，末尾提供“手动填写模型 ID”；推荐、预览、弃用、官方、手动和能力标签作为说明展示。连接测试必须走本地 `/api/ai/generate` 与 provider adapter，不只做表单 mock。
+设置页使用用途、厂商、模型三级下拉。`POST /api/ai/models` 代理连接对应的官方 models API，返回 `id`、`label`、`capabilities`、`source` 与 `fetchedAt`；客户端只缓存归一化公开目录 24 小时，不缓存 Key、请求头或厂商原始响应。失败时回退静态核验目录，并始终保留手动模型 ID。连接测试必须走本地 `/api/ai/generate` 与 provider adapter，不只做表单 mock。
 
 ## 额度插件
 
@@ -46,7 +46,7 @@ MCP 设置使用 localStorage repository，不复用插件 registry，也不升�
 
 ## 导入插件
 
-粉笔导入通过内部 `ImportProviderPlugin` 接口注册在“设置 → 插件”。插件可处理文本、本地文件、截图 OCR、PDF 和 docx，统一返回 `ImportProviderParseResult`，包含草稿、来源、模式和诊断摘要。
+粉笔导入通过内部 `ImportProviderPlugin` 接口注册在“公考 → 导入资料”。适配器可处理文本、本地文件、截图 OCR、PDF 和 docx，统一返回 `ImportProviderParseResult`，包含草稿、来源、模式和诊断摘要。
 
 `ImportProviderPlugin` 必须声明诊断能力、AI 能力、重试策略和草稿落点。粉笔插件当前使用 `safe-reparse`，失败后只能重新解析并回到草稿确认，不得绕过草稿直接写题库。
 

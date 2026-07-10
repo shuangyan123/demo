@@ -9,9 +9,13 @@ async function readSource() {
 test("AI connection model picker uses a select with manual model fallback", async () => {
   const source = await readSource();
 
-  assert.match(source, /<select[\s\S]*value=\{selectedModelValue\}/);
-  assert.match(source, /手动填写模型 ID/);
+  assert.match(source, /aria-label="用途"/);
+  assert.match(source, /aria-label="厂商"/);
+  assert.match(source, /aria-label="模型"/);
+  assert.match(source, /手动模型 ID/);
   assert.match(source, /manualModelActive/);
+  assert.match(source, /ProviderIcon/);
+  assert.match(source, /refreshOfficialModels/);
   assert.doesNotMatch(source, /datalist id="provider-model-options"/);
   assert.doesNotMatch(source, /modelCatalog\.slice\(0,\s*8\)\.map/);
 });

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 import { startMockAiProvider, type MockAiProvider } from "./helpers/mock-ai-provider";
+import { configureCustomTextConnection } from "./helpers/configure-custom-ai";
 
 function userPayloadFromRequest(provider: MockAiProvider, index: number) {
   const body = provider.requests[index]?.body as { messages?: Array<{ role: string; content: string }> };
@@ -19,12 +20,7 @@ test("已安排使用默认文本连接时可完成试运行和成功运行详�
     await page.getByRole("button", { name: "设置" }).first().click();
     await page.getByRole("button", { name: "AI 连接" }).click();
     await expect(page.getByRole("heading", { name: "AI 连接" })).toBeVisible();
-    await page.getByRole("button", { name: /本地部署 \/ 自定义连接/ }).click();
-
-    await page.getByLabel("连接名称").fill("E2E Mock 文本连接");
-    await page.getByLabel("Base URL").fill(provider.baseUrl);
-    await page.getByRole("textbox", { name: "手动模型 ID" }).fill("mock-text-model");
-    await page.getByRole("button", { name: "保存" }).click();
+    await configureCustomTextConnection(page, { label: "E2E Mock 文本连接", baseUrl: provider.baseUrl, model: "mock-text-model" });
     await expect(page.getByRole("status")).toContainText("配置已保存");
     await page.getByLabel("默认文本").selectOption({ label: "E2E Mock 文本连接" });
     await expect(page.getByRole("status")).toContainText("默认文本已更新");

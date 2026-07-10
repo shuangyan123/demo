@@ -2,11 +2,13 @@ import type { ApiConnectionProfile } from "../types/review";
 import {
   callAiGenerate,
   callAiGenerateStream,
+  callAiModels,
   callAiSpeech,
   callAiTranscription,
   type AiGenerateStreamEvent,
   type AiGenerateRequest,
   type AiGenerateResult,
+  type AiModelsResult,
   type AiSpeechRequest,
   type AiTranscriptionResult,
 } from "./api-client.ts";
@@ -97,4 +99,10 @@ export async function transcribeWithConnection(
     audioBase64: input.audioBase64,
     providerOptions: connection.providerOptions,
   });
+}
+
+/** 使用已保存连接读取官方模型目录，密钥仍只在连接客户端内解密。 */
+export async function listModelsWithConnection(connection: ApiConnectionProfile): Promise<AiModelsResult> {
+  const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  return callAiModels({ provider: connection.provider, apiKey, baseUrl: connection.baseUrl });
 }

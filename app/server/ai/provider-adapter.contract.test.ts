@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildGenerateProviderRequest, buildSpeechProviderRequest, buildTranscriptionProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent, parseSpeechJsonResponse, parseTranscriptionProviderResponse } from "./provider-adapter.ts";
 import type { AiGenerateRequest, AiSpeechRequest, AiTranscriptionRequest } from "../../services/api-client.ts";
+import { POST as modelsPost } from "../../api/ai/models/route.ts";
 import { POST as speechPost } from "../../api/ai/speech/route.ts";
 
 const baseGenerate: Omit<AiGenerateRequest, "provider"> = {
@@ -205,6 +206,42 @@ test("无鉴权本地 TTS 使用 OpenAI 兼容 endpoint 且不发送空 Authoriz
     assert.equal(forwardedUrl, "http://127.0.0.1:8000/v1/audio/speech");
     assert.equal(forwardedHeaders?.Authorization, undefined);
     assert.equal((await response.arrayBuffer()).byteLength, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("模型目录代理归一化 Google models.list 且不返回密钥和原始响应", async () => {
+  const originalFetch = globalThis.fetch;
+  let forwardedUrl = "";
+  let forwardedHeaders: Record<string, string> | undefined;
+  globalThis.fetch = async (input, init) => {
+    forwardedUrl = String(input);
+    forwardedHeaders = init?.headers as Record<string, string>;
+    return Response.json({
+      models: [
+        { name: "models/gemini-2.5-flash", displayName: "Gemini 2.5 Flash", ignored: "raw-provider-value" },
+      ],
+    });
+  };
+  try {
+    const response = await modelsPost(new Request("http://localhost/api/ai/models", {
+      method: "POST",
+      body: JSON.stringify({ provider: "google", baseUrl: "https://generativelanguage.googleapis.com/v1beta/", apiKey: "fixture-key" }),
+    }));
+    const result = await response.json() as { models: Array<Record<string, unknown>>; fetchedAt: string };
+    assert.equal(response.status, 200);
+    assert.equal(forwardedUrl, "https://generativelanguage.googleapis.com/v1beta/models");
+    assert.equal(forwardedHeaders?.["x-goog-api-key"], "fixture-key");
+    assert.deepEqual(result.models, [{
+      id: "gemini-2.5-flash",
+      label: "Gemini 2.5 Flash",
+      capabilities: ["text", "vision", "transcription"],
+      source: "official_api",
+    }]);
+    assert.ok(result.fetchedAt);
+    assert.equal(JSON.stringify(result).includes("fixture-key"), false);
+    assert.equal(JSON.stringify(result).includes("raw-provider-value"), false);
   } finally {
     globalThis.fetch = originalFetch;
   }

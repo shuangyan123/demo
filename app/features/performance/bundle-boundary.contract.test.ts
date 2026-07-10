@@ -62,13 +62,15 @@ test("TutoringWorkspace 把实时会话媒体和语音控制交给专用 control
   assert.doesNotMatch(source, /resolvePersonaVoice/);
 });
 
-test("Dexie v14 只用于通用 AI 会话持久化", async () => {
+test("Dexie v16 只执行对话文件夹建模后的旧空草稿清理", async () => {
   const source = await readSource("../../db/review-db.ts");
 
-  assert.match(source, /this\.version\(13\)\.stores/);
   assert.match(source, /this\.version\(14\)\.stores/);
+  assert.match(source, /this\.version\(15\)\.stores/);
+  assert.match(source, /this\.version\(16\)\.stores/);
   assert.match(source, /aiProjects:\s*"&id, studyDomainId, updatedAt, createdAt"/);
-  assert.match(source, /aiConversations:\s*"&id, projectId, studyDomainId, kind, status, updatedAt, createdAt, \[projectId\+updatedAt\]"/);
+  assert.match(source, /aiConversationFolders:\s*"&id, projectId, parentId, updatedAt, \[projectId\+parentId\+sortOrder\]"/);
+  assert.match(source, /conversation\.title === "新对话" && conversation\.messageCount === 0/);
   assert.match(source, /aiConversationMessages:\s*"&id, conversationId, role, createdAt"/);
   assert.match(source, /aiConversationRunSteps:\s*"&id, conversationId, runId, state, updatedAt"/);
   assert.doesNotMatch(source, /\[(?:board|category|mastery)\+(?:updatedAt|createdAt|nextReviewAt)\]/);

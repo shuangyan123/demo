@@ -13,20 +13,19 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 流式输出只允许通过 `/api/ai/generate` 的 SSE 分支和 provider adapter 归一化事件实现；业务 UI 不得解析厂商原始流。
 - AI 活动面板按 run/step 展示工具链阶段、短文本片段和 usage 摘要，不得持久化 prompt、截图、完整上下文、Vault 正文或厂商原始事件。
 - AI 额度必须通过独立插件适配层查询，账单凭据与普通模型调用 Key 分开保存；无官方稳定账单 API 的厂商只能显示 unsupported/manual，不得抓取网页后台。
-- Obsidian Vault、AI 额度和粉笔导入必须集中在“设置 → 插件”中呈现；AI 连接页只负责模型调用连接。
+- 设置中不保留插件目录；粉笔导入放在“公考 → 导入资料”，Obsidian 放在知识库，AI 额度放在 AI 连接详情。
 - AI 额度插件采用 CodexBar 式 descriptor/fetch strategy 边界；provider 卡片、官网入口、状态页、刷新周期、来源模式和 unsupported 原因必须从插件注册表读取。
 - AI 连接模型选择必须使用下拉列表加手动模型 ID 兜底；推荐、预览、弃用、官方和能力标签只作为说明，不再铺成一排推荐按钮。
 - 回归验证至少运行 `npm run lint`、`npm run test:contracts` 和 `npm run build`，涉及交互时还要用应用内浏览器检查页面、控制台和关键流程。
 
 ## 工作台与插件约定
 
-- 顶层工作台采用 Codex 式结构：新对话、搜索、已安排、插件和项目；公考是首个专项学习项目，后续专项通过 `StudyDomainDefinition` 扩展。
+- 顶层工作台采用 Codex 式结构：新对话、搜索、已安排和项目；公考是默认折叠的唯一项目树节点，后续专项通过 `StudyDomainDefinition` 扩展。
 - 公考首页必须展示导入/错题、知识沉淀、知识训练、AI 辅导、已安排复盘和 Obsidian 输出的学习链路状态；后续专项也应通过 domain registry 声明自己的首页链路。
-- 新对话必须进入 Codex 式空白草稿；只有发送第一条消息后才创建持久化会话。项目、会话、消息、附件摘要和工具步骤可以通过 IndexedDB v14 保存，但不得保存 prompt、截图正文、Vault 正文或厂商原始响应。
+- 新对话必须进入 Codex 式空白草稿；只有发送第一条消息后才创建持久化会话。项目、文件夹、会话、消息、附件摘要和工具步骤通过 IndexedDB v16 保存，但不得保存 prompt、截图正文、Vault 正文或厂商原始响应。
 - 对话工具链必须内嵌在消息流里，默认折叠为“已运行 N 条命令”，不得恢复右侧常驻工具栏作为唯一展示方式。
 - 公考项目在侧栏默认只显示一个项目入口，模块和六大板块放入公考内部折叠入口；板块只作为错题筛选，不再与项目并列。
-- 设置插件页必须采用 Codex 目录式 UI：首屏只显示搜索、已安装图标、分类列表、短描述、短状态徽标和主操作；健康摘要、隐私说明、诊断和业务面板点击后进入页面内 inspector。
-- 插件目录字段必须从插件注册表读取，不能在 UI 中硬编码 provider 特例；MCP 必须独立在 `设置 → MCP`，真实 server/tools/resources/prompts 通过后续手动连接测试闭环验证。
+- 内部适配器不得重新暴露为设置插件目录；MCP 必须独立在 `设置 → MCP`，真实 server/tools/resources/prompts 通过后续手动连接测试闭环验证。
 - 粉笔导入属于应用内部 `ImportProviderPlugin`，不得重新作为主导航板块；解析结果必须先进入草稿和诊断，用户确认前不得写题库。
 - “已安排”是原本本地自动化能力的产品入口，底层 `automation` 类型、表和 repository 继续兼容；不得为了命名调整升级 Dexie schema。
 
@@ -96,7 +95,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - KnowledgeWorkspace 的列表分页、批量选择、批量删除和导出范围计算应保留在 `useKnowledgeListController`；Obsidian repository 与知识演进 AI service 只能在刷新或用户动作中动态加载，不得通过知识库视图静态回到核心首屏链路。
 - TutoringWorkspace 的实时媒体源、关键帧采样、语音转写/朗读、本地草稿和当前轮次提交应保留在 `useTutoringSessionController`；主工作台只接线 tab、计划、关联和设备视图，且不得破坏默认文本/多模态/语音连接边界。
 - 大列表第一阶段采用渐进显示：错题和知识资料默认 80 条、导入草稿默认 60 条，批量全选只覆盖当前显示项，导出筛选结果仍保留完整筛选语义。
-- IndexedDB 索引优化必须基于真实页面访问路径和慢查询证据；没有 repository 级分页或明确性能瓶颈时，不为前端列表切片单独升级 Dexie schema。通用 AI 会话持久化属于业务建模升级，v14 只能新增会话/项目相关表。
+- IndexedDB 索引优化必须基于真实页面访问路径和慢查询证据；v16 只执行旧空草稿清理，不得为前端列表切片新增索引。
 - 额度插件这类小型设置使用本地加密存储，不得为了配置面板升级 Dexie schema。
 - 配置健康、诊断输入和恢复 CTA 导航属于工作台 glue code，必须保留在专用 hook 中；`ReviewWorkspace` 不得重新直接导入配置健康 hook、诊断 hook 或 `package.json` 版本信息。
 

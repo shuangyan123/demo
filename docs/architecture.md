@@ -4,13 +4,13 @@
 
 ```text
 ReviewWorkspace → feature hook → AI service
-→ ai-connection-client → /api/ai/generate|speech → provider adapter
+→ ai-connection-client → /api/ai/generate|models|speech|transcribe → provider adapter
 ```
 
 - `ReviewWorkspace` 只向业务模块注入已按用途解析的 `ApiConnectionProfile`。
 - 文本、关键帧和朗读分别声明 `text`、`vision`、`speech` 能力；连接级客户端在解密前拒绝能力不匹配的请求。
 - `ai-connections-repository` 统一维护默认连接、密钥密文、旧表同步和失效默认值清理。业务 service 不读取 `apiSettings`，也不推断厂商协议。
-- `/api/ai/generate` 与 `/api/ai/speech` 是仅有的浏览器代理入口，厂商 endpoint、鉴权和响应解析集中在 provider adapter。
+- `/api/ai/generate`、`/api/ai/models`、`/api/ai/speech` 与 `/api/ai/transcribe` 是浏览器代理入口，厂商 endpoint、鉴权和响应解析集中在 provider adapter。
 - `/api/ai/generate` 支持普通 JSON 与 `stream: true` SSE 两种返回；客户端只消费归一化的 `status | delta | usage | done | error` 事件。
 - `AiInteractionPanel` 订阅浏览器内临时事件，把一次 AI 请求整理为 Codex 式会话、消息流、工具步骤、流式片段和用量提示；不持久化 prompt、截图、Vault 正文或厂商原始响应。
 - AI 连接设置通过 provider catalog 区分连接协议和模型目录；OpenAI、Azure OpenAI、Anthropic、Gemini、DeepSeek、Qwen、火山、SiliconFlow、OpenRouter、xAI、Groq、Mistral、Kimi、智谱、百度千帆、腾讯混元和自定义 OpenAI 兼容都必须从目录读取能力、模型标签、文档链接和手动模型兜底。
@@ -19,29 +19,26 @@ ReviewWorkspace → feature hook → AI service
 
 ```text
 ReviewWorkspaceShell → study registry / conversation repository → existing feature views
-ConversationWorkspace → conversationRepository → IndexedDB v14
+ConversationWorkspace → conversationRepository → IndexedDB v16
 ```
 
-- 顶层导航采用 `新对话 / 搜索 / 已安排 / 插件 / 项目` 结构；“已安排”复用原 automation 视图，“插件”直接进入设置插件区。
+- 顶层导航采用 `新对话 / 搜索 / 已安排 / 项目` 结构；“公考”是唯一项目树节点，默认折叠，模块和板块筛选只在其子树中显示。
 - “新对话”只进入空白 conversation 草稿，发送第一条消息后才创建持久化会话；左侧 shell 保存项目和已有会话，中间显示消息流、composer 和折叠工具摘要。
-- 会话持久化是本轮唯一允许的 Dexie schema 升级：v14 只新增 `aiProjects`、`aiConversations`、`aiConversationAttachments`、`aiConversationMessages` 和 `aiConversationRunSteps`，不得借机新增列表性能索引。
+- v15 新增对话文件夹与显式连接选择；v16 不增加索引，只在升级事务中级联清理标题为“新对话”且消息数为 0 的历史空记录。对话删除必须在同一事务清理消息、附件摘要和工具步骤。
 - 搜索入口打开本地命令面板，聚合会话、项目、公考模块、错题、知识、已安排、插件和设置跳转；搜索不调用 AI，不上传内容。
 - “公考”是首个 `StudyDomainDefinition`，聚合总览、错题库、复盘、知识库、知识训练、面试训练、AI 辅导和薄弱分析；后续专项只注册新的 domain/module。
 - 左侧项目区默认只显示“公考”，模块与六大板块都作为公考内的折叠入口；板块筛选只设置错题库筛选，不再作为顶层导航。
 - 专项首页通过 domain registry 声明学习链路和默认下一步，公考当前固定为“导入/错题 → 知识沉淀 → 训练 → AI 辅导 → 已安排复盘 → Obsidian 输出”。
-- 原导入入口移入插件；隐藏的 `import` 视图只作为兼容和内部跳转兜底，不再出现在主工作台项目模块中。
+- 粉笔导入位于“公考 → 导入资料”，Obsidian 位于知识库，额度位于 AI 连接详情；设置中不再保留插件目录。
 
-## 设置插件
+## 内置集成位置
 
 ```text
-SettingsWorkspace → SettingsPluginsView → internal plugin panel
+公考导入 / 知识库 / AI 连接 → internal integration panel
 ```
 
-- 设置插件是应用内注册表，不加载第三方动态代码；首批插件为 Obsidian Vault、AI 额度和粉笔导入。
-- 插件页采用 Codex 目录式 UI：首屏只渲染搜索、已安装图标、Featured/分类列表、短徽标和主操作；长说明、诊断与业务面板只在点击插件后进入页面内 inspector。
-- `SettingsWorkspace` 只做分区导航和按需加载，插件 inspector 才加载 Obsidian repository、额度 repository 等低频服务。
-- AI 连接页只管理模型调用连接；额度凭据、Vault 权限、粉笔导入和插件状态都在“设置 → 插件”集中呈现。
-- 插件目录必须从注册表读取图标、短描述、来源标签、短状态徽标、主操作和更多菜单；运行态上下文只允许传入数量、连接可用性等脱敏摘要。
+- 设置页不再提供插件目录。粉笔导入、Obsidian 与 AI 额度继续复用内部适配层，但分别进入公考、知识库和 AI 连接的业务上下文。
+- `SettingsWorkspace` 只保留外观、AI 连接、个性化、MCP 与诊断；MCP 仍是独立设置项。
 - 粉笔导入通过 `ImportProviderPlugin` 包装现有本地解析、AI 文本解析和多模态 OCR，生成草稿后仍由用户确认入库。
 
 ## MCP 设置
@@ -57,14 +54,14 @@ SettingsWorkspace → McpSettingsView → mcp-settings-repository → localStora
 ## AI 额度插件
 
 ```text
-Settings → Plugins → AiQuotaSettingsPanel → ai-quota-repository
+Settings → AI Connections → AiQuotaSettingsPanel → ai-quota-repository
 → /api/ai/quota → provider quota plugin
 ```
 
 - 额度查询是应用内插件适配层，不复用模型调用 Key，不把账单逻辑写进通用 AI client。
 - OpenAI 插件调用官方 Admin Costs/Usage API；若官方接口不返回剩余额度，只显示官方费用和用户配置预算下的估算剩余。
 - 额度插件参考 CodexBar 的 descriptor/fetch strategy 边界：provider 描述、官网入口、状态页、刷新周期、来源模式和策略声明来自同一注册表。
-- 额度 UI 使用紧凑厂商卡展示 provider 标识、用量条、周期、刷新时间、来源标签、官网账单入口和 unsupported/error 徽标。
+- 额度 UI 默认折叠为紧凑厂商行；展开后才显示用量条、周期、凭据、来源与官网账单入口。
 - DeepSeek、Gemini、Anthropic、Qwen、火山、硅基流动等插件先以预留状态展示，未确认稳定官方账单 API 前不抓取网页后台。
 - 额度插件配置存放在本地浏览器 `localStorage`，密钥仍使用 Web Crypto 加密；不升级 Dexie schema，遵守无慢查询证据不新增索引的性能约定。
 

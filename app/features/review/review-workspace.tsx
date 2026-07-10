@@ -886,6 +886,7 @@ export function ReviewWorkspace() {
       onOpenImport={() => switchView("import")}
       onOpenSearch={() => setCommandSearchOpen(true)}
       onOpenSettings={() => switchView("settings")}
+      onStartNewConversation={openBlankConversation}
       onNotice={setNotice}
       onRefreshConversations={refreshConversationSnapshot}
       onSelectView={switchView}

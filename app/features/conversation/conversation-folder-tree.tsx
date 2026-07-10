@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { conversationRepository } from "../../services/conversation-repository";
 import type { AiConversation, AiConversationFolder } from "../../types/review";
+import { useConversationTreeController } from "./use-conversation-tree-controller";
 
 type ConversationFolderTreeProps = {
   activeConversationId?: string | null;
@@ -14,177 +16,98 @@ type ConversationFolderTreeProps = {
   onRefresh: () => Promise<void>;
 };
 
-/** 对话树只负责文件夹分类和移动交互，持久化规则仍由 repository 集中维护。 */
-export function ConversationFolderTree({
-  activeConversationId,
-  conversations,
-  folders,
-  projectId,
-  onConversationSelected,
-  onNotice,
-  onRefresh,
-}: ConversationFolderTreeProps) {
+/** Codex 式对话树：文件夹默认折叠，桌面拖拽和移动端抽屉共享同一仓储操作。 */
+export function ConversationFolderTree(props: ConversationFolderTreeProps) {
+  const { activeConversationId, conversations, folders, projectId, onConversationSelected, onNotice, onRefresh } = props;
+  const controller = useConversationTreeController();
+  const [creatingParentId, setCreatingParentId] = useState<string | undefined>();
   const [creating, setCreating] = useState(false);
-  const [createParentId, setCreateParentId] = useState<string | undefined>();
   const [draftLabel, setDraftLabel] = useState("");
-  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
-  const [draggedConversationId, setDraggedConversationId] = useState<string | null>(null);
-  const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
+  const [actionLabel, setActionLabel] = useState("");
   const projectFolders = useMemo(() => folders.filter((folder) => folder.projectId === projectId), [folders, projectId]);
-  const projectConversations = useMemo(
-    () => conversations.filter((conversation) => conversation.projectId === projectId && conversation.status === "active"),
-    [conversations, projectId],
-  );
+  const projectConversations = useMemo(() => conversations.filter((item) => item.projectId === projectId && item.status === "active"), [conversations, projectId]);
 
-  async function refreshAfter(task: () => Promise<void>) {
-    try {
-      await task();
-      await onRefresh();
-    } catch (error) {
-      onNotice(error instanceof Error ? error.message : "对话分类操作失败");
-    }
+  async function run(task: () => Promise<void>, success?: string) {
+    try { await task(); await onRefresh(); if (success) onNotice(success); }
+    catch (error) { onNotice(error instanceof Error ? error.message : "对话树操作失败"); }
   }
 
-  async function submitFolder() {
-    const label = draftLabel.trim();
-    if (!label) return;
-    await refreshAfter(() => conversationRepository.createFolder({ projectId, parentId: createParentId, label }).then(() => undefined));
-    setDraftLabel("");
-    setCreating(false);
-    setCreateParentId(undefined);
+  async function createFolder() {
+    if (!draftLabel.trim()) return;
+    const folder = await conversationRepository.createFolder({ projectId, parentId: creatingParentId, label: draftLabel });
+    controller.expandFolder(folder.id);
+    setCreating(false); setDraftLabel(""); setCreatingParentId(undefined);
+    await onRefresh();
   }
 
-  async function renameFolder(id: string, label: string) {
-    await refreshAfter(() => conversationRepository.renameFolder(id, label));
-    setEditingFolderId(null);
+  async function dropInto(folderId?: string) {
+    const item = controller.dragItem;
+    if (!item) return;
+    if (item.kind === "folder") await run(() => conversationRepository.moveFolder(item.id, folderId));
+    else await run(() => conversationRepository.moveConversation(item.id, folderId));
+    controller.endDrag();
+  }
+
+  function openAction(kind: "folder" | "conversation", id: string, label: string) {
+    setActionLabel(label);
+    controller.setAction({ kind, id });
+  }
+
+  function renderConversation(conversation: AiConversation): ReactNode {
+    return <div key={conversation.id} className={`conversation-tree-chat ${activeConversationId === conversation.id ? "is-active" : ""}`} draggable
+      onDragStart={() => controller.setDragItem({ kind: "conversation", id: conversation.id })} onDragEnd={controller.endDrag}>
+      <button type="button" onClick={() => onConversationSelected(conversation.id)}><span aria-hidden="true">◇</span><span className="truncate">{conversation.title}</span></button>
+      <button type="button" aria-label={`${conversation.title} 操作`} title="更多操作" onClick={() => openAction("conversation", conversation.id, conversation.title)}>•••</button>
+    </div>;
   }
 
   function renderFolder(folder: AiConversationFolder, depth = 0): ReactNode {
-    const children = projectFolders.filter((item) => item.parentId === folder.id).sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label));
-    const folderConversations = projectConversations.filter((conversation) => conversation.folderId === folder.id);
-    const isEditing = editingFolderId === folder.id;
-    return (
-      <div key={folder.id} className="conversation-folder-tree-node" style={{ marginLeft: `${depth * 10}px` }}>
-        <div
-          className="conversation-folder-tree-row"
-          draggable
-          onDragEnd={() => setDraggedFolderId(null)}
-          onDragStart={(event) => {
-            setDraggedFolderId(folder.id);
-            event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("application/x-conversation-folder", folder.id);
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            const folderId = draggedFolderId ?? event.dataTransfer.getData("application/x-conversation-folder");
-            if (folderId) {
-              void refreshAfter(() => conversationRepository.moveFolder(folderId, folder.id));
-              setDraggedFolderId(null);
-              return;
-            }
-            const conversationId = draggedConversationId ?? event.dataTransfer.getData("text/plain");
-            if (!conversationId) return;
-            void refreshAfter(() => conversationRepository.moveConversation(conversationId, folder.id));
-            setDraggedConversationId(null);
-          }}
-        >
-          <span aria-hidden="true">▾</span>
-          {isEditing ? (
-            <input
-              aria-label="文件夹名称"
-              autoFocus
-              className="conversation-folder-tree-input"
-              defaultValue={folder.label}
-              onBlur={(event) => void renameFolder(folder.id, event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur();
-                if (event.key === "Escape") setEditingFolderId(null);
-              }}
-            />
-          ) : (
-            <span className="truncate">▰ {folder.label}</span>
-          )}
-          <details className="conversation-folder-tree-menu">
-            <summary aria-label={`${folder.label} 操作`} title="更多操作">•••</summary>
-            <div>
-              <button type="button" onClick={() => setEditingFolderId(folder.id)}>重命名</button>
-              <button type="button" onClick={() => { setDraftLabel(""); setCreateParentId(folder.id); setCreating(true); }}>新建子文件夹</button>
-              <button type="button" onClick={() => void refreshAfter(() => conversationRepository.deleteFolder(folder.id))}>删除文件夹</button>
-            </div>
-          </details>
-        </div>
-        <div className="conversation-folder-tree-children">
-          {children.map((child) => renderFolder(child, depth + 1))}
-          {folderConversations.map((conversation) => renderConversation(conversation))}
-        </div>
+    const children = projectFolders.filter((item) => item.parentId === folder.id).sort((a, b) => a.sortOrder - b.sortOrder);
+    const chats = projectConversations.filter((item) => item.folderId === folder.id);
+    const expanded = controller.expandedFolderIds.has(folder.id);
+    const count = chats.length + children.reduce((sum, item) => sum + projectConversations.filter((chat) => chat.folderId === item.id).length, 0);
+    return <div key={folder.id} className="conversation-tree-folder" style={{ paddingLeft: `${depth * 10}px` }}>
+      <div className={`conversation-tree-folder-row ${controller.dropFolderId === folder.id ? "is-drop-target" : ""}`} draggable
+        onDragStart={(event) => { event.stopPropagation(); controller.setDragItem({ kind: "folder", id: folder.id }); }} onDragEnd={controller.endDrag}
+        onDragEnter={() => { controller.setDropFolderId(folder.id); controller.hoverFolder(folder.id); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); void dropInto(folder.id); }}>
+        <button type="button" aria-label={`${expanded ? "折叠" : "展开"}${folder.label}`} onClick={() => controller.toggleFolder(folder.id)}>{expanded ? "⌄" : "›"}</button>
+        <button type="button" className="conversation-tree-folder-label" onClick={() => controller.toggleFolder(folder.id)}><span aria-hidden="true">▰</span><span className="truncate">{folder.label}</span><small>{count}</small></button>
+        <button type="button" aria-label={`${folder.label} 操作`} title="更多操作" onClick={() => openAction("folder", folder.id, folder.label)}>•••</button>
       </div>
-    );
+      {expanded ? <div className="conversation-tree-children">{children.map((item) => renderFolder(item, depth + 1))}{chats.map(renderConversation)}</div> : null}
+    </div>;
   }
 
-  function renderConversation(conversation: AiConversation) {
-    return (
-      <button
-        key={conversation.id}
-        draggable
-        className={`conversation-folder-tree-conversation ${activeConversationId === conversation.id ? "is-active" : ""}`}
-        type="button"
-        onClick={() => onConversationSelected(conversation.id)}
-        onDragEnd={() => setDraggedConversationId(null)}
-        onDragStart={(event) => {
-          setDraggedConversationId(conversation.id);
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", conversation.id);
-        }}
-      >
-        <span className="truncate">{conversation.title}</span>
-        <span>{conversation.messageCount}</span>
-      </button>
-    );
-  }
+  const rootFolders = projectFolders.filter((folder) => !folder.parentId).sort((a, b) => a.sortOrder - b.sortOrder);
+  const rootChats = projectConversations.filter((conversation) => !conversation.folderId);
+  const action = controller.action;
+  const actionFolders = projectFolders.filter((folder) => folder.id !== action?.id);
+  const actionDrawer = action && typeof document !== "undefined" ? createPortal(
+    <div className="conversation-tree-drawer" role="dialog" aria-modal="true" aria-label="对话树操作"><button className="conversation-tree-drawer-backdrop" type="button" aria-label="关闭" onClick={() => controller.setAction(null)} /><section>
+      <div className="conversation-tree-drawer-title"><strong>{actionLabel}</strong><button type="button" onClick={() => controller.setAction(null)}>×</button></div>
+      <label>名称<input value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} /></label>
+      <button type="button" onClick={() => void run(async () => { if (action.kind === "folder") await conversationRepository.renameFolder(action.id, actionLabel); else await conversationRepository.renameConversation(action.id, actionLabel); controller.setAction(null); }, "已重命名")}>保存名称</button>
+      <label>移动到<select defaultValue="" onChange={(event) => {
+        const targetFolderId = event.currentTarget.value || undefined;
+        void run(async () => {
+          if (action.kind === "folder") await conversationRepository.moveFolder(action.id, targetFolderId);
+          else await conversationRepository.moveConversation(action.id, targetFolderId);
+          controller.setAction(null);
+        }, "已移动");
+      }}><option value="">根目录</option>{actionFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.parentId ? "↳ " : ""}{folder.label}</option>)}</select></label>
+      {action.kind === "folder" ? <button type="button" onClick={() => { setCreatingParentId(action.id); setCreating(true); controller.expandFolder(action.id); controller.setAction(null); }}>新建子文件夹</button> : null}
+      <button className="is-danger" type="button" onClick={() => { const message = action.kind === "folder" ? "删除文件夹后，子项会移动到上一级。确定继续吗？" : "确定永久删除这条对话及其消息吗？"; if (!window.confirm(message)) return; void run(async () => { if (action.kind === "folder") await conversationRepository.deleteFolder(action.id); else await conversationRepository.deleteConversation(action.id); controller.setAction(null); }, "已删除"); }}>删除</button>
+    </section></div>,
+    document.body,
+  ) : null;
 
-  const rootConversations = projectConversations.filter((conversation) => !conversation.folderId);
-  const rootFolders = projectFolders.filter((folder) => !folder.parentId).sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label));
-
-  return (
-    <section className="conversation-folder-tree" aria-label="对话分类">
-      <div className="conversation-folder-tree-heading">
-        <p>对话</p>
-        <button type="button" title="新建文件夹" aria-label="新建文件夹" onClick={() => { setCreateParentId(undefined); setCreating((value) => !value); }}>＋</button>
-      </div>
-      {creating ? (
-        <form
-          className="conversation-folder-tree-create"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submitFolder();
-          }}
-        >
-          <input aria-label="新文件夹名称" autoFocus placeholder="文件夹名称" value={draftLabel} onChange={(event) => setDraftLabel(event.currentTarget.value)} />
-          <button type="submit">确定</button>
-        </form>
-      ) : null}
-      <div
-        className="conversation-folder-tree-root"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          event.preventDefault();
-          const folderId = draggedFolderId ?? event.dataTransfer.getData("application/x-conversation-folder");
-          if (folderId) {
-            void refreshAfter(() => conversationRepository.moveFolder(folderId, undefined));
-            setDraggedFolderId(null);
-            return;
-          }
-          const conversationId = draggedConversationId ?? event.dataTransfer.getData("text/plain");
-          if (!conversationId) return;
-          void refreshAfter(() => conversationRepository.moveConversation(conversationId, undefined));
-          setDraggedConversationId(null);
-        }}
-      >
-        {rootFolders.map((folder) => renderFolder(folder))}
-        {rootConversations.map((conversation) => renderConversation(conversation))}
-      </div>
-      {!rootFolders.length && !rootConversations.length ? <p className="conversation-folder-tree-empty">发送首条消息后，对话会出现在这里。</p> : null}
-    </section>
-  );
+  const tree = <section className="conversation-tree" aria-label="对话分类">
+    <div className="conversation-tree-heading"><p>对话</p><button type="button" aria-label="新建文件夹" title="新建文件夹" onClick={() => { setCreatingParentId(undefined); setCreating(true); }}>▱＋</button></div>
+    {creating ? <form className="conversation-tree-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}><input autoFocus aria-label="新文件夹名称" placeholder="文件夹名称" value={draftLabel} onChange={(event) => setDraftLabel(event.currentTarget.value)} /><button type="submit">创建</button><button type="button" onClick={() => setCreating(false)}>取消</button></form> : null}
+    <div className={`conversation-tree-root ${controller.dropFolderId === null ? "is-drop-target" : ""}`} onDragEnter={() => controller.setDropFolderId(null)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void dropInto(undefined); }}>
+      {rootFolders.map((folder) => renderFolder(folder))}{rootChats.map(renderConversation)}
+    </div>
+    {!rootFolders.length && !rootChats.length ? <p className="conversation-tree-empty">发送首条消息后自动保存。</p> : null}
+  </section>;
+  return <>{tree}{actionDrawer}</>;
 }

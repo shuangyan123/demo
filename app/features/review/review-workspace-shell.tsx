@@ -11,6 +11,7 @@ import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions
 import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
 
 type ReviewNavIconName =
+  | "newChat"
   | "search"
   | "scheduled"
   | "dashboard"
@@ -45,6 +46,7 @@ type ReviewWorkspaceShellProps = {
   onOpenImport: () => void;
   onOpenSearch: () => void;
   onOpenSettings: () => void;
+  onStartNewConversation: () => void;
   onNotice: (message: string) => void;
   onRefreshConversations: () => Promise<void>;
   onSelectView: (view: ViewKey) => void;
@@ -86,6 +88,7 @@ export function ReviewWorkspaceShell({
   onOpenImport,
   onOpenSearch,
   onOpenSettings,
+  onStartNewConversation,
   onNotice,
   onRefreshConversations,
   onSelectView,
@@ -101,6 +104,7 @@ export function ReviewWorkspaceShell({
     badge?: number;
     onClick: () => void;
   }> = [
+    { id: "new-chat", label: "新对话", icon: "newChat", active: view === "conversation" && activeConversationId === null, onClick: onStartNewConversation },
     { id: "search", label: "搜索", icon: "search", onClick: onOpenSearch },
     {
       id: "scheduled",
@@ -116,16 +120,16 @@ export function ReviewWorkspaceShell({
     <WorkspaceShell
       contentClassName="px-7 py-7 max-sm:px-4"
       sidebarCollapsed={sidebarCollapsed}
-      sidebarClassName="flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:overflow-visible max-lg:px-3 max-lg:py-2"
+      sidebarClassName="review-workspace-sidebar flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:px-3 max-lg:py-2"
       title="错题复盘"
       onToggleSidebar={onToggleSidebar}
       sidebar={
         <>
-          <nav className="grid gap-1" aria-label="工作台快捷入口">
+          <nav className="grid gap-1 max-lg:grid-cols-3" aria-label="工作台快捷入口">
             {topActions.map((item) => (
               <button
                 key={item.id}
-                className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium ${
+                className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:grid-cols-[18px_1fr_auto] max-lg:gap-1.5 max-lg:px-2 max-lg:text-xs ${
                   item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"
                 }`}
                 type="button"
@@ -137,23 +141,8 @@ export function ReviewWorkspaceShell({
               </button>
             ))}
           </nav>
-          <section className={`mt-3 hidden gap-2 overflow-x-auto pb-1 ${projectActive ? "max-lg:flex" : "max-lg:hidden"}`} aria-label="公考项目模块">
-            {civilServiceDomain.modules.map((module) => (
-              <button
-                key={module.id}
-                className={`min-h-10 min-w-24 shrink-0 rounded-lg px-3 text-sm font-medium ${
-                  view === module.id ? "bg-chrome-selected text-foreground" : "text-muted hover:bg-chrome-hover hover:text-foreground"
-                }`}
-                type="button"
-                title={module.description}
-                onClick={() => onSelectView(module.id)}
-              >
-                {module.label}
-              </button>
-            ))}
-          </section>
           <button
-            className="hidden min-h-10 min-w-36 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
+            className="hidden min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
             type="button"
             onClick={onOpenSettings}
           >
@@ -161,28 +150,19 @@ export function ReviewWorkspaceShell({
             <span>设置</span>
           </button>
 
-          <section className="mt-7 min-h-0 flex-1 overflow-y-auto pr-1 max-lg:hidden" aria-label="项目和对话">
+          <section className="mt-7 min-h-0 flex-1 overflow-y-auto pr-1 max-lg:mt-2 max-lg:flex-none" aria-label="项目和对话">
             <div className="mb-2 flex items-center justify-between gap-2 px-3">
               <p className="text-xs font-medium text-muted">项目</p>
               <span className="text-[11px] text-muted">专项学习</span>
             </div>
-            <div className="rounded-lg bg-chrome-selected/60 p-1">
-              <button
-                className={`grid min-h-10 w-full grid-cols-[20px_1fr] items-center gap-2.5 rounded-md px-2 text-left text-sm font-semibold ${
-                  projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"
-                }`}
-                type="button"
-                onClick={() => onSelectView("dashboard")}
-              >
+            <details className="group rounded-lg bg-chrome-selected/60 p-1">
+              <summary className={`grid min-h-10 cursor-pointer list-none grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-md px-2 text-left text-sm font-semibold [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"}`}>
                 <ReviewNavIcon name="project" />
                 <span className="truncate">{civilServiceDomain.label}</span>
-              </button>
-              <details className="mt-1 group" open>
-                <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-xs font-medium text-muted hover:bg-chrome-hover hover:text-foreground [&::-webkit-details-marker]:hidden">
-                  <span>模块</span>
-                  <span className="transition group-open:rotate-90">›</span>
-                </summary>
-                <div className="mt-1 grid gap-0.5 pl-2">
+                <span className="transition group-open:rotate-90">›</span>
+              </summary>
+              <div className="mt-1 grid gap-1 pl-2">
+                <p className="px-2 pt-1 text-[11px] font-medium text-muted">模块</p>
                   {civilServiceDomain.modules.map((module) => (
                     <button
                       key={module.id}
@@ -197,14 +177,7 @@ export function ReviewWorkspaceShell({
                       <span className="truncate">{module.label}</span>
                     </button>
                   ))}
-                </div>
-              </details>
-              <details className="mt-1 group">
-                <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-xs font-medium text-muted hover:bg-chrome-hover hover:text-foreground [&::-webkit-details-marker]:hidden">
-                  <span>板块筛选</span>
-                  <span className="transition group-open:rotate-90">›</span>
-                </summary>
-                <div className="mt-1 grid gap-0.5 pl-2">
+                <p className="px-2 pt-2 text-[11px] font-medium text-muted">板块筛选</p>
                   {boardStats.map((stat) => (
                     <button
                       key={stat.board}
@@ -218,9 +191,8 @@ export function ReviewWorkspaceShell({
                       <span>{stat.total}</span>
                     </button>
                   ))}
-                </div>
-              </details>
-            </div>
+              </div>
+            </details>
 
             <ConversationFolderTree
               activeConversationId={activeConversationId}
@@ -277,6 +249,10 @@ function ReviewNavIcon({ name }: { name: ReviewNavIconName }) {
     strokeWidth: 1.9,
     viewBox: "0 0 24 24",
   };
+
+  if (name === "newChat") {
+    return <svg aria-hidden="true" {...common}><path d="M12 5v14M5 12h14" /></svg>;
+  }
 
   if (name === "search") {
     return (

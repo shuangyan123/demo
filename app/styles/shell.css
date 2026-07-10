@@ -142,6 +142,11 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     border-bottom: 1px solid var(--chrome-sidebar-border);
   }
 
+  .review-workspace-sidebar {
+    max-height: 18rem;
+    overflow-y: auto;
+  }
+
   .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar,
   .chrome-layout.is-sidebar-collapsed .chrome-sidebar {
     display: none;

@@ -71,6 +71,8 @@ const googleCatalog = [
   model("google", "gemini-3.1-pro-preview", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview"),
   model("google", "gemini-3.1-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite"),
   model("google", "gemini-2.5-flash", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models"),
+  model("google", "gemini-2.5-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models"),
+  model("google", "gemini-2.5-pro", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models"),
   model("google", "gemini-3.1-flash-tts-preview", ["speech"], ["speech"], "preview", "https://ai.google.dev/gemini-api/docs/models"),
 ];
 
@@ -122,7 +124,7 @@ export const providerContracts: ProviderContract[] = [
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     model: "gemini-3.5-flash",
     apiFormat: "google_generate_content",
-    capabilities: ["text", "vision", "structured_output", "speech", "streaming"],
+    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "streaming"],
     modelCatalog: googleCatalog,
     modelListStrategy: "official_api",
     documentationUrl: "https://ai.google.dev/gemini-api/docs/models",
@@ -222,7 +224,7 @@ export const providerContracts: ProviderContract[] = [
   contract({
     provider: "elevenlabs",
     label: "ElevenLabs",
-    group: "speech",
+    group: "commercial",
     baseUrl: "https://api.elevenlabs.io/v1",
     model: "eleven_multilingual_v2",
     apiFormat: "chat_completions",
@@ -254,10 +256,13 @@ export const providerContracts: ProviderContract[] = [
     baseUrl: "https://api.minimax.io/v1",
     model: "speech-2.8-hd",
     apiFormat: "chat_completions",
-    capabilities: ["speech"],
+    capabilities: ["text", "structured_output", "speech", "streaming"],
     modelCatalog: [
-      model("minimax", "speech-2.8-hd", ["speech"], ["speech"], "manual"),
-      model("minimax", "speech-2.8-turbo", ["speech"], ["speech"], "manual"),
+      model("minimax", "MiniMax-M2.7", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "MiniMax-M2.7-highspeed", ["text"], ["text", "structured_output", "streaming"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "MiniMax-M2.5", ["text"], ["text", "structured_output", "streaming"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "speech-2.8-hd", ["speech"], ["speech"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "speech-2.8-turbo", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
     ],
     modelListStrategy: "manual",
     documentationUrl: "https://platform.minimax.io/docs/api-reference/speech-t2a-http",

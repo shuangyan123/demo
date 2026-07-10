@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
+import { configureCustomTextConnection } from "./helpers/configure-custom-ai";
 
 test("AI 连接可保存本地自定义文本连接并设为默认", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
@@ -10,12 +11,7 @@ test("AI 连接可保存本地自定义文本连接并设为默认", async ({ pa
   await page.getByRole("button", { name: "AI 连接" }).click();
 
   await expect(page.getByRole("heading", { name: "AI 连接" })).toBeVisible();
-  await page.getByRole("button", { name: /本地部署 \/ 自定义连接/ }).click();
-
-  await page.getByLabel("连接名称").fill("E2E 本地文本连接");
-  await page.getByLabel("Base URL").fill("http://127.0.0.1:9999/v1");
-  await page.getByRole("textbox", { name: "手动模型 ID" }).fill("local-e2e-model");
-  await page.getByRole("button", { name: "保存" }).click();
+  await configureCustomTextConnection(page, { label: "E2E 本地文本连接", baseUrl: "http://127.0.0.1:9999/v1", model: "local-e2e-model" });
 
   await expect(page.getByRole("status")).toContainText("配置已保存");
   await expect(page.getByRole("button", { name: /E2E 本地文本连接/ })).toBeVisible();

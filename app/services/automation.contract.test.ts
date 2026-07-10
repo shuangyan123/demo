@@ -23,16 +23,21 @@ function dueDefinition(overrides: Partial<AutomationDefinition> = {}): Automatio
   };
 }
 
-test("v14 数据库升级到 v15 后保留旧数据并创建对话分类表", async () => {
+test("v15 数据库升级到 v16 后只清理旧空白新对话", async () => {
   await reviewDb.delete();
   const legacy = new Dexie("review_workspace");
-  legacy.version(14).stores({ mistakes: "&id, updatedAt", automationDefinitions: "&id, enabled, nextRunAt, updatedAt", automationRuns: "&id, automationId, status, unread, scheduledAt, createdAt, [automationId+scheduledAt]", aiConversations: "&id, projectId, kind, status, updatedAt, createdAt" });
+  legacy.version(15).stores({ mistakes: "&id, updatedAt", automationDefinitions: "&id, enabled, nextRunAt, updatedAt", automationRuns: "&id, automationId, status, unread, scheduledAt, createdAt, [automationId+scheduledAt]", aiConversations: "&id, projectId, folderId, selectedConnectionId, kind, status, updatedAt, createdAt", aiConversationAttachments: "&id, conversationId", aiConversationMessages: "&id, conversationId", aiConversationRunSteps: "&id, conversationId" });
   await legacy.open();
   await legacy.table("mistakes").put({ id: "legacy-mistake", updatedAt: baseTime.toISOString() });
+  await legacy.table("aiConversations").bulkPut([
+    { id: "empty-new-chat", projectId: "civil-service", title: "新对话", messageCount: 0, kind: "general", status: "active", createdAt: baseTime.toISOString(), updatedAt: baseTime.toISOString() },
+    { id: "used-new-chat", projectId: "civil-service", title: "新对话", messageCount: 1, kind: "general", status: "active", createdAt: baseTime.toISOString(), updatedAt: baseTime.toISOString() },
+  ]);
+  await legacy.table("aiConversationAttachments").put({ id: "orphan-summary", conversationId: "empty-new-chat" });
   legacy.close();
 
   await reviewDb.open();
-  assert.equal(reviewDb.verno, 15);
+  assert.equal(reviewDb.verno, 16);
   assert.equal((await reviewDb.mistakes.get("legacy-mistake"))?.id, "legacy-mistake");
   assert.equal(reviewDb.tables.some((table) => table.name === "automationDefinitions"), true);
   assert.equal(reviewDb.tables.some((table) => table.name === "automationRuns"), true);
@@ -40,6 +45,9 @@ test("v14 数据库升级到 v15 后保留旧数据并创建对话分类表", as
   assert.equal(reviewDb.tables.some((table) => table.name === "aiConversationFolders"), true);
   assert.equal(reviewDb.tables.some((table) => table.name === "aiConversationAttachments"), true);
   assert.equal(reviewDb.tables.some((table) => table.name === "aiConversationMessages"), true);
+  assert.equal(await reviewDb.aiConversations.get("empty-new-chat"), undefined);
+  assert.equal((await reviewDb.aiConversations.get("used-new-chat"))?.messageCount, 1);
+  assert.equal(await reviewDb.aiConversationAttachments.get("orphan-summary"), undefined);
   await reviewDb.delete();
 });
 

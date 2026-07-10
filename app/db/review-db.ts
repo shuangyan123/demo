@@ -376,6 +376,53 @@ class ReviewDexieDatabase extends Dexie {
       aiConversationMessages: "&id, conversationId, role, createdAt",
       aiConversationRunSteps: "&id, conversationId, runId, state, updatedAt",
     });
+    this.version(16).stores({
+      mistakes: "&id, board, nextReviewAt, mastery, createdAt, updatedAt",
+      attempts: "&id, mistakeId, reviewedAt, result",
+      importJobs: "&id, type, status, createdAt",
+      apiSettings: "&id, provider, updatedAt",
+      apiConnectionProfiles: "&id, provider, updatedAt, createdAt",
+      apiConnectionDefaults: "&id, updatedAt",
+      appearanceSettings: "&id, updatedAt",
+      personalizationSettings: "&id, updatedAt",
+      knowledgeEntries: "&id, category, favorite, nextReviewAt, mastery, updatedAt, createdAt",
+      knowledgeAttempts: "&id, knowledgeId, reviewedAt, result",
+      knowledgeMistakeLinks: "&id, mistakeId, knowledgeId, kind, [mistakeId+knowledgeId], updatedAt, createdAt",
+      knowledgeInternalizationDrafts: "&id, mode, targetKnowledgeId, createdAt, updatedAt",
+      importBatches: "&id, source, status, createdAt, updatedAt",
+      importDrafts: "&id, batchId, board, selected, needsReview, createdAt, updatedAt",
+      interviewQuestions: "&id, type, difficulty, favorite, lastPracticedAt, practiceCount, createdAt, updatedAt",
+      interviewQuestionSets: "&id, type, createdAt, updatedAt",
+      interviewPracticePlans: "&id, type, status, sourceSetId, nextPracticeAt, createdAt, updatedAt",
+      interviewSessions: "&id, questionId, planId, type, status, stage, createdAt, updatedAt",
+      interviewTurns: "&id, sessionId, stage, createdAt",
+      interviewEvaluations: "&id, sessionId, type, createdAt, updatedAt",
+      interviewLinks: "&id, sourceType, sourceId, targetType, targetId, [sourceType+targetId], createdAt, updatedAt",
+      tutoringSessions: "&id, mode, status, startedAt, completedAt, createdAt, updatedAt",
+      tutoringTurns: "&id, sessionId, speaker, createdAt",
+      tutoringPlans: "&id, status, nextPracticeAt, createdAt, updatedAt",
+      tutoringLinks: "&id, sourceType, sourceId, targetType, targetId, [sourceType+targetId], createdAt, updatedAt",
+      obsidianVaultConfigs: "&id, updatedAt",
+      obsidianNoteMappings: "&path, &knowledgeId, category, status, updatedAt",
+      knowledgeEvolutionProposals: "&id, mode, status, sourceType, targetKnowledgeId, createdAt, updatedAt",
+      automationDefinitions: "&id, enabled, nextRunAt, updatedAt",
+      automationRuns: "&id, automationId, status, unread, scheduledAt, createdAt, [automationId+scheduledAt]",
+      aiProjects: "&id, studyDomainId, updatedAt, createdAt",
+      aiConversationFolders: "&id, projectId, parentId, updatedAt, [projectId+parentId+sortOrder]",
+      aiConversations: "&id, projectId, folderId, selectedConnectionId, studyDomainId, kind, status, updatedAt, createdAt, [projectId+folderId+updatedAt]",
+      aiConversationAttachments: "&id, conversationId, messageId, kind, createdAt",
+      aiConversationMessages: "&id, conversationId, role, createdAt",
+      aiConversationRunSteps: "&id, conversationId, runId, state, updatedAt",
+    }).upgrade(async (transaction) => {
+      const conversations = transaction.table<AiConversation, string>("aiConversations");
+      const emptyLegacyDrafts = await conversations.filter((conversation) => conversation.title === "新对话" && conversation.messageCount === 0).toArray();
+      const ids = emptyLegacyDrafts.map((conversation) => conversation.id);
+      if (!ids.length) return;
+      await transaction.table<AiConversationAttachment, string>("aiConversationAttachments").where("conversationId").anyOf(ids).delete();
+      await transaction.table<AiConversationMessage, string>("aiConversationMessages").where("conversationId").anyOf(ids).delete();
+      await transaction.table<AiConversationRunStep, string>("aiConversationRunSteps").where("conversationId").anyOf(ids).delete();
+      await conversations.bulkDelete(ids);
+    });
   }
 }
 
