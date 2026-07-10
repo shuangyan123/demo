@@ -3,10 +3,12 @@ import {
   callAiGenerate,
   callAiGenerateStream,
   callAiSpeech,
+  callAiTranscription,
   type AiGenerateStreamEvent,
   type AiGenerateRequest,
   type AiGenerateResult,
   type AiSpeechRequest,
+  type AiTranscriptionResult,
 } from "./api-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 
@@ -74,6 +76,25 @@ export async function synthesizeWithConnection(
     apiKey,
     baseUrl: connection.baseUrl,
     model: input.model || connection.model,
+    providerOptions: connection.providerOptions,
+  });
+}
+
+/** 使用独立转写连接请求 Gemini 音频理解；业务层永远接触不到 API Key。 */
+export async function transcribeWithConnection(
+  connection: ApiConnectionProfile,
+  input: { audioBase64: string; mimeType: string },
+): Promise<AiTranscriptionResult> {
+  if (!connection.capabilities.includes("transcription")) throw new Error("当前连接未启用录音转写能力");
+  if (connection.provider !== "google") throw new Error("当前仅支持 Google Gemini 录音转写连接");
+  const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  return callAiTranscription({
+    provider: connection.provider,
+    apiKey,
+    baseUrl: connection.baseUrl,
+    model: connection.model,
+    mimeType: input.mimeType,
+    audioBase64: input.audioBase64,
     providerOptions: connection.providerOptions,
   });
 }

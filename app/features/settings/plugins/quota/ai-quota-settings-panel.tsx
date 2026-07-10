@@ -27,7 +27,7 @@ function usagePercent(snapshot?: AiQuotaSnapshot): number {
   return total > 0 ? Math.max(0, Math.min(100, ((snapshot.usedAmount ?? 0) / total) * 100)) : 0;
 }
 
-/** 额度插件面板采用 CodexBar 式紧凑厂商卡，但只调用官方或手动来源。 */
+/** 额度面板采用紧凑厂商卡，但只调用官方或手动来源。 */
 export function AiQuotaSettingsPanel() {
   const initialState = useMemo(() => aiQuotaRepository.loadSync(), []);
   const [configs, setConfigs] = useState<AiQuotaPluginConfig[]>(() => initialState.configs);
@@ -71,9 +71,9 @@ export function AiQuotaSettingsPanel() {
         today: new Date(),
       });
       await refreshLocal();
-      setNotice("额度插件配置已保存");
+      setNotice("额度配置已保存");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "额度插件保存失败");
+      setNotice(error instanceof Error ? error.message : "额度配置保存失败");
     } finally {
       setBusy("");
     }
@@ -93,10 +93,10 @@ export function AiQuotaSettingsPanel() {
   }
 
   return (
-    <section aria-label="AI 额度插件">
+    <section aria-label="AI 额度与用量">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">AI 额度插件</h2>
+          <h2 className="text-lg font-semibold">AI 额度与用量</h2>
           <p className="mt-1 text-sm text-muted">账单凭据独立加密保存；没有官方 API 的厂商只显示预留或手动额度。</p>
         </div>
         {notice ? <span className="text-sm text-muted" role="status">{notice}</span> : null}
@@ -179,7 +179,7 @@ export function AiQuotaSettingsPanel() {
               ) : null}
             </article>
           );
-        }) : <EmptyState>暂无额度插件。</EmptyState>}
+        }) : <EmptyState>暂无额度配置。</EmptyState>}
       </div>
     </section>
   );

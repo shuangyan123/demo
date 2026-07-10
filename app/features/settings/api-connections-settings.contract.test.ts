@@ -15,3 +15,11 @@ test("AI connection model picker uses a select with manual model fallback", asyn
   assert.doesNotMatch(source, /datalist id="provider-model-options"/);
   assert.doesNotMatch(source, /modelCatalog\.slice\(0,\s*8\)\.map/);
 });
+
+test("AI connection page owns quota details and exposes transcription purpose", async () => {
+  const source = await readSource();
+
+  assert.match(source, /录音转写/);
+  assert.match(source, /AiQuotaSettingsPanel/);
+  assert.match(source, /AI 额度与用量/);
+});

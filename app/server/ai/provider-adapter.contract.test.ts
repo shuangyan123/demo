@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildGenerateProviderRequest, buildSpeechProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent, parseSpeechJsonResponse } from "./provider-adapter.ts";
-import type { AiGenerateRequest, AiSpeechRequest } from "../../services/api-client.ts";
+import { buildGenerateProviderRequest, buildSpeechProviderRequest, buildTranscriptionProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent, parseSpeechJsonResponse, parseTranscriptionProviderResponse } from "./provider-adapter.ts";
+import type { AiGenerateRequest, AiSpeechRequest, AiTranscriptionRequest } from "../../services/api-client.ts";
 import { POST as speechPost } from "../../api/ai/speech/route.ts";
 
 const baseGenerate: Omit<AiGenerateRequest, "provider"> = {
@@ -47,6 +47,30 @@ test("Google Gemini fixture：原生 generateContent 请求和响应均被归一
   assert.deepEqual(
     parseGenerateProviderResponse(input, { candidates: [{ content: { parts: [{ text: "完成" }] } }], usageMetadata: { promptTokenCount: 7, candidatesTokenCount: 3, totalTokenCount: 10 } }, new Headers()),
     { content: "完成", requestId: undefined, usage: { inputTokens: 7, outputTokens: 3, totalTokens: 10 } },
+  );
+});
+
+test("Google Gemini 音频转写请求只归一化音频与文本", () => {
+  const input: AiTranscriptionRequest = {
+    provider: "google",
+    apiKey: "fixture-key",
+    baseUrl: "https://provider.example/v1/",
+    model: "gemini-3.5-flash",
+    mimeType: "audio/webm",
+    audioBase64: "UklGRg==",
+  };
+  const request = buildTranscriptionProviderRequest(input);
+  assert.equal(request.url, "https://provider.example/v1/models/gemini-3.5-flash:generateContent");
+  assert.deepEqual(request.body, {
+    contents: [{ role: "user", parts: [
+      { text: "请逐字转写这段中文语音。只返回转写文本，不要解释、标题、时间戳或 Markdown。" },
+      { inlineData: { mimeType: "audio/webm", data: "UklGRg==" } },
+    ] }],
+    generationConfig: { temperature: 0, maxOutputTokens: 1024 },
+  });
+  assert.deepEqual(
+    parseTranscriptionProviderResponse({ candidates: [{ content: { parts: [{ text: "语音输入测试" }] } }] }, new Headers({ "x-request-id": "request-1" })),
+    { text: "语音输入测试", requestId: "request-1" },
   );
 });
 

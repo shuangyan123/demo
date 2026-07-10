@@ -59,6 +59,22 @@ export type AiSpeechRequest = {
   providerOptions?: Record<string, string>;
 };
 
+/** 转写请求只在本次网络调用中携带音频 base64，调用完成后不得持久化音频。 */
+export type AiTranscriptionRequest = {
+  provider: ApiProvider;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  mimeType: string;
+  audioBase64: string;
+  providerOptions?: Record<string, string>;
+};
+
+export type AiTranscriptionResult = {
+  text: string;
+  requestId?: string;
+};
+
 // 调用统一生成路由，客户端不再拼接各厂商 endpoint 或解析厂商响应。
 export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenerateResult> {
   const runId = input.activity?.runId ?? crypto.randomUUID();
@@ -152,4 +168,18 @@ export async function callAiSpeech(input: AiSpeechRequest): Promise<Blob> {
     throw new Error(text || `语音 API 请求失败：${response.status}`);
   }
   return response.blob();
+}
+
+/** 调用统一转写路由；浏览器录音在请求结束后由调用方立即释放。 */
+export async function callAiTranscription(input: AiTranscriptionRequest): Promise<AiTranscriptionResult> {
+  const response = await fetch("/api/ai/transcribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `转写 API 请求失败：${response.status}`);
+  }
+  return response.json() as Promise<AiTranscriptionResult>;
 }

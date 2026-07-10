@@ -14,6 +14,12 @@ function encodeSse(event: AiGenerateStreamEvent): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
 
+/** 将常见厂商容量状态归一成可行动提示，避免把原始错误正文展示到业务界面。 */
+function providerFailureMessage(status: number): string {
+  if (status === 429 || status === 503) return "模型暂时满载，请切换模型或稍后再试";
+  return `厂商 API 请求失败（${status}）`;
+}
+
 async function pipeProviderStream(body: AiGenerateRequest, response: Response): Promise<Response> {
   if (!response.body) return new NextResponse("厂商未返回可读取的流", { status: 502 });
   const reader = response.body.getReader();
@@ -78,7 +84,7 @@ export async function POST(request: Request) {
       cache: "no-store",
     });
     if (!response.ok) {
-      return new NextResponse(`厂商 API 请求失败（${response.status}）`, { status: response.status });
+      return new NextResponse(providerFailureMessage(response.status), { status: response.status });
     }
     if (body.stream) return pipeProviderStream(body, response);
     const payload: unknown = await response.json();

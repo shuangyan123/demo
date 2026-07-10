@@ -6,6 +6,7 @@ import { aiConnectionsRepository } from "../../services/ai-connections-repositor
 import { creatableProviderContracts, getProviderContract, getProviderModelCatalog, getProviderModels, type ProviderContract } from "../../services/provider-contracts";
 import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, AiModelCatalogEntry, ApiConnectionProfile, ApiProvider } from "../../types/review";
 import { Button, EmptyState, SegmentedTabs, cx } from "../shared/ui-primitives";
+import { AiQuotaSettingsPanel } from "./plugins/quota/ai-quota-settings-panel";
 
 type SubmitEvent = SyntheticEvent<HTMLFormElement, globalThis.SubmitEvent>;
 type Feedback = { tone: "success" | "error" | "neutral"; text: string } | null;
@@ -20,12 +21,13 @@ type ConnectionForm = {
   language: string;
 };
 
-const purposeLabels: Record<AiConnectionPurpose, string> = { text: "默认文本", vision: "默认多模态", speech: "默认语音" };
-const capabilityLabels: Partial<Record<AiCapability, string>> = { text: "文本", vision: "多模态", structured_output: "结构化输出", speech: "语音" };
+const purposeLabels: Record<AiConnectionPurpose, string> = { text: "默认文本", vision: "默认多模态", speech: "默认语音", transcription: "默认转写" };
+const capabilityLabels: Partial<Record<AiCapability, string>> = { text: "文本", vision: "多模态", structured_output: "结构化输出", speech: "语音", transcription: "录音转写" };
 const purposeTabs: Array<{ key: AiConnectionPurpose; label: string }> = [
   { key: "text", label: "文本模型" },
   { key: "vision", label: "多模态" },
   { key: "speech", label: "语音合成" },
+  { key: "transcription", label: "录音转写" },
 ];
 const manualModelOption = "__manual__";
 
@@ -81,7 +83,7 @@ function modelCapabilityText(model?: AiModelCatalogEntry): string {
 }
 
 // 配置多厂商连接、能力默认值和连接测试；厂商协议细节只存在于服务端适配器。
-export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords, onOpenPlugins }: { onChanged?: () => void; onClearLocalRecords?: () => void; onOpenPlugins?: () => void }) {
+export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: { onChanged?: () => void; onClearLocalRecords?: () => void }) {
   const [snapshot, setSnapshot] = useState<AiConnectionSnapshot>({ profiles: [], defaults: { id: "default", updatedAt: "" } });
   const [activePurpose, setActivePurpose] = useState<AiConnectionPurpose>("text");
   const [form, setForm] = useState<ConnectionForm>(() => createForm());
@@ -199,7 +201,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords, onO
   }
 
   async function testConnection(profile: ApiConnectionProfile) {
-    const requestedPurpose = activePurpose !== "speech" && profile.capabilities.includes(activePurpose)
+    const requestedPurpose = activePurpose !== "speech" && activePurpose !== "transcription" && profile.capabilities.includes(activePurpose)
       ? activePurpose
       : profile.capabilities.includes("text")
         ? "text"
@@ -207,7 +209,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords, onO
           ? "vision"
           : undefined;
     if (!requestedPurpose) {
-      setFeedback({ tone: "neutral", text: "语音连接请在个性化页面通过试听验证" });
+      setFeedback({ tone: "neutral", text: activePurpose === "transcription" ? "转写连接请在对话输入框录音后验证" : "语音连接请在个性化页面通过试听验证" });
       return;
     }
     const purpose = requestedPurpose as GenerateConnectionPurpose;
@@ -258,14 +260,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords, onO
     <section>
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">AI 连接</h1>
-        <p className="mt-2 text-sm text-muted">管理文本、多模态与语音服务。API Key 使用 Web Crypto 加密，仅在请求前解密。</p>
-        {onOpenPlugins ? (
-          <p className="mt-2 text-sm text-muted">
-            额度、Obsidian Vault 和后续厂商适配已集中到
-            <button className="ml-1 font-semibold text-blue hover:underline" type="button" onClick={onOpenPlugins}>插件</button>
-            。
-          </p>
-        ) : null}
+        <p className="mt-2 text-sm text-muted">管理文本、多模态、朗读与录音转写服务。API Key 使用 Web Crypto 加密，仅在请求前解密。</p>
       </header>
 
       <div className="mt-7">
@@ -417,6 +412,10 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords, onO
         </section>
       </div>
 
+      <details className="mt-9 border-t border-line pt-5">
+        <summary className="cursor-pointer text-sm font-semibold">AI 额度与用量</summary>
+        <div className="mt-4"><AiQuotaSettingsPanel /></div>
+      </details>
       {onClearLocalRecords ? <div className="mt-9 border-t border-line pt-5"><Button type="button" variant="danger" onClick={onClearLocalRecords}>清空错题和导入记录</Button></div> : null}
     </section>
   );

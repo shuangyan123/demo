@@ -63,7 +63,7 @@ test("知识演进已安排任务可通过 mock JSON 生成待确认提案", asy
     await page.getByRole("button", { name: /本地部署 \/ 自定义连接/ }).click();
     await page.getByLabel("连接名称").fill("E2E 知识演进 Mock");
     await page.getByLabel("Base URL").fill(provider.baseUrl);
-    await page.getByLabel("模型").fill("mock-json-model");
+    await page.getByRole("textbox", { name: "手动模型 ID" }).fill("mock-json-model");
     await page.getByRole("button", { name: "保存" }).click();
     await expect(page.getByRole("status")).toContainText("配置已保存");
     await page.getByLabel("默认文本").selectOption({ label: "E2E 知识演进 Mock" });
@@ -118,7 +118,8 @@ test("知识演进已安排任务可通过 mock JSON 生成待确认提案", asy
     expect(runPayload.sources?.map((source) => source.type)).toEqual(["mistake"]);
     expect(runPayload.candidates ?? []).toHaveLength(0);
 
-    await page.getByRole("button", { name: "知识库" }).first().click();
+    await page.goto("/");
+    await page.locator("section").filter({ has: page.getByRole("heading", { name: "配置健康" }) }).first().getByRole("button", { name: "连接 Obsidian" }).click();
     await expect(page.getByRole("heading", { name: "知识演进提案" })).toBeVisible();
     await expect(page.getByText(proposalTitle)).toBeVisible();
     await expect(page.getByText("错题解析暴露出增长率判断步骤混淆。")).toBeVisible();

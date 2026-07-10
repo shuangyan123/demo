@@ -1,4 +1,4 @@
-import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent, AiSpeechRequest, ChatMessage, ChatMessageContent } from "../../services/api-client";
+import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent, AiSpeechRequest, AiTranscriptionRequest, AiTranscriptionResult, ChatMessage, ChatMessageContent } from "../../services/api-client";
 import { getProviderContract } from "../../services/provider-contracts.ts";
 
 type ProviderHttpRequest = {
@@ -143,6 +143,35 @@ export function buildGenerateProviderRequest(input: AiGenerateRequest): Provider
   if (format === "google_generate_content") return buildGoogleRequest(input);
   if (format === "anthropic_messages") return buildAnthropicRequest(input);
   return buildChatCompletionsRequest(input);
+}
+
+/** 构造 Gemini 音频理解请求；转写文本由服务端统一提取，厂商原始响应不外泄。 */
+export function buildTranscriptionProviderRequest(input: AiTranscriptionRequest): ProviderHttpRequest {
+  if (input.provider !== "google") throw new Error("当前仅支持 Google Gemini 录音转写");
+  return {
+    url: `${normalizeBaseUrl(input.baseUrl)}/models/${encodeURIComponent(input.model)}:generateContent`,
+    headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json" },
+    body: {
+      contents: [{
+        role: "user",
+        parts: [
+          { text: "请逐字转写这段中文语音。只返回转写文本，不要解释、标题、时间戳或 Markdown。" },
+          { inlineData: { mimeType: input.mimeType, data: input.audioBase64 } },
+        ],
+      }],
+      generationConfig: { temperature: 0, maxOutputTokens: 1024 },
+    },
+  };
+}
+
+/** 解析 Gemini 文字 parts，保证转写 API 只返回脱离厂商结构的短文本。 */
+export function parseTranscriptionProviderResponse(payload: unknown, headers: Headers): AiTranscriptionResult {
+  const root = asRecord(payload);
+  const candidate = asRecord(Array.isArray(root.candidates) ? root.candidates[0] : undefined);
+  const parts = asRecord(candidate.content).parts;
+  const text = (Array.isArray(parts) ? parts : []).map((part) => asRecord(part).text).filter((value): value is string => typeof value === "string").join("").trim();
+  if (!text) throw new Error("Gemini 未返回转写文本");
+  return { text, requestId: headers.get("x-request-id") ?? undefined };
 }
 
 function usageResult(inputTokens: unknown, outputTokens: unknown, totalTokens: unknown) {

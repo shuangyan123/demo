@@ -67,8 +67,8 @@ export type ApiProvider =
   | "tencent"
   | "custom";
 export type ApiFormat = "responses" | "chat_completions" | "google_generate_content" | "anthropic_messages" | "azure_speech" | "qwen_multimodal";
-export type AiCapability = "text" | "vision" | "structured_output" | "speech" | "streaming";
-export type AiConnectionPurpose = "text" | "vision" | "speech";
+export type AiCapability = "text" | "vision" | "structured_output" | "speech" | "transcription" | "streaming";
+export type AiConnectionPurpose = "text" | "vision" | "speech" | "transcription";
 export type PersonaModule = "tutoring" | "interview" | "knowledge_internalization";
 export type PersonaStrictness = "gentle" | "balanced" | "strict";
 export type PersonaVerbosity = "concise" | "balanced" | "detailed";
@@ -636,6 +636,7 @@ export type AiConnectionDefaults = {
   textConnectionId?: string;
   visionConnectionId?: string;
   speechConnectionId?: string;
+  transcriptionConnectionId?: string;
   updatedAt: string;
 };
 
@@ -649,7 +650,7 @@ export type AiUsageRecord = {
   provider: ApiProvider;
   connectionId?: string;
   model?: string;
-  purpose: "text" | "vision" | "speech" | "quota";
+  purpose: "text" | "vision" | "speech" | "transcription" | "quota";
   module: string;
   requestId?: string;
   inputTokens?: number;
@@ -978,13 +979,26 @@ export type AiProject = {
   updatedAt: string;
 };
 
+/** 对话文件夹即分类；允许嵌套，但不持久化任何会话正文。 */
+export type AiConversationFolder = {
+  id: string;
+  projectId: string;
+  parentId?: string;
+  label: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AiConversationAttachment = {
   id: string;
   conversationId: string;
   messageId?: string;
-  kind: "image" | "file" | "vault" | "context";
+  kind: "image" | "file" | "audio" | "vault" | "context";
   label: string;
   summary: string;
+  mimeType?: string;
+  sizeBytes?: number;
   createdAt: string;
 };
 
@@ -997,6 +1011,8 @@ export type AiConversation = {
   status: AiConversationStatus;
   sourceType: AiConversationSourceType;
   sourceId?: string;
+  folderId?: string;
+  selectedConnectionId?: string;
   summary?: string;
   lastMessagePreview?: string;
   messageCount: number;

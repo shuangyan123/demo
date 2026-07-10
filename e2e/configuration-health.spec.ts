@@ -35,7 +35,7 @@ test("配置健康面板展示新库缺项并可导航到补齐入口", async ({
 
   await page.goto("/");
   await page.locator("section").filter({ has: page.getByRole("heading", { name: "配置健康" }) }).first().getByRole("button", { name: "导入资料", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "插件" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "粉笔导入" })).toBeVisible();
   await expect(page.getByRole("button", { name: "生成资料草稿" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
 

@@ -17,7 +17,7 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await expect(page).toHaveTitle("错题复盘");
   await expect(page.getByRole("heading", { name: "配置健康" })).toBeVisible();
   await expect(page.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "知识库", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "连接 Obsidian" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
   await expectNoDocumentHorizontalOverflow(page);
 
@@ -32,7 +32,8 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await expect(page.getByLabel("名称")).toHaveValue("移动视口回归");
   await expectNoDocumentHorizontalOverflow(page);
 
-  await page.getByRole("button", { name: "知识库", exact: true }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: "连接 Obsidian" }).click();
   await expect(page.getByText("Obsidian 知识图谱")).toBeVisible();
   await expect(page.getByRole("button", { name: "连接 Vault 文件夹" })).toBeVisible();
   await expectNoDocumentHorizontalOverflow(page);
@@ -43,7 +44,7 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await page.getByRole("button", { name: /本地部署 \/ 自定义连接/ }).click();
   await page.getByLabel("连接名称").fill("E2E 移动本地连接");
   await page.getByLabel("Base URL").fill("http://127.0.0.1:9999/v1");
-  await page.getByLabel("模型").fill("mobile-e2e-model");
+  await page.getByRole("textbox", { name: "手动模型 ID" }).fill("mobile-e2e-model");
   await expect(page.getByLabel("连接名称")).toHaveValue("E2E 移动本地连接");
   await page.getByRole("button", { name: "诊断" }).click();
   await expect(page.getByRole("heading", { name: "诊断", exact: true })).toBeVisible();

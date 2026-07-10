@@ -2,18 +2,17 @@
 
 import type { ReactNode } from "react";
 import { toISODate } from "../../lib/review-utils";
-import type { AiConversation, Board, ViewKey } from "../../types/review";
+import type { AiConversation, AiConversationFolder, Board, ViewKey } from "../../types/review";
 import type { BoardStat } from "../../lib/review-selectors";
 import { Button } from "../shared/ui-primitives";
 import { AiActivityPanel } from "../shared/ai-activity-panel";
 import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
 import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../study/study-registry";
+import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
 
 type ReviewNavIconName =
-  | "newChat"
   | "search"
   | "scheduled"
-  | "plugins"
   | "dashboard"
   | "library"
   | "review"
@@ -33,6 +32,7 @@ type ReviewWorkspaceShellProps = {
   boardStats: BoardStat[];
   children: ReactNode;
   conversations: AiConversation[];
+  folders: AiConversationFolder[];
   activeConversationId?: string | null;
   notice: string;
   selectedBoard: Board | null;
@@ -43,16 +43,16 @@ type ReviewWorkspaceShellProps = {
   onOpenConversation: (id: string) => void;
   onOpenEntry: () => void;
   onOpenImport: () => void;
-  onOpenPlugins: () => void;
   onOpenSearch: () => void;
   onOpenSettings: () => void;
-  onStartNewConversation: () => void;
+  onNotice: (message: string) => void;
+  onRefreshConversations: () => Promise<void>;
   onSelectView: (view: ViewKey) => void;
   onToggleSidebar: () => void;
 };
 
 const viewTitles: Record<ViewKey, string> = {
-  conversation: "新对话",
+  conversation: "对话",
   dashboard: "总览",
   library: "错题库",
   review: "开始复盘",
@@ -73,6 +73,7 @@ export function ReviewWorkspaceShell({
   boardStats,
   children,
   conversations,
+  folders,
   activeConversationId,
   notice,
   selectedBoard,
@@ -83,10 +84,10 @@ export function ReviewWorkspaceShell({
   onOpenConversation,
   onOpenEntry,
   onOpenImport,
-  onOpenPlugins,
   onOpenSearch,
   onOpenSettings,
-  onStartNewConversation,
+  onNotice,
+  onRefreshConversations,
   onSelectView,
   onToggleSidebar,
 }: ReviewWorkspaceShellProps) {
@@ -100,7 +101,6 @@ export function ReviewWorkspaceShell({
     badge?: number;
     onClick: () => void;
   }> = [
-    { id: "new-chat", label: "新对话", icon: "newChat", active: view === "conversation", onClick: onStartNewConversation },
     { id: "search", label: "搜索", icon: "search", onClick: onOpenSearch },
     {
       id: "scheduled",
@@ -110,7 +110,6 @@ export function ReviewWorkspaceShell({
       badge: automationUnreadCount || undefined,
       onClick: () => onSelectView(scheduledWorkspaceDefinition.viewKey),
     },
-    { id: "plugins", label: "插件", icon: "plugins", onClick: onOpenPlugins },
   ];
 
   return (
@@ -178,7 +177,7 @@ export function ReviewWorkspaceShell({
                 <ReviewNavIcon name="project" />
                 <span className="truncate">{civilServiceDomain.label}</span>
               </button>
-              <details className="mt-1 group">
+              <details className="mt-1 group" open>
                 <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-xs font-medium text-muted hover:bg-chrome-hover hover:text-foreground [&::-webkit-details-marker]:hidden">
                   <span>模块</span>
                   <span className="transition group-open:rotate-90">›</span>
@@ -223,25 +222,15 @@ export function ReviewWorkspaceShell({
               </details>
             </div>
 
-            <p className="mb-2 mt-6 px-3 text-xs font-medium text-muted">对话</p>
-            <div className="grid gap-1">
-              {conversations.slice(0, 12).map((conversation) => (
-                <button
-                  key={conversation.id}
-                  className={`grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 rounded-lg px-3 text-left text-sm ${
-                    activeConversationId === conversation.id ? "bg-chrome-selected" : "hover:bg-chrome-hover"
-                  }`}
-                  type="button"
-                  onClick={() => onOpenConversation(conversation.id)}
-                >
-                  <span className="truncate">{conversation.title}</span>
-                  <span className="text-xs text-muted">{conversation.messageCount}</span>
-                </button>
-              ))}
-              {!conversations.length ? (
-                <p className="px-3 py-2 text-sm text-muted">发送第一条消息后会自动保存。</p>
-              ) : null}
-            </div>
+            <ConversationFolderTree
+              activeConversationId={activeConversationId}
+              conversations={conversations}
+              folders={folders}
+              projectId={civilServiceDomain.id}
+              onConversationSelected={onOpenConversation}
+              onNotice={onNotice}
+              onRefresh={onRefreshConversations}
+            />
           </section>
 
           <button
@@ -260,7 +249,7 @@ export function ReviewWorkspaceShell({
           actions={
             <>
               <Button variant="outline" onClick={onOpenImport}>
-                粉笔导入插件
+                导入资料
               </Button>
               <Button variant="primary" onClick={onOpenEntry}>
                 手动录入
@@ -289,14 +278,6 @@ function ReviewNavIcon({ name }: { name: ReviewNavIconName }) {
     viewBox: "0 0 24 24",
   };
 
-  if (name === "newChat") {
-    return (
-      <svg aria-hidden="true" {...common}>
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-    );
-  }
-
   if (name === "search") {
     return (
       <svg aria-hidden="true" {...common}>
@@ -311,16 +292,6 @@ function ReviewNavIcon({ name }: { name: ReviewNavIconName }) {
       <svg aria-hidden="true" {...common}>
         <circle cx="12" cy="12" r="8" />
         <path d="M12 7.5V12l3 2" />
-      </svg>
-    );
-  }
-
-  if (name === "plugins") {
-    return (
-      <svg aria-hidden="true" {...common}>
-        <path d="M8 4.5v4M16 4.5v4" />
-        <path d="M6.5 8.5h11v3.2a5.5 5.5 0 0 1-11 0Z" />
-        <path d="M12 17.2v2.3" />
       </svg>
     );
   }

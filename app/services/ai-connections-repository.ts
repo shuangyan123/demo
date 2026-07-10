@@ -38,7 +38,7 @@ function normalizeDefaults(
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const defaults = { ...input };
   let changed = false;
-  for (const purpose of ["text", "vision", "speech"] as const) {
+  for (const purpose of ["text", "vision", "speech", "transcription"] as const) {
     const key = `${purpose}ConnectionId` as const;
     const connectionId = defaults[key];
     if (connectionId && !profilesById.get(connectionId)?.capabilities.includes(purpose)) {
@@ -173,6 +173,7 @@ export const aiConnectionsRepository = {
       textConnectionId: defaults.textConnectionId === id ? undefined : defaults.textConnectionId,
       visionConnectionId: defaults.visionConnectionId === id ? undefined : defaults.visionConnectionId,
       speechConnectionId: defaults.speechConnectionId === id ? undefined : defaults.speechConnectionId,
+      transcriptionConnectionId: defaults.transcriptionConnectionId === id ? undefined : defaults.transcriptionConnectionId,
       updatedAt: toISODate(today),
     };
     const clearsLegacyText = defaults.textConnectionId === id;

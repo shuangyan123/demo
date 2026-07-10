@@ -23,7 +23,7 @@ test("已安排使用默认文本连接时可完成试运行和成功运行详�
 
     await page.getByLabel("连接名称").fill("E2E Mock 文本连接");
     await page.getByLabel("Base URL").fill(provider.baseUrl);
-    await page.getByLabel("模型").fill("mock-text-model");
+    await page.getByRole("textbox", { name: "手动模型 ID" }).fill("mock-text-model");
     await page.getByRole("button", { name: "保存" }).click();
     await expect(page.getByRole("status")).toContainText("配置已保存");
     await page.getByLabel("默认文本").selectOption({ label: "E2E Mock 文本连接" });

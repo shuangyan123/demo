@@ -5,7 +5,7 @@ import { buildCommandSearchResults } from "./command-search.ts";
 
 const now = "2026-07-09T08:00:00.000Z";
 
-test("command search groups conversations, study modules, plugins and settings", () => {
+test("command search groups conversations, study modules and settings without a plugin directory", () => {
   const mistake: Mistake = {
     id: "mistake-1",
     board: "政治理论",
@@ -52,5 +52,7 @@ test("command search groups conversations, study modules, plugins and settings",
   assert.equal(results.some((result) => result.group === "mistake"), false);
   const all = buildCommandSearchResults({ projects: [], conversations: [], mistakes: [], knowledgeEntries: [], automationSnapshot }, "MCP");
   assert.equal(all.some((result) => result.id === "settings:mcp"), true);
-  assert.equal(all.some((result) => result.group === "plugin" && result.label === "MCP 工具"), false);
+  assert.equal(all.some((result) => result.group === "plugin"), false);
+  assert.equal(all.some((result) => result.id === "settings:plugins"), false);
+  assert.equal(all.some((result) => result.id === "new-chat"), false);
 });

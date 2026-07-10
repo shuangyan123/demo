@@ -6,7 +6,6 @@ import type {
   KnowledgeEntry,
   Mistake,
 } from "../types/review.ts";
-import { settingsPluginDefinitions } from "../features/settings/plugins/settings-plugin-registry.ts";
 import { scheduledWorkspaceDefinition, studyDomainDefinitions } from "../features/study/study-registry.ts";
 
 export type BuildCommandSearchInput = {
@@ -30,15 +29,6 @@ export function buildCommandSearchResults(input: BuildCommandSearchInput, query 
   const keyword = normalize(query);
   const studyDomain = studyDomainDefinitions[0];
   const results: CommandSearchResult[] = [
-    {
-      id: "new-chat",
-      group: "chat",
-      label: "新对话",
-      description: "打开空白公考 AI 对话",
-      shortcut: "Ctrl+N",
-      view: "conversation",
-      projectId: "civil-service",
-    },
     ...input.conversations
       .filter((conversation) => conversation.status === "active")
       .slice(0, 30)
@@ -92,18 +82,8 @@ export function buildCommandSearchResults(input: BuildCommandSearchInput, query 
       view: scheduledWorkspaceDefinition.viewKey,
       projectId: studyDomain.id,
     })),
-    ...settingsPluginDefinitions.map((plugin): CommandSearchResult => ({
-      id: `plugin:${plugin.id}`,
-      group: "plugin",
-      label: plugin.label,
-      description: plugin.shortDescription,
-      view: "settings",
-      pluginId: plugin.id,
-      settingsSection: "plugins",
-    })),
     { id: "settings:ai", group: "settings", label: "AI 连接", description: "配置模型厂商、能力和默认连接", view: "settings", settingsSection: "configuration" },
     { id: "settings:mcp", group: "settings", label: "MCP", description: "配置 MCP server 并测试 tools/resources/prompts", view: "settings", settingsSection: "mcp" },
-    { id: "settings:plugins", group: "settings", label: "插件", description: "打开插件目录", view: "settings", settingsSection: "plugins" },
   ];
   return results.filter((result) => matches(result, keyword)).slice(0, 60);
 }

@@ -23,20 +23,21 @@ function dueDefinition(overrides: Partial<AutomationDefinition> = {}): Automatio
   };
 }
 
-test("v13 数据库升级到 v14 后保留旧数据并创建会话表", async () => {
+test("v14 数据库升级到 v15 后保留旧数据并创建对话分类表", async () => {
   await reviewDb.delete();
   const legacy = new Dexie("review_workspace");
-  legacy.version(13).stores({ mistakes: "&id, updatedAt", automationDefinitions: "&id, enabled, nextRunAt, updatedAt", automationRuns: "&id, automationId, status, unread, scheduledAt, createdAt, [automationId+scheduledAt]" });
+  legacy.version(14).stores({ mistakes: "&id, updatedAt", automationDefinitions: "&id, enabled, nextRunAt, updatedAt", automationRuns: "&id, automationId, status, unread, scheduledAt, createdAt, [automationId+scheduledAt]", aiConversations: "&id, projectId, kind, status, updatedAt, createdAt" });
   await legacy.open();
   await legacy.table("mistakes").put({ id: "legacy-mistake", updatedAt: baseTime.toISOString() });
   legacy.close();
 
   await reviewDb.open();
-  assert.equal(reviewDb.verno, 14);
+  assert.equal(reviewDb.verno, 15);
   assert.equal((await reviewDb.mistakes.get("legacy-mistake"))?.id, "legacy-mistake");
   assert.equal(reviewDb.tables.some((table) => table.name === "automationDefinitions"), true);
   assert.equal(reviewDb.tables.some((table) => table.name === "automationRuns"), true);
   assert.equal(reviewDb.tables.some((table) => table.name === "aiConversations"), true);
+  assert.equal(reviewDb.tables.some((table) => table.name === "aiConversationFolders"), true);
   assert.equal(reviewDb.tables.some((table) => table.name === "aiConversationAttachments"), true);
   assert.equal(reviewDb.tables.some((table) => table.name === "aiConversationMessages"), true);
   await reviewDb.delete();

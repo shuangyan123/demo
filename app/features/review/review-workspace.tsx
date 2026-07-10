@@ -167,7 +167,7 @@ export function ReviewWorkspace() {
   const [knowledgeQueueFilter, setKnowledgeQueueFilter] = useState<KnowledgeQueueFilter>("due");
   const [knowledgeDrafts, setKnowledgeDrafts] = useState<KnowledgeImportDraft[]>([]);
   const [associationBusy, setAssociationBusy] = useState(false);
-  const [conversationSnapshot, setConversationSnapshot] = useState<ConversationSnapshot>({ projects: [], conversations: [], messages: [], runSteps: [] });
+  const [conversationSnapshot, setConversationSnapshot] = useState<ConversationSnapshot>({ projects: [], folders: [], conversations: [], attachments: [], messages: [], runSteps: [] });
   const [activeConversationId, setActiveConversationId] = useState<string | null | undefined>();
   const [commandSearchOpen, setCommandSearchOpen] = useState(false);
   const [commandSearchQuery, setCommandSearchQuery] = useState("");
@@ -218,8 +218,8 @@ export function ReviewWorkspace() {
     switchView("conversation");
   }
 
-  async function createConversationForFirstMessage(): Promise<AiConversation> {
-    const conversation = await conversationRepository.createConversation({ today, title: "新对话", kind: "general" });
+  async function createConversationForFirstMessage(input?: { selectedConnectionId?: string }): Promise<AiConversation> {
+    const conversation = await conversationRepository.createConversation({ today, kind: "general", selectedConnectionId: input?.selectedConnectionId ?? aiConnections.textConnection?.id });
     await refreshConversationSnapshot();
     setActiveConversationId(conversation.id);
     return conversation;
@@ -316,9 +316,7 @@ export function ReviewWorkspace() {
     openConfigurationHealthAction,
     openDiagnosticsTarget,
     openMcpSettings,
-    openPluginSettings,
     resetSettingsSection,
-    settingsInitialPluginId,
     settingsInitialSection,
   } = useReviewWorkspaceRecoveryNavigation({ setNotice, switchView });
   const { configurationHealth, diagnosticsInput, obsidianSnapshot, refreshWorkspaceAndObsidianHealth } = useReviewWorkspaceHealth({
@@ -346,16 +344,8 @@ export function ReviewWorkspace() {
 
   async function selectCommandSearchResult(result: (typeof commandSearchResults)[number]) {
     setCommandSearchOpen(false);
-    if (result.id === "new-chat") {
-      openBlankConversation();
-      return;
-    }
     if (result.conversationId) {
       openConversation(result.conversationId);
-      return;
-    }
-    if (result.pluginId) {
-      openPluginSettings("插件已打开", result.pluginId as Parameters<typeof openPluginSettings>[1]);
       return;
     }
     if (result.settingsSection === "configuration") {
@@ -364,10 +354,6 @@ export function ReviewWorkspace() {
     }
     if (result.settingsSection === "mcp") {
       openMcpSettings("已打开 MCP 设置");
-      return;
-    }
-    if (result.settingsSection === "plugins") {
-      openPluginSettings("已打开插件目录");
       return;
     }
     if (result.view) switchView(result.view);
@@ -701,7 +687,8 @@ export function ReviewWorkspace() {
     const starterDrafts = knowledgeRepository.createStarterDrafts(category);
     setKnowledgeDrafts((current) => [...starterDrafts, ...current]);
     setKnowledgeFilters({ ...initialKnowledgeFilters, category: category ?? "全部" });
-    openPluginSettings(`已生成 ${starterDrafts.length} 条知识库模板草稿，请在粉笔导入插件中编辑确认后入库`, "fenbi-import");
+    switchView("import");
+    setNotice(`已生成 ${starterDrafts.length} 条知识库模板草稿，请在导入资料中编辑确认后入库`);
   }
 
   // 把当前错题沉淀为知识库草稿，用户确认前只停留在导入页预览区。
@@ -709,7 +696,8 @@ export function ReviewWorkspace() {
     const draft = knowledgeRepository.createDraftFromMistake(mistake);
     setKnowledgeDrafts((current) => [draft, ...current]);
     setKnowledgeFilters({ ...initialKnowledgeFilters, category: draft.category });
-    openPluginSettings("已从错题生成知识资料草稿，请在粉笔导入插件中编辑确认后入库", "fenbi-import");
+    switchView("import");
+    setNotice("已从错题生成知识资料草稿，请在导入资料中编辑确认后入库");
   }
 
   // 记录一次复盘结果，并刷新列表、计数和队列。
@@ -861,17 +849,8 @@ export function ReviewWorkspace() {
       <SettingsWorkspace
         appearanceSettings={appearanceSettings}
         diagnosticsInput={diagnosticsInput}
-        importJobs={importJobs}
-        knowledgeEntries={knowledgeEntries}
-        knowledgeDrafts={knowledgeDrafts}
-        initialPluginId={settingsInitialPluginId}
         initialSection={settingsInitialSection}
-        mistakes={mistakes}
-        personalizationSettings={personalization.settings}
         sidebarCollapsed={sidebarCollapsed}
-        textConnection={aiConnections.textConnection}
-        visionConnection={aiConnections.visionConnection}
-        today={today}
         onAppearanceChange={updateAppearanceSettings}
         onBack={() => {
           resetSettingsSection();
@@ -882,19 +861,9 @@ export function ReviewWorkspace() {
           void aiConnections.refresh();
           void refreshData();
         }}
-        onConfirmKnowledgeDrafts={confirmKnowledgeDrafts}
-        onDeleteKnowledgeDraft={deleteKnowledgeDraft}
-        onImportKnowledgeText={importKnowledgeText}
-        onObsidianChanged={async () => {
-          await refreshData();
-          await refreshWorkspaceAndObsidianHealth();
-        }}
         onOpenDiagnosticsTarget={openDiagnosticsTarget}
         onPersonalizationChange={personalization.setSettings}
-        onRefreshWorkspace={refreshData}
         onToggleSidebar={toggleSidebar}
-        onUpdateKnowledgeDraft={updateKnowledgeDraft}
-        onUpdateKnowledgeDraftList={updateKnowledgeDraftList}
       />
     );
   }
@@ -905,6 +874,7 @@ export function ReviewWorkspace() {
       boardStats={boardStats}
       activeConversationId={activeConversationId}
       conversations={conversationSnapshot.conversations.filter((conversation) => conversation.status === "active")}
+      folders={conversationSnapshot.folders}
       notice={notice}
       selectedBoard={selectedBoard}
       sidebarCollapsed={sidebarCollapsed}
@@ -913,23 +883,28 @@ export function ReviewWorkspace() {
       onOpenBoard={openBoard}
       onOpenConversation={openConversation}
       onOpenEntry={() => switchView("entry")}
-      onOpenImport={() => openPluginSettings("粉笔导入已移到插件中", "fenbi-import")}
-      onOpenPlugins={() => openPluginSettings()}
+      onOpenImport={() => switchView("import")}
       onOpenSearch={() => setCommandSearchOpen(true)}
       onOpenSettings={() => switchView("settings")}
-      onStartNewConversation={openBlankConversation}
+      onNotice={setNotice}
+      onRefreshConversations={refreshConversationSnapshot}
       onSelectView={switchView}
       onToggleSidebar={toggleSidebar}
     >
         {view === "conversation" && (
           <ConversationWorkspace
             activeConversationId={activeConversationId}
+            connections={aiConnections.snapshot.profiles}
+            knowledgeEntries={knowledgeEntries}
+            scheduledCount={automation.snapshot.definitions.filter((definition) => definition.enabled).length}
             snapshot={conversationSnapshot}
             textConnection={aiConnections.textConnection}
+            transcriptionConnection={aiConnections.snapshot.profiles.find((connection) => connection.id === aiConnections.snapshot.defaults.transcriptionConnectionId)}
             onConversationSelected={setActiveConversationId}
             onCreateConversation={createConversationForFirstMessage}
             onNotice={setNotice}
-            onOpenConnections={() => openApiSettings("请先配置默认文本连接，再继续使用新对话")}
+            onOpenConnections={() => openApiSettings("请先配置默认文本连接，再继续使用对话")}
+            onOpenKnowledge={() => switchView("knowledge")}
             onRefresh={refreshConversationSnapshot}
           />
         )}
@@ -952,7 +927,7 @@ export function ReviewWorkspace() {
             pendingProposalCount={obsidianSnapshot.pendingProposalCount}
             onOpenAutomation={() => switchView("automation")}
             onOpenBoard={openBoard}
-            onOpenImport={() => openPluginSettings("粉笔导入已移到插件中", "fenbi-import")}
+            onOpenImport={() => switchView("import")}
             onOpenKnowledge={() => switchView("knowledge")}
             onOpenInterview={() => switchView("interview")}
             onOpenTutoring={() => switchView("tutoring")}
@@ -1048,7 +1023,7 @@ export function ReviewWorkspace() {
             center={automation}
             onNotice={setNotice}
             onOpenEntry={() => switchView("entry")}
-            onOpenImport={() => openPluginSettings("粉笔导入已移到插件中", "fenbi-import")}
+            onOpenImport={() => switchView("import")}
             onOpenKnowledge={() => switchView("knowledge")}
             onOpenSettings={() => openApiSettings("请先配置默认文本连接，再运行自动化")}
           />

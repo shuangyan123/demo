@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ApiConnectionProfile } from "../types/review.ts";
-import { generateWithConnection, synthesizeWithConnection } from "./ai-connection-client.ts";
+import { generateWithConnection, synthesizeWithConnection, transcribeWithConnection } from "./ai-connection-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 
 const connection: ApiConnectionProfile = {
@@ -101,5 +101,16 @@ test("连接级客户端在解密前拒绝能力不匹配的生成与语音请�
   await assert.rejects(
     generateWithConnection(speechOnlyConnection, "text", { messages: [{ role: "user", content: "测试" }] }),
     /不支持文本能力/,
+  );
+});
+
+test("连接级转写请求要求 Google 与 transcription 能力", async () => {
+  await assert.rejects(
+    transcribeWithConnection({ ...connection, capabilities: ["text"] }, { audioBase64: "UklGRg==", mimeType: "audio/webm" }),
+    /未启用录音转写能力/,
+  );
+  await assert.rejects(
+    transcribeWithConnection({ ...connection, provider: "deepseek", capabilities: ["transcription"] }, { audioBase64: "UklGRg==", mimeType: "audio/webm" }),
+    /仅支持 Google Gemini/,
   );
 });

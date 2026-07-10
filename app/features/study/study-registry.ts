@@ -86,7 +86,7 @@ export const studyDomainDefinitions: StudyDomainDefinition[] = [
     dashboard: {
       headline: "把导入、错题、知识、训练、辅导、已安排和 Obsidian 输出连成一条日常学习链路。",
       flow: [
-        { id: "import", label: "导入资料", description: "粉笔文本、文件或截图先进入可确认草稿。", moduleId: "plugins" },
+        { id: "import", label: "导入资料", description: "粉笔文本、文件或截图先进入可确认草稿。", moduleId: "import" },
         { id: "mistake", label: "错题复盘", description: "到期错题按薄弱度进入今日队列。", moduleId: "review" },
         { id: "knowledge", label: "知识沉淀", description: "错题和资料沉淀为政治理论、常识判断和申论知识。", moduleId: "knowledge" },
         { id: "training", label: "知识训练", description: "知识条目按掌握度进入间隔训练。", moduleId: "knowledgeTraining" },
