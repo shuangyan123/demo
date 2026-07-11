@@ -49,23 +49,18 @@ test("公考默认折叠，新对话保持草稿且普通文本不显示 caret",
 
   const projectSummary = page.locator("summary").filter({ hasText: "公考" }).first();
   await expect(projectSummary).toBeVisible();
-  await expect(page.getByRole("button", { name: "错题库" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "学习数据" })).toBeHidden();
   await projectSummary.click();
   const moduleSummary = page.locator("summary").filter({ hasText: "模块" }).first();
-  const boardSummary = page.locator("summary").filter({ hasText: "板块筛选" }).first();
-  const boardDisclosure = boardSummary.locator("xpath=..");
   await expect(moduleSummary).toBeVisible();
-  await expect(boardSummary).toBeVisible();
-  await expect(page.getByRole("button", { name: "错题库" })).toBeHidden();
-  await expect(boardDisclosure).not.toHaveAttribute("open", "");
+  await expect(page.getByRole("button", { name: "学习数据" })).toBeHidden();
   await moduleSummary.click();
-  await expect(page.getByRole("button", { name: "错题库" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "错题库" })).toHaveCount(1);
-  await boardSummary.click();
-  await expect(boardDisclosure).toHaveAttribute("open", "");
+  await expect(page.getByRole("button", { name: "学习数据" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "学习数据" })).toHaveCount(1);
+  await expect(page.getByText("板块筛选")).toHaveCount(0);
 
   const before = await conversationCount(page);
-  await page.getByRole("button", { name: "新对话" }).click();
+  await page.getByRole("button", { name: "新对话", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "对话输入" })).toBeVisible();
   expect(await conversationCount(page)).toBe(before);
 

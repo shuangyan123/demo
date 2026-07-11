@@ -971,7 +971,7 @@ export type ScheduledWorkspaceState = {
 export type AiConversationKind = "general" | "tutoring" | "interview" | "knowledge" | "import";
 export type AiConversationStatus = "active" | "archived";
 export type AiConversationRole = "user" | "assistant" | "system" | "tool";
-export type AiConversationSourceType = "manual" | "tutoring" | "interview" | "import" | "knowledge";
+export type AiConversationSourceType = "manual" | "mistake" | "tutoring" | "interview" | "import" | "knowledge";
 
 export type AiProject = {
   id: string;

@@ -2,8 +2,7 @@
 
 import type { ReactNode } from "react";
 import { toISODate } from "../../lib/review-utils";
-import type { AiConversation, AiConversationFolder, Board, ViewKey } from "../../types/review";
-import type { BoardStat } from "../../lib/review-selectors";
+import type { AiConversation, AiConversationFolder, ViewKey } from "../../types/review";
 import { Button } from "../shared/ui-primitives";
 import { AiActivityPanel } from "../shared/ai-activity-panel";
 import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
@@ -31,17 +30,14 @@ type ReviewNavIconName =
 
 type ReviewWorkspaceShellProps = {
   automationUnreadCount: number;
-  boardStats: BoardStat[];
   children: ReactNode;
   conversations: AiConversation[];
   folders: AiConversationFolder[];
   activeConversationId?: string | null;
   notice: string;
-  selectedBoard: Board | null;
   sidebarCollapsed: boolean;
   today: Date;
   view: ViewKey;
-  onOpenBoard: (board: Board) => void;
   onOpenConversation: (id: string) => void;
   onOpenEntry: () => void;
   onOpenImport: () => void;
@@ -73,17 +69,14 @@ const viewTitles: Record<ViewKey, string> = {
 /** 渲染复盘应用的稳定壳层，业务模块只向这里传入导航状态和页面内容。 */
 export function ReviewWorkspaceShell({
   automationUnreadCount,
-  boardStats,
   children,
   conversations,
   folders,
   activeConversationId,
   notice,
-  selectedBoard,
   sidebarCollapsed,
   today,
   view,
-  onOpenBoard,
   onOpenConversation,
   onOpenEntry,
   onOpenImport,
@@ -180,26 +173,6 @@ export function ReviewWorkspaceShell({
                     >
                       <ReviewNavIcon name={module.icon as ReviewNavIconName} />
                       <span className="truncate">{module.label}</span>
-                    </button>
-                  ))}
-                  </div>
-                </details>
-                <details className="group/boards">
-                  <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover [&::-webkit-details-marker]:hidden">
-                    <span>板块筛选</span><span className="transition group-open/boards:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
-                  </summary>
-                  <div className="grid gap-1 pl-1">
-                  {boardStats.map((stat) => (
-                    <button
-                      key={stat.board}
-                      className={`grid min-h-8 w-full grid-cols-[1fr_auto] items-center gap-3 rounded-md px-2 text-left text-xs ${
-                        selectedBoard === stat.board ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"
-                      }`}
-                      type="button"
-                      onClick={() => onOpenBoard(stat.board)}
-                    >
-                      <span className="truncate">{stat.board}</span>
-                      <span>{stat.total}</span>
                     </button>
                   ))}
                   </div>

@@ -28,6 +28,7 @@ import { useReviewNotice } from "./use-review-notice";
 import { useReviewTimer } from "./use-review-timer";
 import { useReviewWorkspaceData } from "./use-review-workspace-data";
 import { useReviewConversationController } from "./use-review-conversation-controller";
+import { LearningDataExplorer } from "./learning-data-explorer";
 import { CommandSearchPalette } from "../conversation/command-search-palette";
 import { splitInput, textValue } from "../../lib/form-utils";
 import {
@@ -275,6 +276,7 @@ export function ReviewWorkspace() {
   const {
     activeConversationId,
     createForFirstMessage: createConversationForFirstMessage,
+    launchContext,
     openBlank: openBlankConversation,
     openConversation,
     refresh: refreshConversationSnapshot,
@@ -282,6 +284,7 @@ export function ReviewWorkspace() {
     searchOpen: commandSearchOpen,
     selectResult: selectCommandSearchResult,
     setActiveConversationId,
+    setLaunchContext,
     setSearchOpen: setCommandSearchOpen,
     setSearchQuery: setCommandSearchQuery,
     snapshot: conversationSnapshot,
@@ -799,16 +802,13 @@ export function ReviewWorkspace() {
   return (
     <ReviewWorkspaceShell
       automationUnreadCount={automation.snapshot.unreadCount}
-      boardStats={boardStats}
       activeConversationId={activeConversationId}
       conversations={conversationSnapshot.conversations.filter((conversation) => conversation.status === "active")}
       folders={conversationSnapshot.folders}
       notice={notice}
-      selectedBoard={selectedBoard}
       sidebarCollapsed={sidebarCollapsed}
       today={today}
       view={view}
-      onOpenBoard={openBoard}
       onOpenConversation={openConversation}
       onOpenEntry={() => switchView("entry")}
       onOpenImport={() => switchView("import")}
@@ -822,9 +822,11 @@ export function ReviewWorkspace() {
     >
         {view === "conversation" && (
           <ConversationWorkspace
+            key={activeConversationId ?? launchContext?.id ?? "blank-conversation"}
             activeConversationId={activeConversationId}
             connections={aiConnections.snapshot.profiles}
             knowledgeEntries={knowledgeEntries}
+            launchContext={launchContext}
             scheduledCount={automation.snapshot.definitions.filter((definition) => definition.enabled).length}
             snapshot={conversationSnapshot}
             textConnection={aiConnections.textConnection}
@@ -832,8 +834,10 @@ export function ReviewWorkspace() {
             onConversationSelected={setActiveConversationId}
             onCreateConversation={createConversationForFirstMessage}
             onNotice={setNotice}
+            onClearLaunchContext={() => setLaunchContext(null)}
             onOpenConnections={() => openApiSettings("请先配置默认文本连接，再继续使用对话")}
             onOpenKnowledge={() => switchView("knowledge")}
+            onOpenTutoringRecords={() => switchView("tutoring")}
             onRefresh={refreshConversationSnapshot}
           />
         )}
@@ -859,7 +863,7 @@ export function ReviewWorkspace() {
             onOpenImport={() => switchView("import")}
             onOpenKnowledge={() => switchView("knowledge")}
             onOpenInterview={() => switchView("interview")}
-            onOpenTutoring={() => switchView("tutoring")}
+            onOpenTutoring={() => openBlankConversation({ id: crypto.randomUUID(), moduleId: "conversation", moduleLabel: "对话辅导", kind: "tutoring", sourceType: "manual", sourceId: "new-tutoring", title: "AI 辅导", summary: "从公考总览进入对话辅导，可按需调用摄像头、屏幕共享、截图和知识库检索工具。", suggestedPrompt: "我想开始一轮 AI 辅导，请先询问我的学习目标和当前卡点。" })}
             onOpenKnowledgeCategory={openKnowledgeCategory}
             onOpenKnowledgeTraining={openKnowledgeTrainingEntry}
             onCreateKnowledgeStarterDrafts={createKnowledgeStarterDrafts}
@@ -875,7 +879,13 @@ export function ReviewWorkspace() {
           />
         )}
         {view === "library" && (
-          <LibraryView
+          <LearningDataExplorer
+            knowledgeEntries={knowledgeEntries}
+            mistakes={mistakes}
+            onOpenKnowledgeOperations={() => switchView("knowledge")}
+            onOpenKnowledgeTraining={openKnowledgeTrainingEntry}
+            onStartConversation={openBlankConversation}
+            managementContent={<LibraryView
             aiAssociationBusy={associationBusy}
             apiReady={Boolean(aiConnections.textConnection)}
             associationLinks={selectedMistakeAssociationSummary.links}
@@ -910,6 +920,7 @@ export function ReviewWorkspace() {
             onOpenSettings={() => openApiSettings("请先配置默认文本连接，再使用 AI 关联分析")}
             onRemoveAssociationLink={removeAssociationLink}
             onToggleAssociationSuggestion={toggleAssociationSuggestion}
+            />}
           />
         )}
         {view === "review" && (

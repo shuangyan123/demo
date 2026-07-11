@@ -10,6 +10,8 @@ import type { AiConversation, AiConversationAttachment, AiConversationMessage, A
 import { cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
 import { AppIcon } from "../shared/app-icon";
+import type { ConversationLaunchContext } from "./conversation-launch-context";
+import { useConversationVisionTools } from "./use-conversation-vision-tools";
 
 type DraftAttachment = {
   id: string;
@@ -22,6 +24,7 @@ type ConversationWorkspaceProps = {
   activeConversationId?: string | null;
   connections: ApiConnectionProfile[];
   knowledgeEntries: KnowledgeEntry[];
+  launchContext?: ConversationLaunchContext | null;
   scheduledCount: number;
   snapshot: ConversationSnapshot;
   textConnection?: ApiConnectionProfile;
@@ -30,8 +33,10 @@ type ConversationWorkspaceProps = {
   onConversationSelected: (id: string) => void;
   onOpenConnections: () => void;
   onOpenKnowledge: () => void;
+  onOpenTutoringRecords: () => void;
   onRefresh: () => Promise<void>;
   onNotice: (message: string) => void;
+  onClearLaunchContext: () => void;
 };
 
 function formatTime(value: string): string {
@@ -89,6 +94,7 @@ export function ConversationWorkspace({
   activeConversationId,
   connections,
   knowledgeEntries,
+  launchContext,
   scheduledCount,
   snapshot,
   textConnection,
@@ -97,10 +103,12 @@ export function ConversationWorkspace({
   onConversationSelected,
   onOpenConnections,
   onOpenKnowledge,
+  onOpenTutoringRecords,
   onRefresh,
   onNotice,
+  onClearLaunchContext,
 }: ConversationWorkspaceProps) {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(() => launchContext?.suggestedPrompt ?? "");
   const [assistantDraft, setAssistantDraft] = useState("");
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -113,6 +121,7 @@ export function ConversationWorkspace({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
+  const { capture: captureVision, mode: visionMode, start: startVision, stop: stopVision, videoRef: visionVideoRef } = useConversationVisionTools(onNotice);
   const conversations = useMemo(() => snapshot.conversations.filter((conversation) => conversation.status === "active"), [snapshot.conversations]);
   const activeConversation = activeConversationId === null ? null : conversations.find((conversation) => conversation.id === activeConversationId) ?? conversations[0] ?? null;
   const requiresVision = attachments.some((attachment) => attachment.kind === "image");
@@ -181,12 +190,20 @@ export function ConversationWorkspace({
   }
 
   async function buildUserContent(content: string): Promise<ChatMessageContent> {
-    const parts: Exclude<ChatMessageContent, string> = [{ type: "text", text: content }];
+    const contextualContent = launchContext ? `【${launchContext.moduleLabel}上下文】\n${launchContext.summary}\n\n${content}` : content;
+    const parts: Exclude<ChatMessageContent, string> = [{ type: "text", text: contextualContent }];
     for (const attachment of attachments) {
       if (attachment.kind === "image") parts.push({ type: "image_url", image_url: { url: await readAsDataUrl(attachment.file) } });
-      if (attachment.kind === "file" && attachment.summary) parts[0] = { type: "text", text: `${content}\n\n附件摘要：${attachment.file.name}\n${attachment.summary}` };
+      if (attachment.kind === "file" && attachment.summary) parts[0] = { type: "text", text: `${contextualContent}\n\n附件摘要：${attachment.file.name}\n${attachment.summary}` };
     }
     return parts.length === 1 && parts[0]?.type === "text" ? parts[0].text : parts;
+  }
+
+  async function captureVisionFrame() {
+    const file = await captureVision();
+    if (!file) return;
+    setAttachments((current) => [...current, { id: crypto.randomUUID(), file, kind: "image", summary: `截图：${file.name}` }]);
+    onNotice("截图已加入本轮对话，发送后才会交给多模态模型");
   }
 
   async function submitMessage(event: FormEvent<HTMLFormElement>) {
@@ -343,6 +360,12 @@ export function ConversationWorkspace({
           <div className="min-w-0"><p className="text-xs text-muted">公考 / AI 对话</p><h1 className="truncate text-xl font-semibold">{activeConversation?.title ?? ""}</h1></div>
           {activeConversation ? <button className="conversation-header-action" type="button" title="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button> : null}
         </header>
+        {launchContext && !activeConversation ? (
+          <div className="conversation-context-bar">
+            <div><span>{launchContext.moduleLabel}</span><strong>{launchContext.title}</strong><p>{launchContext.summary}</p></div>
+            <button type="button" aria-label="移除对话上下文" onClick={onClearLaunchContext}><AppIcon name="close" size={16} /></button>
+          </div>
+        ) : null}
         <div className="conversation-message-list">
           {!activeConversation || !messages.length ? <div className="conversation-empty-prompt"><h2>从一个问题开始</h2><p>发送首条消息后才会创建对话。可添加文档、图片、音频，或按住麦克风录音。</p></div> : null}
           {messages.map((message) => <article key={message.id} className={cx("conversation-message", message.role === "user" ? "is-user" : "is-assistant")}><div className="conversation-message-bubble"><div className="mb-1 flex items-center justify-between gap-3 text-xs text-muted"><span>{message.role === "user" ? "你" : message.role === "assistant" ? "AI" : message.role}</span><span>{formatTime(message.createdAt)}</span></div><p>{message.content}</p></div></article>)}
@@ -350,6 +373,13 @@ export function ConversationWorkspace({
           {latestRunSummary ? <ConversationToolSummary summary={latestRunSummary} /> : null}
           <div ref={bottomRef} />
         </div>
+        {visionMode ? (
+          <section className="conversation-vision-card" aria-label={visionMode === "camera" ? "摄像头工具" : "屏幕共享工具"}>
+            <div><AppIcon name={visionMode === "camera" ? "camera" : "system"} size={18} /><strong>{visionMode === "camera" ? "摄像头" : "屏幕共享"}</strong><span>画面只保留在当前浏览器内存</span></div>
+            <video ref={visionVideoRef} muted playsInline />
+            <div><button type="button" onClick={() => void captureVisionFrame()}><AppIcon name="screenshot" size={16} />截取当前画面</button><button type="button" onClick={stopVision}>停止</button></div>
+          </section>
+        ) : null}
         <form className="conversation-composer" onSubmit={submitMessage}>
           {attachments.length ? <div className="conversation-attachment-chips">{attachments.map((attachment) => <span key={attachment.id}><span className="truncate">{attachment.file.name}</span><button type="button" aria-label={`移除 ${attachment.file.name}`} title="移除附件" onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}><AppIcon name="close" size={16} /></button></span>)}</div> : null}
           <textarea aria-label="对话输入" placeholder="问点什么…" rows={1} value={draft} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
@@ -358,7 +388,7 @@ export function ConversationWorkspace({
             <button aria-label="添加附件" className="conversation-composer-icon" title="添加附件" type="button" onClick={() => fileInputRef.current?.click()}><AppIcon name="paperclip" size={18} /></button>
             <button aria-label="语音输入" aria-pressed={recording} className={cx("conversation-composer-icon", recording && "is-recording")} title={recording ? "松开后转写" : "按住录音"} type="button" onPointerDown={() => void startRecording()} onPointerUp={stopRecording} onPointerCancel={stopRecording}><AppIcon name="mic" size={18} /></button>
             <button aria-label="快捷指令" className="conversation-composer-icon" title="快捷指令" type="button" onClick={() => setDraft((current) => `${current}${current ? " " : ""}/`)}><AppIcon name="slash" size={18} /></button>
-            <div className="conversation-composer-menu"><button aria-label="工具" className="conversation-composer-icon" title="工具" type="button" onClick={() => setToolMenuOpen((value) => !value)}><AppIcon name="tool" size={18} /></button>{toolMenuOpen ? <div className="conversation-popover"><button type="button" onClick={() => void runInternalTool("knowledge")}>检索知识库</button><button type="button" onClick={() => void runInternalTool("attachments")}>解析附件草稿</button><button type="button" onClick={() => void runInternalTool("obsidian")}>Obsidian 演进提案</button><button type="button" onClick={() => void runInternalTool("scheduled")}>已安排摘要</button></div> : null}</div>
+            <div className="conversation-composer-menu"><button aria-label="工具" className="conversation-composer-icon" title="工具" type="button" onClick={() => setToolMenuOpen((value) => !value)}><AppIcon name="tool" size={18} /></button>{toolMenuOpen ? <div className="conversation-popover conversation-tool-menu"><button type="button" onClick={() => { setToolMenuOpen(false); void startVision("camera"); }}><AppIcon name="camera" size={16} />摄像头</button><button type="button" onClick={() => { setToolMenuOpen(false); void startVision("screen"); }}><AppIcon name="system" size={16} />屏幕共享</button><button type="button" onClick={() => { setToolMenuOpen(false); void captureVisionFrame(); }}><AppIcon name="screenshot" size={16} />截图分析</button><button type="button" onClick={() => void runInternalTool("knowledge")}><AppIcon name="knowledge" size={16} />知识库检索</button><button type="button" onClick={() => void runInternalTool("attachments")}><AppIcon name="paperclip" size={16} />附件草稿</button><button type="button" onClick={() => void runInternalTool("obsidian")}><AppIcon name="sparkles" size={16} />Obsidian 提案</button><button type="button" onClick={() => void runInternalTool("scheduled")}><AppIcon name="scheduled" size={16} />已安排摘要</button><button type="button" onClick={onOpenTutoringRecords}><AppIcon name="tutoring" size={16} />历史辅导记录</button></div> : null}</div>
             <div className="conversation-composer-menu"><button aria-label="选择模型" className="conversation-composer-icon" title={selectedConnection ? `${selectedConnection.label} · ${selectedConnection.model}` : "选择模型"} type="button" onClick={() => setModelMenuOpen((value) => !value)}>{selectedConnection ? <ProviderIcon provider={selectedConnection.provider} size={20} /> : <AppIcon name="sparkles" size={18} />}</button>{modelMenuOpen ? <div className="conversation-popover">{eligibleConnections.length ? eligibleConnections.map((connection) => <button key={connection.id} className={connection.id === selectedConnection?.id ? "is-selected" : ""} type="button" onClick={() => void chooseConnection(connection)}><span className="flex items-center gap-2"><ProviderIcon provider={connection.provider} size={18} />{connection.label}</span><small>{connection.model}</small></button>) : <button type="button" onClick={onOpenConnections}>配置兼容连接</button>}</div> : null}</div>
             <button className="conversation-send" disabled={busy || (!draft.trim() && !attachments.length)} type="submit" aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>
           </div>

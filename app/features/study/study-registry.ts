@@ -1,7 +1,7 @@
 import type { ScheduledWorkspaceState, StudyDomainDefinition, StudyModuleDefinition, ViewKey } from "../../types/review";
 
 /** 公考专项复用现有错题、知识、面试和辅导视图；这里只声明导航和能力边界。 */
-export const civilServiceStudyModules: StudyModuleDefinition[] = [
+const allCivilServiceStudyModules = [
   {
     id: "dashboard",
     label: "总览",
@@ -13,10 +13,10 @@ export const civilServiceStudyModules: StudyModuleDefinition[] = [
   },
   {
     id: "library",
-    label: "错题库",
-    description: "按公考板块筛选、关联和批量管理错题。",
+    label: "学习数据",
+    description: "统一浏览错题、知识和薄弱分析，并把上下文交给新对话。",
     icon: "library",
-    capabilities: ["错题筛选", "批量管理", "知识关联"],
+    capabilities: ["错题与知识", "薄弱分析", "对话交接"],
     healthSignals: ["review", "knowledge"],
     recommendedActionLabel: "处理薄弱错题",
   },
@@ -74,7 +74,9 @@ export const civilServiceStudyModules: StudyModuleDefinition[] = [
     healthSignals: ["review", "knowledge"],
     recommendedActionLabel: "查看薄弱计划",
   },
-];
+] satisfies StudyModuleDefinition[];
+
+export const civilServiceStudyModules = allCivilServiceStudyModules.filter((module) => !(["knowledge", "stats", "tutoring"] as ViewKey[]).includes(module.id));
 
 /** 专项学习项目注册表；后续新增专项只需要注册新的 domain。 */
 export const studyDomainDefinitions: StudyDomainDefinition[] = [
@@ -88,9 +90,9 @@ export const studyDomainDefinitions: StudyDomainDefinition[] = [
       flow: [
         { id: "import", label: "导入资料", description: "粉笔文本、文件或截图先进入可确认草稿。", moduleId: "import" },
         { id: "mistake", label: "错题复盘", description: "到期错题按薄弱度进入今日队列。", moduleId: "review" },
-        { id: "knowledge", label: "知识沉淀", description: "错题和资料沉淀为政治理论、常识判断和申论知识。", moduleId: "knowledge" },
+        { id: "knowledge", label: "知识沉淀", description: "错题和资料沉淀为政治理论、常识判断和申论知识。", moduleId: "library" },
         { id: "training", label: "知识训练", description: "知识条目按掌握度进入间隔训练。", moduleId: "knowledgeTraining" },
-        { id: "tutoring", label: "AI 辅导", description: "文本、截图、摄像头或屏幕帧进入多模态辅导。", moduleId: "tutoring" },
+        { id: "tutoring", label: "对话辅导", description: "在新对话中按需调用摄像头、屏幕共享或截图工具。", moduleId: "conversation" },
         { id: "scheduled", label: "已安排复盘", description: "定时任务只读范围并把结果写入收件箱。", moduleId: "automation" },
         { id: "obsidian", label: "Obsidian 输出", description: "用户确认提案后才写入 Vault 托管知识库。", moduleId: "knowledge" },
       ],

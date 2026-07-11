@@ -9,12 +9,10 @@ test("公考作为首个专项学习项目聚合核心学习模块", () => {
     "dashboard",
     "library",
     "review",
-    "knowledge",
     "knowledgeTraining",
     "interview",
-    "tutoring",
-    "stats",
   ]);
+  assert.equal(civilServiceStudyModules.find((module) => module.id === "library")?.label, "学习数据");
   assert.equal(civilServiceStudyModules.every((module) => module.capabilities.length > 0), true);
   assert.equal(civilServiceStudyModules.every((module) => module.healthSignals?.length), true);
   assert.match(studyDomainDefinitions[0]?.dashboard.headline ?? "", /导入/);
@@ -33,5 +31,6 @@ test("已安排入口复用 automation 视图但对外显示新产品名称", ()
   assert.equal(scheduledWorkspaceDefinition.viewKey, "automation");
   assert.equal(scheduledWorkspaceDefinition.label, "已安排");
   assert.equal(isStudyModuleView("automation"), false);
-  assert.equal(isStudyModuleView("knowledge"), true);
+  assert.equal(isStudyModuleView("knowledge"), false);
+  assert.equal(isStudyModuleView("library"), true);
 });

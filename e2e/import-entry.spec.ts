@@ -44,7 +44,16 @@ test("手动录入可保存错题并在错题库中展示", async ({ page }) => 
   await entryForm.getByRole("button", { name: "保存错题" }).click();
 
   await expect(page.getByText("错题已保存到 IndexedDB")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "E2E 手动录入题干：资料分析增长率判断。" })).toBeVisible();
+  const learningRow = page.getByRole("button", { name: /E2E 手动录入题干：资料分析增长率判断。/ });
+  await expect(page.getByRole("heading", { name: "学习数据" })).toBeVisible();
+  await expect(learningRow).toBeVisible();
+  await learningRow.click();
+  await page.getByRole("button", { name: "在新对话中继续" }).click();
+  await expect(page.locator(".conversation-context-bar").getByText("错题库", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "对话输入" })).toHaveValue("请分析我的错误思路，并给出一步一步的正确解法。");
+  await page.getByRole("button", { name: "工具" }).click();
+  await expect(page.getByRole("button", { name: "摄像头" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "屏幕共享" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

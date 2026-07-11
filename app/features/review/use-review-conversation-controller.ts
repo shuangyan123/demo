@@ -8,6 +8,7 @@ import type { ApiConnectionProfile } from "../../types/domains/ai-connection";
 import type { AutomationSnapshot } from "../../types/domains/automation";
 import type { KnowledgeEntry } from "../../types/domains/knowledge";
 import type { Mistake, ViewKey } from "../../types/domains/review";
+import type { ConversationLaunchContext } from "../conversation/conversation-launch-context";
 
 type UseReviewConversationControllerInput = {
   automationSnapshot: AutomationSnapshot;
@@ -30,6 +31,7 @@ export function useReviewConversationController(input: UseReviewConversationCont
   const [activeConversationId, setActiveConversationId] = useState<string | null | undefined>();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [launchContext, setLaunchContext] = useState<ConversationLaunchContext | null>(null);
 
   const refresh = useCallback(async () => {
     const nextSnapshot = await conversationRepository.loadSnapshot(today);
@@ -50,14 +52,34 @@ export function useReviewConversationController(input: UseReviewConversationCont
   }, [onNotice, today]);
 
   const results = useMemo(() => buildCommandSearchResults({ projects: snapshot.projects, conversations: snapshot.conversations, mistakes, knowledgeEntries, automationSnapshot }, searchQuery), [automationSnapshot, knowledgeEntries, mistakes, searchQuery, snapshot.conversations, snapshot.projects]);
-  const openBlank = useCallback(() => { setActiveConversationId(null); onSwitchView("conversation"); }, [onSwitchView]);
-  const openConversation = useCallback((id: string) => { setActiveConversationId(id); onSwitchView("conversation"); }, [onSwitchView]);
+  const openBlank = useCallback((context?: ConversationLaunchContext) => {
+    setLaunchContext(context ?? null);
+    setActiveConversationId(null);
+    onSwitchView("conversation");
+  }, [onSwitchView]);
+  const openConversation = useCallback((id: string) => { setLaunchContext(null); setActiveConversationId(id); onSwitchView("conversation"); }, [onSwitchView]);
   const createForFirstMessage = useCallback(async (value?: { selectedConnectionId?: string }): Promise<AiConversation> => {
-    const conversation = await conversationRepository.createConversation({ today, kind: "general", selectedConnectionId: value?.selectedConnectionId ?? textConnection?.id });
+    const conversation = await conversationRepository.createConversation({
+      today,
+      kind: launchContext?.kind ?? "general",
+      sourceType: launchContext?.sourceType ?? "manual",
+      sourceId: launchContext?.sourceId,
+      title: launchContext?.title,
+      selectedConnectionId: value?.selectedConnectionId ?? textConnection?.id,
+    });
+    if (launchContext) {
+      await conversationRepository.createAttachment({
+        conversationId: conversation.id,
+        kind: "context",
+        label: `${launchContext.moduleLabel}上下文`,
+        summary: launchContext.summary,
+      });
+    }
     await refresh();
     setActiveConversationId(conversation.id);
+    setLaunchContext(null);
     return conversation;
-  }, [refresh, textConnection?.id, today]);
+  }, [launchContext, refresh, textConnection?.id, today]);
   const selectResult = useCallback(async (result: CommandSearchResult) => {
     setSearchOpen(false);
     if (result.conversationId) return openConversation(result.conversationId);
@@ -79,5 +101,5 @@ export function useReviewConversationController(input: UseReviewConversationCont
     return () => window.removeEventListener("keydown", handleShortcut);
   }, [openBlank, results, searchOpen, selectResult]);
 
-  return { activeConversationId, createForFirstMessage, openBlank, openConversation, refresh, results, searchOpen, selectResult, setActiveConversationId, setSearchOpen, setSearchQuery, snapshot };
+  return { activeConversationId, createForFirstMessage, launchContext, openBlank, openConversation, refresh, results, searchOpen, selectResult, setActiveConversationId, setLaunchContext, setSearchOpen, setSearchQuery, snapshot };
 }

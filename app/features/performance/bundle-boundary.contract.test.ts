@@ -62,6 +62,21 @@ test("TutoringWorkspace 把实时会话媒体和语音控制交给专用 control
   assert.doesNotMatch(source, /resolvePersonaVoice/);
 });
 
+test("模块上下文和视觉工具统一进入新对话", async () => {
+  const conversationSource = await readSource("../conversation/conversation-workspace.tsx");
+  const controllerSource = await readSource("../review/use-review-conversation-controller.ts");
+  const shellSource = await readSource("../review/review-workspace-shell.tsx");
+  const explorerSource = await readSource("../review/learning-data-explorer.tsx");
+
+  assert.match(conversationSource, /useConversationVisionTools/);
+  assert.match(conversationSource, />摄像头</);
+  assert.match(conversationSource, />屏幕共享</);
+  assert.match(controllerSource, /launchContext/);
+  assert.match(controllerSource, /kind:\s*"context"/);
+  assert.match(explorerSource, /在新对话中继续/);
+  assert.doesNotMatch(shellSource, /板块筛选/);
+});
+
 test("Dexie v16 只执行对话文件夹建模后的旧空草稿清理", async () => {
   const source = await readSource("../../db/review-db.ts");
   const migrationSource = await readSource("../../db/review-db-migrations.ts");

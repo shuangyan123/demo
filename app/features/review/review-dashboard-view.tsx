@@ -198,13 +198,13 @@ export function DashboardView({
           </CardButton>
           <CardButton className="grid gap-3 text-left" onClick={onOpenTutoring}>
             <span className="flex items-center justify-between gap-3">
-              <strong className="text-lg">AI 实时辅导</strong>
-              <Chip tone="green">浏览器 MVP</Chip>
+              <strong className="text-lg">对话辅导</strong>
+              <Chip tone="green">工具化</Chip>
             </span>
             <span className="text-sm leading-6 text-muted">
-              用摄像头、屏幕共享或截图模拟眼镜视角，低频关键帧交给 AI 老师讲解；默认只保存文字摘要和用户确认的关联。
+              在新对话中按需打开摄像头、屏幕共享、截图和知识检索；原始画面只保留在当前浏览器内存。
             </span>
-            <span className="text-sm font-semibold text-blue">进入 AI 辅导</span>
+            <span className="text-sm font-semibold text-blue">开始对话辅导</span>
           </CardButton>
         </div>
       </Panel>
