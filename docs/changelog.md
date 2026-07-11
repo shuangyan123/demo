@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-11
+
+- 新增主工作台 conversation application controller，集中管理对话快照、空白草稿、命令搜索和全局快捷键，移除 `ReviewWorkspace` 对 conversation repository 的直接依赖。
+- 新增架构契约，自动检查大型 workspace 预算、低频模块静态依赖与相对 import 循环；契约测试改为显式 ESM，消除 Node 模块类型警告。
+- 新增领域类型稳定入口，后续调用方可从 `app/types/domains/*` 渐进迁移，兼容总表暂时保留。
+- 将 Dexie v16 空白对话清理抽为独立幂等迁移函数，数据库名称、版本、schema 和数据语义保持不变。
+- 新增 AI route HTTP 公共边界并重写当前态架构文档。
+
 ## 2026-07-10
 
 - 公考改为桌面和移动端唯一项目树节点并默认折叠；模块和板块筛选只在子树展示，恢复单一加号图标的“新对话”空白草稿入口。

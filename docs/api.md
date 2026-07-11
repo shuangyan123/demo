@@ -1,5 +1,11 @@
 # API 约定
 
+## 路由公共边界
+
+- `/api/ai/*` 保持现有 URL 与请求契约；`app/server/ai/http.ts` 统一 JSON 读取、纯文本错误和上游状态码映射。
+- 路由不得向客户端透传异常对象、请求体、鉴权头或厂商原始错误正文。
+- 业务字段继续由具体 route/provider adapter 校验，公共 HTTP 层不推断厂商协议。
+
 ## 生成
 
 文本和多模态任务统一调用 `/api/ai/generate`。业务 service 调用 `generateWithConnection(connection, purpose, input)` 时必须显式传入 `text` 或 `vision`；连接不具备对应能力时，请求会在密钥解密和网络调用前失败。

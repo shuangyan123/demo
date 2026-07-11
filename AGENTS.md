@@ -4,6 +4,13 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## 架构边界约定
+
+- `ReviewWorkspace` 只负责导航、连接注入和视图装配；对话快照、命令搜索与快捷键统一交给 `useReviewConversationController`。
+- 新代码优先从 `app/types/domains/*` 引用领域类型，`app/types/review.ts` 仅作为兼容出口并逐步缩减。
+- Dexie 迁移放在 `app/db/review-db-migrations.ts`，数据库继续使用 `review_workspace` v16，未经慢查询证据不得新增索引或升级 schema。
+- `architecture-boundary.contract.test.ts` 必须持续检查 workspace 预算、低频静态依赖和循环依赖。
+
 ## AI 连接架构约定
 
 - 业务功能只接收 `ApiConnectionProfile`，不得读取或透传旧 `apiSetting`。

@@ -1,5 +1,12 @@
 # 项目经验沉淀
 
+## 2026-07 架构再加固
+
+- 主工作台不得直接读取 conversation repository；对话快照、命令搜索和快捷键统一由 `useReviewConversationController` 管理。
+- 新领域类型优先从 `app/types/domains/*` 引用；`app/types/review.ts` 仅作为渐进迁移兼容出口。
+- Dexie 版本迁移应放入 `app/db/review-db-migrations.ts`，保持单事务、幂等和可独立测试。
+- 架构约束必须进入契约测试，至少覆盖 workspace 预算、动态加载和循环依赖，不能只依赖评审约定。
+
 ## KnowledgeWorkspace 瘦身经验
 
 - 知识资料列表的渐进渲染、批量选择、批量删除和导出范围计算应保留在 `useKnowledgeListController`，不要重新塞回 `knowledge-workspace.tsx`。
