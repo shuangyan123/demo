@@ -6,6 +6,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 架构边界约定
 
+- 错题、知识和薄弱分析使用统一学习数据浏览器与单一筛选作用域；侧栏不得恢复重复板块筛选。
+- 摄像头、屏幕共享和截图是新对话工具，原始媒体只留在内存；历史辅导记录可以保留次级入口，但不得恢复为并列主模块。
+- 模块通过 `ConversationLaunchContext` 启动空白对话，只有首次发送才创建持久化会话和 `context` 摘要附件。
+
 - `ReviewWorkspace` 只负责导航、连接注入和视图装配；对话快照、命令搜索与快捷键统一交给 `useReviewConversationController`。
 - 新代码优先从 `app/types/domains/*` 引用领域类型，`app/types/review.ts` 仅作为兼容出口并逐步缩减。
 - Dexie 迁移放在 `app/db/review-db-migrations.ts`，数据库继续使用 `review_workspace` v16，未经慢查询证据不得新增索引或升级 schema。

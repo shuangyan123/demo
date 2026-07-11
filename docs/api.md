@@ -16,6 +16,10 @@
 
 ## 通用对话
 
+`ConversationLaunchContext` 是模块到新对话的内存交接协议，包含 `moduleId/moduleLabel/kind/sourceType/sourceId/title/summary/suggestedPrompt`。它不是服务端 API，也不直接持久化；首次发送时才把 `kind/sourceType/sourceId` 写入会话，并把脱敏摘要保存为 `context` 附件。
+
+`AiConversationSourceType` 新增 `mistake`，用于从错题行启动对话；现有 `manual/tutoring/interview/import/knowledge` 保持兼容。
+
 通用 AI 会话不新增服务端 API。`ConversationRepository` 通过 IndexedDB v16 保存项目、文件夹、会话、消息、附件摘要和工具步骤。点击“新对话”只打开空白草稿，发送第一条消息后才调用 `createConversation()` 落库；`deleteConversation()` 在单一事务中级联删除关联摘要。
 
 会话消息只保存用户可见文本、附件摘要、连接标签、模型和 usage；不得保存截图原文、Vault 正文、完整 prompt 或厂商原始响应。缺少默认文本连接时仍可保存用户消息，但助手回复必须明确提示需要配置连接，不得伪装 AI 已执行。

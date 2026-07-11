@@ -2,6 +2,10 @@
 
 ## 2026-07 架构再加固
 
+- AI 辅导的摄像头、屏幕共享和截图属于对话工具，不再作为侧栏主模块重复暴露；历史 session 数据通过次级入口继续访问。
+- 错题、知识与薄弱分析共用 `LearningDataExplorer` 的筛选作用域；板块筛选不得同时出现在侧栏与内容区。
+- 模块交给新对话时使用 `ConversationLaunchContext`，保持空白草稿不落库，并且只持久化脱敏摘要。
+
 - 主工作台不得直接读取 conversation repository；对话快照、命令搜索和快捷键统一由 `useReviewConversationController` 管理。
 - 新领域类型优先从 `app/types/domains/*` 引用；`app/types/review.ts` 仅作为渐进迁移兼容出口。
 - Dexie 版本迁移应放入 `app/db/review-db-migrations.ts`，保持单事务、幂等和可独立测试。
