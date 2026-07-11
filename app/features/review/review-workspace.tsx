@@ -55,10 +55,7 @@ import { associationRepository, suggestionToLinkInput } from "../../services/ass
 import { downloadExportFile, exportKnowledgeEntries, exportMistakes } from "../../services/export-service";
 import { knowledgeRepository } from "../../services/knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
-import {
-  makeToday,
-  toISODate,
-} from "../../lib/review-utils";
+import { makeToday, toISODate } from "../../lib/review-utils";
 import {
   type AssociationSuggestion,
   type AppearanceSettings,
@@ -89,6 +86,7 @@ const InterviewWorkspace = dynamic(() => import("../interview/interview-workspac
 const TutoringWorkspace = dynamic(() => import("../tutoring/tutoring-workspace").then((module) => module.TutoringWorkspace), { loading: WorkspaceViewLoading });
 const ImportWorkspace = dynamic(() => import("../import/import-workspace").then((module) => module.ImportWorkspace), { loading: WorkspaceViewLoading });
 const ConversationWorkspace = dynamic(() => import("../conversation/conversation-workspace").then((module) => module.ConversationWorkspace), { loading: WorkspaceViewLoading });
+const SettingsPluginsView = dynamic(() => import("../settings/plugins/settings-plugins-view").then((module) => module.SettingsPluginsView), { loading: WorkspaceViewLoading });
 
 // Obsidian 仓库只在删除映射资料时加载，避免总览首屏携带 Vault 同步实现。
 async function loadObsidianKnowledgeRepository() {
@@ -96,18 +94,8 @@ async function loadObsidianKnowledgeRepository() {
   return obsidianKnowledgeRepository;
 }
 
-const initialFilters: Filters = {
-  board: "全部",
-  mastery: "all",
-  search: "",
-};
-
-const initialKnowledgeFilters: KnowledgeFilters = {
-  category: "全部",
-  search: "",
-  tag: "全部",
-  favoriteOnly: false,
-};
+const initialFilters: Filters = { board: "全部", mastery: "all", search: "" };
+const initialKnowledgeFilters: KnowledgeFilters = { category: "全部", search: "", tag: "全部", favoriteOnly: false };
 
 // 错题复盘应用的主工作台，集中管理视图切换、Dexie 数据和导入状态。
 export function ReviewWorkspace() {
@@ -827,6 +815,7 @@ export function ReviewWorkspace() {
             connections={aiConnections.snapshot.profiles}
             knowledgeEntries={knowledgeEntries}
             launchContext={launchContext}
+            personalization={personalization.settings}
             scheduledCount={automation.snapshot.definitions.filter((definition) => definition.enabled).length}
             snapshot={conversationSnapshot}
             textConnection={aiConnections.textConnection}
@@ -1060,6 +1049,16 @@ export function ReviewWorkspace() {
             onUpdateKnowledgeDraft={updateKnowledgeDraft}
             onUpdateKnowledgeDraftList={updateKnowledgeDraftList}
             setNotice={setNotice}
+          />
+        )}
+        {view === "plugins" && (
+          <SettingsPluginsView
+            entries={knowledgeEntries} importJobs={importJobs} knowledgeDrafts={knowledgeDrafts} mistakes={mistakes}
+            personalization={personalization.settings} textConnection={aiConnections.textConnection} visionConnection={aiConnections.visionConnection} today={today}
+            onChanged={refreshData}
+            onConfirmKnowledgeDrafts={confirmKnowledgeDrafts} onDeleteKnowledgeDraft={deleteKnowledgeDraft} onImportKnowledgeText={importKnowledgeText} onNotice={setNotice}
+            onOpenConnections={() => openApiSettings("在 AI 连接中配置插件所需的模型能力")}
+            onRefreshWorkspace={refreshData} onUpdateKnowledgeDraft={updateKnowledgeDraft} onUpdateKnowledgeDraftList={updateKnowledgeDraftList}
           />
         )}
         {view === "entry" && <EntryView onSubmit={addMistake} />}

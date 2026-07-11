@@ -26,6 +26,7 @@ type ReviewNavIconName =
   | "import"
   | "entry"
   | "project"
+  | "plugins"
   | "settings";
 
 type ReviewWorkspaceShellProps = {
@@ -54,7 +55,7 @@ const viewTitles: Record<ViewKey, string> = {
   conversation: "对话",
   dashboard: "总览",
   library: "错题库",
-  review: "开始复盘",
+  review: "手动复盘",
   knowledgeTraining: "知识训练",
   interview: "面试训练",
   tutoring: "AI 辅导",
@@ -63,6 +64,7 @@ const viewTitles: Record<ViewKey, string> = {
   automation: "已安排",
   import: "粉笔导入",
   entry: "手动录入",
+  plugins: "插件",
   settings: "设置",
 };
 
@@ -98,7 +100,7 @@ export function ReviewWorkspaceShell({
     badge?: number;
     onClick: () => void;
   }> = [
-    { id: "new-chat", label: "新对话", icon: "newChat", active: view === "conversation" && activeConversationId === null, onClick: onStartNewConversation },
+    { id: "new-chat", label: "新对话", icon: "newChat", active: view === "conversation" && activeConversationId === null, onClick: () => onStartNewConversation() },
     { id: "search", label: "搜索", icon: "search", onClick: onOpenSearch },
     {
       id: "scheduled",
@@ -108,18 +110,19 @@ export function ReviewWorkspaceShell({
       badge: automationUnreadCount || undefined,
       onClick: () => onSelectView(scheduledWorkspaceDefinition.viewKey),
     },
+    { id: "plugins", label: "插件", icon: "plugins", active: view === "plugins", onClick: () => onSelectView("plugins") },
   ];
 
   return (
     <WorkspaceShell
-      contentClassName="px-7 py-7 max-sm:px-4"
+      contentClassName={view === "conversation" ? "px-4 py-4 max-sm:px-2 max-sm:py-2" : "px-7 py-7 max-sm:px-4"}
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName="review-workspace-sidebar flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:px-3 max-lg:py-2"
       title="错题复盘"
       onToggleSidebar={onToggleSidebar}
       sidebar={
         <>
-          <nav className="grid gap-1 max-lg:grid-cols-3" aria-label="工作台快捷入口">
+          <nav className="grid gap-1 max-lg:grid-cols-4" aria-label="工作台快捷入口">
             {topActions.map((item) => (
               <button
                 key={item.id}

@@ -58,7 +58,7 @@ export function useReviewConversationController(input: UseReviewConversationCont
     onSwitchView("conversation");
   }, [onSwitchView]);
   const openConversation = useCallback((id: string) => { setLaunchContext(null); setActiveConversationId(id); onSwitchView("conversation"); }, [onSwitchView]);
-  const createForFirstMessage = useCallback(async (value?: { selectedConnectionId?: string }): Promise<AiConversation> => {
+  const createForFirstMessage = useCallback(async (value?: { selectedConnectionId?: string; selectedModelId?: string }): Promise<AiConversation> => {
     const conversation = await conversationRepository.createConversation({
       today,
       kind: launchContext?.kind ?? "general",
@@ -66,6 +66,7 @@ export function useReviewConversationController(input: UseReviewConversationCont
       sourceId: launchContext?.sourceId,
       title: launchContext?.title,
       selectedConnectionId: value?.selectedConnectionId ?? textConnection?.id,
+      selectedModelId: value?.selectedModelId,
     });
     if (launchContext) {
       await conversationRepository.createAttachment({

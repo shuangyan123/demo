@@ -35,18 +35,18 @@ export function formatTimerSeconds(totalSec: number): string {
 
 // 管理单题复盘计时；题目变化时自动重置并开始，提交时由调用方读取 elapsedSec 写入 attempts。
 export function useReviewTimer(activeItemId: string | null) {
-  const [mode, setModeState] = useState<ReviewTimerMode>("countdown");
+  const [mode, setModeState] = useState<ReviewTimerMode>("stopwatch");
   const [targetSec, setTargetSecState] = useState(90);
   const [session, setSession] = useState<TimerSession>(() => ({
     elapsedSec: 0,
-    isRunning: Boolean(activeItemId),
+    isRunning: false,
     itemId: activeItemId,
   }));
 
   if (session.itemId !== activeItemId) {
     setSession({
       elapsedSec: 0,
-      isRunning: Boolean(activeItemId),
+      isRunning: false,
       itemId: activeItemId,
     });
   }
@@ -73,18 +73,18 @@ export function useReviewTimer(activeItemId: string | null) {
 
   const setMode = useCallback((nextMode: ReviewTimerMode) => {
     setModeState(nextMode);
-    setSession((current) => ({ ...current, elapsedSec: 0, isRunning: Boolean(current.itemId) }));
+    setSession((current) => ({ ...current, elapsedSec: 0, isRunning: false }));
   }, []);
 
   const setTargetSec = useCallback((nextTargetSec: number) => {
     setTargetSecState(clampTimerSeconds(nextTargetSec));
-    setSession((current) => ({ ...current, elapsedSec: 0, isRunning: Boolean(current.itemId) }));
+    setSession((current) => ({ ...current, elapsedSec: 0, isRunning: false }));
   }, []);
 
   const pause = useCallback(() => setSession((current) => ({ ...current, isRunning: false })), []);
   const resume = useCallback(() => setSession((current) => ({ ...current, isRunning: Boolean(current.itemId) })), []);
   const reset = useCallback(() => {
-    setSession((current) => ({ ...current, elapsedSec: 0, isRunning: Boolean(current.itemId) }));
+    setSession((current) => ({ ...current, elapsedSec: 0, isRunning: false }));
   }, []);
 
   return {

@@ -16,6 +16,7 @@ export type ProviderContract = {
   documentationUrl: string;
   verifiedAt: string;
   creatable: boolean;
+  availability: "active" | "legacy" | "custom";
   speechVoices?: Array<{ id: string; label: string }>;
 };
 
@@ -31,6 +32,9 @@ function model(
   status: AiModelCatalogEntry["status"],
   documentationUrl?: string,
 ): AiModelCatalogEntry {
+  const generation = id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
+  const modalityGroup = purposes.includes("speech") ? "speech" : purposes.includes("transcription") && !purposes.includes("text")
+    ? "transcription" : purposes.includes("vision") ? "multimodal" : "text";
   return {
     id,
     label: id,
@@ -39,6 +43,10 @@ function model(
     capabilities,
     status,
     source: documentationUrl ? "official" : "manual",
+    family: id.replace(/(?:[-_.](?:pro|mini|nano|flash|lite|turbo|hd|highspeed|reasoning|non-reasoning|preview|latest))+$/gi, ""),
+    generation,
+    modalityGroup,
+    lifecycle: status === "deprecated" ? "deprecated" : status === "preview" ? "preview" : "active",
     documentationUrl,
     verifiedAt: documentationUrl ? verifiedAt : undefined,
   };
@@ -53,17 +61,20 @@ function modelsByPurpose(catalog: AiModelCatalogEntry[]): Partial<Record<AiConne
   }, {});
 }
 
-function contract(input: Omit<ProviderContract, "models"> & { models?: Partial<Record<AiConnectionPurpose, string[]>> }): ProviderContract {
-  return { ...input, models: input.models ?? modelsByPurpose(input.modelCatalog) };
+const activeProviders = new Set<ApiProvider>(["openai", "google", "anthropic", "xai", "deepseek", "minimax", "zhipu"]);
+
+function contract(input: Omit<ProviderContract, "availability" | "models"> & { models?: Partial<Record<AiConnectionPurpose, string[]>> }): ProviderContract {
+  const availability = input.provider === "custom" ? "custom" : activeProviders.has(input.provider) ? "active" : "legacy";
+  return { ...input, availability, creatable: availability !== "legacy", models: input.models ?? modelsByPurpose(input.modelCatalog) };
 }
 
 const openAiCatalog = [
-  model("openai", "gpt-5.5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://developers.openai.com/api/docs/models"),
-  model("openai", "gpt-5.4", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/gpt-5.4"),
-  model("openai", "gpt-5.4-mini", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/gpt-5.4-mini"),
-  model("openai", "gpt-5.4-nano", ["text"], ["text", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/gpt-5.4-nano"),
-  model("openai", "gpt-4o-mini", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/gpt-4o-mini"),
-  model("openai", "gpt-4o-mini-tts", ["speech"], ["speech"], "stable", "https://developers.openai.com/api/docs/models"),
+  model("openai", "gpt-5.6-terra", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-5.5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-audio-1.5", ["speech"], ["speech"], "recommended", "https://developers.openai.com/api/docs/models/gpt-audio-1.5"),
+  model("openai", "gpt-audio", ["speech"], ["speech"], "stable", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-realtime-whisper", ["transcription"], ["transcription"], "recommended", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-4o-transcribe", ["transcription"], ["transcription"], "stable", "https://developers.openai.com/api/docs/models/all"),
 ];
 
 const googleCatalog = [
@@ -77,9 +88,8 @@ const googleCatalog = [
 ];
 
 const anthropicCatalog = [
-  model("anthropic", "claude-opus-4-8", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.claude.com/docs/en/about-claude/models/overview"),
-  model("anthropic", "claude-sonnet-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://platform.claude.com/docs/en/about-claude/models/overview"),
-  model("anthropic", "claude-sonnet-4-6", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://platform.claude.com/docs/en/about-claude/models/overview"),
+  model("anthropic", "claude-sonnet-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.claude.com/docs/en/about-claude/models/overview"),
+  model("anthropic", "claude-opus-4-8", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://platform.claude.com/docs/en/about-claude/models/overview"),
 ];
 
 const deepSeekCatalog = [
@@ -156,6 +166,7 @@ export const providerContracts: ProviderContract[] = [
     capabilities: ["text", "vision", "structured_output", "streaming"],
     modelCatalog: [
       model("xai", "grok-4.5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://docs.x.ai/developers/models"),
+      model("xai", "grok-4.3", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://docs.x.ai/developers/models"),
     ],
     modelListStrategy: "official_api",
     documentationUrl: "https://docs.x.ai/developers/models",
@@ -199,7 +210,6 @@ export const providerContracts: ProviderContract[] = [
     ["groq", "Groq", "https://api.groq.com/openai/v1", "openai/gpt-oss-120b"],
     ["mistral", "Mistral", "https://api.mistral.ai/v1", "mistral-large-latest"],
     ["siliconflow", "SiliconFlow", "https://api.siliconflow.cn/v1", "deepseek-ai/DeepSeek-V4-Flash"],
-    ["zhipu", "Zhipu GLM", "https://open.bigmodel.cn/api/paas/v4", "glm-4.5"],
     ["kimi", "Moonshot Kimi", "https://api.moonshot.cn/v1", "kimi-k2-latest"],
     ["doubao", "Volcengine Ark / Doubao", "https://ark.cn-beijing.volces.com/api/v3", "doubao-seed-1.6"],
     ["baidu", "Baidu Qianfan", "https://qianfan.baidubce.com/v2", "ernie-4.5-turbo"],
@@ -220,6 +230,27 @@ export const providerContracts: ProviderContract[] = [
     verifiedAt: "",
     creatable: true,
   })),
+  contract({
+    provider: "zhipu",
+    label: "GLM / 智谱",
+    group: "commercial",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    model: "glm-5.1",
+    apiFormat: "chat_completions",
+    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "streaming"],
+    modelCatalog: [
+      model("zhipu", "glm-5.1", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-5", ["text"], ["text", "structured_output", "streaming"], "stable", "https://docs.bigmodel.cn/cn/guide/models/text/glm-5"),
+      model("zhipu", "glm-5v-turbo", ["vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-4.6v", ["vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://docs.bigmodel.cn/cn/guide/start/quick-start"),
+      model("zhipu", "glm-tts", ["speech"], ["speech"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-asr", ["transcription"], ["transcription"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+    ],
+    modelListStrategy: "official_api",
+    documentationUrl: "https://docs.bigmodel.cn/cn/guide/start/model-overview",
+    verifiedAt,
+    creatable: true,
+  }),
   contract({
     provider: "elevenlabs",
     label: "ElevenLabs",
@@ -296,5 +327,15 @@ export function getProviderModels(provider: ApiProvider, purpose: AiConnectionPu
 
 export function getProviderModelCatalog(provider: ApiProvider, purpose?: AiConnectionPurpose): AiModelCatalogEntry[] {
   const catalog = getProviderContract(provider).modelCatalog;
-  return purpose ? catalog.filter((entry) => entry.purposes.includes(purpose)) : catalog;
+  const scoped = (purpose ? catalog.filter((entry) => entry.purposes.includes(purpose)) : catalog).filter((entry) => entry.lifecycle !== "deprecated");
+  const familiesByModality = new Map<string, string[]>();
+  return scoped.filter((entry) => {
+    const modality = entry.modalityGroup ?? entry.purposes[0] ?? "text";
+    const family = entry.family ?? entry.id;
+    const families = familiesByModality.get(modality) ?? [];
+    if (!families.includes(family) && families.length >= 2) return false;
+    if (!families.includes(family)) families.push(family);
+    familiesByModality.set(modality, families);
+    return true;
+  });
 }

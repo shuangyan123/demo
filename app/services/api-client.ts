@@ -83,6 +83,9 @@ export type AiModelDirectoryEntry = {
   capabilities: AiCapability[];
   status: "active" | "preview" | "deprecated" | "unknown";
   source: "official_api" | "static_catalog";
+  family?: string;
+  generation?: string;
+  modalityGroup?: "text" | "multimodal" | "speech" | "transcription";
   contextWindow?: number;
   maxOutputTokens?: number;
   supportsStreaming: boolean;

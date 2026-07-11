@@ -35,6 +35,7 @@ export type CreateConversationInput = {
   sourceId?: string;
   folderId?: string;
   selectedConnectionId?: string;
+  selectedModelId?: string;
   today?: Date;
 };
 
@@ -188,6 +189,7 @@ export const conversationRepository = {
       sourceId: input.sourceId,
       folderId: input.folderId,
       selectedConnectionId: input.selectedConnectionId,
+      selectedModelId: input.selectedModelId,
       messageCount: 0,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -211,6 +213,11 @@ export const conversationRepository = {
 
   async setConversationConnection(id: string, selectedConnectionId: string | undefined, today = new Date()): Promise<void> {
     await reviewDb.aiConversations.update(id, { selectedConnectionId, updatedAt: nowIso(today) });
+  },
+
+  /** 同时保存连接和会话级模型覆盖，避免为每个模型复制一份密钥档案。 */
+  async setConversationModelSelection(id: string, selectedConnectionId: string, selectedModelId: string, today = new Date()): Promise<void> {
+    await reviewDb.aiConversations.update(id, { selectedConnectionId, selectedModelId, updatedAt: nowIso(today) });
   },
 
   async archiveConversation(id: string, today = new Date()): Promise<void> {

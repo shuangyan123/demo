@@ -82,6 +82,7 @@ export function buildCommandSearchResults(input: BuildCommandSearchInput, query 
       view: scheduledWorkspaceDefinition.viewKey,
       projectId: studyDomain.id,
     })),
+    { id: "plugins:directory", group: "plugin", label: "插件", description: "查看应用内扩展状态与领域入口", view: "plugins" },
     { id: "settings:ai", group: "settings", label: "AI 连接", description: "配置模型厂商、能力和默认连接", view: "settings", settingsSection: "configuration" },
     { id: "settings:mcp", group: "settings", label: "MCP", description: "配置 MCP server 并测试 tools/resources/prompts", view: "settings", settingsSection: "mcp" },
   ];

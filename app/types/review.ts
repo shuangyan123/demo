@@ -75,7 +75,7 @@ export type PersonaVerbosity = "concise" | "balanced" | "detailed";
 export type KnowledgeLinkKind = "related" | "internalized";
 export type KnowledgeInternalizationMode = "create" | "merge";
 export type KnowledgeEvolutionMode = "create" | "merge" | "link";
-export type KnowledgeEvolutionSourceType = "mistake" | "interview" | "tutoring" | "knowledge";
+export type KnowledgeEvolutionSourceType = "mistake" | "interview" | "tutoring" | "knowledge" | "conversation";
 export type KnowledgeEvolutionStatus = "pending" | "accepted" | "rejected";
 export type ObsidianSyncStatus = "synced" | "local_changed" | "vault_changed" | "conflict" | "disconnected";
 export type ObsidianPermissionState = "granted" | "prompt" | "denied" | "unsupported";
@@ -204,6 +204,10 @@ export type KnowledgeEvolutionProposal = {
   proposedLinks: string[];
   reason: string;
   confidence: number;
+  /** 记录提案来自哪条对话，只保存标识，不复制完整对话上下文。 */
+  conversationId?: string;
+  /** 关联对话内的工具运行，便于在消息时间线中恢复提案状态。 */
+  runId?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -924,13 +928,13 @@ export type KnowledgeFilters = {
   favoriteOnly: boolean;
 };
 
-export type ViewKey = "conversation" | "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry" | "settings";
+export type ViewKey = "conversation" | "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry" | "plugins" | "settings";
 
 export type StudyDomainId = "civil-service";
 
 /** 专项学习模块声明；视图仍复用现有工作台 key。 */
 export type StudyModuleDefinition = {
-  id: Exclude<ViewKey, "automation" | "import" | "settings">;
+  id: Exclude<ViewKey, "automation" | "import" | "plugins" | "settings">;
   label: string;
   description: string;
   icon: string;
@@ -1016,6 +1020,8 @@ export type AiConversation = {
   sourceId?: string;
   folderId?: string;
   selectedConnectionId?: string;
+  /** 对话级模型覆盖；连接档案继续负责密钥和协议，模型可按会话切换。 */
+  selectedModelId?: string;
   summary?: string;
   lastMessagePreview?: string;
   messageCount: number;
@@ -1063,8 +1069,21 @@ export type McpServerProfile = {
   label: string;
   endpoint: string;
   enabled: boolean;
+  authMode: "none" | "bearer";
+  /** Bearer Token 仅在设置仓储中加密保存，普通快照永不返回明文。 */
+  encryptedToken?: string;
+  encryptedTokenIv?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type McpToolPermission = "ask" | "allow_session" | "deny";
+
+export type McpToolDescriptor = {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+  permission: McpToolPermission;
 };
 
 export type McpDiscoveryResult = {
@@ -1075,6 +1094,7 @@ export type McpDiscoveryResult = {
   prompts: string[];
   message: string;
   checkedAt?: string;
+  toolDescriptors?: McpToolDescriptor[];
 };
 
 export type AiModelCatalogEntry = {
@@ -1085,9 +1105,17 @@ export type AiModelCatalogEntry = {
   capabilities: AiCapability[];
   status: "recommended" | "stable" | "preview" | "deprecated" | "manual";
   source: "official" | "manual";
+  /** 用于两级选择器按最近两代模型家族分组。 */
+  family?: string;
+  generation?: string;
+  modalityGroup?: "text" | "multimodal" | "speech" | "transcription";
+  lifecycle?: "active" | "preview" | "deprecated";
   documentationUrl?: string;
   verifiedAt?: string;
 };
+
+/** 新建连接允许展示的主流厂商；旧 ApiProvider 联合仍负责历史数据兼容。 */
+export type ActiveApiProvider = "openai" | "google" | "anthropic" | "xai" | "deepseek" | "minimax" | "zhipu";
 
 export type AiProviderCatalogEntry = {
   provider: ApiProvider;

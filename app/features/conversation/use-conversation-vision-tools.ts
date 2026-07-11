@@ -24,14 +24,17 @@ export function useConversationVisionTools(onNotice: (message: string) => void) 
         ? await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
         : await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       streamRef.current = stream;
+      setMode(nextMode);
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
       stream.getVideoTracks()[0]?.addEventListener("ended", stop, { once: true });
-      setMode(nextMode);
+      return true;
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "无法打开画面来源");
+      return false;
     }
   }, [onNotice, stop]);
 

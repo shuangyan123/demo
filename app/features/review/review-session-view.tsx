@@ -142,56 +142,37 @@ function ReviewTimerBar({
   const timeoutOverrun = Math.max(0, timer.elapsedSec - timer.targetSec);
 
   return (
-    <section className={`ui-timer-panel ${timer.isTimedOut ? "ui-timer-panel-timeout" : ""}`} aria-label="复盘计时">
+    <section className={`ui-timer-panel ${timer.isTimedOut ? "ui-timer-panel-timeout" : ""}`} aria-label="手动复盘计时">
       <div>
-        <p className="text-xs font-extrabold uppercase text-muted">{timer.mode === "countdown" ? "Countdown" : "Timer"}</p>
+        <p className="text-xs font-extrabold uppercase text-muted">{timer.mode === "countdown" ? "倒计时" : "手动计时"}</p>
         <strong className="ui-timer-display">
           {timer.isTimedOut ? `超时 ${formatTimerSeconds(timeoutOverrun)}` : formatTimerSeconds(primaryTime)}
         </strong>
         <span className="ui-timer-caption">
-          已用 {formatTimerSeconds(timer.elapsedSec)}
+          {timer.isRunning ? "正在计时" : timer.elapsedSec ? "已暂停" : "点击开始后计时"}
           {timer.mode === "countdown" ? ` · 目标 ${formatTimerSeconds(timer.targetSec)}` : ""}
         </span>
       </div>
       <div className="ui-timer-controls">
-        <div className="ui-timer-segment" role="group" aria-label="计时模式">
-          <button className={timer.mode === "stopwatch" ? "active" : ""} type="button" onClick={() => timer.setMode("stopwatch")}>
-            计时
-          </button>
-          <button className={timer.mode === "countdown" ? "active" : ""} type="button" onClick={() => timer.setMode("countdown")}>
-            倒计时
-          </button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {[60, 90, 120].map((seconds) => (
-            <button
-              key={seconds}
-              className={`ui-timer-chip ${timer.targetSec === seconds ? "active" : ""}`}
-              type="button"
-              onClick={() => timer.setTargetSec(seconds)}
-            >
-              {seconds}s
-            </button>
-          ))}
-          <label className="ui-timer-custom">
-            自定义
-            <input
-              min={15}
-              max={3600}
-              type="number"
-              value={timer.targetSec}
-              onChange={(event) => timer.setTargetSec(Number(event.target.value))}
-            />
-          </label>
-        </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={timer.isRunning ? timer.pause : timer.resume}>
-            {timer.isRunning ? "暂停" : "继续"}
+            {timer.isRunning ? "暂停" : timer.elapsedSec ? "继续" : "开始"}
           </Button>
           <Button size="sm" variant="ghost" onClick={timer.reset}>
             重置
           </Button>
         </div>
+        <details className="ui-timer-countdown-options">
+          <summary>倒计时选项</summary>
+          <div className="ui-timer-segment" role="group" aria-label="计时模式">
+            <button className={timer.mode === "stopwatch" ? "active" : ""} type="button" onClick={() => timer.setMode("stopwatch")}>正计时</button>
+            <button className={timer.mode === "countdown" ? "active" : ""} type="button" onClick={() => timer.setMode("countdown")}>倒计时</button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {[60, 90, 120].map((seconds) => <button key={seconds} className={`ui-timer-chip ${timer.targetSec === seconds ? "active" : ""}`} type="button" onClick={() => timer.setTargetSec(seconds)}>{seconds}s</button>)}
+            <label className="ui-timer-custom">自定义<input min={15} max={3600} type="number" value={timer.targetSec} onChange={(event) => timer.setTargetSec(Number(event.target.value))} /></label>
+          </div>
+        </details>
       </div>
     </section>
   );

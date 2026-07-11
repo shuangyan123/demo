@@ -38,6 +38,12 @@ function modelCapabilities(provider: ApiProvider, id: string, raw?: Record<strin
   if (provider === "deepseek") return ["text", "structured_output", "streaming"];
   if (provider === "minimax") return value.startsWith("speech-") ? ["speech"] : ["text", "structured_output", "streaming"];
   if (provider === "xai") return ["text", "vision", "structured_output", "streaming"];
+  if (provider === "zhipu") {
+    if (value.includes("tts")) return ["speech"];
+    if (value.includes("asr")) return ["transcription"];
+    if (value.includes("v") || value.includes("vision")) return ["text", "vision", "structured_output", "streaming"];
+    return ["text", "structured_output", "streaming"];
+  }
   return ["text"];
 }
 
@@ -49,6 +55,9 @@ function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string)
   const capabilities = modelCapabilities(provider, raw.id, raw.capabilities);
   const rawStatus = raw.status?.toLowerCase();
   const status = rawStatus === "deprecated" || rawStatus === "retired" ? "deprecated" : rawStatus === "preview" || rawStatus === "experimental" ? "preview" : rawStatus ? "active" : "unknown";
+  const generation = raw.id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
+  const modalityGroup = capabilities.includes("speech") ? "speech" : capabilities.includes("transcription") && !capabilities.includes("text")
+    ? "transcription" : capabilities.includes("vision") ? "multimodal" : "text";
   return {
     id: raw.id,
     label: raw.label || raw.id,
@@ -56,6 +65,9 @@ function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string)
     capabilities,
     status,
     source: "official_api",
+    family: raw.id.replace(/(?:[-_.](?:pro|mini|nano|flash|lite|turbo|hd|highspeed|reasoning|non-reasoning|preview|latest))+$/gi, ""),
+    generation,
+    modalityGroup,
     contextWindow: raw.contextWindow,
     maxOutputTokens: raw.maxOutputTokens,
     supportsStreaming: capabilities.includes("streaming"),
