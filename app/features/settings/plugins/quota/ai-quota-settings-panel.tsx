@@ -5,6 +5,7 @@ import { aiQuotaRepository } from "../../../../services/ai-quota-repository";
 import type { AiQuotaPluginConfig, AiQuotaSnapshot, ApiProvider } from "../../../../types/review";
 import { Button, Chip, EmptyState } from "../../../shared/ui-primitives";
 import { ProviderIcon } from "../../../shared/provider-icon";
+import { AppIcon } from "../../../shared/app-icon";
 
 type QuotaFormState = Record<string, { enabled: boolean; apiKey: string; monthlyBudget: string; manualRemaining: string }>;
 
@@ -114,7 +115,7 @@ export function AiQuotaSettingsPanel() {
               <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[2rem_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
                 <ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={28} />
                 <span className="min-w-0"><strong className="block truncate">{plugin.label}</strong><small className="text-muted">已用 {currency(snapshot?.usedAmount, snapshot?.currency)} · 剩余 {currency(snapshot?.remainingAmount, snapshot?.currency)}</small></span>
-                <Chip tone={statusTone}>{snapshot?.status ?? (form.enabled ? "待刷新" : "未启用")}</Chip><span aria-hidden="true">›</span>
+                <Chip tone={statusTone}>{snapshot?.status ?? (form.enabled ? "待刷新" : "未启用")}</Chip><AppIcon name="chevronRight" size={16} />
               </summary>
               <div className="border-t border-line p-4">
                 <div className="flex flex-wrap justify-end gap-2">

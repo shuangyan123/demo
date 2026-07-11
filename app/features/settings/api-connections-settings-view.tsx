@@ -152,6 +152,20 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
       capabilities: profile.capabilities,
       language: profile.providerOptions.language ?? "zh-CN",
     });
+    const contract = getProviderContract(profile.provider);
+    if (contract.modelListStrategy !== "official_api") {
+      setOfficialModels([]);
+      setFeedback(null);
+      return;
+    }
+    const cached = providerModelCache.load(profile.provider, profile.baseUrl);
+    setOfficialModels(cached?.models ?? []);
+    if (!cached || providerModelCache.isStale(cached)) {
+      void listModelsWithConnection(profile).then((result) => {
+        providerModelCache.save(profile.provider, profile.baseUrl, result);
+        setOfficialModels(result.models);
+      }).catch(() => undefined);
+    }
     setFeedback(null);
   }
 

@@ -7,6 +7,7 @@ import type { AppearanceSettings, ThemeConfig } from "../../types/review";
 import { ColorPickerField, isValidHexColor } from "./color-picker-field";
 import { cloneTheme, darkThemePresets, lightThemePresets, type ThemePreset } from "./theme-presets";
 import { ThemePresetSelect } from "./theme-preset-select";
+import { AppIcon } from "../shared/app-icon";
 
 export type SettingsIconName = "appearance" | "back" | "configuration" | "diagnostics" | "mcp" | "personalization" | "plugins" | "dark" | "light" | "motion" | "none" | "system";
 
@@ -422,6 +423,7 @@ function InlineTextControl({ onChange, value }: { onChange: (value: string) => v
 
 // 渲染设置导航图标，保持截图里的细线图标气质且不额外引入依赖。
 export function SettingsNavIcon({ name, small = false }: { name: SettingsIconName; small?: boolean }) {
+  if (name) return <AppIcon name={name} size={small ? 16 : 22} />;
   const size = small ? 16 : 22;
   const common = {
     fill: "none",

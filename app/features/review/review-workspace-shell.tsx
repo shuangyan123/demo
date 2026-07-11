@@ -9,6 +9,7 @@ import { AiActivityPanel } from "../shared/ai-activity-panel";
 import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
 import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../study/study-registry";
 import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
+import { AppIcon } from "../shared/app-icon";
 
 type ReviewNavIconName =
   | "newChat"
@@ -159,10 +160,14 @@ export function ReviewWorkspaceShell({
               <summary className={`grid min-h-10 cursor-pointer list-none grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-md px-2 text-left text-sm font-semibold [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"}`}>
                 <ReviewNavIcon name="project" />
                 <span className="truncate">{civilServiceDomain.label}</span>
-                <span className="transition group-open:rotate-90">›</span>
+                <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
               </summary>
               <div className="mt-1 grid gap-1 pl-2">
-                <p className="px-2 pt-1 text-[11px] font-medium text-muted">模块</p>
+                <details className="group/modules">
+                  <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover [&::-webkit-details-marker]:hidden">
+                    <span>模块</span><span className="transition group-open/modules:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
+                  </summary>
+                  <div className="grid gap-1 pl-1">
                   {civilServiceDomain.modules.map((module) => (
                     <button
                       key={module.id}
@@ -177,7 +182,13 @@ export function ReviewWorkspaceShell({
                       <span className="truncate">{module.label}</span>
                     </button>
                   ))}
-                <p className="px-2 pt-2 text-[11px] font-medium text-muted">板块筛选</p>
+                  </div>
+                </details>
+                <details className="group/boards">
+                  <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover [&::-webkit-details-marker]:hidden">
+                    <span>板块筛选</span><span className="transition group-open/boards:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
+                  </summary>
+                  <div className="grid gap-1 pl-1">
                   {boardStats.map((stat) => (
                     <button
                       key={stat.board}
@@ -191,6 +202,8 @@ export function ReviewWorkspaceShell({
                       <span>{stat.total}</span>
                     </button>
                   ))}
+                  </div>
+                </details>
               </div>
             </details>
 
@@ -240,6 +253,7 @@ export function ReviewWorkspaceShell({
 
 /** 渲染侧边栏线性图标，避免为少量导航图标额外引入依赖。 */
 function ReviewNavIcon({ name }: { name: ReviewNavIconName }) {
+  if (name) return <AppIcon name={name} size={20} />;
   const common = {
     className: "h-5 w-5",
     fill: "none",

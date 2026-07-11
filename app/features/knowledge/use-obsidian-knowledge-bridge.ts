@@ -112,6 +112,14 @@ export function useObsidianKnowledgeBridge({
     const { requestKnowledgeEvolutionProposals } = await import("../../services/knowledge-evolution-service");
     const activityRunId = crypto.randomUUID();
     const sources = await obsidianKnowledgeRepository.loadEvolutionSources();
+    if (!sources.length) {
+      const emptyResult: KnowledgeEvolutionGenerationResult = {
+        proposals: [], diagnostics: [{ id: "no-sources", tone: "info", message: "没有未消费且包含正文的学习记录。已忽略的提案来源允许再次使用。" }],
+        parsedCount: 0, filteredCount: 0, sourceCount: 0, emptyKind: "no_sources", emptyReason: "暂无可用于演进的新来源。",
+      };
+      setLastGenerationResult(emptyResult);
+      return emptyResult.emptyReason!;
+    }
     const graphSnapshot = await obsidianKnowledgeRepository.loadGraphSnapshot();
     const result = await requestKnowledgeEvolutionProposals({ connection: textConnection, personalization, sources, entries, graph: graphSnapshot, activityRunId });
     emitAiActivity({ runId: activityRunId, module: "Obsidian 插件", purpose: "知识演进提案", phase: "waiting", label: `${textConnection.provider} · ${textConnection.model}`, stepId: "save", connectionLabel: textConnection.label, model: textConnection.model, text: `正在保存 ${result.proposals.length} 条 pending 提案` });

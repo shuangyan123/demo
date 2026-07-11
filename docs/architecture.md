@@ -112,6 +112,15 @@ KnowledgeView / Settings Plugin → useObsidianKnowledgeBridge → knowledge evo
 
 ## 扩展原则
 
+## 2026-07 公考树与六厂商适配加固
+
+- 公考、模块、板块筛选使用三层原生 disclosure，三层均默认折叠；展开状态只属于当前 React 会话，不写入 IndexedDB。
+- `AppIcon` 集中封装 Lucide 的尺寸、线宽和光学对齐；AI 品牌仍由 `ProviderIcon` 与品牌注册表读取本地 SVG。
+- 对话树的展开、菜单与拖拽状态继续由 `useConversationTreeController` 管理。独立拖拽手柄写入应用 MIME，文件夹和根目录负责 drop 协议，repository 仍是移动合法性的最终边界。
+- AI 连接按协议适配、模型发现、能力映射、错误归一化分层。OpenAI 与 xAI 使用 Responses，Gemini 使用 generateContent，Anthropic 使用 Messages，DeepSeek 与 MiniMax 使用各自核验的兼容协议。
+- 模型公开元数据采用一小时 stale-while-revalidate 缓存；密钥、请求头与厂商原始响应不进入缓存，也不会自动替换已保存的模型 ID。
+- 知识演进使用统一 structured output 契约与 `{ proposals: [] }` 包络；空响应、解析失败或全量过滤只修复重试一次，rejected 提案不会永久消费来源。
+
 新增人设字段时先扩展 `PersonaCustomization` 和 repository 归一化，再分别接入默认编辑器或定制卡背。新增主题只需增加预设，不得为单个主题新增名称判断或固定色分支。
 
 ## 已安排

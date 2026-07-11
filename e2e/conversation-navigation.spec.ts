@@ -15,6 +15,34 @@ async function conversationCount(page: Page): Promise<number> {
   }));
 }
 
+/** 直接向真实 IndexedDB 写入一条持久化对话，用于验证树拖拽与 repository 更新闭环。 */
+async function seedConversation(page: Page, id: string, title: string): Promise<void> {
+  await page.evaluate(async ({ conversationId, conversationTitle }) => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction("aiConversations", "readwrite");
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+      const timestamp = new Date().toISOString();
+      transaction.objectStore("aiConversations").put({ id: conversationId, projectId: "civil-service", studyDomainId: "civil-service", title: conversationTitle, kind: "general", status: "active", sourceType: "manual", messageCount: 1, createdAt: timestamp, updatedAt: timestamp });
+    };
+  }), { conversationId: id, conversationTitle: title });
+}
+
+async function conversationFolderId(page: Page, id: string): Promise<string | undefined> {
+  return page.evaluate(async (conversationId) => new Promise<string | undefined>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const getRequest = request.result.transaction("aiConversations", "readonly").objectStore("aiConversations").get(conversationId);
+      getRequest.onerror = () => reject(getRequest.error);
+      getRequest.onsuccess = () => resolve(getRequest.result?.folderId);
+    };
+  }), id);
+}
+
 test("公考默认折叠，新对话保持草稿且普通文本不显示 caret", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.goto("/");
@@ -23,8 +51,18 @@ test("公考默认折叠，新对话保持草稿且普通文本不显示 caret",
   await expect(projectSummary).toBeVisible();
   await expect(page.getByRole("button", { name: "错题库" })).toBeHidden();
   await projectSummary.click();
+  const moduleSummary = page.locator("summary").filter({ hasText: "模块" }).first();
+  const boardSummary = page.locator("summary").filter({ hasText: "板块筛选" }).first();
+  const boardDisclosure = boardSummary.locator("xpath=..");
+  await expect(moduleSummary).toBeVisible();
+  await expect(boardSummary).toBeVisible();
+  await expect(page.getByRole("button", { name: "错题库" })).toBeHidden();
+  await expect(boardDisclosure).not.toHaveAttribute("open", "");
+  await moduleSummary.click();
   await expect(page.getByRole("button", { name: "错题库" })).toBeVisible();
   await expect(page.getByRole("button", { name: "错题库" })).toHaveCount(1);
+  await boardSummary.click();
+  await expect(boardDisclosure).toHaveAttribute("open", "");
 
   const before = await conversationCount(page);
   await page.getByRole("button", { name: "新对话" }).click();
@@ -67,4 +105,24 @@ test("对话文件夹可新建、重命名、移动和删除且使用统一操�
   await page.getByRole("button", { name: "待移动分类 操作" }).click();
   await drawer.getByRole("button", { name: "删除", exact: true }).click();
   await expect(page.getByRole("button", { name: "待移动分类 操作" })).toHaveCount(0);
+});
+
+test("桌面拖拽手柄可将持久化对话移入文件夹并拖回根目录", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "新建文件夹" }).click();
+  await page.getByLabel("新文件夹名称").fill("拖拽目标");
+  await page.getByRole("button", { name: "创建" }).click();
+  await seedConversation(page, "drag-conversation", "拖拽验证对话");
+  await page.reload();
+
+  const conversation = page.locator('[data-conversation-id="drag-conversation"]');
+  const folder = page.locator('[data-folder-id]').filter({ hasText: "拖拽目标" }).first();
+  await conversation.locator(".conversation-tree-drag-handle").dragTo(folder.locator(".conversation-tree-folder-row").first());
+  await expect(folder.locator('[data-conversation-id="drag-conversation"]')).toBeVisible();
+  const folderId = await folder.getAttribute("data-folder-id");
+  expect(await conversationFolderId(page, "drag-conversation")).toBe(folderId);
+
+  await folder.locator('[data-conversation-id="drag-conversation"] .conversation-tree-drag-handle').dragTo(page.locator("[data-drop-root]"));
+  await expect(page.locator('[data-drop-root] > [data-conversation-id="drag-conversation"]')).toBeVisible();
+  expect(await conversationFolderId(page, "drag-conversation")).toBeUndefined();
 });

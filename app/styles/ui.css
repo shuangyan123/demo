@@ -964,7 +964,7 @@ select,
 }
 
 .conversation-tree-folder-label,
-.conversation-tree-chat > button:first-child {
+.conversation-tree-chat > button:nth-child(2) {
   display: grid;
   min-height: 2rem;
   min-width: 0;
@@ -980,17 +980,29 @@ select,
 }
 
 .conversation-tree-chat {
-  grid-template-columns: minmax(0, 1fr) 1.8rem;
+  grid-template-columns: 1.4rem minmax(0, 1fr) 1.8rem;
   border-radius: 0.45rem;
-  padding-left: 1.8rem;
+  padding-left: 1.4rem;
 }
 
 .conversation-tree-chat.is-active {
   background: var(--chrome-selected);
 }
 
-.conversation-tree-chat > button:first-child {
+.conversation-tree-chat > button:nth-child(2) {
   grid-template-columns: 1rem minmax(0, 1fr);
+}
+
+.conversation-tree-drag-handle {
+  display: grid;
+  min-height: 2rem;
+  place-items: center;
+  color: var(--muted);
+  cursor: grab;
+}
+
+.conversation-tree-drag-handle:active {
+  cursor: grabbing;
 }
 
 .conversation-tree-create {

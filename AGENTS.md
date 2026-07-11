@@ -101,6 +101,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## AI JSON 约定
 
+## 公考树、产品图标与六厂商适配经验
+
+- 公考内部的模块和板块筛选必须使用独立原生 disclosure，默认折叠且不持久化；测试应直接断言各层 `open` 状态，不能依赖空数据库下不存在的板块按钮。
+- 产品功能图标统一通过 `AppIcon` 使用 Lucide；AI 品牌只能通过 `ProviderIcon` 与集中注册表渲染，禁止恢复 Unicode 占位或重复内联 SVG。
+- 对话拖拽必须从独立手柄启动，同时写入自定义 DataTransfer MIME；drop 目标需 `preventDefault`、设置 `dropEffect`，并由 repository 校验跨项目和非法嵌套。
+- 只有 `modelListStrategy === official_api` 的连接允许后台刷新模型目录；自定义与手动目录不得在保存后额外请求模型服务。
+- structured output 由统一请求契约进入 provider adapter；知识演进固定使用对象包络并兼容历史数组，空响应/解析失败/全部过滤最多修复重试一次。
+- rejected 知识演进提案不再消费来源；pending 与 accepted 仍需排除，避免重复待确认或已确认提案。
+
 - 模型返回 JSON 必须通过 `app/services/ai-json.ts` 统一处理 Markdown fence、对象/数组主体提取和稳定错误消息；业务 service 不得重新手写 fence 清理或裸 `JSON.parse`。
 - JSON helper 只负责解析稳定性，不改变现有 prompt 契约、不引入额外 schema 依赖；字段缺失、空数组和业务归一化继续由各业务 service 自己处理。
 

@@ -95,7 +95,7 @@ test("Anthropic fixture：Messages 鉴权、system 和内容块保持厂商原�
 });
 
 test("OpenAI-compatible providers map to Chat Completions", () => {
-  for (const provider of ["xai", "deepseek", "qwen", "openrouter", "groq", "mistral", "siliconflow", "zhipu", "kimi", "doubao", "baidu", "tencent"] as const) {
+  for (const provider of ["deepseek", "qwen", "openrouter", "groq", "mistral", "siliconflow", "zhipu", "kimi", "doubao", "baidu", "tencent"] as const) {
     const input: AiGenerateRequest = { ...baseGenerate, provider };
     const request = buildGenerateProviderRequest(input);
     assert.equal(request.url, "https://provider.example/v1/chat/completions");
@@ -105,6 +105,26 @@ test("OpenAI-compatible providers map to Chat Completions", () => {
       { content: "完成", requestId: "chat_1", usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 } },
     );
   }
+});
+
+test("六家重点厂商按原生协议映射结构化输出", () => {
+  const structuredOutput = { name: "probe", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false }, strict: true };
+  const openai = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", structuredOutput });
+  const xai = buildGenerateProviderRequest({ ...baseGenerate, provider: "xai", structuredOutput });
+  const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", structuredOutput });
+  const anthropic = buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", structuredOutput });
+  const deepseek = buildGenerateProviderRequest({ ...baseGenerate, provider: "deepseek", structuredOutput, providerOptions: { thinking: "enabled", reasoningEffort: "medium" } });
+  const minimax = buildGenerateProviderRequest({ ...baseGenerate, provider: "minimax", structuredOutput });
+
+  assert.equal(openai.url, "https://provider.example/v1/responses");
+  assert.equal(xai.url, "https://provider.example/v1/responses");
+  assert.equal((openai.body as { text: { format: { type: string } } }).text.format.type, "json_schema");
+  assert.equal((google.body as { generationConfig: { responseMimeType: string } }).generationConfig.responseMimeType, "application/json");
+  assert.equal((anthropic.body as { output_config: { format: { type: string } } }).output_config.format.type, "json_schema");
+  assert.deepEqual((deepseek.body as { response_format: unknown }).response_format, { type: "json_object" });
+  assert.equal((deepseek.body as { reasoning_effort: string }).reasoning_effort, "medium");
+  assert.equal((minimax.body as { response_format: { type: string } }).response_format.type, "json_schema");
+  assert.equal((minimax.body as { max_completion_tokens: number }).max_completion_tokens, 321);
 });
 
 test("流式生成请求会启用厂商原生 stream 字段并归一化 delta 与 usage", () => {
@@ -233,12 +253,15 @@ test("模型目录代理归一化 Google models.list 且不返回密钥和原始
     assert.equal(response.status, 200);
     assert.equal(forwardedUrl, "https://generativelanguage.googleapis.com/v1beta/models");
     assert.equal(forwardedHeaders?.["x-goog-api-key"], "fixture-key");
-    assert.deepEqual(result.models, [{
-      id: "gemini-2.5-flash",
-      label: "Gemini 2.5 Flash",
-      capabilities: ["text", "vision", "transcription"],
-      source: "official_api",
-    }]);
+    assert.equal(result.models.length, 1);
+    assert.equal(result.models[0].id, "gemini-2.5-flash");
+    assert.equal(result.models[0].label, "Gemini 2.5 Flash");
+    assert.deepEqual(result.models[0].purposes, ["text", "vision", "transcription"]);
+    assert.deepEqual(result.models[0].capabilities, ["text", "vision", "transcription", "structured_output", "streaming"]);
+    assert.equal(result.models[0].source, "official_api");
+    assert.equal(result.models[0].supportsStreaming, true);
+    assert.equal(result.models[0].supportsStructuredOutput, true);
+    assert.ok(result.models[0].updatedAt);
     assert.ok(result.fetchedAt);
     assert.equal(JSON.stringify(result).includes("fixture-key"), false);
     assert.equal(JSON.stringify(result).includes("raw-provider-value"), false);

@@ -219,6 +219,9 @@ export type KnowledgeEvolutionGenerationResult = {
   diagnostics: KnowledgeEvolutionGenerationDiagnostic[];
   parsedCount: number;
   filteredCount: number;
+  sourceCount: number;
+  requestId?: string;
+  emptyKind?: "no_sources" | "empty_response" | "parse_error" | "filtered";
   emptyReason?: string;
 };
 

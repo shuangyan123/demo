@@ -9,7 +9,7 @@ import type {
   PersonalizationSettings,
 } from "../types/review";
 import { generateWithConnection } from "./ai-connection-client.ts";
-import { parseAiJsonArray } from "./ai-json.ts";
+import { extractAiJsonText, parseAiJsonArray, parseAiJsonObject } from "./ai-json.ts";
 import { emitAiActivity } from "./ai-activity-events.ts";
 import type { KnowledgeEvolutionSource } from "./obsidian-knowledge-repository";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
@@ -28,13 +28,42 @@ type ProposalPayload = {
   confidence?: unknown;
 };
 
+const proposalResponseSchema: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["proposals"],
+  properties: {
+    proposals: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["mode", "sourceIds", "category", "title", "summary", "content", "tags", "proposedLinks", "reason", "confidence"],
+        properties: {
+          mode: { type: "string", enum: ["create", "merge", "link"] }, sourceIds: { type: "array", items: { type: "string" } },
+          targetKnowledgeId: { type: ["string", "null"] }, category: { type: "string", enum: ["政治理论", "常识判断", "申论"] },
+          title: { type: "string" }, summary: { type: "string" }, content: { type: "string" }, tags: { type: "array", items: { type: "string" } },
+          proposedLinks: { type: "array", items: { type: "string" } }, reason: { type: "string" }, confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+      },
+    },
+  },
+};
+
 function textList(value: unknown, limit = 12): string[] {
   const source = Array.isArray(value) ? value : String(value ?? "").split(/[,，、\n]/);
   return Array.from(new Set(source.map(String).map((item) => item.trim()).filter(Boolean))).slice(0, limit);
 }
 
 function parsePayload(content: string): { items: ProposalPayload[]; diagnostic?: KnowledgeEvolutionGenerationDiagnostic } {
+  if (!content.trim()) return { items: [], diagnostic: { id: "empty-response", tone: "error", message: "厂商返回了空内容。" } };
   try {
+    const candidate = extractAiJsonText(content);
+    if (candidate.indexOf("{") >= 0 && (candidate.indexOf("[") < 0 || candidate.indexOf("{") < candidate.indexOf("["))) {
+      const envelope = parseAiJsonObject(content, "AI 返回不是有效提案对象");
+      return { items: Array.isArray(envelope.proposals) ? envelope.proposals as ProposalPayload[] : [] };
+    }
     return { items: parseAiJsonArray<ProposalPayload>(content) };
   } catch (error) {
     return {
@@ -53,6 +82,7 @@ export function normalizeKnowledgeEvolutionPayload(input: {
   sources: KnowledgeEvolutionSource[];
   entries: KnowledgeEntry[];
   timestamp?: string;
+  requestId?: string;
 }): KnowledgeEvolutionGenerationResult {
   const allowedSourceIds = new Set(input.sources.map((item) => item.id));
   const allowedTargets = new Set(input.entries.map((item) => item.id));
@@ -104,6 +134,9 @@ export function normalizeKnowledgeEvolutionPayload(input: {
     diagnostics: [...diagnostics, ...filteredDiagnostics],
     parsedCount: parsed.items.length,
     filteredCount: filteredDiagnostics.length,
+    sourceCount: input.sources.length,
+    requestId: input.requestId,
+    emptyKind: proposals.length ? undefined : !input.content.trim() ? "empty_response" : diagnostics.length ? "parse_error" : parsed.items.length ? "filtered" : "empty_response",
     emptyReason: proposals.length
       ? undefined
       : diagnostics.length
@@ -145,15 +178,12 @@ export async function requestKnowledgeEvolutionProposals(input: {
   emitAiActivity({ ...activityBase, phase: "started", stepId: "context", text: `准备 ${input.sources.length} 条来源、${input.entries.length} 条候选知识` });
   emitAiActivity({ ...activityBase, phase: "waiting", stepId: "connection", text: `使用 ${input.connection.label} / ${input.connection.model}` });
   const persona = resolvePersona(input.personalization, "knowledge_internalization");
-  const response = await generateWithConnection(input.connection, "text", {
-    maxOutputTokens: 3000,
-    temperature: 0.1,
-    messages: [
+  const requestMessages = [
       {
-        role: "system",
+        role: "system" as const,
         content: [
           "你负责把长期学习记录整理成知识图谱演进提案。不得编造事实，不得直接写入任何文件。",
-          "只返回 JSON 数组，最多 5 项。字段：mode、sourceIds、targetKnowledgeId、category、title、summary、content、tags、proposedLinks、reason、confidence。",
+          "只返回 JSON 对象，格式为 {\"proposals\": [...]}，最多 5 项。字段：mode、sourceIds、targetKnowledgeId、category、title、summary、content、tags、proposedLinks、reason、confidence。",
           "mode 只能是 create、merge、link。merge/link 的 targetKnowledgeId 只能选择候选知识 ID；sourceIds 只能选择输入来源 ID。",
           "category 只能是政治理论、常识判断、申论。proposedLinks 使用候选知识标题，供 Obsidian Wikilink 使用。",
           "优先合并重复概念、建立有证据的关系；content 只写准备加入 AI 演进区块的内容，不复述整篇资料。",
@@ -162,7 +192,7 @@ export async function requestKnowledgeEvolutionProposals(input: {
         ].join("\n\n"),
       },
       {
-        role: "user",
+        role: "user" as const,
         content: JSON.stringify({
           sources: input.sources.map((item) => ({ ...item, content: item.content.slice(0, 1600) })),
           candidates: input.entries.slice(0, 30).map((entry) => ({ id: entry.id, category: entry.category, title: entry.title, summary: entry.summary, tags: entry.tags })),
@@ -172,7 +202,12 @@ export async function requestKnowledgeEvolutionProposals(input: {
           } : undefined,
         }),
       },
-    ],
+    ];
+  const generate = (messages: typeof requestMessages) => generateWithConnection(input.connection, "text", {
+    maxOutputTokens: 3000,
+    temperature: 0.1,
+    messages,
+    structuredOutput: { name: "knowledge_evolution_proposals", schema: proposalResponseSchema, strict: true },
     activity: {
       runId: activityBase.runId,
       module: activityBase.module,
@@ -180,8 +215,16 @@ export async function requestKnowledgeEvolutionProposals(input: {
       connectionLabel: input.connection.label,
     },
   });
+  let response = await generate(requestMessages);
   emitAiActivity({ ...activityBase, phase: "waiting", stepId: "parse", text: "正在解析知识演进 JSON" });
-  const result = normalizeKnowledgeEvolutionPayload({ content: response.content, sources: input.sources, entries: input.entries });
+  let result = normalizeKnowledgeEvolutionPayload({ content: response.content, sources: input.sources, entries: input.entries, requestId: response.requestId });
+  if (!result.proposals.length) {
+    emitAiActivity({ ...activityBase, phase: "waiting", stepId: "repair", text: "首次未得到可用提案，正在执行一次结构化修复" });
+    response = await generate([...requestMessages, { role: "user", content: `上一次结果不可用：${result.emptyReason}。请严格按 JSON Schema 返回至少一条有 content 或 proposedLinks 的提案。` }]);
+    const repaired = normalizeKnowledgeEvolutionPayload({ content: response.content, sources: input.sources, entries: input.entries, requestId: response.requestId });
+    repaired.diagnostics.unshift({ id: "repair-retry", tone: repaired.proposals.length ? "info" : "warning", message: "已自动执行一次结构化修复重试。" });
+    result = repaired;
+  }
   emitAiActivity({
     ...activityBase,
     phase: result.proposals.length ? "done" : "error",

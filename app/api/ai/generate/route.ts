@@ -16,7 +16,12 @@ function encodeSse(event: AiGenerateStreamEvent): Uint8Array {
 
 /** 将常见厂商容量状态归一成可行动提示，避免把原始错误正文展示到业务界面。 */
 function providerFailureMessage(status: number): string {
-  if (status === 429 || status === 503) return "模型暂时满载，请切换模型或稍后再试";
+  if (status === 401 || status === 403) return "API 鉴权失败，请检查连接密钥和权限";
+  if (status === 404) return "模型或 API 地址不存在，请刷新模型目录后重新选择";
+  if (status === 408 || status === 504) return "厂商响应超时，请稍后重试";
+  if (status === 413 || status === 422) return "请求内容超出模型限制或参数不兼容";
+  if (status === 429) return "请求已被限流，请稍后重试或切换模型";
+  if (status === 503) return "模型暂时满载，请切换模型或稍后再试";
   return `厂商 API 请求失败（${status}）`;
 }
 

@@ -1,8 +1,8 @@
 import type { AiModelsResult } from "./api-client";
 import type { ApiProvider } from "../types/review";
 
-const CACHE_PREFIX = "review_provider_models_v1";
-const CACHE_TTL = 24 * 60 * 60 * 1000;
+const CACHE_PREFIX = "review_provider_models_v2";
+export const PROVIDER_MODEL_CACHE_TTL = 60 * 60 * 1000;
 
 function key(provider: ApiProvider, baseUrl: string): string {
   return `${CACHE_PREFIX}:${provider}:${baseUrl.replace(/\/+$/, "")}`;
@@ -16,7 +16,6 @@ export const providerModelCache = {
       const raw = window.localStorage.getItem(key(provider, baseUrl));
       if (!raw) return undefined;
       const value = JSON.parse(raw) as AiModelsResult;
-      if (Date.now() - new Date(value.fetchedAt).getTime() > CACHE_TTL) return undefined;
       return value;
     } catch {
       return undefined;
@@ -25,5 +24,8 @@ export const providerModelCache = {
   save(provider: ApiProvider, baseUrl: string, value: AiModelsResult): void {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(key(provider, baseUrl), JSON.stringify(value));
+  },
+  isStale(value: AiModelsResult): boolean {
+    return Date.now() - new Date(value.fetchedAt).getTime() > PROVIDER_MODEL_CACHE_TTL;
   },
 };

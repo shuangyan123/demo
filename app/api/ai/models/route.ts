@@ -1,4 +1,7 @@
 import type { AiModelDirectoryEntry, AiModelsRequest } from "../../../services/api-client";
+import type { AiCapability, AiConnectionPurpose, ApiProvider } from "../../../types/review";
+
+type RawModel = { id: string; label: string; status?: string; capabilities?: Record<string, unknown>; contextWindow?: number; maxOutputTokens?: number };
 
 function isRequest(value: unknown): value is AiModelsRequest {
   if (!value || typeof value !== "object") return false;
@@ -10,41 +13,79 @@ function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
-function inferCapabilities(id: string): AiModelDirectoryEntry["capabilities"] {
+function providerHeaders(provider: ApiProvider, apiKey: string): Record<string, string> {
+  if (provider === "google") return { "x-goog-api-key": apiKey };
+  if (provider === "anthropic") return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+}
+
+/** 按厂商已核验能力归一化模型，禁止用跨厂商通用正则虚报视觉能力。 */
+function modelCapabilities(provider: ApiProvider, id: string, raw?: Record<string, unknown>): AiCapability[] {
   const value = id.toLowerCase();
-  if (/tts|speech/.test(value)) return ["speech"];
-  if (/gemini/.test(value)) return ["text", "vision", "transcription"];
-  if (/gpt-5|gpt-4o|claude|vision|vl|qwen3/.test(value)) return ["text", "vision"];
+  if (provider === "openai" || provider === "azure_openai") {
+    if (value.includes("tts")) return ["speech"];
+    if (value.includes("transcribe") || value.includes("whisper")) return ["transcription"];
+    return value.includes("gpt-5") || value.includes("gpt-4o")
+      ? ["text", "vision", "structured_output", "streaming"]
+      : ["text", "structured_output", "streaming"];
+  }
+  if (provider === "google") return ["text", "vision", "transcription", "structured_output", "streaming"];
+  if (provider === "anthropic") {
+    const capabilities = raw?.capabilities as Record<string, unknown> | undefined;
+    return ["text", ...(capabilities?.image_input !== false ? ["vision" as const] : []), "structured_output", "streaming"];
+  }
+  if (provider === "deepseek") return ["text", "structured_output", "streaming"];
+  if (provider === "minimax") return value.startsWith("speech-") ? ["speech"] : ["text", "structured_output", "streaming"];
+  if (provider === "xai") return ["text", "vision", "structured_output", "streaming"];
   return ["text"];
 }
 
-/** 代理厂商官方 models API，只返回公开模型 ID 和归一化能力。 */
+function purposesFor(capabilities: AiCapability[]): AiConnectionPurpose[] {
+  return (["text", "vision", "speech", "transcription"] as AiConnectionPurpose[]).filter((purpose) => capabilities.includes(purpose));
+}
+
+function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string): AiModelDirectoryEntry {
+  const capabilities = modelCapabilities(provider, raw.id, raw.capabilities);
+  const rawStatus = raw.status?.toLowerCase();
+  const status = rawStatus === "deprecated" || rawStatus === "retired" ? "deprecated" : rawStatus === "preview" || rawStatus === "experimental" ? "preview" : rawStatus ? "active" : "unknown";
+  return {
+    id: raw.id,
+    label: raw.label || raw.id,
+    purposes: purposesFor(capabilities),
+    capabilities,
+    status,
+    source: "official_api",
+    contextWindow: raw.contextWindow,
+    maxOutputTokens: raw.maxOutputTokens,
+    supportsStreaming: capabilities.includes("streaming"),
+    supportsStructuredOutput: capabilities.includes("structured_output"),
+    updatedAt,
+  };
+}
+
+/** 代理六家厂商官方模型目录；响应只包含公开且归一化的模型元数据。 */
 export async function POST(request: Request) {
   try {
     const body: unknown = await request.json();
     if (!isRequest(body)) return new Response("缺少有效的模型目录连接参数", { status: 400 });
-    const url = `${normalizeBaseUrl(body.baseUrl)}/models`;
-    const headers: Record<string, string> = body.provider === "google"
-      ? { "x-goog-api-key": body.apiKey }
-      : body.provider === "anthropic"
-        ? { "x-api-key": body.apiKey, "anthropic-version": "2023-06-01" }
-        : body.apiKey
-          ? { Authorization: `Bearer ${body.apiKey}` }
-          : {};
-    const response = await fetch(url, { headers, cache: "no-store" });
+    const response = await fetch(`${normalizeBaseUrl(body.baseUrl)}/models`, { headers: providerHeaders(body.provider, body.apiKey), cache: "no-store" });
     if (!response.ok) return new Response(`官方模型目录请求失败（${response.status}）`, { status: response.status });
-    const payload = await response.json() as {
-      data?: Array<{ id?: string; display_name?: string }>;
-      models?: Array<{ name?: string; displayName?: string }>;
-    };
-    const source = body.provider === "google"
-      ? (payload.models ?? []).map((model) => ({ id: model.name?.replace(/^models\//, "") ?? "", label: model.displayName ?? model.name ?? "" }))
-      : (payload.data ?? []).map((model) => ({ id: model.id ?? "", label: model.display_name ?? model.id ?? "" }));
-    const models = source
-      .filter((model) => model.id)
-      .map((model): AiModelDirectoryEntry => ({ ...model, capabilities: inferCapabilities(model.id), source: "official_api" }))
-      .sort((left, right) => left.id.localeCompare(right.id));
-    return Response.json({ models, fetchedAt: new Date().toISOString() });
+    const payload = await response.json() as { data?: Array<Record<string, unknown>>; models?: Array<Record<string, unknown>> };
+    const source = body.provider === "google" ? payload.models ?? [] : payload.data ?? [];
+    const fetchedAt = new Date().toISOString();
+    const models = source.flatMap((item): RawModel[] => {
+      const id = body.provider === "google" ? String(item.name ?? "").replace(/^models\//, "") : String(item.id ?? "");
+      if (!id) return [];
+      return [{
+        id,
+        label: String(item.displayName ?? item.display_name ?? item.name ?? item.id ?? id),
+        status: String(item.stage ?? item.status ?? ""),
+        capabilities: item,
+        contextWindow: Number(item.inputTokenLimit ?? item.context_window) || undefined,
+        maxOutputTokens: Number(item.outputTokenLimit ?? item.max_tokens) || undefined,
+      }];
+    }).map((item) => normalizeModel(body.provider, item, fetchedAt)).sort((left, right) => left.label.localeCompare(right.label));
+    return Response.json({ models, fetchedAt });
   } catch {
     return new Response("模型目录请求失败", { status: 500 });
   }

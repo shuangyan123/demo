@@ -20,6 +20,13 @@
 
 ## AI 连接模型目录
 
+### 六厂商归一化补充
+
+- `AiGenerateRequest.structuredOutput` 包含 `name`、`schema` 与 `strict`，服务端 adapter 将其映射为厂商原生结构化输出字段。
+- `POST /api/ai/models` 的模型项包含 `id`、`label`、`purposes`、`capabilities`、`status`、`source`、上下文与输出上限、流式/结构化支持和 `updatedAt`；不返回密钥或原始模型对象。
+- 客户端模型目录缓存有效期为一小时。过期数据可立即展示并后台刷新；手动刷新强制请求官方目录，失败时保留静态目录和手动模型 ID。
+- 生成错误归一化为鉴权、模型不存在、能力不匹配、限流、容量、上下文、内容过滤和网络类错误，并返回可操作提示。
+
 `AiProviderCatalogEntry` 描述厂商连接协议、默认 base URL、能力、官方文档链接、模型列表刷新策略和手动模型兜底。`AiModelCatalogEntry` 描述模型 ID、文本/视觉/语音/流式/结构化能力、推荐/预览/弃用状态、来源和最后验证时间。
 
 设置页使用用途、厂商、模型三级下拉。`POST /api/ai/models` 代理连接对应的官方 models API，返回 `id`、`label`、`capabilities`、`source` 与 `fetchedAt`；客户端只缓存归一化公开目录 24 小时，不缓存 Key、请求头或厂商原始响应。失败时回退静态核验目录，并始终保留手动模型 ID。连接测试必须走本地 `/api/ai/generate` 与 provider adapter，不只做表单 mock。

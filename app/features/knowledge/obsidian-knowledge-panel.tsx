@@ -140,10 +140,12 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
             <div className="rounded-lg border border-line bg-surface-muted p-3 text-sm">
               <div className="flex flex-wrap gap-2">
                 <Chip tone={controller.lastGenerationResult.proposals.length ? "green" : "yellow"}>可用 {controller.lastGenerationResult.proposals.length}</Chip>
+                <Chip>来源 {controller.lastGenerationResult.sourceCount}</Chip>
                 <Chip>解析 {controller.lastGenerationResult.parsedCount}</Chip>
                 <Chip tone={controller.lastGenerationResult.filteredCount ? "yellow" : "blue"}>过滤 {controller.lastGenerationResult.filteredCount}</Chip>
               </div>
               {controller.lastGenerationResult.emptyReason ? <p className="mt-2 text-muted">{controller.lastGenerationResult.emptyReason}</p> : null}
+              {controller.lastGenerationResult.requestId ? <p className="mt-1 text-xs text-muted">请求 ID：{controller.lastGenerationResult.requestId}</p> : null}
               {controller.lastGenerationResult.diagnostics.length ? (
                 <ul className="mt-2 grid gap-1 text-xs text-muted">
                   {controller.lastGenerationResult.diagnostics.slice(0, 4).map((item) => <li key={item.id}>{item.message}</li>)}

@@ -406,7 +406,8 @@ export const obsidianKnowledgeRepository = {
       !allowed || allowed.has("knowledge") ? reviewDb.knowledgeEntries.orderBy("updatedAt").reverse().limit(limit).toArray() : Promise.resolve([]),
       reviewDb.knowledgeEvolutionProposals.toArray(),
     ]);
-    const used = new Set(proposals.flatMap((item) => item.sourceIds));
+    // 已忽略提案不再永久消耗来源，用户可以修正连接或提示后重新生成。
+    const used = new Set(proposals.filter((item) => item.status === "pending" || item.status === "accepted").flatMap((item) => item.sourceIds));
     const sources: KnowledgeEvolutionSource[] = [
       ...mistakes.map((item) => ({ id: `mistake:${item.id}`, type: "mistake" as const, title: item.stem.slice(0, 80), content: [item.answer, item.explanation, item.reasons.join("、")].filter(Boolean).join("\n"), tags: [item.board, ...item.tags, ...item.reasons] })),
       ...evaluations.map((item) => ({ id: `interview:${item.id}`, type: "interview" as const, title: `面试复盘 ${item.totalScore} 分`, content: [...item.problems, ...item.suggestions, ...item.evidence].join("\n"), tags: [item.type, ...item.strengths] })),

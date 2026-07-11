@@ -1,4 +1,4 @@
-import type { ApiProvider } from "../types/review";
+import type { AiCapability, AiConnectionPurpose, ApiProvider } from "../types/review";
 import { emitAiActivity } from "./ai-activity-events.ts";
 
 export type ChatMessageContent =
@@ -22,6 +22,7 @@ export type AiGenerateRequest = {
   messages: ChatMessage[];
   stream?: boolean;
   temperature?: number;
+  structuredOutput?: { name: string; schema: Record<string, unknown>; strict?: boolean };
   providerOptions?: Record<string, string>;
   activity?: {
     runId?: string;
@@ -78,8 +79,15 @@ export type AiTranscriptionResult = {
 export type AiModelDirectoryEntry = {
   id: string;
   label: string;
-  capabilities: Array<"text" | "vision" | "speech" | "transcription">;
-  source: "official_api";
+  purposes: AiConnectionPurpose[];
+  capabilities: AiCapability[];
+  status: "active" | "preview" | "deprecated" | "unknown";
+  source: "official_api" | "static_catalog";
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  supportsStreaming: boolean;
+  supportsStructuredOutput: boolean;
+  updatedAt: string;
 };
 
 export type AiModelsRequest = {

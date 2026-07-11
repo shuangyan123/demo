@@ -44,11 +44,11 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
     void readJson(request)
       .then((body) => {
         const mockRequest = { method: request.method, url: request.url, body };
-        requests.push(mockRequest);
         if (request.method !== "POST" || request.url !== "/v1/chat/completions") {
           writeJson(response, 404, { error: "not found" });
           return;
         }
+        requests.push(mockRequest);
         const content = typeof options.response === "function"
           ? options.response(mockRequest, requests.length - 1)
           : options.response ?? defaultResponse;

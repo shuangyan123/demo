@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type DragEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { conversationRepository } from "../../services/conversation-repository";
 import type { AiConversation, AiConversationFolder } from "../../types/review";
 import { useConversationTreeController } from "./use-conversation-tree-controller";
+import { AppIcon } from "../shared/app-icon";
+
+const CONVERSATION_DRAG_MIME = "application/x-review-conversation-tree";
 
 type ConversationFolderTreeProps = {
   activeConversationId?: string | null;
@@ -40,12 +43,28 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
     await onRefresh();
   }
 
-  async function dropInto(folderId?: string) {
-    const item = controller.dragItem;
+  async function dropInto(event: DragEvent, folderId?: string) {
+    let item = controller.dragItem;
+    if (!item) {
+      try {
+        item = JSON.parse(event.dataTransfer.getData(CONVERSATION_DRAG_MIME)) as typeof item;
+      } catch {
+        item = null;
+      }
+    }
     if (!item) return;
-    if (item.kind === "folder") await run(() => conversationRepository.moveFolder(item.id, folderId));
-    else await run(() => conversationRepository.moveConversation(item.id, folderId));
+    if (item.kind === "folder") await run(() => conversationRepository.moveFolder(item.id, folderId), "文件夹已移动");
+    else await run(() => conversationRepository.moveConversation(item.id, folderId), "对话已移动");
+    if (folderId) controller.expandFolder(folderId);
     controller.endDrag();
+  }
+
+  function startDrag(event: DragEvent, item: { kind: "folder" | "conversation"; id: string }) {
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(CONVERSATION_DRAG_MIME, JSON.stringify(item));
+    event.dataTransfer.setData("text/plain", item.id);
+    controller.setDragItem(item);
   }
 
   function openAction(kind: "folder" | "conversation", id: string, label: string) {
@@ -54,10 +73,10 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   }
 
   function renderConversation(conversation: AiConversation): ReactNode {
-    return <div key={conversation.id} className={`conversation-tree-chat ${activeConversationId === conversation.id ? "is-active" : ""}`} draggable
-      onDragStart={() => controller.setDragItem({ kind: "conversation", id: conversation.id })} onDragEnd={controller.endDrag}>
-      <button type="button" onClick={() => onConversationSelected(conversation.id)}><span aria-hidden="true">◇</span><span className="truncate">{conversation.title}</span></button>
-      <button type="button" aria-label={`${conversation.title} 操作`} title="更多操作" onClick={() => openAction("conversation", conversation.id, conversation.title)}>•••</button>
+    return <div key={conversation.id} data-conversation-id={conversation.id} className={`conversation-tree-chat ${activeConversationId === conversation.id ? "is-active" : ""}`}>
+      <span className="conversation-tree-drag-handle" draggable title="拖动对话" onDragStart={(event) => startDrag(event, { kind: "conversation", id: conversation.id })} onDragEnd={controller.endDrag}><AppIcon name="drag" size={16} /></span>
+      <button type="button" onClick={() => onConversationSelected(conversation.id)}><AppIcon name="message" size={16} /><span className="truncate">{conversation.title}</span></button>
+      <button type="button" aria-label={`${conversation.title} 操作`} title="更多操作" onClick={() => openAction("conversation", conversation.id, conversation.title)}><AppIcon name="more" size={16} /></button>
     </div>;
   }
 
@@ -66,13 +85,13 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
     const chats = projectConversations.filter((item) => item.folderId === folder.id);
     const expanded = controller.expandedFolderIds.has(folder.id);
     const count = chats.length + children.reduce((sum, item) => sum + projectConversations.filter((chat) => chat.folderId === item.id).length, 0);
-    return <div key={folder.id} className="conversation-tree-folder" style={{ paddingLeft: `${depth * 10}px` }}>
+    return <div key={folder.id} data-folder-id={folder.id} className="conversation-tree-folder" style={{ paddingLeft: `${depth * 10}px` }}>
       <div className={`conversation-tree-folder-row ${controller.dropFolderId === folder.id ? "is-drop-target" : ""}`} draggable
-        onDragStart={(event) => { event.stopPropagation(); controller.setDragItem({ kind: "folder", id: folder.id }); }} onDragEnd={controller.endDrag}
-        onDragEnter={() => { controller.setDropFolderId(folder.id); controller.hoverFolder(folder.id); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); void dropInto(folder.id); }}>
-        <button type="button" aria-label={`${expanded ? "折叠" : "展开"}${folder.label}`} onClick={() => controller.toggleFolder(folder.id)}>{expanded ? "⌄" : "›"}</button>
-        <button type="button" className="conversation-tree-folder-label" onClick={() => controller.toggleFolder(folder.id)}><span aria-hidden="true">▰</span><span className="truncate">{folder.label}</span><small>{count}</small></button>
-        <button type="button" aria-label={`${folder.label} 操作`} title="更多操作" onClick={() => openAction("folder", folder.id, folder.label)}>•••</button>
+        onDragStart={(event) => startDrag(event, { kind: "folder", id: folder.id })} onDragEnd={controller.endDrag}
+        onDragEnter={() => { controller.setDropFolderId(folder.id); controller.hoverFolder(folder.id); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); void dropInto(event, folder.id); }}>
+        <button type="button" aria-label={`${expanded ? "折叠" : "展开"}${folder.label}`} onClick={() => controller.toggleFolder(folder.id)}><AppIcon name={expanded ? "chevronDown" : "chevronRight"} size={16} /></button>
+        <button type="button" className="conversation-tree-folder-label" onClick={() => controller.toggleFolder(folder.id)}><AppIcon name={expanded ? "folderOpen" : "folder"} size={16} /><span className="truncate">{folder.label}</span><small>{count}</small></button>
+        <button type="button" aria-label={`${folder.label} 操作`} title="更多操作" onClick={() => openAction("folder", folder.id, folder.label)}><AppIcon name="more" size={16} /></button>
       </div>
       {expanded ? <div className="conversation-tree-children">{children.map((item) => renderFolder(item, depth + 1))}{chats.map(renderConversation)}</div> : null}
     </div>;
@@ -84,7 +103,7 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   const actionFolders = projectFolders.filter((folder) => folder.id !== action?.id);
   const actionDrawer = action && typeof document !== "undefined" ? createPortal(
     <div className="conversation-tree-drawer" role="dialog" aria-modal="true" aria-label="对话树操作"><button className="conversation-tree-drawer-backdrop" type="button" aria-label="关闭" onClick={() => controller.setAction(null)} /><section>
-      <div className="conversation-tree-drawer-title"><strong>{actionLabel}</strong><button type="button" onClick={() => controller.setAction(null)}>×</button></div>
+      <div className="conversation-tree-drawer-title"><strong>{actionLabel}</strong><button type="button" aria-label="关闭操作菜单" title="关闭" onClick={() => controller.setAction(null)}><AppIcon name="close" size={16} /></button></div>
       <label>名称<input value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} /></label>
       <button type="button" onClick={() => void run(async () => { if (action.kind === "folder") await conversationRepository.renameFolder(action.id, actionLabel); else await conversationRepository.renameConversation(action.id, actionLabel); controller.setAction(null); }, "已重命名")}>保存名称</button>
       <label>移动到<select defaultValue="" onChange={(event) => {
@@ -102,9 +121,9 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   ) : null;
 
   const tree = <section className="conversation-tree" aria-label="对话分类">
-    <div className="conversation-tree-heading"><p>对话</p><button type="button" aria-label="新建文件夹" title="新建文件夹" onClick={() => { setCreatingParentId(undefined); setCreating(true); }}>▱＋</button></div>
+    <div className="conversation-tree-heading"><p>对话</p><button type="button" aria-label="新建文件夹" title="新建文件夹" onClick={() => { setCreatingParentId(undefined); setCreating(true); }}><AppIcon name="folderPlus" size={18} /></button></div>
     {creating ? <form className="conversation-tree-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}><input autoFocus aria-label="新文件夹名称" placeholder="文件夹名称" value={draftLabel} onChange={(event) => setDraftLabel(event.currentTarget.value)} /><button type="submit">创建</button><button type="button" onClick={() => setCreating(false)}>取消</button></form> : null}
-    <div className={`conversation-tree-root ${controller.dropFolderId === null ? "is-drop-target" : ""}`} onDragEnter={() => controller.setDropFolderId(null)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void dropInto(undefined); }}>
+    <div data-drop-root className={`conversation-tree-root ${controller.dropFolderId === null ? "is-drop-target" : ""}`} onDragEnter={() => controller.setDropFolderId(null)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); void dropInto(event, undefined); }}>
       {rootFolders.map((folder) => renderFolder(folder))}{rootChats.map(renderConversation)}
     </div>
     {!rootFolders.length && !rootChats.length ? <p className="conversation-tree-empty">发送首条消息后自动保存。</p> : null}
