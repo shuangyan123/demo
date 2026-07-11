@@ -20,9 +20,11 @@ App Shell / ReviewWorkspace
 ```text
 app/
 ├── api/ai/                 AI 浏览器代理路由
+├── api/mcp/                MCP Streamable HTTP 发现与调用边界
 ├── db/                     Dexie 实例、schema 与版本迁移
 ├── features/               按业务领域组织的 UI 与 controller
 ├── server/ai/              provider adapter 与 HTTP 公共边界
+├── server/mcp/             MCP SDK 客户端与 URL 安全校验
 ├── services/               迁移中的 repository、adapter 与纯业务服务
 └── types/domains/          领域稳定类型入口
 ```
@@ -33,6 +35,14 @@ app/
 - Automation：仅在应用打开时调度的“已安排”任务。
 - Interview / Tutoring / Import / Settings：低频功能，必须动态加载。
 - AI Connection：连接档案、能力边界、模型目录、语音与额度插件。
+
+## 对话、插件与 MCP
+
+- `ConversationWorkspace` 由两级模型选择、媒体工具、MCP 调用和 Obsidian 提案等独立组件协作；会话可以保存 `selectedModelId` 覆盖，但继续复用同一连接档案的密钥和 endpoint。
+- 顶层“插件”只展示应用内扩展状态和领域跳转；MCP 独立位于设置，并通过对话工具实际调用，不伪装成插件目录条目。
+- MCP 首期仅支持 Streamable HTTP：远程 HTTPS、本机 loopback HTTP、无认证或本地加密 Bearer。原始调用结果仅在当前工具面板内存中存在，run/step 只保存 Server、工具、参数键和结果长度等脱敏摘要。
+- Obsidian 提案以当前对话和用户勾选的知识摘要为来源；生成、解析和 pending 保存形成同一对话 run，确认时才恢复目录权限、复读 Vault 并执行哈希检查。
+- 复盘计时是页面 controller 的临时状态：默认正计时且暂停在 `00:00`，切题只重置，用户点击开始后才累计。
 
 ## 模块与新对话
 

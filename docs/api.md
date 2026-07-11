@@ -109,3 +109,10 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 # 对话转写接口
 
 `POST /api/ai/transcribe` 只接受 Google Gemini 连接的 `model`、`baseUrl`、临时 `audioBase64` 与 `mimeType`，返回归一化 `{ text, requestId? }`。音频不会被服务端或 IndexedDB 持久化；429/503 统一为可切换模型的容量提示。
+
+## MCP Streamable HTTP
+
+- `POST /api/mcp/discover` 接受 `{ endpoint, token? }`，返回归一化的 `tools/resources/prompts` 名称、说明和工具输入 schema。不得返回 Token、鉴权头或厂商原始事件。
+- `POST /api/mcp/call` 接受 `{ endpoint, token?, tool, arguments }`，使用官方 MCP TypeScript SDK 调用工具；响应体超出 32 KiB 时拒绝交给浏览器。
+- 两个路由都拒绝 URL 内凭据、非 HTTP(S)、远程明文 HTTP 与跨 origin 重定向；请求超时为 15 秒。HTTP 仅允许 `localhost`、`127.0.0.0/8` 和 `::1`。
+- 浏览器 repository 负责本地加密 Bearer Token；IndexedDB 和工具步骤不得保存 Token 或 MCP 原始结果。

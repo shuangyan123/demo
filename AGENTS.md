@@ -100,6 +100,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 性能与包体约定
 
+- 对话模型选择采用“厂商 → 连接档案/具体模型”两级下拉；会话级覆盖只保存 `selectedModelId`，不得为切换模型复制连接密钥。
+- MCP 只支持安全的 Streamable HTTP，并与插件目录分离；原始结果只留当前运行内存，持久化 run/step 只能保存 Server、工具、参数键和脱敏状态。
+- Obsidian 提案生成、解析与 pending 保存必须出现在对话时间线，`conversationId` / `runId` 只作关联且不得触发 Dexie schema 升级。
+- 手动复盘进入和切题只重置为暂停的 `00:00`，不得自动启动；倒计时只作为次级 disclosure。
+
 - `ReviewWorkspace` 首屏只保留总览、错题、复盘、知识库和统计等核心路径；粉笔导入、已安排、设置、面试、辅导等低频视图必须使用 `next/dynamic` 动态加载，不得重新静态引入主工作台。
 - 导入页的 `useImportDrafts` 必须留在导入视图内部 wrapper 中；`pdfjs-dist`、`mammoth` 等文件解析依赖只能在实际解析函数里 `await import()`，避免进入首屏包体。
 - AI 关联分析、Obsidian repository 等重型服务应在用户触发对应动作时按需加载；React 状态仍不得持有 Vault 目录句柄。
