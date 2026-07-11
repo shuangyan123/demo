@@ -1,7 +1,7 @@
 "use client";
 
 import type { SyntheticEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   KnowledgeTrainingView,
@@ -27,6 +27,7 @@ import { ReviewWorkspaceShell } from "./review-workspace-shell";
 import { useReviewNotice } from "./use-review-notice";
 import { useReviewTimer } from "./use-review-timer";
 import { useReviewWorkspaceData } from "./use-review-workspace-data";
+import { useReviewConversationController } from "./use-review-conversation-controller";
 import { CommandSearchPalette } from "../conversation/command-search-palette";
 import { splitInput, textValue } from "../../lib/form-utils";
 import {
@@ -50,8 +51,6 @@ import {
 import { appearanceSettingsRepository, applyAppearanceSettings, createDefaultAppearanceSettings } from "../../services/appearance-settings-repository";
 import { findRelatedKnowledgeEntries, findRelatedMistakesForKnowledge } from "../../services/association-matcher";
 import { associationRepository, suggestionToLinkInput } from "../../services/association-repository";
-import { buildCommandSearchResults } from "../../services/command-search";
-import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository";
 import { downloadExportFile, exportKnowledgeEntries, exportMistakes } from "../../services/export-service";
 import { knowledgeRepository } from "../../services/knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
@@ -61,7 +60,6 @@ import {
 } from "../../lib/review-utils";
 import {
   type AssociationSuggestion,
-  type AiConversation,
   type AppearanceSettings,
   type Board,
   type ExportFormat,
@@ -167,10 +165,6 @@ export function ReviewWorkspace() {
   const [knowledgeQueueFilter, setKnowledgeQueueFilter] = useState<KnowledgeQueueFilter>("due");
   const [knowledgeDrafts, setKnowledgeDrafts] = useState<KnowledgeImportDraft[]>([]);
   const [associationBusy, setAssociationBusy] = useState(false);
-  const [conversationSnapshot, setConversationSnapshot] = useState<ConversationSnapshot>({ projects: [], folders: [], conversations: [], attachments: [], messages: [], runSteps: [] });
-  const [activeConversationId, setActiveConversationId] = useState<string | null | undefined>();
-  const [commandSearchOpen, setCommandSearchOpen] = useState(false);
-  const [commandSearchQuery, setCommandSearchQuery] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -188,47 +182,6 @@ export function ReviewWorkspace() {
       active = false;
     };
   }, [setNotice]);
-
-  const refreshConversationSnapshot = useCallback(async () => {
-    const snapshot = await conversationRepository.loadSnapshot(today);
-    setConversationSnapshot(snapshot);
-    setActiveConversationId((current) => current === null ? null : current ?? snapshot.conversations.find((conversation) => conversation.status === "active")?.id);
-  }, [today]);
-
-  useEffect(() => {
-    let active = true;
-    conversationRepository
-      .loadSnapshot(today)
-      .then((snapshot) => {
-        if (!active) return;
-        setConversationSnapshot(snapshot);
-        setActiveConversationId((current) => current === null ? null : current ?? snapshot.conversations.find((conversation) => conversation.status === "active")?.id);
-      })
-      .catch((error) => {
-        if (!active) return;
-        setNotice(error instanceof Error ? error.message : "对话读取失败");
-      });
-    return () => {
-      active = false;
-    };
-  }, [setNotice, today]);
-
-  function openBlankConversation() {
-    setActiveConversationId(null);
-    switchView("conversation");
-  }
-
-  async function createConversationForFirstMessage(input?: { selectedConnectionId?: string }): Promise<AiConversation> {
-    const conversation = await conversationRepository.createConversation({ today, kind: "general", selectedConnectionId: input?.selectedConnectionId ?? aiConnections.textConnection?.id });
-    await refreshConversationSnapshot();
-    setActiveConversationId(conversation.id);
-    return conversation;
-  }
-
-  function openConversation(id: string) {
-    setActiveConversationId(id);
-    switchView("conversation");
-  }
 
   useEffect(() => {
     applyAppearanceSettings(appearanceSettings);
@@ -319,6 +272,30 @@ export function ReviewWorkspace() {
     resetSettingsSection,
     settingsInitialSection,
   } = useReviewWorkspaceRecoveryNavigation({ setNotice, switchView });
+  const {
+    activeConversationId,
+    createForFirstMessage: createConversationForFirstMessage,
+    openBlank: openBlankConversation,
+    openConversation,
+    refresh: refreshConversationSnapshot,
+    results: commandSearchResults,
+    searchOpen: commandSearchOpen,
+    selectResult: selectCommandSearchResult,
+    setActiveConversationId,
+    setSearchOpen: setCommandSearchOpen,
+    setSearchQuery: setCommandSearchQuery,
+    snapshot: conversationSnapshot,
+  } = useReviewConversationController({
+    automationSnapshot: automation.snapshot,
+    knowledgeEntries,
+    mistakes,
+    onNotice: setNotice,
+    onOpenApiSettings: openApiSettings,
+    onOpenMcpSettings: openMcpSettings,
+    onSwitchView: switchView,
+    textConnection: aiConnections.textConnection,
+    today,
+  });
   const { configurationHealth, diagnosticsInput, obsidianSnapshot, refreshWorkspaceAndObsidianHealth } = useReviewWorkspaceHealth({
     aiReadError: aiConnections.readError,
     aiSnapshot: aiConnections.snapshot,
@@ -330,55 +307,6 @@ export function ReviewWorkspace() {
     knowledgeEntries,
     mistakes,
     refreshData,
-  });
-  const commandSearchResults = useMemo(
-    () => buildCommandSearchResults({
-      projects: conversationSnapshot.projects,
-      conversations: conversationSnapshot.conversations,
-      mistakes,
-      knowledgeEntries,
-      automationSnapshot: automation.snapshot,
-    }, commandSearchQuery),
-    [automation.snapshot, commandSearchQuery, conversationSnapshot.conversations, conversationSnapshot.projects, knowledgeEntries, mistakes],
-  );
-
-  async function selectCommandSearchResult(result: (typeof commandSearchResults)[number]) {
-    setCommandSearchOpen(false);
-    if (result.conversationId) {
-      openConversation(result.conversationId);
-      return;
-    }
-    if (result.settingsSection === "configuration") {
-      openApiSettings("已打开 AI 连接设置");
-      return;
-    }
-    if (result.settingsSection === "mcp") {
-      openMcpSettings("已打开 MCP 设置");
-      return;
-    }
-    if (result.view) switchView(result.view);
-  }
-
-  useEffect(() => {
-    function handleShortcut(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setCommandSearchOpen(true);
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
-        event.preventDefault();
-        openBlankConversation();
-      }
-      if ((event.ctrlKey || event.metaKey) && /^[1-9]$/.test(event.key) && commandSearchOpen) {
-        const result = commandSearchResults[Number(event.key) - 1];
-        if (result) {
-          event.preventDefault();
-          void selectCommandSearchResult(result);
-        }
-      }
-    }
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
   });
   // 切换主视图，并在进入复盘时重置当前复盘会话状态。
   function switchView(nextView: ViewKey) {

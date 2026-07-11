@@ -1,5 +1,6 @@
 import type { AiModelDirectoryEntry, AiModelsRequest } from "../../../services/api-client";
 import type { AiCapability, AiConnectionPurpose, ApiProvider } from "../../../types/review";
+import { aiRouteError, aiUpstreamError, readAiRouteJson } from "../../../server/ai/http.ts";
 
 type RawModel = { id: string; label: string; status?: string; capabilities?: Record<string, unknown>; contextWindow?: number; maxOutputTokens?: number };
 
@@ -66,10 +67,10 @@ function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string)
 /** 代理六家厂商官方模型目录；响应只包含公开且归一化的模型元数据。 */
 export async function POST(request: Request) {
   try {
-    const body: unknown = await request.json();
-    if (!isRequest(body)) return new Response("缺少有效的模型目录连接参数", { status: 400 });
+    const body = await readAiRouteJson(request);
+    if (!isRequest(body)) return aiRouteError("缺少有效的模型目录连接参数", 400);
     const response = await fetch(`${normalizeBaseUrl(body.baseUrl)}/models`, { headers: providerHeaders(body.provider, body.apiKey), cache: "no-store" });
-    if (!response.ok) return new Response(`官方模型目录请求失败（${response.status}）`, { status: response.status });
+    if (!response.ok) return aiUpstreamError("官方模型目录请求失败", response.status);
     const payload = await response.json() as { data?: Array<Record<string, unknown>>; models?: Array<Record<string, unknown>> };
     const source = body.provider === "google" ? payload.models ?? [] : payload.data ?? [];
     const fetchedAt = new Date().toISOString();
@@ -87,6 +88,6 @@ export async function POST(request: Request) {
     }).map((item) => normalizeModel(body.provider, item, fetchedAt)).sort((left, right) => left.label.localeCompare(right.label));
     return Response.json({ models, fetchedAt });
   } catch {
-    return new Response("模型目录请求失败", { status: 500 });
+    return aiRouteError("模型目录请求失败");
   }
 }

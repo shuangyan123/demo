@@ -38,6 +38,7 @@ import type {
   TutoringTurn,
 } from "../types/review";
 import { createProfileFromLegacySetting } from "../services/legacy-ai-settings-migration.ts";
+import { migrateToV16, REVIEW_DB_NAME } from "./review-db-migrations.ts";
 
 // 定义错题复盘应用使用的 IndexedDB 数据库表结构。
 class ReviewDexieDatabase extends Dexie {
@@ -80,7 +81,7 @@ class ReviewDexieDatabase extends Dexie {
 
   // 初始化 Dexie 数据库版本；历史版本保留用于旧数据无损升级。
   constructor() {
-    super("review_workspace");
+    super(REVIEW_DB_NAME);
     this.version(2).stores({
       mistakes: "&id, board, nextReviewAt, mastery, createdAt, updatedAt",
       attempts: "&id, mistakeId, reviewedAt, result",
@@ -413,16 +414,7 @@ class ReviewDexieDatabase extends Dexie {
       aiConversationAttachments: "&id, conversationId, messageId, kind, createdAt",
       aiConversationMessages: "&id, conversationId, role, createdAt",
       aiConversationRunSteps: "&id, conversationId, runId, state, updatedAt",
-    }).upgrade(async (transaction) => {
-      const conversations = transaction.table<AiConversation, string>("aiConversations");
-      const emptyLegacyDrafts = await conversations.filter((conversation) => conversation.title === "新对话" && conversation.messageCount === 0).toArray();
-      const ids = emptyLegacyDrafts.map((conversation) => conversation.id);
-      if (!ids.length) return;
-      await transaction.table<AiConversationAttachment, string>("aiConversationAttachments").where("conversationId").anyOf(ids).delete();
-      await transaction.table<AiConversationMessage, string>("aiConversationMessages").where("conversationId").anyOf(ids).delete();
-      await transaction.table<AiConversationRunStep, string>("aiConversationRunSteps").where("conversationId").anyOf(ids).delete();
-      await conversations.bulkDelete(ids);
-    });
+    }).upgrade(migrateToV16);
   }
 }
 
