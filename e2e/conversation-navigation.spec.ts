@@ -43,19 +43,13 @@ async function conversationFolderId(page: Page, id: string): Promise<string | un
   }), id);
 }
 
-/** 使用浏览器原生 DataTransfer 驱动完整 HTML5 拖拽事件链。 */
-async function html5Drag(page: Page, sourceSelector: string, targetSelector: string): Promise<void> {
-  await page.evaluate(({ sourceSelector: sourceQuery, targetSelector: targetQuery }) => {
-    const source = document.querySelector(sourceQuery);
-    const target = document.querySelector(targetQuery);
-    if (!(source instanceof HTMLElement) || !(target instanceof HTMLElement)) throw new Error("拖拽源或目标不存在");
-    const dataTransfer = new DataTransfer();
-    source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer }));
-    target.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer }));
-    target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
-    target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
-    source.dispatchEvent(new DragEvent("dragend", { bubbles: true, cancelable: true, dataTransfer }));
-  }, { sourceSelector, targetSelector });
+/** 使用真实指针轨迹驱动 dnd-kit，覆盖激活距离与碰撞检测。 */
+async function pointerDrag(page: Page, sourceSelector: string, targetSelector: string): Promise<void> {
+  const source = page.locator(sourceSelector);
+  const target = page.locator(targetSelector);
+  await expect(source).toBeVisible();
+  await expect(target).toBeVisible();
+  await source.dragTo(target);
 }
 
 test("公考默认折叠，新对话保持草稿且普通文本不显示 caret", async ({ page }) => {
@@ -131,11 +125,11 @@ test("桌面拖拽手柄可将持久化对话移入文件夹并拖回根目录",
   const folder = page.locator('[data-folder-id]').filter({ hasText: "拖拽目标" }).first();
   const folderId = await folder.getAttribute("data-folder-id");
   expect(folderId).toBeTruthy();
-  await html5Drag(page, '[data-conversation-id="drag-conversation"] .conversation-tree-drag-handle', `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
+  await pointerDrag(page, '[data-conversation-id="drag-conversation"] .conversation-tree-drag-handle', `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
   await expect(folder.locator('[data-conversation-id="drag-conversation"]')).toBeVisible();
   expect(await conversationFolderId(page, "drag-conversation")).toBe(folderId);
 
-  await html5Drag(page, `[data-folder-id="${folderId}"] [data-conversation-id="drag-conversation"] .conversation-tree-drag-handle`, "[data-drop-root]");
+  await pointerDrag(page, `[data-folder-id="${folderId}"] [data-conversation-id="drag-conversation"] .conversation-tree-drag-handle`, "[data-drop-root]");
   await expect(page.locator('[data-drop-root] > [data-conversation-id="drag-conversation"]')).toBeVisible();
   expect(await conversationFolderId(page, "drag-conversation")).toBeUndefined();
 
@@ -143,8 +137,8 @@ test("桌面拖拽手柄可将持久化对话移入文件夹并拖回根目录",
   const nestedRootFolder = page.locator('[data-folder-id]').filter({ hasText: "嵌套文件夹" }).first();
   const nestedFolderId = await nestedRootFolder.getAttribute("data-folder-id");
   expect(nestedFolderId).toBeTruthy();
-  await html5Drag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
+  await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
   await expect(targetRootFolder.getByRole("button", { name: "嵌套文件夹 操作" })).toBeVisible();
-  await html5Drag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, "[data-drop-root]");
+  await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, "[data-drop-root]");
   await expect(page.locator('[data-drop-root] > [data-folder-id]').filter({ hasText: "嵌套文件夹" })).toBeVisible();
 });
