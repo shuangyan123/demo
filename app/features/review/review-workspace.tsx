@@ -284,7 +284,6 @@ export function ReviewWorkspace() {
     onOpenApiSettings: openApiSettings,
     onOpenMcpSettings: openMcpSettings,
     onSwitchView: switchView,
-    textConnection: aiConnections.textConnection,
     today,
   });
   const { configurationHealth, diagnosticsInput, obsidianSnapshot, refreshWorkspaceAndObsidianHealth } = useReviewWorkspaceHealth({
@@ -818,7 +817,6 @@ export function ReviewWorkspace() {
             personalization={personalization.settings}
             scheduledCount={automation.snapshot.definitions.filter((definition) => definition.enabled).length}
             snapshot={conversationSnapshot}
-            textConnection={aiConnections.textConnection}
             transcriptionConnection={aiConnections.snapshot.profiles.find((connection) => connection.id === aiConnections.snapshot.defaults.transcriptionConnectionId)}
             onConversationSelected={setActiveConversationId}
             onCreateConversation={createConversationForFirstMessage}

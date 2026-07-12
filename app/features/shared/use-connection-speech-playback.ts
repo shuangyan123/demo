@@ -44,7 +44,7 @@ export function useConnectionSpeechPlayback({
     try {
       setSpeaking(true);
       const blob = await synthesizeWithConnection(connection, {
-        model: voice.model || connection.model,
+        model: voice.model,
         voiceId: voice.voiceId,
         text,
         style: voice.style,

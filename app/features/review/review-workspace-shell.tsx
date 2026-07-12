@@ -115,7 +115,7 @@ export function ReviewWorkspaceShell({
 
   return (
     <WorkspaceShell
-      contentClassName={view === "conversation" ? "px-4 py-4 max-sm:px-2 max-sm:py-2" : "px-7 py-7 max-sm:px-4"}
+      contentClassName={view === "conversation" ? "conversation-shell-content" : "px-7 py-7 max-sm:px-4"}
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName="review-workspace-sidebar flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:px-3 max-lg:py-2"
       title="错题复盘"

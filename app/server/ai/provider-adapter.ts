@@ -84,6 +84,7 @@ function buildResponsesRequest(input: AiGenerateRequest): ProviderHttpRequest {
       input: conversation.map((message) => ({ role: message.role, content: toResponsesContent(message.content) })),
       instructions: system || undefined,
       max_output_tokens: input.maxOutputTokens,
+      ...(input.providerOptions?.reasoningEffort ? { reasoning: { effort: input.providerOptions.reasoningEffort } } : {}),
       ...(input.structuredOutput ? { text: { format: { type: "json_schema", name: input.structuredOutput.name, schema: input.structuredOutput.schema, strict: input.structuredOutput.strict ?? true } } } : {}),
       ...(input.stream ? { stream: true } : {}),
       temperature: input.temperature ?? 0.1,
@@ -102,6 +103,7 @@ function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
       generationConfig: {
         maxOutputTokens: input.maxOutputTokens,
         temperature: input.temperature ?? 0.1,
+        ...(input.providerOptions?.thinkingLevel ? { thinkingConfig: { thinkingLevel: input.providerOptions.thinkingLevel } } : {}),
         ...(input.structuredOutput ? { responseMimeType: "application/json", responseJsonSchema: input.structuredOutput.schema } : {}),
       },
     },
@@ -119,7 +121,7 @@ function buildAnthropicRequest(input: AiGenerateRequest): ProviderHttpRequest {
       system: system || undefined,
       messages: conversation.map((message) => ({ role: message.role, content: toAnthropicContent(message.content) })),
       ...(input.stream ? { stream: true } : {}),
-      ...(input.structuredOutput ? { output_config: { format: { type: "json_schema", schema: input.structuredOutput.schema } } } : {}),
+      ...((input.structuredOutput || input.providerOptions?.reasoningEffort) ? { output_config: { ...(input.structuredOutput ? { format: { type: "json_schema", schema: input.structuredOutput.schema } } : {}), ...(input.providerOptions?.reasoningEffort ? { effort: input.providerOptions.reasoningEffort } : {}) } } : {}),
       temperature: input.temperature ?? 0.1,
     },
   };
@@ -135,7 +137,7 @@ function buildChatCompletionsRequest(input: AiGenerateRequest): ProviderHttpRequ
       messages: input.messages,
       ...(isMiniMax ? { max_completion_tokens: input.maxOutputTokens } : { max_tokens: input.maxOutputTokens }),
       ...(input.structuredOutput ? { response_format: input.provider === "deepseek" ? { type: "json_object" } : { type: "json_schema", json_schema: { name: input.structuredOutput.name, schema: input.structuredOutput.schema, strict: input.structuredOutput.strict ?? true } } } : {}),
-      ...(input.provider === "deepseek" && input.providerOptions?.thinking ? { thinking: { type: input.providerOptions.thinking }, reasoning_effort: input.providerOptions.reasoningEffort } : {}),
+      ...(["deepseek", "zhipu"].includes(input.provider) && input.providerOptions?.thinking ? { thinking: { type: input.providerOptions.thinking }, ...(input.providerOptions.reasoningEffort ? { reasoning_effort: input.providerOptions.reasoningEffort } : {}) } : {}),
       ...(input.stream ? { stream: true, stream_options: { include_usage: true } } : {}),
       temperature: input.temperature ?? 0.1,
     },

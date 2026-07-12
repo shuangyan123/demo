@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCommandSearchResults } from "../../services/command-search";
 import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository";
 import type { AiConversation, CommandSearchResult } from "../../types/domains/conversation";
-import type { ApiConnectionProfile } from "../../types/domains/ai-connection";
 import type { AutomationSnapshot } from "../../types/domains/automation";
 import type { KnowledgeEntry } from "../../types/domains/knowledge";
 import type { Mistake, ViewKey } from "../../types/domains/review";
@@ -18,7 +17,6 @@ type UseReviewConversationControllerInput = {
   onOpenApiSettings: (message: string) => void;
   onOpenMcpSettings: (message: string) => void;
   onSwitchView: (view: ViewKey) => void;
-  textConnection?: ApiConnectionProfile;
   today: Date;
 };
 
@@ -26,7 +24,7 @@ const EMPTY_SNAPSHOT: ConversationSnapshot = { projects: [], folders: [], conver
 
 /** 管理主工作台的对话快照、命令搜索和全局快捷键。 */
 export function useReviewConversationController(input: UseReviewConversationControllerInput) {
-  const { automationSnapshot, knowledgeEntries, mistakes, onNotice, onOpenApiSettings, onOpenMcpSettings, onSwitchView, textConnection, today } = input;
+  const { automationSnapshot, knowledgeEntries, mistakes, onNotice, onOpenApiSettings, onOpenMcpSettings, onSwitchView, today } = input;
   const [snapshot, setSnapshot] = useState<ConversationSnapshot>(EMPTY_SNAPSHOT);
   const [activeConversationId, setActiveConversationId] = useState<string | null | undefined>();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -58,15 +56,16 @@ export function useReviewConversationController(input: UseReviewConversationCont
     onSwitchView("conversation");
   }, [onSwitchView]);
   const openConversation = useCallback((id: string) => { setLaunchContext(null); setActiveConversationId(id); onSwitchView("conversation"); }, [onSwitchView]);
-  const createForFirstMessage = useCallback(async (value?: { selectedConnectionId?: string; selectedModelId?: string }): Promise<AiConversation> => {
+  const createForFirstMessage = useCallback(async (value?: { selectedConnectionId?: string; selectedModelId?: string; selectedReasoningEffort?: string }): Promise<AiConversation> => {
     const conversation = await conversationRepository.createConversation({
       today,
       kind: launchContext?.kind ?? "general",
       sourceType: launchContext?.sourceType ?? "manual",
       sourceId: launchContext?.sourceId,
       title: launchContext?.title,
-      selectedConnectionId: value?.selectedConnectionId ?? textConnection?.id,
+      selectedConnectionId: value?.selectedConnectionId,
       selectedModelId: value?.selectedModelId,
+      selectedReasoningEffort: value?.selectedReasoningEffort,
     });
     if (launchContext) {
       await conversationRepository.createAttachment({
@@ -80,7 +79,7 @@ export function useReviewConversationController(input: UseReviewConversationCont
     setActiveConversationId(conversation.id);
     setLaunchContext(null);
     return conversation;
-  }, [launchContext, refresh, textConnection?.id, today]);
+  }, [launchContext, refresh, today]);
   const selectResult = useCallback(async (result: CommandSearchResult) => {
     setSearchOpen(false);
     if (result.conversationId) return openConversation(result.conversationId);

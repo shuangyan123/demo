@@ -36,7 +36,7 @@ function modelCapabilities(provider: ApiProvider, id: string, raw?: Record<strin
     return ["text", ...(capabilities?.image_input !== false ? ["vision" as const] : []), "structured_output", "streaming"];
   }
   if (provider === "deepseek") return ["text", "structured_output", "streaming"];
-  if (provider === "minimax") return value.startsWith("speech-") ? ["speech"] : ["text", "structured_output", "streaming"];
+  if (provider === "minimax") return value.startsWith("speech-") ? ["speech"] : value === "minimax-m3" ? ["text", "vision", "structured_output", "streaming"] : ["text", "structured_output", "streaming"];
   if (provider === "xai") return ["text", "vision", "structured_output", "streaming"];
   if (provider === "zhipu") {
     if (value.includes("tts")) return ["speech"];

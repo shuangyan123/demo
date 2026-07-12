@@ -86,9 +86,9 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
     const expanded = controller.expandedFolderIds.has(folder.id);
     const count = chats.length + children.reduce((sum, item) => sum + projectConversations.filter((chat) => chat.folderId === item.id).length, 0);
     return <div key={folder.id} data-folder-id={folder.id} className="conversation-tree-folder" style={{ paddingLeft: `${depth * 10}px` }}>
-      <div className={`conversation-tree-folder-row ${controller.dropFolderId === folder.id ? "is-drop-target" : ""}`} draggable
-        onDragStart={(event) => startDrag(event, { kind: "folder", id: folder.id })} onDragEnd={controller.endDrag}
+      <div className={`conversation-tree-folder-row ${controller.dropFolderId === folder.id ? "is-drop-target" : ""}`}
         onDragEnter={() => { controller.setDropFolderId(folder.id); controller.hoverFolder(folder.id); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); void dropInto(event, folder.id); }}>
+        <span className="conversation-tree-drag-handle" draggable title="拖动文件夹" onDragStart={(event) => startDrag(event, { kind: "folder", id: folder.id })} onDragEnd={controller.endDrag}><AppIcon name="drag" size={16} /></span>
         <button type="button" aria-label={`${expanded ? "折叠" : "展开"}${folder.label}`} onClick={() => controller.toggleFolder(folder.id)}><AppIcon name={expanded ? "chevronDown" : "chevronRight"} size={16} /></button>
         <button type="button" className="conversation-tree-folder-label" onClick={() => controller.toggleFolder(folder.id)}><AppIcon name={expanded ? "folderOpen" : "folder"} size={16} /><span className="truncate">{folder.label}</span><small>{count}</small></button>
         <button type="button" aria-label={`${folder.label} 操作`} title="更多操作" onClick={() => openAction("folder", folder.id, folder.label)}><AppIcon name="more" size={16} /></button>
@@ -123,7 +123,8 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   const tree = <section className="conversation-tree" aria-label="对话分类">
     <div className="conversation-tree-heading"><p>对话</p><button type="button" aria-label="新建文件夹" title="新建文件夹" onClick={() => { setCreatingParentId(undefined); setCreating(true); }}><AppIcon name="folderPlus" size={18} /></button></div>
     {creating ? <form className="conversation-tree-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}><input autoFocus aria-label="新文件夹名称" placeholder="文件夹名称" value={draftLabel} onChange={(event) => setDraftLabel(event.currentTarget.value)} /><button type="submit">创建</button><button type="button" onClick={() => setCreating(false)}>取消</button></form> : null}
-    <div data-drop-root className={`conversation-tree-root ${controller.dropFolderId === null ? "is-drop-target" : ""}`} onDragEnter={() => controller.setDropFolderId(null)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); void dropInto(event, undefined); }}>
+    {controller.dragItem ? <div data-drop-root-target className={`conversation-tree-root-target ${controller.dropFolderId === null ? "is-drop-target" : ""}`} onDragEnter={(event) => { event.preventDefault(); event.stopPropagation(); controller.setDropFolderId(null); }} onDragOver={(event) => { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); void dropInto(event, undefined); }}><AppIcon name="back" size={16} /><span>移到根目录</span></div> : null}
+    <div data-drop-root className={`conversation-tree-root ${controller.dropFolderId === null ? "is-drop-target" : ""}`} onDragEnter={(event) => { if (event.target === event.currentTarget) controller.setDropFolderId(null); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); void dropInto(event, undefined); }}>
       {rootFolders.map((folder) => renderFolder(folder))}{rootChats.map(renderConversation)}
     </div>
     {!rootFolders.length && !rootChats.length ? <p className="conversation-tree-empty">发送首条消息后自动保存。</p> : null}

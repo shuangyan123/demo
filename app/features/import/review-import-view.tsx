@@ -97,9 +97,9 @@ export function ImportView({
           <div className="grid gap-4">
             <SoftBlock>
               <span className="text-xs text-muted">默认文本连接</span>
-              <strong className="mt-1 block">{textConnection ? `${textConnection.label} · ${textConnection.model}` : "未配置"}</strong>
+              <strong className="mt-1 block">{textConnection?.label ?? "未配置"}</strong>
               <span className="mt-3 block text-xs text-muted">默认多模态连接</span>
-              <strong className="mt-1 block">{visionConnection ? `${visionConnection.label} · ${visionConnection.model}` : "未配置"}</strong>
+              <strong className="mt-1 block">{visionConnection?.label ?? "未配置"}</strong>
               <Button className="mt-3" size="sm" type="button" variant="outline" onClick={onSwitchSettings}>
                 设置 AI 连接
               </Button>

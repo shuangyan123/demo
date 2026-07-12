@@ -43,6 +43,21 @@ async function conversationFolderId(page: Page, id: string): Promise<string | un
   }), id);
 }
 
+/** 使用浏览器原生 DataTransfer 驱动完整 HTML5 拖拽事件链。 */
+async function html5Drag(page: Page, sourceSelector: string, targetSelector: string): Promise<void> {
+  await page.evaluate(({ sourceSelector: sourceQuery, targetSelector: targetQuery }) => {
+    const source = document.querySelector(sourceQuery);
+    const target = document.querySelector(targetQuery);
+    if (!(source instanceof HTMLElement) || !(target instanceof HTMLElement)) throw new Error("拖拽源或目标不存在");
+    const dataTransfer = new DataTransfer();
+    source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer }));
+    target.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer }));
+    target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
+    target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
+    source.dispatchEvent(new DragEvent("dragend", { bubbles: true, cancelable: true, dataTransfer }));
+  }, { sourceSelector, targetSelector });
+}
+
 test("公考默认折叠，新对话保持草稿且普通文本不显示 caret", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.goto("/");
@@ -107,17 +122,29 @@ test("桌面拖拽手柄可将持久化对话移入文件夹并拖回根目录",
   await page.getByRole("button", { name: "新建文件夹" }).click();
   await page.getByLabel("新文件夹名称").fill("拖拽目标");
   await page.getByRole("button", { name: "创建" }).click();
+  await page.getByRole("button", { name: "新建文件夹" }).click();
+  await page.getByLabel("新文件夹名称").fill("嵌套文件夹");
+  await page.getByRole("button", { name: "创建" }).click();
   await seedConversation(page, "drag-conversation", "拖拽验证对话");
   await page.reload();
 
-  const conversation = page.locator('[data-conversation-id="drag-conversation"]');
   const folder = page.locator('[data-folder-id]').filter({ hasText: "拖拽目标" }).first();
-  await conversation.locator(".conversation-tree-drag-handle").dragTo(folder.locator(".conversation-tree-folder-row").first());
-  await expect(folder.locator('[data-conversation-id="drag-conversation"]')).toBeVisible();
   const folderId = await folder.getAttribute("data-folder-id");
+  expect(folderId).toBeTruthy();
+  await html5Drag(page, '[data-conversation-id="drag-conversation"] .conversation-tree-drag-handle', `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
+  await expect(folder.locator('[data-conversation-id="drag-conversation"]')).toBeVisible();
   expect(await conversationFolderId(page, "drag-conversation")).toBe(folderId);
 
-  await folder.locator('[data-conversation-id="drag-conversation"] .conversation-tree-drag-handle').dragTo(page.locator("[data-drop-root]"));
+  await html5Drag(page, `[data-folder-id="${folderId}"] [data-conversation-id="drag-conversation"] .conversation-tree-drag-handle`, "[data-drop-root]");
   await expect(page.locator('[data-drop-root] > [data-conversation-id="drag-conversation"]')).toBeVisible();
   expect(await conversationFolderId(page, "drag-conversation")).toBeUndefined();
+
+  const targetRootFolder = page.locator('[data-folder-id]').filter({ hasText: "拖拽目标" }).first();
+  const nestedRootFolder = page.locator('[data-folder-id]').filter({ hasText: "嵌套文件夹" }).first();
+  const nestedFolderId = await nestedRootFolder.getAttribute("data-folder-id");
+  expect(nestedFolderId).toBeTruthy();
+  await html5Drag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
+  await expect(targetRootFolder.getByRole("button", { name: "嵌套文件夹 操作" })).toBeVisible();
+  await html5Drag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, "[data-drop-root]");
+  await expect(page.locator('[data-drop-root] > [data-folder-id]').filter({ hasText: "嵌套文件夹" })).toBeVisible();
 });

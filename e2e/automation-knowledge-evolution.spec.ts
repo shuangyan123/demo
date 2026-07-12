@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
-import { configureCustomTextConnection } from "./helpers/configure-custom-ai";
+import { configureCustomTextConnection, setCustomDefaultTextModel } from "./helpers/configure-custom-ai";
 import { startMockAiProvider, type MockAiProvider, type MockAiRequest } from "./helpers/mock-ai-provider";
 
 const proposalTitle = "E2E 知识演进提案";
@@ -63,8 +63,8 @@ test("知识演进已安排任务可通过 mock JSON 生成待确认提案", asy
     await page.getByRole("button", { name: "AI 连接" }).click();
     await configureCustomTextConnection(page, { label: "E2E 知识演进 Mock", baseUrl: provider.baseUrl, model: "mock-json-model" });
     await expect(page.getByRole("status")).toContainText("配置已保存");
-    await page.getByLabel("默认文本").selectOption({ label: "E2E 知识演进 Mock" });
-    await expect(page.getByRole("status")).toContainText("默认文本已更新");
+    await setCustomDefaultTextModel(page, "E2E 知识演进 Mock", "mock-json-model");
+    await expect(page.getByRole("status")).toContainText("默认文本模型已更新");
 
     await page.goto("/");
     await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();

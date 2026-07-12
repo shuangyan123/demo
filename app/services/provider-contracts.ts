@@ -54,6 +54,7 @@ function model(
 
 function modelsByPurpose(catalog: AiModelCatalogEntry[]): Partial<Record<AiConnectionPurpose, string[]>> {
   return catalog.reduce<Partial<Record<AiConnectionPurpose, string[]>>>((groups, entry) => {
+    if (entry.lifecycle === "deprecated" || entry.status === "deprecated") return groups;
     for (const purpose of entry.purposes) {
       groups[purpose] = [...(groups[purpose] ?? []), entry.id];
     }
@@ -69,7 +70,9 @@ function contract(input: Omit<ProviderContract, "availability" | "models"> & { m
 }
 
 const openAiCatalog = [
+  model("openai", "gpt-5.6-sol", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://developers.openai.com/api/docs/models/all"),
   model("openai", "gpt-5.6-terra", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-5.6-luna", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/all"),
   model("openai", "gpt-5.5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/all"),
   model("openai", "tts-1-hd", ["speech"], ["speech"], "recommended", "https://developers.openai.com/api/docs/models/tts-1-hd"),
   model("openai", "tts-1", ["speech"], ["speech"], "stable", "https://developers.openai.com/api/docs/models/tts-1"),
@@ -96,6 +99,7 @@ const anthropicCatalog = [
   model("anthropic", "claude-fable-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.claude.com/docs/en/about-claude/models/overview"),
   model("anthropic", "claude-sonnet-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.claude.com/docs/en/about-claude/models/overview"),
   model("anthropic", "claude-opus-4-8", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://platform.claude.com/docs/en/about-claude/models/overview"),
+  model("anthropic", "claude-haiku-4-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://platform.claude.com/docs/en/about-claude/models/overview"),
 ];
 
 const deepSeekCatalog = [
@@ -157,7 +161,7 @@ export const providerContracts: ProviderContract[] = [
     apiFormat: "anthropic_messages",
     capabilities: ["text", "vision", "structured_output", "streaming"],
     modelCatalog: anthropicCatalog,
-    modelListStrategy: "static_catalog",
+    modelListStrategy: "official_api",
     documentationUrl: "https://platform.claude.com/docs/en/about-claude/models/overview",
     verifiedAt,
     creatable: true,
@@ -245,6 +249,7 @@ export const providerContracts: ProviderContract[] = [
     apiFormat: "chat_completions",
     capabilities: ["text", "vision", "structured_output", "speech", "transcription", "realtime", "streaming"],
     modelCatalog: [
+      model("zhipu", "glm-5.2", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
       model("zhipu", "glm-5.1", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
       model("zhipu", "glm-5", ["text"], ["text", "structured_output", "streaming"], "stable", "https://docs.bigmodel.cn/cn/guide/models/text/glm-5"),
       model("zhipu", "glm-5v-turbo", ["vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
@@ -295,14 +300,15 @@ export const providerContracts: ProviderContract[] = [
     apiFormat: "chat_completions",
     capabilities: ["text", "structured_output", "speech", "streaming"],
     modelCatalog: [
+      model("minimax", "MiniMax-M3", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "MiniMax-M2.7", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "MiniMax-M2.7-highspeed", ["text"], ["text", "structured_output", "streaming"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
-      model("minimax", "MiniMax-M2.5", ["text"], ["text", "structured_output", "streaming"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "MiniMax-M2.5", ["text"], ["text", "structured_output", "streaming"], "deprecated", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "speech-2.8-hd", ["speech"], ["speech"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "speech-2.8-turbo", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "speech-2.6-hd", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
     ],
-    modelListStrategy: "manual",
+    modelListStrategy: "official_api",
     documentationUrl: "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
     verifiedAt,
     creatable: true,
@@ -335,15 +341,5 @@ export function getProviderModels(provider: ApiProvider, purpose: AiConnectionPu
 
 export function getProviderModelCatalog(provider: ApiProvider, purpose?: AiConnectionPurpose): AiModelCatalogEntry[] {
   const catalog = getProviderContract(provider).modelCatalog;
-  const scoped = (purpose ? catalog.filter((entry) => entry.purposes.includes(purpose)) : catalog).filter((entry) => entry.lifecycle !== "deprecated");
-  const familiesByModality = new Map<string, string[]>();
-  return scoped.filter((entry) => {
-    const modality = entry.modalityGroup ?? entry.purposes[0] ?? "text";
-    const family = entry.family ?? entry.id;
-    const families = familiesByModality.get(modality) ?? [];
-    if (!families.includes(family) && families.length >= 2) return false;
-    if (!families.includes(family)) families.push(family);
-    familiesByModality.set(modality, families);
-    return true;
-  });
+  return (purpose ? catalog.filter((entry) => entry.purposes.includes(purpose)) : catalog).filter((entry) => entry.lifecycle !== "deprecated");
 }

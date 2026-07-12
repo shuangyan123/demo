@@ -32,6 +32,7 @@ test("连接级生成请求完整传递厂商、模型和扩展参数", async ()
 
   try {
     const result = await generateWithConnection(connection, "text", {
+      modelId: "text-model",
       maxOutputTokens: 256,
       messages: [{ role: "user", content: "测试" }],
       temperature: 0.2,

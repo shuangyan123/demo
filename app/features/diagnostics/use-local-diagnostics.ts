@@ -103,11 +103,11 @@ function hasDefaultConnection(snapshot: AiConnectionSnapshot, id?: string): bool
   return Boolean(id && snapshot.profiles.some((profile) => profile.id === id));
 }
 
-function defaultConnectionDescription(snapshot: AiConnectionSnapshot, id?: string): string {
+function defaultConnectionDescription(snapshot: AiConnectionSnapshot, id?: string, modelId?: string): string {
   const profile = snapshot.profiles.find((entry) => entry.id === id);
   if (!profile) return "未设置默认连接。";
   const testStatus = profile.testStatus === "success" ? "已验证" : profile.testStatus === "failed" ? "验证失败" : "未验证";
-  return `${profile.label} / ${profile.provider} / ${profile.model || "未填写模型"} / ${testStatus}`;
+  return `${profile.label} / ${profile.provider} / ${modelId || "未选择模型"} / ${testStatus}`;
 }
 
 function formatDateTime(value?: string): string {
@@ -181,13 +181,13 @@ export function buildLocalDiagnostics(input: LocalDiagnosticsInput): LocalDiagno
       ? item("ai-read", "AI 连接读取失败", input.aiReadError, "error", "ai-connections", "配置 AI 连接")
       : item("ai-read", "AI 连接快照可读取", `已保存 ${input.aiSnapshot.profiles.length} 个连接档案。`, "ready"),
     hasTextConnection
-      ? item("ai-text", "默认文本连接可用", defaultConnectionDescription(input.aiSnapshot, input.aiSnapshot.defaults.textConnectionId), "ready")
+      ? item("ai-text", "默认文本连接可用", defaultConnectionDescription(input.aiSnapshot, input.aiSnapshot.defaults.textConnectionId, input.aiSnapshot.defaults.textModelId), "ready")
       : item("ai-text", "默认文本连接缺失", "文本生成、关联分析和已安排任务会受影响。", "error", "ai-connections", "配置 AI 连接"),
     hasVisionConnection
-      ? item("ai-vision", "默认多模态连接可用", defaultConnectionDescription(input.aiSnapshot, input.aiSnapshot.defaults.visionConnectionId), "ready")
+      ? item("ai-vision", "默认多模态连接可用", defaultConnectionDescription(input.aiSnapshot, input.aiSnapshot.defaults.visionConnectionId, input.aiSnapshot.defaults.visionModelId), "ready")
       : item("ai-vision", "默认多模态连接缺失", "OCR、截图和关键帧分析暂不可用。", "warning", "ai-connections", "配置 AI 连接"),
     hasSpeechConnection
-      ? item("ai-speech", "默认语音连接可用", defaultConnectionDescription(input.aiSnapshot, input.aiSnapshot.defaults.speechConnectionId), "ready")
+      ? item("ai-speech", "默认语音连接可用", defaultConnectionDescription(input.aiSnapshot, input.aiSnapshot.defaults.speechConnectionId, input.aiSnapshot.defaults.speechModelId), "ready")
       : item("ai-speech", "默认语音连接缺失", "朗读会保持静音，不会回退到本机音色。", "warning", "ai-connections", "配置 AI 连接"),
   ];
 

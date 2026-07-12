@@ -110,6 +110,7 @@ export function useObsidianKnowledgeBridge({
     if (!textConnection) throw new Error("请先配置默认文本连接，再生成知识演进提案");
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
     const { requestKnowledgeEvolutionProposals } = await import("../../services/knowledge-evolution-service");
+    const { aiConnectionsRepository } = await import("../../services/ai-connections-repository");
     const activityRunId = crypto.randomUUID();
     const sources = await obsidianKnowledgeRepository.loadEvolutionSources();
     if (!sources.length) {
@@ -121,11 +122,12 @@ export function useObsidianKnowledgeBridge({
       return emptyResult.emptyReason!;
     }
     const graphSnapshot = await obsidianKnowledgeRepository.loadGraphSnapshot();
-    const result = await requestKnowledgeEvolutionProposals({ connection: textConnection, personalization, sources, entries, graph: graphSnapshot, activityRunId });
-    emitAiActivity({ runId: activityRunId, module: "Obsidian 插件", purpose: "知识演进提案", phase: "waiting", label: `${textConnection.provider} · ${textConnection.model}`, stepId: "save", connectionLabel: textConnection.label, model: textConnection.model, text: `正在保存 ${result.proposals.length} 条 pending 提案` });
+    const modelId = await aiConnectionsRepository.resolveRuntimeModel(textConnection, "text");
+    const result = await requestKnowledgeEvolutionProposals({ connection: textConnection, modelId, personalization, sources, entries, graph: graphSnapshot, activityRunId });
+    emitAiActivity({ runId: activityRunId, module: "Obsidian 插件", purpose: "知识演进提案", phase: "waiting", label: `${textConnection.provider} · ${modelId}`, stepId: "save", connectionLabel: textConnection.label, model: modelId, text: `正在保存 ${result.proposals.length} 条 pending 提案` });
     await obsidianKnowledgeRepository.saveProposals(result.proposals);
     setLastGenerationResult(result);
-    emitAiActivity({ runId: activityRunId, module: "Obsidian 插件", purpose: "知识演进提案", phase: "done", label: `${textConnection.provider} · ${textConnection.model}`, stepId: "saved", connectionLabel: textConnection.label, model: textConnection.model, text: result.proposals.length ? `已保存 ${result.proposals.length} 条待确认提案` : result.emptyReason });
+    emitAiActivity({ runId: activityRunId, module: "Obsidian 插件", purpose: "知识演进提案", phase: "done", label: `${textConnection.provider} · ${modelId}`, stepId: "saved", connectionLabel: textConnection.label, model: modelId, text: result.proposals.length ? `已保存 ${result.proposals.length} 条待确认提案` : result.emptyReason });
     const diagnosticSuffix = result.diagnostics.length ? `；诊断 ${result.diagnostics.length} 条` : "";
     return result.proposals.length
       ? `已生成 ${result.proposals.length} 条知识演进提案，确认前不会写入 Vault${diagnosticSuffix}`

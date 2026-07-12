@@ -626,7 +626,8 @@ export type ApiConnectionProfile = {
   provider: ApiProvider;
   apiFormat: ApiFormat;
   baseUrl: string;
-  model: string;
+  /** 仅用于读取旧连接；新连接的模型由会话或能力默认值持有。 */
+  model?: string;
   capabilities: AiCapability[];
   encryptedKey: string;
   iv: string;
@@ -645,7 +646,19 @@ export type AiConnectionDefaults = {
   speechConnectionId?: string;
   transcriptionConnectionId?: string;
   realtimeConnectionId?: string;
+  textModelId?: string;
+  visionModelId?: string;
+  speechModelId?: string;
+  transcriptionModelId?: string;
+  realtimeModelId?: string;
   updatedAt: string;
+};
+
+/** 一次真实调用所需的连接与模型选择，避免业务重新依赖连接中的旧 model 字段。 */
+export type AiRuntimeModelSelection = {
+  connection: ApiConnectionProfile;
+  modelId: string;
+  reasoningEffort?: string;
 };
 
 export type AiConnectionSnapshot = {
@@ -1026,6 +1039,8 @@ export type AiConversation = {
   selectedConnectionId?: string;
   /** 对话级模型覆盖；连接档案继续负责密钥和协议，模型可按会话切换。 */
   selectedModelId?: string;
+  /** 会话级推理强度；值由模型 descriptor 校验并映射到厂商参数。 */
+  selectedReasoningEffort?: string;
   summary?: string;
   lastMessagePreview?: string;
   messageCount: number;

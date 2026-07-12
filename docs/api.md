@@ -1,5 +1,12 @@
 # API 约定
 
+## AI 运行时模型选择
+
+- `/api/ai/*` URL 不变。客户端提交连接参数与本次 `modelId`；连接档案本身不再要求模型。
+- 对话请求可携带会话级 `selectedReasoningEffort`，由 provider adapter 映射为 `reasoning_effort`、`thinking_level`、adaptive thinking `effort` 或厂商思考参数。
+- 无对话上下文的任务从能力默认项解析“连接 + 模型”；不得读取 `ApiConnectionProfile.model` 作为正常运行时来源。
+- `/api/ai/models` 只返回归一化公开元数据，不缓存 API Key、请求上下文或厂商原始响应。
+
 ## 路由公共边界
 
 - `/api/ai/*` 保持现有 URL 与请求契约；`app/server/ai/http.ts` 统一 JSON 读取、纯文本错误和上游状态码映射。

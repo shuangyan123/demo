@@ -1,5 +1,13 @@
 # 应用架构
 
+## 连接与运行时模型边界（2026-07-12）
+
+- `ApiConnectionProfile` 只持有厂商、地址、密钥与能力；历史 `model` 只用于一次性初始化默认能力模型，新建和编辑不再写入。
+- 后台任务通过 `AiConnectionDefaults` 的“连接 + 模型”组合运行；对话通过 `selectedConnectionId`、`selectedModelId` 与可选 `selectedReasoningEffort` 运行，两者互不覆盖。
+- 模型选择器采用单栏钻取：当前会话厂商优先，其余按英文名排序；进入厂商后只显示连接、模型、真实推理参数和确认操作。
+- 官方 Models API 成功时展示账户可用的全部未弃用模型；失败时才使用带 `verifiedAt` 的回退目录。MiniMax 当前旗舰为 `MiniMax-M3`，GLM 当前旗舰为 `glm-5.2`。
+- 对话树拖拽由独立手柄启动，拖拽期间始终提供根目录目标；repository 继续拒绝跨项目、自身和子孙嵌套。
+
 ## 分层与依赖方向
 
 ```text

@@ -13,9 +13,10 @@ import {
   type AiTranscriptionResult,
 } from "./api-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
+import { reasoningProviderOptions } from "./model-reasoning.ts";
 
 export type GenerateConnectionPurpose = "text" | "vision";
-type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions">;
+type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & { modelId?: string; reasoningEffort?: string };
 type ConnectionSpeechInput = Omit<AiSpeechRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & {
   model?: string;
 };
@@ -30,13 +31,18 @@ export async function generateWithConnection(
     throw new Error(`当前连接不支持${purpose === "vision" ? "多模态" : "文本"}能力`);
   }
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  const model = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
+  const request = { ...input };
+  const reasoningEffort = request.reasoningEffort;
+  delete request.modelId;
+  delete request.reasoningEffort;
   return callAiGenerate({
-    ...input,
+    ...request,
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
-    model: connection.model,
-    providerOptions: connection.providerOptions,
+    model,
+    providerOptions: { ...connection.providerOptions, ...reasoningProviderOptions(connection.provider, model, reasoningEffort) },
   });
 }
 
@@ -53,13 +59,18 @@ export async function* generateWithConnectionStream(
     throw new Error("当前连接未声明流式输出能力");
   }
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  const model = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
+  const request = { ...input };
+  const reasoningEffort = request.reasoningEffort;
+  delete request.modelId;
+  delete request.reasoningEffort;
   yield* callAiGenerateStream({
-    ...input,
+    ...request,
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
-    model: connection.model,
-    providerOptions: connection.providerOptions,
+    model,
+    providerOptions: { ...connection.providerOptions, ...reasoningProviderOptions(connection.provider, model, reasoningEffort) },
   });
 }
 
@@ -77,7 +88,7 @@ export async function synthesizeWithConnection(
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
-    model: input.model || connection.model,
+    model: await aiConnectionsRepository.resolveRuntimeModel(connection, "speech", input.model),
     providerOptions: connection.providerOptions,
   });
 }
@@ -94,7 +105,7 @@ export async function transcribeWithConnection(
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
-    model: connection.model,
+    model: await aiConnectionsRepository.resolveRuntimeModel(connection, "transcription"),
     mimeType: input.mimeType,
     audioBase64: input.audioBase64,
     providerOptions: connection.providerOptions,

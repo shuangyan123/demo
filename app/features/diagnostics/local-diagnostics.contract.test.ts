@@ -207,7 +207,7 @@ test("诊断报告只包含脱敏字段，不输出密钥、IV 或目录句柄",
   const diagnostics = buildLocalDiagnostics(
     input({
       aiSnapshot: aiSnapshot({
-        defaults: { id: "default", textConnectionId: text.id, updatedAt: now },
+        defaults: { id: "default", textConnectionId: text.id, textModelId: "test-model", updatedAt: now },
         profiles: [text],
       }),
       obsidianSnapshot: obsidianSnapshot({ connected: true, permission: "granted", vaultName: "Vault" }),

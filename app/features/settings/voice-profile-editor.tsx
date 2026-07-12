@@ -20,7 +20,7 @@ export function VoiceProfileEditor({
     <div className={`grid gap-3 ${disabled ? "opacity-55" : ""}`}>
       <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
         <label className="grid gap-1.5 text-xs font-medium">语音模型
-          {descriptor?.models.length ? <select disabled={disabled} className="settings-input rounded-lg border border-line bg-surface px-3 py-2 text-sm" value={voice.model || descriptor.models[0]} onChange={(event) => onChange({ model: event.target.value })}>{descriptor.models.map((model) => <option key={model} value={model}>{model}</option>)}</select> : <input disabled={disabled} className="settings-input rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder="留空则使用连接模型" value={voice.model} onChange={(event) => onChange({ model: event.target.value })} />}
+          {descriptor?.models.length ? <select disabled={disabled} className="settings-input rounded-lg border border-line bg-surface px-3 py-2 text-sm" value={voice.model || descriptor.models[0]} onChange={(event) => onChange({ model: event.target.value })}>{descriptor.models.map((model) => <option key={model} value={model}>{model}</option>)}</select> : <input disabled={disabled} className="settings-input rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder="留空则使用默认语音模型" value={voice.model} onChange={(event) => onChange({ model: event.target.value })} />}
         </label>
         <label className="grid gap-1.5 text-xs font-medium">Voice ID
           {voiceOptions.length ? (

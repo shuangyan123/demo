@@ -162,10 +162,10 @@ test("编辑默认文本连接会同步旧表，移除文本能力时会清理�
     provider: "custom",
     capabilities: ["text", "vision"],
     baseUrl: "http://127.0.0.1:8000/v1",
-    model: "model-v1",
     apiKey: "",
     today,
   });
+  await aiConnectionsRepository.setDefaultSelection("text", profile.id, "model-v1", today);
   await aiConnectionsRepository.setDefault("vision", profile.id, today);
 
   await aiConnectionsRepository.saveProfile({
@@ -174,11 +174,10 @@ test("编辑默认文本连接会同步旧表，移除文本能力时会清理�
     provider: profile.provider,
     capabilities: ["text", "vision"],
     baseUrl: profile.baseUrl,
-    model: "model-v2",
     apiKey: "",
     today,
   });
-  assert.equal((await reviewDb.apiSettings.get("default"))?.model, "model-v2");
+  assert.equal((await reviewDb.apiSettings.get("default"))?.model, "model-v1");
 
   await aiConnectionsRepository.saveProfile({
     id: profile.id,
@@ -186,7 +185,6 @@ test("编辑默认文本连接会同步旧表，移除文本能力时会清理�
     provider: profile.provider,
     capabilities: ["vision"],
     baseUrl: profile.baseUrl,
-    model: "vision-only",
     apiKey: "",
     today,
   });

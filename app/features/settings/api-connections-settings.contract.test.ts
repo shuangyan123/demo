@@ -6,16 +6,16 @@ async function readSource() {
   return readFile(new URL("./api-connections-settings-view.tsx", import.meta.url), "utf8");
 }
 
-test("AI connection model picker uses a select with manual model fallback", async () => {
+test("AI 连接只保存鉴权，默认能力单独保存模型", async () => {
   const source = await readSource();
 
   assert.match(source, /aria-label="用途"/);
   assert.match(source, /aria-label="厂商"/);
-  assert.match(source, /aria-label="模型"/);
-  assert.match(source, /手动模型 ID/);
-  assert.match(source, /manualModelActive/);
+  assert.match(source, /setDefaultModel/);
+  assert.match(source, /setDefaultSelection/);
   assert.match(source, /ProviderIcon/);
-  assert.match(source, /refreshOfficialModels/);
+  assert.doesNotMatch(source, /form\.model/);
+  assert.doesNotMatch(source, /refreshOfficialModels/);
   assert.doesNotMatch(source, /datalist id="provider-model-options"/);
   assert.doesNotMatch(source, /modelCatalog\.slice\(0,\s*8\)\.map/);
 });

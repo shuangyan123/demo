@@ -9,6 +9,7 @@ import type {
   PersonalizationSettings,
 } from "../types/review";
 import { generateWithConnection } from "./ai-connection-client.ts";
+import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { extractAiJsonText, parseAiJsonArray, parseAiJsonObject } from "./ai-json.ts";
 import { emitAiActivity } from "./ai-activity-events.ts";
 import type { KnowledgeEvolutionSource } from "./obsidian-knowledge-repository";
@@ -155,8 +156,11 @@ export async function requestKnowledgeEvolutionProposals(input: {
   entries: KnowledgeEntry[];
   graph?: ObsidianGraphSnapshot;
   activityRunId?: string;
+  modelId?: string;
+  reasoningEffort?: string;
 }): Promise<KnowledgeEvolutionGenerationResult> {
   if (!input.sources.length) throw new Error("暂无新的错题、面试、辅导或知识资料可用于演进");
+  const modelId = await aiConnectionsRepository.resolveRuntimeModel(input.connection, "text", input.modelId);
   const activityBase = {
     runId: input.activityRunId ?? crypto.randomUUID(),
     module: "Obsidian 插件",
@@ -172,11 +176,11 @@ export async function requestKnowledgeEvolutionProposals(input: {
     ],
     toolDisplayMode: "drawer" as const,
     connectionLabel: input.connection.label,
-    model: input.connection.model,
-    label: `${input.connection.provider} · ${input.connection.model}`,
+    model: modelId,
+    label: `${input.connection.provider} · ${modelId}`,
   };
   emitAiActivity({ ...activityBase, phase: "started", stepId: "context", text: `准备 ${input.sources.length} 条来源、${input.entries.length} 条候选知识` });
-  emitAiActivity({ ...activityBase, phase: "waiting", stepId: "connection", text: `使用 ${input.connection.label} / ${input.connection.model}` });
+  emitAiActivity({ ...activityBase, phase: "waiting", stepId: "connection", text: `使用 ${input.connection.label} / ${modelId}` });
   const persona = resolvePersona(input.personalization, "knowledge_internalization");
   const requestMessages = [
       {
@@ -203,7 +207,7 @@ export async function requestKnowledgeEvolutionProposals(input: {
         }),
       },
     ];
-  const generate = (messages: typeof requestMessages) => generateWithConnection(input.connection, "text", {
+  const generate = (messages: typeof requestMessages) => generateWithConnection(input.connection, "text", { modelId, reasoningEffort: input.reasoningEffort,
     maxOutputTokens: 3000,
     temperature: 0.1,
     messages,

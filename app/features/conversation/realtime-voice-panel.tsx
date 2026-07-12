@@ -13,7 +13,7 @@ export function RealtimeVoicePanel({ connections, onClose, onFinalTranscript }: 
   const [connectionId, setConnectionId] = useState(eligible[0]?.id ?? "");
   const connection = eligible.find((item) => item.id === connectionId);
   const models = connection ? getProviderModelCatalog(connection.provider, "realtime") : [];
-  const [model, setModel] = useState(models[0]?.id ?? connection?.model ?? "");
+  const [model, setModel] = useState(models[0]?.id ?? "");
   const [voiceId, setVoiceId] = useState("alloy");
   const [state, setState] = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [message, setMessage] = useState("选择连接后开始通话");
@@ -41,7 +41,7 @@ export function RealtimeVoicePanel({ connections, onClose, onFinalTranscript }: 
   return <section className="conversation-realtime-panel" role="dialog" aria-modal="true" aria-label="实时语音通话">
     <header><div><span>REALTIME VOICE</span><h2>实时通话</h2></div><button type="button" aria-label="关闭" onClick={() => void stop()}><AppIcon name="close" size={18} /></button></header>
     {!eligible.length ? <p>没有声明实时语音能力的连接，请先到 AI 连接中启用 realtime。</p> : <>
-      <label>厂商与连接<select value={connectionId} onChange={(event) => { const nextId = event.currentTarget.value; const next = eligible.find((item) => item.id === nextId); setConnectionId(nextId); setModel(next ? getProviderModelCatalog(next.provider, "realtime")[0]?.id ?? next.model : ""); setVoiceId(next?.provider === "google" ? "Kore" : next?.provider === "zhipu" ? "tongtong" : "alloy"); }}>{eligible.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+      <label>厂商与连接<select value={connectionId} onChange={(event) => { const nextId = event.currentTarget.value; const next = eligible.find((item) => item.id === nextId); setConnectionId(nextId); setModel(next ? getProviderModelCatalog(next.provider, "realtime")[0]?.id ?? "" : ""); setVoiceId(next?.provider === "google" ? "Kore" : next?.provider === "zhipu" ? "tongtong" : "alloy"); }}>{eligible.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
       {connection ? <div className="conversation-realtime-provider"><ProviderIcon provider={connection.provider} size={20} /><strong>{connection.label}</strong></div> : null}
       <label>模型<select value={model} onChange={(event) => setModel(event.currentTarget.value)}>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
       <label>音色<input value={voiceId} onChange={(event) => setVoiceId(event.currentTarget.value)} /></label>
