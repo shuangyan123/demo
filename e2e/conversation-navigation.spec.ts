@@ -59,6 +59,7 @@ async function pointerDrag(page: Page, sourceSelector: string, targetSelector: s
   if (!targetBox) throw new Error("拖拽目标没有可见边界");
   const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
   await page.mouse.move(end.x, end.y, { steps: 20 });
+  await page.waitForTimeout(150);
   await page.mouse.up();
 }
 
