@@ -8,7 +8,7 @@ test("对话树使用可访问的 dnd-kit 传感器并保留根目录目标", as
   assert.match(source, /TouchSensor/);
   assert.match(source, /KeyboardSensor/);
   assert.match(source, /sortableKeyboardCoordinates/);
-  assert.match(source, /id: folderId \? `folder:/);
+  assert.match(source, /dropId \?\? \(folderId \? `folder:/);
   assert.match(source, /: "root"/);
   assert.match(source, /dropId="root" dataDropRootTarget/);
   assert.match(source, /dropId="root-surface" dataDropRoot/);
