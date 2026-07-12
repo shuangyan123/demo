@@ -2,7 +2,7 @@ import {
   Activity, ArrowLeft, Ban, Blocks, BookOpen, Bot, Brain, CalendarClock, Camera, ChartNoAxesColumnIncreasing,
   ChevronDown, ChevronRight, ClipboardCheck, Clock3, FileInput, FilePenLine, Folder,
   FolderOpen, FolderPlus, GripVertical, LayoutDashboard, Library, MessageSquare, MessagesSquare, Mic, Monitor,
-  Moon, MoreHorizontal, Paperclip, Plus, ScanLine, Search, Send, Settings, Slash, SlidersHorizontal, Sparkles, Sun, UserRoundPlus,
+  Moon, MoreHorizontal, Paperclip, Phone, Plus, ScanLine, Search, Send, Settings, Slash, SlidersHorizontal, Sparkles, Sun, UserRoundPlus,
   Wrench, X, type LucideIcon,
 } from "lucide-react";
 
@@ -11,7 +11,7 @@ export type AppIconName =
   | "activity" | "appearance" | "automation" | "back" | "blocks" | "board" | "bot" | "camera" | "configuration"
   | "dashboard" | "dark" | "diagnostics" | "drag" | "entry" | "folder" | "folderOpen" | "import"
   | "interview" | "knowledge" | "knowledgeTraining" | "library" | "light" | "mcp" | "message"
-  | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "personalization" | "plugins"
+  | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins"
   | "project" | "review" | "scheduled" | "screenshot" | "search" | "send" | "settings" | "slash" | "sparkles"
   | "stats" | "system" | "tool" | "tutoring" | "chevronDown" | "chevronRight" | "close" | "folderPlus";
 
@@ -21,7 +21,7 @@ const icons: Record<AppIconName, LucideIcon> = {
   diagnostics: Activity, drag: GripVertical, entry: FilePenLine, folder: Folder, folderOpen: FolderOpen,
   import: FileInput, interview: MessagesSquare, knowledge: BookOpen, knowledgeTraining: Brain, library: Library,
   light: Sun, mcp: Blocks, message: MessageSquare, mic: Mic, more: MoreHorizontal, motion: Activity,
-  newChat: Plus, none: Ban, paperclip: Paperclip, personalization: UserRoundPlus, plugins: Blocks,
+  newChat: Plus, none: Ban, paperclip: Paperclip, phone: Phone, personalization: UserRoundPlus, plugins: Blocks,
   project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings,
   slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
   tutoring: Bot, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, folderPlus: FolderPlus,

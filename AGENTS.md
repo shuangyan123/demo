@@ -17,6 +17,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## AI 连接架构约定
 
+- 模型目录采用官方在线发现优先、带核验日期的官方回退；对话选择器保持厂商图标到单厂商模型的两步状态。
+- 音色设置由 `VoiceProviderDescriptor` 驱动；实时语音只持久化最终双方转写，PCM、临时凭据和厂商原始事件只留当前运行内存。
+- OpenAI Realtime 使用 WebRTC；GLM 本地中继只支持单实例标准 Next 进程，禁止宣称支持多实例或 Serverless。
+
 - 业务功能只接收 `ApiConnectionProfile`，不得读取或透传旧 `apiSetting`。
 - 文本任务使用默认文本连接，图片/OCR/关键帧使用默认多模态连接，云端朗读使用默认语音连接；缺失时明确提示，不跨能力静默回退。
 - `apiSettings` 旧表与 `ApiSetting` 类型只用于历史迁移和旧版本回退，清空默认文本连接时必须同步清理旧记录。

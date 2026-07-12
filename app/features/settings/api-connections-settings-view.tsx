@@ -25,7 +25,7 @@ type ConnectionForm = {
   language: string;
 };
 
-const purposeLabels: Record<AiConnectionPurpose, string> = { text: "默认文本", vision: "默认多模态", speech: "默认语音", transcription: "默认转写" };
+const purposeLabels: Record<AiConnectionPurpose, string> = { text: "默认文本", vision: "默认多模态", speech: "默认语音", transcription: "默认转写", realtime: "默认实时语音" };
 const capabilityLabels: Partial<Record<AiCapability, string>> = { text: "文本", vision: "多模态", structured_output: "结构化输出", speech: "语音", transcription: "录音转写" };
 const manualModelOption = "__manual__";
 
@@ -72,7 +72,7 @@ function modelStatusLabel(model?: AiModelCatalogEntry): string {
   if (model.status === "recommended") return "推荐";
   if (model.status === "preview") return "预览";
   if (model.status === "deprecated") return "弃用";
-  return model.source === "official" ? "官方" : "手动";
+  return model.source === "official_live" ? "官方在线" : model.source === "official_fallback" ? "官方回退" : "手动";
 }
 
 // 配置多厂商连接、能力默认值和连接测试；厂商协议细节只存在于服务端适配器。

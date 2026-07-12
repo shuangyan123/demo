@@ -57,6 +57,10 @@ export type AiSpeechRequest = {
   text: string;
   style?: string;
   speed?: number;
+  volume?: number;
+  pitch?: number;
+  emotion?: string;
+  languageBoost?: string;
   providerOptions?: Record<string, string>;
 };
 
@@ -85,7 +89,7 @@ export type AiModelDirectoryEntry = {
   source: "official_api" | "static_catalog";
   family?: string;
   generation?: string;
-  modalityGroup?: "text" | "multimodal" | "speech" | "transcription";
+  modalityGroup?: "text" | "multimodal" | "speech" | "transcription" | "realtime";
   contextWindow?: number;
   maxOutputTokens?: number;
   supportsStreaming: boolean;

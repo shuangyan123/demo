@@ -182,6 +182,15 @@ test("五家默认语音服务 fixture：endpoint、鉴权和字段互不泄漏�
   assert.equal(minimax.url, "https://speech.example/v1/t2a_v2");
   assert.equal(minimax.parseMode, "minimax");
   assert.equal((minimax.body as { output_format: string }).output_format, "hex");
+
+  const minimaxOptions = buildSpeechProviderRequest({ ...speechBase, provider: "minimax", volume: 0.8, pitch: 3, emotion: "happy", languageBoost: "Chinese" });
+  const minimaxBody = minimaxOptions.body as { language_boost: string; voice_setting: { vol: number; pitch: number; emotion: string } };
+  assert.deepEqual(minimaxBody.voice_setting, { voice_id: "voice-id", speed: 1.2, vol: 0.8, pitch: 3, emotion: "happy" });
+  assert.equal(minimaxBody.language_boost, "Chinese");
+
+  const glm = buildSpeechProviderRequest({ ...speechBase, provider: "zhipu", volume: 0.7 });
+  assert.equal(glm.url, "https://speech.example/v1/audio/speech");
+  assert.deepEqual(glm.body, { model: "speech-model", voice: "voice-id", input: "你好", speed: 1.2, volume: 0.7, response_format: "wav" });
 });
 
 test("JSON 语音响应 fixture：MiniMax 十六进制与 Gemini PCM 都可转为音频字节", async () => {

@@ -20,7 +20,7 @@ export type ProviderContract = {
   speechVoices?: Array<{ id: string; label: string }>;
 };
 
-const verifiedAt = "2026-07-09";
+const verifiedAt = "2026-07-12";
 const openAiVoices = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse", "marin", "cedar"];
 const googleVoices = ["Kore", "Puck", "Charon", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"];
 
@@ -33,7 +33,7 @@ function model(
   documentationUrl?: string,
 ): AiModelCatalogEntry {
   const generation = id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
-  const modalityGroup = purposes.includes("speech") ? "speech" : purposes.includes("transcription") && !purposes.includes("text")
+  const modalityGroup = purposes.includes("realtime") ? "realtime" : purposes.includes("speech") ? "speech" : purposes.includes("transcription") && !purposes.includes("text")
     ? "transcription" : purposes.includes("vision") ? "multimodal" : "text";
   return {
     id,
@@ -42,7 +42,7 @@ function model(
     purposes,
     capabilities,
     status,
-    source: documentationUrl ? "official" : "manual",
+    source: documentationUrl ? "official_fallback" : "manual",
     family: id.replace(/(?:[-_.](?:pro|mini|nano|flash|lite|turbo|hd|highspeed|reasoning|non-reasoning|preview|latest))+$/gi, ""),
     generation,
     modalityGroup,
@@ -71,8 +71,10 @@ function contract(input: Omit<ProviderContract, "availability" | "models"> & { m
 const openAiCatalog = [
   model("openai", "gpt-5.6-terra", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://developers.openai.com/api/docs/models/all"),
   model("openai", "gpt-5.5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/all"),
-  model("openai", "gpt-audio-1.5", ["speech"], ["speech"], "recommended", "https://developers.openai.com/api/docs/models/gpt-audio-1.5"),
-  model("openai", "gpt-audio", ["speech"], ["speech"], "stable", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "tts-1-hd", ["speech"], ["speech"], "recommended", "https://developers.openai.com/api/docs/models/tts-1-hd"),
+  model("openai", "tts-1", ["speech"], ["speech"], "stable", "https://developers.openai.com/api/docs/models/tts-1"),
+  model("openai", "gpt-realtime-2.1", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "recommended", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-realtime-2", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "stable", "https://developers.openai.com/api/docs/models/all"),
   model("openai", "gpt-realtime-whisper", ["transcription"], ["transcription"], "recommended", "https://developers.openai.com/api/docs/models/all"),
   model("openai", "gpt-4o-transcribe", ["transcription"], ["transcription"], "stable", "https://developers.openai.com/api/docs/models/all"),
 ];
@@ -85,9 +87,13 @@ const googleCatalog = [
   model("google", "gemini-2.5-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models"),
   model("google", "gemini-2.5-pro", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models"),
   model("google", "gemini-3.1-flash-tts-preview", ["speech"], ["speech"], "preview", "https://ai.google.dev/gemini-api/docs/models"),
+  model("google", "gemini-2.5-flash-preview-tts", ["speech"], ["speech"], "preview", "https://ai.google.dev/gemini-api/docs/speech-generation"),
+  model("google", "gemini-3.1-flash-live-preview", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/live-api"),
+  model("google", "gemini-2.5-flash-native-audio-preview", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/live-api"),
 ];
 
 const anthropicCatalog = [
+  model("anthropic", "claude-fable-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.claude.com/docs/en/about-claude/models/overview"),
   model("anthropic", "claude-sonnet-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.claude.com/docs/en/about-claude/models/overview"),
   model("anthropic", "claude-opus-4-8", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://platform.claude.com/docs/en/about-claude/models/overview"),
 ];
@@ -105,7 +111,7 @@ export const providerContracts: ProviderContract[] = [
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-5.5",
     apiFormat: "responses",
-    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "streaming"],
+    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "realtime", "streaming"],
     modelCatalog: openAiCatalog,
     modelListStrategy: "official_api",
     documentationUrl: "https://developers.openai.com/api/docs/models",
@@ -134,7 +140,7 @@ export const providerContracts: ProviderContract[] = [
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     model: "gemini-3.5-flash",
     apiFormat: "google_generate_content",
-    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "streaming"],
+    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "realtime", "streaming"],
     modelCatalog: googleCatalog,
     modelListStrategy: "official_api",
     documentationUrl: "https://ai.google.dev/gemini-api/docs/models",
@@ -237,14 +243,15 @@ export const providerContracts: ProviderContract[] = [
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     model: "glm-5.1",
     apiFormat: "chat_completions",
-    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "streaming"],
+    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "realtime", "streaming"],
     modelCatalog: [
       model("zhipu", "glm-5.1", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
       model("zhipu", "glm-5", ["text"], ["text", "structured_output", "streaming"], "stable", "https://docs.bigmodel.cn/cn/guide/models/text/glm-5"),
       model("zhipu", "glm-5v-turbo", ["vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
       model("zhipu", "glm-4.6v", ["vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://docs.bigmodel.cn/cn/guide/start/quick-start"),
       model("zhipu", "glm-tts", ["speech"], ["speech"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
-      model("zhipu", "glm-asr", ["transcription"], ["transcription"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-asr-2512", ["transcription"], ["transcription"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-realtime", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/models/sound-and-video/glm-realtime"),
     ],
     modelListStrategy: "official_api",
     documentationUrl: "https://docs.bigmodel.cn/cn/guide/start/model-overview",
@@ -293,6 +300,7 @@ export const providerContracts: ProviderContract[] = [
       model("minimax", "MiniMax-M2.5", ["text"], ["text", "structured_output", "streaming"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "speech-2.8-hd", ["speech"], ["speech"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "speech-2.8-turbo", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "speech-2.6-hd", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
     ],
     modelListStrategy: "manual",
     documentationUrl: "https://platform.minimax.io/docs/api-reference/speech-t2a-http",

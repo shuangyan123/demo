@@ -87,3 +87,9 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 2. 保留单个 Dexie 数据库与 v16 schema，迁移代码按版本模块化。
 3. 采用渐进式领域拆分，兼容出口在调用方迁移完成前保留。
 4. 外部 `/api/ai/*` URL 和持久化数据契约保持向后兼容。
+# 模型目录与实时语音边界（2026-07-12）
+
+- 模型目录采用官方在线发现优先、带核验日期的官方回退清单；公开目录元数据可缓存，密钥和厂商原始响应不得缓存。
+- 对话模型选择保持“厂商图标 → 单厂商连接/模型”两级状态，空白对话仍只在首条文本或最终用户语音转写后创建。
+- 语音试听由 `VoiceProviderDescriptor` 驱动，只向 OpenAI、Gemini、MiniMax、GLM 发送各自支持的字段。
+- 实时语音运行对象、PCM、增量转写和临时凭据只留内存。OpenAI 使用 WebRTC；GLM 使用本地单实例 WebSocket 中继与同源 HTTP 入口，空闲两分钟回收，不支持多实例或 Serverless。

@@ -334,12 +334,20 @@ export function buildSpeechProviderRequest(input: AiSpeechRequest): ProviderHttp
         model: input.model,
         text: input.text,
         stream: false,
-        language_boost: "auto",
+        language_boost: input.languageBoost || "auto",
         output_format: "hex",
-        voice_setting: { voice_id: input.voiceId, speed, vol: 1, pitch: 0, emotion: input.style || "neutral" },
+        voice_setting: { voice_id: input.voiceId, speed, vol: input.volume ?? 1, pitch: input.pitch ?? 0, emotion: input.emotion || "neutral" },
         audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 },
       },
       parseMode: "minimax",
+    };
+  }
+  if (input.provider === "zhipu") {
+    return {
+      url: appendEndpoint(baseUrl, "/audio/speech"),
+      headers: bearerHeaders(input.apiKey),
+      body: { model: input.model, voice: input.voiceId, input: input.text, speed, volume: input.volume ?? 1, response_format: "wav" },
+      parseMode: "binary",
     };
   }
   if (input.provider === "qwen") {

@@ -15,6 +15,7 @@ export type SaveQuotaPluginInput = {
 
 const CONFIG_STORAGE_KEY = "review-workspace:ai-quota-plugin-configs";
 const SNAPSHOT_STORAGE_KEY = "review-workspace:ai-quota-snapshots";
+const activeQuotaIds = new Set(aiQuotaProviderPlugins.map((plugin) => plugin.id));
 
 function readJsonArray<T>(key: string): T[] {
   if (typeof window === "undefined") return [];
@@ -31,8 +32,16 @@ function writeJsonArray<T>(key: string, value: T[]): void {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+/** 读取时清理已下线额度插件的孤立配置；不影响对应厂商的历史 AI 连接。 */
+function readActiveQuotaRecords<T extends { id: string }>(key: string): T[] {
+  const records = readJsonArray<T>(key);
+  const active = records.filter((record) => activeQuotaIds.has(record.id as ApiProvider | "manual"));
+  if (active.length !== records.length) writeJsonArray(key, active);
+  return active;
+}
+
 async function getConfig(id: ApiProvider | "manual"): Promise<AiQuotaPluginConfig | undefined> {
-  return readJsonArray<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY).find((config) => config.id === id);
+  return readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY).find((config) => config.id === id);
 }
 
 async function refreshViaRoute(config: AiQuotaPluginConfig): Promise<AiQuotaSnapshot> {
@@ -84,8 +93,8 @@ function unsupportedSnapshot(config: AiQuotaPluginConfig, message: string, today
 export const aiQuotaRepository = {
   loadSync(): { configs: AiQuotaPluginConfig[]; snapshots: AiQuotaSnapshot[] } {
     return {
-      configs: readJsonArray<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY),
-      snapshots: readJsonArray<AiQuotaSnapshot>(SNAPSHOT_STORAGE_KEY),
+      configs: readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY),
+      snapshots: readActiveQuotaRecords<AiQuotaSnapshot>(SNAPSHOT_STORAGE_KEY),
     };
   },
 
@@ -94,7 +103,7 @@ export const aiQuotaRepository = {
   },
 
   async saveConfig(input: SaveQuotaPluginInput): Promise<AiQuotaPluginConfig> {
-    const configs = readJsonArray<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY);
+    const configs = readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY);
     const existing = configs.find((config) => config.id === input.id);
     const plugin = getAiQuotaPlugin(input.id);
     const providedSecret = input.apiKey?.trim() ?? "";
@@ -126,7 +135,7 @@ export const aiQuotaRepository = {
     } else {
       snapshot = unsupportedSnapshot(config, plugin.describeUnsupported ?? "该厂商暂不支持官方实时额度查询。", today);
     }
-    const snapshots = readJsonArray<AiQuotaSnapshot>(SNAPSHOT_STORAGE_KEY);
+    const snapshots = readActiveQuotaRecords<AiQuotaSnapshot>(SNAPSHOT_STORAGE_KEY);
     writeJsonArray(SNAPSHOT_STORAGE_KEY, [snapshot, ...snapshots.filter((item) => item.id !== snapshot.id)]);
     return snapshot;
   },

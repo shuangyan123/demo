@@ -127,9 +127,9 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
     ["deepseek", "DeepSeek", "https://platform.deepseek.com/usage", ""],
     ["google", "Google Gemini", "https://aistudio.google.com/usage", "https://status.cloud.google.com/"],
     ["anthropic", "Anthropic", "https://console.anthropic.com/settings/usage", "https://status.anthropic.com/"],
-    ["qwen", "阿里云 / Qwen", "https://bailian.console.aliyun.com/", ""],
-    ["doubao", "火山 / 豆包", "https://console.volcengine.com/ark", ""],
-    ["siliconflow", "硅基流动", "https://cloud.siliconflow.cn/account/usage", ""],
+    ["xai", "xAI", "https://console.x.ai/", "https://status.x.ai/"],
+    ["minimax", "MiniMax", "https://platform.minimax.io/", ""],
+    ["zhipu", "GLM / 智谱", "https://bigmodel.cn/usercenter/proj-mgmt/apikeys", ""],
   ] as const).map(([provider, label, dashboardUrl, statusUrl]) => ({
     id: provider,
     provider,

@@ -49,6 +49,10 @@ export function useConnectionSpeechPlayback({
         text,
         style: voice.style,
         speed: voice.rate,
+        volume: voice.volume,
+        pitch: voice.pitch,
+        emotion: voice.emotion,
+        languageBoost: voice.languageBoost,
       });
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;

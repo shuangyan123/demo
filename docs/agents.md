@@ -154,3 +154,8 @@
 - MCP 配置和插件目录是两条边界：插件负责状态与跳转，MCP 负责真实 Streamable HTTP server/tool 调用；原始结果只在当前组件内存中，持久化步骤必须脱敏。
 - 对话内 Obsidian 提案要关联 conversation/run 并以内嵌时间线呈现；确认动作必须发生在用户点击手势下，以便恢复 File System Access 权限。
 - 复盘计时不得由页面进入或切题自动启动；默认正计时暂停，未启动提交合法记录 0 秒。
+# 2026-07-12 模型与语音经验
+
+- `AiConnectionPurpose` 新增 realtime 后，默认连接映射、设置标签、目录归一化必须同步更新，但不需要升级 Dexie v16。
+- 语音表单必须由 `VoiceProviderDescriptor` 控制，禁止把同一组 style/speed/volume/pitch 字段无差别发送给所有厂商。
+- 实时语音持久化边界是最终转写；音频、临时凭据、增量事件和 WebRTC/WebSocket 对象不得进入 React 全局状态或 IndexedDB。

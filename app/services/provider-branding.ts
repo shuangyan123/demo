@@ -21,7 +21,7 @@ export const providerBranding: Record<ApiProvider, ProviderBranding> = {
   groq: { ...generic, label: "Groq" },
   mistral: { label: "Mistral", iconPath: "/provider-icons/mistral.svg", color: "#fa520f" },
   siliconflow: { ...generic, label: "SiliconFlow" },
-  zhipu: { ...generic, label: "智谱 GLM" },
+  zhipu: { label: "智谱 GLM", iconPath: "/provider-icons/zhipu.svg", color: "#2454ff" },
   kimi: { ...generic, label: "Moonshot Kimi" },
   doubao: { label: "火山方舟 / 豆包", iconPath: "/provider-icons/bytedance.svg", color: "#3c8cff" },
   baidu: { label: "百度千帆", iconPath: "/provider-icons/baidu.svg", color: "#2932e1" },

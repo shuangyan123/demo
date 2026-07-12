@@ -116,3 +116,8 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 - `POST /api/mcp/call` 接受 `{ endpoint, token?, tool, arguments }`，使用官方 MCP TypeScript SDK 调用工具；响应体超出 32 KiB 时拒绝交给浏览器。
 - 两个路由都拒绝 URL 内凭据、非 HTTP(S)、远程明文 HTTP 与跨 origin 重定向；请求超时为 15 秒。HTTP 仅允许 `localhost`、`127.0.0.0/8` 和 `::1`。
 - 浏览器 repository 负责本地加密 Bearer Token；IndexedDB 和工具步骤不得保存 Token 或 MCP 原始结果。
+# 实时语音 API
+
+- `POST /api/ai/realtime/session`：用长期连接密钥交换 OpenAI/Gemini 临时凭据，或创建 GLM 内存中继会话。响应永不返回长期密钥。
+- `GET|POST|DELETE /api/ai/realtime/glm`：轮询归一化事件、发送单个 PCM 音频块和结束 GLM 中继。单块有容量限制，会话空闲两分钟回收。
+- 现有 `/api/ai/speech` 保持兼容；OpenAI 使用 `tts-1-hd`/`tts-1`，Gemini 返回 PCM 后包装 WAV，MiniMax 和 GLM 只接收 descriptor 声明的参数。

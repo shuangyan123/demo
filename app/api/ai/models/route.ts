@@ -48,7 +48,7 @@ function modelCapabilities(provider: ApiProvider, id: string, raw?: Record<strin
 }
 
 function purposesFor(capabilities: AiCapability[]): AiConnectionPurpose[] {
-  return (["text", "vision", "speech", "transcription"] as AiConnectionPurpose[]).filter((purpose) => capabilities.includes(purpose));
+  return (["text", "vision", "speech", "transcription", "realtime"] as AiConnectionPurpose[]).filter((purpose) => capabilities.includes(purpose));
 }
 
 function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string): AiModelDirectoryEntry {

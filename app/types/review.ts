@@ -67,8 +67,8 @@ export type ApiProvider =
   | "tencent"
   | "custom";
 export type ApiFormat = "responses" | "chat_completions" | "google_generate_content" | "anthropic_messages" | "azure_speech" | "qwen_multimodal";
-export type AiCapability = "text" | "vision" | "structured_output" | "speech" | "transcription" | "streaming";
-export type AiConnectionPurpose = "text" | "vision" | "speech" | "transcription";
+export type AiCapability = "text" | "vision" | "structured_output" | "speech" | "transcription" | "realtime" | "streaming";
+export type AiConnectionPurpose = "text" | "vision" | "speech" | "transcription" | "realtime";
 export type PersonaModule = "tutoring" | "interview" | "knowledge_internalization";
 export type PersonaStrictness = "gentle" | "balanced" | "strict";
 export type PersonaVerbosity = "concise" | "balanced" | "detailed";
@@ -644,6 +644,7 @@ export type AiConnectionDefaults = {
   visionConnectionId?: string;
   speechConnectionId?: string;
   transcriptionConnectionId?: string;
+  realtimeConnectionId?: string;
   updatedAt: string;
 };
 
@@ -747,6 +748,9 @@ export type PersonaProfile = {
 export type VoiceProfile = {
   rate: number;
   volume: number;
+  pitch?: number;
+  emotion?: string;
+  languageBoost?: string;
   model: string;
   voiceId: string;
   style: string;
@@ -1104,15 +1108,39 @@ export type AiModelCatalogEntry = {
   purposes: AiConnectionPurpose[];
   capabilities: AiCapability[];
   status: "recommended" | "stable" | "preview" | "deprecated" | "manual";
-  source: "official" | "manual";
+  source: "official_live" | "official_fallback" | "manual";
   /** 用于两级选择器按最近两代模型家族分组。 */
   family?: string;
   generation?: string;
-  modalityGroup?: "text" | "multimodal" | "speech" | "transcription";
+  modalityGroup?: "text" | "multimodal" | "speech" | "transcription" | "realtime";
   lifecycle?: "active" | "preview" | "deprecated";
   documentationUrl?: string;
   verifiedAt?: string;
 };
+
+/** 厂商语音能力声明；设置 UI 只渲染厂商真实支持的参数。 */
+export type VoiceProviderDescriptor = {
+  provider: ApiProvider;
+  models: string[];
+  voices: Array<{ id: string; label: string }>;
+  supports: { style: boolean; speed: boolean; volume: boolean; pitch: boolean; emotion: boolean; languageBoost: boolean };
+};
+
+/** 实时语音配置只在当前内存会话中使用，不写入 IndexedDB。 */
+export type RealtimeVoiceSessionConfig = {
+  provider: Extract<ApiProvider, "openai" | "google" | "zhipu">;
+  connectionId: string;
+  model: string;
+  voiceId: string;
+};
+
+/** UI 消费的归一化实时事件，不暴露厂商原始事件。 */
+export type RealtimeVoiceEvent =
+  | { type: "setup" | "connected" | "interrupted" | "ended" }
+  | { type: "transcript"; role: "user" | "assistant"; text: string; final: boolean }
+  | { type: "audio"; pcmBase64: string; sampleRate: number }
+  | { type: "usage"; inputTokens?: number; outputTokens?: number }
+  | { type: "error"; message: string };
 
 /** 新建连接允许展示的主流厂商；旧 ApiProvider 联合仍负责历史数据兼容。 */
 export type ActiveApiProvider = "openai" | "google" | "anthropic" | "xai" | "deepseek" | "minimax" | "zhipu";

@@ -174,6 +174,7 @@ export const aiConnectionsRepository = {
       visionConnectionId: defaults.visionConnectionId === id ? undefined : defaults.visionConnectionId,
       speechConnectionId: defaults.speechConnectionId === id ? undefined : defaults.speechConnectionId,
       transcriptionConnectionId: defaults.transcriptionConnectionId === id ? undefined : defaults.transcriptionConnectionId,
+      realtimeConnectionId: defaults.realtimeConnectionId === id ? undefined : defaults.realtimeConnectionId,
       updatedAt: toISODate(today),
     };
     const clearsLegacyText = defaults.textConnectionId === id;

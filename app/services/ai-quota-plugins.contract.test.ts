@@ -26,7 +26,17 @@ test("非官方实时额度厂商保持插件预留状态", () => {
   assert.equal(unsupported.every((plugin) => plugin.refreshStrategy === "unsupported"), true);
   assert.equal(unsupported.every((plugin) => plugin.describeUnsupported?.includes("不抓取网页后台")), true);
   assert.equal(unsupported.every((plugin) => plugin.descriptor.sourceModes.includes("manual")), true);
-  assert.equal(unsupported.some((plugin) => plugin.id === "siliconflow"), true);
+  assert.deepEqual(aiQuotaProviderPlugins.map((plugin) => plugin.id), ["openai", "deepseek", "google", "anthropic", "xai", "minimax", "zhipu", "manual"]);
+  assert.equal(unsupported.some((plugin) => ["qwen", "doubao", "siliconflow"].includes(plugin.id)), false);
+});
+
+test("额度白名单厂商都使用本地品牌 SVG", async () => {
+  const { getProviderBranding } = await import("./provider-branding.ts");
+  for (const plugin of aiQuotaProviderPlugins.filter((item) => item.id !== "manual")) {
+    const branding = getProviderBranding(plugin.provider);
+    assert.match(branding.iconPath, /^\/(?:provider|plugin)-icons\/.+\.svg$/);
+    assert.doesNotMatch(branding.iconPath, /generic/);
+  }
 });
 
 test("额度插件声明 CodexBar 风格 descriptor 与刷新策略", () => {

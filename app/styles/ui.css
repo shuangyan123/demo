@@ -642,8 +642,9 @@ select,
 }
 
 .conversation-composer:focus-within {
-  outline: 1px solid color-mix(in srgb, var(--foreground) 45%, transparent);
+  outline: 1px solid color-mix(in srgb, #737373 68%, transparent);
   outline-offset: 1px;
+  box-shadow: none;
 }
 
 .conversation-model-trigger {
@@ -680,6 +681,19 @@ select,
 .conversation-model-picker > nav { display: grid; align-content: start; gap: 2px; border-right: 1px solid var(--line); padding: 0.55rem; background: var(--surface-muted); }
 .conversation-model-picker > nav button { display: grid; min-height: 2.5rem; grid-template-columns: 1.5rem minmax(0,1fr); align-items: center; gap: 0.55rem; border-radius: 0.45rem; padding: 0.4rem 0.55rem; text-align: left; font-size: 0.8rem; }
 .conversation-model-picker > nav button:hover, .conversation-model-picker > nav button.is-selected { background: var(--surface); color: var(--foreground); }
+.conversation-model-picker > nav.is-model-level { grid-template-columns: 2.25rem minmax(0,1fr); }
+.conversation-model-picker > nav .conversation-model-back { display: grid; grid-template-columns: 1fr; place-items: center; padding: 0; }
+.conversation-model-provider-hint { display: grid; align-content: center; color: var(--muted); }
+.conversation-model-provider-hint p { margin: 0.35rem 0 0; }
+.conversation-realtime-panel { position: absolute; right: 1rem; bottom: 5.5rem; z-index: 35; display: grid; width: min(25rem, calc(100% - 2rem)); gap: 0.8rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--surface); padding: 1rem; box-shadow: 0 18px 48px rgb(0 0 0 / 16%); }
+.conversation-realtime-panel header, .conversation-realtime-panel header > div, .conversation-realtime-panel label { display: grid; gap: 0.3rem; }
+.conversation-realtime-panel header { grid-template-columns: minmax(0,1fr) auto; align-items: start; }
+.conversation-realtime-panel header span { color: var(--muted); font-size: 0.68rem; letter-spacing: 0.08em; }
+.conversation-realtime-panel header h2, .conversation-realtime-panel p { margin: 0; }
+.conversation-realtime-panel select, .conversation-realtime-panel input { min-height: 2.35rem; border: 1px solid var(--line); border-radius: 0.45rem; background: var(--surface); padding: 0.35rem 0.55rem; outline: none; box-shadow: none; }
+.conversation-realtime-panel select:focus-visible, .conversation-realtime-panel input:focus-visible { outline: 1px solid #737373; outline-offset: 1px; }
+.conversation-realtime-provider { display: flex; align-items: center; gap: 0.5rem; }
+.conversation-realtime-panel > div:last-child { display: flex; gap: 0.5rem; }
 .conversation-model-picker > section { min-width: 0; padding: 0.65rem; }
 .conversation-model-profile { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 0.65rem; border-bottom: 1px solid var(--line); padding: 0.2rem 0.25rem 0.65rem; color: var(--muted); font-size: 0.75rem; }
 .conversation-model-profile select { min-width: 0; border: 1px solid var(--line); border-radius: 0.4rem; background: var(--surface); padding: 0.4rem; color: var(--foreground); }
@@ -755,6 +769,12 @@ select,
   font-size: 0.95rem;
   line-height: 1.6;
   outline: none;
+  box-shadow: none;
+}
+.conversation-composer textarea:focus,
+.conversation-composer textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .conversation-composer-icon,

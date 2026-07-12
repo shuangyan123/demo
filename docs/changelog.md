@@ -156,3 +156,9 @@
 - 加固 OpenAI、Gemini、Anthropic、DeepSeek、MiniMax、Grok 的协议、结构化输出、模型目录和错误归一化。
 - 模型目录改为一小时 stale-while-revalidate，手动或自定义连接不再误发官方模型发现请求。
 - 修复知识演进空结果：rejected 来源可复用、对象包络兼容历史数组、失败仅修复重试一次并展示明确诊断。
+# 2026-07-12
+
+- 对话输入器移除蓝色聚焦阴影，模型选择器改为厂商图标与单厂商模型两步状态。
+- 更新七家活跃厂商官方模型回退清单，修正 OpenAI TTS、GLM ASR，并补充 realtime 能力。
+- AI 额度收敛为七家主流厂商和手动额度，读取时清理已移除额度插件的孤立本地记录。
+- 新增厂商语音 descriptor、音色试听参数映射、OpenAI Realtime 通话入口及 GLM 本地中继 API。
