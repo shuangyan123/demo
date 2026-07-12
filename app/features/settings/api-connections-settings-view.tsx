@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { generateWithConnection, type GenerateConnectionPurpose } from "../../services/ai-connection-client";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
-import { creatableProviderContracts, getProviderContract, getProviderModelCatalog, type ProviderContract } from "../../services/provider-contracts";
+import { creatableProviderContracts, getProviderContract, getProviderModelCatalog } from "../../services/provider-contracts";
 import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile, ApiProvider } from "../../types/review";
 import { Button, EmptyState, cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
@@ -24,13 +24,8 @@ type ConnectionForm = {
 const purposeLabels: Record<AiConnectionPurpose, string> = { text: "默认文本", vision: "默认多模态", speech: "默认语音", transcription: "默认转写", realtime: "默认实时语音" };
 const capabilityLabels: Partial<Record<AiCapability, string>> = { text: "文本", vision: "多模态", structured_output: "结构化输出", speech: "语音", transcription: "录音转写" };
 
-function capabilitiesForPurpose(contract: ProviderContract, purpose: AiConnectionPurpose): AiCapability[] {
-  if (purpose === "text") return contract.capabilities.filter((capability) => capability === "text" || capability === "structured_output");
-  return contract.capabilities.filter((capability) => capability === purpose);
-}
-
-// 按当前能力创建连接草稿；模型由会话或能力默认值单独持有。
-function createForm(provider: ApiProvider = "openai", purpose: AiConnectionPurpose = "text"): ConnectionForm {
+// 连接档案只描述厂商、鉴权与协议能力，模型由会话或默认能力单独持有。
+function createForm(provider: ApiProvider = "openai"): ConnectionForm {
   const contract = getProviderContract(provider);
   return {
     id: "",
@@ -38,7 +33,7 @@ function createForm(provider: ApiProvider = "openai", purpose: AiConnectionPurpo
     provider,
     baseUrl: contract.baseUrl,
     apiKey: "",
-    capabilities: capabilitiesForPurpose(contract, purpose),
+    capabilities: [...contract.capabilities],
     language: "zh-CN",
   };
 }
@@ -63,7 +58,6 @@ function InlineStatus({ feedback }: { feedback: Feedback }) {
 // 配置多厂商连接、能力默认值和连接测试；厂商协议细节只存在于服务端适配器。
 export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: { onChanged?: () => void; onClearLocalRecords?: () => void }) {
   const [snapshot, setSnapshot] = useState<AiConnectionSnapshot>({ profiles: [], defaults: { id: "default", updatedAt: "" } });
-  const [activePurpose, setActivePurpose] = useState<AiConnectionPurpose>("text");
   const [form, setForm] = useState<ConnectionForm>(() => createForm());
   const [busyAction, setBusyAction] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -93,13 +87,12 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
   }, [feedback]);
 
   function selectProvider(provider: ApiProvider) {
-    const next = createForm(provider, activePurpose);
+    const next = createForm(provider);
     setForm(next);
     setFeedback(null);
   }
 
   function editProfile(profile: ApiConnectionProfile) {
-    setActivePurpose(profile.capabilities.includes("speech") && !profile.capabilities.includes("text") ? "speech" : profile.capabilities.includes("vision") ? "vision" : "text");
     setForm({
       id: profile.id,
       label: profile.label,
@@ -152,15 +145,13 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
   }
 
   async function testConnection(profile: ApiConnectionProfile) {
-    const requestedPurpose = activePurpose !== "speech" && activePurpose !== "transcription" && profile.capabilities.includes(activePurpose)
-      ? activePurpose
-      : profile.capabilities.includes("text")
+    const requestedPurpose = profile.capabilities.includes("text")
         ? "text"
         : profile.capabilities.includes("vision")
           ? "vision"
           : undefined;
     if (!requestedPurpose) {
-      setFeedback({ tone: "neutral", text: activePurpose === "transcription" ? "转写连接请在对话输入框录音后验证" : "语音连接请在个性化页面通过试听验证" });
+      setFeedback({ tone: "neutral", text: profile.capabilities.includes("transcription") ? "请在对话录音中验证转写" : "请在个性化页面试听语音" });
       return;
     }
     const purpose = requestedPurpose as GenerateConnectionPurpose;
@@ -192,7 +183,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
     await aiConnectionsRepository.removeProfile(profile.id);
     await refresh();
     onChanged?.();
-    if (form.id === profile.id) setForm(createForm("openai", activePurpose));
+    if (form.id === profile.id) setForm(createForm());
     setFeedback({ tone: "success", text: "连接已删除" });
   }
 
@@ -233,11 +224,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
 
       <form className="mt-6 grid gap-5" onSubmit={saveConnection}>
         <div className="ai-connection-picker">
-          <label>用途<select aria-label="用途" value={activePurpose} onChange={(event) => { const purpose = event.currentTarget.value as AiConnectionPurpose; setActivePurpose(purpose); setForm(createForm("openai", purpose)); }}>
-            <option value="text">文本</option><option value="vision">多模态</option><option value="speech">语音合成</option><option value="transcription">录音转写</option>
-          </select></label>
-          <label>厂商<span className="ai-provider-select"><ProviderIcon provider={form.provider} size={22} /><select aria-label="厂商" value={form.provider} onChange={(event) => selectProvider(event.currentTarget.value as ApiProvider)}>{editableContracts.filter((item) => item.provider === "custom" || item.capabilities.includes(activePurpose)).map((item) => <option key={item.provider} value={item.provider}>{item.label}</option>)}</select></span></label>
-          <p className="self-end text-xs leading-5 text-muted">连接只保存鉴权与能力，模型在下方默认能力或对话中选择。</p>
+          <label>厂商<span className="ai-provider-select"><ProviderIcon provider={form.provider} size={22} /><select aria-label="厂商" value={form.provider} onChange={(event) => selectProvider(event.currentTarget.value as ApiProvider)}>{editableContracts.map((item) => <option key={item.provider} value={item.provider}>{item.label}</option>)}</select></span></label>
         </div>
 
         <details className="ai-connection-advanced">
@@ -246,12 +233,12 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
             <label className="ui-field">连接名称<input className="ui-input" value={form.label} onChange={(event) => setForm({ ...form, label: event.currentTarget.value })} /></label>
             <label className="ui-field">Base URL<input className="ui-input" value={form.baseUrl} onChange={(event) => setForm({ ...form, baseUrl: event.currentTarget.value })} /></label>
             {form.provider === "azure" ? <label className="ui-field">语音语言<input className="ui-input" value={form.language} onChange={(event) => setForm({ ...form, language: event.currentTarget.value })} /></label> : null}
-            <fieldset><legend className="text-sm font-semibold">连接能力</legend><div className="mt-2 flex flex-wrap gap-4">{formCapabilities.map((capability) => <label key={capability} className="inline-flex items-center gap-2 text-sm text-muted"><input checked={form.capabilities.includes(capability)} className="ui-checkbox" type="checkbox" onChange={() => toggleCapability(capability)} />{capabilityLabels[capability]}</label>)}</div></fieldset>
+            {form.provider === "custom" ? <fieldset><legend className="text-sm font-semibold">连接能力</legend><div className="mt-2 flex flex-wrap gap-4">{formCapabilities.map((capability) => <label key={capability} className="inline-flex items-center gap-2 text-sm text-muted"><input checked={form.capabilities.includes(capability)} className="ui-checkbox" type="checkbox" onChange={() => toggleCapability(capability)} />{capabilityLabels[capability]}</label>)}</div></fieldset> : null}
             <label className="ui-field">API Key<input className="ui-input" type="password" autoComplete="new-password" placeholder={form.id ? "留空保留原 Key" : form.provider === "custom" ? "无鉴权服务可留空" : "填写 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.currentTarget.value })} /></label>
           </div>
         </details>
 
-        <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button><Button type="button" variant="outline" disabled={!form.id || Boolean(busyAction)} onClick={() => { const profile = snapshot.profiles.find((item) => item.id === form.id); if (profile) void testConnection(profile); }}>测试连接</Button>{form.id ? <Button type="button" variant="ghost" onClick={() => setForm(createForm("openai", activePurpose))}>新建</Button> : null}</div>
+        <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button><Button type="button" variant="outline" disabled={!form.id || Boolean(busyAction)} onClick={() => { const profile = snapshot.profiles.find((item) => item.id === form.id); if (profile) void testConnection(profile); }}>测试连接</Button>{form.id ? <Button type="button" variant="ghost" onClick={() => setForm(createForm())}>新建</Button> : null}</div>
       </form>
 
       <section className="mt-7 rounded-lg border border-line bg-surface" aria-label="默认能力分配">

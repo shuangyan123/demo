@@ -143,6 +143,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 发布验收与数据性能约定
 
+## 对话拖拽与七厂商适配经验
+
+- 对话和文件夹拖拽统一使用 dnd-kit 的 Pointer、Touch 与 Keyboard sensors；拖拽上下文留在 `ConversationFolderTree`，移动合法性继续由 repository 判断。
+- 模型选择列表点击即生效，不得恢复“使用此模型”二次确认；来源、核验日期和协议说明只进入诊断或详情。
+- AI 连接新建不再选择用途；连接档案只保存鉴权、endpoint 与厂商能力，默认用途单独保存连接和模型。
+- OpenAI、Gemini、Claude、DeepSeek、GLM、MiniMax、Grok 通过显式 `ProviderAdapter` 注册；其他厂商只作为兼容边界，不得宣称原生已核验。
+- MiniMax 文本使用官方推荐 Anthropic-compatible `/anthropic/v1/messages`，语音使用原生 T2A；两类请求不得共用通用 Chat Completions 请求体。
+
 - 数据层性能第二阶段必须先记录真实页面访问路径和慢查询证据；没有页面级分页需求或明确慢查询时，不得升级 Dexie schema 或新增索引。
 - 真实浏览器与 Vault 发布验收按 `docs/release-smoke.md` 执行，重点覆盖 connect、sync、conflict、proposal confirm；CI 不得连接真实 Vault、真实模型服务或外网 API Key。
 

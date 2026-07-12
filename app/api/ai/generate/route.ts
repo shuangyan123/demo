@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from "../../../services/api-client";
-import { buildGenerateProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent } from "../../../server/ai/provider-adapter.ts";
+import { getProviderAdapter } from "../../../server/ai/provider-adapter-registry.ts";
 
 // 校验统一生成请求的最小字段，避免把任意 URL 或空密钥转发到外部服务。
 function isGenerateRequest(value: unknown): value is AiGenerateRequest {
@@ -26,6 +26,7 @@ function providerFailureMessage(status: number): string {
 }
 
 async function pipeProviderStream(body: AiGenerateRequest, response: Response): Promise<Response> {
+  const adapter = getProviderAdapter(body.provider);
   if (!response.body) return new NextResponse("厂商未返回可读取的流", { status: 502 });
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -48,7 +49,7 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response): 
             if (!dataLines.length) continue;
             const data = dataLines.join("\n");
             if (data === "[DONE]") continue;
-            const events = parseGenerateProviderStreamEvent(body, JSON.parse(data) as unknown, response.headers);
+            const events = adapter.parseStream(body, JSON.parse(data) as unknown, response.headers);
             for (const event of events) {
               if (event.type === "delta") content += event.text;
               if (event.type === "usage") {
@@ -81,7 +82,8 @@ export async function POST(request: Request) {
   try {
     const body: unknown = await request.json();
     if (!isGenerateRequest(body)) return new NextResponse("缺少有效的 AI 连接或消息内容", { status: 400 });
-    const providerRequest = buildGenerateProviderRequest(body);
+    const adapter = getProviderAdapter(body.provider);
+    const providerRequest = adapter.buildGenerate(body);
     const response = await fetch(providerRequest.url, {
       method: "POST",
       headers: providerRequest.headers,
@@ -93,7 +95,7 @@ export async function POST(request: Request) {
     }
     if (body.stream) return pipeProviderStream(body, response);
     const payload: unknown = await response.json();
-    return NextResponse.json(parseGenerateProviderResponse(body, payload, response.headers));
+    return NextResponse.json(adapter.parseGenerate(body, payload, response.headers));
   } catch (error) {
     const message = error instanceof Error && error.message.includes("URL") ? "API 地址无效" : "AI API 请求失败";
     return new NextResponse(message, { status: 500 });

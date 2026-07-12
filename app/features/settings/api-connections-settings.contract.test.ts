@@ -9,8 +9,9 @@ async function readSource() {
 test("AI 连接只保存鉴权，默认能力单独保存模型", async () => {
   const source = await readSource();
 
-  assert.match(source, /aria-label="用途"/);
+  assert.doesNotMatch(source, /aria-label="用途"/);
   assert.match(source, /aria-label="厂商"/);
+  assert.match(source, /form\.provider === "custom"/);
   assert.match(source, /setDefaultModel/);
   assert.match(source, /setDefaultSelection/);
   assert.match(source, /ProviderIcon/);

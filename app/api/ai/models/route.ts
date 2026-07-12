@@ -16,8 +16,15 @@ function normalizeBaseUrl(value: string): string {
 
 function providerHeaders(provider: ApiProvider, apiKey: string): Record<string, string> {
   if (provider === "google") return { "x-goog-api-key": apiKey };
-  if (provider === "anthropic") return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+  if (provider === "anthropic" || provider === "minimax") return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
   return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+}
+
+/** 返回厂商官方模型目录地址，避免把所有服务都假设成同一个 /models 形状。 */
+function modelsUrl(provider: ApiProvider, baseUrl: string): string {
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (provider === "minimax") return `${normalized.replace(/\/v1$/, "/anthropic")}/v1/models`;
+  return `${normalized}/models`;
 }
 
 /** 按厂商已核验能力归一化模型，禁止用跨厂商通用正则虚报视觉能力。 */
@@ -81,7 +88,7 @@ export async function POST(request: Request) {
   try {
     const body = await readAiRouteJson(request);
     if (!isRequest(body)) return aiRouteError("缺少有效的模型目录连接参数", 400);
-    const response = await fetch(`${normalizeBaseUrl(body.baseUrl)}/models`, { headers: providerHeaders(body.provider, body.apiKey), cache: "no-store" });
+    const response = await fetch(modelsUrl(body.provider, body.baseUrl), { headers: providerHeaders(body.provider, body.apiKey), cache: "no-store" });
     if (!response.ok) return aiUpstreamError("官方模型目录请求失败", response.status);
     const payload = await response.json() as { data?: Array<Record<string, unknown>>; models?: Array<Record<string, unknown>> };
     const source = body.provider === "google" ? payload.models ?? [] : payload.data ?? [];

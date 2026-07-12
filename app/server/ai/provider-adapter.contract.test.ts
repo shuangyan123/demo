@@ -4,6 +4,7 @@ import { buildGenerateProviderRequest, buildSpeechProviderRequest, buildTranscri
 import type { AiGenerateRequest, AiSpeechRequest, AiTranscriptionRequest } from "../../services/api-client.ts";
 import { POST as modelsPost } from "../../api/ai/models/route.ts";
 import { POST as speechPost } from "../../api/ai/speech/route.ts";
+import { getProviderAdapter, providerAdapterRegistry } from "./provider-adapter-registry.ts";
 
 const baseGenerate: Omit<AiGenerateRequest, "provider"> = {
   apiKey: "fixture-key",
@@ -16,6 +17,13 @@ const baseGenerate: Omit<AiGenerateRequest, "provider"> = {
   model: "fixture-model",
   temperature: 0.2,
 };
+
+test("七家重点厂商通过显式适配器注册，其他厂商进入兼容边界", () => {
+  assert.deepEqual([...providerAdapterRegistry.keys()], ["openai", "google", "anthropic", "deepseek", "zhipu", "minimax", "xai"]);
+  assert.equal(getProviderAdapter("openai").protocol, "responses");
+  assert.equal(getProviderAdapter("minimax").protocol, "messages");
+  assert.equal(getProviderAdapter("custom").protocol, "chat_completions");
+});
 
 test("OpenAI Responses fixture：endpoint、instructions 和 token 字段由服务端适配", () => {
   const input: AiGenerateRequest = { ...baseGenerate, provider: "openai" };
@@ -123,8 +131,9 @@ test("六家重点厂商按原生协议映射结构化输出", () => {
   assert.equal((anthropic.body as { output_config: { format: { type: string } } }).output_config.format.type, "json_schema");
   assert.deepEqual((deepseek.body as { response_format: unknown }).response_format, { type: "json_object" });
   assert.equal((deepseek.body as { reasoning_effort: string }).reasoning_effort, "medium");
-  assert.equal((minimax.body as { response_format: { type: string } }).response_format.type, "json_schema");
-  assert.equal((minimax.body as { max_completion_tokens: number }).max_completion_tokens, 321);
+  assert.equal(minimax.url, "https://provider.example/anthropic/v1/messages");
+  assert.equal((minimax.body as { max_tokens: number }).max_tokens, 321);
+  assert.equal("response_format" in (minimax.body as object), false);
 });
 
 test("流式生成请求会启用厂商原生 stream 字段并归一化 delta 与 usage", () => {

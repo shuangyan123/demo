@@ -1,5 +1,13 @@
 # API 约定
 
+## 七厂商适配器注册表（2026-07-12）
+
+- `/api/ai/generate` 通过 `ProviderAdapter` 统一调用生成、解析与流式解析方法；路由不读取厂商私有响应字段。
+- OpenAI 与 Grok 使用 Responses；Claude 使用 Messages；MiniMax 文本使用官方推荐的 Anthropic-compatible `/anthropic/v1/messages`，语音继续使用原生 `/v1/t2a_v2`。
+- DeepSeek 与 GLM 保留各自参数映射；Gemini 的稳定 `generateContent` 作为受控迁移路径，待 Interactions 达到功能等价后再切换。
+- `/api/ai/models` 为 MiniMax 使用 `/anthropic/v1/models` 与 `x-api-key`；返回值仍只包含归一化公开元数据。
+- 未注册的旧厂商和自定义连接进入兼容适配器，不得标记为七家原生已核验支持。
+
 ## AI 运行时模型选择
 
 - `/api/ai/*` URL 不变。客户端提交连接参数与本次 `modelId`；连接档案本身不再要求模型。

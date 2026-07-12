@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { listModelsWithConnection } from "../../services/ai-connection-client";
-import { getModelReasoningDescriptor } from "../../services/model-reasoning";
 import { providerModelCache } from "../../services/provider-model-cache";
 import { getProviderContract, getProviderModelCatalog } from "../../services/provider-contracts";
 import type { AiConnectionPurpose, AiModelCatalogEntry, ApiConnectionProfile, ApiProvider } from "../../types/review";
@@ -21,8 +20,6 @@ type ConversationModelPickerProps = {
   onSelect: (selection: ModelSelection) => void;
 };
 
-const groupLabels: Record<string, string> = { text: "文本", multimodal: "多模态", speech: "语音", transcription: "转写", realtime: "实时语音" };
-const sourceLabels: Record<AiModelCatalogEntry["source"], string> = { official_live: "在线目录", official_fallback: "官方回退", manual: "手动" };
 const providerCollator = new Intl.Collator("en", { sensitivity: "base" });
 
 function toCatalogEntry(connection: ApiConnectionProfile, purpose: AiConnectionPurpose, model: Awaited<ReturnType<typeof listModelsWithConnection>>["models"][number]): AiModelCatalogEntry {
@@ -43,13 +40,9 @@ export function ConversationModelPicker({ connections, purpose, selectedConnecti
   const [connectionId, setConnectionId] = useState("");
   const activeConnection = providerConnections.find((connection) => connection.id === connectionId) ?? providerConnections[0];
   const [onlineModels, setOnlineModels] = useState<AiModelCatalogEntry[]>([]);
-  const [modelId, setModelId] = useState("");
   const [manualModelId, setManualModelId] = useState("");
-  const [reasoningEffort, setReasoningEffort] = useState("");
   const staticCatalog = activeConnection ? getProviderModelCatalog(activeConnection.provider, purpose) : [];
   const models = onlineModels.length ? onlineModels : staticCatalog;
-  const effectiveModelId = modelId || manualModelId;
-  const reasoning = activeConnection && effectiveModelId ? getModelReasoningDescriptor(activeConnection.provider, effectiveModelId) : undefined;
 
   useEffect(() => {
     if (!activeConnection || !provider || getProviderContract(provider).modelListStrategy !== "official_api") return;
@@ -69,15 +62,12 @@ export function ConversationModelPicker({ connections, purpose, selectedConnecti
   function openProvider(providerId: ApiProvider) {
     const connectionsForProvider = eligible.filter((connection) => connection.provider === providerId);
     const nextConnection = connectionsForProvider.find((connection) => connection.id === selectedConnectionId) ?? connectionsForProvider[0];
-    const catalog = getProviderModelCatalog(providerId, purpose);
-    const nextModel = nextConnection?.id === selectedConnectionId && selectedModelId ? selectedModelId : catalog[0]?.id ?? "";
-    const descriptor = nextModel ? getModelReasoningDescriptor(providerId, nextModel) : undefined;
-    setProvider(providerId); setConnectionId(nextConnection?.id ?? ""); setOnlineModels([]); setModelId(nextModel); setManualModelId(""); setReasoningEffort(descriptor?.options.some((option) => option.id === selectedReasoningEffort) ? selectedReasoningEffort! : descriptor?.defaultValue ?? "");
+    setProvider(providerId); setConnectionId(nextConnection?.id ?? ""); setOnlineModels([]); setManualModelId("");
   }
 
   function chooseModel(nextModelId: string) {
-    const descriptor = activeConnection ? getModelReasoningDescriptor(activeConnection.provider, nextModelId) : undefined;
-    setModelId(nextModelId); setManualModelId(""); setReasoningEffort(descriptor?.defaultValue ?? "");
+    if (!activeConnection) return;
+    onSelect({ connection: activeConnection, modelId: nextModelId, reasoningEffort: activeConnection.id === selectedConnectionId && nextModelId === selectedModelId ? selectedReasoningEffort : undefined });
   }
 
   if (!eligible.length) return <button className="conversation-model-empty" type="button" onClick={onOpenConnections}>配置支持当前能力的连接</button>;
@@ -85,11 +75,10 @@ export function ConversationModelPicker({ connections, purpose, selectedConnecti
   return <div className="conversation-model-picker" role="dialog" aria-label="选择对话模型">
     {!provider ? <nav aria-label="厂商">{providers.map((providerId) => { const contract = getProviderContract(providerId); return <button key={providerId} type="button" title={contract.label} onClick={() => openProvider(providerId)}><ProviderIcon provider={providerId} size={20} /><span>{contract.label}</span></button>; })}</nav> : <div className="conversation-model-drilldown">
       <header><button type="button" className="conversation-model-back" aria-label="返回厂商" onClick={() => setProvider(undefined)}>←</button><ProviderIcon provider={provider} size={20} /><strong>{getProviderContract(provider).label}</strong></header>
-      {providerConnections.length > 1 ? <label className="conversation-model-profile">连接档案<select value={activeConnection?.id ?? ""} onChange={(event) => { const next = providerConnections.find((item) => item.id === event.currentTarget.value); setConnectionId(event.currentTarget.value); setOnlineModels([]); const firstModel = next ? getProviderModelCatalog(next.provider, purpose)[0]?.id ?? "" : ""; chooseModel(firstModel); }}>{providerConnections.map((connection) => <option key={connection.id} value={connection.id}>{connection.label}</option>)}</select></label> : <p className="conversation-model-profile-name">{activeConnection?.label}</p>}
-      <div className="conversation-model-list">{models.map((model) => <button key={model.id} className={cx(model.id === effectiveModelId && "is-selected")} type="button" onClick={() => chooseModel(model.id)}><span><strong>{model.label}</strong><small>{groupLabels[model.modalityGroup ?? "text"] ?? "文本"} · {model.lifecycle === "preview" ? "预览" : "有效"} · {sourceLabels[model.source]}{model.verifiedAt ? ` · 核验 ${model.verifiedAt}` : ""}</small></span>{model.id === effectiveModelId ? <span aria-hidden="true">✓</span> : null}</button>)}</div>
-      {!models.length || provider === "custom" ? <label className="conversation-model-manual">模型 ID<input value={manualModelId} placeholder="输入厂商支持的模型 ID" onChange={(event) => { setManualModelId(event.currentTarget.value); setModelId(""); setReasoningEffort(""); }} /></label> : null}
-      {reasoning ? <fieldset className="conversation-model-reasoning"><legend>推理强度</legend>{reasoning.options.map((option) => <label key={option.id}><input type="radio" name="reasoning-effort" value={option.id} checked={(reasoningEffort || reasoning.defaultValue) === option.id} disabled={reasoning.readOnly} onChange={() => setReasoningEffort(option.id)} /><span>{option.label}</span></label>)}</fieldset> : null}
-      <div className="conversation-model-actions"><button type="button" className="ui-button ui-button-primary" disabled={!activeConnection || !effectiveModelId.trim()} onClick={() => activeConnection && onSelect({ connection: activeConnection, modelId: effectiveModelId.trim(), reasoningEffort: reasoning ? reasoningEffort || reasoning.defaultValue : undefined })}>使用此模型</button><button type="button" onClick={onOpenConnections}>管理 AI 连接</button></div>
+      {providerConnections.length > 1 ? <label className="conversation-model-profile"><span className="sr-only">连接</span><select aria-label="连接" value={activeConnection?.id ?? ""} onChange={(event) => { setConnectionId(event.currentTarget.value); setOnlineModels([]); }}>{providerConnections.map((connection) => <option key={connection.id} value={connection.id}>{connection.label}</option>)}</select></label> : null}
+      <div className="conversation-model-list">{models.map((model) => <button key={model.id} className={cx(model.id === selectedModelId && "is-selected")} type="button" onClick={() => chooseModel(model.id)}><strong>{model.label}</strong>{model.id === selectedModelId ? <span aria-hidden="true">✓</span> : null}</button>)}</div>
+      {!models.length || provider === "custom" ? <label className="conversation-model-manual">模型 ID<input value={manualModelId} placeholder="输入模型 ID" onChange={(event) => setManualModelId(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter" && manualModelId.trim()) { event.preventDefault(); chooseModel(manualModelId.trim()); } }} /></label> : null}
+      <button className="conversation-model-manage" type="button" onClick={onOpenConnections}>管理 AI 连接</button>
     </div>}
   </div>;
 }

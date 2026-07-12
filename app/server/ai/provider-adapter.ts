@@ -112,8 +112,12 @@ function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
 
 function buildAnthropicRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const { system, conversation } = splitSystemMessages(input.messages);
+  const baseUrl = input.provider === "minimax"
+    ? normalizeBaseUrl(input.baseUrl).replace(/\/v1$/, "/anthropic")
+    : input.baseUrl;
+  const endpoint = input.provider === "minimax" ? "/v1/messages" : "/messages";
   return {
-    url: appendEndpoint(input.baseUrl, "/messages"),
+    url: appendEndpoint(baseUrl, endpoint),
     headers: { "x-api-key": input.apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
     body: {
       model: input.model,
@@ -121,7 +125,7 @@ function buildAnthropicRequest(input: AiGenerateRequest): ProviderHttpRequest {
       system: system || undefined,
       messages: conversation.map((message) => ({ role: message.role, content: toAnthropicContent(message.content) })),
       ...(input.stream ? { stream: true } : {}),
-      ...((input.structuredOutput || input.providerOptions?.reasoningEffort) ? { output_config: { ...(input.structuredOutput ? { format: { type: "json_schema", schema: input.structuredOutput.schema } } : {}), ...(input.providerOptions?.reasoningEffort ? { effort: input.providerOptions.reasoningEffort } : {}) } } : {}),
+      ...((input.provider === "anthropic" && (input.structuredOutput || input.providerOptions?.reasoningEffort)) ? { output_config: { ...(input.structuredOutput ? { format: { type: "json_schema", schema: input.structuredOutput.schema } } : {}), ...(input.providerOptions?.reasoningEffort ? { effort: input.providerOptions.reasoningEffort } : {}) } } : {}),
       temperature: input.temperature ?? 0.1,
     },
   };

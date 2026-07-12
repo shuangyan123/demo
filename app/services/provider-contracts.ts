@@ -295,9 +295,9 @@ export const providerContracts: ProviderContract[] = [
     provider: "minimax",
     label: "MiniMax",
     group: "speech",
-    baseUrl: "https://api.minimax.io/v1",
+    baseUrl: "https://api.minimax.io/anthropic",
     model: "speech-2.8-hd",
-    apiFormat: "chat_completions",
+    apiFormat: "anthropic_messages",
     capabilities: ["text", "structured_output", "speech", "streaming"],
     modelCatalog: [
       model("minimax", "MiniMax-M3", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),

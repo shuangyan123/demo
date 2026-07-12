@@ -1,5 +1,13 @@
 # 项目经验沉淀
 
+## 2026-07-12 对话拖拽与连接简化经验
+
+- 嵌套对话树不要依赖原生 HTML5 `draggable`；拖拽上下文应限制在树组件内，多种 sensors 共用数据契约，repository 保留最终合法性判断。
+- 模型列表的点击本身就是明确选择，不要再增加确认按钮；来源、核验日期和协议状态属于诊断信息。
+- 连接档案和默认用途是不同状态域：前者保存鉴权与 endpoint，后者保存连接和模型。
+- 七家重点厂商必须进入显式 `ProviderAdapter` 注册表，未核验厂商只能走兼容边界。
+- MiniMax 文本优先使用官方推荐 Anthropic-compatible endpoint；语音仍使用原生 T2A。
+
 ## 2026-07-12 连接模型解耦经验
 
 - AI 连接只承担鉴权、endpoint 和能力；业务调用必须显式解析 `AiRuntimeModelSelection`，不得重新读取历史 `connection.model`。
