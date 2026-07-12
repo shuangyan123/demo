@@ -46,17 +46,18 @@ async function conversationFolderId(page: Page, id: string): Promise<string | un
 /** 使用真实指针轨迹驱动 dnd-kit，覆盖激活距离与碰撞检测。 */
 async function pointerDrag(page: Page, sourceSelector: string, targetSelector: string): Promise<void> {
   const source = page.locator(sourceSelector);
-  const target = page.locator(targetSelector);
   await expect(source).toBeVisible();
-  await expect(target).toBeVisible();
   const sourceBox = await source.boundingBox();
-  const targetBox = await target.boundingBox();
-  if (!sourceBox || !targetBox) throw new Error("拖拽源或目标没有可见边界");
+  if (!sourceBox) throw new Error("拖拽源没有可见边界");
   const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
-  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(start.x + 10, start.y, { steps: 4 });
+  const target = page.locator(targetSelector);
+  await expect(target).toBeVisible();
+  const targetBox = await target.boundingBox();
+  if (!targetBox) throw new Error("拖拽目标没有可见边界");
+  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
   await page.mouse.move(end.x, end.y, { steps: 20 });
   await page.mouse.up();
 }
@@ -138,7 +139,7 @@ test("桌面拖拽手柄可将持久化对话移入文件夹并拖回根目录",
   await expect(folder.locator('[data-conversation-id="drag-conversation"]')).toBeVisible();
   expect(await conversationFolderId(page, "drag-conversation")).toBe(folderId);
 
-  await pointerDrag(page, `[data-folder-id="${folderId}"] [data-conversation-id="drag-conversation"] .conversation-tree-drag-handle`, "[data-drop-root]");
+  await pointerDrag(page, `[data-folder-id="${folderId}"] [data-conversation-id="drag-conversation"] .conversation-tree-drag-handle`, "[data-drop-root-target]");
   await expect(page.locator('[data-drop-root] > [data-conversation-id="drag-conversation"]')).toBeVisible();
   expect(await conversationFolderId(page, "drag-conversation")).toBeUndefined();
 
@@ -148,6 +149,6 @@ test("桌面拖拽手柄可将持久化对话移入文件夹并拖回根目录",
   expect(nestedFolderId).toBeTruthy();
   await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
   await expect(targetRootFolder.getByRole("button", { name: "嵌套文件夹 操作" })).toBeVisible();
-  await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, "[data-drop-root]");
+  await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, "[data-drop-root-target]");
   await expect(page.locator('[data-drop-root] > [data-folder-id]').filter({ hasText: "嵌套文件夹" })).toBeVisible();
 });

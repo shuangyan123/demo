@@ -18,9 +18,9 @@ function TreeDragHandle({ item }: { item: TreeDragItem }) {
 }
 
 /** 文件夹与根目录共用的放置边界。 */
-function TreeDropZone({ folderId, active, dataDropRoot, className, children }: { folderId?: string; active?: boolean; dataDropRoot?: boolean; className: string; children: ReactNode }) {
-  const { isOver, setNodeRef } = useDroppable({ id: folderId ? `folder:${folderId}` : "root", data: { folderId } });
-  return <div ref={setNodeRef} data-drop-root={dataDropRoot ? "" : undefined} className={`${className} ${isOver || active ? "is-drop-target" : ""}`}>{children}</div>;
+function TreeDropZone({ folderId, dropId, active, dataDropRoot, dataDropRootTarget, className, children }: { folderId?: string; dropId?: string; active?: boolean; dataDropRoot?: boolean; dataDropRootTarget?: boolean; className: string; children: ReactNode }) {
+  const { isOver, setNodeRef } = useDroppable({ id: dropId ?? (folderId ? `folder:${folderId}` : "root"), data: { folderId } });
+  return <div ref={setNodeRef} data-drop-root={dataDropRoot ? "" : undefined} data-drop-root-target={dataDropRootTarget ? "" : undefined} className={`${className} ${isOver || active ? "is-drop-target" : ""}`}>{children}</div>;
 }
 
 type ConversationFolderTreeProps = {
@@ -76,7 +76,7 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
 
   function finishDrag(event: DragEndEvent) {
     const item = event.active.data.current as TreeDragItem | undefined;
-    const folderId = event.over?.id === "root" ? undefined : event.over?.data.current?.folderId as string | undefined;
+    const folderId = event.over?.id === "root" || event.over?.id === "root-surface" ? undefined : event.over?.data.current?.folderId as string | undefined;
     setActiveDragItem(null);
     if (item && event.over) void moveInto(item, folderId);
   }
@@ -136,8 +136,8 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   const tree = <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={startDrag} onDragCancel={() => setActiveDragItem(null)} onDragEnd={finishDrag}><section className="conversation-tree" aria-label="对话分类">
     <div className="conversation-tree-heading"><p>对话</p><button type="button" aria-label="新建文件夹" title="新建文件夹" onClick={() => { setCreatingParentId(undefined); setCreating(true); }}><AppIcon name="folderPlus" size={18} /></button></div>
     {creating ? <form className="conversation-tree-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}><input autoFocus aria-label="新文件夹名称" placeholder="文件夹名称" value={draftLabel} onChange={(event) => setDraftLabel(event.currentTarget.value)} /><button type="submit">创建</button><button type="button" onClick={() => setCreating(false)}>取消</button></form> : null}
-    {activeDragItem ? <TreeDropZone className="conversation-tree-root-target"><AppIcon name="back" size={16} /><span>移到根目录</span></TreeDropZone> : null}
-    <TreeDropZone dataDropRoot className="conversation-tree-root">
+    {activeDragItem ? <TreeDropZone dropId="root" dataDropRootTarget className="conversation-tree-root-target"><AppIcon name="back" size={16} /><span>移到根目录</span></TreeDropZone> : null}
+    <TreeDropZone dropId="root-surface" dataDropRoot className="conversation-tree-root">
       {rootFolders.map((folder) => renderFolder(folder))}{rootChats.map(renderConversation)}
     </TreeDropZone>
     {!rootFolders.length && !rootChats.length ? <p className="conversation-tree-empty">发送首条消息后自动保存。</p> : null}
