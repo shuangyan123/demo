@@ -49,7 +49,16 @@ async function pointerDrag(page: Page, sourceSelector: string, targetSelector: s
   const target = page.locator(targetSelector);
   await expect(source).toBeVisible();
   await expect(target).toBeVisible();
-  await source.dragTo(target);
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox) throw new Error("拖拽源或目标没有可见边界");
+  const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
+  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 10, start.y, { steps: 4 });
+  await page.mouse.move(end.x, end.y, { steps: 20 });
+  await page.mouse.up();
 }
 
 test("公考默认折叠，新对话保持草稿且普通文本不显示 caret", async ({ page }) => {
