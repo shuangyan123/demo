@@ -8,27 +8,22 @@ import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues } from ".
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
 import type { ChatMessageContent } from "../../services/api-client.ts";
 import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository.ts";
-import { summarizeConversationRunSteps, type ConversationToolRunSummary } from "../../services/conversation-tool-summary.ts";
+import { summarizeConversationRunSteps } from "../../services/conversation-tool-summary.ts";
 import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { AiConversation, AiConversationAttachment, AiConversationMessage, ApiConnectionProfile, KnowledgeEntry, KnowledgeEvolutionProposal, PersonalizationSettings } from "../../types/review";
+import type { AiConversation, ApiConnectionProfile, KnowledgeEntry, KnowledgeEvolutionProposal, PersonalizationSettings } from "../../types/review";
 import { cx } from "../shared/ui-primitives";
-import { ProviderIcon } from "../shared/provider-icon";
 import { AppIcon } from "../shared/app-icon";
 import type { ConversationLaunchContext } from "./conversation-launch-context";
+import { persistDraftAttachmentSummaries, type DraftAttachment } from "./conversation-attachment-utils";
+import { conversationProviderErrorMessage, formatConversationTime, readBlobAsDataUrl, toConversationChatHistory } from "./conversation-message-utils";
 import { useConversationVisionTools } from "./use-conversation-vision-tools";
-import { useConversationModelMenu } from "./use-conversation-model-menu";
-import { ConversationModelPicker } from "./conversation-model-picker";
+import { ConversationComposer, type ConversationComposerHandle } from "./conversation-composer";
 import { ConversationMcpToolPanel } from "./conversation-mcp-tool-panel";
 import { ConversationProposalBlock } from "./conversation-proposal-block";
+import { ConversationToolRunSummary } from "./conversation-tool-run-summary";
+import { useConversationModelSelection } from "./use-conversation-model-selection";
 
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
-
-type DraftAttachment = {
-  id: string;
-  file: File;
-  kind: AiConversationAttachment["kind"];
-  summary: string;
-};
 
 type ConversationWorkspaceProps = {
   activeConversationId?: string | null;
@@ -49,56 +44,6 @@ type ConversationWorkspaceProps = {
   onNotice: (message: string) => void;
   onClearLaunchContext: () => void;
 };
-
-function formatTime(value: string): string {
-  try {
-    return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-  } catch {
-    return "";
-  }
-}
-
-function toChatHistory(messages: AiConversationMessage[]) {
-  return messages
-    .filter((message) => message.role === "user" || message.role === "assistant")
-    .slice(-12)
-    .map((message) => ({ role: message.role as "user" | "assistant", content: message.content }));
-}
-
-function attachmentKind(file: File): DraftAttachment["kind"] {
-  if (file.type.startsWith("image/")) return "image";
-  if (file.type.startsWith("audio/")) return "audio";
-  return "file";
-}
-
-function readAsDataUrl(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("无法读取本地文件"));
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(file);
-  });
-}
-
-function providerErrorMessage(error: unknown): string {
-  const raw = error instanceof Error ? error.message : "AI 对话失败";
-  if (/at capacity|overload|resource exhausted|429|503/i.test(raw)) return "模型暂时满载，请切换模型或稍后再试";
-  return raw;
-}
-
-function ToolStateDot({ state }: { state: "pending" | "running" | "done" | "error" }) {
-  return <span aria-hidden="true" className={cx("mt-1 h-2.5 w-2.5 rounded-full", state === "done" && "bg-green", state === "running" && "bg-blue", state === "error" && "bg-red", state === "pending" && "bg-muted/40")} />;
-}
-
-/** 工具过程在消息流中折叠展示，展开后才显示每一步的本地摘要。 */
-function ConversationToolSummary({ summary }: { summary: ConversationToolRunSummary }) {
-  return (
-    <details className={cx("conversation-tool-summary", summary.state === "error" && "is-error", summary.state === "running" && "is-running")}>
-      <summary><span aria-hidden="true" className="conversation-tool-summary-icon"><AppIcon name="activity" size={16} /></span><span>{summary.label}</span></summary>
-      <ol>{summary.steps.map((step) => <li key={step.id}><ToolStateDot state={step.state} /><span className="min-w-0"><strong>{step.label}</strong>{step.text ? <small>{step.text}</small> : null}</span></li>)}</ol>
-    </details>
-  );
-}
 
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({
@@ -124,8 +69,6 @@ export function ConversationWorkspace({
   const [assistantDraft, setAssistantDraft] = useState("");
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [busy, setBusy] = useState(false);
-  const { menuId, menuRef, open: modelMenuOpen, openMenu: openModelMenu, toggle: toggleModelMenu, triggerRef } = useConversationModelMenu();
-  const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const [moveDrawerOpen, setMoveDrawerOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const [mcpPanelOpen, setMcpPanelOpen] = useState(false);
@@ -135,9 +78,8 @@ export function ConversationWorkspace({
   const [proposalKnowledgeIds, setProposalKnowledgeIds] = useState<string[]>([]);
   const [conversationProposals, setConversationProposals] = useState<KnowledgeEvolutionProposal[]>([]);
   const [knowledgeContext, setKnowledgeContext] = useState("");
-  const [draftSelection, setDraftSelection] = useState<{ connectionId: string; modelId: string; selectedRuntimeValues?: AiSelectedRuntimeValues }>();
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<ConversationComposerHandle | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
@@ -152,13 +94,19 @@ export function ConversationWorkspace({
   );
   const recentConversationSelection = conversations.find((conversation) => conversation.selectedConnectionId && conversation.selectedModelId);
   const defaultSelection = requiresVision ? defaultSelections?.vision : defaultSelections?.text;
-  const recentSelection = !activeConversation && recentConversationSelection && eligibleConnections.some((connection) => connection.id === recentConversationSelection.selectedConnectionId)
+  const recentSelection = !activeConversation && recentConversationSelection?.selectedConnectionId && recentConversationSelection.selectedModelId && eligibleConnections.some((connection) => connection.id === recentConversationSelection.selectedConnectionId)
     ? { connectionId: recentConversationSelection.selectedConnectionId, modelId: recentConversationSelection.selectedModelId, selectedRuntimeValues: recentConversationSelection.selectedRuntimeValues }
     : undefined;
-  const selection = draftSelection
-    ?? (activeConversation ? { connectionId: activeConversation.selectedConnectionId, modelId: activeConversation.selectedModelId, selectedRuntimeValues: activeConversation.selectedRuntimeValues } : undefined)
-    ?? recentSelection
-    ?? (!activeConversation && defaultSelection ? { ...defaultSelection, selectedRuntimeValues: undefined } : undefined);
+  const defaultFallback = !activeConversation && defaultSelection?.connectionId && defaultSelection.modelId
+    ? { connectionId: defaultSelection.connectionId, modelId: defaultSelection.modelId, selectedRuntimeValues: undefined }
+    : undefined;
+  const { flushPendingSelection, selection, selectionError, selectModel } = useConversationModelSelection({
+    activeConversation,
+    conversations,
+    fallbackSelection: recentSelection ?? defaultFallback,
+    onNotice,
+    onRefresh,
+  });
   const selectedConnection = eligibleConnections.find((connection) => connection.id === selection?.connectionId);
   const selectedModelId = selectedConnection ? selection?.modelId : undefined;
   const storedRuntimeValues = selectedConnection ? selection?.selectedRuntimeValues : undefined;
@@ -172,13 +120,10 @@ export function ConversationWorkspace({
   useEffect(() => {
     if (activeConversationId === undefined && activeConversation?.id) onConversationSelected(activeConversation.id);
   }, [activeConversation?.id, activeConversationId, onConversationSelected]);
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [assistantDraft, messages.length]);
-
   useEffect(() => () => mediaStreamRef.current?.getTracks().forEach((track) => track.stop()), []);
-
   useEffect(() => {
     let active = true;
     if (!activeConversation?.id) return;
@@ -187,11 +132,9 @@ export function ConversationWorkspace({
     });
     return () => { active = false; };
   }, [activeConversation?.id]);
-
   async function appendStep(conversationId: string, runId: string, label: string, state: "pending" | "running" | "done" | "error", text?: string) {
     await conversationRepository.appendRunStep({ conversationId, runId, label, state, text });
   }
-
   /** 首条最终用户转写出现时才创建空白对话；增量转写和音频永不持久化。 */
   async function persistRealtimeTranscript(role: "user" | "assistant", text: string) {
     let conversationId = activeConversation?.id ?? realtimeConversationIdRef.current;
@@ -202,49 +145,11 @@ export function ConversationWorkspace({
       conversationId = created.id;
       realtimeConversationIdRef.current = created.id;
       onConversationSelected(created.id);
+      onClearLaunchContext();
     }
     if (!conversationId) return;
     await conversationRepository.appendMessage({ conversationId, role, content: text });
     await onRefresh();
-  }
-
-  async function chooseModel(connection: ApiConnectionProfile, modelId: string, runtimeValues: AiSelectedRuntimeValues) {
-    setDraftSelection({ connectionId: connection.id, modelId, selectedRuntimeValues: runtimeValues });
-    if (!activeConversation) return;
-    await conversationRepository.setConversationModelSelection(activeConversation.id, connection.id, modelId, runtimeValues);
-    await onRefresh();
-  }
-
-  async function handleFiles(files: FileList | null) {
-    if (!files?.length) return;
-    const selected = Array.from(files).slice(0, 6);
-    const next: DraftAttachment[] = [];
-    for (const file of selected) {
-      if (file.size > 15 * 1024 * 1024) {
-        onNotice(`${file.name} 超过 15MB 限制`);
-        continue;
-      }
-      const kind = attachmentKind(file);
-      let summary = `${kind === "image" ? "图片" : kind === "audio" ? "音频" : "文档"}，${Math.max(1, Math.ceil(file.size / 1024))} KB`;
-      if (kind === "file" && /^(text\/|application\/(json|csv))/.test(file.type)) {
-        const text = await file.text();
-        summary = text.replace(/\s+/g, " ").trim().slice(0, 240) || summary;
-      }
-      next.push({ id: crypto.randomUUID(), file, kind, summary });
-    }
-    setAttachments((current) => [...current, ...next]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  async function createPersistentAttachments(conversationId: string) {
-    return Promise.all(attachments.map((attachment) => conversationRepository.createAttachment({
-      conversationId,
-      kind: attachment.kind,
-      label: attachment.file.name,
-      summary: attachment.summary,
-      mimeType: attachment.file.type || undefined,
-      sizeBytes: attachment.file.size,
-    })));
   }
 
   async function buildUserContent(content: string): Promise<ChatMessageContent> {
@@ -253,7 +158,7 @@ export function ConversationWorkspace({
     const contextualContent = `${launchContent}${knowledgeContent}${content}`;
     const parts: Exclude<ChatMessageContent, string> = [{ type: "text", text: contextualContent }];
     for (const attachment of attachments) {
-      if (attachment.kind === "image") parts.push({ type: "image_url", image_url: { url: await readAsDataUrl(attachment.file) } });
+      if (attachment.kind === "image") parts.push({ type: "image_url", image_url: { url: await readBlobAsDataUrl(attachment.file) } });
       if (attachment.kind === "file" && attachment.summary) parts[0] = { type: "text", text: `${contextualContent}\n\n附件摘要：${attachment.file.name}\n${attachment.summary}` };
     }
     return parts.length === 1 && parts[0]?.type === "text" ? parts[0].text : parts;
@@ -279,53 +184,75 @@ export function ConversationWorkspace({
     event.preventDefault();
     const content = draft.trim();
     if ((!content && !attachments.length) || busy) return;
-    if (requiresVision && !effectiveConnection?.capabilities.includes("vision")) {
-      onNotice("图片需要显式选择支持多模态的模型连接");
-      openModelMenu();
-      return;
-    }
-    if (!effectiveConnection || !selectedModelId) {
-      onNotice(!effectiveConnection ? "请先配置支持当前消息能力的 AI 连接" : "请先选择本次对话使用的模型");
-      openModelMenu();
+    if (!selection?.connectionId || !selection.modelId) {
+      onNotice(!selection?.connectionId ? "请先配置支持当前消息能力的 AI 连接" : "请先选择本次对话使用的模型");
+      composerRef.current?.openModelSelector();
       return;
     }
     const originalDraft = draft;
     setAssistantDraft("");
     setBusy(true);
-    const conversation = activeConversation ?? await onCreateConversation({ selectedConnectionId: effectiveConnection.id, selectedModelId, selectedRuntimeValues });
-    onConversationSelected(conversation.id);
+    let conversation = activeConversation;
+    let createdFromDraft = false;
     const runId = crypto.randomUUID();
     try {
-      const persistedAttachments = await createPersistentAttachments(conversation.id);
+      const flushed = await flushPendingSelection();
+      if (!flushed.ok) return;
+      const submissionSelection = flushed.selection;
+      const submissionConnection = connections.find((connection) => connection.id === submissionSelection?.connectionId);
+      const submissionModelId = submissionConnection ? submissionSelection?.modelId : undefined;
+      if (requiresVision && !submissionConnection?.capabilities.includes("vision")) {
+        onNotice("图片需要显式选择支持多模态的模型连接");
+        composerRef.current?.openModelSelector();
+        return;
+      }
+      if (!submissionConnection || !submissionModelId) {
+        onNotice(!submissionConnection ? "请先配置支持当前消息能力的 AI 连接" : "请先选择本次对话使用的模型");
+        composerRef.current?.openModelSelector();
+        return;
+      }
+      const submissionDescriptor = getAiModelRuntimeDescriptor(submissionConnection.provider, submissionModelId);
+      const submissionRuntimeValues = submissionDescriptor
+        ? normalizeAiSelectedRuntimeValues(submissionDescriptor, submissionSelection?.selectedRuntimeValues)
+        : submissionSelection?.selectedRuntimeValues;
+      if (!conversation) {
+        conversation = await onCreateConversation({
+          selectedConnectionId: submissionConnection.id,
+          selectedModelId: submissionModelId,
+          selectedRuntimeValues: submissionRuntimeValues,
+        });
+        createdFromDraft = true;
+      }
+      const persistedAttachments = await persistDraftAttachmentSummaries(conversation.id, attachments);
       await conversationRepository.appendMessage({ conversationId: conversation.id, role: "user", content: content || "已添加附件", attachmentIds: persistedAttachments.map((item) => item.id) });
       await appendStep(conversation.id, runId, "准备上下文", "done", `已读取会话摘要和 ${persistedAttachments.length} 个附件摘要`);
-      await appendStep(conversation.id, runId, "选择模型", "done", `${effectiveConnection.label} / ${selectedModelId}`);
-      emitAiActivity({ runId, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId, phase: "started", label: `${effectiveConnection.provider} / ${selectedModelId}`, module: "对话", purpose: conversation.kind, stepId: "context", text: "准备当前会话上下文", toolDisplayMode: "inline" });
+      await appendStep(conversation.id, runId, "选择模型", "done", `${submissionConnection.label} / ${submissionModelId}`);
+      emitAiActivity({ runId, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId, phase: "started", label: `${submissionConnection.provider} / ${submissionModelId}`, module: "对话", purpose: conversation.kind, stepId: "context", text: "准备当前会话上下文", toolDisplayMode: "inline" });
       const userContent = await buildUserContent(content || "请分析当前附件。");
       await appendStep(conversation.id, runId, "调用模型", "running", "请求已发送");
       let finalContent = "";
       let usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined;
       let actualSpeed: string | undefined;
-      const history = [...toChatHistory(messages), { role: "user" as const, content: userContent }];
+      const history = [...toConversationChatHistory(messages), { role: "user" as const, content: userContent }];
       const purpose = requiresVision ? "vision" : "text";
-      if (effectiveConnection.capabilities.includes("streaming")) {
+      if (submissionConnection.capabilities.includes("streaming")) {
         await appendStep(conversation.id, runId, "流式输出", "running", "正在接收内容");
-        for await (const event of generateWithConnectionStream(effectiveConnection, purpose, { modelId: selectedModelId, selectedRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
+        for await (const event of generateWithConnectionStream(submissionConnection, purpose, { modelId: submissionModelId, selectedRuntimeValues: submissionRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: submissionConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
           if (event.type === "delta") { finalContent += event.text; setAssistantDraft(finalContent); }
           if (event.type === "done") { finalContent = event.content || finalContent; usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
           if (event.type === "usage") { usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
           if (event.type === "error") throw new Error(event.message);
         }
       } else {
-        const result = await generateWithConnection(effectiveConnection, purpose, { modelId: selectedModelId, selectedRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
+        const result = await generateWithConnection(submissionConnection, purpose, { modelId: submissionModelId, selectedRuntimeValues: submissionRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: submissionConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
         finalContent = result.content;
         usage = result.usage;
         actualSpeed = result.actualSpeed;
       }
       await conversationRepository.appendMessage({ conversationId: conversation.id, role: "assistant", content: finalContent.trim() || "模型没有返回文本。" });
-      if (selectedRuntimeValues && Object.keys(selectedRuntimeValues).length) {
-        const selected = [selectedRuntimeValues.reasoning !== undefined ? `推理 ${selectedRuntimeValues.reasoning}` : "", selectedRuntimeValues.speed ? `速度 ${selectedRuntimeValues.speed}` : ""].filter(Boolean).join(" · ");
-        await appendStep(conversation.id, runId, "运行档位", "done", `${selected}${selectedRuntimeValues.speed ? ` / 实际 ${actualSpeed ?? "未返回"}` : ""}`);
+      if (submissionRuntimeValues && Object.keys(submissionRuntimeValues).length) {
+        const selected = [submissionRuntimeValues.reasoning !== undefined ? `推理 ${submissionRuntimeValues.reasoning}` : "", submissionRuntimeValues.speed ? `速度 ${submissionRuntimeValues.speed}` : ""].filter(Boolean).join(" · ");
+        await appendStep(conversation.id, runId, "运行档位", "done", `${selected}${submissionRuntimeValues.speed ? ` / 实际 ${actualSpeed ?? "未返回"}` : ""}`);
       }
       await appendStep(conversation.id, runId, "完成", "done", usage?.totalTokens ? `${usage.totalTokens} tokens` : "会话已更新");
       setDraft("");
@@ -333,14 +260,20 @@ export function ConversationWorkspace({
       setKnowledgeContext("");
       await onRefresh();
     } catch (error) {
-      const message = providerErrorMessage(error);
-      await appendStep(conversation.id, runId, "错误", "error", message);
-      await onRefresh();
-      setDraft(originalDraft);
+      const message = conversationProviderErrorMessage(error);
+      if (conversation) {
+        await appendStep(conversation.id, runId, "错误", "error", message);
+        await onRefresh();
+      }
+      setDraft(createdFromDraft ? "" : originalDraft);
       onNotice(message);
     } finally {
       setBusy(false);
       setAssistantDraft("");
+      if (createdFromDraft && conversation) {
+        onConversationSelected(conversation.id);
+        onClearLaunchContext();
+      }
     }
   }
 
@@ -352,13 +285,13 @@ export function ConversationWorkspace({
     }
     try {
       setBusy(true);
-      const dataUrl = await readAsDataUrl(blob);
+      const dataUrl = await readBlobAsDataUrl(blob);
       const audioBase64 = dataUrl.split(",")[1] ?? "";
       const result = await transcribeWithConnection(transcriptionConnection, { audioBase64, mimeType: blob.type || "audio/webm" });
       setDraft((current) => `${current}${current ? "\n" : ""}${result.text}`);
       onNotice("录音已转写到输入框，请确认后发送");
     } catch (error) {
-      onNotice(providerErrorMessage(error));
+      onNotice(conversationProviderErrorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -394,7 +327,6 @@ export function ConversationWorkspace({
   }
 
   async function runInternalTool(kind: "knowledge" | "attachments" | "obsidian" | "scheduled") {
-    setToolMenuOpen(false);
     const conversation = activeConversation;
     if (!conversation) {
       onNotice("请先发送首条消息，再运行会话工具");
@@ -503,10 +435,10 @@ export function ConversationWorkspace({
         ) : null}
         <div className="conversation-message-list">
           {!activeConversation || !messages.length ? <div className="conversation-empty-prompt"><h2>从一个问题开始</h2><p>发送首条消息后才会创建对话。可添加文档、图片、音频，或按住麦克风录音。</p></div> : null}
-          {messages.map((message) => <article key={message.id} className={cx("conversation-message", message.role === "user" ? "is-user" : "is-assistant")}><div className="conversation-message-bubble"><div className="mb-1 flex items-center justify-between gap-3 text-xs text-muted"><span>{message.role === "user" ? "你" : message.role === "assistant" ? "AI" : message.role}</span><span>{formatTime(message.createdAt)}</span></div><p>{message.content}</p></div></article>)}
+          {messages.map((message) => <article key={message.id} className={cx("conversation-message", message.role === "user" ? "is-user" : "is-assistant")}><div className="conversation-message-bubble"><div className="mb-1 flex items-center justify-between gap-3 text-xs text-muted"><span>{message.role === "user" ? "你" : message.role === "assistant" ? "AI" : message.role}</span><span>{formatConversationTime(message.createdAt)}</span></div><p>{message.content}</p></div></article>)}
           {assistantDraft ? <article className="conversation-message is-assistant"><div className="conversation-message-bubble"><div className="mb-1 text-xs text-muted">AI 正在输入</div><p>{assistantDraft}</p></div></article> : null}
           {conversationProposals.map((proposal) => <ConversationProposalBlock key={proposal.id} proposal={proposal} busy={proposalBusy} onAccept={() => void updateConversationProposal(proposal, "accept")} onReject={() => void updateConversationProposal(proposal, "reject")} />)}
-          {latestRunSummary ? <ConversationToolSummary summary={latestRunSummary} /> : null}
+          {latestRunSummary ? <ConversationToolRunSummary summary={latestRunSummary} /> : null}
           <div ref={bottomRef} />
         </div>
         {visionMode ? (
@@ -523,36 +455,38 @@ export function ConversationWorkspace({
           <button className="ui-button ui-button-primary" type="button" disabled={proposalBusy} onClick={() => void generateConversationProposals()}>{proposalBusy ? "生成中…" : "生成提案"}</button>
         </section> : null}
         {mcpPanelOpen ? <ConversationMcpToolPanel onClose={() => setMcpPanelOpen(false)} onExecuted={recordMcpExecution} onNotice={onNotice} /> : null}
-        <form className="conversation-composer" onSubmit={submitMessage}>
-          {attachments.length ? <div className="conversation-attachment-chips">{attachments.map((attachment) => <span key={attachment.id}><span className="truncate">{attachment.file.name}</span><button type="button" aria-label={`移除 ${attachment.file.name}`} title="移除附件" onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}><AppIcon name="close" size={16} /></button></span>)}</div> : null}
-          <textarea aria-label="对话输入" placeholder="问点什么…" rows={1} value={draft} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
-          <div className="conversation-composer-toolbar">
-            <input ref={fileInputRef} className="sr-only" type="file" multiple accept=".txt,.md,.csv,.json,.pdf,.doc,.docx,image/*,audio/*" onChange={(event) => void handleFiles(event.currentTarget.files)} />
-            <button aria-label="添加附件" className="conversation-composer-icon" title="添加附件" type="button" onClick={() => fileInputRef.current?.click()}><AppIcon name="paperclip" size={18} /></button>
-            <button aria-label="语音输入" aria-pressed={recording} className={cx("conversation-composer-icon", recording && "is-recording")} title={recording ? "松开后转写" : "按住录音"} type="button" onPointerDown={() => void startRecording()} onPointerUp={stopRecording} onPointerCancel={stopRecording}><AppIcon name="mic" size={18} /></button>
-            <button aria-label="实时语音通话" className="conversation-composer-icon" title="实时语音通话" type="button" onClick={() => setRealtimeVoiceOpen(true)}><AppIcon name="phone" size={18} /></button>
-            <button aria-label="快捷指令" className="conversation-composer-icon" title="快捷指令" type="button" onClick={() => setDraft((current) => `${current}${current ? " " : ""}/`)}><AppIcon name="slash" size={18} /></button>
-            <div className="conversation-composer-menu">
-              <button aria-label="工具" className="conversation-composer-icon" title="工具" type="button" onClick={() => setToolMenuOpen((value) => !value)}><AppIcon name="tool" size={18} /></button>
-              {toolMenuOpen ? <div className="conversation-popover conversation-tool-menu">
-                <button type="button" onClick={() => { setToolMenuOpen(false); void startVision("camera"); }}><AppIcon name="camera" size={16} />摄像头</button>
-                <button type="button" onClick={() => { setToolMenuOpen(false); void startVision("screen"); }}><AppIcon name="system" size={16} />屏幕共享</button>
-                <button type="button" onClick={() => { setToolMenuOpen(false); void captureScreenForAnalysis(); }}><AppIcon name="screenshot" size={16} />截图分析</button>
-                <button type="button" onClick={() => void runInternalTool("knowledge")}><AppIcon name="knowledge" size={16} />知识库检索</button>
-                <button type="button" onClick={() => { setToolMenuOpen(false); if (!activeConversation) return onNotice("请先发送首条消息，再调用 MCP 工具"); setMcpPanelOpen(true); }}><AppIcon name="system" size={16} />MCP 工具</button>
-                <button type="button" onClick={() => { setToolMenuOpen(false); if (!activeConversation) return onNotice("请先发送首条消息，再生成 Obsidian 提案"); setProposalPanelOpen(true); }}><AppIcon name="sparkles" size={16} />Obsidian 提案</button>
-                <button type="button" onClick={onOpenTutoringRecords}><AppIcon name="tutoring" size={16} />历史辅导记录</button>
-              </div> : null}
-            </div>
-            <div className="conversation-composer-menu">
-              <button ref={triggerRef} aria-label="选择模型" aria-expanded={modelMenuOpen} aria-controls={modelMenuOpen ? menuId : undefined} className="conversation-model-trigger" title={effectiveConnection && selectedModelId ? `${effectiveConnection.label} · ${selectedModelId}` : "选择模型"} type="button" onClick={toggleModelMenu}>
-                {effectiveConnection && selectedModelId ? <><ProviderIcon provider={effectiveConnection.provider} size={18} /><span>{selectedModelId}</span><AppIcon name="chevronDown" size={16} /></> : <><AppIcon name="sparkles" size={18} /><span>选择模型</span></>}
-              </button>
-              {modelMenuOpen ? <ConversationModelPicker ref={menuRef} id={menuId} connections={connections} purpose={requiresVision ? "vision" : "text"} selectedConnectionId={effectiveConnection?.id} selectedModelId={selectedModelId} selectedRuntimeValues={selectedRuntimeValues} onOpenConnections={onOpenConnections} onSelect={({ connection, modelId, selectedRuntimeValues: runtimeValues }) => void chooseModel(connection, modelId, runtimeValues)} /> : null}
-            </div>
-            <button className="conversation-send" disabled={busy || (!draft.trim() && !attachments.length)} type="submit" aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>
-          </div>
-        </form>
+        <ConversationComposer
+          ref={composerRef}
+          activeConversation={Boolean(activeConversation)}
+          attachments={attachments}
+          busy={busy}
+          connections={connections}
+          draft={draft}
+          purpose={requiresVision ? "vision" : "text"}
+          recording={recording}
+          selectedConnection={effectiveConnection}
+          selectedModelId={selectedModelId}
+          selectedRuntimeValues={selectedRuntimeValues}
+          modelSelectionError={selectionError}
+          onAppendShortcut={() => setDraft((current) => `${current}${current ? " " : ""}/`)}
+          onAttachmentsAdd={(nextAttachments) => setAttachments((current) => [...current, ...nextAttachments])}
+          onAttachmentRemove={(attachmentId) => setAttachments((current) => current.filter((item) => item.id !== attachmentId))}
+          onCaptureScreen={() => void captureScreenForAnalysis()}
+          onDraftChange={setDraft}
+          onNotice={onNotice}
+          onOpenConnections={onOpenConnections}
+          onOpenMcp={() => setMcpPanelOpen(true)}
+          onOpenProposal={() => setProposalPanelOpen(true)}
+          onOpenRealtimeVoice={() => setRealtimeVoiceOpen(true)}
+          onOpenTutoringRecords={onOpenTutoringRecords}
+          onSearchKnowledge={() => void runInternalTool("knowledge")}
+          onSelectModel={({ connection, modelId, selectedRuntimeValues: runtimeValues }) => selectModel({ connectionId: connection.id, modelId, selectedRuntimeValues: runtimeValues })}
+          onStartCamera={() => void startVision("camera")}
+          onStartRecording={() => void startRecording()}
+          onStartScreen={() => void startVision("screen")}
+          onStopRecording={stopRecording}
+          onSubmit={submitMessage}
+        />
         {realtimeVoiceOpen ? <RealtimeVoicePanel connections={connections} onClose={() => setRealtimeVoiceOpen(false)} onFinalTranscript={persistRealtimeTranscript} /> : null}
       </div>
       {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到文件夹</h2><button type="button" aria-label="关闭移动菜单" title="关闭" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button></div><button type="button" onClick={() => void moveConversation()}>根目录</button>{snapshot.folders.filter((folder) => folder.projectId === activeConversation.projectId).map((folder) => <button key={folder.id} type="button" onClick={() => void moveConversation(folder.id)}>{folder.parentId ? "↳ " : ""}{folder.label}</button>)}</section></div> : null}

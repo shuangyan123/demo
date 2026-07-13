@@ -1,0 +1,38 @@
+.anchor {
+  display: block;
+  min-width: 0;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 90;
+  max-width: min(15rem, calc(100vw - 1rem));
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--foreground) 94%, var(--surface));
+  padding: 0.35rem 0.5rem;
+  color: var(--surface);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  animation: tooltip-enter 100ms ease-out;
+}
+
+@keyframes tooltip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    animation: none;
+  }
+}
