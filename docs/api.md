@@ -12,15 +12,16 @@
 
 - `/api/ai/*` URL 不变。客户端提交连接参数与本次 `modelId`；连接档案本身不再要求模型。
 - UI 只提交归一化 `runtime: { reasoning?: string | number; speed?: string }`。连接客户端和服务端都会用具体模型的 `AiModelRuntimeDescriptor` 校验；未知或手动模型不接收推断出的运行参数。
+- `reasoning` 是判别联合；`kind: "budget"` 必须提供 `customRange`。预设的动态/关闭哨兵值 `-1/0` 与范围内自定义整数均可归一化，其他值回退 descriptor 默认值。
 - 无对话上下文的任务从能力默认项解析“连接 + 模型”；不得读取 `ApiConnectionProfile.model` 作为正常运行时来源。
 - `/api/ai/models` 只返回归一化公开元数据，不缓存 API Key、请求上下文或厂商原始响应。
 
 七家 mapper 只负责把已校验运行值写入厂商请求，endpoint、鉴权和响应归一化仍由 provider adapter 负责：
 
 - OpenAI：`reasoning.effort`、`service_tier=priority`。
-- Gemini 3.x：`generationConfig.thinkingConfig.thinkingLevel`；Gemini 2.5：`thinkingBudget`；Priority 位于请求顶层。
-- Claude：adaptive thinking + `output_config.effort`，旧模型使用 `budget_tokens`；合资格模型 Fast 发送 `speed=fast` 与 beta header。
-- DeepSeek V4：关闭/high/max；GLM-5.2+：七档原样 `reasoning_effort`，旧 GLM 只发送 `thinking.type`。
+- Gemini 3.x：`generationConfig.thinkingConfig.thinkingLevel`；Gemini 2.5：`thinkingBudget`；Priority 位于请求顶层。2.5 Pro 自定义范围为 `128–32768`，Flash 为 `0–24576`，Flash Lite 为 `512–24576`，各模型仍按 descriptor 单独允许官方 `0/-1` 哨兵值。
+- Claude：adaptive thinking + `output_config.effort`，旧模型使用最低 1024 的 `budget_tokens`；内部有效输出上限等于思考预算与调用方正文输出额度之和，避免 `budget_tokens >= max_tokens` 的无效请求。合资格模型 Fast 发送 `speed=fast` 与 beta header。
+- DeepSeek V4：关闭/high/max；明确核验的 `glm-5.2`：七档原样 `reasoning_effort`，核验清单内的旧 GLM 只发送 `thinking.type`。
 - MiniMax M3：关闭/自适应与标准/优先；M2.x 高速通过配对模型 ID。
 - Grok 4.5：`reasoning.effort` 与 Priority；多代理 effort 不进入普通菜单。
 
@@ -37,6 +38,8 @@
 `/api/ai/generate` 在 `stream: true` 时返回 `text/event-stream`，事件固定为 `status`、`delta`、`usage`、`done`、`error`。业务层通过 `generateWithConnectionStream()` 消费归一化事件；结构化 JSON 任务仍必须等完整内容结束后交给 `app/services/ai-json.ts` 解析。
 
 当厂商返回实际 service tier/Fast 状态时，JSON 结果及 `usage/done` 事件可包含 `actualSpeed`。时间线只保存用户选择档位与这一归一化实际档位，不保存原始响应。
+
+GLM 运行能力只按显式模型清单登记。七档清单当前仅含 `glm-5.2`；开关清单为 `glm-5.1`、`glm-5`、`glm-5-turbo`、`glm-5v-turbo`、`glm-4.7`、`glm-4.6`、`glm-4.6v`、`glm-4.5`、`glm-4.5v`。`glm-999`、`glm-5.2-custom` 等未来或手动 ID 不产生运行参数，直到目录与 descriptor 同步登记文档和核验日期。
 
 旧 `/api/ai` OpenAI-compatible 路由已移除。厂商 endpoint、鉴权头、请求字段和响应解析只允许存在于服务端 provider adapter。
 

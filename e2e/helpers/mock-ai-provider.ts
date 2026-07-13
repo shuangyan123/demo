@@ -18,6 +18,7 @@ export type MockAiProviderOptions = {
   protocol?: "chat_completions" | "openai_responses";
   models?: string[];
   actualSpeed?: string;
+  streamCompletionDelayMs?: number;
 };
 
 const defaultResponse = "## Mock 自动化结果\n- 已读取授权范围\n- 下一步建议：继续复盘";
@@ -45,7 +46,7 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
   const requests: MockAiRequest[] = [];
   const server = createServer((request, response) => {
     void readJson(request)
-      .then((body) => {
+      .then(async (body) => {
         const mockRequest = { method: request.method, url: request.url, body };
         if (request.method === "GET" && request.url === "/v1/models") {
           requests.push(mockRequest);
@@ -66,6 +67,7 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
           if (input.stream) {
             response.writeHead(200, { "Content-Type": "text/event-stream", "x-request-id": `mock-${requests.length}` });
             response.write(`data: ${JSON.stringify({ type: "response.output_text.delta", delta: content })}\n\n`);
+            if (options.streamCompletionDelayMs) await new Promise((resolve) => setTimeout(resolve, options.streamCompletionDelayMs));
             response.write(`data: ${JSON.stringify({ type: "response.completed", response: { id: `mock-${requests.length}`, service_tier: options.actualSpeed ?? "priority", usage: { input_tokens: 12, output_tokens: 8, total_tokens: 20 } } })}\n\n`);
             response.end();
             return;
@@ -76,6 +78,16 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
             service_tier: options.actualSpeed ?? "priority",
             usage: { input_tokens: 12, output_tokens: 8, total_tokens: 20 },
           });
+          return;
+        }
+        const input = body as { stream?: boolean };
+        if (input.stream) {
+          response.writeHead(200, { "Content-Type": "text/event-stream", "x-request-id": `mock-${requests.length}` });
+          response.write(`data: ${JSON.stringify({ id: `mock-${requests.length}`, choices: [{ delta: { content } }] })}\n\n`);
+          if (options.streamCompletionDelayMs) await new Promise((resolve) => setTimeout(resolve, options.streamCompletionDelayMs));
+          response.write(`data: ${JSON.stringify({ id: `mock-${requests.length}`, choices: [], usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 } })}\n\n`);
+          response.write("data: [DONE]\n\n");
+          response.end();
           return;
         }
         writeJson(response, 200, {

@@ -96,6 +96,33 @@ test("七家厂商按具体模型映射推理与速度运行值", () => {
   assert.equal((xai.body as { service_tier: string }).service_tier, "priority");
 });
 
+test("Gemini 2.5 自定义预算与动态关闭哨兵原样映射", () => {
+  const pro = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-2.5-pro", runtime: { reasoning: 12000 } });
+  assert.deepEqual((pro.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingBudget: 12000 });
+
+  const flashLiteDynamic = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-2.5-flash-lite", runtime: { reasoning: -1 } });
+  const flashLiteDisabled = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-2.5-flash-lite", runtime: { reasoning: 0 } });
+  const flashLiteInvalid = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-2.5-flash-lite", runtime: { reasoning: 511 } });
+  assert.deepEqual((flashLiteDynamic.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingBudget: -1 });
+  assert.deepEqual((flashLiteDisabled.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingBudget: 0 });
+  assert.deepEqual((flashLiteInvalid.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingBudget: 0 });
+});
+
+test("Claude 预算型思考把思考 token 与正文输出额度合并到 max_tokens", () => {
+  const defaultBudget = buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", model: "claude-haiku-4-5" });
+  assert.deepEqual((defaultBudget.body as { thinking: unknown }).thinking, { type: "enabled", budget_tokens: 1024 });
+  assert.equal((defaultBudget.body as { max_tokens: number }).max_tokens, 1024 + 321);
+
+  const customBudget = buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", model: "claude-haiku-4-5", runtime: { reasoning: 12000 } });
+  assert.deepEqual((customBudget.body as { thinking: unknown }).thinking, { type: "enabled", budget_tokens: 12000 });
+  assert.equal((customBudget.body as { max_tokens: number }).max_tokens, 12000 + 321);
+  assert.equal("temperature" in (customBudget.body as object), false);
+
+  const invalidBudget = buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", model: "claude-haiku-4-5", runtime: { reasoning: 1000 } });
+  assert.deepEqual((invalidBudget.body as { thinking: unknown }).thinking, { type: "enabled", budget_tokens: 1024 });
+  assert.equal((invalidBudget.body as { max_tokens: number }).max_tokens, 1024 + 321);
+});
+
 test("GLM-5.2 原样发送七档并默认 max，旧 GLM 只发送思考开关", () => {
   for (const reasoning of ["max", "xhigh", "high", "medium", "low", "minimal", "none"]) {
     const request = buildGenerateProviderRequest({ ...baseGenerate, provider: "zhipu", model: "glm-5.2", runtime: { reasoning } });
@@ -109,6 +136,12 @@ test("GLM-5.2 原样发送七档并默认 max，旧 GLM 只发送思考开关", 
   assert.deepEqual((oldEnabled.body as { thinking: unknown }).thinking, { type: "enabled" });
   assert.deepEqual((oldDisabled.body as { thinking: unknown }).thinking, { type: "disabled" });
   assert.equal("reasoning_effort" in (oldEnabled.body as object), false);
+
+  for (const model of ["glm-999", "glm-5.2-custom"]) {
+    const unknown = buildGenerateProviderRequest({ ...baseGenerate, provider: "zhipu", model, runtime: { reasoning: "max" } });
+    assert.equal("thinking" in (unknown.body as object), false, model);
+    assert.equal("reasoning_effort" in (unknown.body as object), false, model);
+  }
 });
 
 test("厂商实际 service tier 被归一化为最小运行结果", () => {

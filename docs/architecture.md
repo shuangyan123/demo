@@ -16,6 +16,37 @@
 - 官方 Models API 成功时展示账户可用的全部未弃用模型；失败时才使用带 `verifiedAt` 的回退目录。MiniMax 当前旗舰为 `MiniMax-M3`，GLM 当前旗舰为 `glm-5.2`。
 - 对话树名称区域承担 dnd-kit 拖拽，拖拽期间始终提供根目录目标；repository 继续拒绝跨项目、自身和子孙嵌套。
 
+## 对话模型菜单分层（2026-07-13）
+
+- `ConversationWorkspace` 只编排会话运行、消息和工具状态；输入器由 `ConversationComposer` 承载，模型触发器与弹层由 `ConversationModelSelector` 装配，目录加载、菜单导航和选择持久化分别进入专用 hook。
+- 模型菜单状态使用 `providers → models → reasoning/speed` 单层判别联合。`ConversationModelPicker` 每次只渲染当前层，不以绝对定位把新面板覆盖在仍可聚焦的旧面板上。
+- 空白对话选择保存在 `draftSelection`；持久化对话使用按 `conversationId` 隔离的乐观选择。写入按用户操作顺序串行化，刷新确认后清理，失败时只回滚当前对话并显示错误，禁止把 A 对话的临时选择带到 B 对话。
+- 选项宽高由内容和当前层决定：桌面厂商、模型、普通运行、预算层分别为 208/240/160/200px；移动端在 390×844 基准下限制为 320/352/288/320px 且不超过视口安全宽度。仅内容超过可用高度时内部滚动。
+- 运行值继续只以 `selectedRuntimeValues` 持久化，不改变 IndexedDB v16 或 `/api/ai/models`、`/api/ai/generate`。UI 提交归一化值，provider runtime mapper 负责厂商字段。
+
+```text
+选择模型/档位
+  → descriptor 归一化
+  → 当前对话乐观状态
+  → conversationRepository 串行写入
+  → 刷新 snapshot
+  → /api/ai/generate
+  → provider runtime mapper
+```
+
+```text
+features/conversation/
+├── conversation-workspace.tsx             会话运行编排
+├── conversation-composer.tsx              输入、附件与工具装配
+├── conversation-model-selector.tsx        触发器与弹层生命周期
+├── conversation-model-picker.tsx          当前钻取层
+├── conversation-model-runtime-controls.tsx 运行 radio 与预算输入
+├── use-conversation-model-navigation.ts   判别联合与跨层焦点
+├── use-conversation-model-selection.ts    草稿/对话选择与串行写入
+└── use-connection-model-catalog.ts         共享目录读取
+features/shared/ui-tooltip.tsx              可访问共享 tooltip
+```
+
 ## 分层与依赖方向
 
 ```text
@@ -55,7 +86,7 @@ app/
 
 ## 对话、插件与 MCP
 
-- `ConversationWorkspace` 由两级模型选择、媒体工具、MCP 调用和 Obsidian 提案等独立组件协作；会话可以保存 `selectedModelId` 覆盖，但继续复用同一连接档案的密钥和 endpoint。
+- `ConversationWorkspace` 由 `ConversationComposer`、两级模型选择、媒体工具、MCP 调用和 Obsidian 提案等独立组件协作；会话可以保存 `selectedModelId` 覆盖，但继续复用同一连接档案的密钥和 endpoint。
 - 顶层“插件”只展示应用内扩展状态和领域跳转；MCP 独立位于设置，并通过对话工具实际调用，不伪装成插件目录条目。
 - MCP 首期仅支持 Streamable HTTP：远程 HTTPS、本机 loopback HTTP、无认证或本地加密 Bearer。原始调用结果仅在当前工具面板内存中存在，run/step 只保存 Server、工具、参数键和结果长度等脱敏摘要。
 - Obsidian 提案以当前对话和用户勾选的知识摘要为来源；生成、解析和 pending 保存形成同一对话 run，确认时才恢复目录权限、复读 Vault 并执行哈希检查。
@@ -117,4 +148,4 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 文件夹和对话统一使用“展开位/空位、图标名称、操作位”网格；根图标严格对齐，只有 `.conversation-tree-children` 按层级增加缩进。两者通过右键菜单进入行内重命名；Enter 提交、Escape 取消。
 - 连接档案只保存厂商、鉴权、 endpoint 与能力。模型发现和真实测试通过连接级 AI 客户端完成，测试模型只保存在本地界面偏好中，必须由用户显式设为默认能力模型。
 - `AiModelRuntimeDescriptor` 位于 `types/domains/ai-model.ts`，由具体模型 ID 声明推理、速度、默认值、文档和核验日期。OpenAI/Gemini/xAI Priority、Claude Fast、MiniMax 配对高速模型分别映射，其他模型不得伪造统一速度档。
-- GLM-5.2 及以上保留 `max/xhigh/high/medium/low/minimal/none` 七档，默认 `max`，请求同时发送 `thinking.type=enabled` 与原样 `reasoning_effort`；GLM-4.5 至 5.1 只发送开关。
+- 明确核验的 `glm-5.2` 保留 `max/xhigh/high/medium/low/minimal/none` 七档，默认 `max`，请求同时发送 `thinking.type=enabled` 与原样 `reasoning_effort`；核验清单内的 GLM-4.5 至 5.1 只发送开关。未来或带自定义后缀的模型在 descriptor 登记前保持未知，不按版本字符串推断。

@@ -59,12 +59,50 @@ test("模型级运行 descriptor 覆盖七家厂商并拒绝推断未知模型",
   assert.equal(getAiModelRuntimeDescriptor("openai", "user-manual-model"), undefined);
 });
 
+test("预算型 descriptor 保留哨兵值与范围内整数，并对非法值回退默认值", () => {
+  const pro = getAiModelRuntimeDescriptor("google", "gemini-2.5-pro")!;
+  if (pro.reasoning?.kind !== "budget") assert.fail("Gemini 2.5 Pro 应声明预算型推理");
+  assert.deepEqual(pro.reasoning.customRange, { min: 128, max: 32768 });
+  assert.equal(normalizeAiSelectedRuntimeValues(pro, { reasoning: -1 }).reasoning, -1);
+  assert.equal(normalizeAiSelectedRuntimeValues(pro, { reasoning: 12000 }).reasoning, 12000);
+  assert.equal(normalizeAiSelectedRuntimeValues(pro, { reasoning: 32768 }).reasoning, 32768);
+  assert.equal(normalizeAiSelectedRuntimeValues(pro, { reasoning: 127 }).reasoning, -1);
+  assert.equal(normalizeAiSelectedRuntimeValues(pro, { reasoning: 32769 }).reasoning, -1);
+  assert.equal(normalizeAiSelectedRuntimeValues(pro, { reasoning: 128.5 }).reasoning, -1);
+
+  const flash = getAiModelRuntimeDescriptor("google", "gemini-2.5-flash")!;
+  if (flash.reasoning?.kind !== "budget") assert.fail("Gemini 2.5 Flash 应声明预算型推理");
+  assert.deepEqual(flash.reasoning.customRange, { min: 0, max: 24576 });
+  assert.equal(normalizeAiSelectedRuntimeValues(flash, { reasoning: 0 }).reasoning, 0);
+  assert.equal(normalizeAiSelectedRuntimeValues(flash, { reasoning: 12345 }).reasoning, 12345);
+
+  const flashLite = getAiModelRuntimeDescriptor("google", "gemini-2.5-flash-lite")!;
+  if (flashLite.reasoning?.kind !== "budget") assert.fail("Gemini 2.5 Flash Lite 应声明预算型推理");
+  assert.deepEqual(flashLite.reasoning.customRange, { min: 512, max: 24576 });
+  assert.equal(normalizeAiSelectedRuntimeValues(flashLite, { reasoning: -1 }).reasoning, -1);
+  assert.equal(normalizeAiSelectedRuntimeValues(flashLite, { reasoning: 0 }).reasoning, 0);
+  assert.equal(normalizeAiSelectedRuntimeValues(flashLite, { reasoning: 512 }).reasoning, 512);
+  assert.equal(normalizeAiSelectedRuntimeValues(flashLite, { reasoning: 511 }).reasoning, 0);
+
+  const claude = getAiModelRuntimeDescriptor("anthropic", "claude-haiku-4-5")!;
+  if (claude.reasoning?.kind !== "budget") assert.fail("Claude Haiku 4.5 应声明预算型推理");
+  assert.deepEqual(claude.reasoning.customRange, { min: 1024, max: 32000 });
+  assert.equal(claude.reasoning.defaultValue, 1024);
+  assert.equal(normalizeAiSelectedRuntimeValues(claude, { reasoning: 12000 }).reasoning, 12000);
+  assert.equal(normalizeAiSelectedRuntimeValues(claude, { reasoning: 1023 }).reasoning, 1024);
+});
+
 test("GLM 七档、非法旧值回退与 MiniMax 配对高速模型保持明确契约", () => {
   const glm = getAiModelRuntimeDescriptor("zhipu", "glm-5.2")!;
   assert.deepEqual(glm.reasoning?.options.map((option) => option.value), ["max", "xhigh", "high", "medium", "low", "minimal", "none"]);
   assert.equal(glm.reasoning?.defaultValue, "max");
   assert.deepEqual(normalizeAiSelectedRuntimeValues(glm, { reasoning: "invalid" }), { reasoning: "max" });
-  assert.equal(getAiModelRuntimeDescriptor("zhipu", "glm-5.1")?.reasoning?.kind, "toggle");
+  for (const modelId of ["glm-5.1", "glm-5", "glm-5-turbo", "glm-5v-turbo", "glm-4.7", "glm-4.6", "glm-4.6v", "glm-4.5", "glm-4.5v"]) {
+    assert.equal(getAiModelRuntimeDescriptor("zhipu", modelId)?.reasoning?.kind, "toggle", modelId);
+  }
+  for (const modelId of ["glm-999", "glm-5.2-custom", "glm-6", "glm-4.8"]) {
+    assert.equal(getAiModelRuntimeDescriptor("zhipu", modelId), undefined, modelId);
+  }
 
   const minimax = getAiModelRuntimeDescriptor("minimax", "MiniMax-M2.7")!;
   assert.equal(resolveRuntimeModelId(minimax, "MiniMax-M2.7", { speed: "highspeed" }), "MiniMax-M2.7-highspeed");

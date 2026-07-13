@@ -152,8 +152,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - OpenAI、Gemini、Claude、DeepSeek、GLM、MiniMax、Grok 通过显式 `ProviderAdapter` 注册；其他厂商只作为兼容边界，不得宣称原生已核验。
 - MiniMax 文本使用官方推荐 Anthropic-compatible `/anthropic/v1/messages`，语音使用原生 T2A；两类请求不得共用通用 Chat Completions 请求体。
 - 模型运行能力只能来自具体模型 `AiModelRuntimeDescriptor`；未知模型不推断，UI 只保存 `{ reasoning, speed }`，七家独立 mapper 负责最终厂商字段。
-- GLM-5.2+ 必须原样支持 `max/xhigh/high/medium/low/minimal/none` 且默认 `max`；GLM-4.5 至 5.1 只显示开启/关闭。
+- `glm-5.2` 必须原样支持 `max/xhigh/high/medium/low/minimal/none` 且默认 `max`；GLM-4.5 至 5.1 只按显式核验清单显示开启/关闭，未来或带后缀模型不得按版本字符串推断。
 - 模型目录缓存按连接 ID、厂商和规范化 Base URL 隔离 24 小时；设置测试、能力默认和对话选择器必须共用目录服务。
+- 对话模型菜单只渲染当前钻取层；厂商、模型、普通运行和预算层按内容采用独立宽度，高度随内容变化，禁止用绝对覆盖、`:has()` 固定最小高度或不可聚焦的视觉隐藏替代卸载。
+- 模型、推理和速度点击即乐观保存且菜单保持打开；持久化选择必须按 `conversationId` 隔离并串行写入，失败回滚当前会话，空白草稿不得与其他对话共用乐观值。
+- 运行档位使用原生 radio 语义；共享能力 tooltip 必须支持 hover、键盘与触屏 focus、`role="tooltip"`、`aria-describedby` 和视口碰撞。手动模型 ID 允许 Enter 与紧凑行尾提交，不增加全局确认按钮。
+- `kind: "budget"` 的推理 descriptor 必须声明 `customRange`；范围内自定义整数和模型明确允许的 `0/-1` 必须保留。Anthropic 最终 `max_tokens` 必须包含思考预算和调用方正文输出额度。
 
 - 数据层性能第二阶段必须先记录真实页面访问路径和慢查询证据；没有页面级分页需求或明确慢查询时，不得升级 Dexie schema 或新增索引。
 - 真实浏览器与 Vault 发布验收按 `docs/release-smoke.md` 执行，重点覆盖 connect、sync、conflict、proposal confirm；CI 不得连接真实 Vault、真实模型服务或外网 API Key。

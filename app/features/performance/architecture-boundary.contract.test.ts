@@ -21,7 +21,13 @@ function staticImports(source: string): string[] {
 }
 
 test("大型 workspace 保持受控预算并使用专用 controller", async () => {
-  const budgets = new Map([["features/review/review-workspace.tsx", 1080], ["features/knowledge/knowledge-workspace.tsx", 825], ["features/tutoring/tutoring-workspace.tsx", 775]]);
+  const budgets = new Map([
+    ["features/review/review-workspace.tsx", 1080],
+    ["features/knowledge/knowledge-workspace.tsx", 825],
+    ["features/tutoring/tutoring-workspace.tsx", 775],
+    ["features/conversation/conversation-workspace.tsx", 500],
+    ["features/conversation/conversation-composer.tsx", 300],
+  ]);
   for (const [relativePath, budget] of budgets) {
     const source = await readFile(path.join(APP_ROOT, relativePath), "utf8");
     assert.ok(source.split(/\r?\n/).length <= budget, `${relativePath} 超过 ${budget} 行架构预算`);
