@@ -32,6 +32,14 @@ function model(
   status: AiModelCatalogEntry["status"],
   documentationUrl?: string,
 ): AiModelCatalogEntry {
+  const lowerId = id.toLowerCase();
+  const reasoningClass: AiModelCatalogEntry["reasoningClass"] = /(?:pro|opus|sol|m3|v4-pro|glm-5(?:\.|-|$))/.test(lowerId)
+    ? "strong"
+    : /(?:mini|nano|lite|flashx|flash-lite)/.test(lowerId) ? "basic" : "balanced";
+  const speedClass: AiModelCatalogEntry["speedClass"] = /(?:highspeed|flash|lite|nano|haiku|luna)/.test(lowerId) ? "fast" : "standard";
+  const supportedSpeedModes: AiModelCatalogEntry["supportedSpeedModes"] = ["openai", "google"].includes(provider) && purposes.some((purpose) => purpose === "text" || purpose === "vision")
+    ? ["standard", "priority"]
+    : ["standard"];
   const generation = id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
   const modalityGroup = purposes.includes("realtime") ? "realtime" : purposes.includes("speech") ? "speech" : purposes.includes("transcription") && !purposes.includes("text")
     ? "transcription" : purposes.includes("vision") ? "multimodal" : "text";
@@ -49,6 +57,9 @@ function model(
     lifecycle: status === "deprecated" ? "deprecated" : status === "preview" ? "preview" : "active",
     documentationUrl,
     verifiedAt: documentationUrl ? verifiedAt : undefined,
+    reasoningClass,
+    speedClass,
+    supportedSpeedModes,
   };
 }
 
@@ -258,7 +269,7 @@ export const providerContracts: ProviderContract[] = [
       model("zhipu", "glm-asr-2512", ["transcription"], ["transcription"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
       model("zhipu", "glm-realtime", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/models/sound-and-video/glm-realtime"),
     ],
-    modelListStrategy: "official_api",
+    modelListStrategy: "static_catalog",
     documentationUrl: "https://docs.bigmodel.cn/cn/guide/start/model-overview",
     verifiedAt,
     creatable: true,

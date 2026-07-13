@@ -463,10 +463,17 @@ select,
   font-weight: 600;
 }
 
+.ai-connection-test-flow { display: grid; gap: 0.65rem; border-block: 1px solid var(--line); padding-block: 0.85rem; }
+.ai-connection-test-steps { display: flex; flex-wrap: wrap; gap: 0.8rem; color: var(--muted); font-size: 0.7rem; }
+.ai-connection-test-controls { display: grid; grid-template-columns: auto minmax(12rem, 1fr) auto auto; gap: 0.55rem; align-items: center; }
+.ai-connection-test-controls select, .ai-connection-test-controls input { min-height: 2.5rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--surface); padding: 0.4rem 0.65rem; }
+.ai-connection-test-flow > p { color: var(--muted); font-size: 0.7rem; }
+
 @media (max-width: 900px) {
   .ai-connection-picker {
     grid-template-columns: 1fr;
   }
+  .ai-connection-test-controls { grid-template-columns: 1fr; }
 }
 
 .conversation-workspace {
@@ -683,7 +690,7 @@ select,
 }
 
 .conversation-model-picker > nav { display: grid; align-content: start; gap: 2px; padding: 0.55rem; background: var(--surface-muted); }
-.conversation-model-picker > nav button { display: grid; min-height: 2.25rem; grid-template-columns: 1.35rem minmax(0,1fr); align-items: center; gap: 0.5rem; border-radius: 0.4rem; padding: 0.3rem 0.5rem; text-align: left; font-size: 0.78rem; }
+.conversation-model-picker > nav button { display: grid; min-height: 2rem; grid-template-columns: 1.1rem minmax(0,1fr) auto; align-items: center; gap: 0.45rem; border-radius: 0.35rem; padding: 0.2rem 0.45rem; text-align: left; font-size: 0.76rem; }
 .conversation-model-picker > nav button:hover, .conversation-model-picker > nav button.is-selected { background: var(--surface); color: var(--foreground); }
 .conversation-model-drilldown { display: grid; max-height: inherit; grid-template-rows: auto auto minmax(0,1fr) auto; }
 .conversation-model-drilldown > header { display: grid; min-height: 3.25rem; grid-template-columns: 2rem 1.5rem minmax(0,1fr); align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--line); padding: 0.45rem 0.65rem; }
@@ -691,6 +698,18 @@ select,
 .conversation-model-back:hover { background: var(--surface-muted); }
 .conversation-model-manual { display: grid; gap: 0.35rem; padding: 0.65rem; color: var(--muted); font-size: 0.72rem; }
 .conversation-model-manual input { min-height: 2.3rem; border: 1px solid var(--line); border-radius: 0.4rem; padding: 0.4rem 0.55rem; color: var(--foreground); }
+.conversation-model-list-heading, .conversation-model-list > button { display: grid; grid-template-columns: minmax(0,1fr) 2.5rem 2.75rem 1rem; align-items: center; gap: 0.35rem; }
+.conversation-model-list-heading { padding: 0.35rem 0.65rem; color: var(--muted); font-size: 0.65rem; }
+.conversation-model-list > button { width: 100%; min-height: 2.15rem; padding: 0.3rem 0.65rem; text-align: left; font-size: 0.72rem; }
+.conversation-model-list > button:hover, .conversation-model-list > button.is-selected { background: var(--surface-muted); }
+.conversation-model-name { display: flex; min-width: 0; align-items: center; gap: 0.35rem; }
+.conversation-model-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.conversation-model-info { display: inline-grid; width: 0.9rem; height: 0.9rem; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 0.58rem; }
+.conversation-model-speed { display: flex; align-items: center; gap: 0.4rem; border-top: 1px solid var(--line); padding: 0.55rem 0.65rem; }
+.conversation-model-speed legend { margin-right: auto; color: var(--muted); font-size: 0.68rem; }
+.conversation-model-speed input { position: absolute; opacity: 0; }
+.conversation-model-speed span { display: inline-grid; min-height: 1.8rem; place-items: center; border: 1px solid var(--line); border-radius: 0.4rem; padding: 0.2rem 0.55rem; font-size: 0.68rem; }
+.conversation-model-speed input:checked + span { border-color: var(--foreground); background: var(--foreground); color: var(--surface); }
 .conversation-model-reasoning { display: flex; flex-wrap: wrap; gap: 0.4rem; border-top: 1px solid var(--line); padding: 0.65rem; }
 .conversation-model-reasoning legend { width: 100%; color: var(--muted); font-size: 0.7rem; }
 .conversation-model-reasoning label { cursor: pointer; }
@@ -712,7 +731,7 @@ select,
 .conversation-model-profile select { min-width: 0; border: 1px solid var(--line); border-radius: 0.4rem; background: var(--surface); padding: 0.4rem; color: var(--foreground); }
 .conversation-model-profile-name { border-bottom: 1px solid var(--line); padding: 0.25rem 0.25rem 0.65rem; color: var(--muted); font-size: 0.75rem; }
 .conversation-model-list { max-height: 14rem; overflow-y: auto; padding: 0.25rem; }
-.conversation-model-list button { display: flex; width: 100%; min-height: 2.35rem; align-items: center; justify-content: space-between; gap: 0.75rem; border-radius: 0.35rem; padding: 0.35rem 0.5rem; text-align: left; }
+.conversation-model-list > button { border-radius: 0.35rem; }
 .conversation-model-list button:hover, .conversation-model-list button.is-selected { background: var(--surface-muted); }
 .conversation-model-list strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; font-weight: 500; }
 .conversation-model-manage { width: 100%; border-top: 1px solid var(--line); padding: 0.65rem 0.4rem 0.15rem; color: var(--muted); text-align: left; font-size: 0.75rem; }
@@ -1168,7 +1187,7 @@ select,
 }
 
 .conversation-tree-folder-row {
-  grid-template-columns: 1.4rem 1.8rem minmax(0, 1fr) 1.8rem;
+  grid-template-columns: 1.8rem minmax(0, 1fr) 1.8rem;
   border-radius: 0.45rem;
 }
 
@@ -1179,7 +1198,7 @@ select,
 }
 
 .conversation-tree-folder-label,
-.conversation-tree-chat > button:nth-child(2) {
+.conversation-tree-chat-label {
   display: grid;
   min-height: 2rem;
   min-width: 0;
@@ -1188,6 +1207,7 @@ select,
   gap: 0.45rem;
   text-align: left;
   font-size: 0.8rem;
+  touch-action: none;
 }
 
 .conversation-tree-folder-label small {
@@ -1195,36 +1215,26 @@ select,
 }
 
 .conversation-tree-chat {
-  grid-template-columns: 1.4rem minmax(0, 1fr) 1.8rem;
+  grid-template-columns: minmax(0, 1fr) 1.8rem;
   border-radius: 0.45rem;
-  padding-left: 1.4rem;
+  padding-left: 1.5rem;
+}
+
+/* 根对话属于根层内容而非根文件夹标题，需再缩进一个图标位。 */
+[data-drop-root] > .conversation-tree-chat {
+  padding-left: 3.3rem;
 }
 
 .conversation-tree-chat.is-active {
   background: var(--chrome-selected);
 }
 
-.conversation-tree-chat > button:nth-child(2) {
+.conversation-tree-chat-label {
   grid-template-columns: 1rem minmax(0, 1fr);
 }
 
-.conversation-tree-drag-handle {
-  display: grid;
-  min-height: 2rem;
-  width: 2rem;
-  place-items: center;
-  border: 0;
-  border-radius: 0.35rem;
-  background: transparent;
-  color: var(--muted);
-  touch-action: none;
-  cursor: grab;
-}
+.conversation-tree-inline-rename { min-width: 0; min-height: 1.8rem; border: 1px solid var(--blue); border-radius: 0.35rem; background: var(--surface); padding: 0.2rem 0.45rem; font-size: 0.78rem; outline: none; }
 
-.conversation-tree-drag-handle:active {
-  cursor: grabbing;
-}
-.conversation-tree-drag-handle:hover, .conversation-tree-drag-handle:focus-visible { background: var(--surface-muted); color: var(--foreground); }
 .conversation-tree-drag-overlay { display: flex; max-width: 16rem; align-items: center; gap: 0.5rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--surface); padding: 0.45rem 0.65rem; color: var(--foreground); box-shadow: 0 10px 30px rgb(0 0 0 / 14%); font-size: 0.78rem; }
 .conversation-tree-drag-overlay span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -1311,6 +1321,14 @@ select,
   .conversation-tree-drawer section {
     border-radius: 1rem;
   }
+}
+
+/* 桌面右键菜单必须放在基础抽屉规则之后，避免 position 被移动端样式覆盖。 */
+@media (min-width: 701px) {
+  .conversation-tree-drawer > section { position: fixed; right: auto; bottom: auto; width: 11.5rem; border: 1px solid var(--line); border-radius: 0.55rem; padding: 0.35rem; box-shadow: 0 12px 32px rgb(0 0 0 / 16%); }
+  .conversation-tree-drawer-backdrop { background: transparent; }
+  .conversation-tree-drawer-title { display: none; }
+  .conversation-tree-drawer > section > button, .conversation-tree-drawer > section > label { min-height: 2rem; }
 }
 
 .conversation-send {

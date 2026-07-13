@@ -59,6 +59,15 @@ test("Google Gemini fixture：原生 generateContent 请求和响应均被归一
   );
 });
 
+test("OpenAI 与 Gemini 只在明确选择快速模式时发送官方 service tier", () => {
+  const openai = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", providerOptions: { serviceTier: "priority" } });
+  const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", providerOptions: { serviceTier: "priority" } });
+  assert.equal((openai.body as Record<string, unknown>).service_tier, "priority");
+  assert.equal((google.body as Record<string, unknown>).service_tier, "priority");
+  const standard = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai" });
+  assert.equal("service_tier" in (standard.body as Record<string, unknown>), false);
+});
+
 test("Google Gemini 音频转写请求只归一化音频与文本", () => {
   const input: AiTranscriptionRequest = {
     provider: "google",

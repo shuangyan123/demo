@@ -19,6 +19,11 @@ test("AI 连接只保存鉴权，默认能力单独保存模型", async () => {
   assert.doesNotMatch(source, /refreshOfficialModels/);
   assert.doesNotMatch(source, /datalist id="provider-model-options"/);
   assert.doesNotMatch(source, /modelCatalog\.slice\(0,\s*8\)\.map/);
+  assert.match(source, /discoverModels/);
+  assert.match(source, /testSelectedModel/);
+  assert.match(source, /selectedTestModelId/);
+  assert.match(source, /设为默认/);
+  assert.match(source, /极小真实请求/);
 });
 
 test("AI connection page owns quota details and exposes transcription purpose", async () => {

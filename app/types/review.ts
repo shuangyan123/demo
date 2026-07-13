@@ -659,6 +659,7 @@ export type AiRuntimeModelSelection = {
   connection: ApiConnectionProfile;
   modelId: string;
   reasoningEffort?: string;
+  speedMode?: "standard" | "priority";
 };
 
 export type AiConnectionSnapshot = {
@@ -1041,6 +1042,8 @@ export type AiConversation = {
   selectedModelId?: string;
   /** 会话级推理强度；值由模型 descriptor 校验并映射到厂商参数。 */
   selectedReasoningEffort?: string;
+  /** 会话级推理速度；只有厂商明确支持时才允许选择 priority。 */
+  selectedSpeedMode?: "standard" | "priority";
   summary?: string;
   lastMessagePreview?: string;
   messageCount: number;
@@ -1131,6 +1134,12 @@ export type AiModelCatalogEntry = {
   lifecycle?: "active" | "preview" | "deprecated";
   documentationUrl?: string;
   verifiedAt?: string;
+  /** 用于模型选择的固有推理能力等级，不代表请求参数。 */
+  reasoningClass?: "basic" | "balanced" | "strong";
+  /** 模型自身的典型速度等级；高速模型变体标记为 fast。 */
+  speedClass?: "standard" | "fast";
+  /** 厂商官方支持的会话级服务速度。 */
+  supportedSpeedModes?: Array<"standard" | "priority">;
 };
 
 /** 厂商语音能力声明；设置 UI 只渲染厂商真实支持的参数。 */

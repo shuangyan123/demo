@@ -94,7 +94,7 @@ test("公考默认折叠，新对话保持草稿且普通文本不显示 caret",
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("对话文件夹可新建、重命名、移动和删除且使用统一操作抽屉", async ({ page }) => {
+test("对话文件夹可通过右键菜单行内重命名、移动和删除", async ({ page }) => {
   await page.goto("/");
   const createFolder = async (name: string) => {
     await page.getByRole("button", { name: "新建文件夹" }).click();
@@ -105,10 +105,12 @@ test("对话文件夹可新建、重命名、移动和删除且使用统一操�
 
   await createFolder("目标分类");
   await createFolder("临时分类");
-  await page.getByRole("button", { name: "临时分类 操作" }).click();
-  const drawer = page.getByRole("dialog", { name: "对话树操作" });
-  await drawer.getByLabel("名称").fill("待移动分类");
-  await drawer.getByRole("button", { name: "保存名称" }).click();
+  await page.locator('[data-folder-id]').filter({ hasText: "临时分类" }).first().click({ button: "right" });
+  const drawer = page.getByRole("menu", { name: "对话树操作" });
+  await drawer.getByRole("menuitem", { name: "重命名" }).click();
+  const renameInput = page.getByLabel("重命名临时分类");
+  await renameInput.fill("待移动分类");
+  await renameInput.press("Enter");
   await expect(page.getByRole("button", { name: "待移动分类 操作" })).toBeVisible();
 
   await page.getByRole("button", { name: "待移动分类 操作" }).click();
@@ -122,7 +124,7 @@ test("对话文件夹可新建、重命名、移动和删除且使用统一操�
   await expect(page.getByRole("button", { name: "待移动分类 操作" })).toHaveCount(0);
 });
 
-test("桌面拖拽手柄可将持久化对话移入文件夹并拖回根目录", async ({ page }) => {
+test("桌面名称区域可将持久化对话移入文件夹并拖回根目录", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "新建文件夹" }).click();
   await page.getByLabel("新文件夹名称").fill("拖拽目标");
@@ -130,26 +132,34 @@ test("桌面拖拽手柄可将持久化对话移入文件夹并拖回根目录",
   await page.getByRole("button", { name: "新建文件夹" }).click();
   await page.getByLabel("新文件夹名称").fill("嵌套文件夹");
   await page.getByRole("button", { name: "创建" }).click();
+
+  const targetRootFolder = page.locator('[data-folder-id]').filter({ hasText: "拖拽目标" }).first();
+  const nestedRootFolder = page.locator('[data-folder-id]').filter({ hasText: "嵌套文件夹" }).first();
+  const initialTargetFolderId = await targetRootFolder.getAttribute("data-folder-id");
+  const nestedFolderId = await nestedRootFolder.getAttribute("data-folder-id");
+  expect(initialTargetFolderId).toBeTruthy();
+  expect(nestedFolderId).toBeTruthy();
+  await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-folder-label`, `[data-folder-id="${initialTargetFolderId}"] > .conversation-tree-folder-row`);
+  await expect(targetRootFolder.getByRole("button", { name: "嵌套文件夹 操作" })).toBeVisible();
+  await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-folder-label`, "[data-drop-root-target]");
+  await expect(page.locator('[data-drop-root] > [data-folder-id]').filter({ hasText: "嵌套文件夹" })).toBeVisible();
+
   await seedConversation(page, "drag-conversation", "拖拽验证对话");
   await page.reload();
+
+  const rootFolderX = await page.locator('[data-folder-id] .conversation-tree-folder-label').first().evaluate((element) => element.getBoundingClientRect().x);
+  const rootChatX = await page.locator('[data-conversation-id="drag-conversation"] .conversation-tree-chat-label').evaluate((element) => element.getBoundingClientRect().x);
+  expect(rootChatX - rootFolderX).toBeGreaterThanOrEqual(20);
 
   const folder = page.locator('[data-folder-id]').filter({ hasText: "拖拽目标" }).first();
   const folderId = await folder.getAttribute("data-folder-id");
   expect(folderId).toBeTruthy();
-  await pointerDrag(page, '[data-conversation-id="drag-conversation"] .conversation-tree-drag-handle', `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
+  await pointerDrag(page, '[data-conversation-id="drag-conversation"] .conversation-tree-chat-label', `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
   await expect(folder.locator('[data-conversation-id="drag-conversation"]')).toBeVisible();
   expect(await conversationFolderId(page, "drag-conversation")).toBe(folderId);
 
-  await pointerDrag(page, `[data-folder-id="${folderId}"] [data-conversation-id="drag-conversation"] .conversation-tree-drag-handle`, "[data-drop-root-target]");
+  await pointerDrag(page, `[data-folder-id="${folderId}"] [data-conversation-id="drag-conversation"] .conversation-tree-chat-label`, "[data-drop-root-target]");
   await expect(page.locator('[data-drop-root] > [data-conversation-id="drag-conversation"]')).toBeVisible();
   expect(await conversationFolderId(page, "drag-conversation")).toBeUndefined();
 
-  const targetRootFolder = page.locator('[data-folder-id]').filter({ hasText: "拖拽目标" }).first();
-  const nestedRootFolder = page.locator('[data-folder-id]').filter({ hasText: "嵌套文件夹" }).first();
-  const nestedFolderId = await nestedRootFolder.getAttribute("data-folder-id");
-  expect(nestedFolderId).toBeTruthy();
-  await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, `[data-folder-id="${folderId}"] > .conversation-tree-folder-row`);
-  await expect(targetRootFolder.getByRole("button", { name: "嵌套文件夹 操作" })).toBeVisible();
-  await pointerDrag(page, `[data-folder-id="${nestedFolderId}"] > .conversation-tree-folder-row .conversation-tree-drag-handle`, "[data-drop-root-target]");
-  await expect(page.locator('[data-drop-root] > [data-folder-id]').filter({ hasText: "嵌套文件夹" })).toBeVisible();
 });

@@ -36,7 +36,7 @@ type ConversationWorkspaceProps = {
   scheduledCount: number;
   snapshot: ConversationSnapshot;
   transcriptionConnection?: ApiConnectionProfile;
-  onCreateConversation: (input?: { selectedConnectionId?: string; selectedModelId?: string; selectedReasoningEffort?: string }) => Promise<AiConversation>;
+  onCreateConversation: (input?: { selectedConnectionId?: string; selectedModelId?: string; selectedReasoningEffort?: string; selectedSpeedMode?: "standard" | "priority" }) => Promise<AiConversation>;
   onConversationSelected: (id: string) => void;
   onOpenConnections: () => void;
   onOpenKnowledge: () => void;
@@ -130,7 +130,7 @@ export function ConversationWorkspace({
   const [proposalKnowledgeIds, setProposalKnowledgeIds] = useState<string[]>([]);
   const [conversationProposals, setConversationProposals] = useState<KnowledgeEvolutionProposal[]>([]);
   const [knowledgeContext, setKnowledgeContext] = useState("");
-  const [draftSelection, setDraftSelection] = useState<{ connectionId: string; modelId: string; reasoningEffort?: string }>();
+  const [draftSelection, setDraftSelection] = useState<{ connectionId: string; modelId: string; reasoningEffort?: string; speedMode?: "standard" | "priority" }>();
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -151,6 +151,7 @@ export function ConversationWorkspace({
     ?? (!activeConversation ? eligibleConnections.find((connection) => connection.id === recentConversationSelection?.selectedConnectionId) : undefined);
   const selectedModelId = draftSelection?.modelId ?? activeConversation?.selectedModelId ?? (!activeConversation ? recentConversationSelection?.selectedModelId : undefined);
   const selectedReasoningEffort = draftSelection?.reasoningEffort ?? activeConversation?.selectedReasoningEffort ?? (!activeConversation ? recentConversationSelection?.selectedReasoningEffort : undefined);
+  const selectedSpeedMode = draftSelection?.speedMode ?? activeConversation?.selectedSpeedMode ?? (!activeConversation ? recentConversationSelection?.selectedSpeedMode : undefined) ?? "standard";
   const effectiveConnection = selectedConnection;
   const messages = useMemo(() => snapshot.messages.filter((message) => message.conversationId === activeConversation?.id), [activeConversation?.id, snapshot.messages]);
   const runSteps = useMemo(() => snapshot.runSteps.filter((step) => step.conversationId === activeConversation?.id).slice(-20), [activeConversation?.id, snapshot.runSteps]);
@@ -195,11 +196,11 @@ export function ConversationWorkspace({
     await onRefresh();
   }
 
-  async function chooseModel(connection: ApiConnectionProfile, modelId: string, reasoningEffort?: string) {
+  async function chooseModel(connection: ApiConnectionProfile, modelId: string, reasoningEffort?: string, speedMode?: "standard" | "priority") {
     setModelMenuOpen(false);
-    setDraftSelection({ connectionId: connection.id, modelId, reasoningEffort });
+    setDraftSelection({ connectionId: connection.id, modelId, reasoningEffort, speedMode });
     if (!activeConversation) return;
-    await conversationRepository.setConversationModelSelection(activeConversation.id, connection.id, modelId, reasoningEffort);
+    await conversationRepository.setConversationModelSelection(activeConversation.id, connection.id, modelId, reasoningEffort, speedMode);
     await onRefresh();
   }
 
@@ -280,7 +281,7 @@ export function ConversationWorkspace({
     const originalDraft = draft;
     setAssistantDraft("");
     setBusy(true);
-    const conversation = activeConversation ?? await onCreateConversation({ selectedConnectionId: effectiveConnection.id, selectedModelId, selectedReasoningEffort });
+    const conversation = activeConversation ?? await onCreateConversation({ selectedConnectionId: effectiveConnection.id, selectedModelId, selectedReasoningEffort, selectedSpeedMode });
     onConversationSelected(conversation.id);
     const runId = crypto.randomUUID();
     try {
@@ -297,14 +298,14 @@ export function ConversationWorkspace({
       const purpose = requiresVision ? "vision" : "text";
       if (effectiveConnection.capabilities.includes("streaming")) {
         await appendStep(conversation.id, runId, "流式输出", "running", "正在接收内容");
-        for await (const event of generateWithConnectionStream(effectiveConnection, purpose, { modelId: selectedModelId, reasoningEffort: selectedReasoningEffort, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
+        for await (const event of generateWithConnectionStream(effectiveConnection, purpose, { modelId: selectedModelId, reasoningEffort: selectedReasoningEffort, speedMode: selectedSpeedMode, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
           if (event.type === "delta") { finalContent += event.text; setAssistantDraft(finalContent); }
           if (event.type === "done") { finalContent = event.content || finalContent; usage = event.usage ?? usage; }
           if (event.type === "usage") usage = event.usage ?? usage;
           if (event.type === "error") throw new Error(event.message);
         }
       } else {
-        const result = await generateWithConnection(effectiveConnection, purpose, { modelId: selectedModelId, reasoningEffort: selectedReasoningEffort, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
+        const result = await generateWithConnection(effectiveConnection, purpose, { modelId: selectedModelId, reasoningEffort: selectedReasoningEffort, speedMode: selectedSpeedMode, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
         finalContent = result.content;
         usage = result.usage;
       }
@@ -530,7 +531,7 @@ export function ConversationWorkspace({
               <button aria-label="选择模型" className="conversation-model-trigger" title={effectiveConnection && selectedModelId ? `${effectiveConnection.label} · ${selectedModelId}` : "选择模型"} type="button" onClick={() => setModelMenuOpen((value) => !value)}>
                 {effectiveConnection && selectedModelId ? <><ProviderIcon provider={effectiveConnection.provider} size={18} /><span>{selectedModelId}</span><AppIcon name="chevronDown" size={16} /></> : <><AppIcon name="sparkles" size={18} /><span>选择模型</span></>}
               </button>
-              {modelMenuOpen ? <ConversationModelPicker connections={connections} purpose={requiresVision ? "vision" : "text"} selectedConnectionId={effectiveConnection?.id} selectedModelId={selectedModelId} selectedReasoningEffort={selectedReasoningEffort} onOpenConnections={onOpenConnections} onSelect={({ connection, modelId, reasoningEffort }) => void chooseModel(connection, modelId, reasoningEffort)} /> : null}
+              {modelMenuOpen ? <ConversationModelPicker connections={connections} purpose={requiresVision ? "vision" : "text"} selectedConnectionId={effectiveConnection?.id} selectedModelId={selectedModelId} selectedReasoningEffort={selectedReasoningEffort} selectedSpeedMode={selectedSpeedMode} onOpenConnections={onOpenConnections} onSelect={({ connection, modelId, reasoningEffort, speedMode }) => void chooseModel(connection, modelId, reasoningEffort, speedMode)} /> : null}
             </div>
             <button className="conversation-send" disabled={busy || (!draft.trim() && !attachments.length)} type="submit" aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>
           </div>

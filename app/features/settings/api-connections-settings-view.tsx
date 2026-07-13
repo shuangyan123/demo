@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
-import { generateWithConnection, type GenerateConnectionPurpose } from "../../services/ai-connection-client";
+import { generateWithConnection, listModelsWithConnection, listModelsWithDraft, testConnectionDraft, type GenerateConnectionPurpose } from "../../services/ai-connection-client";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
 import { creatableProviderContracts, getProviderContract, getProviderModelCatalog } from "../../services/provider-contracts";
 import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile, ApiProvider } from "../../types/review";
@@ -61,6 +61,9 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
   const [form, setForm] = useState<ConnectionForm>(() => createForm());
   const [busyAction, setBusyAction] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [availableModels, setAvailableModels] = useState<Array<{ id: string; label: string }>>([]);
+  const [selectedTestModelId, setSelectedTestModelId] = useState("");
+  const [testSucceeded, setTestSucceeded] = useState(false);
   const contract = useMemo(() => getProviderContract(form.provider), [form.provider]);
 
   const refresh = useCallback(async () => setSnapshot(await aiConnectionsRepository.loadSnapshot()), []);
@@ -90,6 +93,9 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
     const next = createForm(provider);
     setForm(next);
     setFeedback(null);
+    setAvailableModels([]);
+    setSelectedTestModelId("");
+    setTestSucceeded(false);
   }
 
   function editProfile(profile: ApiConnectionProfile) {
@@ -103,6 +109,9 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
       language: profile.providerOptions.language ?? "zh-CN",
     });
     setFeedback(null);
+    const remembered = typeof window === "undefined" ? "" : window.localStorage.getItem(`review_connection_test_model_v1:${profile.id}`) ?? "";
+    setSelectedTestModelId(remembered);
+    setTestSucceeded(profile.testStatus === "success");
   }
 
   function toggleCapability(capability: AiCapability) {
@@ -133,9 +142,11 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
         providerOptions: form.provider === "azure" ? { language: form.language } : {},
         today: new Date(),
       });
+      if (testSucceeded) await aiConnectionsRepository.updateTestStatus(saved.id, "success", "连接成功");
       await refresh();
       onChanged?.();
-      editProfile(saved);
+      if (selectedTestModelId) window.localStorage.setItem(`review_connection_test_model_v1:${saved.id}`, selectedTestModelId);
+      editProfile(testSucceeded ? { ...saved, testStatus: "success", testMessage: "连接成功" } : saved);
       setFeedback({ tone: "success", text: "配置已保存" });
     } catch (error) {
       setFeedback({ tone: "error", text: error instanceof Error ? error.message : "连接保存失败" });
@@ -144,38 +155,66 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
     }
   }
 
-  async function testConnection(profile: ApiConnectionProfile) {
-    const requestedPurpose = profile.capabilities.includes("text")
-        ? "text"
-        : profile.capabilities.includes("vision")
-          ? "vision"
-          : undefined;
-    if (!requestedPurpose) {
-      setFeedback({ tone: "neutral", text: profile.capabilities.includes("transcription") ? "请在对话录音中验证转写" : "请在个性化页面试听语音" });
-      return;
-    }
-    const purpose = requestedPurpose as GenerateConnectionPurpose;
-    setBusyAction(`test:${profile.id}`);
-    setFeedback({ tone: "neutral", text: `正在测试${purpose === "vision" ? "多模态" : "文本"}连接…` });
+  /** 按厂商目录策略获取当前凭据可用模型，失败时只回退到已核验官方目录。 */
+  async function discoverModels() {
+    setBusyAction("models");
+    setFeedback({ tone: "neutral", text: "正在获取模型…" });
     try {
-      const modelId = getProviderModelCatalog(profile.provider, purpose).find((model) => model.status === "recommended")?.id ?? getProviderModelCatalog(profile.provider, purpose)[0]?.id;
-      if (!modelId) throw new Error("该连接没有可用于测试的官方模型");
-      await generateWithConnection(profile, purpose, {
-        modelId,
-        messages: [{ role: "user", content: "仅回复 OK" }],
-        maxOutputTokens: 12,
-      });
-      await aiConnectionsRepository.updateTestStatus(profile.id, "success", "连接成功");
+      const result = form.id
+        ? await listModelsWithConnection(snapshot.profiles.find((profile) => profile.id === form.id)!)
+        : contract.modelListStrategy === "official_api"
+          ? await listModelsWithDraft({ provider: form.provider, apiKey: form.apiKey, baseUrl: form.baseUrl })
+          : undefined;
+      const fallback = getProviderModelCatalog(form.provider).map((model) => ({ id: model.id, label: model.label }));
+      const models = result?.models.length ? result.models.map((model) => ({ id: model.id, label: model.label })) : fallback;
+      if (!models.length) throw new Error("该厂商需要手动输入模型 ID");
+      setAvailableModels(models);
+      setSelectedTestModelId((current) => models.some((model) => model.id === current) ? current : models[0].id);
+      setFeedback({ tone: "success", text: `已获取 ${models.length} 个模型` });
+    } catch (error) {
+      const fallback = getProviderModelCatalog(form.provider).map((model) => ({ id: model.id, label: model.label }));
+      if (fallback.length) {
+        setAvailableModels(fallback);
+        setSelectedTestModelId((current) => fallback.some((model) => model.id === current) ? current : fallback[0].id);
+        setFeedback({ tone: "neutral", text: "在线目录不可用，已载入官方回退目录" });
+      } else setFeedback({ tone: "error", text: error instanceof Error ? error.message : "模型目录读取失败" });
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  /** 使用用户选中的具体模型执行极小真实请求，证明该账号确实可调用模型。 */
+  async function testSelectedModel() {
+    if (!selectedTestModelId) return setFeedback({ tone: "error", text: "请先获取并选择模型" });
+    const purpose: GenerateConnectionPurpose = form.capabilities.includes("text") ? "text" : "vision";
+    setBusyAction("test");
+    setTestSucceeded(false);
+    setFeedback({ tone: "neutral", text: "正在发送极小真实请求…" });
+    try {
+      const profile = snapshot.profiles.find((item) => item.id === form.id);
+      if (profile) await generateWithConnection(profile, purpose, { modelId: selectedTestModelId, messages: [{ role: "user", content: "仅回复 OK" }], maxOutputTokens: 12 });
+      else await testConnectionDraft({ provider: form.provider, apiKey: form.apiKey, baseUrl: form.baseUrl, modelId: selectedTestModelId });
+      if (profile) await aiConnectionsRepository.updateTestStatus(profile.id, "success", "连接成功");
+      setTestSucceeded(true);
       await refresh();
-      setFeedback({ tone: "success", text: "连接测试成功" });
+      setFeedback({ tone: "success", text: "连接成功" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "连接测试失败";
-      await aiConnectionsRepository.updateTestStatus(profile.id, "failed", message);
-      await refresh();
+      const profile = snapshot.profiles.find((item) => item.id === form.id);
+      if (profile) await aiConnectionsRepository.updateTestStatus(profile.id, "failed", message);
       setFeedback({ tone: "error", text: message });
     } finally {
       setBusyAction("");
     }
+  }
+
+  async function setTestedAsDefault() {
+    if (!form.id || !selectedTestModelId) return;
+    const purpose: AiConnectionPurpose = form.capabilities.includes("text") ? "text" : "vision";
+    await aiConnectionsRepository.setDefaultSelection(purpose, form.id, selectedTestModelId);
+    await refresh();
+    onChanged?.();
+    setFeedback({ tone: "success", text: "已设为默认" });
   }
 
   async function removeProfile(profile: ApiConnectionProfile) {
@@ -238,7 +277,18 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
           </div>
         </details>
 
-        <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button><Button type="button" variant="outline" disabled={!form.id || Boolean(busyAction)} onClick={() => { const profile = snapshot.profiles.find((item) => item.id === form.id); if (profile) void testConnection(profile); }}>测试连接</Button>{form.id ? <Button type="button" variant="ghost" onClick={() => setForm(createForm())}>新建</Button> : null}</div>
+        <section className="ai-connection-test-flow" aria-label="模型发现与连接测试">
+          <div className="ai-connection-test-steps" aria-label="连接配置进度"><span>1 配置连接</span><span>2 获取模型</span><span>3 测试连接</span><span>4 完成</span></div>
+          <div className="ai-connection-test-controls">
+            <Button type="button" variant="outline" disabled={Boolean(busyAction)} onClick={() => void discoverModels()}>{busyAction === "models" ? "获取中" : "获取模型"}</Button>
+            {availableModels.length ? <select className="settings-select" aria-label="测试模型" value={selectedTestModelId} onChange={(event) => { setSelectedTestModelId(event.currentTarget.value); setTestSucceeded(false); }}>{availableModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select> : <input className="settings-input" aria-label="测试模型 ID" placeholder="模型 ID" value={selectedTestModelId} onChange={(event) => setSelectedTestModelId(event.currentTarget.value)} />}
+            <Button type="button" variant="outline" disabled={!selectedTestModelId || Boolean(busyAction)} onClick={() => void testSelectedModel()}>{busyAction === "test" ? "测试中" : "测试连接"}</Button>
+            {testSucceeded && form.id ? <Button type="button" variant="ghost" onClick={() => void setTestedAsDefault()}>设为默认</Button> : null}
+          </div>
+          <p>测试会使用所选模型发送一次极小真实请求，可能产生少量用量。</p>
+        </section>
+
+        <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button>{form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setAvailableModels([]); setSelectedTestModelId(""); setTestSucceeded(false); }}>新建</Button> : null}</div>
       </form>
 
       <section className="mt-7 rounded-lg border border-line bg-surface" aria-label="默认能力分配">

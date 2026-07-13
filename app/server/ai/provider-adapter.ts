@@ -87,6 +87,7 @@ function buildResponsesRequest(input: AiGenerateRequest): ProviderHttpRequest {
       ...(input.providerOptions?.reasoningEffort ? { reasoning: { effort: input.providerOptions.reasoningEffort } } : {}),
       ...(input.structuredOutput ? { text: { format: { type: "json_schema", name: input.structuredOutput.name, schema: input.structuredOutput.schema, strict: input.structuredOutput.strict ?? true } } } : {}),
       ...(input.stream ? { stream: true } : {}),
+      ...(input.providerOptions?.serviceTier ? { service_tier: input.providerOptions.serviceTier } : {}),
       temperature: input.temperature ?? 0.1,
     },
   };
@@ -98,6 +99,7 @@ function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
     url: `${normalizeBaseUrl(input.baseUrl)}/models/${encodeURIComponent(input.model)}:${input.stream ? "streamGenerateContent?alt=sse" : "generateContent"}`,
     headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json" },
     body: {
+      ...(input.providerOptions?.serviceTier ? { service_tier: input.providerOptions.serviceTier } : {}),
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
       contents: conversation.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: toGeminiParts(message.content) })),
       generationConfig: {

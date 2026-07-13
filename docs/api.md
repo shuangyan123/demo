@@ -136,3 +136,10 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 - `POST /api/ai/realtime/session`：用长期连接密钥交换 OpenAI/Gemini 临时凭据，或创建 GLM 内存中继会话。响应永不返回长期密钥。
 - `GET|POST|DELETE /api/ai/realtime/glm`：轮询归一化事件、发送单个 PCM 音频块和结束 GLM 中继。单块有容量限制，会话空闲两分钟回收。
 - 现有 `/api/ai/speech` 保持兼容；OpenAI 使用 `tts-1-hd`/`tts-1`，Gemini 返回 PCM 后包装 WAV，MiniMax 和 GLM 只接收 descriptor 声明的参数。
+
+# 模型发现、测试与速度参数（2026-07-13）
+
+- `POST /api/ai/models` 按连接厂商调用官方模型目录；OpenAI、Gemini、Anthropic、xAI、DeepSeek 与 MiniMax 支持在线发现，GLM 使用带核验日期的官方静态目录，自定义连接保留手动模型 ID。
+- 未保存连接由连接级客户端将表单草稿临时映射到 `/api/ai/models` 与 `/api/ai/generate`，业务组件不得直接拼装厂商请求，也不得把模型写回 `ApiConnectionProfile`。
+- 完整连接测试必须先选择具体模型，再发送一次极小真实生成请求；该请求可能产生少量用量，成功只更新连接测试状态，不自动改写默认文本、多模态、语音或实时能力。
+- 会话请求的 `providerOptions.serviceTier = "priority"` 仅在目录声明支持时映射为 OpenAI/Gemini 的 `service_tier: "priority"`；MiniMax 高速通过具体模型 ID 选择。

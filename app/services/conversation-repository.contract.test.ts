@@ -63,6 +63,15 @@ test("conversation folders support nesting, rename, move and attachment summarie
   assert.equal(JSON.stringify(snapshot.attachments).includes("data:image"), false);
 });
 
+test("conversation model selection persists provider-supported speed without a schema upgrade", async () => {
+  await resetDatabase();
+  const conversation = await conversationRepository.createConversation({ today, selectedConnectionId: "openai-1", selectedModelId: "gpt-test", selectedSpeedMode: "priority" });
+  await conversationRepository.setConversationModelSelection(conversation.id, "openai-1", "gpt-next", undefined, "standard", today);
+  const snapshot = await conversationRepository.loadSnapshot(today);
+  assert.equal(snapshot.conversations[0]?.selectedModelId, "gpt-next");
+  assert.equal(snapshot.conversations[0]?.selectedSpeedMode, "standard");
+});
+
 test("deleteConversation cascades conversation summaries and tool history", async () => {
   await resetDatabase();
   const conversation = await conversationRepository.createConversation({ today, title: "待删除" });

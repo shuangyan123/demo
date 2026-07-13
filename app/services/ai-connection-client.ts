@@ -14,9 +14,10 @@ import {
 } from "./api-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { reasoningProviderOptions } from "./model-reasoning.ts";
+import { speedProviderOptions, type ConversationSpeedMode } from "./model-speed.ts";
 
 export type GenerateConnectionPurpose = "text" | "vision";
-type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & { modelId?: string; reasoningEffort?: string };
+type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & { modelId?: string; reasoningEffort?: string; speedMode?: ConversationSpeedMode };
 type ConnectionSpeechInput = Omit<AiSpeechRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & {
   model?: string;
 };
@@ -34,15 +35,17 @@ export async function generateWithConnection(
   const model = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
   const request = { ...input };
   const reasoningEffort = request.reasoningEffort;
+  const speedMode = request.speedMode;
   delete request.modelId;
   delete request.reasoningEffort;
+  delete request.speedMode;
   return callAiGenerate({
     ...request,
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
     model,
-    providerOptions: { ...connection.providerOptions, ...reasoningProviderOptions(connection.provider, model, reasoningEffort) },
+    providerOptions: { ...connection.providerOptions, ...reasoningProviderOptions(connection.provider, model, reasoningEffort), ...speedProviderOptions(connection.provider, speedMode) },
   });
 }
 
@@ -62,15 +65,17 @@ export async function* generateWithConnectionStream(
   const model = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
   const request = { ...input };
   const reasoningEffort = request.reasoningEffort;
+  const speedMode = request.speedMode;
   delete request.modelId;
   delete request.reasoningEffort;
+  delete request.speedMode;
   yield* callAiGenerateStream({
     ...request,
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
     model,
-    providerOptions: { ...connection.providerOptions, ...reasoningProviderOptions(connection.provider, model, reasoningEffort) },
+    providerOptions: { ...connection.providerOptions, ...reasoningProviderOptions(connection.provider, model, reasoningEffort), ...speedProviderOptions(connection.provider, speedMode) },
   });
 }
 
@@ -116,4 +121,14 @@ export async function transcribeWithConnection(
 export async function listModelsWithConnection(connection: ApiConnectionProfile): Promise<AiModelsResult> {
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
   return callAiModels({ provider: connection.provider, apiKey, baseUrl: connection.baseUrl });
+}
+
+/** 新建连接保存前读取模型目录；明文密钥只存在于本次请求内存。 */
+export async function listModelsWithDraft(input: { provider: ApiConnectionProfile["provider"]; apiKey: string; baseUrl: string }): Promise<AiModelsResult> {
+  return callAiModels(input);
+}
+
+/** 新建连接保存前使用具体模型做极小真实测试，不把模型写入连接档案。 */
+export async function testConnectionDraft(input: { provider: ApiConnectionProfile["provider"]; apiKey: string; baseUrl: string; modelId: string }): Promise<AiGenerateResult> {
+  return callAiGenerate({ provider: input.provider, apiKey: input.apiKey, baseUrl: input.baseUrl, model: input.modelId, messages: [{ role: "user", content: "仅回复 OK" }], maxOutputTokens: 12 });
 }

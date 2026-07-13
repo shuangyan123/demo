@@ -109,3 +109,10 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 对话模型选择保持“厂商图标 → 单厂商连接/模型”两级状态，空白对话仍只在首条文本或最终用户语音转写后创建。
 - 语音试听由 `VoiceProviderDescriptor` 驱动，只向 OpenAI、Gemini、MiniMax、GLM 发送各自支持的字段。
 - 实时语音运行对象、PCM、增量转写和临时凭据只留内存。OpenAI 使用 WebRTC；GLM 使用本地单实例 WebSocket 中继与同源 HTTP 入口，空闲两分钟回收，不支持多实例或 Serverless。
+
+# 对话树与连接测试闭环（2026-07-13）
+
+- 对话树的名称区域直接作为 dnd-kit 拖拽表面，不再占用六点手柄或鼠标提示；拖动时用浮层和固定根目录目标反馈，移动合法性仍由 repository 校验。
+- 根目录对话相对根文件夹缩进 24px，文件夹与对话通过右键菜单进入行内重命名；Enter 提交、Escape 取消，移动端继续复用操作抽屉。
+- 连接档案只保存厂商、鉴权、 endpoint 与能力。模型发现和真实测试通过连接级 AI 客户端完成，测试模型只保存在本地界面偏好中，必须由用户显式设为默认能力模型。
+- `selectedSpeedMode` 是会话级未索引字段，不升级 Dexie v16。OpenAI 与 Gemini 的优先服务映射到 `service_tier: priority`；MiniMax 高速能力通过官方 `-highspeed` 模型 ID 表达，其他厂商不得伪造统一高速模式。
