@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCommandSearchResults } from "../../services/command-search";
 import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository";
 import type { AiConversation, CommandSearchResult } from "../../types/domains/conversation";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
 import type { AutomationSnapshot } from "../../types/domains/automation";
 import type { KnowledgeEntry } from "../../types/domains/knowledge";
 import type { Mistake, ViewKey } from "../../types/domains/review";
@@ -56,7 +57,7 @@ export function useReviewConversationController(input: UseReviewConversationCont
     onSwitchView("conversation");
   }, [onSwitchView]);
   const openConversation = useCallback((id: string) => { setLaunchContext(null); setActiveConversationId(id); onSwitchView("conversation"); }, [onSwitchView]);
-  const createForFirstMessage = useCallback(async (value?: { selectedConnectionId?: string; selectedModelId?: string; selectedReasoningEffort?: string; selectedSpeedMode?: "standard" | "priority" }): Promise<AiConversation> => {
+  const createForFirstMessage = useCallback(async (value?: { selectedConnectionId?: string; selectedModelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues }): Promise<AiConversation> => {
     const conversation = await conversationRepository.createConversation({
       today,
       kind: launchContext?.kind ?? "general",
@@ -65,8 +66,7 @@ export function useReviewConversationController(input: UseReviewConversationCont
       title: launchContext?.title,
       selectedConnectionId: value?.selectedConnectionId,
       selectedModelId: value?.selectedModelId,
-      selectedReasoningEffort: value?.selectedReasoningEffort,
-      selectedSpeedMode: value?.selectedSpeedMode,
+      selectedRuntimeValues: value?.selectedRuntimeValues,
     });
     if (launchContext) {
       await conversationRepository.createAttachment({

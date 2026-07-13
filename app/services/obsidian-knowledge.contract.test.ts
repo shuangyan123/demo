@@ -215,8 +215,8 @@ test("同步预检失败不会更新映射或最后同步时间", async () => {
     obsidianVaultAdapter.listMarkdown = async () => { throw new ObsidianVaultError("managed_root_missing", "托管目录不存在"); };
     await assert.rejects(obsidianKnowledgeRepository.sync(), /托管目录不存在/);
     assert.equal(await reviewDb.obsidianNoteMappings.count(), 0);
-    let releaseList = () => undefined;
-    let markEntered = () => undefined;
+    let releaseList: () => void = () => {};
+    let markEntered: () => void = () => {};
     const entered = new Promise<void>((resolve) => { markEntered = resolve; });
     obsidianVaultAdapter.listMarkdown = async () => new Promise((resolve) => {
       markEntered();

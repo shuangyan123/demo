@@ -149,7 +149,7 @@ test("桌面名称区域可将持久化对话移入文件夹并拖回根目录",
 
   const rootFolderX = await page.locator('[data-folder-id] .conversation-tree-folder-label').first().evaluate((element) => element.getBoundingClientRect().x);
   const rootChatX = await page.locator('[data-conversation-id="drag-conversation"] .conversation-tree-chat-label').evaluate((element) => element.getBoundingClientRect().x);
-  expect(rootChatX - rootFolderX).toBeGreaterThanOrEqual(20);
+  expect(Math.abs(rootChatX - rootFolderX)).toBeLessThanOrEqual(1);
 
   const folder = page.locator('[data-folder-id]').filter({ hasText: "拖拽目标" }).first();
   const folderId = await folder.getAttribute("data-folder-id");

@@ -812,6 +812,10 @@ export function ReviewWorkspace() {
             key={activeConversationId ?? launchContext?.id ?? "blank-conversation"}
             activeConversationId={activeConversationId}
             connections={aiConnections.snapshot.profiles}
+            defaultSelections={{
+              text: { connectionId: aiConnections.snapshot.defaults.textConnectionId, modelId: aiConnections.snapshot.defaults.textModelId },
+              vision: { connectionId: aiConnections.snapshot.defaults.visionConnectionId, modelId: aiConnections.snapshot.defaults.visionModelId },
+            }}
             knowledgeEntries={knowledgeEntries}
             launchContext={launchContext}
             personalization={personalization.settings}

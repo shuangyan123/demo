@@ -24,6 +24,11 @@ test("AI 连接只保存鉴权，默认能力单独保存模型", async () => {
   assert.match(source, /selectedTestModelId/);
   assert.match(source, /设为默认/);
   assert.match(source, /极小真实请求/);
+  assert.match(source, /loadConnectionModelCatalog/);
+  assert.match(source, /loadDraftModelCatalog/);
+  assert.match(source, /getCachedConnectionModelCatalog/);
+  assert.match(source, /rememberConnectionModelDirectory/);
+  assert.doesNotMatch(source, /listModelsWithConnection/);
 });
 
 test("AI connection page owns quota details and exposes transcription purpose", async () => {

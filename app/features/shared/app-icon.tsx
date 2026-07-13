@@ -1,6 +1,6 @@
 import {
   Activity, ArrowLeft, Ban, Blocks, BookOpen, Bot, Brain, CalendarClock, Camera, ChartNoAxesColumnIncreasing,
-  ChevronDown, ChevronRight, ClipboardCheck, Clock3, FileInput, FilePenLine, Folder,
+  Check, ChevronDown, ChevronRight, ClipboardCheck, Clock3, FileInput, FilePenLine, Folder,
   FolderOpen, FolderPlus, GripVertical, LayoutDashboard, Library, MessageSquare, MessagesSquare, Mic, Monitor,
   Moon, MoreHorizontal, Paperclip, Phone, Plus, ScanLine, Search, Send, Settings, Slash, SlidersHorizontal, Sparkles, Sun, UserRoundPlus,
   Wrench, X, type LucideIcon,
@@ -13,7 +13,7 @@ export type AppIconName =
   | "interview" | "knowledge" | "knowledgeTraining" | "library" | "light" | "mcp" | "message"
   | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins"
   | "project" | "review" | "scheduled" | "screenshot" | "search" | "send" | "settings" | "slash" | "sparkles"
-  | "stats" | "system" | "tool" | "tutoring" | "chevronDown" | "chevronRight" | "close" | "folderPlus";
+  | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "folderPlus";
 
 const icons: Record<AppIconName, LucideIcon> = {
   activity: Activity, appearance: Sun, automation: CalendarClock, back: ArrowLeft, blocks: Blocks,
@@ -24,7 +24,7 @@ const icons: Record<AppIconName, LucideIcon> = {
   newChat: Plus, none: Ban, paperclip: Paperclip, phone: Phone, personalization: UserRoundPlus, plugins: Blocks,
   project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings,
   slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
-  tutoring: Bot, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, folderPlus: FolderPlus,
+  tutoring: Bot, check: Check, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, folderPlus: FolderPlus,
 };
 
 /** 统一 Lucide 的尺寸、线宽与无障碍表现；交互名称由外层按钮提供。 */

@@ -65,11 +65,20 @@ test("conversation folders support nesting, rename, move and attachment summarie
 
 test("conversation model selection persists provider-supported speed without a schema upgrade", async () => {
   await resetDatabase();
-  const conversation = await conversationRepository.createConversation({ today, selectedConnectionId: "openai-1", selectedModelId: "gpt-test", selectedSpeedMode: "priority" });
-  await conversationRepository.setConversationModelSelection(conversation.id, "openai-1", "gpt-next", undefined, "standard", today);
+  const conversation = await conversationRepository.createConversation({ today, selectedConnectionId: "openai-1", selectedModelId: "gpt-test", selectedRuntimeValues: { speed: "priority" } });
+  await conversationRepository.setConversationModelSelection(conversation.id, "openai-1", "gpt-next", { speed: "standard" }, today);
   const snapshot = await conversationRepository.loadSnapshot(today);
   assert.equal(snapshot.conversations[0]?.selectedModelId, "gpt-next");
-  assert.equal(snapshot.conversations[0]?.selectedSpeedMode, "standard");
+  assert.deepEqual(snapshot.conversations[0]?.selectedRuntimeValues, { speed: "standard" });
+  assert.equal(snapshot.conversations[0]?.selectedSpeedMode, undefined);
+});
+
+test("旧推理与速度字段只在仓储读取时兼容为新运行值", async () => {
+  await resetDatabase();
+  const conversation = await conversationRepository.createConversation({ today, selectedConnectionId: "legacy", selectedModelId: "legacy-model" });
+  await reviewDb.aiConversations.update(conversation.id, { selectedRuntimeValues: undefined, selectedReasoningEffort: "high", selectedSpeedMode: "priority" });
+  const snapshot = await conversationRepository.loadSnapshot(today);
+  assert.deepEqual(snapshot.conversations[0]?.selectedRuntimeValues, { reasoning: "high", speed: "priority" });
 });
 
 test("deleteConversation cascades conversation summaries and tool history", async () => {

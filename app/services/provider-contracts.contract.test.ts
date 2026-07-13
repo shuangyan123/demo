@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { creatableProviderContracts, getProviderModelCatalog, getProviderModels, providerContracts } from "./provider-contracts.ts";
 import { getVoiceProviderDescriptor } from "./voice-provider-descriptors.ts";
-import { getModelReasoningDescriptor, reasoningProviderOptions } from "./model-reasoning.ts";
+import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues, resolveRuntimeModelId } from "./model-runtime-descriptors.ts";
 
 test("新建连接只暴露七家活跃厂商与高级自定义入口", () => {
   const providers = creatableProviderContracts.map((contract) => contract.provider);
@@ -39,10 +39,34 @@ test("语音 descriptor 只声明各厂商支持的字段和官方音色", () =>
   assert.deepEqual(getVoiceProviderDescriptor("openai")?.models, ["tts-1-hd", "tts-1"]);
 });
 
-test("推理强度按厂商和模型映射且 MiniMax M3 不虚构档位", () => {
-  assert.equal(reasoningProviderOptions("openai", "gpt-5.6-sol", "high").reasoningEffort, "high");
-  assert.equal(reasoningProviderOptions("google", "gemini-3.5-flash", "minimal").thinkingLevel, "minimal");
-  assert.equal(reasoningProviderOptions("deepseek", "deepseek-v4-pro", "disabled").thinking, "disabled");
-  assert.equal(getModelReasoningDescriptor("minimax", "MiniMax-M3")?.readOnly, true);
-  assert.deepEqual(reasoningProviderOptions("minimax", "MiniMax-M3", "auto"), {});
+test("模型级运行 descriptor 覆盖七家厂商并拒绝推断未知模型", () => {
+  const cases = [
+    ["openai", "gpt-5.5", "effort", "service_tier"],
+    ["google", "gemini-3.5-flash", "effort", "service_tier"],
+    ["anthropic", "claude-opus-4-8", "adaptive", "fast_mode"],
+    ["deepseek", "deepseek-v4-pro", "effort", undefined],
+    ["zhipu", "glm-5.2", "effort", undefined],
+    ["minimax", "MiniMax-M3", "adaptive", "service_tier"],
+    ["xai", "grok-4.5", "effort", "service_tier"],
+  ] as const;
+  for (const [provider, modelId, reasoningKind, speedKind] of cases) {
+    const descriptor = getAiModelRuntimeDescriptor(provider, modelId);
+    assert.equal(descriptor?.reasoning?.kind, reasoningKind, `${provider}:${modelId}`);
+    assert.equal(descriptor?.speed?.kind, speedKind, `${provider}:${modelId}`);
+    assert.match(descriptor?.documentationUrl ?? "", /^https:\/\//);
+    assert.equal(descriptor?.verifiedAt, "2026-07-13");
+  }
+  assert.equal(getAiModelRuntimeDescriptor("openai", "user-manual-model"), undefined);
+});
+
+test("GLM 七档、非法旧值回退与 MiniMax 配对高速模型保持明确契约", () => {
+  const glm = getAiModelRuntimeDescriptor("zhipu", "glm-5.2")!;
+  assert.deepEqual(glm.reasoning?.options.map((option) => option.value), ["max", "xhigh", "high", "medium", "low", "minimal", "none"]);
+  assert.equal(glm.reasoning?.defaultValue, "max");
+  assert.deepEqual(normalizeAiSelectedRuntimeValues(glm, { reasoning: "invalid" }), { reasoning: "max" });
+  assert.equal(getAiModelRuntimeDescriptor("zhipu", "glm-5.1")?.reasoning?.kind, "toggle");
+
+  const minimax = getAiModelRuntimeDescriptor("minimax", "MiniMax-M2.7")!;
+  assert.equal(resolveRuntimeModelId(minimax, "MiniMax-M2.7", { speed: "highspeed" }), "MiniMax-M2.7-highspeed");
+  assert.equal(resolveRuntimeModelId(minimax, "MiniMax-M2.7-highspeed", { speed: "standard" }), "MiniMax-M2.7");
 });

@@ -60,12 +60,64 @@ test("Google Gemini fixture：原生 generateContent 请求和响应均被归一
 });
 
 test("OpenAI 与 Gemini 只在明确选择快速模式时发送官方 service tier", () => {
-  const openai = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", providerOptions: { serviceTier: "priority" } });
-  const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", providerOptions: { serviceTier: "priority" } });
+  const openai = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", model: "gpt-5.5", runtime: { speed: "priority" } });
+  const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-3.5-flash", runtime: { speed: "priority" } });
   assert.equal((openai.body as Record<string, unknown>).service_tier, "priority");
   assert.equal((google.body as Record<string, unknown>).service_tier, "priority");
-  const standard = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai" });
+  const standard = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", model: "gpt-5.5", runtime: { speed: "standard" } });
   assert.equal("service_tier" in (standard.body as Record<string, unknown>), false);
+});
+
+test("七家厂商按具体模型映射推理与速度运行值", () => {
+  const openai = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", model: "gpt-5.5", runtime: { reasoning: "high", speed: "priority" } });
+  assert.deepEqual((openai.body as { reasoning: unknown }).reasoning, { effort: "high" });
+  assert.equal((openai.body as { service_tier: string }).service_tier, "priority");
+
+  const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-3.5-flash", runtime: { reasoning: "low", speed: "priority" } });
+  assert.deepEqual((google.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingLevel: "low" });
+  assert.equal((google.body as { service_tier: string }).service_tier, "priority");
+
+  const claude = buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", model: "claude-opus-4-8", runtime: { reasoning: "xhigh", speed: "fast" } });
+  assert.deepEqual((claude.body as { thinking: unknown }).thinking, { type: "adaptive" });
+  assert.equal((claude.body as { output_config: { effort: string } }).output_config.effort, "xhigh");
+  assert.equal((claude.body as { speed: string }).speed, "fast");
+  assert.equal(claude.headers["anthropic-beta"], "fast-mode-2026-02-01");
+
+  const deepseek = buildGenerateProviderRequest({ ...baseGenerate, provider: "deepseek", model: "deepseek-v4-pro", runtime: { reasoning: "max" } });
+  assert.deepEqual((deepseek.body as { thinking: unknown }).thinking, { type: "enabled" });
+  assert.equal((deepseek.body as { reasoning_effort: string }).reasoning_effort, "max");
+
+  const minimax = buildGenerateProviderRequest({ ...baseGenerate, provider: "minimax", model: "MiniMax-M3", runtime: { reasoning: "adaptive", speed: "priority" } });
+  assert.deepEqual((minimax.body as { thinking: unknown }).thinking, { type: "adaptive" });
+  assert.equal((minimax.body as { service_tier: string }).service_tier, "priority");
+
+  const xai = buildGenerateProviderRequest({ ...baseGenerate, provider: "xai", model: "grok-4.5", runtime: { reasoning: "medium", speed: "priority" } });
+  assert.deepEqual((xai.body as { reasoning: unknown }).reasoning, { effort: "medium" });
+  assert.equal((xai.body as { service_tier: string }).service_tier, "priority");
+});
+
+test("GLM-5.2 原样发送七档并默认 max，旧 GLM 只发送思考开关", () => {
+  for (const reasoning of ["max", "xhigh", "high", "medium", "low", "minimal", "none"]) {
+    const request = buildGenerateProviderRequest({ ...baseGenerate, provider: "zhipu", model: "glm-5.2", runtime: { reasoning } });
+    assert.deepEqual((request.body as { thinking: unknown }).thinking, { type: "enabled" });
+    assert.equal((request.body as { reasoning_effort: string }).reasoning_effort, reasoning);
+  }
+  const defaultRequest = buildGenerateProviderRequest({ ...baseGenerate, provider: "zhipu", model: "glm-5.2" });
+  assert.equal((defaultRequest.body as { reasoning_effort: string }).reasoning_effort, "max");
+  const oldEnabled = buildGenerateProviderRequest({ ...baseGenerate, provider: "zhipu", model: "glm-5.1", runtime: { reasoning: "enabled" } });
+  const oldDisabled = buildGenerateProviderRequest({ ...baseGenerate, provider: "zhipu", model: "glm-5.1", runtime: { reasoning: "disabled" } });
+  assert.deepEqual((oldEnabled.body as { thinking: unknown }).thinking, { type: "enabled" });
+  assert.deepEqual((oldDisabled.body as { thinking: unknown }).thinking, { type: "disabled" });
+  assert.equal("reasoning_effort" in (oldEnabled.body as object), false);
+});
+
+test("厂商实际 service tier 被归一化为最小运行结果", () => {
+  const openai = parseGenerateProviderResponse({ ...baseGenerate, provider: "openai" }, { output_text: "完成", service_tier: "priority" }, new Headers());
+  const google = parseGenerateProviderResponse({ ...baseGenerate, provider: "google" }, { candidates: [] }, new Headers({ "x-gemini-service-tier": "priority" }));
+  const claude = parseGenerateProviderResponse({ ...baseGenerate, provider: "anthropic" }, { content: [], usage: { speed: "fast" } }, new Headers());
+  assert.equal(openai.actualSpeed, "priority");
+  assert.equal(google.actualSpeed, "priority");
+  assert.equal(claude.actualSpeed, "fast");
 });
 
 test("Google Gemini 音频转写请求只归一化音频与文本", () => {
@@ -130,7 +182,7 @@ test("六家重点厂商按原生协议映射结构化输出", () => {
   const xai = buildGenerateProviderRequest({ ...baseGenerate, provider: "xai", structuredOutput });
   const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", structuredOutput });
   const anthropic = buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", structuredOutput });
-  const deepseek = buildGenerateProviderRequest({ ...baseGenerate, provider: "deepseek", structuredOutput, providerOptions: { thinking: "enabled", reasoningEffort: "medium" } });
+  const deepseek = buildGenerateProviderRequest({ ...baseGenerate, provider: "deepseek", model: "deepseek-v4-pro", structuredOutput, runtime: { reasoning: "high" } });
   const minimax = buildGenerateProviderRequest({ ...baseGenerate, provider: "minimax", structuredOutput });
 
   assert.equal(openai.url, "https://provider.example/v1/responses");
@@ -139,7 +191,7 @@ test("六家重点厂商按原生协议映射结构化输出", () => {
   assert.equal((google.body as { generationConfig: { responseMimeType: string } }).generationConfig.responseMimeType, "application/json");
   assert.equal((anthropic.body as { output_config: { format: { type: string } } }).output_config.format.type, "json_schema");
   assert.deepEqual((deepseek.body as { response_format: unknown }).response_format, { type: "json_object" });
-  assert.equal((deepseek.body as { reasoning_effort: string }).reasoning_effort, "medium");
+  assert.equal((deepseek.body as { reasoning_effort: string }).reasoning_effort, "high");
   assert.equal(minimax.url, "https://provider.example/anthropic/v1/messages");
   assert.equal((minimax.body as { max_tokens: number }).max_tokens, 321);
   assert.equal("response_format" in (minimax.body as object), false);

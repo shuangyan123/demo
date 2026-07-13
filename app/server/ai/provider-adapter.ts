@@ -1,5 +1,6 @@
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent, AiSpeechRequest, AiTranscriptionRequest, AiTranscriptionResult, ChatMessage, ChatMessageContent } from "../../services/api-client";
 import { getProviderContract } from "../../services/provider-contracts.ts";
+import { mapProviderRuntimeOptions } from "./runtime-option-mappers/index.ts";
 
 type ProviderHttpRequest = {
   url: string;
@@ -76,36 +77,37 @@ function toAnthropicContent(content: ChatMessageContent): unknown {
 
 function buildResponsesRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const { system, conversation } = splitSystemMessages(input.messages);
+  const runtime = mapProviderRuntimeOptions(input.provider, input);
   return {
     url: appendEndpoint(input.baseUrl, "/responses"),
-    headers: bearerHeaders(input.apiKey),
+    headers: { ...bearerHeaders(input.apiKey), ...runtime.headers },
     body: {
       model: input.model,
       input: conversation.map((message) => ({ role: message.role, content: toResponsesContent(message.content) })),
       instructions: system || undefined,
       max_output_tokens: input.maxOutputTokens,
-      ...(input.providerOptions?.reasoningEffort ? { reasoning: { effort: input.providerOptions.reasoningEffort } } : {}),
       ...(input.structuredOutput ? { text: { format: { type: "json_schema", name: input.structuredOutput.name, schema: input.structuredOutput.schema, strict: input.structuredOutput.strict ?? true } } } : {}),
       ...(input.stream ? { stream: true } : {}),
-      ...(input.providerOptions?.serviceTier ? { service_tier: input.providerOptions.serviceTier } : {}),
-      temperature: input.temperature ?? 0.1,
+      ...runtime.requestFields,
+      ...(!runtime.omitTemperature ? { temperature: input.temperature ?? 0.1 } : {}),
     },
   };
 }
 
 function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const { system, conversation } = splitSystemMessages(input.messages);
+  const runtime = mapProviderRuntimeOptions(input.provider, input);
   return {
     url: `${normalizeBaseUrl(input.baseUrl)}/models/${encodeURIComponent(input.model)}:${input.stream ? "streamGenerateContent?alt=sse" : "generateContent"}`,
-    headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json" },
+    headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json", ...runtime.headers },
     body: {
-      ...(input.providerOptions?.serviceTier ? { service_tier: input.providerOptions.serviceTier } : {}),
+      ...runtime.requestFields,
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
       contents: conversation.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: toGeminiParts(message.content) })),
       generationConfig: {
         maxOutputTokens: input.maxOutputTokens,
         temperature: input.temperature ?? 0.1,
-        ...(input.providerOptions?.thinkingLevel ? { thinkingConfig: { thinkingLevel: input.providerOptions.thinkingLevel } } : {}),
+        ...runtime.generationFields,
         ...(input.structuredOutput ? { responseMimeType: "application/json", responseJsonSchema: input.structuredOutput.schema } : {}),
       },
     },
@@ -114,38 +116,41 @@ function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
 
 function buildAnthropicRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const { system, conversation } = splitSystemMessages(input.messages);
+  const runtime = mapProviderRuntimeOptions(input.provider, input);
   const baseUrl = input.provider === "minimax"
     ? normalizeBaseUrl(input.baseUrl).replace(/\/v1$/, "/anthropic")
     : input.baseUrl;
   const endpoint = input.provider === "minimax" ? "/v1/messages" : "/messages";
   return {
     url: appendEndpoint(baseUrl, endpoint),
-    headers: { "x-api-key": input.apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+    headers: { "x-api-key": input.apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json", ...runtime.headers },
     body: {
       model: input.model,
       max_tokens: input.maxOutputTokens ?? 1024,
       system: system || undefined,
       messages: conversation.map((message) => ({ role: message.role, content: toAnthropicContent(message.content) })),
       ...(input.stream ? { stream: true } : {}),
-      ...((input.provider === "anthropic" && (input.structuredOutput || input.providerOptions?.reasoningEffort)) ? { output_config: { ...(input.structuredOutput ? { format: { type: "json_schema", schema: input.structuredOutput.schema } } : {}), ...(input.providerOptions?.reasoningEffort ? { effort: input.providerOptions.reasoningEffort } : {}) } } : {}),
-      temperature: input.temperature ?? 0.1,
+      ...runtime.requestFields,
+      ...((input.provider === "anthropic" && (input.structuredOutput || Object.keys(runtime.outputFields ?? {}).length)) ? { output_config: { ...(input.structuredOutput ? { format: { type: "json_schema", schema: input.structuredOutput.schema } } : {}), ...runtime.outputFields } } : {}),
+      ...(!runtime.omitTemperature ? { temperature: input.temperature ?? 0.1 } : {}),
     },
   };
 }
 
 function buildChatCompletionsRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const isMiniMax = input.provider === "minimax";
+  const runtime = mapProviderRuntimeOptions(input.provider, input);
   return {
     url: appendEndpoint(input.baseUrl, "/chat/completions"),
-    headers: bearerHeaders(input.apiKey),
+    headers: { ...bearerHeaders(input.apiKey), ...runtime.headers },
     body: {
       model: input.model,
       messages: input.messages,
       ...(isMiniMax ? { max_completion_tokens: input.maxOutputTokens } : { max_tokens: input.maxOutputTokens }),
       ...(input.structuredOutput ? { response_format: input.provider === "deepseek" ? { type: "json_object" } : { type: "json_schema", json_schema: { name: input.structuredOutput.name, schema: input.structuredOutput.schema, strict: input.structuredOutput.strict ?? true } } } : {}),
-      ...(["deepseek", "zhipu"].includes(input.provider) && input.providerOptions?.thinking ? { thinking: { type: input.providerOptions.thinking }, ...(input.providerOptions.reasoningEffort ? { reasoning_effort: input.providerOptions.reasoningEffort } : {}) } : {}),
+      ...runtime.requestFields,
       ...(input.stream ? { stream: true, stream_options: { include_usage: true } } : {}),
-      temperature: input.temperature ?? 0.1,
+      ...(!runtime.omitTemperature ? { temperature: input.temperature ?? 0.1 } : {}),
     },
   };
 }
@@ -196,10 +201,22 @@ function usageResult(inputTokens: unknown, outputTokens: unknown, totalTokens: u
   };
 }
 
+/** 只归一化厂商确认的实际档位，不保留完整响应或计费对象。 */
+function actualSpeedFromResponse(input: AiGenerateRequest, root: JsonRecord, headers: Headers): string | undefined {
+  if (input.provider === "google") return headers.get("x-gemini-service-tier") ?? undefined;
+  const usage = asRecord(root.usage);
+  const nestedUsage = asRecord(asRecord(root.message).usage);
+  for (const value of [usage.speed, usage.service_tier, nestedUsage.speed, nestedUsage.service_tier, root.service_tier]) {
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
+
 // 兼容各厂商响应，并归一化文本及 token 用量。
 export function parseGenerateProviderResponse(input: AiGenerateRequest, payload: unknown, headers: Headers): AiGenerateResult {
   const root = asRecord(payload);
   const format = getProviderContract(input.provider).apiFormat;
+  const actualSpeed = actualSpeedFromResponse(input, root, headers);
   if (format === "responses") {
     const output = Array.isArray(root.output) ? root.output : [];
     const nestedText = output
@@ -212,6 +229,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
       content: typeof root.output_text === "string" ? root.output_text : nestedText,
       requestId: headers.get("x-request-id") ?? (typeof root.id === "string" ? root.id : undefined),
       usage: usageResult(usage.input_tokens, usage.output_tokens, usage.total_tokens),
+      ...(actualSpeed ? { actualSpeed } : {}),
     };
   }
   if (format === "google_generate_content") {
@@ -222,6 +240,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
       content: (Array.isArray(parts) ? parts : []).map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join(""),
       requestId: headers.get("x-request-id") ?? undefined,
       usage: usageResult(usage.promptTokenCount, usage.candidatesTokenCount, usage.totalTokenCount),
+      ...(actualSpeed ? { actualSpeed } : {}),
     };
   }
   if (format === "anthropic_messages") {
@@ -231,6 +250,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
       content: content.map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join(""),
       requestId: headers.get("request-id") ?? (typeof root.id === "string" ? root.id : undefined),
       usage: usageResult(usage.input_tokens, usage.output_tokens, Number(usage.input_tokens) + Number(usage.output_tokens)),
+      ...(actualSpeed ? { actualSpeed } : {}),
     };
   }
   const choices = Array.isArray(root.choices) ? root.choices : [];
@@ -240,6 +260,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
     content: typeof message.content === "string" ? message.content : "",
     requestId: headers.get("x-request-id") ?? (typeof root.id === "string" ? root.id : undefined),
     usage: usageResult(usage.prompt_tokens, usage.completion_tokens, usage.total_tokens),
+    ...(actualSpeed ? { actualSpeed } : {}),
   };
 }
 
@@ -264,8 +285,9 @@ export function parseGenerateProviderStreamEvent(input: AiGenerateRequest, paylo
     if (eventType === "response.output_text.delta") return [{ type: "delta", text: stringValue(root.delta) }];
     const response = asRecord(root.response);
     const usage = usageFromRecord(asRecord(response.usage), "openai");
+    const actualSpeed = actualSpeedFromResponse(input, response, headers);
     if (eventType === "response.completed") {
-      return [{ type: "usage", requestId: stringValue(response.id) || headers.get("x-request-id") || undefined, usage }];
+      return [{ type: "usage", requestId: stringValue(response.id) || headers.get("x-request-id") || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }];
     }
     return [];
   }
@@ -274,20 +296,23 @@ export function parseGenerateProviderStreamEvent(input: AiGenerateRequest, paylo
     const parts = asRecord(candidate.content).parts;
     const text = (Array.isArray(parts) ? parts : []).map((part) => stringValue(asRecord(part).text)).join("");
     const usage = usageFromRecord(asRecord(root.usageMetadata), "google");
-    return [...(text ? [{ type: "delta" as const, text }] : []), ...(usage ? [{ type: "usage" as const, requestId: headers.get("x-request-id") ?? undefined, usage }] : [])];
+    const actualSpeed = actualSpeedFromResponse(input, root, headers);
+    return [...(text ? [{ type: "delta" as const, text }] : []), ...(usage ? [{ type: "usage" as const, requestId: headers.get("x-request-id") ?? undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : [])];
   }
   if (format === "anthropic_messages") {
     const eventType = stringValue(root.type);
     const delta = asRecord(root.delta);
     if (eventType === "content_block_delta") return [{ type: "delta", text: stringValue(delta.text) }];
     const usage = usageFromRecord(asRecord(delta.usage), "anthropic");
-    return usage ? [{ type: "usage", requestId: (headers.get("request-id") ?? stringValue(asRecord(root.message).id)) || undefined, usage }] : [];
+    const actualSpeed = actualSpeedFromResponse(input, root, headers);
+    return usage || actualSpeed ? [{ type: "usage", requestId: (headers.get("request-id") ?? stringValue(asRecord(root.message).id)) || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : [];
   }
   const choices = Array.isArray(root.choices) ? root.choices : [];
   const delta = asRecord(asRecord(choices[0]).delta);
   const text = stringValue(delta.content);
   const usage = usageFromRecord(asRecord(root.usage), "chat");
-  return [...(text ? [{ type: "delta" as const, text }] : []), ...(usage ? [{ type: "usage" as const, requestId: (headers.get("x-request-id") ?? stringValue(root.id)) || undefined, usage }] : [])];
+  const actualSpeed = actualSpeedFromResponse(input, root, headers);
+  return [...(text ? [{ type: "delta" as const, text }] : []), ...(usage || actualSpeed ? [{ type: "usage" as const, requestId: (headers.get("x-request-id") ?? stringValue(root.id)) || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : [])];
 }
 
 function escapeXml(value: string): string {

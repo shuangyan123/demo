@@ -3,10 +3,12 @@
 ## 2026-07-13
 
 - 对话树移除六点拖拽图标与鼠标提示，名称区域可直接拖动，并用 Codex 式浮层和固定根目录目标提供反馈。
-- 根目录对话与根文件夹建立明确缩进层级；文件夹和对话支持右键菜单行内重命名。
-- AI 连接新增“获取模型 → 选择具体模型 → 极小真实请求测试”闭环，测试模型不会自动成为默认模型。
-- 模型选择器压缩厂商与模型占用空间，把推理强度和速度作为并列选择信息，并新增会话级标准/优先速度选择。
-- OpenAI 与 Gemini 优先速度使用官方 `service_tier: priority`，MiniMax 使用官方高速模型 ID；GLM 模型目录改为官方静态回退。
+- 文件夹和对话统一为“展开位/空位、图标名称、操作位”网格，根图标严格对齐；文件夹和对话支持右键菜单行内重命名。
+- AI 连接的在线发现、默认模型和对话选择器改用同一模型目录服务；缓存按连接、厂商与 Base URL 隔离 24 小时，手动刷新绕过缓存。
+- 模型选择器压缩为 32px 触发器和 17rem 单栏弹层，模型行只显示名称、能力 tooltip 与选中勾；模型、推理和速度点击即保存且不关闭弹层。
+- 新增具体模型 `AiModelRuntimeDescriptor`、`selectedRuntimeValues` 兼容读取与七家独立 runtime mapper；未知模型不再通过正则猜测能力。
+- GLM-5.2+ 完整支持 `max/xhigh/high/medium/low/minimal/none` 并默认 `max`，旧 GLM 只保留思考开关；OpenAI/Gemini/xAI Priority、Claude Fast 和 MiniMax 配对高速模型分别按官方协议映射。
+- provider 返回的实际 service tier/Fast 状态归一化为 `actualSpeed`，时间线只保存所选与实际档位；新增本地 Responses mock E2E 和运行参数/目录缓存契约回归。
 
 ## 2026-07-12
 

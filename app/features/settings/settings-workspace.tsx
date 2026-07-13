@@ -102,7 +102,7 @@ export function SettingsWorkspace({
       onToggleSidebar={onToggleSidebar}
       sidebar={
         <>
-          <button className="mb-3 grid min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm text-muted hover:bg-chrome-hover" type="button" onClick={onBack}>
+          <button className="mb-3 grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm text-muted hover:bg-chrome-hover max-lg:min-h-11" type="button" onClick={onBack}>
             <SettingsNavIcon name="back" />
             <span>返回应用</span>
           </button>

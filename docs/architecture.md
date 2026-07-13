@@ -11,10 +11,10 @@
 ## 连接与运行时模型边界（2026-07-12）
 
 - `ApiConnectionProfile` 只持有厂商、地址、密钥与能力；历史 `model` 只用于一次性初始化默认能力模型，新建和编辑不再写入。
-- 后台任务通过 `AiConnectionDefaults` 的“连接 + 模型”组合运行；对话通过 `selectedConnectionId`、`selectedModelId` 与可选 `selectedReasoningEffort` 运行，两者互不覆盖。
-- 模型选择器采用单栏钻取：当前会话厂商优先，其余按英文名排序；进入厂商后只显示连接、模型、真实推理参数和确认操作。
+- 后台任务通过 `AiConnectionDefaults` 的“连接 + 模型”组合运行；对话通过 `selectedConnectionId`、`selectedModelId` 与 `selectedRuntimeValues` 运行，两者互不覆盖。旧推理/速度字段只在 repository 读取时折叠，不升级 Dexie v16。
+- 模型选择器采用单栏钻取：当前会话厂商优先，其余按英文名排序；进入厂商后只显示连接、模型、能力 tooltip 和独立推理/速度子列表，所有选择点击即保存。
 - 官方 Models API 成功时展示账户可用的全部未弃用模型；失败时才使用带 `verifiedAt` 的回退目录。MiniMax 当前旗舰为 `MiniMax-M3`，GLM 当前旗舰为 `glm-5.2`。
-- 对话树拖拽由独立手柄启动，拖拽期间始终提供根目录目标；repository 继续拒绝跨项目、自身和子孙嵌套。
+- 对话树名称区域承担 dnd-kit 拖拽，拖拽期间始终提供根目录目标；repository 继续拒绝跨项目、自身和子孙嵌套。
 
 ## 分层与依赖方向
 
@@ -40,6 +40,7 @@ app/
 ├── db/                     Dexie 实例、schema 与版本迁移
 ├── features/               按业务领域组织的 UI 与 controller
 ├── server/ai/              provider adapter 与 HTTP 公共边界
+│   └── runtime-option-mappers/ 七家厂商运行参数映射
 ├── server/mcp/             MCP SDK 客户端与 URL 安全校验
 ├── services/               迁移中的 repository、adapter 与纯业务服务
 └── types/domains/          领域稳定类型入口
@@ -73,7 +74,7 @@ app/
 
 ```text
 User Event -> Feature Controller -> Domain Service -> Repository -> IndexedDB
-AI Request -> Connection Client -> /api/ai/* -> Provider Adapter -> Provider
+AI Request -> Connection Client -> Runtime Descriptor -> /api/ai/* -> Provider Mapper -> Provider Adapter -> Provider
 Vault Event -> Obsidian Controller -> Repository -> File System Access API
 ```
 
@@ -86,7 +87,7 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 
 - 新学习专项注册 `StudyDomainDefinition`，不得在 shell 中新增专项分支。
 - 新导入来源实现 `ImportProviderPlugin`。
-- 新 AI 厂商扩展 provider registry 与 provider adapter。
+- 新 AI 厂商扩展 provider registry、provider adapter 与具体模型 runtime descriptor/mapper；未知模型不得按名称猜测运行参数。
 - 新额度来源扩展 descriptor/fetch strategy；无稳定官方 API 时只能使用 manual/unsupported。
 - MCP 保持独立设置边界，真实调用最终进入 conversation run/step 状态机。
 
@@ -105,7 +106,7 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 4. 外部 `/api/ai/*` URL 和持久化数据契约保持向后兼容。
 # 模型目录与实时语音边界（2026-07-12）
 
-- 模型目录采用官方在线发现优先、带核验日期的官方回退清单；公开目录元数据可缓存，密钥和厂商原始响应不得缓存。
+- 模型目录采用官方在线发现优先、带核验日期的官方回退清单；按连接 ID、厂商和规范化 Base URL 隔离缓存 24 小时，密钥和厂商原始响应不得缓存。设置测试、默认能力和对话菜单共用 `model-directory-service`。
 - 对话模型选择保持“厂商图标 → 单厂商连接/模型”两级状态，空白对话仍只在首条文本或最终用户语音转写后创建。
 - 语音试听由 `VoiceProviderDescriptor` 驱动，只向 OpenAI、Gemini、MiniMax、GLM 发送各自支持的字段。
 - 实时语音运行对象、PCM、增量转写和临时凭据只留内存。OpenAI 使用 WebRTC；GLM 使用本地单实例 WebSocket 中继与同源 HTTP 入口，空闲两分钟回收，不支持多实例或 Serverless。
@@ -113,6 +114,7 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 # 对话树与连接测试闭环（2026-07-13）
 
 - 对话树的名称区域直接作为 dnd-kit 拖拽表面，不再占用六点手柄或鼠标提示；拖动时用浮层和固定根目录目标反馈，移动合法性仍由 repository 校验。
-- 根目录对话相对根文件夹缩进 24px，文件夹与对话通过右键菜单进入行内重命名；Enter 提交、Escape 取消，移动端继续复用操作抽屉。
+- 文件夹和对话统一使用“展开位/空位、图标名称、操作位”网格；根图标严格对齐，只有 `.conversation-tree-children` 按层级增加缩进。两者通过右键菜单进入行内重命名；Enter 提交、Escape 取消。
 - 连接档案只保存厂商、鉴权、 endpoint 与能力。模型发现和真实测试通过连接级 AI 客户端完成，测试模型只保存在本地界面偏好中，必须由用户显式设为默认能力模型。
-- `selectedSpeedMode` 是会话级未索引字段，不升级 Dexie v16。OpenAI 与 Gemini 的优先服务映射到 `service_tier: priority`；MiniMax 高速能力通过官方 `-highspeed` 模型 ID 表达，其他厂商不得伪造统一高速模式。
+- `AiModelRuntimeDescriptor` 位于 `types/domains/ai-model.ts`，由具体模型 ID 声明推理、速度、默认值、文档和核验日期。OpenAI/Gemini/xAI Priority、Claude Fast、MiniMax 配对高速模型分别映射，其他模型不得伪造统一速度档。
+- GLM-5.2 及以上保留 `max/xhigh/high/medium/low/minimal/none` 七档，默认 `max`，请求同时发送 `thinking.type=enabled` 与原样 `reasoning_effort`；GLM-4.5 至 5.1 只发送开关。

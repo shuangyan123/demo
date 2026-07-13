@@ -4,16 +4,19 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import dynamic from "next/dynamic";
 import { generateWithConnection, generateWithConnectionStream, transcribeWithConnection } from "../../services/ai-connection-client.ts";
 import { emitAiActivity } from "../../services/ai-activity-events.ts";
+import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues } from "../../services/model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
 import type { ChatMessageContent } from "../../services/api-client.ts";
 import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository.ts";
 import { summarizeConversationRunSteps, type ConversationToolRunSummary } from "../../services/conversation-tool-summary.ts";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
 import type { AiConversation, AiConversationAttachment, AiConversationMessage, ApiConnectionProfile, KnowledgeEntry, KnowledgeEvolutionProposal, PersonalizationSettings } from "../../types/review";
 import { cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
 import { AppIcon } from "../shared/app-icon";
 import type { ConversationLaunchContext } from "./conversation-launch-context";
 import { useConversationVisionTools } from "./use-conversation-vision-tools";
+import { useConversationModelMenu } from "./use-conversation-model-menu";
 import { ConversationModelPicker } from "./conversation-model-picker";
 import { ConversationMcpToolPanel } from "./conversation-mcp-tool-panel";
 import { ConversationProposalBlock } from "./conversation-proposal-block";
@@ -30,13 +33,14 @@ type DraftAttachment = {
 type ConversationWorkspaceProps = {
   activeConversationId?: string | null;
   connections: ApiConnectionProfile[];
+  defaultSelections?: { text?: { connectionId?: string; modelId?: string }; vision?: { connectionId?: string; modelId?: string } };
   knowledgeEntries: KnowledgeEntry[];
   launchContext?: ConversationLaunchContext | null;
   personalization: PersonalizationSettings;
   scheduledCount: number;
   snapshot: ConversationSnapshot;
   transcriptionConnection?: ApiConnectionProfile;
-  onCreateConversation: (input?: { selectedConnectionId?: string; selectedModelId?: string; selectedReasoningEffort?: string; selectedSpeedMode?: "standard" | "priority" }) => Promise<AiConversation>;
+  onCreateConversation: (input?: { selectedConnectionId?: string; selectedModelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues }) => Promise<AiConversation>;
   onConversationSelected: (id: string) => void;
   onOpenConnections: () => void;
   onOpenKnowledge: () => void;
@@ -100,6 +104,7 @@ function ConversationToolSummary({ summary }: { summary: ConversationToolRunSumm
 export function ConversationWorkspace({
   activeConversationId,
   connections,
+  defaultSelections,
   knowledgeEntries,
   launchContext,
   personalization,
@@ -119,7 +124,7 @@ export function ConversationWorkspace({
   const [assistantDraft, setAssistantDraft] = useState("");
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [busy, setBusy] = useState(false);
-  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const { menuId, menuRef, open: modelMenuOpen, openMenu: openModelMenu, toggle: toggleModelMenu, triggerRef } = useConversationModelMenu();
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const [moveDrawerOpen, setMoveDrawerOpen] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -130,7 +135,7 @@ export function ConversationWorkspace({
   const [proposalKnowledgeIds, setProposalKnowledgeIds] = useState<string[]>([]);
   const [conversationProposals, setConversationProposals] = useState<KnowledgeEvolutionProposal[]>([]);
   const [knowledgeContext, setKnowledgeContext] = useState("");
-  const [draftSelection, setDraftSelection] = useState<{ connectionId: string; modelId: string; reasoningEffort?: string; speedMode?: "standard" | "priority" }>();
+  const [draftSelection, setDraftSelection] = useState<{ connectionId: string; modelId: string; selectedRuntimeValues?: AiSelectedRuntimeValues }>();
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -146,13 +151,20 @@ export function ConversationWorkspace({
     [connections, requiresVision],
   );
   const recentConversationSelection = conversations.find((conversation) => conversation.selectedConnectionId && conversation.selectedModelId);
-  const selectedConnection = eligibleConnections.find((connection) => connection.id === draftSelection?.connectionId)
-    ?? eligibleConnections.find((connection) => connection.id === activeConversation?.selectedConnectionId)
-    ?? (!activeConversation ? eligibleConnections.find((connection) => connection.id === recentConversationSelection?.selectedConnectionId) : undefined);
-  const selectedModelId = draftSelection?.modelId ?? activeConversation?.selectedModelId ?? (!activeConversation ? recentConversationSelection?.selectedModelId : undefined);
-  const selectedReasoningEffort = draftSelection?.reasoningEffort ?? activeConversation?.selectedReasoningEffort ?? (!activeConversation ? recentConversationSelection?.selectedReasoningEffort : undefined);
-  const selectedSpeedMode = draftSelection?.speedMode ?? activeConversation?.selectedSpeedMode ?? (!activeConversation ? recentConversationSelection?.selectedSpeedMode : undefined) ?? "standard";
+  const defaultSelection = requiresVision ? defaultSelections?.vision : defaultSelections?.text;
+  const recentSelection = !activeConversation && recentConversationSelection && eligibleConnections.some((connection) => connection.id === recentConversationSelection.selectedConnectionId)
+    ? { connectionId: recentConversationSelection.selectedConnectionId, modelId: recentConversationSelection.selectedModelId, selectedRuntimeValues: recentConversationSelection.selectedRuntimeValues }
+    : undefined;
+  const selection = draftSelection
+    ?? (activeConversation ? { connectionId: activeConversation.selectedConnectionId, modelId: activeConversation.selectedModelId, selectedRuntimeValues: activeConversation.selectedRuntimeValues } : undefined)
+    ?? recentSelection
+    ?? (!activeConversation && defaultSelection ? { ...defaultSelection, selectedRuntimeValues: undefined } : undefined);
+  const selectedConnection = eligibleConnections.find((connection) => connection.id === selection?.connectionId);
+  const selectedModelId = selectedConnection ? selection?.modelId : undefined;
+  const storedRuntimeValues = selectedConnection ? selection?.selectedRuntimeValues : undefined;
   const effectiveConnection = selectedConnection;
+  const runtimeDescriptor = effectiveConnection && selectedModelId ? getAiModelRuntimeDescriptor(effectiveConnection.provider, selectedModelId) : undefined;
+  const selectedRuntimeValues = runtimeDescriptor ? normalizeAiSelectedRuntimeValues(runtimeDescriptor, storedRuntimeValues) : storedRuntimeValues;
   const messages = useMemo(() => snapshot.messages.filter((message) => message.conversationId === activeConversation?.id), [activeConversation?.id, snapshot.messages]);
   const runSteps = useMemo(() => snapshot.runSteps.filter((step) => step.conversationId === activeConversation?.id).slice(-20), [activeConversation?.id, snapshot.runSteps]);
   const latestRunSummary = useMemo(() => summarizeConversationRunSteps(runSteps).at(-1), [runSteps]);
@@ -196,11 +208,10 @@ export function ConversationWorkspace({
     await onRefresh();
   }
 
-  async function chooseModel(connection: ApiConnectionProfile, modelId: string, reasoningEffort?: string, speedMode?: "standard" | "priority") {
-    setModelMenuOpen(false);
-    setDraftSelection({ connectionId: connection.id, modelId, reasoningEffort, speedMode });
+  async function chooseModel(connection: ApiConnectionProfile, modelId: string, runtimeValues: AiSelectedRuntimeValues) {
+    setDraftSelection({ connectionId: connection.id, modelId, selectedRuntimeValues: runtimeValues });
     if (!activeConversation) return;
-    await conversationRepository.setConversationModelSelection(activeConversation.id, connection.id, modelId, reasoningEffort, speedMode);
+    await conversationRepository.setConversationModelSelection(activeConversation.id, connection.id, modelId, runtimeValues);
     await onRefresh();
   }
 
@@ -270,18 +281,18 @@ export function ConversationWorkspace({
     if ((!content && !attachments.length) || busy) return;
     if (requiresVision && !effectiveConnection?.capabilities.includes("vision")) {
       onNotice("图片需要显式选择支持多模态的模型连接");
-      setModelMenuOpen(true);
+      openModelMenu();
       return;
     }
     if (!effectiveConnection || !selectedModelId) {
       onNotice(!effectiveConnection ? "请先配置支持当前消息能力的 AI 连接" : "请先选择本次对话使用的模型");
-      setModelMenuOpen(true);
+      openModelMenu();
       return;
     }
     const originalDraft = draft;
     setAssistantDraft("");
     setBusy(true);
-    const conversation = activeConversation ?? await onCreateConversation({ selectedConnectionId: effectiveConnection.id, selectedModelId, selectedReasoningEffort, selectedSpeedMode });
+    const conversation = activeConversation ?? await onCreateConversation({ selectedConnectionId: effectiveConnection.id, selectedModelId, selectedRuntimeValues });
     onConversationSelected(conversation.id);
     const runId = crypto.randomUUID();
     try {
@@ -294,22 +305,28 @@ export function ConversationWorkspace({
       await appendStep(conversation.id, runId, "调用模型", "running", "请求已发送");
       let finalContent = "";
       let usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined;
+      let actualSpeed: string | undefined;
       const history = [...toChatHistory(messages), { role: "user" as const, content: userContent }];
       const purpose = requiresVision ? "vision" : "text";
       if (effectiveConnection.capabilities.includes("streaming")) {
         await appendStep(conversation.id, runId, "流式输出", "running", "正在接收内容");
-        for await (const event of generateWithConnectionStream(effectiveConnection, purpose, { modelId: selectedModelId, reasoningEffort: selectedReasoningEffort, speedMode: selectedSpeedMode, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
+        for await (const event of generateWithConnectionStream(effectiveConnection, purpose, { modelId: selectedModelId, selectedRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
           if (event.type === "delta") { finalContent += event.text; setAssistantDraft(finalContent); }
-          if (event.type === "done") { finalContent = event.content || finalContent; usage = event.usage ?? usage; }
-          if (event.type === "usage") usage = event.usage ?? usage;
+          if (event.type === "done") { finalContent = event.content || finalContent; usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
+          if (event.type === "usage") { usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
           if (event.type === "error") throw new Error(event.message);
         }
       } else {
-        const result = await generateWithConnection(effectiveConnection, purpose, { modelId: selectedModelId, reasoningEffort: selectedReasoningEffort, speedMode: selectedSpeedMode, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
+        const result = await generateWithConnection(effectiveConnection, purpose, { modelId: selectedModelId, selectedRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: effectiveConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
         finalContent = result.content;
         usage = result.usage;
+        actualSpeed = result.actualSpeed;
       }
       await conversationRepository.appendMessage({ conversationId: conversation.id, role: "assistant", content: finalContent.trim() || "模型没有返回文本。" });
+      if (selectedRuntimeValues && Object.keys(selectedRuntimeValues).length) {
+        const selected = [selectedRuntimeValues.reasoning !== undefined ? `推理 ${selectedRuntimeValues.reasoning}` : "", selectedRuntimeValues.speed ? `速度 ${selectedRuntimeValues.speed}` : ""].filter(Boolean).join(" · ");
+        await appendStep(conversation.id, runId, "运行档位", "done", `${selected}${selectedRuntimeValues.speed ? ` / 实际 ${actualSpeed ?? "未返回"}` : ""}`);
+      }
       await appendStep(conversation.id, runId, "完成", "done", usage?.totalTokens ? `${usage.totalTokens} tokens` : "会话已更新");
       setDraft("");
       setAttachments([]);
@@ -432,7 +449,7 @@ export function ConversationWorkspace({
         import("../../services/knowledge-evolution-service"), import("../../services/obsidian-knowledge-repository"),
       ]);
       const graph = await obsidianKnowledgeRepository.loadGraphSnapshot();
-      const result = await requestKnowledgeEvolutionProposals({ connection: effectiveConnection, modelId: selectedModelId, reasoningEffort: selectedReasoningEffort, personalization, sources, entries: knowledgeEntries, graph, activityRunId: runId });
+      const result = await requestKnowledgeEvolutionProposals({ connection: effectiveConnection, modelId: selectedModelId, selectedRuntimeValues, personalization, sources, entries: knowledgeEntries, graph, activityRunId: runId });
       const linked = result.proposals.map((proposal) => ({ ...proposal, conversationId: activeConversation.id, runId }));
       await obsidianKnowledgeRepository.saveProposals(linked);
       setConversationProposals((current) => [...linked, ...current]);
@@ -528,10 +545,10 @@ export function ConversationWorkspace({
               </div> : null}
             </div>
             <div className="conversation-composer-menu">
-              <button aria-label="选择模型" className="conversation-model-trigger" title={effectiveConnection && selectedModelId ? `${effectiveConnection.label} · ${selectedModelId}` : "选择模型"} type="button" onClick={() => setModelMenuOpen((value) => !value)}>
+              <button ref={triggerRef} aria-label="选择模型" aria-expanded={modelMenuOpen} aria-controls={modelMenuOpen ? menuId : undefined} className="conversation-model-trigger" title={effectiveConnection && selectedModelId ? `${effectiveConnection.label} · ${selectedModelId}` : "选择模型"} type="button" onClick={toggleModelMenu}>
                 {effectiveConnection && selectedModelId ? <><ProviderIcon provider={effectiveConnection.provider} size={18} /><span>{selectedModelId}</span><AppIcon name="chevronDown" size={16} /></> : <><AppIcon name="sparkles" size={18} /><span>选择模型</span></>}
               </button>
-              {modelMenuOpen ? <ConversationModelPicker connections={connections} purpose={requiresVision ? "vision" : "text"} selectedConnectionId={effectiveConnection?.id} selectedModelId={selectedModelId} selectedReasoningEffort={selectedReasoningEffort} selectedSpeedMode={selectedSpeedMode} onOpenConnections={onOpenConnections} onSelect={({ connection, modelId, reasoningEffort, speedMode }) => void chooseModel(connection, modelId, reasoningEffort, speedMode)} /> : null}
+              {modelMenuOpen ? <ConversationModelPicker ref={menuRef} id={menuId} connections={connections} purpose={requiresVision ? "vision" : "text"} selectedConnectionId={effectiveConnection?.id} selectedModelId={selectedModelId} selectedRuntimeValues={selectedRuntimeValues} onOpenConnections={onOpenConnections} onSelect={({ connection, modelId, selectedRuntimeValues: runtimeValues }) => void chooseModel(connection, modelId, runtimeValues)} /> : null}
             </div>
             <button className="conversation-send" disabled={busy || (!draft.trim() && !attachments.length)} type="submit" aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>
           </div>

@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
-import { generateWithConnection, listModelsWithConnection, listModelsWithDraft, testConnectionDraft, type GenerateConnectionPurpose } from "../../services/ai-connection-client";
+import { generateWithConnection, testConnectionDraft, type GenerateConnectionPurpose } from "../../services/ai-connection-client";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
+import { getCachedConnectionModelCatalog, loadConnectionModelCatalog, loadDraftModelCatalog, rememberConnectionModelDirectory } from "../../services/model-directory-service";
 import { creatableProviderContracts, getProviderContract, getProviderModelCatalog } from "../../services/provider-contracts";
-import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile, ApiProvider } from "../../types/review";
+import type { AiModelsResult } from "../../services/api-client";
+import type { ApiProvider } from "../../types/domains/ai-provider";
+import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile } from "../../types/review";
 import { Button, EmptyState, cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
 import { AiQuotaSettingsPanel } from "./plugins/quota/ai-quota-settings-panel";
@@ -62,6 +65,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
   const [busyAction, setBusyAction] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [availableModels, setAvailableModels] = useState<Array<{ id: string; label: string }>>([]);
+  const [discoveredDirectory, setDiscoveredDirectory] = useState<AiModelsResult>();
   const [selectedTestModelId, setSelectedTestModelId] = useState("");
   const [testSucceeded, setTestSucceeded] = useState(false);
   const contract = useMemo(() => getProviderContract(form.provider), [form.provider]);
@@ -94,6 +98,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
     setForm(next);
     setFeedback(null);
     setAvailableModels([]);
+    setDiscoveredDirectory(undefined);
     setSelectedTestModelId("");
     setTestSucceeded(false);
   }
@@ -110,7 +115,10 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
     });
     setFeedback(null);
     const remembered = typeof window === "undefined" ? "" : window.localStorage.getItem(`review_connection_test_model_v1:${profile.id}`) ?? "";
-    setSelectedTestModelId(remembered);
+    const models = getCachedConnectionModelCatalog(profile).map((model) => ({ id: model.id, label: model.label }));
+    setAvailableModels(models);
+    setDiscoveredDirectory(undefined);
+    setSelectedTestModelId(models.some((model) => model.id === remembered) ? remembered : models[0]?.id ?? remembered);
     setTestSucceeded(profile.testStatus === "success");
   }
 
@@ -142,6 +150,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
         providerOptions: form.provider === "azure" ? { language: form.language } : {},
         today: new Date(),
       });
+      rememberConnectionModelDirectory(saved, discoveredDirectory);
       if (testSucceeded) await aiConnectionsRepository.updateTestStatus(saved.id, "success", "连接成功");
       await refresh();
       onChanged?.();
@@ -161,20 +170,19 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
     setFeedback({ tone: "neutral", text: "正在获取模型…" });
     try {
       const result = form.id
-        ? await listModelsWithConnection(snapshot.profiles.find((profile) => profile.id === form.id)!)
-        : contract.modelListStrategy === "official_api"
-          ? await listModelsWithDraft({ provider: form.provider, apiKey: form.apiKey, baseUrl: form.baseUrl })
-          : undefined;
-      const fallback = getProviderModelCatalog(form.provider).map((model) => ({ id: model.id, label: model.label }));
-      const models = result?.models.length ? result.models.map((model) => ({ id: model.id, label: model.label })) : fallback;
+        ? await loadConnectionModelCatalog(snapshot.profiles.find((profile) => profile.id === form.id)!, undefined, true)
+        : await loadDraftModelCatalog({ provider: form.provider, apiKey: form.apiKey, baseUrl: form.baseUrl });
+      const models = result.models.map((model) => ({ id: model.id, label: model.label }));
       if (!models.length) throw new Error("该厂商需要手动输入模型 ID");
       setAvailableModels(models);
+      setDiscoveredDirectory(result.directory);
       setSelectedTestModelId((current) => models.some((model) => model.id === current) ? current : models[0].id);
-      setFeedback({ tone: "success", text: `已获取 ${models.length} 个模型` });
+      setFeedback({ tone: result.source === "live" ? "success" : "neutral", text: result.source === "live" ? `已获取 ${models.length} 个模型` : `已载入 ${models.length} 个已核验模型` });
     } catch (error) {
       const fallback = getProviderModelCatalog(form.provider).map((model) => ({ id: model.id, label: model.label }));
       if (fallback.length) {
         setAvailableModels(fallback);
+        setDiscoveredDirectory(undefined);
         setSelectedTestModelId((current) => fallback.some((model) => model.id === current) ? current : fallback[0].id);
         setFeedback({ tone: "neutral", text: "在线目录不可用，已载入官方回退目录" });
       } else setFeedback({ tone: "error", text: error instanceof Error ? error.message : "模型目录读取失败" });
@@ -263,7 +271,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
 
       <form className="mt-6 grid gap-5" onSubmit={saveConnection}>
         <div className="ai-connection-picker">
-          <label>厂商<span className="ai-provider-select"><ProviderIcon provider={form.provider} size={22} /><select aria-label="厂商" value={form.provider} onChange={(event) => selectProvider(event.currentTarget.value as ApiProvider)}>{editableContracts.map((item) => <option key={item.provider} value={item.provider}>{item.label}</option>)}</select></span></label>
+          <label>厂商<span className="ai-provider-select"><ProviderIcon provider={form.provider} size={18} /><select aria-label="厂商" value={form.provider} onChange={(event) => selectProvider(event.currentTarget.value as ApiProvider)}>{editableContracts.map((item) => <option key={item.provider} value={item.provider}>{item.label}</option>)}</select></span></label>
         </div>
 
         <details className="ai-connection-advanced">
@@ -288,7 +296,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
           <p>测试会使用所选模型发送一次极小真实请求，可能产生少量用量。</p>
         </section>
 
-        <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button>{form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setAvailableModels([]); setSelectedTestModelId(""); setTestSucceeded(false); }}>新建</Button> : null}</div>
+        <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button>{form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setAvailableModels([]); setDiscoveredDirectory(undefined); setSelectedTestModelId(""); setTestSucceeded(false); }}>新建</Button> : null}</div>
       </form>
 
       <section className="mt-7 rounded-lg border border-line bg-surface" aria-label="默认能力分配">
@@ -298,7 +306,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
             const modelKey = `${purpose}ModelId` as const;
             const options = snapshot.profiles.filter((profile) => profile.capabilities.includes(purpose));
             const selectedProfile = options.find((profile) => profile.id === snapshot.defaults[key]);
-            const models = selectedProfile ? getProviderModelCatalog(selectedProfile.provider, purpose) : [];
+            const models = selectedProfile ? getCachedConnectionModelCatalog(selectedProfile, purpose) : [];
             return (
               <label key={purpose} className="grid gap-2 p-3 text-sm font-medium">
                 {purposeLabels[purpose]}

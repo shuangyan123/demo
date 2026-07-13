@@ -1,3 +1,8 @@
+import type { ApiProvider } from "./domains/ai-provider";
+
+export type { ApiProvider } from "./domains/ai-provider";
+export type { AiModelRuntimeDescriptor, AiModelRuntimeOption, AiModelRuntimeValue, AiSelectedRuntimeValues } from "./domains/ai-model";
+
 export const BOARD_OPTIONS = ["政治理论", "常识判断", "言语理解与表达", "数量关系", "判断推理", "资料分析"] as const;
 
 export const KNOWLEDGE_CATEGORIES = ["政治理论", "常识判断", "申论"] as const;
@@ -45,27 +50,6 @@ export type BulkSelectionState<TId extends string> = {
 export type ImportType = "text" | "file" | "ocr";
 export type ImportStatus = "draft" | "parsing" | "parsed" | "saved" | "pending_ocr" | "failed";
 
-export type ApiProvider =
-  | "openai"
-  | "azure_openai"
-  | "google"
-  | "anthropic"
-  | "xai"
-  | "deepseek"
-  | "qwen"
-  | "openrouter"
-  | "groq"
-  | "mistral"
-  | "elevenlabs"
-  | "azure"
-  | "minimax"
-  | "zhipu"
-  | "kimi"
-  | "doubao"
-  | "siliconflow"
-  | "baidu"
-  | "tencent"
-  | "custom";
 export type ApiFormat = "responses" | "chat_completions" | "google_generate_content" | "anthropic_messages" | "azure_speech" | "qwen_multimodal";
 export type AiCapability = "text" | "vision" | "structured_output" | "speech" | "transcription" | "realtime" | "streaming";
 export type AiConnectionPurpose = "text" | "vision" | "speech" | "transcription" | "realtime";
@@ -658,8 +642,8 @@ export type AiConnectionDefaults = {
 export type AiRuntimeModelSelection = {
   connection: ApiConnectionProfile;
   modelId: string;
-  reasoningEffort?: string;
-  speedMode?: "standard" | "priority";
+  /** 归一化运行值；厂商字段只在服务端 mapper 内生成。 */
+  selectedRuntimeValues?: import("./domains/ai-model").AiSelectedRuntimeValues;
 };
 
 export type AiConnectionSnapshot = {
@@ -1040,9 +1024,11 @@ export type AiConversation = {
   selectedConnectionId?: string;
   /** 对话级模型覆盖；连接档案继续负责密钥和协议，模型可按会话切换。 */
   selectedModelId?: string;
-  /** 会话级推理强度；值由模型 descriptor 校验并映射到厂商参数。 */
+  /** 会话级归一化运行值；作为普通对象写入现有记录，无需升级 Dexie schema。 */
+  selectedRuntimeValues?: import("./domains/ai-model").AiSelectedRuntimeValues;
+  /** @deprecated 仅供 repository 读取历史会话并迁移到 selectedRuntimeValues。 */
   selectedReasoningEffort?: string;
-  /** 会话级推理速度；只有厂商明确支持时才允许选择 priority。 */
+  /** @deprecated 仅供 repository 读取历史会话并迁移到 selectedRuntimeValues。 */
   selectedSpeedMode?: "standard" | "priority";
   summary?: string;
   lastMessagePreview?: string;
@@ -1134,12 +1120,6 @@ export type AiModelCatalogEntry = {
   lifecycle?: "active" | "preview" | "deprecated";
   documentationUrl?: string;
   verifiedAt?: string;
-  /** 用于模型选择的固有推理能力等级，不代表请求参数。 */
-  reasoningClass?: "basic" | "balanced" | "strong";
-  /** 模型自身的典型速度等级；高速模型变体标记为 fast。 */
-  speedClass?: "standard" | "fast";
-  /** 厂商官方支持的会话级服务速度。 */
-  supportedSpeedModes?: Array<"standard" | "priority">;
 };
 
 /** 厂商语音能力声明；设置 UI 只渲染厂商真实支持的参数。 */

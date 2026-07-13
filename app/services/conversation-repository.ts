@@ -1,5 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
 import { toISODate } from "../lib/review-utils.ts";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
+import { legacyRuntimeValues } from "./model-runtime-descriptors.ts";
 import type {
   AiConversation,
   AiConversationAttachment,
@@ -36,8 +38,7 @@ export type CreateConversationInput = {
   folderId?: string;
   selectedConnectionId?: string;
   selectedModelId?: string;
-  selectedReasoningEffort?: string;
-  selectedSpeedMode?: "standard" | "priority";
+  selectedRuntimeValues?: AiSelectedRuntimeValues;
   today?: Date;
 };
 
@@ -123,7 +124,11 @@ export const conversationRepository = {
       reviewDb.aiConversationMessages.orderBy("createdAt").toArray(),
       reviewDb.aiConversationRunSteps.orderBy("updatedAt").toArray(),
     ]);
-    return { projects, folders, conversations, attachments, messages, runSteps };
+    const normalizedConversations = conversations.map((conversation) => ({
+      ...conversation,
+      selectedRuntimeValues: conversation.selectedRuntimeValues ?? legacyRuntimeValues(conversation.selectedReasoningEffort, conversation.selectedSpeedMode),
+    }));
+    return { projects, folders, conversations: normalizedConversations, attachments, messages, runSteps };
   },
 
   async createFolder(input: { projectId?: string; parentId?: string; label: string; today?: Date }): Promise<AiConversationFolder> {
@@ -192,8 +197,7 @@ export const conversationRepository = {
       folderId: input.folderId,
       selectedConnectionId: input.selectedConnectionId,
       selectedModelId: input.selectedModelId,
-      selectedReasoningEffort: input.selectedReasoningEffort,
-      selectedSpeedMode: input.selectedSpeedMode,
+      selectedRuntimeValues: input.selectedRuntimeValues,
       messageCount: 0,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -219,9 +223,16 @@ export const conversationRepository = {
     await reviewDb.aiConversations.update(id, { selectedConnectionId, updatedAt: nowIso(today) });
   },
 
-  /** 同时保存连接和会话级模型覆盖，避免为每个模型复制一份密钥档案。 */
-  async setConversationModelSelection(id: string, selectedConnectionId: string, selectedModelId: string, selectedReasoningEffort?: string, selectedSpeedMode?: "standard" | "priority", today = new Date()): Promise<void> {
-    await reviewDb.aiConversations.update(id, { selectedConnectionId, selectedModelId, selectedReasoningEffort, selectedSpeedMode, updatedAt: nowIso(today) });
+  /** 同时保存连接、模型与归一化运行值；历史字段在新写入时清空。 */
+  async setConversationModelSelection(id: string, selectedConnectionId: string, selectedModelId: string, selectedRuntimeValues?: AiSelectedRuntimeValues, today = new Date()): Promise<void> {
+    await reviewDb.aiConversations.update(id, {
+      selectedConnectionId,
+      selectedModelId,
+      selectedRuntimeValues,
+      selectedReasoningEffort: undefined,
+      selectedSpeedMode: undefined,
+      updatedAt: nowIso(today),
+    });
   },
 
   async archiveConversation(id: string, today = new Date()): Promise<void> {

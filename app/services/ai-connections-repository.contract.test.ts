@@ -111,12 +111,12 @@ test("OpenAI 兼容本地语音连接允许无 API Key 并保存为无鉴权", a
     provider: "custom",
     capabilities: ["speech"],
     baseUrl: "http://127.0.0.1:8000/v1",
-    model: "local-tts",
     apiKey: "",
     today,
   });
 
   assert.deepEqual(profile.capabilities, ["speech"]);
+  assert.equal("model" in profile, false);
   assert.equal(profile.maskedKey, "无鉴权");
   assert.equal(await aiConnectionsRepository.resolveSecret(profile), "");
 });

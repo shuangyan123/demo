@@ -104,7 +104,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 性能与包体约定
 
-- 对话模型选择采用“厂商 → 连接档案/具体模型”两级下拉；会话级覆盖只保存 `selectedModelId`，不得为切换模型复制连接密钥。
+- 对话模型选择采用“厂商 → 连接档案/具体模型”两级下拉；会话级覆盖保存 `selectedModelId` 与归一化 `selectedRuntimeValues`，不得为切换模型复制连接密钥。
 - MCP 只支持安全的 Streamable HTTP，并与插件目录分离；原始结果只留当前运行内存，持久化 run/step 只能保存 Server、工具、参数键和脱敏状态。
 - Obsidian 提案生成、解析与 pending 保存必须出现在对话时间线，`conversationId` / `runId` 只作关联且不得触发 Dexie schema 升级。
 - 手动复盘进入和切题只重置为暂停的 `00:00`，不得自动启动；倒计时只作为次级 disclosure。
@@ -124,7 +124,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 连接模型解耦与对话树约定
 
 - `ApiConnectionProfile.model` 只作历史迁移输入；新建、编辑、测试连接不得要求或写回模型。
-- 对话保存连接、模型和可选推理强度；后台默认能力保存各自的连接与模型，默认文本不得覆盖对话选择。
+- 对话保存连接、模型和可选运行值；后台默认能力保存各自的连接与模型，默认文本只在空白对话没有最近选择时作为初始值，不得覆盖已有会话选择。
 - MiniMax 静态回退以 `MiniMax-M3` 为旗舰，M2.7 为次级，M2.5 为 Legacy；GLM 静态回退以 `glm-5.2` 为旗舰。
 - 对话模型选择器必须是单栏钻取，已选厂商优先，其余按英文名排序；推理参数只能展示厂商真实支持项。
 - 对话和文件夹进入任意嵌套层级后都必须能拖回根目录；拖拽期间固定显示根目录目标，仍拒绝跨项目、自身与子孙嵌套。
@@ -133,7 +133,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - 公考内部的模块和板块筛选必须使用独立原生 disclosure，默认折叠且不持久化；测试应直接断言各层 `open` 状态，不能依赖空数据库下不存在的板块按钮。
 - 产品功能图标统一通过 `AppIcon` 使用 Lucide；AI 品牌只能通过 `ProviderIcon` 与集中注册表渲染，禁止恢复 Unicode 占位或重复内联 SVG。
-- 对话拖拽必须从独立手柄启动，同时写入自定义 DataTransfer MIME；drop 目标需 `preventDefault`、设置 `dropEffect`，并由 repository 校验跨项目和非法嵌套。
+- 对话拖拽统一使用 dnd-kit Pointer/Touch/Keyboard sensors，名称区域作为拖拽表面并保留 6px 激活距离；repository 继续校验跨项目、自身与非法子孙嵌套。
 - 只有 `modelListStrategy === official_api` 的连接允许后台刷新模型目录；自定义与手动目录不得在保存后额外请求模型服务。
 - structured output 由统一请求契约进入 provider adapter；知识演进固定使用对象包络并兼容历史数组，空响应/解析失败/全部过滤最多修复重试一次。
 - rejected 知识演进提案不再消费来源；pending 与 accepted 仍需排除，避免重复待确认或已确认提案。
@@ -150,6 +150,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - AI 连接新建不再选择用途；连接档案只保存鉴权、endpoint 与厂商能力，默认用途单独保存连接和模型。
 - OpenAI、Gemini、Claude、DeepSeek、GLM、MiniMax、Grok 通过显式 `ProviderAdapter` 注册；其他厂商只作为兼容边界，不得宣称原生已核验。
 - MiniMax 文本使用官方推荐 Anthropic-compatible `/anthropic/v1/messages`，语音使用原生 T2A；两类请求不得共用通用 Chat Completions 请求体。
+- 模型运行能力只能来自具体模型 `AiModelRuntimeDescriptor`；未知模型不推断，UI 只保存 `{ reasoning, speed }`，七家独立 mapper 负责最终厂商字段。
+- GLM-5.2+ 必须原样支持 `max/xhigh/high/medium/low/minimal/none` 且默认 `max`；GLM-4.5 至 5.1 只显示开启/关闭。
+- 模型目录缓存按连接 ID、厂商和规范化 Base URL 隔离 24 小时；设置测试、能力默认和对话选择器必须共用目录服务。
 
 - 数据层性能第二阶段必须先记录真实页面访问路径和慢查询证据；没有页面级分页需求或明确慢查询时，不得升级 Dexie schema 或新增索引。
 - 真实浏览器与 Vault 发布验收按 `docs/release-smoke.md` 执行，重点覆盖 connect、sync、conflict、proposal confirm；CI 不得连接真实 Vault、真实模型服务或外网 API Key。

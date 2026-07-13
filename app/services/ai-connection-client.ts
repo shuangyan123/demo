@@ -1,3 +1,4 @@
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
 import type { ApiConnectionProfile } from "../types/review";
 import {
   callAiGenerate,
@@ -13,11 +14,10 @@ import {
   type AiTranscriptionResult,
 } from "./api-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
-import { reasoningProviderOptions } from "./model-reasoning.ts";
-import { speedProviderOptions, type ConversationSpeedMode } from "./model-speed.ts";
+import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues, resolveRuntimeModelId } from "./model-runtime-descriptors.ts";
 
 export type GenerateConnectionPurpose = "text" | "vision";
-type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & { modelId?: string; reasoningEffort?: string; speedMode?: ConversationSpeedMode };
+type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions" | "runtime"> & { modelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues };
 type ConnectionSpeechInput = Omit<AiSpeechRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & {
   model?: string;
 };
@@ -32,20 +32,22 @@ export async function generateWithConnection(
     throw new Error(`当前连接不支持${purpose === "vision" ? "多模态" : "文本"}能力`);
   }
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
-  const model = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
+  const selectedModel = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
+  const descriptor = getAiModelRuntimeDescriptor(connection.provider, selectedModel);
+  const runtime = normalizeAiSelectedRuntimeValues(descriptor, input.selectedRuntimeValues);
+  const model = resolveRuntimeModelId(descriptor, selectedModel, runtime);
+  const runtimePayload = Object.keys(runtime).length ? { runtime } : {};
   const request = { ...input };
-  const reasoningEffort = request.reasoningEffort;
-  const speedMode = request.speedMode;
   delete request.modelId;
-  delete request.reasoningEffort;
-  delete request.speedMode;
+  delete request.selectedRuntimeValues;
   return callAiGenerate({
     ...request,
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
     model,
-    providerOptions: { ...connection.providerOptions, ...reasoningProviderOptions(connection.provider, model, reasoningEffort), ...speedProviderOptions(connection.provider, speedMode) },
+    ...runtimePayload,
+    providerOptions: connection.providerOptions,
   });
 }
 
@@ -62,20 +64,22 @@ export async function* generateWithConnectionStream(
     throw new Error("当前连接未声明流式输出能力");
   }
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
-  const model = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
+  const selectedModel = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
+  const descriptor = getAiModelRuntimeDescriptor(connection.provider, selectedModel);
+  const runtime = normalizeAiSelectedRuntimeValues(descriptor, input.selectedRuntimeValues);
+  const model = resolveRuntimeModelId(descriptor, selectedModel, runtime);
+  const runtimePayload = Object.keys(runtime).length ? { runtime } : {};
   const request = { ...input };
-  const reasoningEffort = request.reasoningEffort;
-  const speedMode = request.speedMode;
   delete request.modelId;
-  delete request.reasoningEffort;
-  delete request.speedMode;
+  delete request.selectedRuntimeValues;
   yield* callAiGenerateStream({
     ...request,
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
     model,
-    providerOptions: { ...connection.providerOptions, ...reasoningProviderOptions(connection.provider, model, reasoningEffort), ...speedProviderOptions(connection.provider, speedMode) },
+    ...runtimePayload,
+    providerOptions: connection.providerOptions,
   });
 }
 

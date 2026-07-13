@@ -11,9 +11,18 @@
 ## AI 运行时模型选择
 
 - `/api/ai/*` URL 不变。客户端提交连接参数与本次 `modelId`；连接档案本身不再要求模型。
-- 对话请求可携带会话级 `selectedReasoningEffort`，由 provider adapter 映射为 `reasoning_effort`、`thinking_level`、adaptive thinking `effort` 或厂商思考参数。
+- UI 只提交归一化 `runtime: { reasoning?: string | number; speed?: string }`。连接客户端和服务端都会用具体模型的 `AiModelRuntimeDescriptor` 校验；未知或手动模型不接收推断出的运行参数。
 - 无对话上下文的任务从能力默认项解析“连接 + 模型”；不得读取 `ApiConnectionProfile.model` 作为正常运行时来源。
 - `/api/ai/models` 只返回归一化公开元数据，不缓存 API Key、请求上下文或厂商原始响应。
+
+七家 mapper 只负责把已校验运行值写入厂商请求，endpoint、鉴权和响应归一化仍由 provider adapter 负责：
+
+- OpenAI：`reasoning.effort`、`service_tier=priority`。
+- Gemini 3.x：`generationConfig.thinkingConfig.thinkingLevel`；Gemini 2.5：`thinkingBudget`；Priority 位于请求顶层。
+- Claude：adaptive thinking + `output_config.effort`，旧模型使用 `budget_tokens`；合资格模型 Fast 发送 `speed=fast` 与 beta header。
+- DeepSeek V4：关闭/high/max；GLM-5.2+：七档原样 `reasoning_effort`，旧 GLM 只发送 `thinking.type`。
+- MiniMax M3：关闭/自适应与标准/优先；M2.x 高速通过配对模型 ID。
+- Grok 4.5：`reasoning.effort` 与 Priority；多代理 effort 不进入普通菜单。
 
 ## 路由公共边界
 
@@ -26,6 +35,8 @@
 文本和多模态任务统一调用 `/api/ai/generate`。业务 service 调用 `generateWithConnection(connection, purpose, input)` 时必须显式传入 `text` 或 `vision`；连接不具备对应能力时，请求会在密钥解密和网络调用前失败。
 
 `/api/ai/generate` 在 `stream: true` 时返回 `text/event-stream`，事件固定为 `status`、`delta`、`usage`、`done`、`error`。业务层通过 `generateWithConnectionStream()` 消费归一化事件；结构化 JSON 任务仍必须等完整内容结束后交给 `app/services/ai-json.ts` 解析。
+
+当厂商返回实际 service tier/Fast 状态时，JSON 结果及 `usage/done` 事件可包含 `actualSpeed`。时间线只保存用户选择档位与这一归一化实际档位，不保存原始响应。
 
 旧 `/api/ai` OpenAI-compatible 路由已移除。厂商 endpoint、鉴权头、请求字段和响应解析只允许存在于服务端 provider adapter。
 
@@ -49,12 +60,12 @@
 
 - `AiGenerateRequest.structuredOutput` 包含 `name`、`schema` 与 `strict`，服务端 adapter 将其映射为厂商原生结构化输出字段。
 - `POST /api/ai/models` 的模型项包含 `id`、`label`、`purposes`、`capabilities`、`status`、`source`、上下文与输出上限、流式/结构化支持和 `updatedAt`；不返回密钥或原始模型对象。
-- 客户端模型目录缓存有效期为一小时。过期数据可立即展示并后台刷新；手动刷新强制请求官方目录，失败时保留静态目录和手动模型 ID。
+- 客户端模型目录缓存有效期为 24 小时，并按连接 ID、厂商和规范化 Base URL 隔离；手动刷新绕过缓存，失败时保留已核验静态目录和手动模型 ID。
 - 生成错误归一化为鉴权、模型不存在、能力不匹配、限流、容量、上下文、内容过滤和网络类错误，并返回可操作提示。
 
 `AiProviderCatalogEntry` 描述厂商连接协议、默认 base URL、能力、官方文档链接、模型列表刷新策略和手动模型兜底。`AiModelCatalogEntry` 描述模型 ID、文本/视觉/语音/流式/结构化能力、推荐/预览/弃用状态、来源和最后验证时间。
 
-设置页使用用途、厂商、模型三级下拉。`POST /api/ai/models` 代理连接对应的官方 models API，返回 `id`、`label`、`capabilities`、`source` 与 `fetchedAt`；客户端只缓存归一化公开目录 24 小时，不缓存 Key、请求头或厂商原始响应。失败时回退静态核验目录，并始终保留手动模型 ID。连接测试必须走本地 `/api/ai/generate` 与 provider adapter，不只做表单 mock。
+设置页把连接档案与默认用途分开：厂商连接先通过“获取模型 → 选择模型 → 极小真实请求”测试，默认文本/多模态等再分别选择连接与模型。`POST /api/ai/models` 返回 `id`、`label`、`capabilities`、`source` 与 `fetchedAt`；设置测试、默认能力和对话选择器共用同一目录服务。连接测试必须走本地 `/api/ai/generate` 与 provider adapter，不只做表单 mock。
 
 ## 额度插件
 

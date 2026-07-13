@@ -1,4 +1,5 @@
-import type { AiCapability, AiConnectionPurpose, AiModelCatalogEntry, ApiFormat, ApiProvider } from "../types/review";
+import type { ApiProvider } from "../types/domains/ai-provider";
+import type { AiCapability, AiConnectionPurpose, AiModelCatalogEntry, ApiFormat } from "../types/review";
 
 export type ProviderGroup = "commercial" | "open_source" | "speech" | "custom" | "legacy";
 
@@ -32,14 +33,6 @@ function model(
   status: AiModelCatalogEntry["status"],
   documentationUrl?: string,
 ): AiModelCatalogEntry {
-  const lowerId = id.toLowerCase();
-  const reasoningClass: AiModelCatalogEntry["reasoningClass"] = /(?:pro|opus|sol|m3|v4-pro|glm-5(?:\.|-|$))/.test(lowerId)
-    ? "strong"
-    : /(?:mini|nano|lite|flashx|flash-lite)/.test(lowerId) ? "basic" : "balanced";
-  const speedClass: AiModelCatalogEntry["speedClass"] = /(?:highspeed|flash|lite|nano|haiku|luna)/.test(lowerId) ? "fast" : "standard";
-  const supportedSpeedModes: AiModelCatalogEntry["supportedSpeedModes"] = ["openai", "google"].includes(provider) && purposes.some((purpose) => purpose === "text" || purpose === "vision")
-    ? ["standard", "priority"]
-    : ["standard"];
   const generation = id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
   const modalityGroup = purposes.includes("realtime") ? "realtime" : purposes.includes("speech") ? "speech" : purposes.includes("transcription") && !purposes.includes("text")
     ? "transcription" : purposes.includes("vision") ? "multimodal" : "text";
@@ -57,9 +50,6 @@ function model(
     lifecycle: status === "deprecated" ? "deprecated" : status === "preview" ? "preview" : "active",
     documentationUrl,
     verifiedAt: documentationUrl ? verifiedAt : undefined,
-    reasoningClass,
-    speedClass,
-    supportedSpeedModes,
   };
 }
 

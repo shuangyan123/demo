@@ -8,6 +8,7 @@ import type {
   ObsidianGraphSnapshot,
   PersonalizationSettings,
 } from "../types/review";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
 import { generateWithConnection } from "./ai-connection-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { extractAiJsonText, parseAiJsonArray, parseAiJsonObject } from "./ai-json.ts";
@@ -157,7 +158,7 @@ export async function requestKnowledgeEvolutionProposals(input: {
   graph?: ObsidianGraphSnapshot;
   activityRunId?: string;
   modelId?: string;
-  reasoningEffort?: string;
+  selectedRuntimeValues?: AiSelectedRuntimeValues;
 }): Promise<KnowledgeEvolutionGenerationResult> {
   if (!input.sources.length) throw new Error("暂无新的错题、面试、辅导或知识资料可用于演进");
   const modelId = await aiConnectionsRepository.resolveRuntimeModel(input.connection, "text", input.modelId);
@@ -207,7 +208,7 @@ export async function requestKnowledgeEvolutionProposals(input: {
         }),
       },
     ];
-  const generate = (messages: typeof requestMessages) => generateWithConnection(input.connection, "text", { modelId, reasoningEffort: input.reasoningEffort,
+  const generate = (messages: typeof requestMessages) => generateWithConnection(input.connection, "text", { modelId, selectedRuntimeValues: input.selectedRuntimeValues,
     maxOutputTokens: 3000,
     temperature: 0.1,
     messages,

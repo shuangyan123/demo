@@ -111,23 +111,24 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
 
   function renderConversation(conversation: AiConversation): ReactNode {
     return <div key={conversation.id} data-conversation-id={conversation.id} className={`conversation-tree-chat ${activeConversationId === conversation.id ? "is-active" : ""}`} onContextMenu={(event) => { event.preventDefault(); openAction("conversation", conversation.id, conversation.title, { x: event.clientX, y: event.clientY }); }}>
+      <span className="conversation-tree-disclosure-slot" aria-hidden="true" />
       {renaming?.kind === "conversation" && renaming.id === conversation.id ? <input autoFocus aria-label={`重命名${conversation.title}`} className="conversation-tree-inline-rename" value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} onBlur={() => void finishRename("conversation", conversation.id)} onKeyDown={handleRenameKeyDown} /> : <TreeDragSurface className="conversation-tree-chat-label" item={{ kind: "conversation", id: conversation.id, label: conversation.title }} onClick={() => onConversationSelected(conversation.id)}><AppIcon name="message" size={16} /><span className="truncate">{conversation.title}</span></TreeDragSurface>}
       <button type="button" aria-label={`${conversation.title} 操作`} onClick={() => openAction("conversation", conversation.id, conversation.title)}><AppIcon name="more" size={16} /></button>
     </div>;
   }
 
-  function renderFolder(folder: AiConversationFolder, depth = 0): ReactNode {
+  function renderFolder(folder: AiConversationFolder): ReactNode {
     const children = projectFolders.filter((item) => item.parentId === folder.id).sort((a, b) => a.sortOrder - b.sortOrder);
     const chats = projectConversations.filter((item) => item.folderId === folder.id);
     const expanded = controller.expandedFolderIds.has(folder.id);
     const count = chats.length + children.reduce((sum, item) => sum + projectConversations.filter((chat) => chat.folderId === item.id).length, 0);
-    return <div key={folder.id} data-folder-id={folder.id} className="conversation-tree-folder" style={{ paddingLeft: `${depth * 10}px` }} onContextMenu={(event) => { event.preventDefault(); openAction("folder", folder.id, folder.label, { x: event.clientX, y: event.clientY }); }}>
+    return <div key={folder.id} data-folder-id={folder.id} className="conversation-tree-folder" onContextMenu={(event) => { event.preventDefault(); openAction("folder", folder.id, folder.label, { x: event.clientX, y: event.clientY }); }}>
       <TreeDropZone folderId={folder.id} className="conversation-tree-folder-row">
         <button type="button" aria-label={`${expanded ? "折叠" : "展开"}${folder.label}`} onClick={() => controller.toggleFolder(folder.id)}><AppIcon name={expanded ? "chevronDown" : "chevronRight"} size={16} /></button>
         {renaming?.kind === "folder" && renaming.id === folder.id ? <input autoFocus aria-label={`重命名${folder.label}`} className="conversation-tree-inline-rename" value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} onBlur={() => void finishRename("folder", folder.id)} onKeyDown={handleRenameKeyDown} /> : <TreeDragSurface className="conversation-tree-folder-label" item={{ kind: "folder", id: folder.id, label: folder.label }}><AppIcon name={expanded ? "folderOpen" : "folder"} size={16} /><span className="truncate">{folder.label}</span><small>{count}</small></TreeDragSurface>}
         <button type="button" aria-label={`${folder.label} 操作`} onClick={() => openAction("folder", folder.id, folder.label)}><AppIcon name="more" size={16} /></button>
       </TreeDropZone>
-      {expanded ? <div className="conversation-tree-children">{children.map((item) => renderFolder(item, depth + 1))}{chats.map(renderConversation)}</div> : null}
+      {expanded ? <div className="conversation-tree-children">{children.map(renderFolder)}{chats.map(renderConversation)}</div> : null}
     </div>;
   }
 

@@ -34,6 +34,7 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response): 
   let content = "";
   let finalUsage: AiGenerateResult["usage"];
   let requestId: string | undefined;
+  let actualSpeed: string | undefined;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       controller.enqueue(encodeSse({ type: "status", message: "已连接厂商，正在等待模型输出" }));
@@ -55,12 +56,13 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response): 
               if (event.type === "usage") {
                 finalUsage = event.usage;
                 requestId = event.requestId;
+                actualSpeed = event.actualSpeed ?? actualSpeed;
               }
               controller.enqueue(encodeSse(event));
             }
           }
         }
-        controller.enqueue(encodeSse({ type: "done", content, requestId, usage: finalUsage }));
+        controller.enqueue(encodeSse({ type: "done", content, requestId, usage: finalUsage, actualSpeed }));
       } catch (error) {
         controller.enqueue(encodeSse({ type: "error", message: error instanceof Error ? error.message : "流式响应解析失败" }));
       } finally {

@@ -427,10 +427,10 @@ select,
 
 .ai-connection-picker select,
 .ai-provider-select {
-  min-height: 2.7rem;
-  border: 1px solid var(--line);
-  border-radius: 0.65rem;
-  background: var(--surface);
+  min-height: 2.25rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
   color: var(--foreground);
 }
 
@@ -443,12 +443,20 @@ select,
   display: grid;
   grid-template-columns: 1.8rem minmax(0, 1fr);
   align-items: center;
-  padding-left: 0.65rem;
+  padding-left: 0.5rem;
+}
+
+.ai-provider-select:hover,
+.ai-provider-select:focus-within {
+  background: var(--surface-muted);
 }
 
 .ai-provider-select select {
   border: 0;
   background: transparent;
+  /* 外层负责完整点击高度，避免 select 的最小高度再叠加外层边框。 */
+  min-height: 0;
+  height: 100%;
 }
 
 .ai-connection-advanced {
@@ -466,7 +474,7 @@ select,
 .ai-connection-test-flow { display: grid; gap: 0.65rem; border-block: 1px solid var(--line); padding-block: 0.85rem; }
 .ai-connection-test-steps { display: flex; flex-wrap: wrap; gap: 0.8rem; color: var(--muted); font-size: 0.7rem; }
 .ai-connection-test-controls { display: grid; grid-template-columns: auto minmax(12rem, 1fr) auto auto; gap: 0.55rem; align-items: center; }
-.ai-connection-test-controls select, .ai-connection-test-controls input { min-height: 2.5rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--surface); padding: 0.4rem 0.65rem; }
+.ai-connection-test-controls select, .ai-connection-test-controls input { min-height: 2.25rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--surface); padding: 0.3rem 0.55rem; }
 .ai-connection-test-flow > p { color: var(--muted); font-size: 0.7rem; }
 
 @media (max-width: 900px) {
@@ -474,6 +482,8 @@ select,
     grid-template-columns: 1fr;
   }
   .ai-connection-test-controls { grid-template-columns: 1fr; }
+  .ai-connection-picker select, .ai-provider-select, .ai-connection-test-controls select, .ai-connection-test-controls input { min-height: 2.75rem; }
+  .ai-provider-select select { min-height: 0; }
 }
 
 .conversation-workspace {
@@ -498,9 +508,6 @@ select,
   min-height: 0;
   overflow: hidden;
 }
-
-.conversation-tree-root-target { display: grid; min-height: 2.5rem; grid-template-columns: 1.25rem minmax(0,1fr); align-items: center; gap: 0.45rem; margin: 0.35rem 0; border: 1px dashed var(--line); border-radius: 0.45rem; padding: 0.45rem 0.55rem; color: var(--muted); font-size: 0.75rem; }
-.conversation-tree-root-target.is-drop-target { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 8%, var(--surface)); color: var(--foreground); }
 
 .conversation-thread-header {
   display: flex;
@@ -659,65 +666,6 @@ select,
   box-shadow: none;
 }
 
-.conversation-model-trigger {
-  display: inline-flex;
-  min-height: 2.25rem;
-  max-width: 13rem;
-  align-items: center;
-  gap: 0.45rem;
-  border-radius: 999px;
-  padding: 0.35rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.conversation-model-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conversation-model-trigger:hover { background: var(--surface-muted); color: var(--foreground); }
-
-.conversation-model-picker {
-  position: absolute;
-  z-index: 55;
-  bottom: calc(100% + 0.5rem);
-  left: 0;
-  display: block;
-  width: min(20rem, calc(100vw - 3rem));
-  max-height: min(35rem, calc(100dvh - 9rem));
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 0.85rem;
-  background: var(--surface);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
-}
-
-.conversation-model-picker > nav { display: grid; align-content: start; gap: 2px; padding: 0.55rem; background: var(--surface-muted); }
-.conversation-model-picker > nav button { display: grid; min-height: 2rem; grid-template-columns: 1.1rem minmax(0,1fr) auto; align-items: center; gap: 0.45rem; border-radius: 0.35rem; padding: 0.2rem 0.45rem; text-align: left; font-size: 0.76rem; }
-.conversation-model-picker > nav button:hover, .conversation-model-picker > nav button.is-selected { background: var(--surface); color: var(--foreground); }
-.conversation-model-drilldown { display: grid; max-height: inherit; grid-template-rows: auto auto minmax(0,1fr) auto; }
-.conversation-model-drilldown > header { display: grid; min-height: 3.25rem; grid-template-columns: 2rem 1.5rem minmax(0,1fr); align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--line); padding: 0.45rem 0.65rem; }
-.conversation-model-back { display: grid; min-height: 2rem; place-items: center; border-radius: 0.4rem; }
-.conversation-model-back:hover { background: var(--surface-muted); }
-.conversation-model-manual { display: grid; gap: 0.35rem; padding: 0.65rem; color: var(--muted); font-size: 0.72rem; }
-.conversation-model-manual input { min-height: 2.3rem; border: 1px solid var(--line); border-radius: 0.4rem; padding: 0.4rem 0.55rem; color: var(--foreground); }
-.conversation-model-list-heading, .conversation-model-list > button { display: grid; grid-template-columns: minmax(0,1fr) 2.5rem 2.75rem 1rem; align-items: center; gap: 0.35rem; }
-.conversation-model-list-heading { padding: 0.35rem 0.65rem; color: var(--muted); font-size: 0.65rem; }
-.conversation-model-list > button { width: 100%; min-height: 2.15rem; padding: 0.3rem 0.65rem; text-align: left; font-size: 0.72rem; }
-.conversation-model-list > button:hover, .conversation-model-list > button.is-selected { background: var(--surface-muted); }
-.conversation-model-name { display: flex; min-width: 0; align-items: center; gap: 0.35rem; }
-.conversation-model-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.conversation-model-info { display: inline-grid; width: 0.9rem; height: 0.9rem; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 0.58rem; }
-.conversation-model-speed { display: flex; align-items: center; gap: 0.4rem; border-top: 1px solid var(--line); padding: 0.55rem 0.65rem; }
-.conversation-model-speed legend { margin-right: auto; color: var(--muted); font-size: 0.68rem; }
-.conversation-model-speed input { position: absolute; opacity: 0; }
-.conversation-model-speed span { display: inline-grid; min-height: 1.8rem; place-items: center; border: 1px solid var(--line); border-radius: 0.4rem; padding: 0.2rem 0.55rem; font-size: 0.68rem; }
-.conversation-model-speed input:checked + span { border-color: var(--foreground); background: var(--foreground); color: var(--surface); }
-.conversation-model-reasoning { display: flex; flex-wrap: wrap; gap: 0.4rem; border-top: 1px solid var(--line); padding: 0.65rem; }
-.conversation-model-reasoning legend { width: 100%; color: var(--muted); font-size: 0.7rem; }
-.conversation-model-reasoning label { cursor: pointer; }
-.conversation-model-reasoning input { position: absolute; opacity: 0; pointer-events: none; }
-.conversation-model-reasoning span { display: inline-grid; min-height: 2rem; place-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 0.25rem 0.7rem; font-size: 0.72rem; }
-.conversation-model-reasoning input:checked + span { border-color: var(--foreground); background: var(--surface-muted); color: var(--foreground); }
-.conversation-model-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; border-top: 1px solid var(--line); padding: 0.65rem; }
-.conversation-model-actions > button:last-child { color: var(--muted); font-size: 0.72rem; }
 .conversation-realtime-panel { position: absolute; right: 1rem; bottom: 5.5rem; z-index: 35; display: grid; width: min(25rem, calc(100% - 2rem)); gap: 0.8rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--surface); padding: 1rem; box-shadow: 0 18px 48px rgb(0 0 0 / 16%); }
 .conversation-realtime-panel header, .conversation-realtime-panel header > div, .conversation-realtime-panel label { display: grid; gap: 0.3rem; }
 .conversation-realtime-panel header { grid-template-columns: minmax(0,1fr) auto; align-items: start; }
@@ -727,15 +675,6 @@ select,
 .conversation-realtime-panel select:focus-visible, .conversation-realtime-panel input:focus-visible { outline: 1px solid #737373; outline-offset: 1px; }
 .conversation-realtime-provider { display: flex; align-items: center; gap: 0.5rem; }
 .conversation-realtime-panel > div:last-child { display: flex; gap: 0.5rem; }
-.conversation-model-profile { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 0.65rem; border-bottom: 1px solid var(--line); padding: 0.2rem 0.25rem 0.65rem; color: var(--muted); font-size: 0.75rem; }
-.conversation-model-profile select { min-width: 0; border: 1px solid var(--line); border-radius: 0.4rem; background: var(--surface); padding: 0.4rem; color: var(--foreground); }
-.conversation-model-profile-name { border-bottom: 1px solid var(--line); padding: 0.25rem 0.25rem 0.65rem; color: var(--muted); font-size: 0.75rem; }
-.conversation-model-list { max-height: 14rem; overflow-y: auto; padding: 0.25rem; }
-.conversation-model-list > button { border-radius: 0.35rem; }
-.conversation-model-list button:hover, .conversation-model-list button.is-selected { background: var(--surface-muted); }
-.conversation-model-list strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; font-weight: 500; }
-.conversation-model-manage { width: 100%; border-top: 1px solid var(--line); padding: 0.65rem 0.4rem 0.15rem; color: var(--muted); text-align: left; font-size: 0.75rem; }
-
 .conversation-inline-inspector { margin: 0 1rem 0.75rem; border-top: 1px solid var(--line); padding: 0.85rem 0.2rem 0; }
 .conversation-inline-inspector > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .conversation-inline-inspector > header span { color: var(--muted); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; }
@@ -782,8 +721,6 @@ select,
 .ui-timer-countdown-options { color: var(--muted); font-size: 0.78rem; text-align: right; }.ui-timer-countdown-options summary { cursor: pointer; }.ui-timer-countdown-options[open] { display: grid; justify-items: end; gap: 0.6rem; }
 
 @media (max-width: 900px) {
-  .conversation-model-picker { position: fixed; inset: auto 0.65rem 5.5rem; width: auto; }
-  .conversation-model-picker > nav button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mcp-settings-layout { grid-template-columns: 1fr; }
   .mcp-server-list, .mcp-server-form { border: 0; border-bottom: 1px solid var(--line); padding: 0.75rem 0; }
   .conversation-inline-fields { grid-template-columns: 1fr; }
@@ -1146,189 +1083,6 @@ select,
   padding: 0.25rem 0.65rem;
   color: var(--muted);
   font-size: 0.78rem;
-}
-
-.conversation-tree {
-  margin-top: 1.25rem;
-}
-
-.conversation-tree-heading,
-.conversation-tree-folder-row,
-.conversation-tree-chat {
-  display: grid;
-  align-items: center;
-}
-
-.conversation-tree-heading {
-  grid-template-columns: 1fr auto;
-  padding: 0 0.6rem 0.4rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.conversation-tree-heading button,
-.conversation-tree-folder-row > button:first-child,
-.conversation-tree-folder-row > button:last-child,
-.conversation-tree-chat > button:last-child {
-  display: grid;
-  min-height: 1.8rem;
-  min-width: 1.8rem;
-  place-items: center;
-  border-radius: 0.4rem;
-  color: var(--muted);
-}
-
-.conversation-tree-heading button:hover,
-.conversation-tree-folder-row button:hover,
-.conversation-tree-chat button:hover {
-  background: var(--chrome-hover);
-  color: var(--foreground);
-}
-
-.conversation-tree-folder-row {
-  grid-template-columns: 1.8rem minmax(0, 1fr) 1.8rem;
-  border-radius: 0.45rem;
-}
-
-.conversation-tree-folder-row.is-drop-target,
-.conversation-tree-root.is-drop-target {
-  outline: 1px solid var(--blue);
-  background: color-mix(in srgb, var(--blue) 9%, transparent);
-}
-
-.conversation-tree-folder-label,
-.conversation-tree-chat-label {
-  display: grid;
-  min-height: 2rem;
-  min-width: 0;
-  grid-template-columns: 1rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.45rem;
-  text-align: left;
-  font-size: 0.8rem;
-  touch-action: none;
-}
-
-.conversation-tree-folder-label small {
-  color: var(--muted);
-}
-
-.conversation-tree-chat {
-  grid-template-columns: minmax(0, 1fr) 1.8rem;
-  border-radius: 0.45rem;
-  padding-left: 1.5rem;
-}
-
-/* 根对话属于根层内容而非根文件夹标题，需再缩进一个图标位。 */
-[data-drop-root] > .conversation-tree-chat {
-  padding-left: 3.3rem;
-}
-
-.conversation-tree-chat.is-active {
-  background: var(--chrome-selected);
-}
-
-.conversation-tree-chat-label {
-  grid-template-columns: 1rem minmax(0, 1fr);
-}
-
-.conversation-tree-inline-rename { min-width: 0; min-height: 1.8rem; border: 1px solid var(--blue); border-radius: 0.35rem; background: var(--surface); padding: 0.2rem 0.45rem; font-size: 0.78rem; outline: none; }
-
-.conversation-tree-drag-overlay { display: flex; max-width: 16rem; align-items: center; gap: 0.5rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--surface); padding: 0.45rem 0.65rem; color: var(--foreground); box-shadow: 0 10px 30px rgb(0 0 0 / 14%); font-size: 0.78rem; }
-.conversation-tree-drag-overlay span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.conversation-tree-create {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 0.3rem;
-  padding: 0 0.3rem 0.45rem;
-}
-
-.conversation-tree-create input,
-.conversation-tree-drawer input,
-.conversation-tree-drawer select {
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.45rem;
-  background: var(--surface);
-  padding: 0.35rem 0.5rem;
-}
-
-.conversation-tree-create button,
-.conversation-tree-drawer section > button {
-  border-radius: 0.45rem;
-  padding: 0.35rem 0.55rem;
-}
-
-.conversation-tree-empty {
-  padding: 0.35rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.conversation-tree-drawer {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: grid;
-  align-items: end;
-}
-
-.conversation-tree-drawer-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(10, 14, 23, 0.5);
-}
-
-.conversation-tree-drawer section {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  width: min(26rem, 100%);
-  justify-self: center;
-  gap: 0.65rem;
-  border: 1px solid var(--line);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--surface);
-  padding: 1rem;
-  box-shadow: 0 -20px 55px rgba(0, 0, 0, 0.3);
-}
-
-.conversation-tree-drawer-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.conversation-tree-drawer label {
-  display: grid;
-  gap: 0.3rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.conversation-tree-drawer .is-danger {
-  color: var(--red);
-}
-
-@media (min-width: 1024px) {
-  .conversation-tree-drawer {
-    align-items: center;
-    justify-items: center;
-  }
-
-  .conversation-tree-drawer section {
-    border-radius: 1rem;
-  }
-}
-
-/* 桌面右键菜单必须放在基础抽屉规则之后，避免 position 被移动端样式覆盖。 */
-@media (min-width: 701px) {
-  .conversation-tree-drawer > section { position: fixed; right: auto; bottom: auto; width: 11.5rem; border: 1px solid var(--line); border-radius: 0.55rem; padding: 0.35rem; box-shadow: 0 12px 32px rgb(0 0 0 / 16%); }
-  .conversation-tree-drawer-backdrop { background: transparent; }
-  .conversation-tree-drawer-title { display: none; }
-  .conversation-tree-drawer > section > button, .conversation-tree-drawer > section > label { min-height: 2rem; }
 }
 
 .conversation-send {

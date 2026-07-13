@@ -1,4 +1,6 @@
-import type { AiCapability, AiConnectionPurpose, ApiProvider } from "../types/review";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
+import type { ApiProvider } from "../types/domains/ai-provider";
+import type { AiCapability, AiConnectionPurpose } from "../types/review";
 import { emitAiActivity } from "./ai-activity-events.ts";
 
 export type ChatMessageContent =
@@ -23,6 +25,8 @@ export type AiGenerateRequest = {
   stream?: boolean;
   temperature?: number;
   structuredOutput?: { name: string; schema: Record<string, unknown>; strict?: boolean };
+  /** 归一化运行值由服务端厂商 mapper 转换，浏览器不发送厂商字段名。 */
+  runtime?: AiSelectedRuntimeValues;
   providerOptions?: Record<string, string>;
   activity?: {
     runId?: string;
@@ -39,13 +43,15 @@ export type AiGenerateResult = {
   content: string;
   requestId?: string;
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  /** 厂商响应确认的实际服务档位或速度，可能与请求档位不同。 */
+  actualSpeed?: string;
 };
 
 export type AiGenerateStreamEvent =
   | { type: "status"; message: string }
   | { type: "delta"; text: string }
-  | { type: "usage"; requestId?: string; usage?: AiGenerateResult["usage"] }
-  | { type: "done"; content: string; requestId?: string; usage?: AiGenerateResult["usage"] }
+  | { type: "usage"; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
+  | { type: "done"; content: string; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
   | { type: "error"; message: string };
 
 export type AiSpeechRequest = {
