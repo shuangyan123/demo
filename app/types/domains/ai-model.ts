@@ -11,6 +11,31 @@ export type AiModelRuntimeOption = {
   tooltip?: string;
 };
 
+/** 可输入的自定义推理预算闭区间。 */
+export type AiModelRuntimeCustomRange = {
+  min: number;
+  max: number;
+};
+
+/** 预设档位型推理能力；此分支不接受任意数值。 */
+type AiModelPresetReasoningDescriptor = {
+  kind: "effort" | "toggle" | "adaptive" | "fixed";
+  options: AiModelRuntimeOption[];
+  defaultValue: AiModelRuntimeValue;
+  customRange?: never;
+};
+
+/** 预算型推理能力；预设哨兵值与自定义整数范围分别校验。 */
+type AiModelBudgetReasoningDescriptor = {
+  kind: "budget";
+  options: AiModelRuntimeOption[];
+  defaultValue: number;
+  customRange: AiModelRuntimeCustomRange;
+};
+
+/** 按 kind 判别的模型推理运行能力。 */
+export type AiModelReasoningDescriptor = AiModelPresetReasoningDescriptor | AiModelBudgetReasoningDescriptor;
+
 /**
  * 具体模型的已核验运行能力。
  * 未命中 descriptor 的在线或手动模型不得通过名称推断能力。
@@ -18,11 +43,7 @@ export type AiModelRuntimeOption = {
 export type AiModelRuntimeDescriptor = {
   provider: ApiProvider;
   modelId: string;
-  reasoning?: {
-    kind: "effort" | "toggle" | "adaptive" | "budget" | "fixed";
-    options: AiModelRuntimeOption[];
-    defaultValue: AiModelRuntimeValue;
-  };
+  reasoning?: AiModelReasoningDescriptor;
   speed?: {
     kind: "service_tier" | "fast_mode" | "paired_model";
     options: Array<Omit<AiModelRuntimeOption, "value"> & { value: string }>;

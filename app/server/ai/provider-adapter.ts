@@ -126,7 +126,7 @@ function buildAnthropicRequest(input: AiGenerateRequest): ProviderHttpRequest {
     headers: { "x-api-key": input.apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json", ...runtime.headers },
     body: {
       model: input.model,
-      max_tokens: input.maxOutputTokens ?? 1024,
+      max_tokens: runtime.effectiveMaxOutputTokens ?? input.maxOutputTokens ?? 1024,
       system: system || undefined,
       messages: conversation.map((message) => ({ role: message.role, content: toAnthropicContent(message.content) })),
       ...(input.stream ? { stream: true } : {}),

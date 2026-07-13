@@ -9,11 +9,13 @@ export const mapAnthropicRuntimeOptions: ProviderRuntimeMapper = (input) => {
   const requestFields: Record<string, unknown> = {};
   const outputFields: Record<string, unknown> = {};
   const headers: Record<string, string> = {};
+  let effectiveMaxOutputTokens: number | undefined;
   if (reasoning?.kind === "adaptive" && typeof values.reasoning === "string") {
     requestFields.thinking = { type: "adaptive" };
     outputFields.effort = values.reasoning;
   } else if (reasoning?.kind === "budget" && typeof values.reasoning === "number") {
     requestFields.thinking = { type: "enabled", budget_tokens: values.reasoning };
+    effectiveMaxOutputTokens = values.reasoning + (input.maxOutputTokens ?? 1024);
   }
   if (values.speed === "fast") {
     requestFields.speed = "fast";
@@ -24,5 +26,6 @@ export const mapAnthropicRuntimeOptions: ProviderRuntimeMapper = (input) => {
     outputFields,
     headers,
     omitTemperature: reasoning?.kind === "adaptive" || reasoning?.kind === "budget",
+    effectiveMaxOutputTokens,
   };
 };

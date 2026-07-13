@@ -7,6 +7,8 @@ export type ProviderRuntimeRequestMapping = {
   outputFields?: Record<string, unknown>;
   headers?: Record<string, string>;
   omitTemperature?: boolean;
+  /** Claude 扩展思考需要把思考预算计入厂商的 max_tokens 上限。 */
+  effectiveMaxOutputTokens?: number;
 };
 
 export type ProviderRuntimeMapper = (input: AiGenerateRequest) => ProviderRuntimeRequestMapping;

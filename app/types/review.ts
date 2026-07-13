@@ -1,7 +1,14 @@
 import type { ApiProvider } from "./domains/ai-provider";
 
 export type { ApiProvider } from "./domains/ai-provider";
-export type { AiModelRuntimeDescriptor, AiModelRuntimeOption, AiModelRuntimeValue, AiSelectedRuntimeValues } from "./domains/ai-model";
+export type {
+  AiModelReasoningDescriptor,
+  AiModelRuntimeCustomRange,
+  AiModelRuntimeDescriptor,
+  AiModelRuntimeOption,
+  AiModelRuntimeValue,
+  AiSelectedRuntimeValues,
+} from "./domains/ai-model";
 
 export const BOARD_OPTIONS = ["政治理论", "常识判断", "言语理解与表达", "数量关系", "判断推理", "资料分析"] as const;
 

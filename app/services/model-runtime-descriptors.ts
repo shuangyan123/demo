@@ -76,17 +76,39 @@ const geminiDescriptors: AiModelRuntimeDescriptor[] = [
   descriptor({
     provider: "google",
     modelId: "gemini-2.5-pro",
-    reasoning: { kind: "budget", options: [{ id: "dynamic", label: "动态", value: -1 }, { id: "8192", label: "8K", value: 8192 }], defaultValue: -1 },
+    reasoning: {
+      kind: "budget",
+      options: [{ id: "dynamic", label: "动态", value: -1 }, { id: "8192", label: "8K", value: 8192 }],
+      defaultValue: -1,
+      customRange: { min: 128, max: 32768 },
+    },
     speed: { kind: "service_tier", options: serviceTierOptions, defaultValue: "standard" },
     documentationUrl: GEMINI_THINKING_URL,
   }),
-  ...["gemini-2.5-flash", "gemini-2.5-flash-lite"].map((modelId) => descriptor({
-    provider: "google" as const,
-    modelId,
-    reasoning: { kind: "budget" as const, options: [{ id: "dynamic", label: "动态", value: -1 }, { id: "disabled", label: "关闭", value: 0 }, { id: "8192", label: "8K", value: 8192 }], defaultValue: modelId.endsWith("lite") ? 0 : -1 },
-    speed: { kind: "service_tier" as const, options: serviceTierOptions, defaultValue: "standard" },
+  descriptor({
+    provider: "google",
+    modelId: "gemini-2.5-flash",
+    reasoning: {
+      kind: "budget",
+      options: [{ id: "dynamic", label: "动态", value: -1 }, { id: "disabled", label: "关闭", value: 0 }, { id: "8192", label: "8K", value: 8192 }],
+      defaultValue: -1,
+      customRange: { min: 0, max: 24576 },
+    },
+    speed: { kind: "service_tier", options: serviceTierOptions, defaultValue: "standard" },
     documentationUrl: GEMINI_THINKING_URL,
-  })),
+  }),
+  descriptor({
+    provider: "google",
+    modelId: "gemini-2.5-flash-lite",
+    reasoning: {
+      kind: "budget",
+      options: [{ id: "dynamic", label: "动态", value: -1 }, { id: "disabled", label: "关闭", value: 0 }, { id: "8192", label: "8K", value: 8192 }],
+      defaultValue: 0,
+      customRange: { min: 512, max: 24576 },
+    },
+    speed: { kind: "service_tier", options: serviceTierOptions, defaultValue: "standard" },
+    documentationUrl: GEMINI_THINKING_URL,
+  }),
 ];
 geminiDescriptors.forEach(register);
 
@@ -103,7 +125,12 @@ for (const modelId of ["claude-fable-5", "claude-sonnet-5", "claude-opus-4-8"]) 
 register(descriptor({
   provider: "anthropic",
   modelId: "claude-haiku-4-5",
-  reasoning: { kind: "budget", options: [{ id: "1024", label: "1K", value: 1024 }, { id: "8192", label: "8K", value: 8192 }, { id: "16000", label: "16K", value: 16000 }], defaultValue: 8192 },
+  reasoning: {
+    kind: "budget",
+    options: [{ id: "1024", label: "1K", value: 1024 }, { id: "8192", label: "8K", value: 8192 }, { id: "16000", label: "16K", value: 16000 }],
+    defaultValue: 1024,
+    customRange: { min: 1024, max: 32000 },
+  },
   documentationUrl: "https://platform.claude.com/docs/en/build-with-claude/extended-thinking",
 }));
 
@@ -152,43 +179,49 @@ const glmSevenOptions: AiModelRuntimeOption[] = [
   { id: "none", label: "none", value: "none", tooltip: "不思考，直接回答" },
 ];
 
-/** 解析 GLM 官方版本门槛；仅用于 5.2+ 七档与 4.5–5.1 开关规则。 */
-function glmVersion(modelId: string): { major: number; minor: number } | undefined {
-  const normalized = modelId.trim().toLowerCase();
-  if (!normalized.startsWith("glm-")) return undefined;
-  const version = normalized.slice(4).split(/[^0-9.]/, 1)[0];
-  const [majorText, minorText = "0"] = version.split(".");
-  const major = Number(majorText);
-  const minor = Number(minorText);
-  return Number.isFinite(major) && Number.isFinite(minor) ? { major, minor } : undefined;
-}
+register(descriptor({
+  provider: "zhipu",
+  modelId: "glm-5.2",
+  reasoning: { kind: "effort", options: glmSevenOptions, defaultValue: "max" },
+  documentationUrl: GLM_THINKING_URL,
+}));
 
-function glmDescriptor(modelId: string): AiModelRuntimeDescriptor | undefined {
-  const version = glmVersion(modelId);
-  if (!version) return undefined;
-  if (version.major > 5 || (version.major === 5 && version.minor >= 2)) {
-    return descriptor({ provider: "zhipu", modelId, reasoning: { kind: "effort", options: glmSevenOptions, defaultValue: "max" }, documentationUrl: GLM_THINKING_URL });
-  }
-  if (version.major === 5 || (version.major === 4 && version.minor >= 5)) {
-    return descriptor({ provider: "zhipu", modelId, reasoning: { kind: "toggle", options: [{ id: "enabled", label: "开启", value: "enabled" }, { id: "disabled", label: "关闭", value: "disabled" }], defaultValue: "enabled" }, documentationUrl: GLM_THINKING_URL });
-  }
-  return undefined;
+/** GLM 运行能力只登记官方已核验模型，未来型号不得依赖版本字符串自动继承。 */
+for (const modelId of ["glm-5.1", "glm-5", "glm-5-turbo", "glm-5v-turbo", "glm-4.7", "glm-4.6", "glm-4.6v", "glm-4.5", "glm-4.5v"]) {
+  register(descriptor({
+    provider: "zhipu",
+    modelId,
+    reasoning: { kind: "toggle", options: [{ id: "enabled", label: "开启", value: "enabled" }, { id: "disabled", label: "关闭", value: "disabled" }], defaultValue: "enabled" },
+    documentationUrl: GLM_THINKING_URL,
+  }));
 }
 
 /** 返回具体模型的运行 descriptor；未知模型明确返回 undefined。 */
 export function getAiModelRuntimeDescriptor(provider: ApiProvider, modelId: string): AiModelRuntimeDescriptor | undefined {
-  return descriptors.get(descriptorKey(provider, modelId)) ?? (provider === "zhipu" ? glmDescriptor(modelId) : undefined);
+  return descriptors.get(descriptorKey(provider, modelId));
 }
 
 function includesValue(options: AiModelRuntimeOption[], value: AiModelRuntimeValue | undefined): value is AiModelRuntimeValue {
   return value !== undefined && options.some((option) => option.value === value);
 }
 
+/** 预算值先匹配动态/关闭等显式哨兵，再接受自定义范围内的整数。 */
+function supportsReasoningValue(descriptorValue: AiModelRuntimeDescriptor, value: AiModelRuntimeValue | undefined): value is AiModelRuntimeValue {
+  const reasoning = descriptorValue.reasoning;
+  if (!reasoning || value === undefined) return false;
+  if (includesValue(reasoning.options, value)) return true;
+  return reasoning.kind === "budget"
+    && typeof value === "number"
+    && Number.isInteger(value)
+    && value >= reasoning.customRange.min
+    && value <= reasoning.customRange.max;
+}
+
 /** 保留新模型仍支持的值；不支持或缺失时回退到 descriptor 默认值。 */
 export function normalizeAiSelectedRuntimeValues(descriptorValue: AiModelRuntimeDescriptor | undefined, current?: AiSelectedRuntimeValues): AiSelectedRuntimeValues {
   if (!descriptorValue) return {};
   return {
-    ...(descriptorValue.reasoning ? { reasoning: includesValue(descriptorValue.reasoning.options, current?.reasoning) ? current.reasoning : descriptorValue.reasoning.defaultValue } : {}),
+    ...(descriptorValue.reasoning ? { reasoning: supportsReasoningValue(descriptorValue, current?.reasoning) ? current.reasoning : descriptorValue.reasoning.defaultValue } : {}),
     ...(descriptorValue.speed ? { speed: includesValue(descriptorValue.speed.options, current?.speed) ? current.speed : descriptorValue.speed.defaultValue } : {}),
   };
 }
@@ -201,11 +234,8 @@ export function legacyRuntimeValues(reasoningEffort?: string, speedMode?: "stand
 
 /** Gemini 2.5 与旧 Claude 的自定义预算范围由具体模型核验。 */
 export function getReasoningBudgetRange(provider: ApiProvider, modelId: string): { min: number; max: number } | undefined {
-  const key = descriptorKey(provider, modelId);
-  if (key === "google:gemini-2.5-pro") return { min: 128, max: 32768 };
-  if (key === "google:gemini-2.5-flash" || key === "google:gemini-2.5-flash-lite") return { min: 0, max: 24576 };
-  if (key === "anthropic:claude-haiku-4-5") return { min: 1024, max: 32000 };
-  return undefined;
+  const reasoning = getAiModelRuntimeDescriptor(provider, modelId)?.reasoning;
+  return reasoning?.kind === "budget" ? { ...reasoning.customRange } : undefined;
 }
 
 /** MiniMax 高速档通过同代配对模型实现，不伪装成请求级 service tier。 */

@@ -57,6 +57,7 @@ export function useReviewConversationController(input: UseReviewConversationCont
     onSwitchView("conversation");
   }, [onSwitchView]);
   const openConversation = useCallback((id: string) => { setLaunchContext(null); setActiveConversationId(id); onSwitchView("conversation"); }, [onSwitchView]);
+  /** 只创建并刷新首条消息对应会话；激活时机由运行中的 Workspace 在请求结束后决定，避免流式界面被 key 重挂载。 */
   const createForFirstMessage = useCallback(async (value?: { selectedConnectionId?: string; selectedModelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues }): Promise<AiConversation> => {
     const conversation = await conversationRepository.createConversation({
       today,
@@ -77,8 +78,6 @@ export function useReviewConversationController(input: UseReviewConversationCont
       });
     }
     await refresh();
-    setActiveConversationId(conversation.id);
-    setLaunchContext(null);
     return conversation;
   }, [launchContext, refresh, today]);
   const selectResult = useCallback(async (result: CommandSearchResult) => {
