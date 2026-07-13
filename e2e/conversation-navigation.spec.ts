@@ -67,6 +67,9 @@ async function pointerDrag(page: Page, sourceSelector: string, targetSelector: s
   await page.mouse.move(end.x, end.y);
   await page.waitForTimeout(150);
   await page.mouse.up();
+  // 连续拖拽前等待上一轮 DndContext 与 React 状态完整收尾，避免新的 pointerdown 被旧 active drag 吞掉。
+  await expect(page.locator(".conversation-tree-drag-overlay")).toHaveCount(0);
+  await expect(page.locator("[data-drop-root-target]")).toHaveCount(0);
 }
 
 test("公考默认折叠，新对话保持草稿且普通文本不显示 caret", async ({ page }) => {

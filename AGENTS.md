@@ -134,7 +134,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 公考内部的模块和板块筛选必须使用独立原生 disclosure，默认折叠且不持久化；测试应直接断言各层 `open` 状态，不能依赖空数据库下不存在的板块按钮。
 - 产品功能图标统一通过 `AppIcon` 使用 Lucide；AI 品牌只能通过 `ProviderIcon` 与集中注册表渲染，禁止恢复 Unicode 占位或重复内联 SVG。
 - 对话拖拽统一使用 dnd-kit Pointer/Touch/Keyboard sensors，名称区域作为拖拽表面并保留 6px 激活距离；repository 继续校验跨项目、自身与非法子孙嵌套。
-- 指针拖拽 E2E 必须先通过 locator hover 完成 actionability，pointerdown 后留出事件循环并发送多次移动；等待 `DragOverlay` 后再查找动态根目录目标。
+- 指针拖拽 E2E 必须先通过 locator hover 完成 actionability，pointerdown 后留出事件循环并发送多次移动；等待 `DragOverlay` 后再查找根目标，pointerup 后等待拖拽态完整卸载再继续。
 - 只有 `modelListStrategy === official_api` 的连接允许后台刷新模型目录；自定义与手动目录不得在保存后额外请求模型服务。
 - structured output 由统一请求契约进入 provider adapter；知识演进固定使用对象包络并兼容历史数组，空响应/解析失败/全部过滤最多修复重试一次。
 - rejected 知识演进提案不再消费来源；pending 与 accepted 仍需排除，避免重复待确认或已确认提案。
