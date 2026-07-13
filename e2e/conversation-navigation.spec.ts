@@ -52,7 +52,10 @@ async function pointerDrag(page: Page, sourceSelector: string, targetSelector: s
   const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(start.x + 10, start.y, { steps: 4 });
+  // 分两段越过 6px 激活阈值，并先等待真实 DragOverlay，避免慢速 CI 在 React 提交前寻找动态根目录目标。
+  await page.mouse.move(start.x + 4, start.y + 2, { steps: 2 });
+  await page.mouse.move(start.x + 16, start.y + 4, { steps: 8 });
+  await expect(page.locator(".conversation-tree-drag-overlay").first()).toBeVisible();
   const target = page.locator(targetSelector);
   await expect(target).toBeVisible();
   const targetBox = await target.boundingBox();
