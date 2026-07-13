@@ -9,7 +9,7 @@
 - 新增具体模型 `AiModelRuntimeDescriptor`、`selectedRuntimeValues` 兼容读取与七家独立 runtime mapper；未知模型不再通过正则猜测能力。
 - GLM-5.2+ 完整支持 `max/xhigh/high/medium/low/minimal/none` 并默认 `max`，旧 GLM 只保留思考开关；OpenAI/Gemini/xAI Priority、Claude Fast 和 MiniMax 配对高速模型分别按官方协议映射。
 - provider 返回的实际 service tier/Fast 状态归一化为 `actualSpeed`，时间线只保存所选与实际档位；新增本地 Responses mock E2E 和运行参数/目录缓存契约回归。
-- 稳定 dnd-kit 指针回归：测试先明确进入 `DragOverlay`，再定位拖拽期间动态出现的根目录目标，消除慢速 CI 上的激活阈值竞态。
+- 稳定 dnd-kit 指针回归：按 Playwright 手动拖拽序列完成 hover、pointerdown 等待和重复移动，确认进入 `DragOverlay` 后再定位动态根目录目标。
 
 ## 2026-07-12
 

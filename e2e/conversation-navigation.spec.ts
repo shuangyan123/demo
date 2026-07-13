@@ -50,11 +50,13 @@ async function pointerDrag(page: Page, sourceSelector: string, targetSelector: s
   const sourceBox = await source.boundingBox();
   if (!sourceBox) throw new Error("拖拽源没有可见边界");
   const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
-  await page.mouse.move(start.x, start.y);
+  await source.hover({ position: { x: sourceBox.width / 2, y: sourceBox.height / 2 } });
   await page.mouse.down();
-  // 分两段越过 6px 激活阈值，并先等待真实 DragOverlay，避免慢速 CI 在 React 提交前寻找动态根目录目标。
-  await page.mouse.move(start.x + 4, start.y + 2, { steps: 2 });
-  await page.mouse.move(start.x + 16, start.y + 4, { steps: 8 });
+  // 给 PointerSensor 一次事件循环安装 document 监听，再按 Playwright 建议用多次移动越过 6px 激活阈值。
+  await page.waitForTimeout(100);
+  await page.mouse.move(start.x + 8, start.y + 3, { steps: 4 });
+  await page.mouse.move(start.x + 18, start.y + 5, { steps: 6 });
+  await page.mouse.move(start.x + 18, start.y + 5);
   await expect(page.locator(".conversation-tree-drag-overlay").first()).toBeVisible();
   const target = page.locator(targetSelector);
   await expect(target).toBeVisible();
@@ -62,6 +64,7 @@ async function pointerDrag(page: Page, sourceSelector: string, targetSelector: s
   if (!targetBox) throw new Error("拖拽目标没有可见边界");
   const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
   await page.mouse.move(end.x, end.y, { steps: 20 });
+  await page.mouse.move(end.x, end.y);
   await page.waitForTimeout(150);
   await page.mouse.up();
 }
