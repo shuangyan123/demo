@@ -14,7 +14,6 @@ const PersonalizationSettingsView = dynamic(() => import("./personalization-sett
 const AiQuotaSettingsPanel = dynamic(() => import("./plugins/quota/ai-quota-settings-panel").then((module) => module.AiQuotaSettingsPanel));
 
 export type SettingsSectionKey = "appearance" | "configuration" | "personalization" | "quota" | "mcp" | "diagnostics";
-type LegacySettingsSectionKey = SettingsSectionKey | "roles";
 
 const settingsSections = [
   { key: "appearance", label: "外观", icon: "appearance" },
@@ -26,9 +25,9 @@ const settingsSections = [
 ] satisfies Array<{ key: SettingsSectionKey; label: string; icon: SettingsIconName }>;
 
 type SettingsWorkspaceProps = {
+  activeSection: SettingsSectionKey;
   appearanceSettings: AppearanceSettings;
   diagnosticsInput: LocalDiagnosticsHookInput;
-  initialSection?: LegacySettingsSectionKey;
   sidebarCollapsed: boolean;
   onAppearanceChange: (settings: AppearanceSettings) => void;
   onBack: () => void;
@@ -36,14 +35,15 @@ type SettingsWorkspaceProps = {
   onConfigurationChanged?: () => void;
   onOpenDiagnosticsTarget: (action: Exclude<LocalDiagnosticAction, "ai-connections">) => void;
   onPersonalizationChange?: (settings: PersonalizationSettings) => void;
+  onSectionChange: (section: SettingsSectionKey) => void;
   onToggleSidebar: () => void;
 };
 
 // 设置壳层只负责全局导航和分区切换，各分区的表单与数据状态由独立组件维护。
 export function SettingsWorkspace({
+  activeSection,
   appearanceSettings,
   diagnosticsInput,
-  initialSection = "appearance",
   sidebarCollapsed,
   onAppearanceChange,
   onBack,
@@ -51,17 +51,11 @@ export function SettingsWorkspace({
   onConfigurationChanged,
   onOpenDiagnosticsTarget,
   onPersonalizationChange,
+  onSectionChange,
   onToggleSidebar,
 }: SettingsWorkspaceProps) {
-  const normalizeSection = (section: LegacySettingsSectionKey): SettingsSectionKey => section === "roles" ? "personalization" : section;
-  const [activeSection, setActiveSection] = useState<SettingsSectionKey>(() => normalizeSection(initialSection));
   const [toast, setToast] = useState("");
   const { diagnostics, refresh: refreshDiagnostics, refreshing: diagnosticsRefreshing } = useLocalDiagnostics(diagnosticsInput);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setActiveSection(normalizeSection(initialSection)), 0);
-    return () => window.clearTimeout(timer);
-  }, [initialSection]);
 
   useEffect(() => {
     if (!toast) return;
@@ -77,7 +71,7 @@ export function SettingsWorkspace({
       return <ApiConnectionsSettingsView onChanged={onConfigurationChanged} />;
     }
     if (activeSection === "personalization") {
-      return <PersonalizationSettingsView onChanged={onPersonalizationChange} onOpenConnections={() => setActiveSection("configuration")} />;
+      return <PersonalizationSettingsView onChanged={onPersonalizationChange} onOpenConnections={() => onSectionChange("configuration")} />;
     }
     if (activeSection === "quota") {
       return <AiQuotaSettingsPanel />;
@@ -92,7 +86,7 @@ export function SettingsWorkspace({
         refreshing={diagnosticsRefreshing}
         onAction={(action) => {
           if (action === "ai-connections") {
-            setActiveSection("configuration");
+            onSectionChange("configuration");
             return;
           }
           onOpenDiagnosticsTarget(action);
@@ -120,12 +114,12 @@ export function SettingsWorkspace({
             activeKey={activeSection}
             items={settingsSections}
             renderIcon={(icon) => <SettingsNavIcon name={icon as SettingsIconName} />}
-            onSelect={setActiveSection}
+            onSelect={onSectionChange}
           />
         </>
       }
     >
-      <div key={activeSection} className="settings-section-enter mx-auto max-w-6xl">{renderSection()}</div>
+      <div key={activeSection} className="settings-section-enter settings-section-layout">{renderSection()}</div>
       <AiActivityPanel />
       {toast ? <div className="ui-toast fixed left-1/2 top-14 z-50 -translate-x-1/2 border border-line bg-surface px-4 py-2 text-sm">{toast}</div> : null}
     </WorkspaceShell>

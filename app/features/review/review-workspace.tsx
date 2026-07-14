@@ -259,7 +259,8 @@ export function ReviewWorkspace() {
     openDiagnosticsTarget,
     openMcpSettings,
     resetSettingsSection,
-    settingsInitialSection,
+    setSettingsSection,
+    settingsSection,
   } = useReviewWorkspaceRecoveryNavigation({ setNotice, switchView });
   const {
     activeConversationId,
@@ -762,9 +763,9 @@ export function ReviewWorkspace() {
   if (view === "settings") {
     return (
       <SettingsWorkspace
+        activeSection={settingsSection}
         appearanceSettings={appearanceSettings}
         diagnosticsInput={diagnosticsInput}
-        initialSection={settingsInitialSection}
         sidebarCollapsed={sidebarCollapsed}
         onAppearanceChange={updateAppearanceSettings}
         onBack={() => {
@@ -778,6 +779,7 @@ export function ReviewWorkspace() {
         }}
         onOpenDiagnosticsTarget={openDiagnosticsTarget}
         onPersonalizationChange={personalization.setSettings}
+        onSectionChange={setSettingsSection}
         onToggleSidebar={toggleSidebar}
       />
     );
