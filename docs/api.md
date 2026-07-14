@@ -1,5 +1,15 @@
 # API 约定
 
+## 额度验证与刷新（2026-07-14）
+
+`POST /api/ai/quota` 接收 `{ action, provider, credentials, period?, monthlyBudget? }`。`action` 为 `validate | refresh`；旧 OpenAI `{ apiKey }` 请求继续按刷新兼容。响应只包含归一化验证结果或 `AiQuotaMetric[]`，不返回凭据和厂商原始响应。
+
+- OpenAI 使用 Admin Key 查询 Costs/Usage；剩余额度仅可由本地预算估算。
+- Anthropic 使用 Admin Key 查询组织、usage report 与 cost report。
+- DeepSeek 使用普通 API Key 查询 `/user/balance`，不生成历史消耗。
+- xAI 使用 Management Key 验证并查询 Team 余额与用量；无法推导 Team ID 时返回明确错误。
+- Gemini、MiniMax、GLM 仅提供官方控制台与手动记录，不抓取网页后台。
+
 ## 七厂商适配器注册表（2026-07-12）
 
 - `/api/ai/generate` 通过 `ProviderAdapter` 统一调用生成、解析与流式解析方法；路由不读取厂商私有响应字段。

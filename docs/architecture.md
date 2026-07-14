@@ -1,5 +1,12 @@
 # 应用架构
 
+## 设置、模型菜单与额度边界（2026-07-14）
+
+- 设置导航固定为外观、AI 连接、角色、额度、MCP、诊断；角色与额度使用模块顶层 `next/dynamic`，旧 `personalization` 入口只在导航边界归一化为 `roles`。
+- 模型菜单外壳不滚动，当前层由独立 viewport 承担真实溢出；换层同步清零滚动位置并通过 `ResizeObserver` 决定是否启用滚动。tooltip 使用单例 intent，程序化聚焦和触屏不创建可视浮层。
+- 额度领域类型位于 `types/domains/ai-quota.ts`。浏览器 repository 逐项加密管理凭据，服务端 `quota-adapters.ts` 负责 OpenAI、Anthropic、DeepSeek、xAI 的官方只读 API 和统一错误分类。
+- AI 连接只保存推理凭据；额度管理凭据、Team ID、本地预算和指标单独保存。Dexie 保持 `review_workspace` v16，旧单密钥与旧快照只在读取边界兼容转换。
+
 ## 对话拖拽与厂商适配器边界（2026-07-12）
 
 - `ConversationFolderTree` 在自身 Client Component 边界内持有 `DndContext`、Pointer/Touch/Keyboard sensors 与拖拽覆盖层；`ReviewWorkspace` 不接触拖拽状态。

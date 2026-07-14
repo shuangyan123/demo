@@ -4,6 +4,19 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## 设置与额度验收约定
+
+- 设置导航固定为“外观、AI 连接、角色、额度、MCP、诊断”；旧 `personalization` 只在入口边界归一化，持久化结构和 Dexie v16 不变。
+- 模型 tooltip 的可视层只响应 450ms 鼠标停留或用户键盘导航；程序化聚焦与触屏不得显示浮层。菜单外壳不滚动，当前层仅在真实溢出后启用内部滚动。
+- 额度凭据与普通推理 Key 分离并逐项加密。OpenAI、Anthropic、DeepSeek、xAI 只调用官方只读管理/费用/余额接口；Gemini、MiniMax、GLM 只显示控制台与手动记录。
+- 厂商品牌登记必须包含来源、核验日期和许可说明；官方限制第三方 Logo 时使用文字缩写，禁止无授权复制。
+
+## 2026-07-14 设置架构约定
+
+- 设置导航固定为外观、AI 连接、角色、额度、MCP、诊断；额度不得回到 AI 连接详情或插件目录。
+- 模型 tooltip 只在鼠标停留或用户键盘导航后可见；程序化焦点与触屏保持静默，但必须保留 `aria-describedby`。
+- 额度只调用官方只读管理、费用或余额接口；真实 smoke 必须显式启用且绝不记录数值、密钥或原始响应。
+
 ## 架构边界约定
 
 - 错题、知识和薄弱分析使用统一学习数据浏览器与单一筛选作用域；侧栏不得恢复重复板块筛选。
