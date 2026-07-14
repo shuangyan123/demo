@@ -1,7 +1,7 @@
-import type { AiQuotaFetchStrategy, AiQuotaProviderDescriptor, AiQuotaSnapshot, AiQuotaSourceMode, ApiProvider } from "../types/review";
+import type { AiQuotaCredentialKey, AiQuotaFetchStrategy, AiQuotaProviderDescriptor, AiQuotaSnapshot, AiQuotaSourceMode, ApiProvider } from "../types/review";
 
 export type AiQuotaCredentialField = {
-  key: "apiKey";
+  key: AiQuotaCredentialKey;
   label: string;
   secret: boolean;
   required: boolean;
@@ -81,6 +81,14 @@ function makeStrategy(input: {
 }
 
 const unsupportedMessage = "该厂商额度插件已预留；未确认稳定官方账单 API 前，不抓取网页后台，也不伪造实时余额。";
+const quotaDocumentationUrls: Partial<Record<ApiProvider, string>> = {
+  deepseek: "https://api-docs.deepseek.com/zh-cn/api/get-user-balance/",
+  google: "https://ai.google.dev/gemini-api/docs/billing",
+  anthropic: "https://platform.claude.com/docs/en/manage-claude/usage-cost-api",
+  xai: "https://docs.x.ai/developers/rest-api-reference/management/billing",
+  minimax: "https://platform.minimax.io/docs/faq/about-account",
+  zhipu: "https://docs.bigmodel.cn/cn/coding-plan/usage-notes",
+};
 
 export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
   {
@@ -121,7 +129,7 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
     refreshStrategy: "official_api",
     supportsUsageHistory: true,
     supportsResetWindow: false,
-    credentialFields: [{ key: "apiKey", label: "OpenAI Admin Key", secret: true, required: true }],
+    credentialFields: [{ key: "adminKey", label: "OpenAI Admin Key", secret: true, required: true }],
   },
   ...([
     ["deepseek", "DeepSeek", "https://platform.deepseek.com/usage", ""],
@@ -134,18 +142,18 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
     id: provider,
     provider,
     label,
-    documentationUrl: "",
+    documentationUrl: quotaDocumentationUrls[provider] ?? "",
     dashboardUrl,
     statusUrl: statusUrl || undefined,
-    sourceModes: ["unsupported", "manual"] as AiQuotaSourceMode[],
+    sourceModes: (["deepseek", "anthropic", "xai"] as string[]).includes(provider) ? ["official_api", "manual"] as AiQuotaSourceMode[] : ["unsupported", "manual"] as AiQuotaSourceMode[],
     descriptor: makeDescriptor({
       id: provider,
       label,
       shortLabel: label.split(" ")[0],
-      documentationUrl: "",
+      documentationUrl: quotaDocumentationUrls[provider] ?? "",
       dashboardUrl,
       statusUrl: statusUrl || undefined,
-      sourceModes: ["unsupported", "manual"],
+      sourceModes: (["deepseek", "anthropic", "xai"] as string[]).includes(provider) ? ["official_api", "manual"] : ["unsupported", "manual"],
       color: "#64748b",
       iconLabel: label.slice(0, 2).toUpperCase(),
     }),
@@ -164,11 +172,20 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
         sourceLabel: "手动维护",
       }),
     ],
-    supportsOfficialRefresh: false,
-    refreshStrategy: "unsupported" as const,
-    supportsUsageHistory: false,
+    supportsOfficialRefresh: (["deepseek", "anthropic", "xai"] as string[]).includes(provider),
+    refreshStrategy: (["deepseek", "anthropic", "xai"] as string[]).includes(provider) ? "official_api" as const : "unsupported" as const,
+    supportsUsageHistory: provider === "anthropic" || provider === "xai",
     supportsResetWindow: false,
-    credentialFields: [],
+    credentialFields: provider === "deepseek"
+      ? [{ key: "apiKey" as const, label: "DeepSeek API Key", secret: true, required: true }]
+      : provider === "anthropic"
+        ? [{ key: "adminKey" as const, label: "Anthropic Admin Key", secret: true, required: true }]
+        : provider === "xai"
+          ? [
+              { key: "managementKey" as const, label: "xAI Management Key", secret: true, required: true },
+              { key: "teamId" as const, label: "Team ID（无法自动推导时填写）", secret: false, required: false },
+            ]
+          : [],
     describeUnsupported: unsupportedMessage,
     unsupportedReason: unsupportedMessage,
   })),

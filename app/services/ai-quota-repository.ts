@@ -1,5 +1,5 @@
 import { toISODate } from "../lib/review-utils.ts";
-import type { AiQuotaPluginConfig, AiQuotaSnapshot, ApiProvider } from "../types/review";
+import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaMetric, AiQuotaSnapshot, AiQuotaVerificationResult, ApiProvider } from "../types/review";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { aiQuotaProviderPlugins, getAiQuotaPlugin } from "./ai-quota-plugins.ts";
 import { emitAiActivity } from "./ai-activity-events.ts";
@@ -8,6 +8,7 @@ export type SaveQuotaPluginInput = {
   id: ApiProvider | "manual";
   enabled: boolean;
   apiKey?: string;
+  credentials?: Partial<Record<AiQuotaCredentialKey, string>>;
   monthlyBudget?: number;
   manualRemaining?: number;
   today: Date;
@@ -44,26 +45,49 @@ async function getConfig(id: ApiProvider | "manual"): Promise<AiQuotaPluginConfi
   return readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY).find((config) => config.id === id);
 }
 
-async function refreshViaRoute(config: AiQuotaPluginConfig): Promise<AiQuotaSnapshot> {
-  const apiKey = config.encryptedKey && config.iv ? await decryptSecret(config.encryptedKey, config.iv) : "";
+async function decryptCredentials(config: AiQuotaPluginConfig): Promise<Partial<Record<AiQuotaCredentialKey, string>>> {
+  const credentials: Partial<Record<AiQuotaCredentialKey, string>> = { teamId: config.parameters?.teamId };
+  for (const [key, encrypted] of Object.entries(config.encryptedCredentials ?? {})) {
+    if (!encrypted) continue;
+    credentials[key as AiQuotaCredentialKey] = await decryptSecret(encrypted.encryptedKey, encrypted.iv);
+  }
+  // 旧单密钥配置只在读取边界转换，不回写 Dexie 或复制到连接密钥。
+  if (config.encryptedKey && config.iv && !Object.keys(config.encryptedCredentials ?? {}).length) {
+    const legacy = await decryptSecret(config.encryptedKey, config.iv);
+    credentials[config.id === "openai" || config.id === "anthropic" ? "adminKey" : "apiKey"] = legacy;
+  }
+  return credentials;
+}
+
+async function requestViaRoute(config: AiQuotaPluginConfig, action: "validate" | "refresh"): Promise<AiQuotaSnapshot | AiQuotaVerificationResult> {
+  const credentials = await decryptCredentials(config);
   emitAiActivity({ phase: "started", label: `${config.label} 额度插件`, text: "正在查询厂商官方费用接口" });
   const response = await fetch("/api/ai/quota", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      action,
       provider: config.id,
-      apiKey,
+      credentials,
       monthlyBudget: config.monthlyBudget,
     }),
   });
+  const result = (await response.json()) as (AiQuotaSnapshot | AiQuotaVerificationResult) & { message?: string };
   if (!response.ok) {
-    const text = await response.text();
-    emitAiActivity({ phase: "error", label: `${config.label} 额度插件`, text: text || "额度插件刷新失败" });
-    throw new Error(text || "额度插件刷新失败");
+    const message = result.message || "额度插件刷新失败";
+    emitAiActivity({ phase: "error", label: `${config.label} 额度插件`, text: message });
+    throw new Error(message);
   }
-  const snapshot = (await response.json()) as AiQuotaSnapshot;
-  emitAiActivity({ phase: "done", label: `${config.label} 额度插件`, text: snapshot.message });
-  return snapshot;
+  emitAiActivity({ phase: "done", label: `${config.label} 额度插件`, text: result.message });
+  return result;
+}
+
+function normalizeSnapshot(snapshot: AiQuotaSnapshot): AiQuotaSnapshot {
+  if (snapshot.metrics?.length) return snapshot;
+  const metrics: AiQuotaMetric[] = [];
+  if (typeof snapshot.usedAmount === "number") metrics.push({ id: "used_cost", label: "已用费用", value: snapshot.usedAmount, unit: snapshot.currency ?? "USD", source: snapshot.source === "official" ? "official" : "manual" });
+  if (typeof snapshot.remainingAmount === "number") metrics.push({ id: "remaining_balance", label: "剩余额度", value: snapshot.remainingAmount, unit: snapshot.currency ?? "USD", source: snapshot.officialRemainingAvailable ? "official" : snapshot.source === "manual" ? "manual" : "estimated" });
+  return { ...snapshot, metrics };
 }
 
 function unsupportedSnapshot(config: AiQuotaPluginConfig, message: string, today = new Date()): AiQuotaSnapshot {
@@ -94,7 +118,7 @@ export const aiQuotaRepository = {
   loadSync(): { configs: AiQuotaPluginConfig[]; snapshots: AiQuotaSnapshot[] } {
     return {
       configs: readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY),
-      snapshots: readActiveQuotaRecords<AiQuotaSnapshot>(SNAPSHOT_STORAGE_KEY),
+      snapshots: readActiveQuotaRecords<AiQuotaSnapshot>(SNAPSHOT_STORAGE_KEY).map(normalizeSnapshot),
     };
   },
 
@@ -106,16 +130,22 @@ export const aiQuotaRepository = {
     const configs = readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY);
     const existing = configs.find((config) => config.id === input.id);
     const plugin = getAiQuotaPlugin(input.id);
-    const providedSecret = input.apiKey?.trim() ?? "";
-    const encrypted = providedSecret ? await encryptSecret(providedSecret) : existing?.encryptedKey && existing.iv ? { encryptedKey: existing.encryptedKey, iv: existing.iv } : undefined;
+    const submitted = { ...(input.credentials ?? {}) };
+    if (input.apiKey && !Object.keys(submitted).length) submitted.apiKey = input.apiKey;
+    const encryptedCredentials = { ...(existing?.encryptedCredentials ?? {}) };
+    for (const key of ["apiKey", "adminKey", "managementKey"] as const) {
+      const value = submitted[key]?.trim();
+      if (!value) continue;
+      const encrypted = await encryptSecret(value);
+      encryptedCredentials[key] = { ...encrypted, maskedKey: maskSecret(value) };
+    }
     const config: AiQuotaPluginConfig = {
       id: input.id,
       provider: plugin.provider,
       label: plugin.label,
       enabled: input.enabled,
-      encryptedKey: encrypted?.encryptedKey,
-      iv: encrypted?.iv,
-      maskedKey: providedSecret ? maskSecret(providedSecret) : existing?.maskedKey,
+      encryptedCredentials,
+      parameters: { teamId: submitted.teamId?.trim() || existing?.parameters?.teamId },
       monthlyBudget: Number.isFinite(input.monthlyBudget) ? input.monthlyBudget : undefined,
       manualRemaining: Number.isFinite(input.manualRemaining) ? input.manualRemaining : undefined,
       currency: existing?.currency ?? "USD",
@@ -125,13 +155,19 @@ export const aiQuotaRepository = {
     return config;
   },
 
+  async validate(id: ApiProvider | "manual") {
+    const config = await getConfig(id);
+    if (!config?.enabled) throw new Error("请先保存并启用该额度来源");
+    return requestViaRoute(config, "validate") as Promise<AiQuotaVerificationResult>;
+  },
+
   async refresh(id: ApiProvider | "manual", today = new Date()): Promise<AiQuotaSnapshot> {
     const config = await getConfig(id);
     const plugin = getAiQuotaPlugin(id);
     if (!config?.enabled) throw new Error("请先启用该额度插件");
     let snapshot: AiQuotaSnapshot;
     if (plugin.supportsOfficialRefresh) {
-      snapshot = await refreshViaRoute(config);
+      snapshot = await requestViaRoute(config, "refresh") as AiQuotaSnapshot;
     } else {
       snapshot = unsupportedSnapshot(config, plugin.describeUnsupported ?? "该厂商暂不支持官方实时额度查询。", today);
     }

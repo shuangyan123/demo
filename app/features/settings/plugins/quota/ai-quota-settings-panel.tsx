@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { aiQuotaRepository } from "../../../../services/ai-quota-repository";
-import type { AiQuotaPluginConfig, AiQuotaSnapshot, ApiProvider } from "../../../../types/review";
+import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaSnapshot, ApiProvider } from "../../../../types/review";
 import { Button, Chip, EmptyState } from "../../../shared/ui-primitives";
 import { ProviderIcon } from "../../../shared/provider-icon";
 import { AppIcon } from "../../../shared/app-icon";
 
-type QuotaFormState = Record<string, { enabled: boolean; apiKey: string; monthlyBudget: string; manualRemaining: string }>;
+type QuotaFormState = Record<string, { enabled: boolean; credentials: Partial<Record<AiQuotaCredentialKey, string>>; monthlyBudget: string; manualRemaining: string }>;
 
 function currency(value: number | undefined, unit = "USD") {
   return value === undefined ? "未返回" : `${unit} ${value.toFixed(2)}`;
@@ -16,7 +16,7 @@ function currency(value: number | undefined, unit = "USD") {
 function formFromConfig(config?: AiQuotaPluginConfig) {
   return {
     enabled: config?.enabled ?? false,
-    apiKey: "",
+    credentials: { teamId: config?.parameters?.teamId ?? "" },
     monthlyBudget: config?.monthlyBudget?.toString() ?? "",
     manualRemaining: config?.manualRemaining?.toString() ?? "",
   };
@@ -67,7 +67,7 @@ export function AiQuotaSettingsPanel() {
       await aiQuotaRepository.saveConfig({
         id,
         enabled: form.enabled,
-        apiKey: form.apiKey,
+        credentials: form.credentials,
         monthlyBudget: Number(form.monthlyBudget) || undefined,
         manualRemaining: Number(form.manualRemaining) || undefined,
         today: new Date(),
@@ -76,6 +76,18 @@ export function AiQuotaSettingsPanel() {
       setNotice("额度配置已保存");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "额度配置保存失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function validateQuota(id: ApiProvider | "manual") {
+    setBusy(`validate:${id}`);
+    try {
+      const result = await aiQuotaRepository.validate(id);
+      setNotice(result.message || "额度凭据验证通过");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "额度凭据验证失败");
     } finally {
       setBusy("");
     }
@@ -98,7 +110,7 @@ export function AiQuotaSettingsPanel() {
     <section aria-label="AI 额度与用量">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">AI 额度与用量</h2>
+          <h2 className="text-lg font-semibold">额度与用量</h2>
           <p className="mt-1 text-sm text-muted">账单凭据独立加密保存；没有官方 API 的厂商只显示预留或手动额度。</p>
         </div>
         {notice ? <span className="text-sm text-muted" role="status">{notice}</span> : null}
@@ -121,6 +133,7 @@ export function AiQuotaSettingsPanel() {
                 <div className="flex flex-wrap justify-end gap-2">
                   {plugin.dashboardUrl ? <a className="ui-button ui-button-sm ui-button-outline" href={plugin.dashboardUrl} rel="noreferrer" target="_blank">官网账单</a> : null}
                   <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void save(plugin.id)}>保存</Button>
+                  {plugin.supportsOfficialRefresh ? <Button size="sm" variant="outline" disabled={Boolean(busy) || !form.enabled} onClick={() => void validateQuota(plugin.id)}>{busy === `validate:${plugin.id}` ? "验证中" : "测试凭据"}</Button> : null}
                   <Button size="sm" variant="soft" disabled={Boolean(busy) || !form.enabled} onClick={() => void refreshQuota(plugin.id)}>{busy === `refresh:${plugin.id}` ? "刷新中" : "刷新额度"}</Button>
                 </div>
               <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
@@ -144,7 +157,13 @@ export function AiQuotaSettingsPanel() {
                 <label className="inline-flex items-center gap-2 text-sm"><input checked={form.enabled} className="ui-checkbox" type="checkbox" onChange={(event) => patchForm(plugin.id, { enabled: event.currentTarget.checked })} />启用</label>
                 {plugin.credentialFields.map((field) => (
                   <label key={field.key} className="grid gap-1 text-xs font-medium">{field.label}
-                    <input className="ui-input" type={field.secret ? "password" : "text"} placeholder={config?.maskedKey ? "留空保留原 Key" : "填写额度查询 Key"} value={form.apiKey} onChange={(event) => patchForm(plugin.id, { apiKey: event.currentTarget.value })} />
+                    <input
+                      className="ui-input"
+                      type={field.secret ? "password" : "text"}
+                      placeholder={field.secret && (config?.encryptedCredentials?.[field.key as Exclude<AiQuotaCredentialKey, "teamId">]?.maskedKey || config?.maskedKey) ? "留空保留原凭据" : field.required ? "填写额度查询凭据" : "可选"}
+                      value={form.credentials[field.key] ?? ""}
+                      onChange={(event) => patchForm(plugin.id, { credentials: { ...form.credentials, [field.key]: event.currentTarget.value } })}
+                    />
                   </label>
                 ))}
                 <label className="grid gap-1 text-xs font-medium">月预算

@@ -19,23 +19,30 @@ test("额度插件把 OpenAI 官方费用响应归一化且不伪造官方余额
   assert.match(snapshot.message, /月预算估算/);
 });
 
-test("非官方实时额度厂商保持插件预留状态", () => {
-  const unsupported = aiQuotaProviderPlugins.filter((plugin) => plugin.id !== "openai" && plugin.id !== "manual");
-  assert.ok(unsupported.length >= 6);
-  assert.equal(unsupported.every((plugin) => !plugin.supportsOfficialRefresh), true);
-  assert.equal(unsupported.every((plugin) => plugin.refreshStrategy === "unsupported"), true);
+test("四家官方额度适配与三家手动厂商边界明确", () => {
+  const official = aiQuotaProviderPlugins.filter((plugin) => ["openai", "anthropic", "deepseek", "xai"].includes(plugin.id));
+  const unsupported = aiQuotaProviderPlugins.filter((plugin) => ["google", "minimax", "zhipu"].includes(plugin.id));
+  assert.equal(official.every((plugin) => plugin.supportsOfficialRefresh && plugin.refreshStrategy === "official_api"), true);
+  assert.equal(unsupported.every((plugin) => !plugin.supportsOfficialRefresh && plugin.refreshStrategy === "unsupported"), true);
   assert.equal(unsupported.every((plugin) => plugin.describeUnsupported?.includes("不抓取网页后台")), true);
   assert.equal(unsupported.every((plugin) => plugin.descriptor.sourceModes.includes("manual")), true);
   assert.deepEqual(aiQuotaProviderPlugins.map((plugin) => plugin.id), ["openai", "deepseek", "google", "anthropic", "xai", "minimax", "zhipu", "manual"]);
   assert.equal(unsupported.some((plugin) => ["qwen", "doubao", "siliconflow"].includes(plugin.id)), false);
 });
 
-test("额度白名单厂商都使用本地品牌 SVG", async () => {
+test("额度厂商使用本地图形资产或经许可审计的文字标记", async () => {
   const { getProviderBranding } = await import("./provider-branding.ts");
   for (const plugin of aiQuotaProviderPlugins.filter((item) => item.id !== "manual")) {
     const branding = getProviderBranding(plugin.provider);
-    assert.match(branding.iconPath, /^\/(?:provider|plugin)-icons\/.+\.svg$/);
-    assert.doesNotMatch(branding.iconPath, /generic/);
+    if (branding.iconPath) {
+      assert.match(branding.iconPath, /^\/(?:provider|plugin)-icons\/.+\.svg$/);
+      assert.doesNotMatch(branding.iconPath, /generic/);
+    } else {
+      assert.ok(branding.mark.length > 0);
+    }
+    assert.match(branding.sourceUrl, /^https:\/\//);
+    assert.match(branding.verifiedAt, /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(branding.licenseNote.length > 0);
   }
 });
 

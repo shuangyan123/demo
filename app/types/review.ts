@@ -1,4 +1,18 @@
 import type { ApiProvider } from "./domains/ai-provider";
+export type {
+  AiQuotaAction,
+  AiQuotaAdapterInput,
+  AiQuotaCredentialKey,
+  AiQuotaErrorCode,
+  AiQuotaFetchStrategy,
+  AiQuotaMetric,
+  AiQuotaPluginConfig,
+  AiQuotaProviderAdapter,
+  AiQuotaProviderDescriptor,
+  AiQuotaSnapshot,
+  AiQuotaSourceMode,
+  AiQuotaVerificationResult,
+} from "./domains/ai-quota";
 
 export type { ApiProvider } from "./domains/ai-provider";
 export type {
@@ -674,68 +688,6 @@ export type AiUsageRecord = {
   status: "succeeded" | "failed";
   error?: string;
   createdAt: string;
-};
-
-export type AiQuotaPluginConfig = {
-  id: ApiProvider | "manual";
-  provider: ApiProvider | "custom";
-  label: string;
-  enabled: boolean;
-  encryptedKey?: string;
-  iv?: string;
-  maskedKey?: string;
-  monthlyBudget?: number;
-  manualRemaining?: number;
-  currency: string;
-  updatedAt: string;
-};
-
-export type AiQuotaSourceMode = "official_api" | "manual" | "unsupported";
-
-/** CodexBar 风格的 provider 描述，作为额度卡片和刷新策略的单一事实源。 */
-export type AiQuotaProviderDescriptor = {
-  id: ApiProvider | "manual";
-  label: string;
-  shortLabel: string;
-  documentationUrl: string;
-  dashboardUrl?: string;
-  statusUrl?: string;
-  defaultEnabled: boolean;
-  refreshCadenceSeconds: number;
-  sourceModes: AiQuotaSourceMode[];
-  branding: {
-    color: string;
-    iconLabel: string;
-  };
-};
-
-/** 额度刷新策略只声明受支持的数据来源，不把抓取逻辑写入通用 client。 */
-export type AiQuotaFetchStrategy = {
-  id: string;
-  kind: AiQuotaSourceMode;
-  label: string;
-  sourceLabel: string;
-  timeoutMs: number;
-  unsupportedReason?: string;
-};
-
-export type AiQuotaSnapshot = {
-  id: string;
-  provider: ApiProvider | "custom";
-  label: string;
-  status: "ready" | "unsupported" | "error";
-  source: "official" | "manual" | "unavailable";
-  usedAmount?: number;
-  remainingAmount?: number;
-  currency?: string;
-  periodLabel?: string;
-  resetAt?: string;
-  sourceLabel?: string;
-  usageRatio?: number;
-  officialRemainingAvailable: boolean;
-  message: string;
-  documentationUrl?: string;
-  refreshedAt: string;
 };
 
 export type PersonaProfile = {

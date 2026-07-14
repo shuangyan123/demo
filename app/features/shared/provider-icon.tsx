@@ -5,5 +5,17 @@ import { getProviderBranding } from "../../services/provider-branding";
 /** 使用本地厂商 SVG，避免设置页和额度卡各自绘制不一致图标。 */
 export function ProviderIcon({ provider, size = 24 }: { provider: ApiProvider; size?: number }) {
   const branding = getProviderBranding(provider);
-  return <Image alt="" aria-hidden="true" className="provider-icon" height={size} src={branding.iconPath} title={branding.label} unoptimized width={size} />;
+  if (branding.iconPath) {
+    return <Image alt="" aria-hidden="true" className="provider-icon" height={size} src={branding.iconPath} title={branding.label} unoptimized width={size} />;
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="provider-icon inline-grid shrink-0 place-items-center rounded-[0.3rem] font-semibold text-white"
+      style={{ width: size, height: size, backgroundColor: branding.color, fontSize: Math.max(8, Math.round(size * 0.45)) }}
+      title={branding.label}
+    >
+      {branding.mark}
+    </span>
+  );
 }
