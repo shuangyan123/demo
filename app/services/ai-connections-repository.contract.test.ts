@@ -154,6 +154,39 @@ test("读取快照会清理不存在或能力不匹配的默认连接", async ()
   assert.deepEqual(await reviewDb.apiConnectionDefaults.get("default"), snapshot.defaults);
 });
 
+test("官方 Google 连接在读写边界补齐多模态能力，自定义连接保持用户声明", async () => {
+  await resetDatabase();
+  const googleProfile: ApiConnectionProfile = {
+    id: "google-old",
+    label: "旧 Gemini",
+    provider: "google",
+    apiFormat: "google_generate_content",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    capabilities: ["text"],
+    encryptedKey: "ciphertext",
+    iv: "iv",
+    maskedKey: "****-key",
+    providerOptions: {},
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  };
+  await reviewDb.apiConnectionProfiles.put(googleProfile);
+  const loaded = await aiConnectionsRepository.loadSnapshot(today);
+  assert.equal(loaded.profiles[0].capabilities.includes("vision"), true);
+  assert.equal((await reviewDb.apiConnectionProfiles.get(googleProfile.id))?.capabilities.includes("vision"), true);
+
+  localStorageValues.clear();
+  const custom = await aiConnectionsRepository.saveProfile({
+    label: "自定义文本",
+    provider: "custom",
+    baseUrl: "http://127.0.0.1:8000/v1",
+    apiKey: "",
+    capabilities: ["text"],
+    today,
+  });
+  assert.deepEqual(custom.capabilities, ["text"]);
+});
+
 test("编辑默认文本连接会同步旧表，移除文本能力时会清理默认值和旧记录", async () => {
   await resetDatabase();
   localStorageValues.clear();

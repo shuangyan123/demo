@@ -1,3 +1,5 @@
+import type { ApiProvider } from "../types/domains/ai-provider";
+
 export type AiActivityEventDetail = {
   phase: "started" | "waiting" | "delta" | "usage" | "done" | "error";
   label: string;
@@ -11,6 +13,8 @@ export type AiActivityEventDetail = {
   stepId?: string;
   state?: "pending" | "running" | "done" | "error";
   connectionLabel?: string;
+  provider?: ApiProvider;
+  presentation?: "conversation" | "compact-test";
   model?: string;
   attachments?: Array<{ id: string; label: string; kind: "image" | "file" | "vault" | "context" }>;
   toolDisplayMode?: "inline" | "drawer";
@@ -36,6 +40,8 @@ export type AiActivityRun = {
   module?: string;
   purpose?: string;
   connectionLabel?: string;
+  provider?: ApiProvider;
+  presentation: "conversation" | "compact-test";
   model?: string;
   attachments: Array<{ id: string; label: string; kind: "image" | "file" | "vault" | "context" }>;
   toolDisplayMode: "inline" | "drawer";
@@ -117,6 +123,8 @@ export function reduceAiActivityRuns(
     module: event.module,
     purpose: event.purpose,
     connectionLabel: event.connectionLabel,
+    provider: event.provider,
+    presentation: event.presentation ?? "conversation",
     model: event.model,
     attachments: event.attachments ?? [],
     toolDisplayMode: event.toolDisplayMode ?? "drawer",
@@ -139,6 +147,8 @@ export function reduceAiActivityRuns(
     module: event.module ?? base.module,
     purpose: event.purpose ?? base.purpose,
     connectionLabel: event.connectionLabel ?? base.connectionLabel,
+    provider: event.provider ?? base.provider,
+    presentation: event.presentation ?? base.presentation,
     model: event.model ?? base.model,
     attachments: event.attachments ?? base.attachments,
     toolDisplayMode: event.toolDisplayMode ?? base.toolDisplayMode,

@@ -74,7 +74,7 @@ export function SettingsWorkspace({
       return <AppearanceSettingsView settings={appearanceSettings} onChange={onAppearanceChange} onNotify={setToast} />;
     }
     if (activeSection === "configuration") {
-      return <ApiConnectionsSettingsView onChanged={onConfigurationChanged} onClearLocalRecords={onClearLocalRecords} />;
+      return <ApiConnectionsSettingsView onChanged={onConfigurationChanged} />;
     }
     if (activeSection === "roles") {
       return <PersonalizationSettingsView onChanged={onPersonalizationChange} onOpenConnections={() => setActiveSection("configuration")} />;

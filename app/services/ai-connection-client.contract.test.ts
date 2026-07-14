@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ApiConnectionProfile } from "../types/review.ts";
-import { generateWithConnection, synthesizeWithConnection, transcribeWithConnection } from "./ai-connection-client.ts";
+import { generateWithConnection, synthesizeWithConnection, testConnectionDraft, transcribeWithConnection } from "./ai-connection-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 
 const connection: ApiConnectionProfile = {
@@ -114,4 +114,42 @@ test("连接级转写请求要求 Google 与 transcription 能力", async () => 
     transcribeWithConnection({ ...connection, provider: "deepseek", capabilities: ["transcription"] }, { audioBase64: "UklGRg==", mimeType: "audio/webm" }),
     /仅支持 Google Gemini/,
   );
+});
+
+test("编辑连接测试使用当前草稿地址和模型，仅在 Key 留空时读取旧密钥", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalResolveSecret = aiConnectionsRepository.resolveSecret;
+  let requestBody: Record<string, unknown> | undefined;
+  aiConnectionsRepository.resolveSecret = async () => "saved-secret";
+  globalThis.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json({ content: "OK" });
+  };
+  try {
+    await testConnectionDraft({
+      provider: "google",
+      apiKey: "draft-secret",
+      baseUrl: "https://draft.example/v1beta",
+      modelId: "gemini-draft",
+      label: "编辑草稿",
+      existingConnection: connection,
+    });
+    assert.equal(requestBody?.apiKey, "draft-secret");
+    assert.equal(requestBody?.baseUrl, "https://draft.example/v1beta");
+    assert.equal(requestBody?.model, "gemini-draft");
+    assert.deepEqual(requestBody?.activity, { connectionLabel: "编辑草稿", presentation: "compact-test", purpose: "connection-test" });
+
+    await testConnectionDraft({
+      provider: "google",
+      apiKey: "",
+      baseUrl: "https://edited.example/v1beta",
+      modelId: "gemini-edited",
+      existingConnection: connection,
+    });
+    assert.equal(requestBody?.apiKey, "saved-secret");
+    assert.equal(requestBody?.baseUrl, "https://edited.example/v1beta");
+  } finally {
+    globalThis.fetch = originalFetch;
+    aiConnectionsRepository.resolveSecret = originalResolveSecret;
+  }
 });

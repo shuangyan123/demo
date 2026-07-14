@@ -1,8 +1,17 @@
 import type { AiModelDirectoryEntry, AiModelsRequest } from "../../../services/api-client";
 import type { AiCapability, AiConnectionPurpose, ApiProvider } from "../../../types/review";
 import { aiRouteError, aiUpstreamError, readAiRouteJson } from "../../../server/ai/http.ts";
+import { getProviderModelCatalog } from "../../../services/provider-contracts.ts";
 
-type RawModel = { id: string; label: string; status?: string; capabilities?: Record<string, unknown>; contextWindow?: number; maxOutputTokens?: number };
+type RawModel = {
+  id: string;
+  label: string;
+  status?: string;
+  capabilities?: Record<string, unknown>;
+  supportedGenerationMethods?: string[];
+  contextWindow?: number;
+  maxOutputTokens?: number;
+};
 
 function isRequest(value: unknown): value is AiModelsRequest {
   if (!value || typeof value !== "object") return false;
@@ -28,30 +37,29 @@ function modelsUrl(provider: ApiProvider, baseUrl: string): string {
 }
 
 /** 按厂商已核验能力归一化模型，禁止用跨厂商通用正则虚报视觉能力。 */
-function modelCapabilities(provider: ApiProvider, id: string, raw?: Record<string, unknown>): AiCapability[] {
+function modelCapabilities(provider: ApiProvider, id: string, raw?: Record<string, unknown>): { capabilities: AiCapability[]; source: AiModelDirectoryEntry["capabilitySource"] } {
+  const verified = getProviderModelCatalog(provider).find((model) => model.id === id);
+  if (verified) return { capabilities: verified.capabilities, source: "verified" };
   const value = id.toLowerCase();
   if (provider === "openai" || provider === "azure_openai") {
-    if (value.includes("tts")) return ["speech"];
-    if (value.includes("transcribe") || value.includes("whisper")) return ["transcription"];
-    return value.includes("gpt-5") || value.includes("gpt-4o")
-      ? ["text", "vision", "structured_output", "streaming"]
-      : ["text", "structured_output", "streaming"];
+    if (value.includes("tts")) return { capabilities: ["speech"], source: "provider" };
+    if (value.includes("transcribe") || value.includes("whisper")) return { capabilities: ["transcription"], source: "provider" };
+    return { capabilities: ["text", "structured_output", "streaming"], source: "unknown" };
   }
-  if (provider === "google") return ["text", "vision", "transcription", "structured_output", "streaming"];
+  if (provider === "google") return { capabilities: ["text", "structured_output", "streaming"], source: "unknown" };
   if (provider === "anthropic") {
     const capabilities = raw?.capabilities as Record<string, unknown> | undefined;
-    return ["text", ...(capabilities?.image_input !== false ? ["vision" as const] : []), "structured_output", "streaming"];
+    return { capabilities: ["text", ...(capabilities?.image_input === true ? ["vision" as const] : []), "structured_output", "streaming"], source: "provider" };
   }
-  if (provider === "deepseek") return ["text", "structured_output", "streaming"];
-  if (provider === "minimax") return value.startsWith("speech-") ? ["speech"] : value === "minimax-m3" ? ["text", "vision", "structured_output", "streaming"] : ["text", "structured_output", "streaming"];
-  if (provider === "xai") return ["text", "vision", "structured_output", "streaming"];
+  if (provider === "deepseek") return { capabilities: ["text", "structured_output", "streaming"], source: "provider" };
+  if (provider === "minimax") return { capabilities: value.startsWith("speech-") ? ["speech"] : ["text", "structured_output", "streaming"], source: "unknown" };
+  if (provider === "xai") return { capabilities: ["text", "structured_output", "streaming"], source: "unknown" };
   if (provider === "zhipu") {
-    if (value.includes("tts")) return ["speech"];
-    if (value.includes("asr")) return ["transcription"];
-    if (value.includes("v") || value.includes("vision")) return ["text", "vision", "structured_output", "streaming"];
-    return ["text", "structured_output", "streaming"];
+    if (value.includes("tts")) return { capabilities: ["speech"], source: "provider" };
+    if (value.includes("asr")) return { capabilities: ["transcription"], source: "provider" };
+    return { capabilities: ["text", "structured_output", "streaming"], source: "unknown" };
   }
-  return ["text"];
+  return { capabilities: ["text"], source: "unknown" };
 }
 
 function purposesFor(capabilities: AiCapability[]): AiConnectionPurpose[] {
@@ -59,7 +67,8 @@ function purposesFor(capabilities: AiCapability[]): AiConnectionPurpose[] {
 }
 
 function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string): AiModelDirectoryEntry {
-  const capabilities = modelCapabilities(provider, raw.id, raw.capabilities);
+  const resolvedCapabilities = modelCapabilities(provider, raw.id, raw.capabilities);
+  const capabilities = resolvedCapabilities.capabilities;
   const rawStatus = raw.status?.toLowerCase();
   const status = rawStatus === "deprecated" || rawStatus === "retired" ? "deprecated" : rawStatus === "preview" || rawStatus === "experimental" ? "preview" : rawStatus ? "active" : "unknown";
   const generation = raw.id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
@@ -72,6 +81,8 @@ function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string)
     capabilities,
     status,
     source: "official_api",
+    capabilitySource: resolvedCapabilities.source,
+    supportedGenerationMethods: raw.supportedGenerationMethods,
     family: raw.id.replace(/(?:[-_.](?:pro|mini|nano|flash|lite|turbo|hd|highspeed|reasoning|non-reasoning|preview|latest))+$/gi, ""),
     generation,
     modalityGroup,
@@ -96,11 +107,17 @@ export async function POST(request: Request) {
     const models = source.flatMap((item): RawModel[] => {
       const id = body.provider === "google" ? String(item.name ?? "").replace(/^models\//, "") : String(item.id ?? "");
       if (!id) return [];
+      const supportedGenerationMethods = Array.isArray(item.supportedGenerationMethods)
+        ? item.supportedGenerationMethods.filter((method): method is string => typeof method === "string")
+        : undefined;
+      // Google 目录同时包含嵌入、Live 与其他专用模型；生成目录只接收 generateContent。
+      if (body.provider === "google" && !supportedGenerationMethods?.includes("generateContent")) return [];
       return [{
         id,
         label: String(item.displayName ?? item.display_name ?? item.name ?? item.id ?? id),
         status: String(item.stage ?? item.status ?? ""),
         capabilities: item,
+        supportedGenerationMethods,
         contextWindow: Number(item.inputTokenLimit ?? item.context_window) || undefined,
         maxOutputTokens: Number(item.outputTokenLimit ?? item.max_tokens) || undefined,
       }];

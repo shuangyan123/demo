@@ -132,7 +132,41 @@ export async function listModelsWithDraft(input: { provider: ApiConnectionProfil
   return callAiModels(input);
 }
 
-/** 新建连接保存前使用具体模型做极小真实测试，不把模型写入连接档案。 */
-export async function testConnectionDraft(input: { provider: ApiConnectionProfile["provider"]; apiKey: string; baseUrl: string; modelId: string }): Promise<AiGenerateResult> {
-  return callAiGenerate({ provider: input.provider, apiKey: input.apiKey, baseUrl: input.baseUrl, model: input.modelId, messages: [{ role: "user", content: "仅回复 OK" }], maxOutputTokens: 12 });
+/** 编辑草稿可复用已保存密钥，但厂商、地址和模型必须始终来自当前草稿。 */
+export async function resolveConnectionDraftSecret(input: { apiKey: string; existingConnection?: ApiConnectionProfile }): Promise<string> {
+  if (input.apiKey.trim()) return input.apiKey.trim();
+  if (input.existingConnection) return aiConnectionsRepository.resolveSecret(input.existingConnection);
+  return "";
+}
+
+/** 新建或编辑连接时使用当前草稿读取模型目录，不回退到旧档案地址。 */
+export async function listModelsWithConnectionDraft(input: {
+  provider: ApiConnectionProfile["provider"];
+  apiKey: string;
+  baseUrl: string;
+  existingConnection?: ApiConnectionProfile;
+}): Promise<AiModelsResult> {
+  const apiKey = await resolveConnectionDraftSecret(input);
+  return callAiModels({ provider: input.provider, apiKey, baseUrl: input.baseUrl });
+}
+
+/** 使用当前连接草稿执行极小真实测试，并以紧凑结果卡展示活动。 */
+export async function testConnectionDraft(input: {
+  provider: ApiConnectionProfile["provider"];
+  apiKey: string;
+  baseUrl: string;
+  modelId: string;
+  label?: string;
+  existingConnection?: ApiConnectionProfile;
+}): Promise<AiGenerateResult> {
+  const apiKey = await resolveConnectionDraftSecret(input);
+  return callAiGenerate({
+    provider: input.provider,
+    apiKey,
+    baseUrl: input.baseUrl,
+    model: input.modelId,
+    messages: [{ role: "user", content: "仅回复 OK" }],
+    maxOutputTokens: 12,
+    activity: { connectionLabel: input.label, presentation: "compact-test", purpose: "connection-test" },
+  });
 }

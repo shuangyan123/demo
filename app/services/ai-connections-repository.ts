@@ -34,6 +34,18 @@ function recommendedModelId(profile: ApiConnectionProfile, purpose: AiConnection
     ?? profile.model;
 }
 
+/** 官方厂商始终使用当前 contract 能力；只有自定义连接允许用户裁剪能力。 */
+export function normalizeConnectionProfileCapabilities(profile: ApiConnectionProfile): ApiConnectionProfile {
+  const contract = getProviderContract(profile.provider);
+  const capabilities = profile.provider === "custom"
+    ? profile.capabilities.filter((capability) => contract.capabilities.includes(capability))
+    : [...contract.capabilities];
+  return capabilities.length === profile.capabilities.length
+    && capabilities.every((capability) => profile.capabilities.includes(capability))
+    ? profile
+    : { ...profile, capabilities };
+}
+
 // 清理不存在或能力不匹配的默认连接，避免编辑连接能力后继续把错误档案注入业务模块。
 function normalizeDefaults(
   profiles: ApiConnectionProfile[],
@@ -91,7 +103,9 @@ export const aiConnectionsRepository = {
       reviewDb.apiSettings.get("default"),
       reviewDb.personalizationSettings.get("default"),
     ]);
-    let profiles = savedProfiles;
+    let profiles = savedProfiles.map(normalizeConnectionProfileCapabilities);
+    const normalizedProfiles = profiles.filter((profile, index) => profile !== savedProfiles[index]);
+    if (normalizedProfiles.length) await reviewDb.apiConnectionProfiles.bulkPut(normalizedProfiles);
     let defaults = savedDefaults;
     if (!profiles.length && legacySetting) {
       const profile = createProfileFromLegacySetting(legacySetting);
@@ -149,7 +163,8 @@ export const aiConnectionsRepository = {
     // 自定义连接允许无鉴权，但仍加密空字符串以保持连接档案结构稳定，避免引入第二套密钥存储形态。
     const encrypted = providedSecret ? await encryptSecret(providedSecret) : existing ?? await encryptSecret("");
     const contract = getProviderContract(input.provider);
-    const capabilities = (input.capabilities ?? existing?.capabilities ?? contract.capabilities).filter((capability) => contract.capabilities.includes(capability));
+    const capabilities = (input.provider === "custom" ? input.capabilities ?? existing?.capabilities ?? contract.capabilities : contract.capabilities)
+      .filter((capability) => contract.capabilities.includes(capability));
     if (!capabilities.length) throw new Error("请至少选择一项连接能力");
     const timestamp = toISODate(input.today);
     const profile: ApiConnectionProfile = {

@@ -27,6 +27,7 @@ function directory(fetchedAt = new Date().toISOString()): AiModelsResult {
       capabilities: ["text", "streaming"],
       status: "active",
       source: "official_api",
+      capabilitySource: "provider",
       supportsStreaming: true,
       supportsStructuredOutput: false,
       updatedAt: "2026-07-13T00:00:00.000Z",

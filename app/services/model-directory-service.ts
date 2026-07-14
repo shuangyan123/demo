@@ -1,5 +1,5 @@
 import type { AiModelDirectoryEntry, AiModelsResult } from "./api-client";
-import { listModelsWithConnection, listModelsWithDraft } from "./ai-connection-client.ts";
+import { listModelsWithConnection, listModelsWithConnectionDraft } from "./ai-connection-client.ts";
 import { providerModelCache } from "./provider-model-cache.ts";
 import { getProviderContract, getProviderModelCatalog } from "./provider-contracts.ts";
 import type { ApiProvider } from "../types/domains/ai-provider";
@@ -22,6 +22,8 @@ function toCatalogEntry(connection: Pick<ApiConnectionProfile, "provider">, mode
     capabilities: model.capabilities,
     status: model.status === "preview" ? "preview" : model.status === "deprecated" ? "deprecated" : "stable",
     source: "official_live",
+    capabilitySource: model.capabilitySource,
+    supportedGenerationMethods: model.supportedGenerationMethods,
     family: model.family,
     generation: model.generation,
     modalityGroup: model.modalityGroup,
@@ -70,10 +72,15 @@ export async function loadConnectionModelCatalog(connection: ApiConnectionProfil
 }
 
 /** 新连接保存前只按官方策略读取目录；静态或手动厂商不会产生额外网络请求。 */
-export async function loadDraftModelCatalog(input: { provider: ApiProvider; apiKey: string; baseUrl: string }, purpose?: AiConnectionPurpose): Promise<ModelCatalogLoadResult> {
+export async function loadDraftModelCatalog(input: {
+  provider: ApiProvider;
+  apiKey: string;
+  baseUrl: string;
+  existingConnection?: ApiConnectionProfile;
+}, purpose?: AiConnectionPurpose): Promise<ModelCatalogLoadResult> {
   const contract = getProviderContract(input.provider);
   if (contract.modelListStrategy !== "official_api") return { models: getProviderModelCatalog(input.provider, purpose), source: "fallback" };
-  const directory = await listModelsWithDraft(input);
+  const directory = await listModelsWithConnectionDraft(input);
   const models = catalogFromDirectory({ provider: input.provider }, directory, purpose);
   return models.length ? { models, directory, source: "live" } : { models: getProviderModelCatalog(input.provider, purpose), directory, source: "fallback" };
 }

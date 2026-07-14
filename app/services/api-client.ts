@@ -36,6 +36,7 @@ export type AiGenerateRequest = {
     module?: string;
     purpose?: string;
     connectionLabel?: string;
+    presentation?: "conversation" | "compact-test";
   };
 };
 
@@ -93,6 +94,9 @@ export type AiModelDirectoryEntry = {
   capabilities: AiCapability[];
   status: "active" | "preview" | "deprecated" | "unknown";
   source: "official_api" | "static_catalog";
+  /** 能力来源用于区分静态核验、厂商元数据与未知模型，避免 UI 猜测。 */
+  capabilitySource: "verified" | "provider" | "unknown";
+  supportedGenerationMethods?: string[];
   family?: string;
   generation?: string;
   modalityGroup?: "text" | "multimodal" | "speech" | "transcription" | "realtime";
@@ -125,9 +129,12 @@ export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenera
     module: input.activity?.module,
     purpose: input.activity?.purpose,
     connectionLabel: input.activity?.connectionLabel,
+    presentation: input.activity?.presentation,
+    provider: input.provider,
     model: input.model,
   };
   emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在准备 AI 请求" });
+  emitAiActivity({ ...activityBase, phase: "waiting", label: `${input.provider} · ${input.model}`, stepId: "request", text: "正在调用模型" });
   const response = await fetch("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -155,6 +162,8 @@ export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGene
     module: input.activity?.module,
     purpose: input.activity?.purpose,
     connectionLabel: input.activity?.connectionLabel,
+    presentation: input.activity?.presentation,
+    provider: input.provider,
     model: input.model,
   };
   emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在建立流式连接" });

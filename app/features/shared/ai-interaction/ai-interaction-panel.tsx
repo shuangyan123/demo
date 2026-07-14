@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { reduceAiActivityRuns, subscribeAiActivity, type AiActivityRun } from "../../../services/ai-activity-events";
 import { Button, Chip, cx } from "../ui-primitives";
+import { CompactAiTestCard } from "./compact-ai-test-card";
 
 const stateLabels: Record<AiActivityRun["state"], string> = {
   running: "进行中",
@@ -42,12 +43,19 @@ export function AiInteractionPanel() {
   useEffect(() => subscribeAiActivity((event) => {
     setRuns((current) => {
       const next = reduceAiActivityRuns(current, event);
-      setSelectedRunId((selected) => selected ?? next[0]?.id);
+      setSelectedRunId((selected) => event.presentation === "compact-test" ? next[0]?.id : selected ?? next[0]?.id);
       return next;
     });
   }), []);
 
   if (!visibleRun) return null;
+
+  if (visibleRun.presentation === "compact-test") {
+    return <CompactAiTestCard run={visibleRun} onDismiss={() => {
+      setRuns((current) => current.filter((run) => run.id !== visibleRun.id));
+      setSelectedRunId(undefined);
+    }} />;
+  }
 
   return (
     <aside

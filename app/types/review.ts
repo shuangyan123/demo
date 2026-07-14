@@ -1072,6 +1072,8 @@ export type AiModelCatalogEntry = {
   capabilities: AiCapability[];
   status: "recommended" | "stable" | "preview" | "deprecated" | "manual";
   source: "official_live" | "official_fallback" | "manual";
+  capabilitySource?: "verified" | "provider" | "unknown";
+  supportedGenerationMethods?: string[];
   /** 用于两级选择器按最近两代模型家族分组。 */
   family?: string;
   generation?: string;

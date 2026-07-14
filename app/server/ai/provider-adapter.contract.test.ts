@@ -59,6 +59,22 @@ test("Google Gemini fixture：原生 generateContent 请求和响应均被归一
   );
 });
 
+test("Gemini 多模态图片被映射为官方 inlineData，而不是文本标签", () => {
+  const input: AiGenerateRequest = {
+    ...baseGenerate,
+    provider: "google",
+    messages: [{ role: "user", content: [
+      { type: "text", text: "描述图片" },
+      { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgo=" } },
+    ] }],
+  };
+  const request = buildGenerateProviderRequest(input);
+  assert.deepEqual((request.body as { contents: Array<{ parts: unknown[] }> }).contents[0].parts, [
+    { text: "描述图片" },
+    { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } },
+  ]);
+});
+
 test("OpenAI 与 Gemini 只在明确选择快速模式时发送官方 service tier", () => {
   const openai = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", model: "gpt-5.5", runtime: { speed: "priority" } });
   const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-3.5-flash", runtime: { speed: "priority" } });
@@ -352,7 +368,9 @@ test("模型目录代理归一化 Google models.list 且不返回密钥和原始
     forwardedHeaders = init?.headers as Record<string, string>;
     return Response.json({
       models: [
-        { name: "models/gemini-2.5-flash", displayName: "Gemini 2.5 Flash", ignored: "raw-provider-value" },
+        { name: "models/gemini-2.5-flash", displayName: "Gemini 2.5 Flash", supportedGenerationMethods: ["generateContent"], ignored: "raw-provider-value" },
+        { name: "models/gemini-future", displayName: "Gemini Future", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/text-embedding-005", displayName: "Embedding", supportedGenerationMethods: ["embedContent"] },
       ],
     });
   };
@@ -365,14 +383,18 @@ test("模型目录代理归一化 Google models.list 且不返回密钥和原始
     assert.equal(response.status, 200);
     assert.equal(forwardedUrl, "https://generativelanguage.googleapis.com/v1beta/models");
     assert.equal(forwardedHeaders?.["x-goog-api-key"], "fixture-key");
-    assert.equal(result.models.length, 1);
+    assert.equal(result.models.length, 2);
     assert.equal(result.models[0].id, "gemini-2.5-flash");
     assert.equal(result.models[0].label, "Gemini 2.5 Flash");
     assert.deepEqual(result.models[0].purposes, ["text", "vision", "transcription"]);
     assert.deepEqual(result.models[0].capabilities, ["text", "vision", "transcription", "structured_output", "streaming"]);
+    assert.equal(result.models[0].capabilitySource, "verified");
+    assert.deepEqual(result.models[0].supportedGenerationMethods, ["generateContent"]);
     assert.equal(result.models[0].source, "official_api");
     assert.equal(result.models[0].supportsStreaming, true);
     assert.equal(result.models[0].supportsStructuredOutput, true);
+    assert.deepEqual(result.models[1].capabilities, ["text", "structured_output", "streaming"]);
+    assert.equal(result.models[1].capabilitySource, "unknown");
     assert.ok(result.models[0].updatedAt);
     assert.ok(result.fetchedAt);
     assert.equal(JSON.stringify(result).includes("fixture-key"), false);

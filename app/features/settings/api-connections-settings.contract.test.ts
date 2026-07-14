@@ -6,29 +6,21 @@ async function readSource() {
   return readFile(new URL("./api-connections-settings-view.tsx", import.meta.url), "utf8");
 }
 
-test("AI 连接只保存鉴权，默认能力单独保存模型", async () => {
-  const source = await readSource();
+test("AI 连接编辑器、默认模型选择器和紧凑测试卡保持独立边界", async () => {
+  const [source, defaults, compactCard] = await Promise.all([
+    readSource(),
+    readFile(new URL("./default-capability-selector.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../shared/ai-interaction/compact-ai-test-card.tsx", import.meta.url), "utf8"),
+  ]);
 
-  assert.doesNotMatch(source, /aria-label="用途"/);
-  assert.match(source, /ProviderSelect/);
-  assert.match(source, /form\.provider === "custom"/);
-  assert.match(source, /setDefaultModel/);
-  assert.match(source, /setDefaultSelection/);
-  assert.match(source, /ProviderIcon/);
-  assert.doesNotMatch(source, /form\.model/);
-  assert.doesNotMatch(source, /refreshOfficialModels/);
-  assert.doesNotMatch(source, /datalist id="provider-model-options"/);
-  assert.doesNotMatch(source, /modelCatalog\.slice\(0,\s*8\)\.map/);
-  assert.match(source, /discoverModels/);
-  assert.match(source, /testSelectedModel/);
-  assert.match(source, /selectedTestModelId/);
-  assert.match(source, /设为默认/);
-  assert.match(source, /极小真实请求/);
-  assert.match(source, /loadConnectionModelCatalog/);
-  assert.match(source, /loadDraftModelCatalog/);
-  assert.match(source, /getCachedConnectionModelCatalog/);
-  assert.match(source, /rememberConnectionModelDirectory/);
-  assert.doesNotMatch(source, /listModelsWithConnection/);
+  assert.match(source, /DefaultCapabilitySelector/);
+  assert.match(source, /testConnectionDraft/);
+  assert.match(source, /existingConnection/);
+  assert.doesNotMatch(source, /generateWithConnection/);
+  assert.match(defaults, /setDefaultSelection/);
+  assert.match(defaults, /手动模型 ID/);
+  assert.match(compactCard, /w-\[min\(22rem,calc\(100vw-1\.25rem\)\)\]/);
+  assert.doesNotMatch(compactCard, /AI 会话列表|添加附件/);
 });
 
 test("AI connection page excludes quota details and exposes transcription purpose", async () => {
@@ -37,4 +29,5 @@ test("AI connection page excludes quota details and exposes transcription purpos
   assert.match(source, /录音转写/);
   assert.doesNotMatch(source, /AiQuotaSettingsPanel/);
   assert.doesNotMatch(source, /额度与用量/);
+  assert.doesNotMatch(source, /清空错题和导入记录/);
 });

@@ -31,3 +31,15 @@ test("AI 活动 reducer 把同一 run 的步骤、delta 和 usage 聚合到一�
   assert.equal(runs[0].steps.find((step) => step.id === "context")?.label, "准备上下文");
   assert.equal(runs[0].steps.find((step) => step.id === "stream")?.label, "流式输出");
 });
+
+test("连接测试活动保持紧凑展示意图和厂商信息", () => {
+  const [run] = reduceAiActivityRuns([], {
+    runId: "test-run",
+    phase: "started",
+    label: "Google Gemini · gemini-2.5-flash",
+    provider: "google",
+    presentation: "compact-test",
+  });
+  assert.equal(run.presentation, "compact-test");
+  assert.equal(run.provider, "google");
+});
