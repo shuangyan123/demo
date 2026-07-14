@@ -81,7 +81,7 @@ export type ImportType = "text" | "file" | "ocr";
 export type ImportStatus = "draft" | "parsing" | "parsed" | "saved" | "pending_ocr" | "failed";
 
 export type ApiFormat = "responses" | "chat_completions" | "google_generate_content" | "anthropic_messages" | "azure_speech" | "qwen_multimodal";
-export type AiCapability = "text" | "vision" | "structured_output" | "speech" | "transcription" | "realtime" | "streaming";
+export type AiCapability = "text" | "vision" | "video" | "tools" | "structured_output" | "speech" | "transcription" | "realtime" | "streaming";
 export type AiConnectionPurpose = "text" | "vision" | "speech" | "transcription" | "realtime";
 export type PersonaModule = "tutoring" | "interview" | "knowledge_internalization";
 export type PersonaStrictness = "gentle" | "balanced" | "strict";
@@ -1091,6 +1091,8 @@ export type AiModelCatalogEntry = {
   generation?: string;
   modalityGroup?: "text" | "multimodal" | "speech" | "transcription" | "realtime";
   lifecycle?: "active" | "preview" | "deprecated";
+  contextWindow?: number;
+  maxOutputTokens?: number;
   documentationUrl?: string;
   verifiedAt?: string;
 };

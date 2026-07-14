@@ -11,6 +11,7 @@ import type {
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { getProviderContract, getProviderModelCatalog } from "./provider-contracts.ts";
 import { createProfileFromLegacySetting } from "./legacy-ai-settings-migration.ts";
+import { inferMiniMaxRegion, normalizeMiniMaxAnthropicBaseUrl } from "./minimax-connection.ts";
 
 export type SaveConnectionInput = {
   id?: string;
@@ -40,10 +41,23 @@ export function normalizeConnectionProfileCapabilities(profile: ApiConnectionPro
   const capabilities = profile.provider === "custom"
     ? profile.capabilities.filter((capability) => contract.capabilities.includes(capability))
     : [...contract.capabilities];
+  const minimaxRegion = profile.provider === "minimax"
+    ? profile.providerOptions.region === "global" ? "global" : profile.providerOptions.region === "cn" ? "cn" : inferMiniMaxRegion(profile.baseUrl)
+    : undefined;
+  const baseUrl = minimaxRegion ? normalizeMiniMaxAnthropicBaseUrl(profile.baseUrl, minimaxRegion) : profile.baseUrl;
+  const providerOptions = minimaxRegion
+    ? { ...profile.providerOptions, region: minimaxRegion, credentialPlan: profile.providerOptions.credentialPlan === "token_plan" ? "token_plan" : "pay_as_you_go" }
+    : profile.providerOptions;
+  const providerOptionsUnchanged = !minimaxRegion || (
+    profile.providerOptions.region === providerOptions.region
+    && profile.providerOptions.credentialPlan === providerOptions.credentialPlan
+  );
   return capabilities.length === profile.capabilities.length
     && capabilities.every((capability) => profile.capabilities.includes(capability))
+    && baseUrl === profile.baseUrl
+    && providerOptionsUnchanged
     ? profile
-    : { ...profile, capabilities };
+    : { ...profile, capabilities, baseUrl, providerOptions };
 }
 
 // 清理不存在或能力不匹配的默认连接，避免编辑连接能力后继续把错误档案注入业务模块。
@@ -167,12 +181,15 @@ export const aiConnectionsRepository = {
       .filter((capability) => contract.capabilities.includes(capability));
     if (!capabilities.length) throw new Error("请至少选择一项连接能力");
     const timestamp = toISODate(input.today);
+    const minimaxRegion = input.provider === "minimax"
+      ? input.providerOptions?.region === "global" ? "global" : "cn"
+      : undefined;
     const profile: ApiConnectionProfile = {
       id: input.id ?? crypto.randomUUID(),
       label: input.label.trim() || contract.label,
       provider: input.provider,
       apiFormat: contract.apiFormat,
-      baseUrl: input.baseUrl.replace(/\/$/, ""),
+      baseUrl: minimaxRegion ? normalizeMiniMaxAnthropicBaseUrl(input.baseUrl, minimaxRegion) : input.baseUrl.replace(/\/$/, ""),
       capabilities,
       encryptedKey: encrypted.encryptedKey,
       iv: encrypted.iv,

@@ -1,5 +1,6 @@
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent, AiSpeechRequest, AiTranscriptionRequest, AiTranscriptionResult, ChatMessage, ChatMessageContent } from "../../services/api-client";
 import { getProviderContract } from "../../services/provider-contracts.ts";
+import { miniMaxBearerHeaders, normalizeMiniMaxAnthropicBaseUrl } from "../../services/minimax-connection.ts";
 import { mapProviderRuntimeOptions } from "./runtime-option-mappers/index.ts";
 
 type ProviderHttpRequest = {
@@ -46,9 +47,11 @@ function splitSystemMessages(messages: ChatMessage[]) {
 // 把聊天内容转换成 Responses API 使用的 input_text/input_image 结构。
 function toResponsesContent(content: ChatMessageContent): unknown {
   if (typeof content === "string") return content;
-  return content.map((item) =>
-    item.type === "text" ? { type: "input_text", text: item.text } : { type: "input_image", image_url: item.image_url.url },
-  );
+  return content.map((item) => {
+    if (item.type === "text") return { type: "input_text", text: item.text };
+    if (item.type === "video_url") return { type: "input_video", video_url: item.video_url.url };
+    return { type: "input_image", image_url: item.image_url.url };
+  });
 }
 
 // 把统一消息转换为 Gemini generateContent 的 parts 结构。
@@ -56,10 +59,11 @@ function toGeminiParts(content: ChatMessageContent): unknown[] {
   if (typeof content === "string") return [{ text: content }];
   return content.map((item) => {
     if (item.type === "text") return { text: item.text };
-    const dataUrl = /^data:([^;]+);base64,([\s\S]+)$/.exec(item.image_url.url);
+    const mediaUrl = item.type === "video_url" ? item.video_url.url : item.image_url.url;
+    const dataUrl = /^data:([^;]+);base64,([\s\S]+)$/.exec(mediaUrl);
     return dataUrl
       ? { inlineData: { mimeType: dataUrl[1], data: dataUrl[2] } }
-      : { fileData: { fileUri: item.image_url.url } };
+      : { fileData: { fileUri: mediaUrl } };
   });
 }
 
@@ -68,10 +72,12 @@ function toAnthropicContent(content: ChatMessageContent): unknown {
   if (typeof content === "string") return content;
   return content.map((item) => {
     if (item.type === "text") return { type: "text", text: item.text };
-    const dataUrl = /^data:([^;]+);base64,([\s\S]+)$/.exec(item.image_url.url);
+    const kind = item.type === "video_url" ? "video" : "image";
+    const mediaUrl = item.type === "video_url" ? item.video_url.url : item.image_url.url;
+    const dataUrl = /^data:([^;]+);base64,([\s\S]+)$/.exec(mediaUrl);
     return dataUrl
-      ? { type: "image", source: { type: "base64", media_type: dataUrl[1], data: dataUrl[2] } }
-      : { type: "image", source: { type: "url", url: item.image_url.url } };
+      ? { type: kind, source: { type: "base64", media_type: dataUrl[1], data: dataUrl[2] } }
+      : { type: kind, source: { type: "url", url: mediaUrl } };
   });
 }
 
@@ -118,12 +124,14 @@ function buildAnthropicRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const { system, conversation } = splitSystemMessages(input.messages);
   const runtime = mapProviderRuntimeOptions(input.provider, input);
   const baseUrl = input.provider === "minimax"
-    ? normalizeBaseUrl(input.baseUrl).replace(/\/v1$/, "/anthropic")
+    ? normalizeMiniMaxAnthropicBaseUrl(input.baseUrl, input.providerOptions?.region === "global" ? "global" : "cn")
     : input.baseUrl;
   const endpoint = input.provider === "minimax" ? "/v1/messages" : "/messages";
   return {
     url: appendEndpoint(baseUrl, endpoint),
-    headers: { "x-api-key": input.apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json", ...runtime.headers },
+    headers: input.provider === "minimax"
+      ? { ...miniMaxBearerHeaders(input.apiKey), ...runtime.headers }
+      : { "x-api-key": input.apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json", ...runtime.headers },
     body: {
       model: input.model,
       max_tokens: runtime.effectiveMaxOutputTokens ?? input.maxOutputTokens ?? 1024,

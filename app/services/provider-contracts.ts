@@ -32,6 +32,7 @@ function model(
   capabilities: AiCapability[],
   status: AiModelCatalogEntry["status"],
   documentationUrl?: string,
+  limits?: Pick<AiModelCatalogEntry, "contextWindow" | "maxOutputTokens">,
 ): AiModelCatalogEntry {
   const generation = id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
   const modalityGroup = purposes.includes("realtime") ? "realtime" : purposes.includes("speech") ? "speech" : purposes.includes("transcription") && !purposes.includes("text")
@@ -50,6 +51,7 @@ function model(
     lifecycle: status === "deprecated" ? "deprecated" : status === "preview" ? "preview" : "active",
     documentationUrl,
     verifiedAt: documentationUrl ? verifiedAt : undefined,
+    ...limits,
   };
 }
 
@@ -296,15 +298,15 @@ export const providerContracts: ProviderContract[] = [
     provider: "minimax",
     label: "MiniMax",
     group: "speech",
-    baseUrl: "https://api.minimax.io/anthropic",
+    baseUrl: "https://api.minimaxi.com/anthropic",
     model: "speech-2.8-hd",
     apiFormat: "anthropic_messages",
-    capabilities: ["text", "structured_output", "speech", "streaming"],
+    capabilities: ["text", "vision", "video", "tools", "structured_output", "speech", "streaming"],
     modelCatalog: [
-      model("minimax", "MiniMax-M3", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
-      model("minimax", "MiniMax-M2.7", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
-      model("minimax", "MiniMax-M2.7-highspeed", ["text"], ["text", "structured_output", "streaming"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
-      model("minimax", "MiniMax-M2.5", ["text"], ["text", "structured_output", "streaming"], "deprecated", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "MiniMax-M3", ["text", "vision"], ["text", "vision", "video", "tools", "structured_output", "streaming"], "recommended", "https://platform.minimaxi.com/docs/guides/models-intro", { contextWindow: 1_000_000, maxOutputTokens: 524_288 }),
+      model("minimax", "MiniMax-M2.7", ["text"], ["text", "tools", "structured_output", "streaming"], "recommended", "https://platform.minimaxi.com/docs/guides/models-intro"),
+      model("minimax", "MiniMax-M2.7-highspeed", ["text"], ["text", "tools", "structured_output", "streaming"], "stable", "https://platform.minimaxi.com/docs/guides/models-intro"),
+      model("minimax", "MiniMax-M2.5", ["text"], ["text", "tools", "structured_output", "streaming"], "deprecated", "https://platform.minimaxi.com/docs/guides/models-intro"),
       model("minimax", "speech-2.8-hd", ["speech"], ["speech"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "speech-2.8-turbo", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
       model("minimax", "speech-2.6-hd", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),

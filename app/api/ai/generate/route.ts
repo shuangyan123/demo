@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from "../../../services/api-client";
 import { getProviderAdapter } from "../../../server/ai/provider-adapter-registry.ts";
+import { miniMaxFailureMessage } from "../../../services/minimax-connection.ts";
 
 // 校验统一生成请求的最小字段，避免把任意 URL 或空密钥转发到外部服务。
 function isGenerateRequest(value: unknown): value is AiGenerateRequest {
@@ -15,7 +16,15 @@ function encodeSse(event: AiGenerateStreamEvent): Uint8Array {
 }
 
 /** 将常见厂商容量状态归一成可行动提示，避免把原始错误正文展示到业务界面。 */
-function providerFailureMessage(status: number): string {
+function providerFailureMessage(status: number, body: AiGenerateRequest): string {
+  if (body.provider === "minimax") {
+    return miniMaxFailureMessage(
+      status,
+      "generate",
+      body.providerOptions?.region === "global" ? "global" : "cn",
+      body.providerOptions?.credentialPlan === "token_plan" ? "token_plan" : "pay_as_you_go",
+    );
+  }
   if (status === 401 || status === 403) return "API 鉴权失败，请检查连接密钥和权限";
   if (status === 404) return "模型或 API 地址不存在，请刷新模型目录后重新选择";
   if (status === 408 || status === 504) return "厂商响应超时，请稍后重试";
@@ -93,7 +102,7 @@ export async function POST(request: Request) {
       cache: "no-store",
     });
     if (!response.ok) {
-      return new NextResponse(providerFailureMessage(response.status), { status: response.status });
+      return new NextResponse(providerFailureMessage(response.status, body), { status: response.status });
     }
     if (body.stream) return pipeProviderStream(body, response);
     const payload: unknown = await response.json();

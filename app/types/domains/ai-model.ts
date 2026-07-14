@@ -43,6 +43,9 @@ export type AiModelReasoningDescriptor = AiModelPresetReasoningDescriptor | AiMo
 export type AiModelRuntimeDescriptor = {
   provider: ApiProvider;
   modelId: string;
+  /** 只登记官方对具体模型明确声明的输入与工具能力。 */
+  capabilities?: Array<"text" | "vision" | "video" | "tools">;
+  contextWindow?: number;
   reasoning?: AiModelReasoningDescriptor;
   speed?: {
     kind: "service_tier" | "fast_mode" | "paired_model";

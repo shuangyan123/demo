@@ -9,7 +9,7 @@ const GEMINI_PRIORITY_URL = "https://ai.google.dev/gemini-api/docs/generate-cont
 const CLAUDE_THINKING_URL = "https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking";
 const DEEPSEEK_THINKING_URL = "https://api-docs.deepseek.com/guides/thinking_mode";
 const GLM_THINKING_URL = "https://docs.bigmodel.cn/cn/guide/capabilities/thinking";
-const MINIMAX_MODEL_URL = "https://platform.minimax.io/docs/guides/models-intro";
+const MINIMAX_MODEL_URL = "https://platform.minimaxi.com/docs/api-reference/text-anthropic-api";
 const XAI_REASONING_URL = "https://docs.x.ai/developers/model-capabilities/text/reasoning";
 
 const effortOptions = (values: string[]): AiModelRuntimeOption[] => values.map((value) => ({ id: value, label: value, value }));
@@ -146,7 +146,9 @@ for (const modelId of ["deepseek-v4-flash", "deepseek-v4-pro"]) {
 register(descriptor({
   provider: "minimax",
   modelId: "MiniMax-M3",
-  reasoning: { kind: "adaptive", options: [{ id: "disabled", label: "关闭", value: "disabled" }, { id: "adaptive", label: "自适应", value: "adaptive" }], defaultValue: "adaptive" },
+  capabilities: ["text", "vision", "video", "tools"],
+  contextWindow: 1_000_000,
+  reasoning: { kind: "adaptive", options: [{ id: "disabled", label: "关闭", value: "disabled" }, { id: "adaptive", label: "自适应", value: "adaptive" }], defaultValue: "disabled" },
   speed: { kind: "service_tier", options: serviceTierOptions, defaultValue: "standard" },
   documentationUrl: MINIMAX_MODEL_URL,
 }));

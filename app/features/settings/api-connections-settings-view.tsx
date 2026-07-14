@@ -5,6 +5,7 @@ import { testConnectionDraft } from "../../services/ai-connection-client";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
 import { getCachedConnectionModelCatalog, loadDraftModelCatalog, rememberConnectionModelDirectory } from "../../services/model-directory-service";
 import { getProviderContract, getProviderModelCatalog, providerContracts } from "../../services/provider-contracts";
+import { inferMiniMaxRegion, MINIMAX_ANTHROPIC_BASE_URLS, type MiniMaxCredentialPlan, type MiniMaxRegion } from "../../services/minimax-connection";
 import type { AiModelsResult } from "../../services/api-client";
 import type { ApiProvider } from "../../types/domains/ai-provider";
 import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile } from "../../types/review";
@@ -24,6 +25,8 @@ type ConnectionForm = {
   apiKey: string;
   capabilities: AiCapability[];
   language: string;
+  minimaxRegion: MiniMaxRegion;
+  minimaxCredentialPlan: MiniMaxCredentialPlan;
 };
 
 const capabilityLabels: Partial<Record<AiCapability, string>> = { text: "文本", vision: "多模态", structured_output: "结构化输出", speech: "语音", transcription: "录音转写" };
@@ -39,6 +42,8 @@ function createForm(provider: ApiProvider = "openai"): ConnectionForm {
     apiKey: "",
     capabilities: [...contract.capabilities],
     language: "zh-CN",
+    minimaxRegion: "cn",
+    minimaxCredentialPlan: "pay_as_you_go",
   };
 }
 
@@ -114,6 +119,8 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
       apiKey: "",
       capabilities: profile.capabilities,
       language: profile.providerOptions.language ?? "zh-CN",
+      minimaxRegion: profile.providerOptions.region === "global" ? "global" : inferMiniMaxRegion(profile.baseUrl),
+      minimaxCredentialPlan: profile.providerOptions.credentialPlan === "token_plan" ? "token_plan" : "pay_as_you_go",
     });
     setFeedback(null);
     const remembered = typeof window === "undefined" ? "" : window.localStorage.getItem(`review_connection_test_model_v1:${profile.id}`) ?? "";
@@ -146,6 +153,11 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     setBusyAction("save");
     setFeedback({ tone: "neutral", text: "正在保存…" });
     try {
+      const providerOptions: Record<string, string> = form.provider === "azure"
+        ? { language: form.language }
+        : form.provider === "minimax"
+          ? { region: form.minimaxRegion, credentialPlan: form.minimaxCredentialPlan }
+          : {};
       const saved = await aiConnectionsRepository.saveProfile({
         id: form.id || undefined,
         label: form.label,
@@ -153,7 +165,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
         baseUrl: form.baseUrl,
         capabilities: form.capabilities,
         apiKey: form.apiKey,
-        providerOptions: form.provider === "azure" ? { language: form.language } : {},
+        providerOptions,
         today: new Date(),
       });
       rememberConnectionModelDirectory(saved, discoveredDirectory);
@@ -179,6 +191,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
         provider: form.provider,
         apiKey: form.apiKey,
         baseUrl: form.baseUrl,
+        providerOptions: form.provider === "minimax" ? { region: form.minimaxRegion, credentialPlan: form.minimaxCredentialPlan } : undefined,
         existingConnection: snapshot.profiles.find((profile) => profile.id === form.id),
       });
       const models = result.models.map((model) => ({ id: model.id, label: model.label }));
@@ -214,6 +227,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
         baseUrl: form.baseUrl,
         modelId: selectedTestModelId,
         label: form.label,
+        providerOptions: form.provider === "minimax" ? { region: form.minimaxRegion, credentialPlan: form.minimaxCredentialPlan } : undefined,
         existingConnection: profile,
       });
       if (profile) await aiConnectionsRepository.updateTestStatus(profile.id, "success", "连接成功");
@@ -259,7 +273,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     }
     setBusyAction(`test:${profile.id}`);
     try {
-      await testConnectionDraft({ provider: profile.provider, apiKey: "", baseUrl: profile.baseUrl, modelId, label: profile.label, existingConnection: profile });
+      await testConnectionDraft({ provider: profile.provider, apiKey: "", baseUrl: profile.baseUrl, modelId, label: profile.label, providerOptions: profile.providerOptions, existingConnection: profile });
       await aiConnectionsRepository.updateTestStatus(profile.id, "success", "连接成功");
       await refresh();
       setFeedback({ tone: "success", text: `${profile.label} 连接成功` });
@@ -293,6 +307,10 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
           <div className="mt-4 grid gap-4">
             <label className="ui-field">连接名称<input className="ui-input" value={form.label} onChange={(event) => setForm({ ...form, label: event.currentTarget.value })} /></label>
             <label className="ui-field">Base URL<input className="ui-input" value={form.baseUrl} onChange={(event) => setForm({ ...form, baseUrl: event.currentTarget.value })} /></label>
+            {form.provider === "minimax" ? <div className="grid gap-4 sm:grid-cols-2">
+              <label className="ui-field">服务区域<select className="ui-input" value={form.minimaxRegion} onChange={(event) => { const region = event.currentTarget.value as MiniMaxRegion; setForm((current) => ({ ...current, minimaxRegion: region, baseUrl: MINIMAX_ANTHROPIC_BASE_URLS[region] })); }}><option value="cn">中国大陆</option><option value="global">国际站</option></select></label>
+              <label className="ui-field">Key 类型<select className="ui-input" value={form.minimaxCredentialPlan} onChange={(event) => { const value = event.currentTarget.value as MiniMaxCredentialPlan; setForm((current) => ({ ...current, minimaxCredentialPlan: value })); }}><option value="pay_as_you_go">按量 API Key</option><option value="token_plan">Token Plan Key</option></select></label>
+            </div> : null}
             {form.provider === "azure" ? <label className="ui-field">语音语言<input className="ui-input" value={form.language} onChange={(event) => setForm({ ...form, language: event.currentTarget.value })} /></label> : null}
             {form.provider === "custom" ? <fieldset><legend className="text-sm font-semibold">连接能力</legend><div className="mt-2 flex flex-wrap gap-4">{formCapabilities.map((capability) => <label key={capability} className="inline-flex items-center gap-2 text-sm text-muted"><input checked={form.capabilities.includes(capability)} className="ui-checkbox" type="checkbox" onChange={() => toggleCapability(capability)} />{capabilityLabels[capability]}</label>)}</div></fieldset> : null}
             <label className="ui-field">API Key<input className="ui-input" type="password" autoComplete="new-password" placeholder={form.id ? "留空保留原 Key" : form.provider === "custom" ? "无鉴权服务可留空" : "填写 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.currentTarget.value })} /></label>

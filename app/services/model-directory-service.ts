@@ -28,6 +28,8 @@ function toCatalogEntry(connection: Pick<ApiConnectionProfile, "provider">, mode
     generation: model.generation,
     modalityGroup: model.modalityGroup,
     lifecycle: model.status === "deprecated" ? "deprecated" : model.status === "preview" ? "preview" : "active",
+    contextWindow: model.contextWindow,
+    maxOutputTokens: model.maxOutputTokens,
     documentationUrl: fallback?.documentationUrl,
     verifiedAt: fallback?.verifiedAt ?? model.updatedAt.slice(0, 10),
   };
@@ -76,6 +78,7 @@ export async function loadDraftModelCatalog(input: {
   provider: ApiProvider;
   apiKey: string;
   baseUrl: string;
+  providerOptions?: Record<string, string>;
   existingConnection?: ApiConnectionProfile;
 }, purpose?: AiConnectionPurpose): Promise<ModelCatalogLoadResult> {
   const contract = getProviderContract(input.provider);

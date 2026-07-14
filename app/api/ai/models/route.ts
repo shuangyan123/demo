@@ -2,6 +2,7 @@ import type { AiModelDirectoryEntry, AiModelsRequest } from "../../../services/a
 import type { AiCapability, AiConnectionPurpose, ApiProvider } from "../../../types/review";
 import { aiRouteError, aiUpstreamError, readAiRouteJson } from "../../../server/ai/http.ts";
 import { getProviderModelCatalog } from "../../../services/provider-contracts.ts";
+import { miniMaxBearerHeaders, miniMaxFailureMessage, normalizeMiniMaxAnthropicBaseUrl } from "../../../services/minimax-connection.ts";
 
 type RawModel = {
   id: string;
@@ -25,14 +26,15 @@ function normalizeBaseUrl(value: string): string {
 
 function providerHeaders(provider: ApiProvider, apiKey: string): Record<string, string> {
   if (provider === "google") return { "x-goog-api-key": apiKey };
-  if (provider === "anthropic" || provider === "minimax") return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+  if (provider === "minimax") return miniMaxBearerHeaders(apiKey);
+  if (provider === "anthropic") return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
   return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
 }
 
 /** 返回厂商官方模型目录地址，避免把所有服务都假设成同一个 /models 形状。 */
-function modelsUrl(provider: ApiProvider, baseUrl: string): string {
+function modelsUrl(provider: ApiProvider, baseUrl: string, providerOptions?: Record<string, string>): string {
   const normalized = normalizeBaseUrl(baseUrl);
-  if (provider === "minimax") return `${normalized.replace(/\/v1$/, "/anthropic")}/v1/models`;
+  if (provider === "minimax") return `${normalizeMiniMaxAnthropicBaseUrl(normalized, providerOptions?.region === "global" ? "global" : "cn")}/v1/models`;
   return `${normalized}/models`;
 }
 
@@ -68,6 +70,7 @@ function purposesFor(capabilities: AiCapability[]): AiConnectionPurpose[] {
 
 function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string): AiModelDirectoryEntry {
   const resolvedCapabilities = modelCapabilities(provider, raw.id, raw.capabilities);
+  const verified = getProviderModelCatalog(provider).find((model) => model.id === raw.id);
   const capabilities = resolvedCapabilities.capabilities;
   const rawStatus = raw.status?.toLowerCase();
   const status = rawStatus === "deprecated" || rawStatus === "retired" ? "deprecated" : rawStatus === "preview" || rawStatus === "experimental" ? "preview" : rawStatus ? "active" : "unknown";
@@ -86,8 +89,8 @@ function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string)
     family: raw.id.replace(/(?:[-_.](?:pro|mini|nano|flash|lite|turbo|hd|highspeed|reasoning|non-reasoning|preview|latest))+$/gi, ""),
     generation,
     modalityGroup,
-    contextWindow: raw.contextWindow,
-    maxOutputTokens: raw.maxOutputTokens,
+    contextWindow: raw.contextWindow ?? verified?.contextWindow,
+    maxOutputTokens: raw.maxOutputTokens ?? verified?.maxOutputTokens,
     supportsStreaming: capabilities.includes("streaming"),
     supportsStructuredOutput: capabilities.includes("structured_output"),
     updatedAt,
@@ -99,8 +102,18 @@ export async function POST(request: Request) {
   try {
     const body = await readAiRouteJson(request);
     if (!isRequest(body)) return aiRouteError("缺少有效的模型目录连接参数", 400);
-    const response = await fetch(modelsUrl(body.provider, body.baseUrl), { headers: providerHeaders(body.provider, body.apiKey), cache: "no-store" });
-    if (!response.ok) return aiUpstreamError("官方模型目录请求失败", response.status);
+    const response = await fetch(modelsUrl(body.provider, body.baseUrl, body.providerOptions), { headers: providerHeaders(body.provider, body.apiKey), cache: "no-store" });
+    if (!response.ok) {
+      const message = body.provider === "minimax"
+        ? miniMaxFailureMessage(
+          response.status,
+          "directory",
+          body.providerOptions?.region === "global" ? "global" : "cn",
+          body.providerOptions?.credentialPlan === "token_plan" ? "token_plan" : "pay_as_you_go",
+        )
+        : "官方模型目录请求失败";
+      return aiUpstreamError(message, response.status);
+    }
     const payload = await response.json() as { data?: Array<Record<string, unknown>>; models?: Array<Record<string, unknown>> };
     const source = body.provider === "google" ? payload.models ?? [] : payload.data ?? [];
     const fetchedAt = new Date().toISOString();

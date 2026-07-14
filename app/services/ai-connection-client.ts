@@ -124,11 +124,11 @@ export async function transcribeWithConnection(
 /** 使用已保存连接读取官方模型目录，密钥仍只在连接客户端内解密。 */
 export async function listModelsWithConnection(connection: ApiConnectionProfile): Promise<AiModelsResult> {
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
-  return callAiModels({ provider: connection.provider, apiKey, baseUrl: connection.baseUrl });
+  return callAiModels({ provider: connection.provider, apiKey, baseUrl: connection.baseUrl, providerOptions: connection.providerOptions });
 }
 
 /** 新建连接保存前读取模型目录；明文密钥只存在于本次请求内存。 */
-export async function listModelsWithDraft(input: { provider: ApiConnectionProfile["provider"]; apiKey: string; baseUrl: string }): Promise<AiModelsResult> {
+export async function listModelsWithDraft(input: { provider: ApiConnectionProfile["provider"]; apiKey: string; baseUrl: string; providerOptions?: Record<string, string> }): Promise<AiModelsResult> {
   return callAiModels(input);
 }
 
@@ -144,10 +144,11 @@ export async function listModelsWithConnectionDraft(input: {
   provider: ApiConnectionProfile["provider"];
   apiKey: string;
   baseUrl: string;
+  providerOptions?: Record<string, string>;
   existingConnection?: ApiConnectionProfile;
 }): Promise<AiModelsResult> {
   const apiKey = await resolveConnectionDraftSecret(input);
-  return callAiModels({ provider: input.provider, apiKey, baseUrl: input.baseUrl });
+  return callAiModels({ provider: input.provider, apiKey, baseUrl: input.baseUrl, providerOptions: input.providerOptions ?? input.existingConnection?.providerOptions });
 }
 
 /** 使用当前连接草稿执行极小真实测试，并以紧凑结果卡展示活动。 */
@@ -157,6 +158,7 @@ export async function testConnectionDraft(input: {
   baseUrl: string;
   modelId: string;
   label?: string;
+  providerOptions?: Record<string, string>;
   existingConnection?: ApiConnectionProfile;
 }): Promise<AiGenerateResult> {
   const apiKey = await resolveConnectionDraftSecret(input);
@@ -167,6 +169,7 @@ export async function testConnectionDraft(input: {
     model: input.modelId,
     messages: [{ role: "user", content: "仅回复 OK" }],
     maxOutputTokens: 12,
+    providerOptions: input.providerOptions ?? input.existingConnection?.providerOptions,
     activity: { connectionLabel: input.label, presentation: "compact-test", purpose: "connection-test" },
   });
 }

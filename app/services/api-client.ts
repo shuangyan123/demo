@@ -8,6 +8,7 @@ export type ChatMessageContent =
   | Array<
       | { type: "text"; text: string }
       | { type: "image_url"; image_url: { url: string } }
+      | { type: "video_url"; video_url: { url: string } }
     >;
 
 export type ChatMessage = {
@@ -111,6 +112,7 @@ export type AiModelsRequest = {
   provider: ApiProvider;
   apiKey: string;
   baseUrl: string;
+  providerOptions?: Record<string, string>;
 };
 
 export type AiModelsResult = {

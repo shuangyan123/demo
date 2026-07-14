@@ -20,7 +20,7 @@ const definitions: Array<Pick<ProviderAdapter, "provider" | "protocol" | "capabi
   { provider: "anthropic", protocol: "messages", capabilities: ["text", "vision", "structured_output", "streaming"] },
   { provider: "deepseek", protocol: "chat_completions", capabilities: ["text", "structured_output", "streaming"] },
   { provider: "zhipu", protocol: "chat_completions", capabilities: ["text", "vision", "structured_output", "streaming", "speech", "transcription", "realtime"] },
-  { provider: "minimax", protocol: "messages", capabilities: ["text", "structured_output", "streaming", "speech"] },
+  { provider: "minimax", protocol: "messages", capabilities: ["text", "vision", "video", "tools", "structured_output", "streaming", "speech"] },
   { provider: "xai", protocol: "responses", capabilities: ["text", "vision", "structured_output", "streaming"] },
 ];
 
