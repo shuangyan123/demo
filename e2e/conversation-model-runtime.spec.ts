@@ -43,8 +43,7 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     await page.getByLabel("Base URL").fill(provider.baseUrl);
     await page.getByLabel("API Key").fill("fixture-key");
     await page.getByRole("button", { name: "获取模型" }).click();
-    await expect(page.getByLabel("测试模型")).toContainText("gpt-5.5");
-    await page.getByLabel("测试模型").selectOption("gpt-5.5");
+    await expect(page.getByLabel("测试模型 ID")).toHaveValue("gpt-5.5");
     await page.getByRole("button", { name: "测试连接" }).click();
     await expect(page.getByRole("status")).toContainText("连接成功");
     await page.getByRole("button", { name: "保存连接" }).click();

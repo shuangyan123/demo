@@ -6,14 +6,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 设置与额度验收约定
 
-- 设置导航固定为“外观、AI 连接、角色、额度、MCP、诊断”；旧 `personalization` 只在入口边界归一化，持久化结构和 Dexie v16 不变。
+- 设置导航固定为“外观、AI 连接、个性化、额度、MCP、诊断”；旧 `roles` 在入口边界归一化为 `personalization`，持久化结构和 Dexie v16 不变。
 - 模型 tooltip 的可视层只响应 450ms 鼠标停留或用户键盘导航；程序化聚焦与触屏不得显示浮层。菜单外壳不滚动，当前层仅在真实溢出后启用内部滚动。
 - 额度凭据与普通推理 Key 分离并逐项加密。OpenAI、Anthropic、DeepSeek、xAI 只调用官方只读管理/费用/余额接口；Gemini、MiniMax、GLM 只显示控制台与手动记录。
 - 厂商品牌登记必须包含来源、核验日期和许可说明；官方限制第三方 Logo 时使用文字缩写，禁止无授权复制。
 
 ## 2026-07-14 设置架构约定
 
-- 设置导航固定为外观、AI 连接、角色、额度、MCP、诊断；额度不得回到 AI 连接详情或插件目录。
+- 设置导航固定为外观、AI 连接、个性化、额度、MCP、诊断；额度不得回到 AI 连接详情或内置集成页。
+- 个性化记忆以可选字段保存在现有 personalization 单例；手动记忆 active，AI 建议只能 pending，最多 100 条且每次请求注入不超过 1500 字符。
+- 额度启用必须立即落库并进入 `QuotaRuntimeStore` 生命周期；隐藏、离线暂停，恢复只刷新过期项，临时失败保留上次成功快照。
+- React 事件值进入函数式状态更新前必须先复制到局部变量，禁止在更新器执行时再读取可能已清空的 `event.currentTarget`。
 - 模型 tooltip 只在鼠标停留或用户键盘导航后可见；程序化焦点与触屏保持静默，但必须保留 `aria-describedby`。
 - 额度只调用官方只读管理、费用或余额接口；真实 smoke 必须显式启用且绝不记录数值、密钥或原始响应。
 
@@ -41,7 +44,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 流式输出只允许通过 `/api/ai/generate` 的 SSE 分支和 provider adapter 归一化事件实现；业务 UI 不得解析厂商原始流。
 - AI 活动面板按 run/step 展示工具链阶段、短文本片段和 usage 摘要，不得持久化 prompt、截图、完整上下文、Vault 正文或厂商原始事件。
 - AI 额度必须通过独立插件适配层查询，账单凭据与普通模型调用 Key 分开保存；无官方稳定账单 API 的厂商只能显示 unsupported/manual，不得抓取网页后台。
-- 设置中不保留插件目录；粉笔导入放在“公考 → 导入资料”，Obsidian 放在知识库，AI 额度放在 AI 连接详情。
+- 设置中不保留插件目录；粉笔导入放在“公考 → 导入资料”，Obsidian 放在知识库，AI 额度使用独立设置项。
 - AI 额度插件采用 CodexBar 式 descriptor/fetch strategy 边界；provider 卡片、官网入口、状态页、刷新周期、来源模式和 unsupported 原因必须从插件注册表读取。
 - AI 连接模型选择必须使用下拉列表加手动模型 ID 兜底；推荐、预览、弃用、官方和能力标签只作为说明，不再铺成一排推荐按钮。
 - 回归验证至少运行 `npm run lint`、`npm run test:contracts` 和 `npm run build`，涉及交互时还要用应用内浏览器检查页面、控制台和关键流程。

@@ -15,7 +15,7 @@ export type MockAiProvider = {
 
 export type MockAiProviderOptions = {
   response?: string | ((request: MockAiRequest, requestIndex: number) => string);
-  protocol?: "chat_completions" | "openai_responses";
+  protocol?: "chat_completions" | "openai_responses" | "google_generate_content";
   models?: string[];
   actualSpeed?: string;
   streamCompletionDelayMs?: number;
@@ -50,7 +50,22 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
         const mockRequest = { method: request.method, url: request.url, body };
         if (request.method === "GET" && request.url === "/v1/models") {
           requests.push(mockRequest);
-          writeJson(response, 200, { data: (options.models ?? ["gpt-5.5"]).map((id) => ({ id, status: "active" })) });
+          const models = options.models ?? ["gpt-5.5"];
+          writeJson(response, 200, options.protocol === "google_generate_content"
+            ? { models: models.map((id) => ({ name: `models/${id}`, displayName: id, supportedGenerationMethods: ["generateContent"] })) }
+            : { data: models.map((id) => ({ id, status: "active" })) });
+          return;
+        }
+        if (options.protocol === "google_generate_content" && request.method === "POST" && /^\/v1\/models\/[^:]+:(?:generateContent|streamGenerateContent\?alt=sse)$/.test(request.url ?? "")) {
+          requests.push(mockRequest);
+          const content = typeof options.response === "function" ? options.response(mockRequest, requests.length - 1) : options.response ?? defaultResponse;
+          if (request.url?.includes("streamGenerateContent")) {
+            response.writeHead(200, { "Content-Type": "text/event-stream", "x-request-id": `mock-${requests.length}` });
+            response.write(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 8, totalTokenCount: 20 } })}\n\n`);
+            response.end();
+            return;
+          }
+          writeJson(response, 200, { candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 8, totalTokenCount: 20 } });
           return;
         }
         const expectedPath = options.protocol === "openai_responses" ? "/v1/responses" : "/v1/chat/completions";

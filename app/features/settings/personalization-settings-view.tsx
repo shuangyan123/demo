@@ -159,7 +159,7 @@ export function PersonalizationSettingsView({
         <p className="mt-2 text-sm text-muted">分别管理 AI 的交流角色和经你确认的长期记忆。</p>
       </div>
       <div className="mt-5 inline-flex rounded-lg bg-surface-muted p-1" aria-label="个性化设置分区">
-        {(["roles", "memory"] as const).map((tab) => <button key={tab} className={`min-h-9 rounded-md px-4 text-sm ${activeTab === tab ? "bg-surface text-foreground shadow-sm" : "text-muted"}`} type="button" onClick={() => setActiveTab(tab)}>{tab === "roles" ? "角色" : "记忆"}</button>)}
+        {(["roles", "memory"] as const).map((tab) => <button key={tab} className={`min-h-9 rounded-md px-4 text-sm max-lg:min-h-11 ${activeTab === tab ? "bg-surface text-foreground shadow-sm" : "text-muted"}`} type="button" onClick={() => setActiveTab(tab)}>{tab === "roles" ? "角色" : "记忆"}</button>)}
       </div>
 
       {activeTab === "memory" ? (

@@ -11,7 +11,7 @@ async function expectNoDocumentHorizontalOverflow(page: Page) {
   expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth + 1);
 }
 
-test("移动视口下关键入口可达且不会出现运行时错误或页面级横向溢出", async ({ page }) => {
+test("移动视口下关键入口可达且不会出现运行时错误或页面级横向溢出", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
@@ -47,6 +47,14 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await page.getByRole("button", { name: "诊断" }).click();
   await expect(page.getByRole("heading", { name: "诊断", exact: true })).toBeVisible();
   await expect(page.getByLabel("诊断报告")).toContainText("本地诊断报告");
+  await page.getByRole("button", { name: "个性化" }).click();
+  const memoryTab = page.getByRole("button", { name: "记忆", exact: true });
+  await memoryTab.click();
+  const memoryTabBox = await memoryTab.boundingBox();
+  expect(memoryTabBox?.height).toBeGreaterThanOrEqual(44);
+  await expect(page.getByRole("heading", { name: "记忆", exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("personalization-memory-mobile.png"), fullPage: false });
+  await expectNoDocumentHorizontalOverflow(page);
 
   await expectNoFrameworkOverlay(page);
   await expectNoDocumentHorizontalOverflow(page);

@@ -2,6 +2,11 @@
 
 ## 2026-07-14 设置与真实额度经验
 
+- 编辑连接时“已保存档案”和“当前草稿”必须是两个状态域；密钥可以在客户端边界按需复用，但 Base URL、厂商、模型和测试展示意图必须来自草稿。
+- React 合成事件的 `currentTarget` 不得在函数式状态更新器中延迟读取；先复制 `value` / `checked`，否则生产构建可能在事件回收后触发整页错误边界。
+- 额度开关不是普通表单字段。启用必须立即落库并接入可见性、在线、过期、并发、超时和旧快照保留的运行时生命周期。
+- 个性化记忆必须采用 pending/active 边界；AI 不得直接激活建议，只有确认后的短记忆可按范围确定性选取并限制上下文长度。
+- 危险数据操作按业务域拆分并显示真实数量；完整重置必须输入确认文字，AI 连接页不得混入业务数据删除。
 - tooltip 的可访问描述与可视浮层必须解耦：`aria-describedby` 常驻，视觉提示由 hover/用户键盘意图触发，程序化焦点和触屏不触发。
 - 弹层换层不能让外壳承担滚动；先清零 viewport，再用真实尺寸决定滚动，可消除右侧滚动条闪烁。
 - 普通推理 Key 与 Admin/Management 账单凭据必须分库存储和逐项加密；无稳定官方 API 的厂商只允许 manual/unsupported。
@@ -37,15 +42,15 @@
 
 - 知识资料列表的渐进渲染、批量选择、批量删除和导出范围计算应保留在 `useKnowledgeListController`，不要重新塞回 `knowledge-workspace.tsx`。
 - Obsidian repository 与知识演进 AI service 属于知识库低频重服务，只能在刷新或用户动作中通过动态 `import()` 加载；React 状态仍只保存可序列化 snapshot、mapping 和 proposal。
-- Obsidian Vault 和 AI 额度必须通过“设置 → 插件”集中呈现；AI 连接页只管理模型调用连接，不再承载额度配置。
+- Obsidian Vault 位于知识库，AI 额度使用独立设置项；AI 连接页只管理模型调用连接，不再承载额度配置或数据清理。
 
 ## 专项学习与插件化经验
 
 - 顶层工作台采用 Codex 式入口：新对话、搜索、已安排、插件和项目；“公考”是首个专项学习项目，后续专项通过 `StudyDomainDefinition` 注册，不再把功能平铺到主侧栏。
 - 专项首页要优先展示学习链路和下一步，而不是只罗列模块；公考当前链路是导入/错题、知识沉淀、知识训练、AI 辅导、已安排复盘和 Obsidian 输出。
 - “已安排”是原本本地自动化的产品入口；底层 automation 类型、表和仓储可继续复用，命名调整不得为了 UI 文案升级 Dexie schema。
-- 粉笔导入属于设置插件，不再作为主导航板块；解析能力通过 `ImportProviderPlugin` 包装，UI 只能消费插件结果和诊断，不能重新直接绑定粉笔 parser。
-- 插件页采用 Codex 目录式 UI，首屏只放搜索、已安装图标、分类列表、短描述、短状态徽标和主操作；健康摘要、隐私说明、诊断和业务面板必须点击插件后再进入页面内 inspector。
+- 粉笔导入属于“公考 → 导入资料”的内部 `ImportProviderPlugin`，不再作为主导航板块；UI 只能消费适配器结果和诊断，不能重新直接绑定粉笔 parser。
+- 内置集成页采用紧凑目录式 UI，只显示真实可打开的应用内能力；不得用静态 `installed`、无处理函数的安装或禁用按钮制造虚假生命周期。
 - 插件目录字段必须来自注册表，不能在 UI 中硬编码 provider 特例；运行态摘要只接收脱敏数量与连接可用性，不能读取 prompt、Vault 正文、截图或完整厂商响应。
 - AI 额度 provider 采用 CodexBar 式 descriptor/fetch strategy 思路，provider 卡片、官网入口、状态页、刷新周期和 unsupported 原因都从注册表读取，通用 client 不写厂商账单分支。
 - MCP 必须从插件目录移出，单独放在 `设置 → MCP`；本轮只保存 server 配置和 discovery 摘要，真实 tools/resources/prompts 调用后续通过 conversation run/step 展示。

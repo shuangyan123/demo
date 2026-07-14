@@ -7,9 +7,9 @@ test("角色设置可切换定制视图并打开默认人设编辑弹层", async
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
   await page.getByRole("button", { name: "设置" }).first().click();
-  await page.getByRole("button", { name: "角色" }).click();
+  await page.getByRole("button", { name: "个性化" }).click();
 
-  await expect(page.getByRole("heading", { name: "角色" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "个性化" })).toBeVisible();
   await page.getByRole("button", { name: "定制" }).click();
   await expect(page.getByRole("heading", { name: "定制角色" })).toBeVisible();
   await page.getByRole("button", { name: "头像" }).click();

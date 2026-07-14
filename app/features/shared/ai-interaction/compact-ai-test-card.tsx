@@ -35,7 +35,7 @@ export function CompactAiTestCard({ run, onDismiss }: CompactAiTestCardProps) {
   }, [onDismiss, run.state]);
 
   return (
-    <aside className="fixed bottom-4 right-4 z-50 w-[min(22rem,calc(100vw-1.25rem))] overflow-hidden rounded-lg border border-line bg-surface shadow-2xl" aria-label="连接测试结果" role="status">
+    <aside className="fixed bottom-4 right-4 z-50 w-[min(22rem,calc(100vw-1.25rem))] overflow-hidden rounded-lg border border-line bg-surface shadow-2xl" aria-label="连接测试结果" aria-live="polite" role="region">
       <header className="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2">
         {run.provider ? <ProviderIcon provider={run.provider} size={28} /> : null}
         <div className="min-w-0 flex-1">

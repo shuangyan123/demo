@@ -23,7 +23,6 @@ import { ConversationMcpToolPanel } from "./conversation-mcp-tool-panel";
 import { ConversationProposalBlock } from "./conversation-proposal-block";
 import { ConversationToolRunSummary } from "./conversation-tool-run-summary";
 import { useConversationModelSelection } from "./use-conversation-model-selection";
-
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
 
 type ConversationWorkspaceProps = {
@@ -45,7 +44,6 @@ type ConversationWorkspaceProps = {
   onNotice: (message: string) => void;
   onClearLaunchContext: () => void;
 };
-
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({
   activeConversationId,
@@ -457,7 +455,7 @@ export function ConversationWorkspace({
         {proposalPanelOpen ? <section className="conversation-inline-inspector" aria-label="生成 Obsidian 提案">
           <header><div><span>OBSIDIAN PROPOSAL</span><h2>从当前对话生成提案</h2></div><button type="button" onClick={() => setProposalPanelOpen(false)}>关闭</button></header>
           <p className="conversation-tool-confirmation">当前对话摘要始终作为来源；可明确勾选最多 5 条知识资料。不会发送完整 Vault 正文。</p>
-          <div className="conversation-proposal-sources">{knowledgeEntries.slice(0, 12).map((entry) => <label key={entry.id}><input type="checkbox" checked={proposalKnowledgeIds.includes(entry.id)} disabled={!proposalKnowledgeIds.includes(entry.id) && proposalKnowledgeIds.length >= 5} onChange={(event) => setProposalKnowledgeIds((current) => event.currentTarget.checked ? [...current, entry.id] : current.filter((id) => id !== entry.id))} /><span><strong>{entry.title}</strong><small>{entry.summary}</small></span></label>)}</div>
+          <div className="conversation-proposal-sources">{knowledgeEntries.slice(0, 12).map((entry) => <label key={entry.id}><input type="checkbox" checked={proposalKnowledgeIds.includes(entry.id)} disabled={!proposalKnowledgeIds.includes(entry.id) && proposalKnowledgeIds.length >= 5} onChange={(event) => { const checked = event.currentTarget.checked; setProposalKnowledgeIds((current) => checked ? [...current, entry.id] : current.filter((id) => id !== entry.id)); }} /><span><strong>{entry.title}</strong><small>{entry.summary}</small></span></label>)}</div>
           <button className="ui-button ui-button-primary" type="button" disabled={proposalBusy} onClick={() => void generateConversationProposals()}>{proposalBusy ? "生成中…" : "生成提案"}</button>
         </section> : null}
         {mcpPanelOpen ? <ConversationMcpToolPanel onClose={() => setMcpPanelOpen(false)} onExecuted={recordMcpExecution} onNotice={onNotice} /> : null}

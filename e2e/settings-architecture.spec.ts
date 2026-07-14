@@ -7,9 +7,9 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).first().click();
 
-  await expect(page.getByRole("button", { name: "角色" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "个性化" })).toBeVisible();
   await expect(page.getByRole("button", { name: "额度" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "个性化" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "角色", exact: true })).toHaveCount(0);
 
   const lightDiffuse = page.getByRole("switch", { name: "浅色主题弥散渐变" });
   await expect(lightDiffuse).toHaveAttribute("aria-checked", "false");
@@ -19,6 +19,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.getByRole("button", { name: "设置" }).first().click();
   await expect(page.getByRole("switch", { name: "浅色主题弥散渐变" })).toHaveAttribute("aria-checked", "true");
   await page.getByRole("button", { name: "深色", exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("settings-appearance-dark-desktop.png"), fullPage: false });
   await page.getByRole("button", { name: "浅色", exact: true }).click();
   await expect(page.getByRole("switch", { name: "浅色主题弥散渐变" })).toHaveAttribute("aria-checked", "true");
 
@@ -33,8 +34,8 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.screenshot({ path: testInfo.outputPath("settings-provider-select-desktop.png"), fullPage: false });
 
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "角色" }).click();
-  await expect(page.getByRole("heading", { name: "角色" })).toBeVisible();
+  await page.getByRole("button", { name: "个性化" }).click();
+  await expect(page.getByRole("heading", { name: "个性化" })).toBeVisible();
   await page.getByRole("button", { name: "额度" }).click();
   await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
@@ -68,11 +69,11 @@ test("额度页面通过归一化接口验证并刷新，不暴露原始响应",
   await page.getByRole("button", { name: "额度" }).click();
   const card = page.locator("details").filter({ hasText: "DeepSeek" });
   await card.locator("summary").click();
-  await card.getByRole("checkbox").check();
+  await card.getByRole("switch", { name: "DeepSeek额度刷新" }).check();
   await card.getByLabel("DeepSeek API Key").fill("test-key-not-real");
   await card.getByRole("button", { name: "保存" }).click();
   await card.getByRole("button", { name: "测试凭据" }).click();
-  await expect(page.getByRole("status")).toContainText("验证通过");
+  await expect(page.getByText("额度凭据验证通过", { exact: true })).toBeVisible();
   await card.getByRole("button", { name: "刷新额度" }).click();
   await expect(card).toContainText("CNY 1.00");
   await expectNoFrameworkOverlay(page);

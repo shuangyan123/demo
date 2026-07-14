@@ -1,8 +1,17 @@
 # API 约定
 
+## 连接测试、模型能力与个性化记忆（2026-07-14）
+
+- `/api/ai/models` 与 `/api/ai/generate` URL 不变。Google Models API 只接收 `supportedGenerationMethods` 包含 `generateContent` 的模型；返回项增加 `capabilitySource` 和可选 `supportedGenerationMethods`。精确静态 descriptor 标记为 `verified`，未知模型不得按名称猜测视觉能力。
+- 编辑连接的测试和模型发现使用当前草稿厂商、Base URL、Key 与模型；旧连接只在草稿 Key 为空时提供解密后的本次内存凭据。测试事件带 `presentation: "compact-test"`，服务端请求格式不变。无目录连接的待选 connectionId 不写库，提交手动模型 ID 后才通过 repository 原子保存完整默认选择。
+- `PersonalizationSettings` 增加可选 `memoryVersion`、`memorySettings`、`memoryEntries`，仍写入现有 personalization 单例。手动记忆直接 active，AI 建议只能 pending；只有用户确认后的记忆能进入最多 1500 字符的系统片段。
+- 数据管理不新增服务端 API。导入、错题复盘和对话历史通过独立 IndexedDB 事务清理；完整重置删除 `review_workspace` 与本应用 localStorage。
+
 ## 额度验证与刷新（2026-07-14）
 
 `POST /api/ai/quota` 接收 `{ action, provider, credentials, period?, monthlyBudget? }`。`action` 为 `validate | refresh`；旧 OpenAI `{ apiKey }` 请求继续按刷新兼容。响应只包含归一化验证结果或 `AiQuotaMetric[]`，不返回凭据和厂商原始响应。
+
+客户端 `QuotaRuntimeStore` 在启用时立即持久化；凭据齐全则先验证再刷新。仅页面可见且在线时按 descriptor cadence 刷新，手动刷新绕过缓存，最多四路并发，临时失败保留并标记上次快照为 stale。
 
 - OpenAI 使用 Admin Key 查询 Costs/Usage；剩余额度仅可由本地预算估算。
 - Anthropic 使用 Admin Key 查询组织、usage report 与 cost report。
@@ -84,15 +93,15 @@ GLM 运行能力只按显式模型清单登记。七档清单当前仅含 `glm-5
 
 额度查询使用 `/api/ai/quota`，只接受额度插件凭据，不接受普通模型调用连接。OpenAI 插件调用官方 Admin Costs/Usage API 并返回标准 `AiQuotaSnapshot`；官方未返回余额字段时，`officialRemainingAvailable` 必须为 `false`。
 
-`AiQuotaSnapshot` 可包含 `periodLabel`、`resetAt`、`sourceLabel` 和 `usageRatio`，用于设置插件中的紧凑厂商卡展示；这些字段只能来自官方接口、用户手动预算或明确的 unsupported 状态，不能由网页抓取伪造。
+`AiQuotaSnapshot` 可包含 `periodLabel`、`resetAt`、`sourceLabel`、`usageRatio` 和运行时 `stale` 标记，用于独立额度设置中的紧凑厂商行；这些字段只能来自官方接口、用户手动预算或明确的 unsupported 状态，不能由网页抓取伪造。
 
 `AiQuotaProviderPlugin` 使用 CodexBar 式 descriptor/fetch strategy 描述 provider 标签、官网账单入口、状态页、刷新周期、来源模式和 unsupported 原因。DeepSeek、Gemini、Anthropic、Qwen、火山、硅基流动和自定义服务在没有稳定官方账单 API 前只返回 unsupported/manual 状态。禁止通过网页抓取、非官方接口或复用普通 API Key 伪造实时余额。
 
-## 设置插件目录
+## 内置集成目录
 
-`SettingsPluginDefinition` 面向 Codex 目录式 UI 暴露 `icon`、`category`、`shortDescription`、`providerLabel`、`statusBadge`、`primaryAction`、`menuActions` 和 `detailPanelLoader`。目录页只消费这些轻量字段，业务插件面板必须通过 `detailPanelLoader` 在点击后按需加载。
+`SettingsPluginDefinition` 面向内置集成页暴露 `icon`、`category`、`shortDescription`、`providerLabel`、`statusBadge`、`primaryAction`、`menuActions` 和 `detailPanelLoader`。目录页只消费这些轻量字段，业务面板必须通过 `detailPanelLoader` 在点击后按需加载；不声明静态 `installed`，也不展示没有真实生命周期的安装、禁用按钮。
 
-`SettingsPluginCategory` 当前包含 `featured`、`knowledge-sync`、`import-source`、`quota` 和 `study-extension`。`featured` 只用于目录聚合展示，不代表第三方动态安装能力；MCP 不进入插件目录。
+`SettingsPluginCategory` 当前包含 `featured`、`knowledge-sync`、`import-source` 和 `study-extension`。`featured` 只用于目录聚合展示，不代表第三方动态安装能力；额度与 MCP 均不进入该目录。
 
 ## MCP 设置
 
