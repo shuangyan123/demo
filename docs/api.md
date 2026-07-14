@@ -24,7 +24,7 @@
 - `/api/ai/generate` 通过 `ProviderAdapter` 统一调用生成、解析与流式解析方法；路由不读取厂商私有响应字段。
 - OpenAI 与 Grok 使用 Responses；Claude 使用 Messages；MiniMax 文本使用官方推荐的 Anthropic-compatible `/anthropic/v1/messages`，语音继续使用原生 `/v1/t2a_v2`。
 - DeepSeek 与 GLM 保留各自参数映射；Gemini 的稳定 `generateContent` 作为受控迁移路径，待 Interactions 达到功能等价后再切换。
-- `/api/ai/models` 为 MiniMax 使用 `/anthropic/v1/models` 与 `x-api-key`；返回值仍只包含归一化公开元数据。
+- `/api/ai/models` 为 MiniMax 使用区域规范化后的 `/anthropic/v1/models` 与单一 `Authorization: Bearer`；返回值仍只包含归一化公开元数据。中国大陆站根地址为 `https://api.minimaxi.com/anthropic`，国际站为 `https://api.minimax.io/anthropic`。
 - 未注册的旧厂商和自定义连接进入兼容适配器，不得标记为七家原生已核验支持。
 
 ## AI 运行时模型选择
@@ -41,7 +41,7 @@
 - Gemini 3.x：`generationConfig.thinkingConfig.thinkingLevel`；Gemini 2.5：`thinkingBudget`；Priority 位于请求顶层。2.5 Pro 自定义范围为 `128–32768`，Flash 为 `0–24576`，Flash Lite 为 `512–24576`，各模型仍按 descriptor 单独允许官方 `0/-1` 哨兵值。
 - Claude：adaptive thinking + `output_config.effort`，旧模型使用最低 1024 的 `budget_tokens`；内部有效输出上限等于思考预算与调用方正文输出额度之和，避免 `budget_tokens >= max_tokens` 的无效请求。合资格模型 Fast 发送 `speed=fast` 与 beta header。
 - DeepSeek V4：关闭/high/max；明确核验的 `glm-5.2`：七档原样 `reasoning_effort`，核验清单内的旧 GLM 只发送 `thinking.type`。
-- MiniMax M3：关闭/自适应与标准/优先；M2.x 高速通过配对模型 ID。
+- MiniMax M3：关闭/自适应与标准/优先，并支持 Anthropic-compatible 图片、独立视频内容块；静态能力为文本、视觉、视频、工具和 1M 上下文。M2.x 高速通过配对模型 ID，且不得误报图片或视频能力。
 - Grok 4.5：`reasoning.effort` 与 Priority；多代理 effort 不进入普通菜单。
 
 ## 路由公共边界
@@ -95,7 +95,7 @@ GLM 运行能力只按显式模型清单登记。七档清单当前仅含 `glm-5
 
 `AiQuotaSnapshot` 可包含 `periodLabel`、`resetAt`、`sourceLabel`、`usageRatio` 和运行时 `stale` 标记，用于独立额度设置中的紧凑厂商行；这些字段只能来自官方接口、用户手动预算或明确的 unsupported 状态，不能由网页抓取伪造。
 
-`AiQuotaProviderPlugin` 使用 CodexBar 式 descriptor/fetch strategy 描述 provider 标签、官网账单入口、状态页、刷新周期、来源模式和 unsupported 原因。DeepSeek、Gemini、Anthropic、Qwen、火山、硅基流动和自定义服务在没有稳定官方账单 API 前只返回 unsupported/manual 状态。禁止通过网页抓取、非官方接口或复用普通 API Key 伪造实时余额。
+`AiQuotaProviderPlugin` 使用 CodexBar 式 descriptor/fetch strategy 描述 provider 标签、官网账单入口、状态页、刷新周期、来源模式和 unsupported 原因。DeepSeek 使用官方 `/user/balance`，且只有用户显式操作时才可引用已保存的同厂商推理 Key；Gemini、MiniMax、GLM 保持控制台/手动记录。禁止网页抓取或用一次推理请求冒充额度验证。
 
 ## 内置集成目录
 

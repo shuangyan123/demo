@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { aiQuotaProviderPlugins, normalizeOpenAiCostsSnapshot } from "./ai-quota-plugins.ts";
 
@@ -37,6 +39,10 @@ test("额度厂商使用本地图形资产或经许可审计的文字标记", as
     if (branding.iconPath) {
       assert.match(branding.iconPath, /^\/(?:provider|plugin)-icons\/.+\.svg$/);
       assert.doesNotMatch(branding.iconPath, /generic/);
+      assert.match(branding.assetSourceUrl ?? "", /^https:\/\//);
+      assert.match(branding.assetChecksum ?? "", /^[a-f0-9]{64}$/);
+      const asset = await readFile(new URL(`../../public${branding.iconPath}`, import.meta.url));
+      assert.equal(createHash("sha256").update(asset).digest("hex"), branding.assetChecksum, plugin.provider);
     } else {
       assert.ok(branding.mark.length > 0);
     }

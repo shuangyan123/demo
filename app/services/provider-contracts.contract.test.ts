@@ -20,6 +20,10 @@ test("模型目录按能力暴露生命周期与最近模型家族", () => {
   assert.equal(getProviderModels("minimax", "speech").includes("speech-2.8-hd"), true);
   assert.equal(getProviderModels("minimax", "text")[0], "MiniMax-M3");
   assert.equal(getProviderModels("minimax", "vision").includes("MiniMax-M3"), true);
+  const minimaxM3Catalog = getProviderModelCatalog("minimax").find((model) => model.id === "MiniMax-M3");
+  assert.deepEqual(minimaxM3Catalog?.capabilities.slice(0, 4), ["text", "vision", "video", "tools"]);
+  assert.equal(minimaxM3Catalog?.contextWindow, 1_000_000);
+  assert.equal(getProviderModelCatalog("minimax").find((model) => model.id === "MiniMax-M2.7")?.capabilities.includes("vision"), false);
   assert.equal(getProviderModels("minimax", "text").includes("MiniMax-M2.5"), false);
   assert.equal(getProviderModels("zhipu", "text")[0], "glm-5.2");
   assert.deepEqual(getProviderModels("openai", "speech"), ["tts-1-hd", "tts-1"]);
@@ -107,4 +111,9 @@ test("GLM 七档、非法旧值回退与 MiniMax 配对高速模型保持明确�
   const minimax = getAiModelRuntimeDescriptor("minimax", "MiniMax-M2.7")!;
   assert.equal(resolveRuntimeModelId(minimax, "MiniMax-M2.7", { speed: "highspeed" }), "MiniMax-M2.7-highspeed");
   assert.equal(resolveRuntimeModelId(minimax, "MiniMax-M2.7-highspeed", { speed: "standard" }), "MiniMax-M2.7");
+  const minimaxM3 = getAiModelRuntimeDescriptor("minimax", "MiniMax-M3")!;
+  assert.deepEqual(minimaxM3.capabilities, ["text", "vision", "video", "tools"]);
+  assert.equal(minimaxM3.contextWindow, 1_000_000);
+  assert.equal(minimaxM3.reasoning?.defaultValue, "disabled");
+  assert.deepEqual(minimaxM3.speed?.options.map((option) => option.value), ["standard", "priority"]);
 });

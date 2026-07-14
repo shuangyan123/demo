@@ -5,6 +5,8 @@
 - 连接编辑器只持有当前草稿；目录发现与测试通过 `ai-connection-client` 在草稿 Key 留空时安全复用旧密钥，但厂商、Base URL 和模型永远取当前草稿。连接测试活动使用 `compact-test`，由独立 352px 结果卡渲染，不进入全局 AI 对话结构。
 - 默认能力通过 `DefaultCapabilitySelector` 原子保存 `{ connectionId, modelId }`。无目录连接只在组件内保留待选连接，输入手动模型后才整体落库；共享目录与手动模型 ID 始终并存。官方连接能力在 repository 边界按当前 contract 归一化，自定义连接继续尊重用户声明。
 - `QuotaRuntimeStore` 是额度启用、缓存、四路并发、超时、页面可见性和在线恢复的唯一调度边界。临时失败保留上次成功快照并标记过期；普通模型 Key 与账单凭据仍完全分离。
+- 额度表格通过纯函数 presentation 层把官方指标转换成 32px 环形概览；有分母才计算比例，只有余额时使用状态环。精确数值只进入 450ms 悬浮、键盘聚焦或触屏点击后的说明层，刷新仍是行级主操作。
+- MiniMax 连接在 repository 与 provider adapter 边界显式保存 `region`、`credentialPlan` 并规范化 Anthropic-compatible 根地址。M3 的文本、图片、视频、thinking 与 service tier 都由精确 descriptor 声明，M2.x 不继承视觉能力。
 - 设置导航为外观、AI 连接、个性化、额度、MCP、诊断。个性化内部拆分角色和记忆；记忆以可选版本字段保存在现有 personalization 单例，最多 100 条，只有 active 条目可按范围裁剪到 1500 字符后注入请求，不升级 IndexedDB v16。
 - 数据删除只由“诊断 → 数据管理”提供，按导入、错题复盘、对话历史和完整重置分域执行；AI 连接页不再承载业务数据清理。
 

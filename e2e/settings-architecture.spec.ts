@@ -103,6 +103,11 @@ test("额度页面通过归一化接口验证并刷新，不暴露原始响应",
   await expect(page.getByText("额度凭据验证通过", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "刷新", exact: true }).click();
   await expect(quotaPanel).toContainText("官方");
+  await dialog.getByRole("button", { name: "关闭额度配置" }).click();
+  await expect(quotaPanel.getByRole("button", { name: "刷新DeepSeek额度" })).toBeVisible();
+  const metricRing = quotaPanel.getByRole("button", { name: /官方可用余额/ });
+  await metricRing.hover();
+  await expect(page.getByRole("tooltip")).toContainText("官方可用余额");
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

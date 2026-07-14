@@ -106,10 +106,33 @@ test("七家厂商按具体模型映射推理与速度运行值", () => {
   const minimax = buildGenerateProviderRequest({ ...baseGenerate, provider: "minimax", model: "MiniMax-M3", runtime: { reasoning: "adaptive", speed: "priority" } });
   assert.deepEqual((minimax.body as { thinking: unknown }).thinking, { type: "adaptive" });
   assert.equal((minimax.body as { service_tier: string }).service_tier, "priority");
+  assert.equal(minimax.headers.Authorization, "Bearer fixture-key");
+  assert.equal("x-api-key" in minimax.headers, false);
+  const minimaxDisabled = buildGenerateProviderRequest({ ...baseGenerate, provider: "minimax", model: "MiniMax-M3" });
+  assert.deepEqual((minimaxDisabled.body as { thinking: unknown }).thinking, { type: "disabled" });
 
   const xai = buildGenerateProviderRequest({ ...baseGenerate, provider: "xai", model: "grok-4.5", runtime: { reasoning: "medium", speed: "priority" } });
   assert.deepEqual((xai.body as { reasoning: unknown }).reasoning, { effort: "medium" });
   assert.equal((xai.body as { service_tier: string }).service_tier, "priority");
+});
+
+test("MiniMax-M3 图片与视频映射为 Anthropic-compatible 独立内容块", () => {
+  const request = buildGenerateProviderRequest({
+    ...baseGenerate,
+    provider: "minimax",
+    model: "MiniMax-M3",
+    providerOptions: { region: "cn", credentialPlan: "pay_as_you_go" },
+    baseUrl: "https://api.minimaxi.com/v1",
+    messages: [{ role: "user", content: [
+      { type: "text", text: "说明内容" },
+      { type: "image_url", image_url: { url: "data:image/webp;base64,AAAA" } },
+      { type: "video_url", video_url: { url: "https://example.test/video.mp4" } },
+    ] }],
+  });
+  assert.equal(request.url, "https://api.minimaxi.com/anthropic/v1/messages");
+  const content = (request.body as { messages: Array<{ content: unknown[] }> }).messages[0].content;
+  assert.deepEqual(content[1], { type: "image", source: { type: "base64", media_type: "image/webp", data: "AAAA" } });
+  assert.deepEqual(content[2], { type: "video", source: { type: "url", url: "https://example.test/video.mp4" } });
 });
 
 test("Gemini 2.5 自定义预算与动态关闭哨兵原样映射", () => {

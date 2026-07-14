@@ -10,6 +10,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 模型 tooltip 的可视层只响应 450ms 鼠标停留或用户键盘导航；程序化聚焦与触屏不得显示浮层。菜单外壳不滚动，当前层仅在真实溢出后启用内部滚动。
 - 额度凭据与普通推理 Key 分离并逐项加密。OpenAI、Anthropic、DeepSeek、xAI 只调用官方只读管理/费用/余额接口；Gemini、MiniMax、GLM 只显示控制台与手动记录。
 - 厂商品牌登记必须包含来源、核验日期和许可说明；官方限制第三方 Logo 时使用文字缩写，禁止无授权复制。
+- 额度行主操作固定为刷新；环形概览仅在存在可靠分母时显示比例，只有余额时使用状态环。精确金额通过悬浮、键盘或触屏说明层读取。
+- MiniMax 中国大陆站使用 `https://api.minimaxi.com/anthropic` 与 Bearer 鉴权；区域和套餐显式保存。`MiniMax-M3` 精确声明文本、图片、视频、工具、1M 上下文与运行档位，M2.x 不得推断视觉能力。
+- 额度行主操作固定为刷新；环形概览仅在存在可靠分母时显示比例，只有余额时使用状态环。精确金额通过悬浮、键盘或触屏说明层读取。
+- MiniMax 中国大陆站使用 `https://api.minimaxi.com/anthropic` 与 Bearer 鉴权；区域和套餐显式保存。`MiniMax-M3` 精确声明文本、图片、视频、工具、1M 上下文与运行档位，M2.x 不得推断视觉能力。
 
 ## 2026-07-14 设置架构约定
 
