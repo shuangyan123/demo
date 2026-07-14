@@ -1,7 +1,7 @@
 export type SettingsPluginStatus = "ready" | "warning" | "error" | "disabled";
-export type SettingsPluginCategory = "featured" | "knowledge-sync" | "import-source" | "quota" | "study-extension";
-export type SettingsPluginPanelKey = "obsidian" | "quota" | "fenbi-import";
-export type SettingsPluginId = "obsidian-vault" | "ai-quota" | "fenbi-import";
+export type SettingsPluginCategory = "featured" | "knowledge-sync" | "import-source" | "study-extension";
+export type SettingsPluginPanelKey = "obsidian" | "fenbi-import";
+export type SettingsPluginId = "obsidian-vault" | "fenbi-import";
 export type SettingsPluginSurface = "plugin" | "skill";
 
 export type SettingsPluginBadge = {
@@ -91,34 +91,6 @@ export const settingsPluginDefinitions: SettingsPluginDefinition[] = [
     detailPanelLoader: "obsidian",
     panelLoader: "obsidian",
     docsUrl: "docs/release-smoke.md",
-  },
-  {
-    id: "ai-quota",
-    label: "AI 额度",
-    icon: { label: "AI", background: "#111827", assetPath: "/plugin-icons/openai.svg" },
-    shortDescription: "多厂商用量与预算",
-    description: "按厂商插件显示官方用量、预算估算、刷新状态和 unsupported 原因。",
-    category: "quota",
-    surface: "plugin",
-    featured: true,
-    installed: true,
-    providerLabel: "由多厂商接口提供",
-    statusBadge: { label: "官方 API", tone: "blue" },
-    primaryAction: { label: "刷新", kind: "refresh" },
-    menuActions: [
-      { label: "文档", kind: "docs", href: "https://github.com/steipete/CodexBar/tree/main" },
-      { label: "诊断", kind: "diagnostics" },
-      { label: "隐私", kind: "privacy" },
-    ],
-    statusProvider: () => "ready",
-    healthSummaryProvider: () => "OpenAI 官方用量 + 手动预算估算；其它厂商保持 unsupported/manual",
-    recentActivityProvider: () => "额度 Key 与模型调用 Key 分开保存",
-    recommendedActionProvider: () => "启用 OpenAI 或手动额度",
-    privacyNote: "额度凭据与模型调用 Key 分开保存，不传给业务 AI 请求。",
-    capabilities: ["多厂商", "用量条", "预算估算", "错误脱敏"],
-    detailPanelLoader: "quota",
-    panelLoader: "quota",
-    docsUrl: "https://github.com/steipete/CodexBar/tree/main",
   },
   {
     id: "fenbi-import",

@@ -36,7 +36,8 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     await page.goto("/");
     await page.getByRole("button", { name: "设置" }).first().click();
     await page.getByRole("button", { name: "AI 连接" }).click();
-    await page.getByLabel("厂商").selectOption("openai");
+    await page.getByRole("combobox", { name: "厂商" }).click();
+    await page.getByRole("option", { name: "OpenAI", exact: true }).click();
     await page.getByText("高级设置", { exact: true }).click();
     await page.getByLabel("连接名称").fill("E2E OpenAI");
     await page.getByLabel("Base URL").fill(provider.baseUrl);

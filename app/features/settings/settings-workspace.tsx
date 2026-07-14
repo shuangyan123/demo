@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import type { AppearanceSettings, PersonalizationSettings } from "../../types/review";
 import { LocalDiagnosticsPanel } from "../diagnostics/local-diagnostics-panel";
@@ -9,21 +10,25 @@ import { AiActivityPanel } from "../shared/ai-activity-panel";
 import { ApiConnectionsSettingsView } from "./api-connections-settings-view";
 import { AppearanceSettingsView, SettingsNavIcon, type SettingsIconName } from "./appearance-settings-view";
 import { McpSettingsView } from "./mcp-settings-view";
-import { PersonalizationSettingsView } from "./personalization-settings-view";
-export type SettingsSectionKey = "appearance" | "configuration" | "personalization" | "mcp" | "diagnostics";
+const PersonalizationSettingsView = dynamic(() => import("./personalization-settings-view").then((module) => module.PersonalizationSettingsView));
+const AiQuotaSettingsPanel = dynamic(() => import("./plugins/quota/ai-quota-settings-panel").then((module) => module.AiQuotaSettingsPanel));
+
+export type SettingsSectionKey = "appearance" | "configuration" | "roles" | "quota" | "mcp" | "diagnostics";
+type LegacySettingsSectionKey = SettingsSectionKey | "personalization";
 
 const settingsSections = [
   { key: "appearance", label: "外观", icon: "appearance" },
   { key: "configuration", label: "AI 连接", icon: "configuration" },
-  { key: "personalization", label: "个性化", icon: "personalization" },
+  { key: "roles", label: "角色", icon: "personalization" },
+  { key: "quota", label: "额度", icon: "plugins" },
   { key: "mcp", label: "MCP", icon: "mcp" },
   { key: "diagnostics", label: "诊断", icon: "diagnostics" },
-] satisfies Array<{ key: SettingsSectionKey; label: string; icon: "appearance" | "configuration" | "personalization" | "mcp" | "diagnostics" }>;
+] satisfies Array<{ key: SettingsSectionKey; label: string; icon: SettingsIconName }>;
 
 type SettingsWorkspaceProps = {
   appearanceSettings: AppearanceSettings;
   diagnosticsInput: LocalDiagnosticsHookInput;
-  initialSection?: SettingsSectionKey;
+  initialSection?: LegacySettingsSectionKey;
   sidebarCollapsed: boolean;
   onAppearanceChange: (settings: AppearanceSettings) => void;
   onBack: () => void;
@@ -48,12 +53,13 @@ export function SettingsWorkspace({
   onPersonalizationChange,
   onToggleSidebar,
 }: SettingsWorkspaceProps) {
-  const [activeSection, setActiveSection] = useState<SettingsSectionKey>(initialSection);
+  const normalizeSection = (section: LegacySettingsSectionKey): SettingsSectionKey => section === "personalization" ? "roles" : section;
+  const [activeSection, setActiveSection] = useState<SettingsSectionKey>(() => normalizeSection(initialSection));
   const [toast, setToast] = useState("");
   const { diagnostics, refresh: refreshDiagnostics, refreshing: diagnosticsRefreshing } = useLocalDiagnostics(diagnosticsInput);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setActiveSection(initialSection), 0);
+    const timer = window.setTimeout(() => setActiveSection(normalizeSection(initialSection)), 0);
     return () => window.clearTimeout(timer);
   }, [initialSection]);
 
@@ -70,8 +76,11 @@ export function SettingsWorkspace({
     if (activeSection === "configuration") {
       return <ApiConnectionsSettingsView onChanged={onConfigurationChanged} onClearLocalRecords={onClearLocalRecords} />;
     }
-    if (activeSection === "personalization") {
+    if (activeSection === "roles") {
       return <PersonalizationSettingsView onChanged={onPersonalizationChange} onOpenConnections={() => setActiveSection("configuration")} />;
+    }
+    if (activeSection === "quota") {
+      return <AiQuotaSettingsPanel />;
     }
     if (activeSection === "mcp") {
       return <McpSettingsView onNotice={setToast} />;

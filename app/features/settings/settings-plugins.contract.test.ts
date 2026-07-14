@@ -4,9 +4,9 @@ import { settingsPluginDefinitions, type SettingsPluginRuntimeContext } from "./
 
 test("settings plugin registry exposes compact directory metadata", () => {
   const ids = settingsPluginDefinitions.map((plugin) => plugin.id);
-  assert.deepEqual(ids, ["obsidian-vault", "ai-quota", "fenbi-import"]);
-  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.detailPanelLoader), ["obsidian", "quota", "fenbi-import"]);
-  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.category), ["knowledge-sync", "quota", "import-source"]);
+  assert.deepEqual(ids, ["obsidian-vault", "fenbi-import"]);
+  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.detailPanelLoader), ["obsidian", "fenbi-import"]);
+  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.category), ["knowledge-sync", "import-source"]);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.icon.label.length > 0), true);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.shortDescription.length > 0 && plugin.shortDescription.length <= 18), true);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.primaryAction.label.length > 0), true);
@@ -23,11 +23,10 @@ test("settings plugin directory keeps MCP out of plugin categories", () => {
     hasVisionConnection: false,
   };
   const obsidian = settingsPluginDefinitions.find((plugin) => plugin.id === "obsidian-vault");
-  const quota = settingsPluginDefinitions.find((plugin) => plugin.id === "ai-quota");
   const fenbi = settingsPluginDefinitions.find((plugin) => plugin.id === "fenbi-import");
   assert.equal(obsidian?.statusBadgeProvider?.(context).tone, "yellow");
   assert.equal(fenbi?.statusBadgeProvider?.(context).tone, "yellow");
-  assert.equal(quota?.statusBadge.tone, "blue");
+  assert.equal(settingsPluginDefinitions.some((plugin) => String(plugin.id) === "ai-quota"), false);
   assert.equal(settingsPluginDefinitions.some((plugin) => String(plugin.category) === "mcp"), false);
   assert.match(fenbi?.recentActivityProvider?.(context) ?? "", /2/);
   assert.equal(Boolean(obsidian?.recommendedActionProvider?.(context)), true);

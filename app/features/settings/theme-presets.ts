@@ -1,4 +1,4 @@
-import { createDefaultAppearanceSettings, DEFAULT_UI_FONT_STACK } from "../../services/appearance-settings-repository";
+import { createDefaultAppearanceSettings, DEFAULT_UI_FONT_STACK } from "../../services/appearance-settings-repository.ts";
 import type { ThemeConfig } from "../../types/review";
 
 export type ThemePreset = {
@@ -17,7 +17,7 @@ export const lightThemePresets: ThemePreset[] = [
       foreground: "#292524",
       uiFont: DEFAULT_UI_FONT_STACK,
       codeFont: "ui-monospace, SFMono-Regular, Consolas, monospace",
-      diffuseGradient: true,
+      diffuseGradient: false,
       contrast: 0,
     },
   },
@@ -29,7 +29,7 @@ export const lightThemePresets: ThemePreset[] = [
       foreground: "#16332D",
       uiFont: DEFAULT_UI_FONT_STACK,
       codeFont: '"Geist Mono", ui-monospace, monospace',
-      diffuseGradient: true,
+      diffuseGradient: false,
       contrast: 0,
     },
   },
@@ -41,10 +41,27 @@ export const lightThemePresets: ThemePreset[] = [
       foreground: "#252A38",
       uiFont: DEFAULT_UI_FONT_STACK,
       codeFont: '"Geist Mono", ui-monospace, monospace',
-      diffuseGradient: true,
+      diffuseGradient: false,
       contrast: 0,
     },
   },
+  ...[
+    ["桃雾", "#C85D72", "#FFF6F7", "#3C2329"],
+    ["琥珀", "#B66A18", "#FFF8EE", "#382713"],
+    ["淡紫", "#7562B8", "#F8F6FC", "#2E2A3C"],
+    ["海盐", "#0B7EA4", "#F2FAFC", "#17313A"],
+  ].map(([name, accent, background, foreground]) => ({
+    theme: {
+      name,
+      accent,
+      background,
+      foreground,
+      uiFont: DEFAULT_UI_FONT_STACK,
+      codeFont: '"Geist Mono", ui-monospace, monospace',
+      diffuseGradient: false,
+      contrast: 0,
+    },
+  })),
 ];
 
 export const darkThemePresets: ThemePreset[] = [
@@ -57,7 +74,7 @@ export const darkThemePresets: ThemePreset[] = [
       foreground: "#F5F0FF",
       uiFont: DEFAULT_UI_FONT_STACK,
       codeFont: "Consolas, ui-monospace, SFMono-Regular, monospace",
-      diffuseGradient: true,
+      diffuseGradient: false,
       contrast: 0,
     },
   },
@@ -69,7 +86,7 @@ export const darkThemePresets: ThemePreset[] = [
       foreground: "#F8FAFC",
       uiFont: DEFAULT_UI_FONT_STACK,
       codeFont: '"Geist Mono", ui-monospace, monospace',
-      diffuseGradient: true,
+      diffuseGradient: false,
       contrast: 0,
     },
   },
@@ -81,10 +98,27 @@ export const darkThemePresets: ThemePreset[] = [
       foreground: "#FFF1F6",
       uiFont: DEFAULT_UI_FONT_STACK,
       codeFont: '"Geist Mono", ui-monospace, monospace',
-      diffuseGradient: true,
+      diffuseGradient: false,
       contrast: 0,
     },
   },
+  ...[
+    ["极光", "#45D6B5", "#101B1A", "#ECFFFA"],
+    ["靛夜", "#7C9BFF", "#11172A", "#F3F6FF"],
+    ["熔金", "#F3A847", "#1D1710", "#FFF6E8"],
+    ["松林", "#72C98B", "#121A15", "#F0FFF4"],
+  ].map(([name, accent, background, foreground]) => ({
+    theme: {
+      name,
+      accent,
+      background,
+      foreground,
+      uiFont: DEFAULT_UI_FONT_STACK,
+      codeFont: '"Geist Mono", ui-monospace, monospace',
+      diffuseGradient: false,
+      contrast: 0,
+    },
+  })),
 ];
 
 // 每次选择预设都返回新对象，避免后续表单写入改动共享预设。

@@ -173,7 +173,8 @@ function ThemeEditor({ label, presets, theme, themeKey, onChange, onNotify, onRe
   // 选择内置主题时写入完整主题配置，而不是只改主题名称。
   function selectPreset(name: string) {
     const preset = presets.find((item) => item.theme.name === name);
-    onChange(themeKey, preset ? cloneTheme(preset.theme) : { name });
+    // 切换配色预设不改变用户当前的弥散偏好；只有显式重置主题才恢复关闭。
+    onChange(themeKey, preset ? { ...cloneTheme(preset.theme), diffuseGradient: theme.diffuseGradient } : { name });
   }
 
   return (

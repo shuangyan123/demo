@@ -132,7 +132,7 @@ function defaultLightTheme(): ThemeConfig {
     foreground: "#111827",
     uiFont: DEFAULT_UI_FONT_STACK,
     codeFont: '"Geist Mono", ui-monospace, SFMono-Regular, Consolas, monospace',
-    diffuseGradient: true,
+    diffuseGradient: false,
     contrast: 0,
   };
 }
@@ -146,7 +146,7 @@ function defaultDarkTheme(): ThemeConfig {
     foreground: "#FFFFFF",
     uiFont: DEFAULT_UI_FONT_STACK,
     codeFont: 'ui-monospace, "SFMono-Regular", "Geist Mono", Consolas, monospace',
-    diffuseGradient: true,
+    diffuseGradient: false,
     contrast: 0,
   };
 }

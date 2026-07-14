@@ -16,10 +16,6 @@ import {
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
-const AiQuotaSettingsPanel = dynamic(() => import("./quota/ai-quota-settings-panel").then((module) => module.AiQuotaSettingsPanel), {
-  loading: () => <EmptyState>正在加载额度插件...</EmptyState>,
-});
-
 const ObsidianPluginPanel = dynamic(() => import("./obsidian/obsidian-plugin-panel").then((module) => module.ObsidianPluginPanel), {
   loading: () => <EmptyState>正在加载 Obsidian 插件...</EmptyState>,
 });
@@ -58,7 +54,6 @@ const directorySections: DirectorySection[] = [
   { key: "featured", label: "Featured" },
   { key: "knowledge-sync", label: "知识同步" },
   { key: "import-source", label: "导入源" },
-  { key: "quota", label: "额度" },
   { key: "study-extension", label: "专项学习" },
 ];
 
@@ -321,9 +316,6 @@ export function SettingsPluginsView({
   }
 
   function renderPanel(plugin: SettingsPluginDefinition) {
-    if (plugin.detailPanelLoader === "quota") {
-      return <AiQuotaSettingsPanel />;
-    }
     if (plugin.detailPanelLoader === "fenbi-import") {
       return (
         <ImportWorkspace

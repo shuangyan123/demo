@@ -10,7 +10,7 @@ test("AI 连接只保存鉴权，默认能力单独保存模型", async () => {
   const source = await readSource();
 
   assert.doesNotMatch(source, /aria-label="用途"/);
-  assert.match(source, /aria-label="厂商"/);
+  assert.match(source, /ProviderSelect/);
   assert.match(source, /form\.provider === "custom"/);
   assert.match(source, /setDefaultModel/);
   assert.match(source, /setDefaultSelection/);
@@ -31,10 +31,10 @@ test("AI 连接只保存鉴权，默认能力单独保存模型", async () => {
   assert.doesNotMatch(source, /listModelsWithConnection/);
 });
 
-test("AI connection page owns quota details and exposes transcription purpose", async () => {
+test("AI connection page excludes quota details and exposes transcription purpose", async () => {
   const source = await readSource();
 
   assert.match(source, /录音转写/);
-  assert.match(source, /AiQuotaSettingsPanel/);
-  assert.match(source, /AI 额度与用量/);
+  assert.doesNotMatch(source, /AiQuotaSettingsPanel/);
+  assert.doesNotMatch(source, /额度与用量/);
 });

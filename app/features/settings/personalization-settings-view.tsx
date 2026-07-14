@@ -48,11 +48,11 @@ export function PersonalizationSettingsView({
         setSettings(saved);
         setConnections(connectionSnapshot);
       })
-      .catch((error) => setNotice(error instanceof Error ? error.message : "个性化设置读取失败"));
+      .catch((error) => setNotice(error instanceof Error ? error.message : "角色设置读取失败"));
   }, []);
 
   useEffect(() => {
-    if (notice !== "个性化设置已保存") return;
+    if (notice !== "角色设置已保存") return;
     const timer = window.setTimeout(() => setNotice(""), 1800);
     return () => window.clearTimeout(timer);
   }, [notice]);
@@ -69,9 +69,9 @@ export function PersonalizationSettingsView({
       const saved = await personalizationSettingsRepository.save(settings);
       setSettings(saved);
       onChanged?.(saved);
-      setNotice(draftPersona ? "个性化设置已保存；未添加图片的空卡仍是临时草稿" : "个性化设置已保存");
+      setNotice(draftPersona ? "角色设置已保存；未添加图片的空卡仍是临时草稿" : "角色设置已保存");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "个性化设置保存失败");
+      setNotice(error instanceof Error ? error.message : "角色设置保存失败");
     } finally {
       setSaving(false);
     }
@@ -131,7 +131,7 @@ export function PersonalizationSettingsView({
     <section>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">个性化</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">角色</h1>
           <p className="mt-2 text-sm text-muted">默认人设使用头像快速选择；定制模式只管理你创建的角色卡。</p>
         </div>
         <div className="inline-flex rounded-lg border border-line bg-surface-muted p-1" aria-label="人设展示模式">
@@ -180,7 +180,7 @@ export function PersonalizationSettingsView({
         </section>
       </div>
 
-      <div className="mt-5 flex items-center gap-3"><Button type="button" variant="primary" disabled={saving} onClick={() => void save()}>{saving ? <><span className="ui-spinner" />保存中</> : "保存个性化设置"}</Button>{notice ? <span className="text-sm text-muted" role="status">{notice}</span> : null}</div>
+      <div className="mt-5 flex items-center gap-3"><Button type="button" variant="primary" disabled={saving} onClick={() => void save()}>{saving ? <><span className="ui-spinner" />保存中</> : "保存角色设置"}</Button>{notice ? <span className="text-sm text-muted" role="status">{notice}</span> : null}</div>
 
       {editingPersona ? (
         editingPersona.builtIn ? (

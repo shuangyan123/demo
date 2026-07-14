@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "
 import { generateWithConnection, testConnectionDraft, type GenerateConnectionPurpose } from "../../services/ai-connection-client";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
 import { getCachedConnectionModelCatalog, loadConnectionModelCatalog, loadDraftModelCatalog, rememberConnectionModelDirectory } from "../../services/model-directory-service";
-import { creatableProviderContracts, getProviderContract, getProviderModelCatalog } from "../../services/provider-contracts";
+import { getProviderContract, getProviderModelCatalog, providerContracts } from "../../services/provider-contracts";
 import type { AiModelsResult } from "../../services/api-client";
 import type { ApiProvider } from "../../types/domains/ai-provider";
 import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile } from "../../types/review";
 import { Button, EmptyState, cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
-import { AiQuotaSettingsPanel } from "./plugins/quota/ai-quota-settings-panel";
+import { ProviderSelect } from "./provider-select";
 
 type SubmitEvent = SyntheticEvent<HTMLFormElement, globalThis.SubmitEvent>;
 type Feedback = { tone: "success" | "error" | "neutral"; text: string } | null;
@@ -259,7 +259,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
     }
   }
 
-  const editableContracts = contract.creatable ? creatableProviderContracts : [contract, ...creatableProviderContracts];
+  const editableContracts = providerContracts;
   const formCapabilities = contract.capabilities.filter((capability) => capabilityLabels[capability]);
 
   return (
@@ -271,7 +271,7 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
 
       <form className="mt-6 grid gap-5" onSubmit={saveConnection}>
         <div className="ai-connection-picker">
-          <label>厂商<span className="ai-provider-select"><ProviderIcon provider={form.provider} size={18} /><select aria-label="厂商" value={form.provider} onChange={(event) => selectProvider(event.currentTarget.value as ApiProvider)}>{editableContracts.map((item) => <option key={item.provider} value={item.provider}>{item.label}</option>)}</select></span></label>
+          <label>厂商<ProviderSelect value={form.provider} providers={editableContracts.map((item) => item.provider)} onChange={selectProvider} /></label>
         </div>
 
         <details className="ai-connection-advanced">
@@ -342,10 +342,6 @@ export function ApiConnectionsSettingsView({ onChanged, onClearLocalRecords }: {
           </div>
       </section>
 
-      <details className="mt-9 border-t border-line pt-5">
-        <summary className="cursor-pointer text-sm font-semibold">AI 额度与用量</summary>
-        <div className="mt-4"><AiQuotaSettingsPanel /></div>
-      </details>
       {onClearLocalRecords ? <div className="mt-9 border-t border-line pt-5"><Button type="button" variant="danger" onClick={onClearLocalRecords}>清空错题和导入记录</Button></div> : null}
     </section>
   );
