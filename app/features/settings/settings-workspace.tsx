@@ -47,7 +47,6 @@ export function SettingsWorkspace({
   sidebarCollapsed,
   onAppearanceChange,
   onBack,
-  onClearLocalRecords,
   onConfigurationChanged,
   onOpenDiagnosticsTarget,
   onPersonalizationChange,

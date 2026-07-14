@@ -11,6 +11,8 @@ test("settings plugin registry exposes compact directory metadata", () => {
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.shortDescription.length > 0 && plugin.shortDescription.length <= 18), true);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.primaryAction.label.length > 0), true);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.menuActions.length > 0), true);
+  assert.equal(settingsPluginDefinitions.some((plugin) => "installed" in plugin), false);
+  assert.equal(settingsPluginDefinitions.some((plugin) => plugin.primaryAction.kind === ("install" as never)), false);
 });
 
 test("settings plugin directory keeps MCP out of plugin categories", () => {

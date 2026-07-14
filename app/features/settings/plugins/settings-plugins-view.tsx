@@ -187,7 +187,7 @@ function PluginListItem({
   );
 }
 
-function InstalledPluginStrip({
+function BuiltInIntegrationStrip({
   context,
   plugins,
   onOpen,
@@ -301,8 +301,8 @@ export function SettingsPluginsView({
     () => settingsPluginDefinitions.filter((plugin) => plugin.surface === activeSurface && pluginMatchesSearch(plugin, searchKeyword)),
     [activeSurface, searchKeyword]
   );
-  const installedPlugins = useMemo(
-    () => settingsPluginDefinitions.filter((plugin) => plugin.surface === activeSurface && plugin.installed),
+  const builtInIntegrations = useMemo(
+    () => settingsPluginDefinitions.filter((plugin) => plugin.surface === activeSurface),
     [activeSurface]
   );
 
@@ -369,9 +369,6 @@ export function SettingsPluginsView({
           <IconButton aria-label="打开 AI 连接设置" onClick={onOpenConnections}>
             <VectorIcon name="settings" />
           </IconButton>
-          <IconButton aria-label="添加插件" onClick={() => onNotice("当前仅支持应用内插件")}>
-            <VectorIcon name="plus" />
-          </IconButton>
         </div>
       </div>
 
@@ -391,15 +388,15 @@ export function SettingsPluginsView({
 
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">已安装</h2>
+          <h2 className="text-lg font-semibold">内置集成</h2>
           <IconButton aria-label="筛选插件" onClick={() => onNotice("可通过搜索框筛选插件")}>
             <VectorIcon name="filter" />
           </IconButton>
         </div>
-        {installedPlugins.length ? (
-          <InstalledPluginStrip context={pluginContext} plugins={installedPlugins} onOpen={openPlugin} />
+        {builtInIntegrations.length ? (
+          <BuiltInIntegrationStrip context={pluginContext} plugins={builtInIntegrations} onOpen={openPlugin} />
         ) : (
-          <EmptyState>暂无已安装技能。</EmptyState>
+          <EmptyState>暂无内置集成。</EmptyState>
         )}
       </section>
 

@@ -2,7 +2,6 @@ import { toISODate } from "../lib/review-utils.ts";
 import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaMetric, AiQuotaSnapshot, AiQuotaVerificationResult, ApiProvider } from "../types/review";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { aiQuotaProviderPlugins, getAiQuotaPlugin } from "./ai-quota-plugins.ts";
-import { emitAiActivity } from "./ai-activity-events.ts";
 
 export type SaveQuotaPluginInput = {
   id: ApiProvider | "manual";
@@ -14,8 +13,8 @@ export type SaveQuotaPluginInput = {
   today: Date;
 };
 
-const CONFIG_STORAGE_KEY = "review-workspace:ai-quota-plugin-configs";
-const SNAPSHOT_STORAGE_KEY = "review-workspace:ai-quota-snapshots";
+export const AI_QUOTA_CONFIG_STORAGE_KEY = "review-workspace:ai-quota-plugin-configs";
+export const AI_QUOTA_SNAPSHOT_STORAGE_KEY = "review-workspace:ai-quota-snapshots";
 const activeQuotaIds = new Set(aiQuotaProviderPlugins.map((plugin) => plugin.id));
 
 function readJsonArray<T>(key: string): T[] {
@@ -42,7 +41,7 @@ function readActiveQuotaRecords<T extends { id: string }>(key: string): T[] {
 }
 
 async function getConfig(id: ApiProvider | "manual"): Promise<AiQuotaPluginConfig | undefined> {
-  return readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY).find((config) => config.id === id);
+  return readActiveQuotaRecords<AiQuotaPluginConfig>(AI_QUOTA_CONFIG_STORAGE_KEY).find((config) => config.id === id);
 }
 
 async function decryptCredentials(config: AiQuotaPluginConfig): Promise<Partial<Record<AiQuotaCredentialKey, string>>> {
@@ -59,9 +58,11 @@ async function decryptCredentials(config: AiQuotaPluginConfig): Promise<Partial<
   return credentials;
 }
 
-async function requestViaRoute(config: AiQuotaPluginConfig, action: "validate" | "refresh"): Promise<AiQuotaSnapshot | AiQuotaVerificationResult> {
+async function requestViaRoute(config: AiQuotaPluginConfig, action: "validate" | "refresh", signal?: AbortSignal): Promise<AiQuotaSnapshot | AiQuotaVerificationResult> {
   const credentials = await decryptCredentials(config);
-  emitAiActivity({ phase: "started", label: `${config.label} 额度插件`, text: "正在查询厂商官方费用接口" });
+  const timeoutMs = getAiQuotaPlugin(config.id).fetchStrategies.find((strategy) => strategy.kind === "official_api")?.timeoutMs ?? 12_000;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
   const response = await fetch("/api/ai/quota", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -71,14 +72,13 @@ async function requestViaRoute(config: AiQuotaPluginConfig, action: "validate" |
       credentials,
       monthlyBudget: config.monthlyBudget,
     }),
+    signal: requestSignal,
   });
   const result = (await response.json()) as (AiQuotaSnapshot | AiQuotaVerificationResult) & { message?: string };
   if (!response.ok) {
     const message = result.message || "额度插件刷新失败";
-    emitAiActivity({ phase: "error", label: `${config.label} 额度插件`, text: message });
     throw new Error(message);
   }
-  emitAiActivity({ phase: "done", label: `${config.label} 额度插件`, text: result.message });
   return result;
 }
 
@@ -117,8 +117,8 @@ function unsupportedSnapshot(config: AiQuotaPluginConfig, message: string, today
 export const aiQuotaRepository = {
   loadSync(): { configs: AiQuotaPluginConfig[]; snapshots: AiQuotaSnapshot[] } {
     return {
-      configs: readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY),
-      snapshots: readActiveQuotaRecords<AiQuotaSnapshot>(SNAPSHOT_STORAGE_KEY).map(normalizeSnapshot),
+      configs: readActiveQuotaRecords<AiQuotaPluginConfig>(AI_QUOTA_CONFIG_STORAGE_KEY),
+      snapshots: readActiveQuotaRecords<AiQuotaSnapshot>(AI_QUOTA_SNAPSHOT_STORAGE_KEY).map(normalizeSnapshot),
     };
   },
 
@@ -127,7 +127,7 @@ export const aiQuotaRepository = {
   },
 
   async saveConfig(input: SaveQuotaPluginInput): Promise<AiQuotaPluginConfig> {
-    const configs = readActiveQuotaRecords<AiQuotaPluginConfig>(CONFIG_STORAGE_KEY);
+    const configs = readActiveQuotaRecords<AiQuotaPluginConfig>(AI_QUOTA_CONFIG_STORAGE_KEY);
     const existing = configs.find((config) => config.id === input.id);
     const plugin = getAiQuotaPlugin(input.id);
     const submitted = { ...(input.credentials ?? {}) };
@@ -151,29 +151,41 @@ export const aiQuotaRepository = {
       currency: existing?.currency ?? "USD",
       updatedAt: toISODate(input.today),
     };
-    writeJsonArray(CONFIG_STORAGE_KEY, [config, ...configs.filter((item) => item.id !== input.id)]);
+    writeJsonArray(AI_QUOTA_CONFIG_STORAGE_KEY, [config, ...configs.filter((item) => item.id !== input.id)]);
     return config;
   },
 
-  async validate(id: ApiProvider | "manual") {
+  async validate(id: ApiProvider | "manual", signal?: AbortSignal) {
     const config = await getConfig(id);
     if (!config?.enabled) throw new Error("请先保存并启用该额度来源");
-    return requestViaRoute(config, "validate") as Promise<AiQuotaVerificationResult>;
+    return requestViaRoute(config, "validate", signal) as Promise<AiQuotaVerificationResult>;
   },
 
-  async refresh(id: ApiProvider | "manual", today = new Date()): Promise<AiQuotaSnapshot> {
+  async refresh(id: ApiProvider | "manual", today = new Date(), signal?: AbortSignal): Promise<AiQuotaSnapshot> {
     const config = await getConfig(id);
     const plugin = getAiQuotaPlugin(id);
     if (!config?.enabled) throw new Error("请先启用该额度插件");
     let snapshot: AiQuotaSnapshot;
     if (plugin.supportsOfficialRefresh) {
-      snapshot = await requestViaRoute(config, "refresh") as AiQuotaSnapshot;
+      snapshot = await requestViaRoute(config, "refresh", signal) as AiQuotaSnapshot;
     } else {
       snapshot = unsupportedSnapshot(config, plugin.describeUnsupported ?? "该厂商暂不支持官方实时额度查询。", today);
     }
-    const snapshots = readActiveQuotaRecords<AiQuotaSnapshot>(SNAPSHOT_STORAGE_KEY);
-    writeJsonArray(SNAPSHOT_STORAGE_KEY, [snapshot, ...snapshots.filter((item) => item.id !== snapshot.id)]);
+    const snapshots = readActiveQuotaRecords<AiQuotaSnapshot>(AI_QUOTA_SNAPSHOT_STORAGE_KEY);
+    writeJsonArray(AI_QUOTA_SNAPSHOT_STORAGE_KEY, [snapshot, ...snapshots.filter((item) => item.id !== snapshot.id)]);
     return snapshot;
+  },
+
+  /** 判断必填凭据是否已安全保存，运行时不会把明文凭据暴露给 React。 */
+  isConfigured(id: ApiProvider | "manual"): boolean {
+    const config = readActiveQuotaRecords<AiQuotaPluginConfig>(AI_QUOTA_CONFIG_STORAGE_KEY).find((item) => item.id === id);
+    if (!config) return false;
+    const plugin = getAiQuotaPlugin(id);
+    return plugin.credentialFields.filter((field) => field.required).every((field) => {
+      if (field.key === "teamId") return Boolean(config.parameters?.teamId);
+      if (config.encryptedCredentials?.[field.key]) return true;
+      return Boolean(config.encryptedKey && config.iv);
+    });
   },
 
   plugins: aiQuotaProviderPlugins,

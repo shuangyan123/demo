@@ -113,4 +113,6 @@ export type AiQuotaSnapshot = {
   message: string;
   documentationUrl?: string;
   refreshedAt: string;
+  /** 运行时临时失败时保留上次成功数据，并明确标记为过期。 */
+  stale?: boolean;
 };

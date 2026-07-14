@@ -17,12 +17,12 @@ export type SettingsPluginIcon = {
 
 export type SettingsPluginPrimaryAction = {
   label: string;
-  kind: "open" | "configure" | "refresh" | "test" | "install" | "try-in-chat";
+  kind: "open" | "configure" | "refresh" | "test";
 };
 
 export type SettingsPluginMenuAction = {
   label: string;
-  kind: "docs" | "diagnostics" | "privacy" | "disable";
+  kind: "docs" | "diagnostics" | "privacy";
   href?: string;
 };
 
@@ -44,7 +44,6 @@ export type SettingsPluginDefinition = {
   category: SettingsPluginCategory;
   surface: SettingsPluginSurface;
   featured?: boolean;
-  installed?: boolean;
   providerLabel: string;
   statusBadge: SettingsPluginBadge;
   statusBadgeProvider?: (context: SettingsPluginRuntimeContext) => SettingsPluginBadge;
@@ -72,7 +71,6 @@ export const settingsPluginDefinitions: SettingsPluginDefinition[] = [
     category: "knowledge-sync",
     surface: "plugin",
     featured: true,
-    installed: true,
     providerLabel: "由本地应用提供",
     statusBadge: { label: "本地", tone: "green" },
     statusBadgeProvider: (context) => context.entryCount ? { label: "可同步", tone: "green" } : { label: "需资料", tone: "yellow" },
@@ -100,7 +98,6 @@ export const settingsPluginDefinitions: SettingsPluginDefinition[] = [
     description: "将粉笔错题文本、截图、PDF 和 docx 解析为可确认的公考错题草稿。",
     category: "import-source",
     surface: "plugin",
-    installed: true,
     providerLabel: "由导入插件提供",
     statusBadge: { label: "导入源", tone: "green" },
     statusBadgeProvider: (context) => context.hasVisionConnection ? { label: "可用", tone: "green" } : { label: "需多模态", tone: "yellow" },
