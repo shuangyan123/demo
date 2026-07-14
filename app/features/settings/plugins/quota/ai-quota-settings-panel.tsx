@@ -5,11 +5,13 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { createPortal } from "react-dom";
 import { aiQuotaRepository } from "../../../../services/ai-quota-repository";
 import { aiQuotaRuntime, type AiQuotaRuntimeStatus } from "../../../../services/ai-quota-runtime";
-import type { AiQuotaCredentialKey, AiQuotaPluginConfig, ApiProvider } from "../../../../types/review";
+import { aiConnectionsRepository } from "../../../../services/ai-connections-repository";
+import type { AiQuotaCredentialKey, AiQuotaPluginConfig, ApiConnectionProfile, ApiProvider } from "../../../../types/review";
 import { AppIcon } from "../../../shared/app-icon";
 import { ProviderIcon } from "../../../shared/provider-icon";
 import { Button, EmptyState } from "../../../shared/ui-primitives";
 import styles from "../../settings-compact.module.css";
+import { QuotaMetricRing } from "./quota-metric-ring";
 
 type QuotaFormState = Record<string, {
   enabled: boolean;
@@ -50,6 +52,9 @@ export function AiQuotaSettingsPanel() {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [editingId, setEditingId] = useState<ApiProvider | "manual">();
+  const [successId, setSuccessId] = useState<ApiProvider | "manual">();
+  const [connectionProfiles, setConnectionProfiles] = useState<ApiConnectionProfile[]>([]);
+  const [selectedDeepSeekConnectionId, setSelectedDeepSeekConnectionId] = useState("");
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const configById = useMemo(() => new Map(configs.map((config) => [config.id, config])), [configs]);
@@ -58,6 +63,10 @@ export function AiQuotaSettingsPanel() {
 
   useEffect(() => {
     void aiQuotaRuntime.initialize();
+    void aiConnectionsRepository.loadSnapshot().then((snapshot) => {
+      setConnectionProfiles(snapshot.profiles);
+      setSelectedDeepSeekConnectionId(snapshot.profiles.find((profile) => profile.provider === "deepseek")?.id ?? "");
+    }).catch(() => setNotice("已连接模型服务暂时无法读取；仍可单独配置额度凭据"));
   }, []);
 
   useEffect(() => {
@@ -112,9 +121,31 @@ export function AiQuotaSettingsPanel() {
 
   async function refreshQuota(id: ApiProvider | "manual") {
     setBusy(`refresh:${id}`);
-    try { await aiQuotaRuntime.manualRefresh(id); setNotice("额度快照已刷新"); }
+    try {
+      await aiQuotaRuntime.manualRefresh(id);
+      setSuccessId(id);
+      window.setTimeout(() => setSuccessId((current) => current === id ? undefined : current), 1200);
+      setNotice("额度快照已刷新");
+    }
     catch (error) { setNotice(error instanceof Error ? error.message : "额度刷新失败"); }
     finally { setBusy(""); }
+  }
+
+  /** 仅在用户显式点击后引用同厂商模型连接 Key，不自动扩大凭据用途。 */
+  async function reuseDeepSeekConnectionKey(): Promise<void> {
+    const profile = connectionProfiles.find((item) => item.id === selectedDeepSeekConnectionId && item.provider === "deepseek");
+    if (!profile) return;
+    setBusy("reuse:deepseek");
+    try {
+      const apiKey = await aiConnectionsRepository.resolveSecret(profile);
+      const form = forms.deepseek ?? formFromConfig(configById.get("deepseek"));
+      patchForm("deepseek", { credentials: { ...form.credentials, apiKey } });
+      setNotice(`已引用“${profile.label}”的 Key，保存额度配置后生效`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "连接 Key 引用失败");
+    } finally {
+      setBusy("");
+    }
   }
 
   /** 启用开关立即落库并启动或停止刷新，不要求用户再点一次保存。 */
@@ -141,7 +172,7 @@ export function AiQuotaSettingsPanel() {
       </div>
       {aiQuotaRepository.plugins.length ? (
         <div className={styles.table}>
-          <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span>启用</span><span>连接状态</span><span>最后刷新</span><span>数据来源</span><span>操作</span></div>
+          <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span>启用</span><span>连接状态</span><span>额度/用量</span><span>最后刷新</span><span>数据来源</span><span>操作</span></div>
           {aiQuotaRepository.plugins.map((plugin) => {
             const form = forms[plugin.id] ?? formFromConfig(configById.get(plugin.id));
             const snapshot = snapshotById.get(plugin.id);
@@ -150,12 +181,13 @@ export function AiQuotaSettingsPanel() {
             const tone = runtimeStatus === "ready" ? undefined : runtimeStatus === "error" ? "red" : runtimeStatus === "refreshing" ? "blue" : "yellow";
             return (
               <div key={plugin.id} className={`${styles.tableRow} ${styles.quotaColumns}`}>
-                <span className={styles.providerCell}><ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={24} /><strong>{plugin.label}</strong></span>
-                <input aria-label={`${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={Boolean(busy)} role="switch" type="checkbox" onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} />
+                <button ref={(node) => { if (editingId === plugin.id && node) returnFocusRef.current = node; }} aria-label={`配置${plugin.label}额度`} className={styles.providerCell} type="button" onClick={(event) => { returnFocusRef.current = event.currentTarget; setEditingId(plugin.id); }}><ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={24} /><strong>{plugin.label}</strong><AppIcon name="configure" size={16} /></button>
+                <input aria-label={`启用${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={Boolean(busy)} role="switch" type="checkbox" onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} />
                 <span className={styles.providerCell}><i className={styles.statusDot} data-tone={tone} /><span className={styles.truncate}>{statusLabels[runtimeStatus]}</span></span>
+                <QuotaMetricRing snapshot={snapshot} />
                 <span className={styles.muted}>{snapshot ? new Date(snapshot.refreshedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "未刷新"}</span>
                 <span className={`${styles.muted} ${styles.truncate}`}>{snapshot?.sourceLabel ?? (plugin.supportsOfficialRefresh ? "官方（自动同步）" : "手动配置")}</span>
-                <button ref={(node) => { if (editingId === plugin.id && node) returnFocusRef.current = node; }} aria-label={`配置${plugin.label}额度`} className={styles.iconButton} type="button" onClick={(event) => { returnFocusRef.current = event.currentTarget; setEditingId(plugin.id); }}><AppIcon name="edit" size={16} /></button>
+                <button aria-label={`刷新${plugin.label}额度`} className={styles.iconButton} disabled={Boolean(busy) || !form.enabled} type="button" onClick={() => void refreshQuota(plugin.id)}><span className={runtimeStatus === "refreshing" ? styles.spin : undefined}><AppIcon name={runtimeStatus === "error" || runtimeStatus === "stale" ? "warning" : successId === plugin.id ? "check" : "refresh"} size={16} /></span></button>
               </div>
             );
           })}
@@ -168,6 +200,10 @@ export function AiQuotaSettingsPanel() {
             <div className={styles.modalHeader}><h3 id="quota-dialog-title" className="text-base font-semibold">配置 {editingPlugin.label}</h3><button aria-label="关闭额度配置" className={styles.iconButton} type="button" onClick={() => setEditingId(undefined)}><AppIcon name="close" size={16} /></button></div>
             <div className={styles.modalForm}>
               <p className={styles.muted}>{runtime.entries[editingId]?.message ?? "启用后仅在页面可见且在线时刷新。"}</p>
+              {editingId === "deepseek" && connectionProfiles.some((profile) => profile.provider === "deepseek") ? <div className={styles.credentialReuse}>
+                <label className="ui-field">引用已保存连接<select className={styles.select} value={selectedDeepSeekConnectionId} onChange={(event) => setSelectedDeepSeekConnectionId(event.currentTarget.value)}>{connectionProfiles.filter((profile) => profile.provider === "deepseek").map((profile) => <option key={profile.id} value={profile.id}>{profile.label} · {profile.maskedKey}</option>)}</select></label>
+                <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void reuseDeepSeekConnectionKey()}>{busy === "reuse:deepseek" ? "引用中" : "引用连接 Key"}</Button>
+              </div> : null}
               {editingPlugin.credentialFields.map((field) => {
                 const form = forms[editingId] ?? formFromConfig(configById.get(editingId));
                 return <label key={field.key} className="ui-field">{field.label}<input className={styles.input} type={field.secret ? "password" : "text"} placeholder={field.secret && (configById.get(editingId)?.encryptedCredentials?.[field.key as Exclude<AiQuotaCredentialKey, "teamId">]?.maskedKey || configById.get(editingId)?.maskedKey) ? "留空保留原凭据" : field.required ? "填写额度查询凭据" : "可选"} value={form.credentials[field.key] ?? ""} onChange={(event) => { const value = event.currentTarget.value; patchForm(editingId, { credentials: { ...form.credentials, [field.key]: value } }); }} /></label>;

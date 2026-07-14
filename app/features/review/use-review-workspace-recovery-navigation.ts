@@ -20,39 +20,39 @@ export function normalizeSettingsSection(section: SettingsSectionKey | "roles"):
 
 // 集中管理设置页入口、健康检查 CTA 和诊断恢复 CTA，避免主工作台散落跨模块跳转规则。
 export function useReviewWorkspaceRecoveryNavigation({ setNotice, switchView }: ReviewWorkspaceRecoveryNavigationInput) {
-  const [settingsSection, setSettingsSectionState] = useState<SettingsSectionKey>("appearance");
-  const setSettingsSection = useCallback((section: SettingsSectionKey | "roles") => {
-    setSettingsSectionState(normalizeSettingsSection(section));
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey>("appearance");
+  const setNormalizedSettingsSection = useCallback((section: SettingsSectionKey | "roles") => {
+    setSettingsSection(normalizeSettingsSection(section));
   }, []);
 
   const openApiSettings = useCallback(
     (message = defaultApiSettingsMessage) => {
-      setSettingsSection("configuration");
+      setNormalizedSettingsSection("configuration");
       switchView("settings");
       setNotice(message);
     },
-    [setNotice, setSettingsSection, switchView],
+    [setNotice, setNormalizedSettingsSection, switchView],
   );
 
   const openMcpSettings = useCallback(
     (message = "MCP 工具已移到独立设置中") => {
-      setSettingsSection("mcp");
+      setNormalizedSettingsSection("mcp");
       switchView("settings");
       setNotice(message);
     },
-    [setNotice, setSettingsSection, switchView],
+    [setNotice, setNormalizedSettingsSection, switchView],
   );
 
   const resetSettingsSection = useCallback(() => {
-    setSettingsSection("appearance");
-  }, [setSettingsSection]);
+    setNormalizedSettingsSection("appearance");
+  }, [setNormalizedSettingsSection]);
 
   const openDiagnosticsTarget = useCallback(
     (action: Exclude<LocalDiagnosticAction, "ai-connections">) => {
-      setSettingsSection("appearance");
+      setNormalizedSettingsSection("appearance");
       switchView(action === "knowledge" ? "knowledge" : "automation");
     },
-    [setSettingsSection, switchView],
+    [setNormalizedSettingsSection, switchView],
   );
 
   const openConfigurationHealthAction = useCallback(
@@ -92,7 +92,7 @@ export function useReviewWorkspaceRecoveryNavigation({ setNotice, switchView }: 
     openConfigurationHealthAction,
     openDiagnosticsTarget,
     resetSettingsSection,
-    setSettingsSection,
+    setSettingsSection: setNormalizedSettingsSection,
     settingsSection,
   };
 }

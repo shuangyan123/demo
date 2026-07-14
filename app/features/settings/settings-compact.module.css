@@ -55,7 +55,7 @@
   min-height: 3.5rem;
 }
 
-.quotaColumns { grid-template-columns: minmax(8rem, 1.35fr) 3.25rem minmax(5.5rem, 0.8fr) minmax(6.5rem, 0.9fr) minmax(6.5rem, 1fr) 3rem; }
+.quotaColumns { grid-template-columns: minmax(7.25rem, 1.25fr) 3rem minmax(5rem, 0.75fr) 4.25rem minmax(5.8rem, 0.85fr) minmax(5.8rem, 0.95fr) 2.5rem; }
 .memoryColumns { grid-template-columns: 4rem 4rem minmax(0, 1fr) 5.5rem 7rem; }
 .dataColumns { grid-template-columns: minmax(0, 1fr) 5rem 4rem; }
 
@@ -119,13 +119,94 @@
 
 .disclosure > summary::-webkit-details-marker { display: none; }
 
-.providerCell { display: flex; min-width: 0; align-items: center; gap: 0.5rem; }
+.providerCell { display: flex; min-width: 0; align-items: center; gap: 0.5rem; border: 0; color: inherit; background: transparent; text-align: left; }
+.providerCell svg:last-child { flex: none; color: var(--muted); opacity: 0; transition: opacity 100ms ease; }
+.providerCell:hover svg:last-child,
+.providerCell:focus-visible svg:last-child { opacity: 1; }
 .providerCell strong, .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .statusDot { width: 0.45rem; height: 0.45rem; border-radius: 999px; background: var(--green); }
 .statusDot[data-tone="blue"] { background: var(--blue); }
 .statusDot[data-tone="yellow"] { background: var(--yellow); }
 .statusDot[data-tone="red"] { background: var(--red); }
 .muted { color: var(--muted); font-size: 0.75rem; }
+
+.quotaRingWrap { position: relative; display: inline-flex; align-items: center; justify-content: flex-start; }
+
+.quotaRingButton {
+  --quota-ring-color: var(--blue);
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  color: var(--foreground);
+  background: transparent;
+  font-size: 0.575rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.quotaRingButton::after {
+  position: absolute;
+  width: 2rem;
+  height: 2rem;
+  border-radius: inherit;
+  background: conic-gradient(var(--quota-ring-color) var(--quota-ring-value), color-mix(in srgb, var(--line) 78%, transparent) 0);
+  content: "";
+}
+
+.quotaRingButton::before {
+  position: absolute;
+  z-index: 1;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: inherit;
+  background: var(--surface);
+  content: "";
+}
+
+.quotaRingButton > span { position: relative; z-index: 2; max-width: 1.55rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quotaRingButton[data-mode="status"]::after { background: conic-gradient(var(--quota-ring-color) 360deg, var(--line) 0); }
+.quotaRingButton[data-mode="empty"] { --quota-ring-color: var(--line); color: var(--muted); }
+.quotaRingButton[data-tone="warning"] { --quota-ring-color: var(--yellow); }
+.quotaRingButton[data-tone="danger"] { --quota-ring-color: var(--red); }
+.quotaRingButton[data-tone="stale"] { --quota-ring-color: var(--yellow); filter: saturate(0.72); }
+.quotaRingButton:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 60%, transparent); outline-offset: 2px; }
+
+.quotaTooltip {
+  position: fixed;
+  z-index: 220;
+  display: grid;
+  width: min(15rem, calc(100vw - 1rem));
+  gap: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--foreground);
+  background: var(--surface);
+  padding: 0.55rem 0.65rem;
+  box-shadow: 0 10px 30px rgb(15 23 42 / 18%);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.spin { animation: quota-spin 0.8s linear infinite; }
+
+@keyframes quota-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 
 .modalBackdrop {
   position: fixed;
@@ -151,6 +232,7 @@
 .modalHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .modalForm { display: grid; gap: 0.75rem; margin-top: 1rem; }
 .modalActions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+.credentialReuse { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 0.5rem; }
 
 @media (max-width: 640px) {
   .section,
@@ -187,6 +269,11 @@
   .quotaColumns > :last-child,
   .memoryColumns > :last-child,
   .dataColumns > :last-child { grid-column: 2; grid-row: 1; }
+  .quotaColumns > :nth-child(2) { grid-column: 2; grid-row: 2; }
+  .quotaColumns > :nth-child(4) { grid-column: 2; grid-row: 3 / span 2; align-self: center; }
+  .quotaColumns > :nth-child(5),
+  .quotaColumns > :nth-child(6) { grid-column: 1; }
+  .credentialReuse { grid-template-columns: 1fr; }
 }
 
 @media (pointer: coarse) {
@@ -195,4 +282,5 @@
   .iconButton,
   .tableRow,
   .disclosure > summary { min-height: 2.75rem; height: auto; }
+  .quotaRingButton { width: 2.75rem; height: 2.75rem; }
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 // 渲染左上角侧栏切换按钮，使用按钮语义让键盘和屏幕阅读器都能识别当前折叠状态。
 export function SidebarToggleButton({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
@@ -95,11 +95,20 @@ export function SidebarNav<T extends string>({
   renderIcon: (icon: string) => ReactNode;
   onSelect: (key: T) => void;
 }) {
+  const activeItemRef = useRef<HTMLButtonElement>(null);
+
+  // 移动端横向导航在切换分区后把当前项带入视口，避免内容已切换但选中项仍藏在屏幕外。
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 1024px)").matches) return;
+    activeItemRef.current?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
+  }, [activeKey]);
+
   return (
     <nav className="scrollbar-none grid gap-1 max-lg:flex max-lg:overflow-x-auto max-lg:pb-1" aria-label="侧栏导航">
       {items.map((item) => (
         <button
           key={item.key}
+          ref={activeKey === item.key ? activeItemRef : undefined}
           className={`grid min-h-9 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:min-h-11 max-lg:min-w-36 ${
             activeKey === item.key ? "bg-chrome-selected" : "hover:bg-chrome-hover"
           }`}
