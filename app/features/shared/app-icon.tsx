@@ -13,7 +13,7 @@ export type AppIconName =
   | "interview" | "knowledge" | "knowledgeTraining" | "library" | "light" | "mcp" | "message"
   | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins"
   | "project" | "review" | "scheduled" | "screenshot" | "search" | "send" | "settings" | "slash" | "sparkles"
-  | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "folderPlus";
+  | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "edit" | "folderPlus";
 
 const icons: Record<AppIconName, LucideIcon> = {
   activity: Activity, appearance: Sun, automation: CalendarClock, back: ArrowLeft, blocks: Blocks,
@@ -24,7 +24,7 @@ const icons: Record<AppIconName, LucideIcon> = {
   newChat: Plus, none: Ban, paperclip: Paperclip, phone: Phone, personalization: UserRoundPlus, plugins: Blocks,
   project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings,
   slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
-  tutoring: Bot, check: Check, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, folderPlus: FolderPlus,
+  tutoring: Bot, check: Check, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, edit: FilePenLine, folderPlus: FolderPlus,
 };
 
 /** 统一 Lucide 的尺寸、线宽与无障碍表现；交互名称由外层按钮提供。 */

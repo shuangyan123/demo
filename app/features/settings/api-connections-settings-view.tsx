@@ -12,6 +12,7 @@ import { Button, EmptyState, cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
 import { ProviderSelect } from "./provider-select";
 import { DefaultCapabilitySelector } from "./default-capability-selector";
+import compactStyles from "./settings-compact.module.css";
 
 type SubmitEvent = SyntheticEvent<HTMLFormElement, globalThis.SubmitEvent>;
 type Feedback = { tone: "success" | "error" | "neutral"; text: string } | null;
@@ -276,7 +277,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
   const formCapabilities = contract.capabilities.filter((capability) => capabilityLabels[capability]);
 
   return (
-    <section className="ai-connections-compact">
+    <section className={`ai-connections-compact ${compactStyles.connectionSection}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">AI 连接</h1>
         <InlineStatus feedback={feedback} />

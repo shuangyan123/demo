@@ -6,7 +6,11 @@ import { getProviderBranding } from "../../services/provider-branding";
 export function ProviderIcon({ provider, size = 24 }: { provider: ApiProvider; size?: number }) {
   const branding = getProviderBranding(provider);
   if (branding.iconPath) {
-    return <Image alt="" aria-hidden="true" className="provider-icon" height={size} src={branding.iconPath} title={branding.label} unoptimized width={size} />;
+    return (
+      <span aria-hidden="true" className="provider-icon relative shrink-0" style={{ width: size, height: size }} title={branding.label}>
+        <Image alt="" fill sizes={`${size}px`} src={branding.iconPath} style={{ objectFit: "contain" }} unoptimized />
+      </span>
+    );
   }
   return (
     <span

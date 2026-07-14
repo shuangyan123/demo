@@ -374,8 +374,8 @@ body[data-theme="dark"] .ui-detail-content {
 }
 
 @keyframes settings-section-enter {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes ui-toast-enter {

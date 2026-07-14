@@ -46,6 +46,24 @@ export const personalMemoryRepository = {
     return saveEntries(settings, [entry, ...(settings.memoryEntries ?? [])], today);
   },
 
+  /** 编辑仅更新用户可维护字段，来源、状态和创建时间保持不变。 */
+  async update(id: string, input: AddMemoryInput, today = new Date()): Promise<PersonalizationSettings> {
+    if (!input.title.trim() || !input.content.trim()) throw new Error("请填写记忆标题和内容");
+    const settings = await personalizationSettingsRepository.load(today);
+    if (!(settings.memoryEntries ?? []).some((entry) => entry.id === id)) throw new Error("记忆不存在，请刷新后重试");
+    const updatedAt = today.toISOString();
+    return saveEntries(settings, (settings.memoryEntries ?? []).map((entry) => entry.id === id ? {
+      ...entry,
+      kind: input.kind,
+      scope: input.scope,
+      title: input.title.trim().slice(0, 80),
+      content: input.content.trim().slice(0, 2000),
+      moduleId: input.scope === "module" ? input.moduleId?.trim() || undefined : undefined,
+      sourceConversationId: input.scope === "conversation" ? input.sourceConversationId?.trim() || undefined : undefined,
+      updatedAt,
+    } : entry), today);
+  },
+
   /** AI 仅能新增待确认建议，关闭建议开关时拒绝写入。 */
   async addSuggested(input: AddMemoryInput, today = new Date()): Promise<PersonalizationSettings> {
     const settings = await personalizationSettingsRepository.load(today);

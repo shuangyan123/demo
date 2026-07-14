@@ -4,6 +4,12 @@
   overflow-y: auto;
 }
 
+/* 设置分区按自身内容宽度左对齐，禁止再次用统一超宽容器制造无意义空白。 */
+.settings-section-layout {
+  width: 100%;
+  margin: 0;
+}
+
 /* 设置页使用接近 Codex 的浅灰滚动条，避免系统默认滚动条显得过重。 */
 .settings-main-scroll,
 .settings-sidebar-scroll {

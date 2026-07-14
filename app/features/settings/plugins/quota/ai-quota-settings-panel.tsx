@@ -1,19 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+/** 额度设置以紧凑状态表为主，凭据和预算只在行级配置层中编辑。 */
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { aiQuotaRepository } from "../../../../services/ai-quota-repository";
 import { aiQuotaRuntime, type AiQuotaRuntimeStatus } from "../../../../services/ai-quota-runtime";
-import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaSnapshot, ApiProvider } from "../../../../types/review";
-import { Button, Chip, EmptyState } from "../../../shared/ui-primitives";
-import { ProviderIcon } from "../../../shared/provider-icon";
+import type { AiQuotaCredentialKey, AiQuotaPluginConfig, ApiProvider } from "../../../../types/review";
 import { AppIcon } from "../../../shared/app-icon";
+import { ProviderIcon } from "../../../shared/provider-icon";
+import { Button, EmptyState } from "../../../shared/ui-primitives";
+import styles from "../../settings-compact.module.css";
 
-type QuotaFormState = Record<string, { enabled: boolean; credentials: Partial<Record<AiQuotaCredentialKey, string>>; monthlyBudget: string; manualRemaining: string }>;
+type QuotaFormState = Record<string, {
+  enabled: boolean;
+  credentials: Partial<Record<AiQuotaCredentialKey, string>>;
+  monthlyBudget: string;
+  manualRemaining: string;
+}>;
 
-function currency(value: number | undefined, unit = "USD") {
-  return value === undefined ? "未返回" : `${unit} ${value.toFixed(2)}`;
-}
-
+/** 将加密配置转换为不包含秘密明文的编辑草稿。 */
 function formFromConfig(config?: AiQuotaPluginConfig) {
   return {
     enabled: config?.enabled ?? false,
@@ -23,14 +28,16 @@ function formFromConfig(config?: AiQuotaPluginConfig) {
   };
 }
 
-function usagePercent(snapshot?: AiQuotaSnapshot): number {
-  if (!snapshot) return 0;
-  if (typeof snapshot.usageRatio === "number") return Math.max(0, Math.min(100, snapshot.usageRatio * 100));
-  const total = (snapshot.usedAmount ?? 0) + (snapshot.remainingAmount ?? 0);
-  return total > 0 ? Math.max(0, Math.min(100, ((snapshot.usedAmount ?? 0) / total) * 100)) : 0;
-}
+const statusLabels: Record<AiQuotaRuntimeStatus, string> = {
+  disabled: "未启用",
+  "needs-credentials": "待配置",
+  refreshing: "刷新中",
+  ready: "已连接",
+  stale: "数据可能已过期",
+  error: "失败",
+};
 
-/** 额度面板采用紧凑厂商卡，但只调用官方或手动来源。 */
+/** 额度面板只调用官方只读接口或手动来源，启用后立即进入运行时生命周期。 */
 export function AiQuotaSettingsPanel() {
   const initialState = useMemo(() => aiQuotaRepository.loadSync(), []);
   const runtime = useSyncExternalStore(aiQuotaRuntime.subscribe, aiQuotaRuntime.getSnapshot, aiQuotaRuntime.getServerSnapshot);
@@ -42,13 +49,42 @@ export function AiQuotaSettingsPanel() {
   ])));
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
+  const [editingId, setEditingId] = useState<ApiProvider | "manual">();
+  const dialogRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const configById = useMemo(() => new Map(configs.map((config) => [config.id, config])), [configs]);
   const snapshotById = useMemo(() => new Map(snapshots.map((snapshot) => [snapshot.id, snapshot])), [snapshots]);
+  const editingPlugin = aiQuotaRepository.plugins.find((plugin) => plugin.id === editingId);
 
   useEffect(() => {
     void aiQuotaRuntime.initialize();
   }, []);
 
+  useEffect(() => {
+    if (!editingId) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLElement>("input, button, a")?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEditingId(undefined);
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), a[href]')];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+      returnFocusRef.current?.focus();
+    };
+  }, [editingId]);
+
+  /** 以函数式更新合并单厂商编辑草稿，避免额度运行时刷新覆盖未保存输入。 */
   function patchForm(id: string, patch: Partial<QuotaFormState[string]>) {
     setForms((current) => ({ ...current, [id]: { ...(current[id] ?? formFromConfig(configById.get(id as ApiProvider | "manual"))), ...patch } }));
   }
@@ -57,15 +93,9 @@ export function AiQuotaSettingsPanel() {
     const form = forms[id] ?? formFromConfig(configById.get(id));
     setBusy(`save:${id}`);
     try {
-      await aiQuotaRuntime.saveAndActivate({
-        id,
-        enabled: form.enabled,
-        credentials: form.credentials,
-        monthlyBudget: Number(form.monthlyBudget) || undefined,
-        manualRemaining: Number(form.manualRemaining) || undefined,
-        today: new Date(),
-      });
+      await aiQuotaRuntime.saveAndActivate({ id, enabled: form.enabled, credentials: form.credentials, monthlyBudget: Number(form.monthlyBudget) || undefined, manualRemaining: Number(form.manualRemaining) || undefined, today: new Date() });
       setNotice(form.enabled ? "额度配置已保存并启动刷新" : "额度配置已保存");
+      setEditingId(undefined);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "额度配置保存失败");
     } finally {
@@ -75,25 +105,16 @@ export function AiQuotaSettingsPanel() {
 
   async function validateQuota(id: ApiProvider | "manual") {
     setBusy(`validate:${id}`);
-    try {
-      setNotice(await aiQuotaRuntime.validate(id));
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "额度凭据验证失败");
-    } finally {
-      setBusy("");
-    }
+    try { setNotice(await aiQuotaRuntime.validate(id)); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "额度凭据验证失败"); }
+    finally { setBusy(""); }
   }
 
   async function refreshQuota(id: ApiProvider | "manual") {
     setBusy(`refresh:${id}`);
-    try {
-      await aiQuotaRuntime.manualRefresh(id);
-      setNotice("额度快照已刷新");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "额度刷新失败");
-    } finally {
-      setBusy("");
-    }
+    try { await aiQuotaRuntime.manualRefresh(id); setNotice("额度快照已刷新"); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "额度刷新失败"); }
+    finally { setBusy(""); }
   }
 
   /** 启用开关立即落库并启动或停止刷新，不要求用户再点一次保存。 */
@@ -102,14 +123,7 @@ export function AiQuotaSettingsPanel() {
     patchForm(id, { enabled });
     setBusy(`toggle:${id}`);
     try {
-      await aiQuotaRuntime.saveAndActivate({
-        id,
-        enabled,
-        credentials: form.credentials,
-        monthlyBudget: Number(form.monthlyBudget) || undefined,
-        manualRemaining: Number(form.manualRemaining) || undefined,
-        today: new Date(),
-      });
+      await aiQuotaRuntime.saveAndActivate({ id, enabled, credentials: form.credentials, monthlyBudget: Number(form.monthlyBudget) || undefined, manualRemaining: Number(form.manualRemaining) || undefined, today: new Date() });
       setNotice(enabled ? (aiQuotaRepository.isConfigured(id) ? "已启用并刷新额度" : "已启用，等待配置凭据") : "已停用额度刷新");
     } catch (error) {
       patchForm(id, { enabled: !enabled });
@@ -120,90 +134,56 @@ export function AiQuotaSettingsPanel() {
   }
 
   return (
-    <section aria-label="AI 额度与用量">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">额度与用量</h2>
-          <p className="mt-1 text-sm text-muted">账单凭据独立加密保存；没有官方 API 的厂商只显示预留或手动额度。</p>
+    <section className={styles.tableSection} aria-label="AI 额度与用量">
+      <div className={styles.header}>
+        <div><h2>额度与用量</h2><p>账单凭据独立加密；没有官方接口的厂商仅支持控制台或手动记录。</p></div>
+        {notice ? <span className={styles.muted} role="status">{notice}</span> : null}
+      </div>
+      {aiQuotaRepository.plugins.length ? (
+        <div className={styles.table}>
+          <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span>启用</span><span>连接状态</span><span>最后刷新</span><span>数据来源</span><span>操作</span></div>
+          {aiQuotaRepository.plugins.map((plugin) => {
+            const form = forms[plugin.id] ?? formFromConfig(configById.get(plugin.id));
+            const snapshot = snapshotById.get(plugin.id);
+            const runtimeEntry = runtime.entries[plugin.id];
+            const runtimeStatus: AiQuotaRuntimeStatus = runtimeEntry?.status ?? (form.enabled ? "needs-credentials" : "disabled");
+            const tone = runtimeStatus === "ready" ? undefined : runtimeStatus === "error" ? "red" : runtimeStatus === "refreshing" ? "blue" : "yellow";
+            return (
+              <div key={plugin.id} className={`${styles.tableRow} ${styles.quotaColumns}`}>
+                <span className={styles.providerCell}><ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={24} /><strong>{plugin.label}</strong></span>
+                <input aria-label={`${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={Boolean(busy)} role="switch" type="checkbox" onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} />
+                <span className={styles.providerCell}><i className={styles.statusDot} data-tone={tone} /><span className={styles.truncate}>{statusLabels[runtimeStatus]}</span></span>
+                <span className={styles.muted}>{snapshot ? new Date(snapshot.refreshedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "未刷新"}</span>
+                <span className={`${styles.muted} ${styles.truncate}`}>{snapshot?.sourceLabel ?? (plugin.supportsOfficialRefresh ? "官方（自动同步）" : "手动配置")}</span>
+                <button ref={(node) => { if (editingId === plugin.id && node) returnFocusRef.current = node; }} aria-label={`配置${plugin.label}额度`} className={styles.iconButton} type="button" onClick={(event) => { returnFocusRef.current = event.currentTarget; setEditingId(plugin.id); }}><AppIcon name="edit" size={16} /></button>
+              </div>
+            );
+          })}
         </div>
-        {notice ? <span className="text-sm text-muted" role="status">{notice}</span> : null}
-      </div>
-      <div className="mt-4 grid gap-3">
-        {aiQuotaRepository.plugins.length ? aiQuotaRepository.plugins.map((plugin) => {
-          const form = forms[plugin.id] ?? formFromConfig(configById.get(plugin.id));
-          const snapshot = snapshotById.get(plugin.id);
-          const config = configById.get(plugin.id);
-          const runtimeEntry = runtime.entries[plugin.id];
-          const percent = usagePercent(snapshot);
-          const runtimeStatus: AiQuotaRuntimeStatus = runtimeEntry?.status ?? (form.enabled ? "needs-credentials" : "disabled");
-          const statusTone = runtimeStatus === "ready" ? "green" : runtimeStatus === "error" ? "red" : runtimeStatus === "refreshing" ? "blue" : "yellow";
-          const statusLabel: Record<AiQuotaRuntimeStatus, string> = { disabled: "未启用", "needs-credentials": "待配置", refreshing: "刷新中", ready: "正常", stale: "已过期", error: "失败" };
-          return (
-            <details key={plugin.id} className="rounded-lg border border-line bg-surface">
-              <summary className="grid min-h-14 cursor-pointer list-none grid-cols-[2rem_minmax(0,1fr)_auto_auto_auto] items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
-                <ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={28} />
-                <span className="min-w-0"><strong className="block truncate">{plugin.label}</strong><small className="text-muted">已用 {currency(snapshot?.usedAmount, snapshot?.currency)} · 剩余 {currency(snapshot?.remainingAmount, snapshot?.currency)}</small></span>
-                <Chip tone={statusTone}>{statusLabel[runtimeStatus]}</Chip>
-                <input aria-label={`${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={Boolean(busy)} role="switch" type="checkbox" onClick={(event) => event.stopPropagation()} onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} />
-                <AppIcon name="chevronRight" size={16} />
-              </summary>
-              <div className="border-t border-line p-4">
-                <div className="flex flex-wrap justify-end gap-2">
-                  {plugin.dashboardUrl ? <a className="ui-button ui-button-sm ui-button-outline" href={plugin.dashboardUrl} rel="noreferrer" target="_blank">官网账单</a> : null}
-                  <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void save(plugin.id)}>保存</Button>
-                  {plugin.supportsOfficialRefresh ? <Button size="sm" variant="outline" disabled={Boolean(busy) || !form.enabled} onClick={() => void validateQuota(plugin.id)}>{busy === `validate:${plugin.id}` ? "验证中" : "测试凭据"}</Button> : null}
-                  <Button size="sm" variant="soft" disabled={Boolean(busy) || !form.enabled} onClick={() => void refreshQuota(plugin.id)}>{busy === `refresh:${plugin.id}` ? "刷新中" : "刷新额度"}</Button>
-                </div>
-              <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
-                <div>
-                  <div className="flex items-center justify-between gap-3 text-xs text-muted">
-                    <span>已用 {currency(snapshot?.usedAmount, snapshot?.currency)}</span>
-                    <span>剩余 {currency(snapshot?.remainingAmount, snapshot?.currency)}</span>
-                  </div>
-                  <span className="mt-2 block h-2 overflow-hidden rounded-full bg-surface-muted">
-                    <span className="block h-full rounded-full bg-blue" style={{ width: `${percent}%` }} />
-                  </span>
-                </div>
-                <div className="text-right text-xs text-muted max-md:text-left">
-                  <div>{snapshot?.periodLabel ?? "当前周期"}</div>
-                  <div>{snapshot?.resetAt ? `重置 ${new Date(snapshot.resetAt).toLocaleString("zh-CN")}` : "重置时间未返回"}</div>
-                  <div>建议刷新 {Math.round(plugin.descriptor.refreshCadenceSeconds / 60)} 分钟</div>
-                </div>
-              </div>
+      ) : <EmptyState>暂无额度配置。</EmptyState>}
 
-              <div className="mt-3 grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
-                <div className="text-sm text-muted" role="status">{runtimeEntry?.message ?? "启用后仅在页面可见且在线时刷新"}</div>
-                {plugin.credentialFields.map((field) => (
-                  <label key={field.key} className="grid gap-1 text-xs font-medium">{field.label}
-                    <input
-                      className="ui-input"
-                      type={field.secret ? "password" : "text"}
-                      placeholder={field.secret && (config?.encryptedCredentials?.[field.key as Exclude<AiQuotaCredentialKey, "teamId">]?.maskedKey || config?.maskedKey) ? "留空保留原凭据" : field.required ? "填写额度查询凭据" : "可选"}
-                      value={form.credentials[field.key] ?? ""}
-                      onChange={(event) => patchForm(plugin.id, { credentials: { ...form.credentials, [field.key]: event.currentTarget.value } })}
-                    />
-                  </label>
-                ))}
-                <label className="grid gap-1 text-xs font-medium">月预算
-                  <input className="ui-input" inputMode="decimal" value={form.monthlyBudget} onChange={(event) => patchForm(plugin.id, { monthlyBudget: event.currentTarget.value })} />
-                </label>
-                <label className="grid gap-1 text-xs font-medium">手动剩余
-                  <input className="ui-input" inputMode="decimal" value={form.manualRemaining} onChange={(event) => patchForm(plugin.id, { manualRemaining: event.currentTarget.value })} />
-                </label>
-              </div>
-              {snapshot ? (
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-                  <span>来源：{snapshot.sourceLabel ?? snapshot.source}</span>
-                  <span>刷新：{new Date(snapshot.refreshedAt).toLocaleString("zh-CN")}{snapshot.stale ? " · 已过期" : ""}</span>
-                  {snapshot.documentationUrl ? <a className="text-blue" href={snapshot.documentationUrl} rel="noreferrer" target="_blank">官方文档</a> : null}
-                  {plugin.statusUrl ? <a className="text-blue" href={plugin.statusUrl} rel="noreferrer" target="_blank">厂商状态</a> : null}
-                </div>
-              ) : null}
-              </div>
-            </details>
-          );
-        }) : <EmptyState>暂无额度配置。</EmptyState>}
-      </div>
+      {editingPlugin && editingId && typeof document !== "undefined" ? createPortal((
+        <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingId(undefined); }}>
+          <section ref={dialogRef} aria-labelledby="quota-dialog-title" aria-modal="true" className={styles.modal} role="dialog">
+            <div className={styles.modalHeader}><h3 id="quota-dialog-title" className="text-base font-semibold">配置 {editingPlugin.label}</h3><button aria-label="关闭额度配置" className={styles.iconButton} type="button" onClick={() => setEditingId(undefined)}><AppIcon name="close" size={16} /></button></div>
+            <div className={styles.modalForm}>
+              <p className={styles.muted}>{runtime.entries[editingId]?.message ?? "启用后仅在页面可见且在线时刷新。"}</p>
+              {editingPlugin.credentialFields.map((field) => {
+                const form = forms[editingId] ?? formFromConfig(configById.get(editingId));
+                return <label key={field.key} className="ui-field">{field.label}<input className={styles.input} type={field.secret ? "password" : "text"} placeholder={field.secret && (configById.get(editingId)?.encryptedCredentials?.[field.key as Exclude<AiQuotaCredentialKey, "teamId">]?.maskedKey || configById.get(editingId)?.maskedKey) ? "留空保留原凭据" : field.required ? "填写额度查询凭据" : "可选"} value={form.credentials[field.key] ?? ""} onChange={(event) => { const value = event.currentTarget.value; patchForm(editingId, { credentials: { ...form.credentials, [field.key]: value } }); }} /></label>;
+              })}
+              <label className="ui-field">月预算<input className={styles.input} inputMode="decimal" value={(forms[editingId] ?? formFromConfig(configById.get(editingId))).monthlyBudget} onChange={(event) => { const value = event.currentTarget.value; patchForm(editingId, { monthlyBudget: value }); }} /></label>
+              <label className="ui-field">手动剩余<input className={styles.input} inputMode="decimal" value={(forms[editingId] ?? formFromConfig(configById.get(editingId))).manualRemaining} onChange={(event) => { const value = event.currentTarget.value; patchForm(editingId, { manualRemaining: value }); }} /></label>
+            </div>
+            <div className={styles.modalActions}>
+              {editingPlugin.dashboardUrl ? <a className="ui-button ui-button-sm ui-button-outline" href={editingPlugin.dashboardUrl} rel="noreferrer" target="_blank">官网账单</a> : null}
+              {editingPlugin.supportsOfficialRefresh ? <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void validateQuota(editingId)}>{busy === `validate:${editingId}` ? "验证中" : "测试凭据"}</Button> : null}
+              <Button size="sm" variant="outline" disabled={Boolean(busy) || !(forms[editingId]?.enabled)} onClick={() => void refreshQuota(editingId)}>{busy === `refresh:${editingId}` ? "刷新中" : "刷新"}</Button>
+              <Button size="sm" variant="primary" disabled={Boolean(busy)} onClick={() => void save(editingId)}>{busy === `save:${editingId}` ? "保存中" : "保存"}</Button>
+            </div>
+          </section>
+        </div>
+      ), document.body) : null}
     </section>
   );
 }

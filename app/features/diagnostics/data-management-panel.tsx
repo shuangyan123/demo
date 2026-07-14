@@ -1,23 +1,29 @@
 "use client";
 
-/** 诊断页的数据管理把四类危险操作拆开，并在执行前显示真实数量。 */
+/** 诊断页的数据管理以紧凑表格展示范围和数量，所有危险操作使用应用内确认层。 */
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { localDataManagementRepository, type LocalDataSummary } from "../../services/local-data-management-repository";
-import { Button, Panel } from "../shared/ui-primitives";
+import { AppIcon } from "../shared/app-icon";
+import { Button } from "../shared/ui-primitives";
+import styles from "../settings/settings-compact.module.css";
 
 type DataManagementPanelProps = { onChanged?: () => Promise<void> | void };
+type ClearScope = "imports" | "mistakes" | "conversations";
 
 const emptySummary: LocalDataSummary = { importRecords: 0, mistakeReviewRecords: 0, conversationRecords: 0, totalIndexedDbRecords: 0 };
+const scopeLabels: Record<ClearScope, string> = { imports: "导入记录", mistakes: "错题与复盘", conversations: "对话历史" };
 
-/** 数据管理操作只调用对应 repository 方法，完整重置要求输入固定确认文字。 */
+/** 数据管理只调用对应 repository；完整重置仍要求输入固定确认文字。 */
 export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
   const [summary, setSummary] = useState<LocalDataSummary>(emptySummary);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
-  const [resetOpen, setResetOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<ClearScope | "all">();
   const [resetText, setResetText] = useState("");
-  const resetInputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   async function refresh(): Promise<void> {
     setSummary(await localDataManagementRepository.loadSummary());
@@ -26,46 +32,45 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
 
   useEffect(() => {
     let active = true;
-    void localDataManagementRepository.loadSummary().then((next) => {
-      if (!active) return;
-      setSummary(next);
-      setLoading(false);
-    });
+    void localDataManagementRepository.loadSummary().then((next) => { if (active) { setSummary(next); setLoading(false); } });
     return () => { active = false; };
   }, []);
+
   useEffect(() => {
-    if (!resetOpen) return;
+    if (!pendingAction) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    resetInputRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setResetOpen(false);
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLElement>(pendingAction === "all" ? "input" : "button")?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPendingAction(undefined);
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])')];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
-    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", handleKeyDown);
+      returnFocusRef.current?.focus();
     };
-  }, [resetOpen]);
+  }, [pendingAction]);
 
-  /** 分域清理使用原生确认显示数量，完成后刷新工作台快照。 */
-  async function clearScope(scope: "imports" | "mistakes" | "conversations"): Promise<void> {
-    const count = scope === "imports" ? summary.importRecords : scope === "mistakes" ? summary.mistakeReviewRecords : summary.conversationRecords;
+  /** 分域清理完成后刷新真实数量和主工作台快照。 */
+  async function clearScope(scope: ClearScope): Promise<void> {
     const label = scope === "imports" ? "导入记录" : scope === "mistakes" ? "错题与复盘" : "对话历史";
-    if (!window.confirm(`确认清理 ${count} 条${label}吗？此操作不可撤销。`)) return;
     setBusy(scope);
     try {
       if (scope === "imports") await localDataManagementRepository.clearImports();
       else if (scope === "mistakes") await localDataManagementRepository.clearMistakeReviews();
       else await localDataManagementRepository.clearConversations();
-      await onChanged?.();
-      await refresh();
-      setNotice(`${label}已清理`);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : `${label}清理失败`);
-    } finally {
-      setBusy("");
-    }
+      await onChanged?.(); await refresh(); setNotice(`${label}已清理`); setPendingAction(undefined);
+    } catch (error) { setNotice(error instanceof Error ? error.message : `${label}清理失败`); }
+    finally { setBusy(""); }
   }
 
   async function resetAll(): Promise<void> {
@@ -75,18 +80,38 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
     window.location.reload();
   }
 
-  return (
-    <Panel title="数据管理" eyebrow="Data Management">
-      <p className="mb-4 text-sm leading-6 text-muted">按数据域清理，不再把错题、导入和对话混在 AI 连接设置中。</p>
-      <div className="divide-y divide-line border-y border-line">
-        <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2"><span><strong className="block text-sm">导入记录</strong><small className="text-muted">{loading ? "统计中" : `${summary.importRecords} 条任务、批次与草稿`}</small></span><Button size="sm" variant="danger" disabled={Boolean(busy)} onClick={() => void clearScope("imports")}>{busy === "imports" ? "清理中" : "清理"}</Button></div>
-        <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2"><span><strong className="block text-sm">错题与复盘</strong><small className="text-muted">{loading ? "统计中" : `${summary.mistakeReviewRecords} 条错题和复盘`}</small></span><Button size="sm" variant="danger" disabled={Boolean(busy)} onClick={() => void clearScope("mistakes")}>{busy === "mistakes" ? "清理中" : "清理"}</Button></div>
-        <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2"><span><strong className="block text-sm">对话历史</strong><small className="text-muted">{loading ? "统计中" : `${summary.conversationRecords} 条会话相关记录`}</small></span><Button size="sm" variant="danger" disabled={Boolean(busy)} onClick={() => void clearScope("conversations")}>{busy === "conversations" ? "清理中" : "清理"}</Button></div>
-        <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2"><span><strong className="block text-sm text-danger">完整重置</strong><small className="text-muted">{loading ? "统计中" : `${summary.totalIndexedDbRecords} 条 IndexedDB 记录及本应用本地配置`}</small></span><Button size="sm" variant="danger" disabled={Boolean(busy)} onClick={() => { setResetText(""); setResetOpen(true); }}>完整重置</Button></div>
-      </div>
-      {notice ? <p className="mt-3 text-sm text-muted" role="status">{notice}</p> : null}
+  const rows: Array<{ id: ClearScope | "all"; label: string; count: number }> = [
+    { id: "imports", label: "导入记录", count: summary.importRecords },
+    { id: "mistakes", label: "错题与复盘", count: summary.mistakeReviewRecords },
+    { id: "conversations", label: "对话历史", count: summary.conversationRecords },
+    { id: "all", label: "完整重置（所有数据）", count: summary.totalIndexedDbRecords },
+  ];
+  const pendingCount = pendingAction === "imports" ? summary.importRecords : pendingAction === "mistakes" ? summary.mistakeReviewRecords : pendingAction === "conversations" ? summary.conversationRecords : summary.totalIndexedDbRecords;
 
-      {resetOpen ? <div className="ui-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setResetOpen(false); }}><section aria-modal="true" className="ui-dialog" role="dialog" aria-labelledby="complete-reset-title"><h3 id="complete-reset-title" className="text-lg font-semibold">确认完整重置</h3><p className="mt-2 text-sm leading-6 text-muted">这会删除全部本地学习数据、连接、个性化、额度配置和缓存。请输入“完整重置”继续。</p><label className="ui-field mt-4">确认文字<input ref={resetInputRef} className="ui-input" value={resetText} onChange={(event) => setResetText(event.currentTarget.value)} /></label><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => setResetOpen(false)}>取消</Button><Button variant="danger" disabled={resetText !== "完整重置" || busy === "all"} onClick={() => void resetAll()}>{busy === "all" ? "重置中" : "永久删除"}</Button></div></section></div> : null}
-    </Panel>
+  return (
+    <section className={styles.tableSection} aria-label="数据管理">
+      <div className={styles.header}><div><h2>数据管理</h2><p>按数据范围清理，完整重置会删除全部本地数据和设置。</p></div>{notice ? <span className={styles.muted} role="status">{notice}</span> : null}</div>
+      <div className={styles.table}>
+        <div className={`${styles.tableHeader} ${styles.dataColumns}`}><span>清除范围</span><span>项目数</span><span>操作</span></div>
+        {rows.map((row) => (
+          <div key={row.id} className={`${styles.tableRow} ${styles.dataColumns}`}>
+            <span className={row.id === "all" ? "text-danger" : undefined}>{row.label}</span>
+            <span className={styles.muted}>{loading ? "统计中" : `${row.count} 项`}</span>
+            <Button size="sm" variant="danger" disabled={Boolean(busy)} onClick={(event) => { returnFocusRef.current = event.currentTarget; setResetText(""); setPendingAction(row.id); }}>清除</Button>
+          </div>
+        ))}
+      </div>
+
+      {pendingAction && typeof document !== "undefined" ? createPortal((
+        <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingAction(undefined); }}>
+          <section ref={dialogRef} aria-labelledby="data-clear-title" aria-modal="true" className={styles.modal} role="dialog">
+            <div className={styles.modalHeader}><h3 id="data-clear-title" className="text-base font-semibold">{pendingAction === "all" ? "完整重置（所有数据）" : `清除${scopeLabels[pendingAction]}`}</h3><button aria-label="关闭数据清理确认" className={styles.iconButton} type="button" onClick={() => setPendingAction(undefined)}><AppIcon name="close" size={16} /></button></div>
+            <p className="mt-3 text-sm leading-6 text-muted">此操作将永久删除 {pendingCount} 项数据，无法恢复。</p>
+            {pendingAction === "all" ? <label className="ui-field mt-4">请输入“完整重置”以继续<input className={styles.input} value={resetText} onChange={(event) => setResetText(event.currentTarget.value)} /></label> : null}
+            <div className={styles.modalActions}><Button size="sm" variant="outline" onClick={() => setPendingAction(undefined)}>取消</Button><Button size="sm" variant="danger" disabled={Boolean(busy) || (pendingAction === "all" && resetText !== "完整重置")} onClick={() => pendingAction === "all" ? void resetAll() : void clearScope(pendingAction)}>{busy ? "清理中" : pendingAction === "all" ? "完整重置" : "确认清除"}</Button></div>
+          </section>
+        </div>
+      ), document.body) : null}
+    </section>
   );
 }

@@ -8,7 +8,9 @@ import { useEffect, useMemo, useState } from "react";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
 import { getCachedConnectionModelCatalog, loadConnectionModelCatalog } from "../../services/model-directory-service";
 import type { AiConnectionPurpose, AiConnectionSnapshot, AiModelCatalogEntry } from "../../types/review";
+import { AppIcon } from "../shared/app-icon";
 import { Button } from "../shared/ui-primitives";
+import styles from "./settings-compact.module.css";
 
 export const defaultPurposeLabels: Record<AiConnectionPurpose, string> = {
   text: "默认文本",
@@ -26,6 +28,8 @@ type DefaultCapabilitySelectorProps = {
 };
 
 const purposes = Object.keys(defaultPurposeLabels) as AiConnectionPurpose[];
+const primaryPurposes: AiConnectionPurpose[] = ["text", "vision"];
+const secondaryPurposes: AiConnectionPurpose[] = ["speech", "transcription", "realtime"];
 
 /** 从目录中选择保留值或推荐回退，未知手动值不会被名字规则误判。 */
 function selectCompatibleModel(models: AiModelCatalogEntry[], currentModelId?: string): string | undefined {
@@ -38,6 +42,7 @@ export function DefaultCapabilitySelector({ snapshot, onSnapshotChange, onChange
   const [catalogs, setCatalogs] = useState<Partial<Record<AiConnectionPurpose, AiModelCatalogEntry[]>>>({});
   const [loading, setLoading] = useState<AiConnectionPurpose>();
   const [manualValues, setManualValues] = useState<Partial<Record<AiConnectionPurpose, string>>>({});
+  const [manualOpen, setManualOpen] = useState<Partial<Record<AiConnectionPurpose, boolean>>>({});
   const [pendingConnectionIds, setPendingConnectionIds] = useState<Partial<Record<AiConnectionPurpose, string>>>({});
 
   const selectedProfiles = useMemo(() => Object.fromEntries(purposes.map((purpose) => {
@@ -108,6 +113,7 @@ export function DefaultCapabilitySelector({ snapshot, onSnapshotChange, onChange
       await aiConnectionsRepository.setDefaultSelection(purpose, connectionId, modelId.trim());
       await refreshSnapshot();
       setManualValues((current) => ({ ...current, [purpose]: "" }));
+      setManualOpen((current) => ({ ...current, [purpose]: false }));
       setPendingConnectionIds((current) => ({ ...current, [purpose]: undefined }));
       onFeedback(`${defaultPurposeLabels[purpose]}模型已更新`);
     } catch (error) {
@@ -115,37 +121,86 @@ export function DefaultCapabilitySelector({ snapshot, onSnapshotChange, onChange
     }
   }
 
+  /** 单行同时展示连接、目录模型和按需出现的手动模型编辑入口。 */
+  function renderPurpose(purpose: AiConnectionPurpose) {
+    const connectionKey = `${purpose}ConnectionId` as const;
+    const modelKey = `${purpose}ModelId` as const;
+    const options = snapshot.profiles.filter((profile) => profile.capabilities.includes(purpose));
+    const selectedProfile = selectedProfiles[purpose];
+    const models = catalogs[purpose] ?? [];
+    const selectedModelId = snapshot.defaults[modelKey] ?? "";
+    const knownModel = models.some((model) => model.id === selectedModelId);
+    const editing = manualOpen[purpose] === true;
+    return (
+      <div key={purpose} className={`${styles.tableRow} ${styles.capabilityRow}`}>
+        <strong className="text-sm font-medium">{defaultPurposeLabels[purpose]}</strong>
+        <select
+          aria-label={`${defaultPurposeLabels[purpose]}连接`}
+          className={styles.select}
+          disabled={loading === purpose}
+          value={pendingConnectionIds[purpose] ?? snapshot.defaults[connectionKey] ?? ""}
+          onChange={(event) => void selectConnection(purpose, event.currentTarget.value)}
+        >
+          <option value="">未指定</option>
+          {options.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
+        </select>
+        <select
+          aria-label={`${defaultPurposeLabels[purpose]}模型`}
+          className={styles.select}
+          disabled={!selectedProfile || loading === purpose}
+          value={knownModel ? selectedModelId : ""}
+          onChange={(event) => void selectModel(purpose, event.currentTarget.value)}
+        >
+          <option value="">{selectedModelId && !knownModel ? `手动：${selectedModelId}` : "选择目录模型"}</option>
+          {models.map((model) => <option key={model.id} value={model.id}>{model.label}{model.capabilitySource === "unknown" ? " · 待核验" : ""}</option>)}
+        </select>
+        <button
+          aria-expanded={editing}
+          aria-label={`编辑${defaultPurposeLabels[purpose]}手动模型 ID`}
+          className={styles.iconButton}
+          disabled={!selectedProfile}
+          type="button"
+          onClick={() => {
+            setManualOpen((current) => ({ ...current, [purpose]: !current[purpose] }));
+            if (!editing && !manualValues[purpose]) setManualValues((current) => ({ ...current, [purpose]: selectedModelId }));
+          }}
+        >
+          <AppIcon name="edit" size={16} />
+        </button>
+        {editing ? (
+          <div className={styles.manualEditor}>
+            <input
+              aria-label={`${defaultPurposeLabels[purpose]}手动模型 ID`}
+              className={styles.input}
+              disabled={!selectedProfile}
+              placeholder="手动模型 ID"
+              value={manualValues[purpose] ?? ""}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                setManualValues((current) => ({ ...current, [purpose]: value }));
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void selectModel(purpose, event.currentTarget.value);
+                }
+              }}
+            />
+            <Button size="sm" type="button" variant="soft" disabled={!manualValues[purpose]?.trim()} onClick={() => void selectModel(purpose, manualValues[purpose] ?? "")}>保存</Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <section className="mt-7 rounded-lg border border-line bg-surface" aria-label="默认能力分配">
-      <div className="divide-y divide-line">
-        {purposes.map((purpose) => {
-          const connectionKey = `${purpose}ConnectionId` as const;
-          const modelKey = `${purpose}ModelId` as const;
-          const options = snapshot.profiles.filter((profile) => profile.capabilities.includes(purpose));
-          const selectedProfile = selectedProfiles[purpose];
-          const models = catalogs[purpose] ?? [];
-          const selectedModelId = snapshot.defaults[modelKey] ?? "";
-          const knownModel = models.some((model) => model.id === selectedModelId);
-          return (
-            <div key={purpose} className="grid min-h-14 grid-cols-[8rem_minmax(10rem,1fr)_minmax(11rem,1fr)] items-center gap-3 px-3 py-2 max-md:grid-cols-1 max-md:gap-2">
-              <span className="text-sm font-medium">{defaultPurposeLabels[purpose]}</span>
-              <select aria-label={`${defaultPurposeLabels[purpose]}连接`} className="settings-select min-h-9" disabled={loading === purpose} value={pendingConnectionIds[purpose] ?? snapshot.defaults[connectionKey] ?? ""} onChange={(event) => void selectConnection(purpose, event.currentTarget.value)}>
-                <option value="">未指定</option>
-                {options.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
-              </select>
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                <select aria-label={`${defaultPurposeLabels[purpose]}模型`} className="settings-select min-h-9" disabled={!selectedProfile || loading === purpose} value={knownModel ? selectedModelId : ""} onChange={(event) => void selectModel(purpose, event.currentTarget.value)}>
-                  <option value="">{selectedModelId && !knownModel ? `手动：${selectedModelId}` : "选择目录模型"}</option>
-                  {models.map((model) => <option key={model.id} value={model.id}>{model.label}{model.capabilitySource === "unknown" ? " · 待核验" : ""}</option>)}
-                </select>
-                <div className="grid grid-cols-[8.5rem_2rem] overflow-hidden rounded-md border border-line bg-surface">
-                  <input aria-label={`${defaultPurposeLabels[purpose]}手动模型 ID`} className="min-w-0 bg-transparent px-2 text-sm outline-none" disabled={!selectedProfile} placeholder="手动模型 ID" value={manualValues[purpose] ?? ""} onChange={(event) => { const value = event.currentTarget.value; setManualValues((current) => ({ ...current, [purpose]: value })); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void selectModel(purpose, event.currentTarget.value); } }} />
-                  <Button aria-label={`保存${defaultPurposeLabels[purpose]}手动模型`} size="sm" type="button" variant="ghost" disabled={!selectedProfile || !manualValues[purpose]?.trim()} onClick={() => void selectModel(purpose, manualValues[purpose] ?? "")}>↵</Button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+    <section className={styles.capabilitySection} aria-label="默认能力分配">
+      <div className={styles.table}>
+        {primaryPurposes.map(renderPurpose)}
+        <details className={styles.disclosure}>
+          <summary><span>更多默认能力</span><AppIcon name="chevronDown" size={16} /></summary>
+          {secondaryPurposes.map(renderPurpose)}
+        </details>
       </div>
     </section>
   );
