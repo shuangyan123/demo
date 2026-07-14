@@ -1,4 +1,13 @@
 import type { ApiProvider } from "./domains/ai-provider";
+import type { PersonalMemoryEntry, PersonalMemorySettings } from "./domains/personal-memory";
+export type {
+  PersonalMemoryEntry,
+  PersonalMemoryKind,
+  PersonalMemoryScope,
+  PersonalMemorySettings,
+  PersonalMemorySource,
+  PersonalMemoryStatus,
+} from "./domains/personal-memory";
 export type {
   AiQuotaAction,
   AiQuotaAdapterInput,
@@ -738,6 +747,9 @@ export type PersonalizationSettings = {
   modulePersonaIds: Partial<Record<PersonaModule, string>>;
   customPersonas: PersonaProfile[];
   personaCustomizations: Record<string, PersonaCustomization>;
+  memoryVersion?: 1;
+  memorySettings?: PersonalMemorySettings;
+  memoryEntries?: PersonalMemoryEntry[];
   updatedAt: string;
 };
 

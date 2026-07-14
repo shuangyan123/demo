@@ -745,13 +745,10 @@ export function ReviewWorkspace() {
     setNotice("错题已保存到 IndexedDB");
   }
 
-  // 清空本地题库和导入记录，保留 API 设置便于继续 OCR。
-  async function clearLocalRecords() {
-    if (!window.confirm("确定清空本地错题、复盘记录和导入任务吗？API 设置会保留。")) return;
-    await reviewRepository.clearAll();
+  /** 数据管理完成后刷新各领域快照，避免清理后 UI 仍显示旧记录。 */
+  async function refreshAfterDataManagement() {
     setKnowledgeDrafts([]);
-    await refreshData();
-    setNotice("本地错题与导入记录已清空");
+    await Promise.all([refreshData(), refreshConversationSnapshot(), aiConnections.refresh(), personalization.refresh()]);
   }
 
   if (loading) {
@@ -774,7 +771,7 @@ export function ReviewWorkspace() {
           resetSettingsSection();
           switchView(lastAppView);
         }}
-        onClearLocalRecords={clearLocalRecords}
+        onDataChanged={refreshAfterDataManagement}
         onConfigurationChanged={() => {
           void aiConnections.refresh();
           void refreshData();

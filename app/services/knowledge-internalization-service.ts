@@ -8,6 +8,7 @@ import type {
 import { generateWithConnection } from "./ai-connection-client";
 import { parseAiJsonValue } from "./ai-json.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
+import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
 
 type InternalizationPayload = {
   mode?: unknown;
@@ -79,6 +80,7 @@ export async function requestKnowledgeInternalization(input: {
           "只返回一个 JSON 对象，不要 Markdown。字段：mode、targetKnowledgeId、category、title、summary、principle、conditions、pitfalls、steps、transferPractice、content、tags、reason、confidence。",
           "category 只能是政治理论、常识判断、申论。confidence 为 0 到 1。content 必须是可直接阅读的完整知识正文。",
           buildPersonaPrompt(persona),
+          buildPersonalMemoryContext(input.personalization, { moduleId: "knowledge_internalization" }),
         ].join("\n\n"),
       },
       {

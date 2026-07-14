@@ -2,6 +2,7 @@ import type { ChatMessageContent } from "./api-client";
 import { generateWithConnection } from "./ai-connection-client";
 import { parseAiJsonObject } from "./ai-json.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
+import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
 import type { ApiConnectionProfile, KnowledgeEntry, Mistake, PersonalizationSettings, TutoringSession, TutoringTurn } from "../types/review";
 
 export type TutoringAiReply = {
@@ -51,6 +52,7 @@ function buildTutorSystemPrompt(personalizationSettings: PersonalizationSettings
     "只输出 JSON 对象，不要输出 Markdown。",
     '格式：{"teacherMessage":"老师回复","boardNotes":["板书要点"],"detectedProblem":"发现的问题","studentAction":"学生下一步动作","nextQuestion":"追问","confidence":0.7,"frameDescription":"你对当前画面的简短描述"}',
     buildPersonaPrompt(persona),
+    buildPersonalMemoryContext(personalizationSettings, { moduleId: "tutoring" }),
   ].join("\n");
 }
 
@@ -140,6 +142,7 @@ export async function requestTutorSummary(input: {
           '格式：{"summary":"本次辅导摘要","nextActions":["下一步任务"]}',
           "摘要要具体，下一步任务要可执行。",
           buildPersonaPrompt(resolvePersona(input.personalizationSettings, "tutoring")),
+          buildPersonalMemoryContext(input.personalizationSettings, { moduleId: "tutoring" }),
         ].join("\n"),
       },
       {

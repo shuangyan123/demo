@@ -15,6 +15,7 @@ import { extractAiJsonText, parseAiJsonArray, parseAiJsonObject } from "./ai-jso
 import { emitAiActivity } from "./ai-activity-events.ts";
 import type { KnowledgeEvolutionSource } from "./obsidian-knowledge-repository";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
+import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
 
 type ProposalPayload = {
   mode?: unknown;
@@ -194,6 +195,7 @@ export async function requestKnowledgeEvolutionProposals(input: {
           "优先合并重复概念、建立有证据的关系；content 只写准备加入 AI 演进区块的内容，不复述整篇资料。",
           "如果提供 Obsidian 图谱上下文，优先利用已有 Wikilink 关系补全 link 或 merge 提案。",
           buildPersonaPrompt(persona),
+          buildPersonalMemoryContext(input.personalization, { moduleId: "knowledge_internalization" }),
         ].join("\n\n"),
       },
       {

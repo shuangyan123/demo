@@ -6,6 +6,7 @@ import { generateWithConnection, generateWithConnectionStream, transcribeWithCon
 import { emitAiActivity } from "../../services/ai-activity-events.ts";
 import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues } from "../../services/model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
+import { buildPersonalMemoryContext } from "../../services/personal-memory-context.ts";
 import type { ChatMessageContent } from "../../services/api-client.ts";
 import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository.ts";
 import { summarizeConversationRunSteps } from "../../services/conversation-tool-summary.ts";
@@ -233,7 +234,12 @@ export function ConversationWorkspace({
       let finalContent = "";
       let usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined;
       let actualSpeed: string | undefined;
-      const history = [...toConversationChatHistory(messages), { role: "user" as const, content: userContent }];
+      const memoryContext = buildPersonalMemoryContext(personalization, { moduleId: "conversation", conversationId: conversation.id });
+      const history = [
+        ...(memoryContext ? [{ role: "system" as const, content: memoryContext }] : []),
+        ...toConversationChatHistory(messages),
+        { role: "user" as const, content: userContent },
+      ];
       const purpose = requiresVision ? "vision" : "text";
       if (submissionConnection.capabilities.includes("streaming")) {
         await appendStep(conversation.id, runId, "流式输出", "running", "正在接收内容");

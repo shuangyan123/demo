@@ -13,13 +13,13 @@ import { McpSettingsView } from "./mcp-settings-view";
 const PersonalizationSettingsView = dynamic(() => import("./personalization-settings-view").then((module) => module.PersonalizationSettingsView));
 const AiQuotaSettingsPanel = dynamic(() => import("./plugins/quota/ai-quota-settings-panel").then((module) => module.AiQuotaSettingsPanel));
 
-export type SettingsSectionKey = "appearance" | "configuration" | "roles" | "quota" | "mcp" | "diagnostics";
-type LegacySettingsSectionKey = SettingsSectionKey | "personalization";
+export type SettingsSectionKey = "appearance" | "configuration" | "personalization" | "quota" | "mcp" | "diagnostics";
+type LegacySettingsSectionKey = SettingsSectionKey | "roles";
 
 const settingsSections = [
   { key: "appearance", label: "外观", icon: "appearance" },
   { key: "configuration", label: "AI 连接", icon: "configuration" },
-  { key: "roles", label: "角色", icon: "personalization" },
+  { key: "personalization", label: "个性化", icon: "personalization" },
   { key: "quota", label: "额度", icon: "plugins" },
   { key: "mcp", label: "MCP", icon: "mcp" },
   { key: "diagnostics", label: "诊断", icon: "diagnostics" },
@@ -32,7 +32,7 @@ type SettingsWorkspaceProps = {
   sidebarCollapsed: boolean;
   onAppearanceChange: (settings: AppearanceSettings) => void;
   onBack: () => void;
-  onClearLocalRecords?: () => void;
+  onDataChanged?: () => Promise<void> | void;
   onConfigurationChanged?: () => void;
   onOpenDiagnosticsTarget: (action: Exclude<LocalDiagnosticAction, "ai-connections">) => void;
   onPersonalizationChange?: (settings: PersonalizationSettings) => void;
@@ -47,12 +47,13 @@ export function SettingsWorkspace({
   sidebarCollapsed,
   onAppearanceChange,
   onBack,
+  onDataChanged,
   onConfigurationChanged,
   onOpenDiagnosticsTarget,
   onPersonalizationChange,
   onToggleSidebar,
 }: SettingsWorkspaceProps) {
-  const normalizeSection = (section: LegacySettingsSectionKey): SettingsSectionKey => section === "personalization" ? "roles" : section;
+  const normalizeSection = (section: LegacySettingsSectionKey): SettingsSectionKey => section === "roles" ? "personalization" : section;
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>(() => normalizeSection(initialSection));
   const [toast, setToast] = useState("");
   const { diagnostics, refresh: refreshDiagnostics, refreshing: diagnosticsRefreshing } = useLocalDiagnostics(diagnosticsInput);
@@ -75,7 +76,7 @@ export function SettingsWorkspace({
     if (activeSection === "configuration") {
       return <ApiConnectionsSettingsView onChanged={onConfigurationChanged} />;
     }
-    if (activeSection === "roles") {
+    if (activeSection === "personalization") {
       return <PersonalizationSettingsView onChanged={onPersonalizationChange} onOpenConnections={() => setActiveSection("configuration")} />;
     }
     if (activeSection === "quota") {
@@ -87,6 +88,7 @@ export function SettingsWorkspace({
     return (
       <LocalDiagnosticsPanel
         diagnostics={diagnostics}
+        onDataChanged={onDataChanged}
         refreshing={diagnosticsRefreshing}
         onAction={(action) => {
           if (action === "ai-connections") {

@@ -11,6 +11,7 @@ import { buildAutomationContextPreview, buildAutomationContextResult, type Autom
 import { requestKnowledgeEvolutionProposals } from "./knowledge-evolution-service.ts";
 import { obsidianKnowledgeRepository, type KnowledgeEvolutionSource } from "./obsidian-knowledge-repository.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
+import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
 import { reviewDb } from "../db/review-db.ts";
 
 export const AUTOMATION_TEMPLATES: Array<{ id: AutomationTemplateId; name: string; description: string; prompt: string; scopes: AutomationSourceScope[] }> = [
@@ -88,6 +89,7 @@ export async function executeAutomation(input: {
           "你正在执行一个本地已安排学习任务。只分析提供的只读上下文，不得声称已经修改知识库、训练计划、文件或 Obsidian。",
           "输出简洁的 Markdown。证据不足时明确说明，不得编造数据。涉及新增、合并、建链或删除时，只能写成待用户确认的建议。",
           buildPersonaPrompt(persona),
+          buildPersonalMemoryContext(input.personalization, { moduleId: "automation" }),
         ].join("\n\n"),
       },
       { role: "user", content: JSON.stringify({ task: prompt, context: contextResult.context }) },

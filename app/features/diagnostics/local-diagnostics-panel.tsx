@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Button, Chip, Panel, cx } from "../shared/ui-primitives";
 import type { LocalDiagnosticAction, LocalDiagnosticItem, LocalDiagnosticStatus, LocalDiagnostics } from "./use-local-diagnostics";
+import { DataManagementPanel } from "./data-management-panel";
 
 type LocalDiagnosticsPanelProps = {
   diagnostics: LocalDiagnostics;
   onAction: (action: LocalDiagnosticAction) => void;
   onRefresh: () => Promise<void>;
   refreshing: boolean;
+  onDataChanged?: () => Promise<void> | void;
 };
 
 const statusLabel: Record<LocalDiagnosticStatus, string> = {
@@ -27,7 +29,7 @@ function visibleItems(items: LocalDiagnosticItem[]): LocalDiagnosticItem[] {
 }
 
 /** 设置页本地诊断面板；只展示当前快照和复制报告，不触发外部请求或配置写入。 */
-export function LocalDiagnosticsPanel({ diagnostics, onAction, onRefresh, refreshing }: LocalDiagnosticsPanelProps) {
+export function LocalDiagnosticsPanel({ diagnostics, onAction, onDataChanged, onRefresh, refreshing }: LocalDiagnosticsPanelProps) {
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
@@ -119,6 +121,7 @@ export function LocalDiagnosticsPanel({ diagnostics, onAction, onRefresh, refres
             </div>
           ) : null}
         </Panel>
+        <DataManagementPanel onChanged={onDataChanged} />
       </div>
     </section>
   );
