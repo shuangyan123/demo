@@ -22,6 +22,9 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.screenshot({ path: testInfo.outputPath("settings-appearance-dark-desktop.png"), fullPage: false });
   await page.getByRole("button", { name: "浅色", exact: true }).click();
   await expect(page.getByRole("switch", { name: "浅色主题弥散渐变" })).toHaveAttribute("aria-checked", "true");
+  // 视觉基准使用关闭弥散的中性浅色主题，避免背景色场干扰宽度与层级比对。
+  await page.getByRole("switch", { name: "浅色主题弥散渐变" }).click();
+  await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "false");
 
   await page.getByRole("button", { name: "AI 连接" }).click();
   const provider = page.getByRole("combobox", { name: "厂商" });
@@ -34,10 +37,31 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.screenshot({ path: testInfo.outputPath("settings-provider-select-desktop.png"), fullPage: false });
 
   await page.keyboard.press("Escape");
+  const capabilityPanel = page.getByRole("region", { name: "默认能力分配" });
+  const capabilityBox = await capabilityPanel.boundingBox();
+  expect(capabilityBox?.width).toBeLessThanOrEqual(562);
+  await expect(page.getByText("默认文本", { exact: true })).toBeVisible();
+  await expect(page.getByText("默认多模态", { exact: true })).toBeVisible();
+  await expect(page.getByText("默认语音", { exact: true })).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath("settings-ai-connections-compact-desktop.png"), fullPage: false });
   await page.getByRole("button", { name: "个性化" }).click();
   await expect(page.getByRole("heading", { name: "个性化" })).toBeVisible();
   await page.getByRole("button", { name: "额度" }).click();
   await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible();
+  const quotaTable = page.getByRole("region", { name: "AI 额度与用量" });
+  expect((await quotaTable.boundingBox())?.width).toBeLessThanOrEqual(762);
+  await page.screenshot({ path: testInfo.outputPath("settings-quota-compact-desktop.png"), fullPage: false });
+  await page.getByRole("button", { name: "外观", exact: true }).click();
+  await page.getByRole("button", { name: "深色", exact: true }).click();
+  await page.getByRole("button", { name: "额度", exact: true }).click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: testInfo.outputPath("settings-quota-compact-desktop-dark.png"), fullPage: false });
+  await page.waitForTimeout(250);
+  await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible();
+  await page.getByRole("button", { name: "诊断" }).click();
+  await expect(page.getByRole("heading", { name: "诊断", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "个性化" }).click();
+  await expect(page.getByRole("heading", { name: "个性化" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
@@ -67,15 +91,18 @@ test("额度页面通过归一化接口验证并刷新，不暴露原始响应",
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "额度" }).click();
-  const card = page.locator("details").filter({ hasText: "DeepSeek" });
-  await card.locator("summary").click();
-  await card.getByRole("switch", { name: "DeepSeek额度刷新" }).check();
-  await card.getByLabel("DeepSeek API Key").fill("test-key-not-real");
-  await card.getByRole("button", { name: "保存" }).click();
-  await card.getByRole("button", { name: "测试凭据" }).click();
+  const quotaPanel = page.getByRole("region", { name: "AI 额度与用量" });
+  await quotaPanel.getByRole("switch", { name: "DeepSeek额度刷新" }).check();
+  await quotaPanel.getByRole("button", { name: "配置DeepSeek额度" }).click();
+  let dialog = page.getByRole("dialog", { name: "配置 DeepSeek" });
+  await dialog.getByLabel("DeepSeek API Key").fill("test-key-not-real");
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await quotaPanel.getByRole("button", { name: "配置DeepSeek额度" }).click();
+  dialog = page.getByRole("dialog", { name: "配置 DeepSeek" });
+  await dialog.getByRole("button", { name: "测试凭据" }).click();
   await expect(page.getByText("额度凭据验证通过", { exact: true })).toBeVisible();
-  await card.getByRole("button", { name: "刷新额度" }).click();
-  await expect(card).toContainText("CNY 1.00");
+  await dialog.getByRole("button", { name: "刷新", exact: true }).click();
+  await expect(quotaPanel).toContainText("官方");
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

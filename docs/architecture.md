@@ -150,6 +150,13 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 2. 保留单个 Dexie 数据库与 v16 schema，迁移代码按版本模块化。
 3. 采用渐进式领域拆分，兼容出口在调用方迁移完成前保留。
 4. 外部 `/api/ai/*` URL 和持久化数据契约保持向后兼容。
+
+## 设置导航与紧凑界面边界（2026-07-14）
+
+- `useReviewWorkspaceRecoveryNavigation` 是设置分区的唯一状态源；`SettingsWorkspace` 只接收受控的 `activeSection` 与 `onSectionChange`，不得再通过本地 state、定时器或 `initialSection` 镜像父级状态。
+- 侧栏、健康检查 CTA 与诊断入口统一写入同一 `settingsSection`；旧 `roles` 只在入口边界归一化为 `personalization`。普通保存、轮询、连接测试和父级重渲染不得修改当前分区。
+- 设置内容按信息密度使用独立宽度：连接表单 720px、默认能力 560px、额度与数据管理 760px、记忆 840px；移动端统一限制在视口安全宽度内。
+- 默认能力首屏只保留文本与多模态，语音类能力进入原生 disclosure；额度和数据管理采用紧凑表格，记忆与危险操作通过具备焦点锁定、Escape、遮罩关闭和焦点恢复的应用内弹层编辑。
 # 模型目录与实时语音边界（2026-07-12）
 
 - 模型目录采用官方在线发现优先、带核验日期的官方回退清单；按连接 ID、厂商和规范化 Base URL 隔离缓存 24 小时，密钥和厂商原始响应不得缓存。设置测试、默认能力和对话菜单共用 `model-directory-service`。

@@ -185,6 +185,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Node 26 下若出现 `[DEP0205] module.register()`，先检查 Tailwind 运行时依赖；`@tailwindcss/node` 需保持在已优先调用 `module.registerHooks()` 的 4.3.2 或同补丁线后续版本。
 - 处理运行时 deprecation warning 不得通过隐藏 warning 交付，必须定位调用栈、更新依赖或锁定受支持运行时，并完成 lint、contracts、build 验证。
 
+## 设置导航与确认稿 UI 约定
+
+- `useReviewWorkspaceRecoveryNavigation` 是设置分区唯一状态源；`SettingsWorkspace` 必须保持受控，禁止新增内部活动分区、`initialSection` 镜像或定时同步。
+- 普通保存、连接测试、额度轮询和父级 snapshot 更新不得改变当前设置分区；只有“返回应用”后再次进入设置才重置为外观。
+- 设置内容按信息密度采用独立最大宽度，桌面行高 32–36px、粗指针至少 44px；额度与数据管理使用紧凑表格，记忆与危险操作使用可锁定焦点并恢复触发器的应用内弹层。
+
 ## 依赖维护约定
 
 - 常规依赖维护只集中更新同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本；ESLint、TypeScript、Node 类型等 major 变更必须单独开预研 PR。

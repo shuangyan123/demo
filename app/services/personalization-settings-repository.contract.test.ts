@@ -151,6 +151,24 @@ test("记忆建议必须待确认，作用域筛选和注入上限保持确定",
   assert.ok(context.length <= 200);
 });
 
+test("手动记忆支持编辑且不改变来源、状态和创建时间", async () => {
+  await reviewDb.personalizationSettings.clear();
+  await personalizationSettingsRepository.save(createDefaultPersonalizationSettings(today), today);
+  const created = await personalMemoryRepository.addManual({ kind: "preference", scope: "global", title: "原标题", content: "原内容" }, today);
+  const entry = created.memoryEntries![0];
+  const later = new Date("2026-07-15T08:00:00.000Z");
+  const updated = await personalMemoryRepository.update(entry.id, { kind: "goal", scope: "module", title: "新标题", content: "新内容", moduleId: "conversation" }, later);
+  assert.deepEqual(updated.memoryEntries?.[0], {
+    ...entry,
+    kind: "goal",
+    scope: "module",
+    title: "新标题",
+    content: "新内容",
+    moduleId: "conversation",
+    updatedAt: later.toISOString(),
+  });
+});
+
 test("重置角色、清空记忆和全部重置互不误删", async () => {
   await reviewDb.personalizationSettings.clear();
   const initial = createDefaultPersonalizationSettings(today);

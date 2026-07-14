@@ -99,9 +99,11 @@ test("个性化记忆刷新后恢复，数据管理使用独立危险确认", as
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "个性化" }).click();
   await page.getByRole("button", { name: "记忆", exact: true }).click();
-  await page.getByLabel("标题").fill("回答风格");
-  await page.getByLabel("内容").fill("先给结论，再解释关键依据");
   await page.getByRole("button", { name: "添加记忆" }).click();
+  const editor = page.getByRole("dialog", { name: "添加记忆" });
+  await editor.getByLabel("标题").fill("回答风格");
+  await editor.getByLabel("内容").fill("先给结论，再解释关键依据");
+  await editor.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByText("回答风格")).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "设置" }).first().click();
@@ -116,12 +118,17 @@ test("个性化记忆刷新后恢复，数据管理使用独立危险确认", as
 
   await page.getByRole("button", { name: "诊断" }).click();
   await expect(page.getByText("数据管理", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "完整重置" }).click();
-  const dialog = page.getByRole("dialog", { name: "确认完整重置" });
+  const resetRow = page.getByText("完整重置（所有数据）", { exact: true }).locator("..");
+  await resetRow.getByRole("button", { name: "清除" }).click();
+  const dialog = page.getByRole("dialog", { name: "完整重置（所有数据）" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "永久删除" })).toBeDisabled();
-  await dialog.getByLabel("确认文字").fill("完整重置");
-  await expect(dialog.getByRole("button", { name: "永久删除" })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: "完整重置" })).toBeDisabled();
+  await dialog.getByLabel("请输入“完整重置”以继续").fill("完整重置");
+  await expect(dialog.getByRole("button", { name: "完整重置" })).toBeEnabled();
+  const dialogBox = await dialog.boundingBox();
+  expect(dialogBox?.y).toBeGreaterThanOrEqual(16);
+  expect((dialogBox?.y ?? 0) + (dialogBox?.height ?? 0)).toBeLessThanOrEqual(1008);
+  await page.screenshot({ path: testInfo.outputPath("diagnostics-data-management-desktop.png"), fullPage: false });
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expectNoFrameworkOverlay(page);

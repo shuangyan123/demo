@@ -55,6 +55,12 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await expect(page.getByRole("heading", { name: "记忆", exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("personalization-memory-mobile.png"), fullPage: false });
   await expectNoDocumentHorizontalOverflow(page);
+  await page.getByRole("button", { name: "外观", exact: true }).click();
+  await page.getByRole("button", { name: "深色", exact: true }).click();
+  await page.getByRole("button", { name: "个性化", exact: true }).click();
+  await page.getByRole("button", { name: "记忆", exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("personalization-memory-mobile-dark.png"), fullPage: false });
+  await expectNoDocumentHorizontalOverflow(page);
 
   await expectNoFrameworkOverlay(page);
   await expectNoDocumentHorizontalOverflow(page);

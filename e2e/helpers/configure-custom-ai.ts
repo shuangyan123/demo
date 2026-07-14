@@ -13,7 +13,8 @@ export async function configureCustomTextConnection(page: Page, input: { label: 
 /** 自定义连接的模型属于默认能力，不写回连接档案。 */
 export async function setCustomDefaultTextModel(page: Page, connectionLabel: string, modelId: string) {
   await page.getByLabel("默认文本连接").selectOption({ label: connectionLabel });
-  const model = page.getByLabel("默认文本手动模型 ID");
+  await page.getByRole("button", { name: "编辑默认文本手动模型 ID" }).click();
+  const model = page.getByRole("textbox", { name: "默认文本手动模型 ID" });
   await model.fill(modelId);
   await model.press("Enter");
 }
