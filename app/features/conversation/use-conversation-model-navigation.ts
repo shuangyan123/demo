@@ -41,7 +41,11 @@ export function useConversationModelNavigation({ pickerRef }: UseConversationMod
         : undefined;
       const defaultTarget = picker.querySelector<HTMLElement>("[data-picker-default-focus]");
       const fallbackTarget = picker.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-      (keyedTarget ?? defaultTarget ?? fallbackTarget)?.focus();
+      const target = keyedTarget ?? defaultTarget ?? fallbackTarget;
+      if (!target) return;
+      target.dataset.tooltipProgrammaticFocus = "true";
+      target.focus();
+      window.requestAnimationFrame(() => delete target.dataset.tooltipProgrammaticFocus);
     });
     return () => window.cancelAnimationFrame(frame);
   }, [pickerRef, view]);

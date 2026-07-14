@@ -44,14 +44,23 @@
   bottom: calc(100% + 0.5rem);
   left: 0;
   max-height: min(32rem, calc(100dvh - 8rem - env(safe-area-inset-top, 0px)));
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 0.7rem;
   background: var(--surface);
   color: var(--foreground);
   box-shadow: 0 18px 42px rgb(15 23 42 / 18%);
+}
+
+.scrollViewport {
+  max-height: inherit;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.scrollViewport[data-scrollable="true"] {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .picker[data-model-picker-view="providers"] {
@@ -80,12 +89,10 @@
 @keyframes picker-layer-enter {
   from {
     opacity: 0;
-    transform: translateY(2px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

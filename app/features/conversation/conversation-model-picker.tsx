@@ -21,6 +21,7 @@ import { UiTooltip } from "../shared/ui-tooltip";
 import { ConversationModelRuntimeControls } from "./conversation-model-runtime-controls";
 import { useConnectionModelCatalog } from "./use-connection-model-catalog";
 import { useConversationModelNavigation } from "./use-conversation-model-navigation";
+import { useModelPickerOverflow } from "./use-model-picker-overflow";
 import styles from "./conversation-model-picker.module.css";
 
 export type ConversationModelSelection = {
@@ -81,6 +82,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   onSelect,
 }, forwardedRef) {
   const pickerRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const modelRadioName = useId();
   const [manualModelId, setManualModelId] = useState("");
   const { back, changeConnection, showModels, showRuntime, view } = useConversationModelNavigation({ pickerRef });
@@ -118,6 +120,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   const hasCustomBudget = view.kind === "runtime"
     && view.dimension === "reasoning"
     && selectedDescriptor?.reasoning?.kind === "budget";
+  useModelPickerOverflow({ pickerRef, viewportRef, viewKey: `${pickerView}:${activeConnection?.id ?? "none"}` });
 
   const assignPickerRef = useCallback((node: HTMLDivElement | null) => {
     pickerRef.current = node;
@@ -168,6 +171,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
       data-picker-has-budget={hasCustomBudget ? "true" : undefined}
       role="dialog"
     >
+      <div ref={viewportRef} className={styles.scrollViewport} data-scrollable="false">
       {view.kind === "providers" ? (
         <nav key="providers" aria-label="厂商" className={styles.layer} onKeyDown={handleProviderArrowNavigation}>
           {providers.length ? providers.map((provider, index) => {
@@ -285,6 +289,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           />
         </div>
       ) : null}
+      </div>
     </div>
   );
 });

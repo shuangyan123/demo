@@ -20,6 +20,19 @@ async function expectPickerWidth(picker: Locator, expected: number): Promise<voi
   await expect.poll(async () => (await picker.boundingBox())?.width).toBeLessThanOrEqual(expected + 2);
 }
 
+/** 连续三帧确认菜单宽度与页面滚动高度稳定，防止换层时滚动条闪烁。 */
+async function expectStablePickerFrames(picker: Locator): Promise<void> {
+  const frames = await picker.evaluate(async (element) => {
+    const values: Array<{ width: number; pageHeight: number }> = [];
+    for (let index = 0; index < 3; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      values.push({ width: element.getBoundingClientRect().width, pageHeight: document.documentElement.scrollHeight });
+    }
+    return values;
+  });
+  expect(new Set(frames.map((frame) => `${frame.width}:${frame.pageHeight}`)).size).toBe(1);
+}
+
 /** 连续 Tab 到弹层之外，验证关闭逻辑不会把焦点强制抢回触发器。 */
 async function tabOutOfPicker(page: Page, picker: Locator): Promise<void> {
   for (let index = 0; index < 30 && await picker.isVisible(); index += 1) await page.keyboard.press("Tab");
@@ -46,18 +59,22 @@ test("桌面模型菜单按层紧凑变宽，并保持键盘、tooltip 与焦点
   await openAiPicker.getByRole("button", { name: "OpenAI" }).click();
   await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "models");
   await expectPickerWidth(openAiPicker, 240);
+  await expectStablePickerFrames(openAiPicker);
 
   const selectedModel = openAiPicker.getByRole("radio", { name: /gpt-5\.5/ });
   await expect(selectedModel).toBeFocused();
-  await expect(page.getByRole("tooltip")).toBeVisible();
+  await expect(page.locator('body > [role="tooltip"]')).toHaveCount(0);
   await expect(selectedModel).toHaveAttribute("aria-describedby", /.+/);
   await page.keyboard.press("ArrowDown");
   await expect(openAiPicker.getByRole("radio", { name: /gpt-5\.6-sol/ })).toBeFocused();
+  await page.waitForTimeout(500);
+  await expect(page.locator('body > [role="tooltip"]')).toBeVisible();
 
   const reasoningEntry = openAiPicker.getByRole("button", { name: /推理/ });
   await reasoningEntry.click();
   await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "reasoning");
   await expectPickerWidth(openAiPicker, 160);
+  await expectStablePickerFrames(openAiPicker);
   const selectedReasoning = openAiPicker.getByRole("radio", { checked: true });
   await expect(selectedReasoning).toBeFocused();
   await page.keyboard.press("ArrowDown");
@@ -163,8 +180,8 @@ test("未知或带后缀的 GLM 模型不展示猜测出的运行选项", async 
   const unknownModel = picker.getByRole("radio", { name: /^glm-5\.2-custom/ });
   await expect(unknownModel).toBeChecked();
   await expect(picker.getByRole("button", { name: /推理|速度/ })).toHaveCount(0);
-  await unknownModel.focus();
-  await expect(page.getByRole("tooltip")).toContainText("运行参数尚未核验");
+  await unknownModel.locator("xpath=..").hover();
+  await expect(page.locator('body > [role="tooltip"]')).toContainText("运行参数尚未核验");
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

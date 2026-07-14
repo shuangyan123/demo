@@ -66,7 +66,8 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
   if (!xhighBox) throw new Error("xhigh 触控行没有可见边界");
   await page.touchscreen.tap(xhighBox.x + xhighBox.width / 2, xhighBox.y + xhighBox.height / 2);
   await expect(xhigh).toBeChecked();
-  await expect(page.getByRole("tooltip", { name: "兼容值，服务端映射到 max" })).toBeVisible();
+  await expect(page.locator('body > [role="tooltip"]')).toHaveCount(0);
+  await expect(xhigh).toHaveAttribute("aria-describedby", /.+/);
   await expectCompactTrailingSpace(picker);
 
   const pickerBox = await picker.boundingBox();
