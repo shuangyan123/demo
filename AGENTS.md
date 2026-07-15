@@ -4,6 +4,20 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## 模型目录完整性与对话轮次约定
+
+- 连接测试、默认能力和对话选择必须共享 `model-directory-service`；静态 fallback 只能首屏占位，完整新鲜在线缓存才可跳过请求。
+- Google、MiniMax、Qwen 目录必须聚合分页；OpenRouter、Groq、Mistral、SiliconFlow、Kimi、Qwen 是兼容厂商，未知模型不推断多模态、推理或速度。
+- 模型选择器的当前值不得过滤其他候选，手动模型 ID 始终保留；历史模型分组显示但不得自动选为默认。
+- 对话主链固定为用户、必要工具、AI；内部流水线标记 `diagnostic` 并默认折叠，消息以 `turnId/sequence` 稳定排序且不升级 Dexie v16。
+
+## 模型目录完整性与对话轮次约定
+
+- 连接测试、默认能力和对话选择必须共享 `model-directory-service`；静态 fallback 只能首屏占位，完整新鲜在线缓存才可跳过请求。
+- Google、MiniMax、Qwen 目录必须聚合分页；OpenRouter、Groq、Mistral、SiliconFlow、Kimi、Qwen 是兼容厂商，未知模型不推断多模态、推理或速度。
+- 模型选择器的当前值不得过滤其他候选，手动模型 ID 始终保留；历史模型分组显示但不得自动选为默认。
+- 对话主链固定为用户、必要工具、AI；内部流水线标记 `diagnostic` 并默认折叠，消息以 `turnId/sequence` 稳定排序且不升级 Dexie v16。
+
 ## Google 双协议与品牌选择约定
 
 - Google 生成协议由具体模型目录项解析；`gemini-3.5-flash` 使用 Interactions，Gemini 2.5 等已核验模型使用 GenerateContent，未知手动模型不得按名称猜测。

@@ -1,5 +1,13 @@
 # 发布前手工冒烟清单
 
+## 2026-07-15 模型目录与对话链回归
+
+- 在已保存 Google、DeepSeek、MiniMax 连接中获取模型；打开“测试模型 ID”后确认当前选择不会隐藏其他候选，MiniMax 同时可见 M3、M2.7、M2.7-highspeed 与账号返回的历史模型。
+- 保存连接后检查默认文本、默认多模态和对话模型菜单使用同一目录；静态首屏出现后应继续刷新，移动端不得产生横向溢出。
+- 分别用本地 mock 验证 OpenRouter、Groq、Mistral、SiliconFlow、Kimi、Qwen 目录与最小生成；未知模型不得出现未经核验的视觉、推理或速度选项。
+- 连续发送两轮消息并刷新，确认每轮固定为用户、必要工具、AI；“准备上下文/选择模型/调用模型/流式输出/完成”只在折叠详情内。
+- 真实只读目录仅在 `RUN_LIVE_MODEL_CATALOG_TESTS=1` 且提供对应 Key 时运行 `npm run test:model-catalog-live`；不得打印模型清单、数量、响应体或凭据。
+
 ## 2026-07-15 Google 双协议与品牌回归
 
 - 使用本地 mock 分别验证 Gemini 2.5 请求 `:generateContent`、`gemini-3.5-flash` 请求 `/v1beta2/interactions`；后者必须包含 `store:false`，且页面不得发生双发。

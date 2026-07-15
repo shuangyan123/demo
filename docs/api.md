@@ -1,5 +1,12 @@
 # API 约定
 
+## 完整模型目录与兼容厂商（2026-07-15）
+
+- `/api/ai/models` URL 不变，响应增加可选 `complete`；客户端目录结果同时记录 `source`、`fetchedAt`、`stale` 和 `complete`，但这些加载元数据不进入连接档案。
+- Google 聚合 `pageToken`，MiniMax 聚合 `after_id`，Qwen 聚合部署模型页码；最多读取 20 页并阻止重复游标。MiniMax 目录使用 `X-Api-Key`，生成仍使用 Bearer。
+- OpenRouter、Groq、Mistral、SiliconFlow 与 Kimi 使用各自官方 Bearer 模型列表；Kimi 只采信 `supports_image_in`、`supports_video_in` 等官方元数据，未知模型默认仅文本。
+- 豆包、百度千帆和腾讯混元保持手动模型 ID，不声明在线目录。所有目录响应只返回归一化条目，不透传密钥或厂商原始响应。
+
 ## Google 模型级双协议（2026-07-15）
 
 - `/api/ai/models` URL 不变，目录项可选返回 `generationProtocol`。`gemini-3.5-flash` 使用 `google_interactions`，已核验的 Gemini 2.5/3.1 模型继续使用 `google_generate_content`。

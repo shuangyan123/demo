@@ -23,7 +23,7 @@ test("编辑草稿测试使用新地址，紧凑结果卡不渲染对话栏", as
     await page.getByLabel("Base URL").fill(oldProvider.baseUrl);
     await page.getByLabel("API Key").fill("old-key");
     await page.getByRole("button", { name: "获取模型" }).click();
-    await expect(page.getByLabel("测试模型 ID")).toHaveValue("gpt-5.5");
+    await expect(page.getByRole("combobox", { name: "测试模型 ID" })).toContainText("gpt-5.5");
     await page.getByRole("button", { name: "测试连接" }).click();
     const card = page.getByRole("region", { name: "连接测试结果" });
     await expect(card).toBeVisible();
@@ -65,8 +65,10 @@ test("Gemini 多模态默认模型把图片发送为 inlineData", async ({ page 
     await page.getByLabel("API Key").fill("gemini-key");
     await page.getByRole("button", { name: "获取模型" }).click();
     // 在线目录会与 Interactions-only 静态模型合并，测试显式选择 GenerateContent 模型而不依赖排序。
-    await page.getByLabel("测试模型 ID").fill("gemini-2.5-flash");
-    await expect(page.getByLabel("测试模型 ID")).toHaveValue("gemini-2.5-flash");
+    const testModel = page.getByRole("combobox", { name: "测试模型 ID" });
+    await testModel.click();
+    await page.getByRole("option", { name: "gemini-2.5-flash", exact: true }).click();
+    await expect(testModel).toContainText("gemini-2.5-flash");
     await page.getByRole("button", { name: "测试连接" }).click();
     await expect(page.getByRole("status")).toContainText("连接成功");
     await page.getByRole("button", { name: "保存连接" }).click();

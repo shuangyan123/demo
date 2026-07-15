@@ -1,5 +1,13 @@
 # 应用架构
 
+## 模型目录完整性与按轮次对话链（2026-07-15）
+
+- `ModelCatalogSelect` 是连接测试和默认能力的共享选择边界；当前值只决定选中态，不参与候选过滤，手动模型 ID 始终可用。对话模型菜单继续复用同一 `model-directory-service` 数据源。
+- 目录读取返回 `live/cache/fallback`、`stale` 与 `complete`。静态 fallback 只用于首屏占位，只有 24 小时内且 `complete=true` 的 v3 在线缓存可以跳过请求。
+- `server/ai/model-directory.ts` 集中处理 Google、MiniMax、Qwen 分页以及 OpenRouter、Groq、Mistral、SiliconFlow、Kimi 的官方目录；在线状态优先，精确 descriptor 只补充已核验能力和协议。
+- OpenRouter、Groq、Mistral、SiliconFlow、Kimi、Qwen 标记为 `compatible`，复用 OpenAI-compatible 生成边界；未知模型不得推断多模态、推理或速度能力。
+- 对话通过 `turnId/sequence` 将用户消息、可见工具和 AI 回答稳定组成轮次。准备上下文、选模型、调用和流式状态属于 `diagnostic`，默认折叠在轮次详情中；Dexie 仍为 v16。
+
 ## Google 双协议与品牌选择边界（2026-07-15）
 
 - Google adapter registry 是请求构建、响应解析和流式分发的唯一执行入口，协议由具体模型目录项决定：`google_generate_content` 或 `google_interactions`。

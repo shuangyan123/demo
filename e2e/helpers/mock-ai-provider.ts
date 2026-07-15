@@ -48,7 +48,7 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
     void readJson(request)
       .then(async (body) => {
         const mockRequest = { method: request.method, url: request.url, body };
-        if (request.method === "GET" && request.url === "/v1/models") {
+        if (request.method === "GET" && new URL(request.url ?? "/", "http://mock.local").pathname === "/v1/models") {
           requests.push(mockRequest);
           const models = options.models ?? ["gpt-5.5"];
           writeJson(response, 200, options.protocol === "google_generate_content"

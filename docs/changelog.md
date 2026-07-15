@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-15 · 完整模型目录、兼容厂商与按轮次对话
+
+- 用可搜索的共享模型选择器替换连接测试 `datalist`，修复当前模型过滤其他候选；默认能力只在完整新鲜在线缓存存在时跳过刷新。
+- 增加 Google、MiniMax、Qwen 分页聚合，并为 OpenRouter、Groq、Mistral、SiliconFlow、Kimi、Qwen 开启官方目录与兼容连接。
+- 模型缓存升级为隔离的 v3，在线目录与精确 descriptor 合并，历史模型保留分组但不会自动成为默认值。
+- 对话改为“用户 → 必要工具 → AI”的稳定轮次；内部流水线默认收进详情，同毫秒历史消息按角色与序号稳定排序。
+- 增加完整目录、兼容厂商、对话顺序契约，以及本地 mock E2E 和可选真实只读目录 smoke。
+
 ## 2026-07-15 · Google 双协议与品牌下拉
 
 - 为 Google 增加模型级 GenerateContent/Interactions 路由，修复 `gemini-3.5-flash` 被错误发送到 GenerateContent 的 400。
