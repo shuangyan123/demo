@@ -81,6 +81,7 @@ export function normalizeBoard(value: unknown): { board: Board; needsReview: boo
 // 将导入草稿转换为 repository 可写入的错题输入结构。
 export function draftToMistakeInput(draft: ImportDraft): Omit<Mistake, "id" | "createdAt" | "updatedAt"> {
   return {
+    sourceId: draft.sourceId,
     board: draft.board,
     source: draft.source || "导入",
     stem: draft.stem,

@@ -32,6 +32,7 @@ export type {
   AiModelRuntimeValue,
   AiSelectedRuntimeValues,
 } from "./domains/ai-model";
+export type { FenbiImportCredential, FenbiSyncEvent, FenbiSyncScope } from "./domains/fenbi-import";
 
 export const BOARD_OPTIONS = ["政治理论", "常识判断", "言语理解与表达", "数量关系", "判断推理", "资料分析"] as const;
 
@@ -112,6 +113,8 @@ export type ThemeConfig = {
 
 export type Mistake = {
   id: string;
+  /** 外部来源的稳定题目 ID，用于跨批次优先去重。 */
+  sourceId?: string;
   board: Board;
   source: string;
   stem: string;
@@ -254,6 +257,8 @@ export type ObsidianSyncReport = {
 
 export type ImportDraft = {
   id: string;
+  /** 外部来源的稳定题目 ID；未确认原文不会随此字段持久化。 */
+  sourceId?: string;
   batchId?: string;
   fileName?: string;
   fileType?: string;

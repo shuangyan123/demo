@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { Button, Chip, ConfirmDialog, EmptyState, Panel, SelectField, SoftBlock, TextAreaField, TextField } from "../shared/ui-primitives";
 import { useVisibleLimit } from "../shared/use-visible-limit";
 import { toListText } from "../../lib/form-utils";
+import { FenbiQuickImportPanel } from "./fenbi-quick-import-panel";
+import type { useFenbiQuickImport } from "./use-fenbi-quick-import";
 import {
   BOARD_OPTIONS,
   KNOWLEDGE_CATEGORIES,
@@ -31,6 +33,8 @@ export function ImportView({
   drafts,
   importBusy,
   importJobs,
+  fenbiQuickImport,
+  canUndoConfirmation,
   knowledgeDrafts,
   onBulkUpdateDrafts,
   onConfirmDrafts,
@@ -45,6 +49,7 @@ export function ImportView({
   onUpdateDraftList,
   onUpdateKnowledgeDraft,
   onUpdateKnowledgeDraftList,
+  onUndoConfirmation,
 }: {
   textConnection?: ApiConnectionProfile;
   visionConnection?: ApiConnectionProfile;
@@ -52,6 +57,8 @@ export function ImportView({
   drafts: PersistedImportDraft[];
   importBusy: boolean;
   importJobs: ImportJob[];
+  fenbiQuickImport: ReturnType<typeof useFenbiQuickImport>;
+  canUndoConfirmation: boolean;
   knowledgeDrafts: KnowledgeImportDraft[];
   onBulkUpdateDrafts: (ids: string[], patch: Partial<ImportDraft>) => void;
   onConfirmDrafts: (ids?: string[]) => void;
@@ -66,9 +73,26 @@ export function ImportView({
   onUpdateDraftList: (id: string, key: "reasons" | "tags", value: string) => void;
   onUpdateKnowledgeDraft: (id: string, patch: Partial<KnowledgeImportDraft>) => void;
   onUpdateKnowledgeDraftList: (id: string, value: string) => void;
+  onUndoConfirmation: () => void;
 }) {
   return (
     <section className="space-y-4">
+      <FenbiQuickImportPanel
+        credential={fenbiQuickImport.credential}
+        error={fenbiQuickImport.error}
+        fallbackRecommended={fenbiQuickImport.fallbackRecommended}
+        progress={fenbiQuickImport.progress}
+        stage={fenbiQuickImport.stage}
+        status={fenbiQuickImport.status}
+        onCancel={fenbiQuickImport.cancel}
+        onParseFileImport={onParseFileImport}
+        onSaveCookie={fenbiQuickImport.saveCookie}
+        onSync={fenbiQuickImport.sync}
+        onValidate={fenbiQuickImport.validate}
+      />
+
+      <details className="ui-panel">
+        <summary className="cursor-pointer text-sm font-semibold">更多导入方式：粘贴文本与 AI 解析</summary>
       <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-4 max-xl:grid-cols-1">
         <form
           className="ui-panel"
@@ -117,6 +141,7 @@ export function ImportView({
           </div>
         </Panel>
       </div>
+      </details>
 
       <Panel title="导入为知识库资料" eyebrow="Knowledge">
         <form className="grid gap-3" onSubmit={onImportKnowledgeText}>
@@ -149,11 +174,13 @@ export function ImportView({
 
       <ImportDrafts
         drafts={drafts}
+        canUndoConfirmation={canUndoConfirmation}
         onConfirmDrafts={onConfirmDrafts}
         onBulkUpdateDrafts={onBulkUpdateDrafts}
         onDeleteDrafts={onDeleteDrafts}
         onUpdateDraft={onUpdateDraft}
         onUpdateDraftList={onUpdateDraftList}
+        onUndoConfirmation={onUndoConfirmation}
       />
 
       <Panel title="导入任务" eyebrow="Jobs">
@@ -283,30 +310,37 @@ function ImportBatchList({ batches }: { batches: ImportBatch[] }) {
 // 渲染导入后的可编辑草稿列表，确认后才能批量入库。
 function ImportDrafts({
   drafts,
+  canUndoConfirmation,
   onBulkUpdateDrafts,
   onConfirmDrafts,
   onDeleteDrafts,
   onUpdateDraft,
   onUpdateDraftList,
+  onUndoConfirmation,
 }: {
   drafts: PersistedImportDraft[];
+  canUndoConfirmation: boolean;
   onBulkUpdateDrafts: (ids: string[], patch: Partial<ImportDraft>) => void;
   onConfirmDrafts: (ids?: string[]) => void;
   onDeleteDrafts: (ids: string[]) => void;
   onUpdateDraft: (id: string, patch: Partial<ImportDraft>) => void;
   onUpdateDraftList: (id: string, key: "reasons" | "tags", value: string) => void;
+  onUndoConfirmation: () => void;
 }) {
   const [bulkBoard, setBulkBoard] = useState<Board>("常识判断");
   const [bulkSource, setBulkSource] = useState("");
   const [bulkTags, setBulkTags] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [showAllDrafts, setShowAllDrafts] = useState(false);
   const visibleResetKey = `${drafts.length}|${drafts[0]?.id ?? "empty"}|${drafts.at(-1)?.id ?? "empty"}`;
   const { loadMore: loadMoreDrafts, visibleLimit } = useVisibleLimit(visibleResetKey, IMPORT_DRAFT_VISIBLE_STEP);
-  const visibleDrafts = useMemo(() => drafts.slice(0, visibleLimit), [drafts, visibleLimit]);
+  const exceptionDrafts = useMemo(() => drafts.filter((draft) => draft.needsReview || draft.issues.length > 0), [drafts]);
+  const displayedDrafts = showAllDrafts ? drafts : exceptionDrafts;
+  const visibleDrafts = useMemo(() => displayedDrafts.slice(0, visibleLimit), [displayedDrafts, visibleLimit]);
   const selectedIds = useMemo(() => drafts.filter((draft) => draft.selected).map((draft) => draft.id), [drafts]);
   const selectedCount = selectedIds.length;
   const allDraftIds = useMemo(() => visibleDrafts.map((draft) => draft.id), [visibleDrafts]);
-  const hasMoreDrafts = visibleDrafts.length < drafts.length;
+  const hasMoreDrafts = visibleDrafts.length < displayedDrafts.length;
 
   // 将批量输入写回选中草稿，空字段不覆盖已有内容。
   function applyBulkPatch() {
@@ -324,6 +358,8 @@ function ImportDrafts({
           <p className="mt-1 text-xs text-muted">低置信度、缺答案、疑似重复和板块不确定会标记为需确认。</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canUndoConfirmation ? <Button size="sm" type="button" variant="outline" onClick={onUndoConfirmation}>撤销本批</Button> : null}
+          {drafts.length > exceptionDrafts.length ? <Button size="sm" type="button" variant="ghost" onClick={() => setShowAllDrafts((value) => !value)}>{showAllDrafts ? "只看异常" : `显示全部 ${drafts.length}`}</Button> : null}
           <Button size="sm" type="button" variant="outline" disabled={!visibleDrafts.length || visibleDrafts.every((draft) => draft.selected)} onClick={() => onBulkUpdateDrafts(allDraftIds, { selected: true })}>
             全选
           </Button>
@@ -346,7 +382,7 @@ function ImportDrafts({
           应用到已选
         </Button>
       </div>
-      {drafts.length ? (
+      {displayedDrafts.length ? (
         <div className="grid gap-4">
           {visibleDrafts.map((draft) => (
             <article key={draft.id} className="ui-card ui-card-muted">
@@ -392,13 +428,13 @@ function ImportDrafts({
           {hasMoreDrafts && (
             <div className="text-center">
               <Button type="button" variant="soft" onClick={loadMoreDrafts}>
-                显示更多（{visibleDrafts.length}/{drafts.length}）
+                显示更多（{visibleDrafts.length}/{displayedDrafts.length}）
               </Button>
             </div>
           )}
         </div>
       ) : (
-        <EmptyState>导入后会先生成可编辑草稿</EmptyState>
+        <EmptyState>{drafts.length ? "正常草稿已折叠，可点击“显示全部”统一确认。" : "导入后会先生成可编辑草稿"}</EmptyState>
       )}
       <ConfirmDialog
         confirmLabel="删除草稿"

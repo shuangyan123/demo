@@ -143,6 +143,27 @@ export const importDraftRepository = {
     return mistakes;
   },
 
+  /** 仅供确认后 30 秒内的内存撤销凭据调用：删除本批新增错题并恢复原草稿。 */
+  async undoConfirmation(mistakeIds: string[], drafts: PersistedImportDraft[], today: Date): Promise<void> {
+    if (!mistakeIds.length || !drafts.length) return;
+    const now = toISODate(today);
+    const batchIds = Array.from(new Set(drafts.map((draft) => draft.batchId)));
+    await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.importDrafts, reviewDb.importBatches, async () => {
+      await reviewDb.mistakes.bulkDelete(mistakeIds);
+      await reviewDb.importDrafts.bulkPut(drafts.map((draft) => ({ ...draft, updatedAt: now })));
+      await Promise.all(batchIds.map(async (batchId) => {
+        const restoredCount = drafts.filter((draft) => draft.batchId === batchId).length;
+        const batch = await reviewDb.importBatches.get(batchId);
+        await reviewDb.importBatches.update(batchId, {
+          savedCount: Math.max(0, (batch?.savedCount ?? 0) - restoredCount),
+          status: "parsed",
+          message: `已撤销，恢复 ${restoredCount} 条草稿`,
+          updatedAt: now,
+        });
+      }));
+    });
+  },
+
   // 为草稿追加问题标记，常用于重复题、低置信度等校对提示。
   async setDraftIssues(id: string, issues: ImportDraftIssue[], today: Date): Promise<void> {
     await reviewDb.importDrafts.update(id, { issues, needsReview: issues.length > 0, updatedAt: toISODate(today) });

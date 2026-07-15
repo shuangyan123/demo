@@ -42,6 +42,7 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [drafts, setDrafts] = useState<PersistedImportDraft[]>([]);
   const [importBusy, setImportBusy] = useState(false);
+  const [undoReceipt, setUndoReceipt] = useState<{ mistakeIds: string[]; drafts: PersistedImportDraft[]; expiresAt: number }>();
   const fenbiProvider = getImportProviderPlugin("fenbi");
 
   // 刷新导入批次和持久草稿，和主工作台快照分离，避免每次编辑草稿都重读错题库。
@@ -67,6 +68,12 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
       active = false;
     };
   }, [setNotice]);
+
+  useEffect(() => {
+    if (!undoReceipt) return;
+    const timeoutId = window.setTimeout(() => setUndoReceipt(undefined), Math.max(0, undoReceipt.expiresAt - Date.now()));
+    return () => window.clearTimeout(timeoutId);
+  }, [undoReceipt]);
 
   // 把解析结果写成批次草稿，并同步写入兼容旧 UI 的 importJobs 记录。
   async function persistParsedDrafts(input: {
@@ -99,6 +106,28 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
       },
       today,
     );
+  }
+
+  /** 把账户同步结果接入现有草稿链路；确认前不会创建错题。 */
+  async function importAccountDrafts(accountDrafts: ImportDraft[]): Promise<number> {
+    const batch = await importDraftRepository.createBatch({
+      source: "fenbi",
+      fileNames: ["粉笔账户同步"],
+      fileCount: 1,
+      message: "正在保存账户同步草稿",
+    }, today);
+    await persistParsedDrafts({
+      batchId: batch.id,
+      drafts: accountDrafts,
+      existingDrafts: drafts,
+      fileName: "粉笔账户同步",
+      fileType: "application/x-fenbi-account",
+      jobType: "text",
+      jobMessage: "粉笔账户错题已进入待确认草稿",
+    });
+    await refreshImportDrafts();
+    await onRefreshWorkspace();
+    return accountDrafts.length;
   }
 
   // 处理粘贴文本导入：本地解析或 AI 结构化解析都会进入持久草稿。
@@ -270,6 +299,7 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
       setNotice("请选择至少一条有效草稿");
       return;
     }
+    const confirmedDrafts = drafts.filter((draft) => selectedIds.includes(draft.id));
     const saved = await importDraftRepository.confirmDrafts(selectedIds, today);
     await reviewRepository.createImportJob(
       {
@@ -283,7 +313,22 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     );
     await refreshImportDrafts();
     await onRefreshWorkspace();
+    setUndoReceipt({ mistakeIds: saved.map((mistake) => mistake.id), drafts: confirmedDrafts, expiresAt: Date.now() + 30_000 });
     setNotice(`${saved.length} 条粉笔错题已入库`);
+  }
+
+  /** 撤销只依赖内存凭据，刷新页面后自动失效，避免长期保存危险操作令牌。 */
+  async function undoLastConfirmation() {
+    if (!undoReceipt || undoReceipt.expiresAt < Date.now()) {
+      setUndoReceipt(undefined);
+      setNotice("撤销时间已结束");
+      return;
+    }
+    await importDraftRepository.undoConfirmation(undoReceipt.mistakeIds, undoReceipt.drafts, today);
+    setUndoReceipt(undefined);
+    await refreshImportDrafts();
+    await onRefreshWorkspace();
+    setNotice("已撤销本批确认，草稿已恢复");
   }
 
   return {
@@ -291,6 +336,8 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     drafts,
     importBusy,
     importJobs,
+    importAccountDrafts,
+    canUndoConfirmation: Boolean(undoReceipt),
     confirmDrafts,
     deleteDrafts,
     parseFileImport,
@@ -299,5 +346,6 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     updateDraft,
     updateDraftList,
     updateDrafts,
+    undoLastConfirmation,
   };
 }

@@ -4,7 +4,9 @@ import { BOARD_OPTIONS, type Board, type ImportDraft, type ImportDraftIssue } fr
 import { parseAiJsonValue } from "./ai-json.ts";
 import { normalizeDraft, parseAiJson, parseCsv, parseJson, parsePlainText } from "./import-parser.ts";
 
-type FenbiDraftInput = {
+export type FenbiDraftInput = {
+  id?: unknown;
+  sourceId?: unknown;
   board?: unknown;
   source?: unknown;
   stem?: unknown;
@@ -50,6 +52,7 @@ export function normalizeFenbiDraft(input: FenbiDraftInput): ImportDraft {
 
   return {
     ...draft,
+    sourceId: String(input.sourceId ?? input.id ?? "").trim() || undefined,
     board: boardResult.board as Board,
     options,
     myAnswer: String(input.myAnswer ?? "").trim(),
