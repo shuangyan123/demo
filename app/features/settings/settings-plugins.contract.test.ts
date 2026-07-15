@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { settingsPluginDefinitions, type SettingsPluginRuntimeContext } from "./plugins/settings-plugin-registry.ts";
+import { integrationBranding } from "../../services/integration-branding.ts";
 
 test("settings plugin registry exposes compact directory metadata", () => {
   const ids = settingsPluginDefinitions.map((plugin) => plugin.id);
@@ -32,4 +33,12 @@ test("settings plugin directory keeps MCP out of plugin categories", () => {
   assert.equal(settingsPluginDefinitions.some((plugin) => String(plugin.category) === "mcp"), false);
   assert.match(fenbi?.recentActivityProvider?.(context) ?? "", /2/);
   assert.equal(Boolean(obsidian?.recommendedActionProvider?.(context)), true);
+});
+
+test("Obsidian 使用固定版本 Lobe 品牌资产并登记校验值", () => {
+  const obsidian = settingsPluginDefinitions.find((plugin) => plugin.id === "obsidian-vault");
+  assert.equal(obsidian?.icon.assetPath, integrationBranding.obsidian.assetPath);
+  assert.equal(integrationBranding.obsidian.version, "1.91.0");
+  assert.equal(integrationBranding.obsidian.license, "MIT");
+  assert.match(integrationBranding.obsidian.sha256, /^[a-f0-9]{64}$/);
 });

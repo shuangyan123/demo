@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-15 · Google 双协议与品牌下拉
+
+- 为 Google 增加模型级 GenerateContent/Interactions 路由，修复 `gemini-3.5-flash` 被错误发送到 GenerateContent 的 400。
+- 增加 Interactions 完整历史、图片、结构化输出、thinking、Priority、`store:false`、响应和 SSE 归一化，并把安全协议重试限制在连接测试。
+- 默认连接与默认模型改用带厂商图标的紧凑可访问下拉；已保存连接测试优先使用关联默认模型。
+- 使用固定版 Lobe Obsidian SVG 统一插件卡、详情标题和知识入口，并登记来源、许可与 SHA-256。
+- 修复 MiniMax 模型目录 `X-Api-Key` 与消息 Bearer 的鉴权分离，更新七家原生厂商核验日期。
+
 ## 2026-07-15 · Lobe 品牌、Gemini 400 与粉笔快捷导入
 
 - 厂商图标改用固定版本 Lobe Icons 本地 SVG，登记来源、版本、许可和校验值；无对应资产时使用文字缩写，不再使用手绘或运行时 CDN。

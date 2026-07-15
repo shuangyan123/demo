@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildGenerateProviderRequest, buildSpeechProviderRequest, buildTranscriptionProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent, parseSpeechJsonResponse, parseTranscriptionProviderResponse } from "./provider-adapter.ts";
 import type { AiGenerateRequest, AiSpeechRequest, AiTranscriptionRequest } from "../../services/api-client.ts";
 import { POST as modelsPost } from "../../api/ai/models/route.ts";
+import { executeProviderGenerate } from "./execute-provider-generate.ts";
 import { POST as speechPost } from "../../api/ai/speech/route.ts";
 import { getProviderAdapter, providerAdapterRegistry } from "./provider-adapter-registry.ts";
 
@@ -21,8 +22,110 @@ const baseGenerate: Omit<AiGenerateRequest, "provider"> = {
 test("七家重点厂商通过显式适配器注册，其他厂商进入兼容边界", () => {
   assert.deepEqual([...providerAdapterRegistry.keys()], ["openai", "google", "anthropic", "deepseek", "zhipu", "minimax", "xai"]);
   assert.equal(getProviderAdapter("openai").protocol, "responses");
+  assert.equal(getProviderAdapter("google").protocol, "model_routed");
   assert.equal(getProviderAdapter("minimax").protocol, "messages");
   assert.equal(getProviderAdapter("custom").protocol, "chat_completions");
+});
+
+test("Google model protocol routes GenerateContent and Interactions without field mixing", () => {
+  const generateContent = buildGenerateProviderRequest({
+    ...baseGenerate,
+    provider: "google",
+    model: "gemini-2.5-flash",
+    generationProtocol: "google_generate_content",
+  });
+  assert.match(generateContent.url, /:generateContent$/);
+  assert.equal("store" in (generateContent.body as object), false);
+
+  const interactionsInput: AiGenerateRequest = {
+    ...baseGenerate,
+    provider: "google",
+    model: "gemini-3.5-flash",
+    generationProtocol: "google_interactions",
+    runtime: { reasoning: "high", speed: "priority" },
+    structuredOutput: { name: "probe", schema: { type: "object", properties: { ok: { type: "boolean" } } } },
+    messages: [
+      { role: "system", content: "system constraint" },
+      { role: "user", content: [{ type: "image_url", image_url: { url: "data:image/png;base64,AAAA" } }, { type: "text", text: "describe" }] },
+      { role: "assistant", content: "previous answer" },
+      { role: "user", content: "continue" },
+    ],
+  };
+  const interactions = buildGenerateProviderRequest(interactionsInput);
+  assert.equal(interactions.url, "https://provider.example/v1beta2/interactions");
+  const body = interactions.body as Record<string, unknown>;
+  assert.equal(body.store, false);
+  assert.equal(body.system_instruction, "system constraint");
+  assert.equal(body.service_tier, "priority");
+  assert.deepEqual(body.generation_config, { max_output_tokens: 321, thinking_level: "high" });
+  assert.deepEqual(body.response_format, [{ type: "text", mime_type: "application/json", schema: interactionsInput.structuredOutput?.schema }]);
+  assert.equal("contents" in body, false);
+  assert.equal("generationConfig" in body, false);
+  assert.deepEqual((body.input as Array<Record<string, unknown>>)[0], {
+    type: "user_input",
+    content: [{ type: "image", mime_type: "image/png", data: "AAAA" }, { type: "text", text: "describe" }],
+  });
+  assert.deepEqual(
+    parseGenerateProviderResponse(interactionsInput, { id: "int_1", steps: [{ type: "model_output", content: [{ type: "text", text: "done" }] }], usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 } }, new Headers()),
+    { content: "done", requestId: "int_1", usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 }, generationProtocol: "google_interactions" },
+  );
+});
+
+test("Google Interactions stream maps step.delta and interaction.completed", () => {
+  const input: AiGenerateRequest = { ...baseGenerate, provider: "google", generationProtocol: "google_interactions", stream: true };
+  assert.deepEqual(parseGenerateProviderStreamEvent(input, { type: "step.delta", delta: { type: "text", text: "hello" } }, new Headers()), [{ type: "delta", text: "hello" }]);
+  assert.deepEqual(
+    parseGenerateProviderStreamEvent(input, { type: "interaction.completed", interaction: { id: "int_2", usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 } } }, new Headers()),
+    [{ type: "usage", requestId: "int_2", usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 }, actualSpeed: undefined }],
+  );
+});
+
+test("Google connection test retries once only on explicit Interactions-only error", async () => {
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = async (input) => {
+    urls.push(String(input));
+    if (urls.length === 1) return Response.json({ error: { status: "INVALID_ARGUMENT", message: "This model only supports Interactions API." } }, { status: 400 });
+    return Response.json({ id: "int_retry", steps: [{ type: "model_output", content: [{ type: "text", text: "OK" }] }] });
+  };
+  try {
+    const executed = await executeProviderGenerate({ ...baseGenerate, provider: "google", allowProtocolFallback: true });
+    const response = executed.response;
+    assert.equal(response.status, 200);
+    assert.deepEqual(urls, [
+      "https://provider.example/v1/models/fixture-model:generateContent",
+      "https://provider.example/v1beta2/interactions",
+    ]);
+    assert.equal(executed.body.generationProtocol, "google_interactions");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("MiniMax model directory uses X-Api-Key while Messages keeps Bearer", async () => {
+  const originalFetch = globalThis.fetch;
+  let headers: Record<string, string> | undefined;
+  let url = "";
+  globalThis.fetch = async (input, init) => {
+    url = String(input);
+    headers = init?.headers as Record<string, string>;
+    return Response.json({ data: [{ id: "MiniMax-M3", display_name: "MiniMax M3" }] });
+  };
+  try {
+    const response = await modelsPost(new Request("http://localhost/api/ai/models", {
+      method: "POST",
+      body: JSON.stringify({ provider: "minimax", apiKey: "fixture-key", baseUrl: "https://api.minimaxi.com/anthropic", providerOptions: { region: "cn" } }),
+    }));
+    assert.equal(response.status, 200);
+    assert.equal(url, "https://api.minimaxi.com/anthropic/v1/models");
+    assert.equal(headers?.["X-Api-Key"], "fixture-key");
+    assert.equal(headers?.Authorization, undefined);
+    const message = buildGenerateProviderRequest({ ...baseGenerate, provider: "minimax", model: "MiniMax-M3", baseUrl: "https://api.minimaxi.com/anthropic" });
+    assert.equal(message.headers.Authorization, "Bearer fixture-key");
+    assert.equal(message.headers["X-Api-Key"], undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("OpenAI Responses fixture：endpoint、instructions 和 token 字段由服务端适配", () => {

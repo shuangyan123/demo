@@ -15,7 +15,7 @@ export type MockAiProvider = {
 
 export type MockAiProviderOptions = {
   response?: string | ((request: MockAiRequest, requestIndex: number) => string);
-  protocol?: "chat_completions" | "openai_responses" | "google_generate_content";
+  protocol?: "chat_completions" | "openai_responses" | "google_generate_content" | "google_interactions";
   models?: string[];
   actualSpeed?: string;
   streamCompletionDelayMs?: number;
@@ -66,6 +66,16 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
             return;
           }
           writeJson(response, 200, { candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 8, totalTokenCount: 20 } });
+          return;
+        }
+        if (options.protocol === "google_interactions" && request.method === "POST" && request.url === "/v1beta2/interactions") {
+          requests.push(mockRequest);
+          const content = typeof options.response === "function" ? options.response(mockRequest, requests.length - 1) : options.response ?? defaultResponse;
+          writeJson(response, 200, {
+            id: `interaction-${requests.length}`,
+            steps: [{ type: "model_output", content: [{ type: "text", text: content }] }],
+            usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 },
+          });
           return;
         }
         const expectedPath = options.protocol === "openai_responses" ? "/v1/responses" : "/v1/chat/completions";

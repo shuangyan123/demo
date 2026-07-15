@@ -64,12 +64,17 @@ test("Gemini 多模态默认模型把图片发送为 inlineData", async ({ page 
     await page.getByLabel("Base URL").fill(provider.baseUrl);
     await page.getByLabel("API Key").fill("gemini-key");
     await page.getByRole("button", { name: "获取模型" }).click();
+    // 在线目录会与 Interactions-only 静态模型合并，测试显式选择 GenerateContent 模型而不依赖排序。
+    await page.getByLabel("测试模型 ID").fill("gemini-2.5-flash");
     await expect(page.getByLabel("测试模型 ID")).toHaveValue("gemini-2.5-flash");
     await page.getByRole("button", { name: "测试连接" }).click();
     await expect(page.getByRole("status")).toContainText("连接成功");
     await page.getByRole("button", { name: "保存连接" }).click();
-    await page.getByLabel("默认多模态连接").selectOption({ label: "E2E Gemini" });
-    await expect(page.getByLabel("默认多模态模型")).toHaveValue("gemini-2.5-flash");
+    await page.getByRole("combobox", { name: "默认多模态连接" }).click();
+    await page.getByRole("option", { name: "E2E Gemini", exact: true }).click();
+    await page.getByRole("combobox", { name: "默认多模态模型" }).click();
+    await page.getByRole("option", { name: "gemini-2.5-flash", exact: true }).click();
+    await expect(page.getByRole("combobox", { name: "默认多模态模型" })).toContainText("gemini-2.5-flash");
 
     await page.getByRole("button", { name: "返回应用" }).click();
     await page.getByRole("button", { name: "新对话", exact: true }).click();

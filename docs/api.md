@@ -1,5 +1,13 @@
 # API 约定
 
+## Google 模型级双协议（2026-07-15）
+
+- `/api/ai/models` URL 不变，目录项可选返回 `generationProtocol`。`gemini-3.5-flash` 使用 `google_interactions`，已核验的 Gemini 2.5/3.1 模型继续使用 `google_generate_content`。
+- `/api/ai/generate` URL 不变。GenerateContent 使用 `systemInstruction`、`contents`、`generationConfig`、`serviceTier`；Interactions 使用 `system_instruction`、`input`、`generation_config`、`service_tier` 和 `store: false`，两组字段不得混用。
+- 只有连接测试可在 Google 明确返回 “only supports Interactions API” 时从 GenerateContent 安全重试一次，并把协议写入连接目录缓存。正常生成请求不得自动重试另一协议。
+- Interactions 流式事件归一化 `step.delta` 与 `interaction.completed`；应用不保存 interaction ID。
+- MiniMax 模型目录 `/anthropic/v1/models` 使用 `X-Api-Key`，消息 `/anthropic/v1/messages` 使用 Bearer，两类鉴权不得共用。
+
 ## 连接测试、模型能力与个性化记忆（2026-07-14）
 
 - `/api/ai/models` 与 `/api/ai/generate` URL 不变。Google Models API 只接收 `supportedGenerationMethods` 包含 `generateContent` 的模型；返回项增加 `capabilitySource` 和可选 `supportedGenerationMethods`。精确静态 descriptor 标记为 `verified`，未知模型不得按名称猜测视觉能力。

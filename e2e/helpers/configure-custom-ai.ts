@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-/** 使用紧凑三级选择器创建本地 OpenAI 兼容连接。 */
+/** 使用紧凑厂商选择器创建本地 OpenAI 兼容连接。 */
 export async function configureCustomTextConnection(page: Page, input: { label: string; baseUrl: string; model: string }) {
   await page.getByRole("combobox", { name: "厂商" }).click();
   await page.getByRole("option", { name: /Local \/ Custom/ }).click();
@@ -12,7 +12,8 @@ export async function configureCustomTextConnection(page: Page, input: { label: 
 
 /** 自定义连接的模型属于默认能力，不写回连接档案。 */
 export async function setCustomDefaultTextModel(page: Page, connectionLabel: string, modelId: string) {
-  await page.getByLabel("默认文本连接").selectOption({ label: connectionLabel });
+  await page.getByRole("combobox", { name: "默认文本连接" }).click();
+  await page.getByRole("option", { name: connectionLabel, exact: true }).click();
   await page.getByRole("button", { name: "编辑默认文本手动模型 ID" }).click();
   const model = page.getByRole("textbox", { name: "默认文本手动模型 ID" });
   await model.fill(modelId);

@@ -4,6 +4,24 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Google 双协议与品牌选择约定
+
+- Google 生成协议由具体模型目录项解析；`gemini-3.5-flash` 使用 Interactions，Gemini 2.5 等已核验模型使用 GenerateContent，未知手动模型不得按名称猜测。
+- 只有连接测试可在明确 `only supports Interactions API` 时重试一次并缓存协议，正常对话禁止跨协议双发。
+- Interactions 必须发送 `store:false`，不得持久化 interaction ID；GenerateContent 与 Interactions 字段必须保持互斥。
+- 默认能力的连接和模型下拉必须显示 `ProviderIcon`，但持久化仍只保存 `{ connectionId, modelId }`。
+- Obsidian 使用独立 integration branding 的固定版本本地资产，不得混入 AI provider registry。
+- MiniMax 模型目录使用 `X-Api-Key`，消息生成使用 Bearer，禁止复用单一鉴权 helper。
+
+## Google 双协议与品牌选择约定
+
+- Google 生成协议由具体模型目录项解析；`gemini-3.5-flash` 使用 Interactions，Gemini 2.5 等已核验模型使用 GenerateContent，未知手动模型不得按名称猜测。
+- 只有连接测试可在明确 `only supports Interactions API` 时重试一次并缓存协议，正常对话禁止跨协议双发。
+- Interactions 必须发送 `store:false`，不得持久化 interaction ID；GenerateContent 与 Interactions 字段必须保持互斥。
+- 默认能力的连接和模型下拉必须显示 `ProviderIcon`，但持久化仍只保存 `{ connectionId, modelId }`。
+- Obsidian 使用独立 integration branding 的固定版本本地资产，不得混入 AI provider registry。
+- MiniMax 模型目录使用 `X-Api-Key`，消息生成使用 Bearer，禁止复用单一鉴权 helper。
+
 ## 设置与额度验收约定
 
 - Lobe Icons 只作为固定版本的本地社区品牌资产，登记版本、MIT 许可和 SHA-256；运行时不得访问 CDN，也不得宣称为厂商官方包。

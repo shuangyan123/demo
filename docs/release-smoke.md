@@ -1,5 +1,13 @@
 # 发布前手工冒烟清单
 
+## 2026-07-15 Google 双协议与品牌回归
+
+- 使用本地 mock 分别验证 Gemini 2.5 请求 `:generateContent`、`gemini-3.5-flash` 请求 `/v1beta2/interactions`；后者必须包含 `store:false`，且页面不得发生双发。
+- 验证 Interactions 图片、结构化输出和流式增量；测试卡应把协议不匹配显示为协议问题，而不是笼统的参数 400。
+- 在默认文本、多模态和“更多默认能力”中检查连接与模型下拉：触发器和选项均有正确厂商图标，键盘、Escape、Tab 和焦点恢复正常。
+- 检查 Obsidian 插件卡、详情标题与知识入口使用相同本地品牌图标；断网后仍可显示。
+- MiniMax mock 必须分别断言模型目录 `X-Api-Key` 和消息 Bearer。真实 Google/MiniMax smoke 仅在显式环境变量和凭据存在时运行。
+
 ## 2026-07-15 品牌、Gemini 与粉笔快捷导入
 
 - 在 AI 连接、模型菜单和额度表格确认 OpenAI、Gemini、Claude、xAI、DeepSeek、GLM、MiniMax 等均使用本地 Lobe SVG；断网后图标仍可显示，深浅色单色资产对比度正常。

@@ -74,3 +74,33 @@ test("共享目录只同步使用 24 小时内的在线缓存", () => {
   assert.equal(providerModelCache.isStale(expired), true);
   assert.notEqual(getCachedConnectionModelCatalog(connection, "text")[0]?.id, "account-model");
 });
+
+test("Google 在线目录与 Interactions-only 静态模型按 ID 合并", () => {
+  values.clear();
+  const connection: ApiConnectionProfile = {
+    ...profile("google-connection", "https://generativelanguage.googleapis.com/v1beta"),
+    provider: "google",
+    apiFormat: "google_generate_content",
+    capabilities: ["text", "vision", "streaming"],
+  };
+  providerModelCache.save(connection.id, connection.provider, connection.baseUrl, {
+    fetchedAt: new Date().toISOString(),
+    models: [{
+      id: "gemini-2.5-flash",
+      label: "Gemini 2.5 Flash",
+      purposes: ["text", "vision"],
+      capabilities: ["text", "vision", "structured_output", "streaming"],
+      status: "active",
+      source: "official_api",
+      capabilitySource: "verified",
+      supportedGenerationMethods: ["generateContent"],
+      generationProtocol: "google_generate_content",
+      supportsStreaming: true,
+      supportsStructuredOutput: true,
+      updatedAt: new Date().toISOString(),
+    }],
+  });
+  const models = getCachedConnectionModelCatalog(connection, "text");
+  assert.equal(models.filter((model) => model.id === "gemini-2.5-flash").length, 1);
+  assert.equal(models.find((model) => model.id === "gemini-3.5-flash")?.generationProtocol, "google_interactions");
+});

@@ -1,5 +1,13 @@
 # 项目经验沉淀
 
+## 2026-07-15 Google 双协议与品牌选择经验
+
+- 厂商级 `apiFormat` 不能代表一个厂商全部模型；协议差异必须由精确模型 descriptor 或在线目录驱动，并在 adapter registry 集中执行。
+- 协议探测只适合显式连接测试。普通生成遇错后切换 endpoint 会造成重复计费和重复副作用，因此禁止双发。
+- Google Interactions 与 GenerateContent 的字段命名、流式事件和状态留存完全不同；类型与契约测试必须断言两组字段互斥。
+- 默认能力选择器的品牌图标是展示层派生值，不应污染 `{ connectionId, modelId }` 原子持久化结构。
+- 同厂商的模型目录和生成 endpoint 可能使用不同鉴权；MiniMax 必须分别测试 `X-Api-Key` 与 Bearer。
+
 ## 2026-07-15 粉笔账户导入与品牌资产经验
 
 - 社区品牌资产必须固定包版本、本地固化并记录校验值；Lobe Icons 是用户指定的 MIT 社区来源，不得写成厂商官方品牌包。

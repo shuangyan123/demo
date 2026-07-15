@@ -58,7 +58,7 @@ test("模型级运行 descriptor 覆盖七家厂商并拒绝推断未知模型",
     assert.equal(descriptor?.reasoning?.kind, reasoningKind, `${provider}:${modelId}`);
     assert.equal(descriptor?.speed?.kind, speedKind, `${provider}:${modelId}`);
     assert.match(descriptor?.documentationUrl ?? "", /^https:\/\//);
-    assert.equal(descriptor?.verifiedAt, "2026-07-13");
+    assert.equal(descriptor?.verifiedAt, "2026-07-15");
   }
   assert.equal(getAiModelRuntimeDescriptor("openai", "user-manual-model"), undefined);
 });

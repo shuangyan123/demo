@@ -1,5 +1,13 @@
 # 应用架构
 
+## Google 双协议与品牌选择边界（2026-07-15）
+
+- Google adapter registry 是请求构建、响应解析和流式分发的唯一执行入口，协议由具体模型目录项决定：`google_generate_content` 或 `google_interactions`。
+- 协议解析按精确 descriptor、在线目录、连接级 24 小时缓存依次进行；未知手动模型仅在连接测试收到明确协议不匹配时重试一次，普通对话禁止双发。
+- Interactions 固定发送 `store: false`，不保存 `previous_interaction_id`；应用继续发送完整历史，厂商原始步骤与响应不持久化。
+- 默认能力的连接与模型选择复用紧凑品牌选择器，图标仅为展示数据，不写入默认能力或连接记录。
+- Obsidian 属于 integration branding，不进入 AI provider registry；品牌资产以固定版本本地 SVG 和校验值登记。
+
 ## 品牌、Gemini 与粉笔账户导入（2026-07-15）
 
 - 厂商品牌仍由 `ProviderBranding` 单一注册表驱动。Lobe Icons 固定为 `@lobehub/icons-static-svg@1.91.0` 并本地固化 SVG、版本、来源、MIT 许可与 SHA-256；运行时不访问 CDN，未匹配厂商使用文字缩写。
