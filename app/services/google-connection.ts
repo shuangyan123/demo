@@ -10,8 +10,19 @@ export function normalizeGoogleApiBaseUrl(value: string): string {
     .replace(/\/+$/, "");
 }
 
-/** 将 GenerateContent 版本根地址转换为 Interactions API 的 v1beta2 根地址。 */
+/**
+ * 将 GenerateContent 根地址转换为 Interactions API 根地址。
+ * 仅修正 Google 官方主机，避免擅自改写自定义代理的版本与路由前缀。
+ */
 export function normalizeGoogleInteractionsBaseUrl(value: string): string {
   const normalized = normalizeGoogleApiBaseUrl(value);
-  return normalized.replace(/\/(?:v1beta2|v1beta|v1)$/i, "/v1beta2");
+  try {
+    const url = new URL(normalized);
+    if (url.hostname === "generativelanguage.googleapis.com") {
+      return `${url.origin}/v1beta`;
+    }
+  } catch {
+    // 非绝对地址交由自定义代理原样处理，最终网络错误由统一诊断层归类。
+  }
+  return normalized;
 }

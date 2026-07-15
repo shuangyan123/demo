@@ -46,7 +46,7 @@ test("Qwen uses the official deployable-model pagination endpoint instead of inf
     const value = String(url);
     urls.push(value);
     const page = value.includes("page_no=2") ? 2 : 1;
-    return Response.json({ models: [{ model_name: page === 1 ? "qwen-first" : "qwen-second" }], page_no: page, page_size: 1, total: 2 });
+    return Response.json({ output: { models: [{ model_name: page === 1 ? "qwen-first" : "qwen-second" }], page_no: page, page_size: 1, total: 2 } });
   });
   assert.equal(urls.length, 2);
   assert.match(urls[0] ?? "", /api\/v1\/deployments\/models/);

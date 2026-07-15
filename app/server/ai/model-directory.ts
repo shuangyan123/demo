@@ -73,6 +73,10 @@ export function providerModelDirectoryUrl(input: AiModelsRequest, cursor: Direct
     return url.toString();
   }
   const url = new URL(`${normalized}/models`);
+  if (input.provider === "anthropic") {
+    url.searchParams.set("limit", "100");
+    if (cursor.token) url.searchParams.set("after_id", cursor.token);
+  }
   if (input.provider === "siliconflow") {
     url.searchParams.set("type", "text");
     url.searchParams.set("sub_type", "chat");
@@ -160,11 +164,17 @@ function extractPage(provider: ApiProvider, payload: unknown): { rows: JsonObjec
     const token = object.has_more === true && typeof object.last_id === "string" ? object.last_id : undefined;
     return { rows, next: token ? { token } : undefined };
   }
+  if (provider === "anthropic") {
+    const rows = Array.isArray(object.data) ? object.data.filter((item): item is JsonObject => Boolean(objectValue(item))) : [];
+    const token = object.has_more === true && typeof object.last_id === "string" ? object.last_id : undefined;
+    return { rows, next: token ? { token } : undefined };
+  }
   if (provider === "qwen") {
-    const rows = Array.isArray(object.models) ? object.models.filter((item): item is JsonObject => Boolean(objectValue(item))) : [];
-    const page = Number(object.page_no ?? 1);
-    const size = Number(object.page_size ?? rows.length);
-    const total = Number(object.total ?? rows.length);
+    const output = objectValue(object.output) ?? {};
+    const rows = Array.isArray(output.models) ? output.models.filter((item): item is JsonObject => Boolean(objectValue(item))) : [];
+    const page = Number(output.page_no ?? 1);
+    const size = Number(output.page_size ?? rows.length);
+    const total = Number(output.total ?? rows.length);
     return { rows, next: Number.isFinite(total) && page * size < total ? { page: page + 1 } : undefined };
   }
   const values = Array.isArray(payload) ? payload : object.data;

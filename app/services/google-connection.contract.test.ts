@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { googleUpstreamFailureMessage } from "../server/ai/google-error.ts";
-import { normalizeGoogleApiBaseUrl } from "./google-connection.ts";
+import { normalizeGoogleApiBaseUrl, normalizeGoogleInteractionsBaseUrl } from "./google-connection.ts";
 
 test("Google Base URL 兼容版本根、models 和完整生成 endpoint", () => {
   assert.equal(normalizeGoogleApiBaseUrl("https://generativelanguage.googleapis.com/v1beta/"), "https://generativelanguage.googleapis.com/v1beta");
@@ -11,6 +11,11 @@ test("Google Base URL 兼容版本根、models 和完整生成 endpoint", () => 
     "https://generativelanguage.googleapis.com/v1beta",
   );
   assert.equal(normalizeGoogleApiBaseUrl("https://proxy.example/google/v1beta/models"), "https://proxy.example/google/v1beta");
+});
+
+test("Interactions 只修正 Google 官方主机并保留自定义代理路径", () => {
+  assert.equal(normalizeGoogleInteractionsBaseUrl("https://generativelanguage.googleapis.com/v1beta2/models"), "https://generativelanguage.googleapis.com/v1beta");
+  assert.equal(normalizeGoogleInteractionsBaseUrl("https://proxy.example/google/v1"), "https://proxy.example/google/v1");
 });
 
 test("Google 400 只返回脱敏的参数诊断", async () => {

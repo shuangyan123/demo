@@ -30,7 +30,7 @@ export async function isGoogleInteractionsOnlyError(response: Response): Promise
 }
 
 /** 将 Google 标准错误包络归一化为不泄露请求内容的可行动提示。 */
-export async function googleUpstreamFailureMessage(response: Response, fallbackStage = "请求"): Promise<string> {
+export async function googleUpstreamFailureMessage(response: Response, fallbackStage = "请求", protocol?: string): Promise<string> {
   let payload: GoogleErrorPayload = {};
   try {
     payload = JSON.parse(await response.text()) as GoogleErrorPayload;
@@ -41,7 +41,8 @@ export async function googleUpstreamFailureMessage(response: Response, fallbackS
   const status = error?.status?.toUpperCase();
   const violation = error?.details?.flatMap((detail) => detail.fieldViolations ?? [])[0];
   const detail = sanitizeGoogleErrorText(violation?.description ?? error?.message ?? "");
-  const suffix = detail ? `：${detail}` : "";
+  const context = protocol ? `（${protocol}）` : "";
+  const suffix = `${context}${detail ? `：${detail}` : ""}`;
 
   if (/only supports? (?:the )?Interactions API/i.test(detail)) {
     return `Google 协议不匹配：所选模型需要 Interactions API${suffix}`;

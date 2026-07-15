@@ -52,7 +52,7 @@ test("Google model protocol routes GenerateContent and Interactions without fiel
     ],
   };
   const interactions = buildGenerateProviderRequest(interactionsInput);
-  assert.equal(interactions.url, "https://provider.example/v1beta2/interactions");
+  assert.equal(interactions.url, "https://provider.example/v1/interactions");
   const body = interactions.body as Record<string, unknown>;
   assert.equal(body.store, false);
   assert.equal(body.system_instruction, "system constraint");
@@ -66,16 +66,17 @@ test("Google model protocol routes GenerateContent and Interactions without fiel
     content: [{ type: "image", mime_type: "image/png", data: "AAAA" }, { type: "text", text: "describe" }],
   });
   assert.deepEqual(
-    parseGenerateProviderResponse(interactionsInput, { id: "int_1", steps: [{ type: "model_output", content: [{ type: "text", text: "done" }] }], usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 } }, new Headers()),
+    parseGenerateProviderResponse(interactionsInput, { id: "int_1", steps: [{ type: "model_output", content: [{ type: "text", text: "done" }] }], usage: { total_input_tokens: 4, total_output_tokens: 2, total_tokens: 6 } }, new Headers()),
     { content: "done", requestId: "int_1", usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 }, generationProtocol: "google_interactions" },
   );
 });
 
 test("Google Interactions stream maps step.delta and interaction.completed", () => {
   const input: AiGenerateRequest = { ...baseGenerate, provider: "google", generationProtocol: "google_interactions", stream: true };
+  assert.equal(buildGenerateProviderRequest(input).url, "https://provider.example/v1/interactions?alt=sse");
   assert.deepEqual(parseGenerateProviderStreamEvent(input, { type: "step.delta", delta: { type: "text", text: "hello" } }, new Headers()), [{ type: "delta", text: "hello" }]);
   assert.deepEqual(
-    parseGenerateProviderStreamEvent(input, { type: "interaction.completed", interaction: { id: "int_2", usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 } } }, new Headers()),
+    parseGenerateProviderStreamEvent(input, { type: "interaction.completed", interaction: { id: "int_2", usage: { total_input_tokens: 3, total_output_tokens: 2, total_tokens: 5 } } }, new Headers()),
     [{ type: "usage", requestId: "int_2", usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 }, actualSpeed: undefined }],
   );
 });
@@ -94,7 +95,7 @@ test("Google connection test retries once only on explicit Interactions-only err
     assert.equal(response.status, 200);
     assert.deepEqual(urls, [
       "https://provider.example/v1/models/fixture-model:generateContent",
-      "https://provider.example/v1beta2/interactions",
+      "https://provider.example/v1/interactions",
     ]);
     assert.equal(executed.body.generationProtocol, "google_interactions");
   } finally {
@@ -347,7 +348,7 @@ test("OpenAI-compatible providers map to Chat Completions", () => {
     const input: AiGenerateRequest = { ...baseGenerate, provider };
     const request = buildGenerateProviderRequest(input);
     assert.equal(request.url, "https://provider.example/v1/chat/completions");
-    assert.deepEqual(request.body, { model: "fixture-model", messages: baseGenerate.messages, max_tokens: 321, temperature: 0.2 });
+    assert.deepEqual(request.body, { model: "fixture-model", messages: baseGenerate.messages, ...(provider === "groq" ? { max_completion_tokens: 321 } : { max_tokens: 321 }), temperature: 0.2 });
     assert.deepEqual(
       parseGenerateProviderResponse(input, { id: "chat_1", choices: [{ message: { content: "完成" } }], usage: { prompt_tokens: 8, completion_tokens: 3, total_tokens: 11 } }, new Headers()),
       { content: "完成", requestId: "chat_1", usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 } },

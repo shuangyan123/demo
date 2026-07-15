@@ -2,7 +2,8 @@ import type { AiGenerationProtocol } from "../types/domains/ai-model";
 import type { AiModelsResult } from "./api-client";
 import type { ApiProvider } from "../types/domains/ai-provider";
 
-const CACHE_PREFIX = "review_provider_models_v3";
+// v4 使错误的 Google Interactions 路径和不完整分页目录立即失效。
+const CACHE_PREFIX = "review_provider_models_v4";
 export const PROVIDER_MODEL_CACHE_TTL = 24 * 60 * 60 * 1000;
 
 export function normalizeProviderBaseUrl(baseUrl: string): string {

@@ -154,6 +154,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     setBusyAction("save");
     setFeedback({ tone: "neutral", text: "正在保存…" });
     try {
+      const isNewConnection = !form.id;
       const providerOptions: Record<string, string> = form.provider === "azure"
         ? { language: form.language }
         : form.provider === "minimax"
@@ -171,6 +172,20 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
       });
       rememberConnectionModelDirectory(saved, discoveredDirectory);
       if (testSucceeded) await aiConnectionsRepository.updateTestStatus(saved.id, "success", "连接成功");
+      // 首个文本连接会由 repository 自动补一项静态默认模型。若本轮完整在线目录已经证明
+      // 该静态项不可用，则只在“新建连接”路径改用用户刚从该目录选中的模型，绝不覆盖用户已有默认值。
+      if (isNewConnection && selectedTestModelId && discoveredDirectory?.complete !== false) {
+        const nextSnapshot = await aiConnectionsRepository.loadSnapshot();
+        const liveTextModels = discoveredDirectory?.models.filter((model) => model.purposes.includes("text")) ?? [];
+        const autoSelectedUnavailable = nextSnapshot.defaults.textConnectionId === saved.id
+          && Boolean(nextSnapshot.defaults.textModelId)
+          && liveTextModels.length > 0
+          && !liveTextModels.some((model) => model.id === nextSnapshot.defaults.textModelId);
+        const testedModelSupportsText = liveTextModels.some((model) => model.id === selectedTestModelId);
+        if (autoSelectedUnavailable && testedModelSupportsText) {
+          await aiConnectionsRepository.setDefaultSelection("text", saved.id, selectedTestModelId);
+        }
+      }
       await refresh();
       onChanged?.();
       if (selectedTestModelId) window.localStorage.setItem(`review_connection_test_model_v1:${saved.id}`, selectedTestModelId);
@@ -269,10 +284,12 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     const models = inspectConnectionModelCatalog(profile, purpose).models;
     const defaultConnectionId = snapshot.defaults[`${purpose}ConnectionId`];
     const defaultModelId = snapshot.defaults[`${purpose}ModelId`];
-    // 已保存连接优先复用与它关联的默认模型，避免盲选目录第一项导致协议或权限错误。
-    const modelId = defaultConnectionId === profile.id && defaultModelId
-      ? defaultModelId
-      : models.find((model) => model.status === "recommended")?.id ?? models[0]?.id;
+    const remembered = window.localStorage.getItem(`review_connection_test_model_v1:${profile.id}`) ?? "";
+    // 最近成功模型最能反映账号真实权限，其次才是关联默认与目录推荐项。
+    const modelId = remembered
+      || (defaultConnectionId === profile.id && defaultModelId ? defaultModelId : undefined)
+      || models.find((model) => model.status === "recommended")?.id
+      || models[0]?.id;
     if (!modelId) {
       editProfile(profile);
       setFeedback({ tone: "error", text: "请在编辑器中填写测试模型 ID" });
@@ -281,6 +298,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     setBusyAction(`test:${profile.id}`);
     try {
       await testConnectionDraft({ provider: profile.provider, apiKey: "", baseUrl: profile.baseUrl, modelId, label: profile.label, providerOptions: profile.providerOptions, existingConnection: profile });
+      window.localStorage.setItem(`review_connection_test_model_v1:${profile.id}`, modelId);
       await aiConnectionsRepository.updateTestStatus(profile.id, "success", "连接成功");
       await refresh();
       setFeedback({ tone: "success", text: `${profile.label} 连接成功` });

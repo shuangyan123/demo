@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     const response = executed.response;
     if (!response.ok) {
       const message = body.provider === "google"
-        ? await googleUpstreamFailureMessage(response)
+        ? await googleUpstreamFailureMessage(response, "接收响应", effectiveBody.generationProtocol ?? "google_generate_content")
         : providerFailureMessage(response.status, body);
       return new NextResponse(message, { status: response.status });
     }

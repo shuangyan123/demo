@@ -150,7 +150,7 @@ function buildGoogleInteractionsRequest(input: AiGenerateRequest): ProviderHttpR
     content: toGoogleInteractionContent(message.content),
   }));
   return {
-    url: `${normalizeGoogleInteractionsBaseUrl(input.baseUrl)}/interactions`,
+    url: `${normalizeGoogleInteractionsBaseUrl(input.baseUrl)}/interactions${input.stream ? "?alt=sse" : ""}`,
     headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json", ...runtime.headers },
     body: {
       model: input.model,
@@ -191,7 +191,7 @@ function buildAnthropicRequest(input: AiGenerateRequest): ProviderHttpRequest {
 }
 
 function buildChatCompletionsRequest(input: AiGenerateRequest): ProviderHttpRequest {
-  const isMiniMax = input.provider === "minimax";
+  const usesCompletionTokenLimit = input.provider === "minimax" || input.provider === "groq";
   const runtime = mapProviderRuntimeOptions(input.provider, input);
   return {
     url: appendEndpoint(input.baseUrl, "/chat/completions"),
@@ -199,7 +199,7 @@ function buildChatCompletionsRequest(input: AiGenerateRequest): ProviderHttpRequ
     body: {
       model: input.model,
       messages: input.messages,
-      ...(isMiniMax ? { max_completion_tokens: input.maxOutputTokens } : { max_tokens: input.maxOutputTokens }),
+      ...(usesCompletionTokenLimit ? { max_completion_tokens: input.maxOutputTokens } : { max_tokens: input.maxOutputTokens }),
       ...(input.structuredOutput ? { response_format: input.provider === "deepseek" ? { type: "json_object" } : { type: "json_schema", json_schema: { name: input.structuredOutput.name, schema: input.structuredOutput.schema, strict: input.structuredOutput.strict ?? true } } } : {}),
       ...runtime.requestFields,
       ...(input.stream ? { stream: true, stream_options: { include_usage: true } } : {}),
@@ -286,7 +286,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
     return {
       content: typeof root.output_text === "string" ? root.output_text : content,
       requestId: typeof root.id === "string" ? root.id : headers.get("x-request-id") ?? undefined,
-      usage: usageResult(usage.prompt_tokens, usage.completion_tokens, usage.total_tokens),
+      usage: usageResult(usage.total_input_tokens, usage.total_output_tokens, usage.total_tokens),
       ...(actualSpeed ? { actualSpeed } : {}),
       generationProtocol: "google_interactions",
     };
@@ -343,9 +343,10 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function usageFromRecord(record: JsonRecord, kind: "openai" | "google" | "anthropic" | "chat"): AiGenerateResult["usage"] | undefined {
+function usageFromRecord(record: JsonRecord, kind: "openai" | "google" | "google_interactions" | "anthropic" | "chat"): AiGenerateResult["usage"] | undefined {
   if (!Object.keys(record).length) return undefined;
   if (kind === "google") return usageResult(record.promptTokenCount, record.candidatesTokenCount, record.totalTokenCount);
+  if (kind === "google_interactions") return usageResult(record.total_input_tokens, record.total_output_tokens, record.total_tokens);
   if (kind === "anthropic") return usageResult(record.input_tokens, record.output_tokens, Number(record.input_tokens) + Number(record.output_tokens));
   if (kind === "chat") return usageResult(record.prompt_tokens, record.completion_tokens, record.total_tokens);
   return usageResult(record.input_tokens, record.output_tokens, record.total_tokens);
@@ -363,7 +364,7 @@ export function parseGenerateProviderStreamEvent(input: AiGenerateRequest, paylo
     }
     if (eventType === "interaction.completed") {
       const interaction = asRecord(root.interaction);
-      const usage = usageFromRecord(asRecord(interaction.usage), "chat");
+      const usage = usageFromRecord(asRecord(interaction.usage), "google_interactions");
       return [{ type: "usage", requestId: stringValue(interaction.id) || headers.get("x-request-id") || undefined, usage, actualSpeed: stringValue(interaction.service_tier) || undefined }];
     }
     return [];
