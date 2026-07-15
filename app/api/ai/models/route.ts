@@ -3,6 +3,8 @@ import type { AiCapability, AiConnectionPurpose, ApiProvider } from "../../../ty
 import { aiRouteError, aiUpstreamError, readAiRouteJson } from "../../../server/ai/http.ts";
 import { getProviderModelCatalog } from "../../../services/provider-contracts.ts";
 import { miniMaxBearerHeaders, miniMaxFailureMessage, normalizeMiniMaxAnthropicBaseUrl } from "../../../services/minimax-connection.ts";
+import { normalizeGoogleApiBaseUrl } from "../../../services/google-connection.ts";
+import { googleUpstreamFailureMessage } from "../../../server/ai/google-error.ts";
 
 type RawModel = {
   id: string;
@@ -35,6 +37,7 @@ function providerHeaders(provider: ApiProvider, apiKey: string): Record<string, 
 function modelsUrl(provider: ApiProvider, baseUrl: string, providerOptions?: Record<string, string>): string {
   const normalized = normalizeBaseUrl(baseUrl);
   if (provider === "minimax") return `${normalizeMiniMaxAnthropicBaseUrl(normalized, providerOptions?.region === "global" ? "global" : "cn")}/v1/models`;
+  if (provider === "google") return `${normalizeGoogleApiBaseUrl(normalized)}/models`;
   return `${normalized}/models`;
 }
 
@@ -104,7 +107,9 @@ export async function POST(request: Request) {
     if (!isRequest(body)) return aiRouteError("缺少有效的模型目录连接参数", 400);
     const response = await fetch(modelsUrl(body.provider, body.baseUrl, body.providerOptions), { headers: providerHeaders(body.provider, body.apiKey), cache: "no-store" });
     if (!response.ok) {
-      const message = body.provider === "minimax"
+      const message = body.provider === "google"
+        ? await googleUpstreamFailureMessage(response, "模型目录请求")
+        : body.provider === "minimax"
         ? miniMaxFailureMessage(
           response.status,
           "directory",

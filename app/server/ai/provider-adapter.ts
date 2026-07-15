@@ -1,5 +1,6 @@
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent, AiSpeechRequest, AiTranscriptionRequest, AiTranscriptionResult, ChatMessage, ChatMessageContent } from "../../services/api-client";
 import { getProviderContract } from "../../services/provider-contracts.ts";
+import { normalizeGoogleApiBaseUrl } from "../../services/google-connection.ts";
 import { miniMaxBearerHeaders, normalizeMiniMaxAnthropicBaseUrl } from "../../services/minimax-connection.ts";
 import { mapProviderRuntimeOptions } from "./runtime-option-mappers/index.ts";
 
@@ -104,7 +105,7 @@ function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const { system, conversation } = splitSystemMessages(input.messages);
   const runtime = mapProviderRuntimeOptions(input.provider, input);
   return {
-    url: `${normalizeBaseUrl(input.baseUrl)}/models/${encodeURIComponent(input.model)}:${input.stream ? "streamGenerateContent?alt=sse" : "generateContent"}`,
+    url: `${normalizeGoogleApiBaseUrl(input.baseUrl)}/models/${encodeURIComponent(input.model)}:${input.stream ? "streamGenerateContent?alt=sse" : "generateContent"}`,
     headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json", ...runtime.headers },
     body: {
       ...runtime.requestFields,
@@ -112,7 +113,7 @@ function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
       contents: conversation.map((message) => ({ role: message.role === "assistant" ? "model" : "user", parts: toGeminiParts(message.content) })),
       generationConfig: {
         maxOutputTokens: input.maxOutputTokens,
-        temperature: input.temperature ?? 0.1,
+        ...(!runtime.omitTemperature ? { temperature: input.temperature ?? 0.1 } : {}),
         ...runtime.generationFields,
         ...(input.structuredOutput ? { responseMimeType: "application/json", responseJsonSchema: input.structuredOutput.schema } : {}),
       },

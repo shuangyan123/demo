@@ -51,7 +51,7 @@ test("Google Gemini fixture：原生 generateContent 请求和响应均被归一
   assert.deepEqual(request.body, {
     systemInstruction: { parts: [{ text: "系统约束" }] },
     contents: [{ role: "user", parts: [{ text: "测试问题" }] }],
-    generationConfig: { maxOutputTokens: 321, temperature: 0.2 },
+    generationConfig: { maxOutputTokens: 321 },
   });
   assert.deepEqual(
     parseGenerateProviderResponse(input, { candidates: [{ content: { parts: [{ text: "完成" }] } }], usageMetadata: { promptTokenCount: 7, candidatesTokenCount: 3, totalTokenCount: 10 } }, new Headers()),
@@ -79,7 +79,9 @@ test("OpenAI 与 Gemini 只在明确选择快速模式时发送官方 service ti
   const openai = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", model: "gpt-5.5", runtime: { speed: "priority" } });
   const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-3.5-flash", runtime: { speed: "priority" } });
   assert.equal((openai.body as Record<string, unknown>).service_tier, "priority");
-  assert.equal((google.body as Record<string, unknown>).service_tier, "priority");
+  assert.equal((google.body as Record<string, unknown>).serviceTier, "priority");
+  assert.equal("service_tier" in (google.body as Record<string, unknown>), false);
+  assert.equal("temperature" in (google.body as { generationConfig: Record<string, unknown> }).generationConfig, false);
   const standard = buildGenerateProviderRequest({ ...baseGenerate, provider: "openai", model: "gpt-5.5", runtime: { speed: "standard" } });
   assert.equal("service_tier" in (standard.body as Record<string, unknown>), false);
 });
@@ -91,7 +93,7 @@ test("七家厂商按具体模型映射推理与速度运行值", () => {
 
   const google = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-3.5-flash", runtime: { reasoning: "low", speed: "priority" } });
   assert.deepEqual((google.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingLevel: "low" });
-  assert.equal((google.body as { service_tier: string }).service_tier, "priority");
+  assert.equal((google.body as { serviceTier: string }).serviceTier, "priority");
 
   const claude = buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", model: "claude-opus-4-8", runtime: { reasoning: "xhigh", speed: "fast" } });
   assert.deepEqual((claude.body as { thinking: unknown }).thinking, { type: "adaptive" });

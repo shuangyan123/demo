@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from "../../../services/api-client";
 import { getProviderAdapter } from "../../../server/ai/provider-adapter-registry.ts";
 import { miniMaxFailureMessage } from "../../../services/minimax-connection.ts";
+import { googleUpstreamFailureMessage } from "../../../server/ai/google-error.ts";
 
 // 校验统一生成请求的最小字段，避免把任意 URL 或空密钥转发到外部服务。
 function isGenerateRequest(value: unknown): value is AiGenerateRequest {
@@ -102,7 +103,10 @@ export async function POST(request: Request) {
       cache: "no-store",
     });
     if (!response.ok) {
-      return new NextResponse(providerFailureMessage(response.status, body), { status: response.status });
+      const message = body.provider === "google"
+        ? await googleUpstreamFailureMessage(response)
+        : providerFailureMessage(response.status, body);
+      return new NextResponse(message, { status: response.status });
     }
     if (body.stream) return pipeProviderStream(body, response);
     const payload: unknown = await response.json();
