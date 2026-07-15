@@ -180,6 +180,7 @@ export async function requestKnowledgeEvolutionProposals(input: {
     connectionLabel: input.connection.label,
     model: modelId,
     label: `${input.connection.provider} · ${modelId}`,
+    presentation: "background" as const,
   };
   emitAiActivity({ ...activityBase, phase: "started", stepId: "context", text: `准备 ${input.sources.length} 条来源、${input.entries.length} 条候选知识` });
   emitAiActivity({ ...activityBase, phase: "waiting", stepId: "connection", text: `使用 ${input.connection.label} / ${modelId}` });

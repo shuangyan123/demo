@@ -6,7 +6,6 @@ import type { AppearanceSettings, PersonalizationSettings } from "../../types/re
 import { LocalDiagnosticsPanel } from "../diagnostics/local-diagnostics-panel";
 import { useLocalDiagnostics, type LocalDiagnosticAction, type LocalDiagnosticsHookInput } from "../diagnostics/use-local-diagnostics";
 import { SidebarNav, WorkspaceShell } from "../shared/workspace-shell";
-import { AiActivityPanel } from "../shared/ai-activity-panel";
 import { ApiConnectionsSettingsView } from "./api-connections-settings-view";
 import { AppearanceSettingsView, SettingsNavIcon, type SettingsIconName } from "./appearance-settings-view";
 import { McpSettingsView } from "./mcp-settings-view";
@@ -120,7 +119,6 @@ export function SettingsWorkspace({
       }
     >
       <div key={activeSection} className="settings-section-enter settings-section-layout">{renderSection()}</div>
-      <AiActivityPanel />
       {toast ? <div className="ui-toast fixed left-1/2 top-14 z-50 -translate-x-1/2 border border-line bg-surface px-4 py-2 text-sm">{toast}</div> : null}
     </WorkspaceShell>
   );

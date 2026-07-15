@@ -20,6 +20,8 @@ function buildSafeDiagnostic(run: AiActivityRun): string {
   return [
     `provider=${run.provider ?? "unknown"}`,
     `model=${run.model ?? "unknown"}`,
+    `protocol=${run.generationProtocol ?? "provider-default"}`,
+    `stage=${run.state === "error" ? "receive-response" : run.phase}`,
     `state=${run.state}`,
     `durationMs=${Math.max(0, Date.parse(run.updatedAt) - Date.parse(run.startedAt))}`,
     run.error ? `error=${run.error}` : "result=ok",
@@ -30,14 +32,20 @@ function buildSafeDiagnostic(run: AiActivityRun): string {
 export function CompactAiTestCard({ run, onDismiss }: CompactAiTestCardProps) {
   const duration = Math.max(0, Date.parse(run.updatedAt) - Date.parse(run.startedAt));
   const providerLabel = run.provider ? getProviderContract(run.provider).label : run.connectionLabel ?? "连接测试";
-  const requestStep = run.steps.find((step) => step.id === "request") ?? run.steps.find((step) => step.label.includes("调用"));
-  const contextStep = run.steps.find((step) => step.id === "context") ?? run.steps[0];
-  const stages = [
-    { label: "正在连接到服务", done: Boolean(contextStep) || run.state !== "running", error: false },
-    { label: "验证 API Key", done: contextStep?.state === "done" || run.state === "done", error: contextStep?.state === "error" },
-    { label: "发送测试请求", done: requestStep?.state === "done" || run.state === "done", error: requestStep?.state === "error" },
-    { label: "接收响应", done: run.state === "done", error: run.state === "error" },
-  ];
+  const hasRequest = run.steps.some((step) => step.id === "request");
+  const hasResponse = run.steps.some((step) => step.id === "usage" || step.id === "done");
+  const activeStage = run.state === "done" ? 4 : run.state === "error" ? 3 : hasResponse ? 3 : hasRequest ? 2 : 0;
+  const labels = ["连接服务", "验证 API Key", "发送测试请求", "接收响应"];
+  const stages = labels.map((label, index) => ({
+    label,
+    status: run.state === "done" || index < activeStage
+      ? "done" as const
+      : run.state === "error" && index === activeStage
+        ? "error" as const
+        : index === activeStage
+          ? "running" as const
+          : "idle" as const,
+  }));
 
   useEffect(() => {
     if (run.state !== "done") return;
@@ -60,9 +68,9 @@ export function CompactAiTestCard({ run, onDismiss }: CompactAiTestCardProps) {
           {stages.map((stage) => (
             <li key={stage.label} className="grid min-h-8 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-[13px]">
               <span className="truncate text-muted">{stage.label}</span>
-              <span className={cx("inline-flex items-center gap-1 text-xs", stage.error ? "text-danger" : stage.done ? "text-green" : "text-muted")}>
-                {stage.error ? "失败" : stage.done ? "已完成" : "进行中"}
-                {stage.done && !stage.error ? <AppIcon name="check" size={16} /> : null}
+              <span className={cx("inline-flex items-center gap-1 text-xs", stage.status === "error" ? "text-danger" : stage.status === "done" ? "text-green" : "text-muted")}>
+                {stage.status === "error" ? "失败" : stage.status === "done" ? "已完成" : stage.status === "running" ? "进行中" : "未执行"}
+                {stage.status === "done" ? <AppIcon name="check" size={16} /> : null}
               </span>
             </li>
           ))}

@@ -1,4 +1,5 @@
 import type { ApiProvider } from "../types/domains/ai-provider";
+import type { AiGenerationProtocol } from "../types/domains/ai-model";
 
 export type AiActivityEventDetail = {
   phase: "started" | "waiting" | "delta" | "usage" | "done" | "error";
@@ -14,7 +15,8 @@ export type AiActivityEventDetail = {
   state?: "pending" | "running" | "done" | "error";
   connectionLabel?: string;
   provider?: ApiProvider;
-  presentation?: "conversation" | "compact-test";
+  generationProtocol?: AiGenerationProtocol;
+  presentation?: "conversation" | "compact-test" | "background";
   model?: string;
   attachments?: Array<{ id: string; label: string; kind: "image" | "file" | "vault" | "context" }>;
   toolDisplayMode?: "inline" | "drawer";
@@ -41,7 +43,8 @@ export type AiActivityRun = {
   purpose?: string;
   connectionLabel?: string;
   provider?: ApiProvider;
-  presentation: "conversation" | "compact-test";
+  generationProtocol?: AiGenerationProtocol;
+  presentation: "conversation" | "compact-test" | "background";
   model?: string;
   attachments: Array<{ id: string; label: string; kind: "image" | "file" | "vault" | "context" }>;
   toolDisplayMode: "inline" | "drawer";
@@ -124,6 +127,7 @@ export function reduceAiActivityRuns(
     purpose: event.purpose,
     connectionLabel: event.connectionLabel,
     provider: event.provider,
+    generationProtocol: event.generationProtocol,
     presentation: event.presentation ?? "conversation",
     model: event.model,
     attachments: event.attachments ?? [],
@@ -135,7 +139,11 @@ export function reduceAiActivityRuns(
     startedAt: now,
     updatedAt: now,
   };
-  const steps = [...base.steps.filter((step) => step.id !== stepId), nextStep];
+  // 新阶段开始时完成前一阶段，保证紧凑测试卡任意时刻只有一个进行中状态。
+  const settledSteps = base.steps
+    .filter((step) => step.id !== stepId)
+    .map((step) => step.state === "running" ? { ...step, state: "done" as const, updatedAt: now } : step);
+  const steps = [...settledSteps, nextStep];
   const streamText = event.phase === "delta" && event.text ? `${base.streamText}${event.text}` : base.streamText;
   const nextRun: AiActivityRun = {
     ...base,
@@ -148,6 +156,7 @@ export function reduceAiActivityRuns(
     purpose: event.purpose ?? base.purpose,
     connectionLabel: event.connectionLabel ?? base.connectionLabel,
     provider: event.provider ?? base.provider,
+    generationProtocol: event.generationProtocol ?? base.generationProtocol,
     presentation: event.presentation ?? base.presentation,
     model: event.model ?? base.model,
     attachments: event.attachments ?? base.attachments,

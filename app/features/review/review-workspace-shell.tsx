@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { toISODate } from "../../lib/review-utils";
 import type { AiConversation, AiConversationFolder, ViewKey } from "../../types/review";
 import { Button } from "../shared/ui-primitives";
-import { AiActivityPanel } from "../shared/ai-activity-panel";
 import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
 import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../study/study-registry";
 import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
@@ -222,7 +221,6 @@ export function ReviewWorkspaceShell({
         />
       ) : null}
       {children}
-      <AiActivityPanel />
     </WorkspaceShell>
   );
 }

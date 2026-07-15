@@ -41,7 +41,7 @@ export type AiGenerateRequest = {
     module?: string;
     purpose?: string;
     connectionLabel?: string;
-    presentation?: "conversation" | "compact-test";
+    presentation?: "conversation" | "compact-test" | "background";
   };
 };
 
@@ -143,6 +143,7 @@ export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenera
     presentation: input.activity?.presentation,
     provider: input.provider,
     model: input.model,
+    generationProtocol: input.generationProtocol,
   };
   emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在准备 AI 请求" });
   emitAiActivity({ ...activityBase, phase: "waiting", label: `${input.provider} · ${input.model}`, stepId: "request", text: "正在调用模型" });
@@ -176,6 +177,7 @@ export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGene
     presentation: input.activity?.presentation,
     provider: input.provider,
     model: input.model,
+    generationProtocol: input.generationProtocol,
   };
   emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在建立流式连接" });
   const response = await fetch("/api/ai/generate", {
