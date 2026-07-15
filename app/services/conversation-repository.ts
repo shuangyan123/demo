@@ -1,5 +1,4 @@
 import { reviewDb } from "../db/review-db.ts";
-import { toISODate } from "../lib/review-utils.ts";
 import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
 import { legacyRuntimeValues } from "./model-runtime-descriptors.ts";
 import type {
@@ -44,6 +43,8 @@ export type CreateConversationInput = {
 
 export type AppendConversationMessageInput = {
   conversationId: string;
+  turnId?: string;
+  sequence?: number;
   role: AiConversationRole;
   content: string;
   attachmentIds?: string[];
@@ -54,6 +55,9 @@ export type AppendConversationMessageInput = {
 export type AppendConversationRunStepInput = {
   conversationId: string;
   runId: string;
+  turnId?: string;
+  ordinal?: number;
+  visibility?: AiConversationRunStep["visibility"];
   label: string;
   state: AiConversationRunStep["state"];
   text?: string;
@@ -66,7 +70,25 @@ export type CreateConversationAttachmentInput = Omit<AiConversationAttachment, "
 };
 
 function nowIso(today = new Date()): string {
-  return toISODate(today);
+  return today.toISOString();
+}
+
+const roleOrder: Record<AiConversationRole, number> = { system: -1, user: 0, assistant: 2, tool: 1 };
+
+/** IndexedDB 的相同索引值会按 UUID 回退；读取边界必须显式恢复业务顺序。 */
+export function compareConversationMessages(left: AiConversationMessage, right: AiConversationMessage): number {
+  return left.conversationId.localeCompare(right.conversationId)
+    || left.createdAt.localeCompare(right.createdAt)
+    || (left.sequence ?? roleOrder[left.role]) - (right.sequence ?? roleOrder[right.role])
+    || left.id.localeCompare(right.id);
+}
+
+/** 工具步骤优先使用显式 ordinal，旧记录再按时间和 ID 稳定排序。 */
+export function compareConversationRunSteps(left: AiConversationRunStep, right: AiConversationRunStep): number {
+  return left.conversationId.localeCompare(right.conversationId)
+    || left.createdAt.localeCompare(right.createdAt)
+    || (left.ordinal ?? 0) - (right.ordinal ?? 0)
+    || left.id.localeCompare(right.id);
 }
 
 function previewText(value: string): string {
@@ -128,7 +150,14 @@ export const conversationRepository = {
       ...conversation,
       selectedRuntimeValues: conversation.selectedRuntimeValues ?? legacyRuntimeValues(conversation.selectedReasoningEffort, conversation.selectedSpeedMode),
     }));
-    return { projects, folders, conversations: normalizedConversations, attachments, messages, runSteps };
+    return {
+      projects,
+      folders,
+      conversations: normalizedConversations,
+      attachments,
+      messages: messages.toSorted(compareConversationMessages),
+      runSteps: runSteps.toSorted(compareConversationRunSteps),
+    };
   },
 
   async createFolder(input: { projectId?: string; parentId?: string; label: string; today?: Date }): Promise<AiConversationFolder> {
@@ -279,6 +308,8 @@ export const conversationRepository = {
     const message: AiConversationMessage = {
       id: crypto.randomUUID(),
       conversationId: input.conversationId,
+      turnId: input.turnId,
+      sequence: input.sequence,
       role: input.role,
       content: input.content,
       attachmentIds: input.attachmentIds ?? [],
@@ -308,6 +339,9 @@ export const conversationRepository = {
       id: crypto.randomUUID(),
       conversationId: input.conversationId,
       runId: input.runId,
+      turnId: input.turnId ?? input.runId,
+      ordinal: input.ordinal,
+      visibility: input.visibility,
       label: input.label,
       state: input.state,
       text: input.text,

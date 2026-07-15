@@ -2,6 +2,7 @@ import type { AiConversationRunStep } from "../types/review.ts";
 
 export type ConversationToolRunSummary = {
   runId: string;
+  turnId?: string;
   label: string;
   state: "running" | "done" | "error";
   steps: AiConversationRunStep[];
@@ -17,20 +18,24 @@ export function summarizeConversationRunSteps(steps: AiConversationRunStep[]): C
   }
 
   return Array.from(groups.entries())
-    .map(([runId, items]) => {
-      const sorted = items.toSorted((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .flatMap(([runId, items]): ConversationToolRunSummary[] => {
+      const sorted = items.toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.ordinal ?? 0) - (b.ordinal ?? 0) || a.id.localeCompare(b.id));
+      const visible = sorted.filter((step) => step.visibility === "timeline" || step.state === "error");
+      if (!visible.length) return [];
       const state: ConversationToolRunSummary["state"] = sorted.some((step) => step.state === "error")
         ? "error"
         : sorted.some((step) => step.state === "running" || step.state === "pending")
           ? "running"
           : "done";
-      return {
+      const turnId = sorted[0]?.turnId;
+      return [{
         runId,
-        label: state === "error" ? "运行失败" : state === "running" ? "正在运行..." : `已运行 ${sorted.length} 条命令`,
+        ...(turnId ? { turnId } : {}),
+        label: state === "error" ? "运行失败" : state === "running" ? "正在运行..." : `已使用 ${visible.length} 个工具`,
         state,
-        steps: sorted,
+        steps: visible,
         updatedAt: sorted.reduce((latest, step) => step.updatedAt > latest ? step.updatedAt : latest, sorted[0]?.updatedAt ?? ""),
-      };
+      }];
     })
     .toSorted((a, b) => a.updatedAt.localeCompare(b.updatedAt));
 }

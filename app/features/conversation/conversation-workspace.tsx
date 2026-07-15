@@ -8,42 +8,21 @@ import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues } from ".
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
 import { buildPersonalMemoryContext } from "../../services/personal-memory-context.ts";
 import type { ChatMessageContent } from "../../services/api-client.ts";
-import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository.ts";
-import { summarizeConversationRunSteps } from "../../services/conversation-tool-summary.ts";
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { AiConversation, ApiConnectionProfile, KnowledgeEntry, KnowledgeEvolutionProposal, PersonalizationSettings } from "../../types/review";
-import { cx } from "../shared/ui-primitives";
+import { conversationRepository } from "../../services/conversation-repository.ts";
+import { buildConversationTurnTimeline } from "../../services/conversation-turns.ts";
+import type { KnowledgeEvolutionProposal } from "../../types/review";
 import { AppIcon } from "../shared/app-icon";
-import type { ConversationLaunchContext } from "./conversation-launch-context";
 import { persistDraftAttachmentSummaries, type DraftAttachment } from "./conversation-attachment-utils";
-import { conversationProviderErrorMessage, formatConversationTime, readBlobAsDataUrl, toConversationChatHistory } from "./conversation-message-utils";
+import { conversationProviderErrorMessage, readBlobAsDataUrl, toConversationChatHistory } from "./conversation-message-utils";
 import { useConversationVisionTools } from "./use-conversation-vision-tools";
 import { ConversationComposer, type ConversationComposerHandle } from "./conversation-composer";
 import { ConversationMcpToolPanel } from "./conversation-mcp-tool-panel";
 import { ConversationProposalBlock } from "./conversation-proposal-block";
-import { ConversationToolRunSummary } from "./conversation-tool-run-summary";
+import { ConversationTurnList } from "./conversation-turn-list";
+import type { ConversationWorkspaceProps } from "./conversation-workspace-types";
 import { useConversationModelSelection } from "./use-conversation-model-selection";
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
 
-type ConversationWorkspaceProps = {
-  activeConversationId?: string | null;
-  connections: ApiConnectionProfile[];
-  defaultSelections?: { text?: { connectionId?: string; modelId?: string }; vision?: { connectionId?: string; modelId?: string } };
-  knowledgeEntries: KnowledgeEntry[];
-  launchContext?: ConversationLaunchContext | null;
-  personalization: PersonalizationSettings;
-  scheduledCount: number;
-  snapshot: ConversationSnapshot;
-  transcriptionConnection?: ApiConnectionProfile;
-  onCreateConversation: (input?: { selectedConnectionId?: string; selectedModelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues }) => Promise<AiConversation>;
-  onConversationSelected: (id: string) => void;
-  onOpenConnections: () => void;
-  onOpenKnowledge: () => void;
-  onOpenTutoringRecords: () => void;
-  onRefresh: () => Promise<void>;
-  onNotice: (message: string) => void;
-  onClearLaunchContext: () => void;
-};
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({
   activeConversationId,
@@ -66,6 +45,7 @@ export function ConversationWorkspace({
 }: ConversationWorkspaceProps) {
   const [draft, setDraft] = useState(() => launchContext?.suggestedPrompt ?? "");
   const [assistantDraft, setAssistantDraft] = useState("");
+  const [activeTurnId, setActiveTurnId] = useState<string>();
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [moveDrawerOpen, setMoveDrawerOpen] = useState(false);
@@ -83,6 +63,7 @@ export function ConversationWorkspace({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const realtimeConversationIdRef = useRef<string | undefined>(undefined);
+  const runStepOrdinalsRef = useRef(new Map<string, number>());
   const { capture: captureVision, mode: visionMode, start: startVision, stop: stopVision, videoRef: visionVideoRef } = useConversationVisionTools(onNotice);
   const conversations = useMemo(() => snapshot.conversations.filter((conversation) => conversation.status === "active"), [snapshot.conversations]);
   const activeConversation = activeConversationId === null ? null : conversations.find((conversation) => conversation.id === activeConversationId) ?? conversations[0] ?? null;
@@ -113,8 +94,16 @@ export function ConversationWorkspace({
   const runtimeDescriptor = effectiveConnection && selectedModelId ? getAiModelRuntimeDescriptor(effectiveConnection.provider, selectedModelId) : undefined;
   const selectedRuntimeValues = runtimeDescriptor ? normalizeAiSelectedRuntimeValues(runtimeDescriptor, storedRuntimeValues) : storedRuntimeValues;
   const messages = useMemo(() => snapshot.messages.filter((message) => message.conversationId === activeConversation?.id), [activeConversation?.id, snapshot.messages]);
-  const runSteps = useMemo(() => snapshot.runSteps.filter((step) => step.conversationId === activeConversation?.id).slice(-20), [activeConversation?.id, snapshot.runSteps]);
-  const latestRunSummary = useMemo(() => summarizeConversationRunSteps(runSteps).at(-1), [runSteps]);
+  const runSteps = useMemo(() => snapshot.runSteps.filter((step) => step.conversationId === activeConversation?.id).slice(-100), [activeConversation?.id, snapshot.runSteps]);
+  const timeline = useMemo(() => buildConversationTurnTimeline(messages, runSteps), [messages, runSteps]);
+  const diagnostics = useMemo(() => {
+    const groups = new Map<string, typeof runSteps>();
+    for (const step of runSteps) {
+      if (step.visibility !== "diagnostic" || !step.turnId) continue;
+      groups.set(step.turnId, [...(groups.get(step.turnId) ?? []), step]);
+    }
+    return groups;
+  }, [runSteps]);
 
   useEffect(() => {
     if (activeConversationId === undefined && activeConversation?.id) onConversationSelected(activeConversation.id);
@@ -131,8 +120,10 @@ export function ConversationWorkspace({
     });
     return () => { active = false; };
   }, [activeConversation?.id]);
-  async function appendStep(conversationId: string, runId: string, label: string, state: "pending" | "running" | "done" | "error", text?: string) {
-    await conversationRepository.appendRunStep({ conversationId, runId, label, state, text });
+  async function appendStep(conversationId: string, runId: string, label: string, state: "pending" | "running" | "done" | "error", text?: string, visibility: "timeline" | "diagnostic" = "diagnostic") {
+    const ordinal = runStepOrdinalsRef.current.get(runId) ?? 0;
+    runStepOrdinalsRef.current.set(runId, ordinal + 1);
+    await conversationRepository.appendRunStep({ conversationId, runId, turnId: runId, ordinal, visibility, label, state, text });
   }
   /** 首条最终用户转写出现时才创建空白对话；增量转写和音频永不持久化。 */
   async function persistRealtimeTranscript(role: "user" | "assistant", text: string) {
@@ -194,6 +185,7 @@ export function ConversationWorkspace({
     let conversation = activeConversation;
     let createdFromDraft = false;
     const runId = crypto.randomUUID();
+    setActiveTurnId(runId);
     try {
       const flushed = await flushPendingSelection();
       if (!flushed.ok) return;
@@ -223,7 +215,8 @@ export function ConversationWorkspace({
         createdFromDraft = true;
       }
       const persistedAttachments = await persistDraftAttachmentSummaries(conversation.id, attachments);
-      await conversationRepository.appendMessage({ conversationId: conversation.id, role: "user", content: content || "已添加附件", attachmentIds: persistedAttachments.map((item) => item.id) });
+      await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: runId, sequence: 0, role: "user", content: content || "已添加附件", attachmentIds: persistedAttachments.map((item) => item.id) });
+      await onRefresh();
       await appendStep(conversation.id, runId, "准备上下文", "done", `已读取会话摘要和 ${persistedAttachments.length} 个附件摘要`);
       await appendStep(conversation.id, runId, "选择模型", "done", `${submissionConnection.label} / ${submissionModelId}`);
       emitAiActivity({ runId, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId, phase: "started", label: `${submissionConnection.provider} / ${submissionModelId}`, module: "对话", purpose: conversation.kind, stepId: "context", text: "准备当前会话上下文", toolDisplayMode: "inline" });
@@ -253,7 +246,7 @@ export function ConversationWorkspace({
         usage = result.usage;
         actualSpeed = result.actualSpeed;
       }
-      await conversationRepository.appendMessage({ conversationId: conversation.id, role: "assistant", content: finalContent.trim() || "模型没有返回文本。" });
+      await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: runId, sequence: 2, role: "assistant", content: finalContent.trim() || "模型没有返回文本。" });
       if (submissionRuntimeValues && Object.keys(submissionRuntimeValues).length) {
         const selected = [submissionRuntimeValues.reasoning !== undefined ? `推理 ${submissionRuntimeValues.reasoning}` : "", submissionRuntimeValues.speed ? `速度 ${submissionRuntimeValues.speed}` : ""].filter(Boolean).join(" · ");
         await appendStep(conversation.id, runId, "运行档位", "done", `${selected}${submissionRuntimeValues.speed ? ` / 实际 ${actualSpeed ?? "未返回"}` : ""}`);
@@ -274,6 +267,8 @@ export function ConversationWorkspace({
     } finally {
       setBusy(false);
       setAssistantDraft("");
+      setActiveTurnId(undefined);
+      runStepOrdinalsRef.current.delete(runId);
       if (createdFromDraft && conversation) {
         onConversationSelected(conversation.id);
         onClearLaunchContext();
@@ -342,18 +337,18 @@ export function ConversationWorkspace({
         const query = (draft.trim() || messages.at(-1)?.content || "").toLowerCase();
         const matches = knowledgeEntries.filter((entry) => `${entry.title} ${entry.summary} ${entry.tags.join(" ")}`.toLowerCase().includes(query)).slice(0, 5);
         setKnowledgeContext(matches.map((entry) => `${entry.title}：${entry.summary}`).join("\n"));
-        await appendStep(conversation.id, runId, "检索知识库", "done", matches.length ? matches.map((entry) => entry.title).join("、") : "未找到匹配知识，仅保留查询草稿");
+        await appendStep(conversation.id, runId, "检索知识库", "done", matches.length ? matches.map((entry) => entry.title).join("、") : "未找到匹配知识，仅保留查询草稿", "timeline");
         onNotice(matches.length ? `已选择 ${matches.length} 条知识摘要，将加入下一轮上下文` : "没有找到匹配知识");
       }
       if (kind === "attachments") {
         const textFiles = attachments.filter((attachment) => attachment.kind === "file");
-        await appendStep(conversation.id, runId, "解析附件草稿", "done", textFiles.length ? `已准备 ${textFiles.length} 个文档摘要；确认发送后才写入会话。` : "请先选择文档、图片或音频文件");
+        await appendStep(conversation.id, runId, "解析附件草稿", "done", textFiles.length ? `已准备 ${textFiles.length} 个文档摘要；确认发送后才写入会话。` : "请先选择文档、图片或音频文件", "timeline");
       }
       if (kind === "obsidian") {
-        await appendStep(conversation.id, runId, "Obsidian 演进提案", "pending", "已打开知识库；提案和 Vault 写入仍需在知识库中确认。");
+        await appendStep(conversation.id, runId, "Obsidian 演进提案", "pending", "已打开知识库；提案和 Vault 写入仍需在知识库中确认。", "timeline");
         onOpenKnowledge();
       }
-      if (kind === "scheduled") await appendStep(conversation.id, runId, "已安排摘要", "done", scheduledCount ? `当前有 ${scheduledCount} 个已安排任务。` : "当前没有已安排任务。");
+      if (kind === "scheduled") await appendStep(conversation.id, runId, "已安排摘要", "done", scheduledCount ? `当前有 ${scheduledCount} 个已安排任务。` : "当前没有已安排任务。", "timeline");
       await onRefresh();
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "工具调用失败");
@@ -363,7 +358,7 @@ export function ConversationWorkspace({
   async function recordMcpExecution(label: string, summary: string) {
     if (!activeConversation) return;
     const runId = crypto.randomUUID();
-    await appendStep(activeConversation.id, runId, `MCP · ${label}`, "done", summary);
+    await appendStep(activeConversation.id, runId, `MCP · ${label}`, "done", summary, "timeline");
     await onRefresh();
   }
 
@@ -372,7 +367,7 @@ export function ConversationWorkspace({
     const runId = crypto.randomUUID();
     setProposalBusy(true);
     try {
-      await appendStep(activeConversation.id, runId, "收集提案来源", "done", `当前对话 · ${proposalKnowledgeIds.length} 条已勾选知识`);
+      await appendStep(activeConversation.id, runId, "收集提案来源", "done", `当前对话 · ${proposalKnowledgeIds.length} 条已勾选知识`, "timeline");
       const conversationText = messages.slice(-12).map((message) => `${message.role}: ${message.content}`).join("\n").slice(0, 7000);
       const selectedKnowledge = knowledgeEntries.filter((entry) => proposalKnowledgeIds.includes(entry.id));
       const sources = [
@@ -380,7 +375,7 @@ export function ConversationWorkspace({
         ...selectedKnowledge.map((entry) => ({ id: `knowledge:${entry.id}`, type: "knowledge" as const, title: entry.title, content: `${entry.summary}\n${entry.content}`.slice(0, 2000), tags: entry.tags })),
       ].filter((source) => source.content.trim());
       if (!sources.length) throw new Error("当前对话还没有可用于提案的内容");
-      await appendStep(activeConversation.id, runId, "调用模型生成提案", "running", `${effectiveConnection.label} / ${selectedModelId}`);
+      await appendStep(activeConversation.id, runId, "调用模型生成提案", "running", `${effectiveConnection.label} / ${selectedModelId}`, "timeline");
       const [{ requestKnowledgeEvolutionProposals }, { obsidianKnowledgeRepository }] = await Promise.all([
         import("../../services/knowledge-evolution-service"), import("../../services/obsidian-knowledge-repository"),
       ]);
@@ -389,7 +384,7 @@ export function ConversationWorkspace({
       const linked = result.proposals.map((proposal) => ({ ...proposal, conversationId: activeConversation.id, runId }));
       await obsidianKnowledgeRepository.saveProposals(linked);
       setConversationProposals((current) => [...linked, ...current]);
-      await appendStep(activeConversation.id, runId, "解析并保存 pending", "done", `解析 ${result.parsedCount} 条，过滤 ${result.filteredCount} 条，保存 ${linked.length} 条`);
+      await appendStep(activeConversation.id, runId, "解析并保存 pending", "done", `解析 ${result.parsedCount} 条，过滤 ${result.filteredCount} 条，保存 ${linked.length} 条`, "timeline");
       setProposalPanelOpen(false);
       await onRefresh();
       onNotice(linked.length ? `已在对话内生成 ${linked.length} 条 Obsidian 提案` : result.emptyReason ?? "模型没有返回可用提案");
@@ -428,7 +423,7 @@ export function ConversationWorkspace({
     <section className="conversation-workspace" aria-label="AI 对话工作台">
       <div className="conversation-main">
         <header className="conversation-thread-header">
-          <div className="min-w-0"><p className="text-xs text-muted">公考 / AI 对话</p><h1 className="truncate text-xl font-semibold">{activeConversation?.title ?? ""}</h1></div>
+          <div className="min-w-0"><h1 className="truncate text-base font-semibold">{activeConversation?.title ?? "新对话"}</h1></div>
           {activeConversation ? <button className="conversation-header-action" type="button" title="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button> : null}
         </header>
         {launchContext && !activeConversation ? (
@@ -439,10 +434,8 @@ export function ConversationWorkspace({
         ) : null}
         <div className="conversation-message-list">
           {!activeConversation || !messages.length ? <div className="conversation-empty-prompt"><h2>从一个问题开始</h2><p>发送首条消息后才会创建对话。可添加文档、图片、音频，或按住麦克风录音。</p></div> : null}
-          {messages.map((message) => <article key={message.id} className={cx("conversation-message", message.role === "user" ? "is-user" : "is-assistant")}><div className="conversation-message-bubble"><div className="mb-1 flex items-center justify-between gap-3 text-xs text-muted"><span>{message.role === "user" ? "你" : message.role === "assistant" ? "AI" : message.role}</span><span>{formatConversationTime(message.createdAt)}</span></div><p>{message.content}</p></div></article>)}
-          {assistantDraft ? <article className="conversation-message is-assistant"><div className="conversation-message-bubble"><div className="mb-1 text-xs text-muted">AI 正在输入</div><p>{assistantDraft}</p></div></article> : null}
+          <ConversationTurnList timeline={timeline} activeTurnId={activeTurnId} assistantDraft={assistantDraft} diagnostics={diagnostics} />
           {conversationProposals.map((proposal) => <ConversationProposalBlock key={proposal.id} proposal={proposal} busy={proposalBusy} onAccept={() => void updateConversationProposal(proposal, "accept")} onReject={() => void updateConversationProposal(proposal, "reject")} />)}
-          {latestRunSummary ? <ConversationToolRunSummary summary={latestRunSummary} /> : null}
           <div ref={bottomRef} />
         </div>
         {visionMode ? (

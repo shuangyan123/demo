@@ -1018,6 +1018,10 @@ export type AiConversation = {
 export type AiConversationMessage = {
   id: string;
   conversationId: string;
+  /** 同一轮用户消息、工具步骤和 AI 回复共享的稳定标识。 */
+  turnId?: string;
+  /** 同一轮内的稳定显示顺序；旧数据缺少时由 repository 兼容排序。 */
+  sequence?: number;
   role: AiConversationRole;
   content: string;
   attachmentIds: string[];
@@ -1029,6 +1033,10 @@ export type AiConversationRunStep = {
   id: string;
   conversationId: string;
   runId: string;
+  turnId?: string;
+  ordinal?: number;
+  /** timeline 进入主对话链，diagnostic 仅保留给错误与诊断详情。 */
+  visibility?: "timeline" | "diagnostic";
   label: string;
   state: "pending" | "running" | "done" | "error";
   text?: string;

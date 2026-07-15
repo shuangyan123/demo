@@ -58,7 +58,7 @@ test("conversation folders support nesting, rename, move and attachment summarie
     summary: "图片，124 KB",
     mimeType: "image/png",
     sizeBytes: 126976,
-    createdAt: "2026-07-09",
+    createdAt: "2026-07-09T08:00:00.000Z",
   });
   assert.equal(JSON.stringify(snapshot.attachments).includes("data:image"), false);
 });
@@ -71,6 +71,16 @@ test("conversation model selection persists provider-supported speed without a s
   assert.equal(snapshot.conversations[0]?.selectedModelId, "gpt-next");
   assert.deepEqual(snapshot.conversations[0]?.selectedRuntimeValues, { speed: "standard" });
   assert.equal(snapshot.conversations[0]?.selectedSpeedMode, undefined);
+});
+
+test("同一时间戳的消息按轮次序号稳定保持用户在 AI 之前", async () => {
+  await resetDatabase();
+  const conversation = await conversationRepository.createConversation({ today });
+  await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: "turn-1", sequence: 2, role: "assistant", content: "回答", today });
+  await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: "turn-1", sequence: 0, role: "user", content: "问题", today });
+  const snapshot = await conversationRepository.loadSnapshot(today);
+  assert.deepEqual(snapshot.messages.map((message) => message.role), ["user", "assistant"]);
+  assert.deepEqual(snapshot.messages.map((message) => message.turnId), ["turn-1", "turn-1"]);
 });
 
 test("旧推理与速度字段只在仓储读取时兼容为新运行值", async () => {

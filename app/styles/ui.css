@@ -515,12 +515,12 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 .conversation-thread-header {
   display: flex;
-  min-height: 4.5rem;
+  min-height: 3.25rem;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   border-bottom: 1px solid var(--line);
-  padding: 0.85rem 1rem;
+  padding: 0.55rem 1rem;
 }
 
 .conversation-message-list {
@@ -530,9 +530,14 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   padding: 1.25rem;
 }
 
+.conversation-turn {
+  width: min(100%, 50rem);
+  margin: 0 auto 1.35rem;
+}
+
 .conversation-message {
   display: flex;
-  margin-bottom: 1rem;
+  margin-bottom: 0.65rem;
 }
 
 .conversation-message.is-user {
@@ -553,6 +558,27 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   background: color-mix(in srgb, var(--blue) 7%, var(--surface));
 }
 
+.conversation-message.is-assistant .conversation-message-bubble {
+  width: 100%;
+  max-width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.35rem 0;
+  box-shadow: none;
+}
+
+.conversation-message.is-streaming .conversation-message-bubble::after {
+  content: "";
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.9rem;
+  margin-left: 0.2rem;
+  background: currentColor;
+  opacity: 0.45;
+  vertical-align: -0.1rem;
+}
+
 .conversation-message-bubble p {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -560,9 +586,52 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 }
 
 .conversation-tool-summary {
-  margin: -0.15rem 0 1rem;
+  width: min(100%, 50rem);
+  margin: -0.15rem auto 0.7rem;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.conversation-turn-details {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.conversation-turn-details summary {
+  display: inline-flex;
+  min-height: 1.75rem;
+  cursor: pointer;
+  align-items: center;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.4rem;
+}
+
+.conversation-turn-details summary:hover,
+.conversation-turn-details[open] summary {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.conversation-turn-details ul {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+  border-left: 1px solid var(--line);
+  padding-left: 0.7rem;
+}
+
+.conversation-turn-details li {
+  display: flex;
+  min-width: 0;
+  gap: 0.45rem;
+}
+
+.conversation-turn-details li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .conversation-tool-summary summary {
