@@ -1,5 +1,13 @@
 # 应用架构
 
+## AI 活动、跨厂商上下文与记忆 v2（2026-07-15）
+
+- `AiInteractionPanel` 现在是 `app/page.tsx` 下唯一的应用级活动宿主。`conversation` 事件只写入消息流内的工具摘要；`compact-test` 使用 352px 测试卡；`background` 只渲染一行可关闭状态。设置页和工作台不再各自订阅活动事件。
+- `CanonicalConversationTurn` 以 IndexedDB 中的可见用户/助手消息为事实源，并按附件摘要与可见工具结果补充上下文。未超限时发送完整可见历史；超限时使用会话摘要和最近 12 轮。隐藏思维链、thought signature、厂商缓存与私有工具状态不进入该结构。
+- Google 官方主机的 GenerateContent 固定为 `/v1beta/models/{model}:generateContent`，Interactions 固定为 `/v1beta/interactions`，流式使用 `?alt=sse`。自定义代理保留用户路径，避免错误改写代理版本。
+- 模型目录缓存升级为 v4；Qwen 从 `output.models` 读取分页，Anthropic 使用 `has_more/last_id`。已保存连接测试按“最近成功模型 → 关联默认模型 → 推荐模型”选择。
+- 自动记忆仍保存在 personalization 单例，不升级 Dexie v16。新用户默认开启；旧用户由 v1 开关迁移。明确“记住”本地提取，其他内容按三轮或 45 秒批处理；高置信稳定事实自动生效，学习状态、敏感项和冲突进入待处理，秘密直接丢弃。
+
 ## 模型目录完整性与按轮次对话链（2026-07-15）
 
 - `ModelCatalogSelect` 是连接测试和默认能力的共享选择边界；当前值只决定选中态，不参与候选过滤，手动模型 ID 始终可用。对话模型菜单继续复用同一 `model-directory-service` 数据源。

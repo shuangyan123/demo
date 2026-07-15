@@ -11,7 +11,7 @@ async function openConnections(page: import("@playwright/test").Page): Promise<v
 }
 
 test("编辑草稿测试使用新地址，紧凑结果卡不渲染对话栏", async ({ page }, testInfo) => {
-  const oldProvider = await startMockAiProvider({ protocol: "openai_responses", models: ["gpt-5.5"], response: "OK" });
+  const oldProvider = await startMockAiProvider({ protocol: "openai_responses", models: ["gpt-5.5"], response: "OK", responseDelayMs: 250 });
   const newProvider = await startMockAiProvider({ protocol: "openai_responses", models: ["gpt-5.5"], response: "OK" });
   const runtimeErrors = collectRuntimeErrors(page);
   try {
@@ -27,6 +27,7 @@ test("编辑草稿测试使用新地址，紧凑结果卡不渲染对话栏", as
     await page.getByRole("button", { name: "测试连接" }).click();
     const card = page.getByRole("region", { name: "连接测试结果" });
     await expect(card).toBeVisible();
+    await expect(card.getByText("进行中", { exact: true })).toHaveCount(1);
     const cardBox = await card.boundingBox();
     expect(cardBox?.width).toBeGreaterThanOrEqual(350);
     expect(cardBox?.width).toBeLessThanOrEqual(354);
@@ -89,6 +90,7 @@ test("Gemini 多模态默认模型把图片发送为 inlineData", async ({ page 
     await page.getByRole("textbox", { name: "对话输入" }).fill("描述这张图片");
     await page.getByRole("button", { name: "发送" }).click();
     await expect(page.getByText("图片已识别").last()).toBeVisible();
+    await expect(page.getByText("工具链", { exact: true })).toHaveCount(0);
     const request = provider.requests.findLast((item) => item.method === "POST" && item.url?.includes("streamGenerateContent"));
     const body = request?.body as { contents?: Array<{ parts?: Array<Record<string, unknown>> }> };
     expect(body.contents?.some((content) => content.parts?.some((part) => "inlineData" in part))).toBe(true);

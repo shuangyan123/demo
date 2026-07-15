@@ -18,6 +18,8 @@ export type MockAiProviderOptions = {
   protocol?: "chat_completions" | "openai_responses" | "google_generate_content" | "google_interactions";
   models?: string[];
   actualSpeed?: string;
+  /** 用于验证进行中 UI 与取消流程，默认不延迟。 */
+  responseDelayMs?: number;
   streamCompletionDelayMs?: number;
 };
 
@@ -58,6 +60,7 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
         }
         if (options.protocol === "google_generate_content" && request.method === "POST" && /^\/v1\/models\/[^:]+:(?:generateContent|streamGenerateContent\?alt=sse)$/.test(request.url ?? "")) {
           requests.push(mockRequest);
+          if (options.responseDelayMs) await new Promise((resolve) => setTimeout(resolve, options.responseDelayMs));
           const content = typeof options.response === "function" ? options.response(mockRequest, requests.length - 1) : options.response ?? defaultResponse;
           if (request.url?.includes("streamGenerateContent")) {
             response.writeHead(200, { "Content-Type": "text/event-stream", "x-request-id": `mock-${requests.length}` });
@@ -68,13 +71,14 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
           writeJson(response, 200, { candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 8, totalTokenCount: 20 } });
           return;
         }
-        if (options.protocol === "google_interactions" && request.method === "POST" && request.url === "/v1beta2/interactions") {
+        if (options.protocol === "google_interactions" && request.method === "POST" && request.url === "/v1/interactions") {
           requests.push(mockRequest);
+          if (options.responseDelayMs) await new Promise((resolve) => setTimeout(resolve, options.responseDelayMs));
           const content = typeof options.response === "function" ? options.response(mockRequest, requests.length - 1) : options.response ?? defaultResponse;
           writeJson(response, 200, {
             id: `interaction-${requests.length}`,
             steps: [{ type: "model_output", content: [{ type: "text", text: content }] }],
-            usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 },
+            usage: { total_input_tokens: 12, total_output_tokens: 8, total_tokens: 20 },
           });
           return;
         }
@@ -84,6 +88,7 @@ export async function startMockAiProvider(options: MockAiProviderOptions = {}): 
           return;
         }
         requests.push(mockRequest);
+        if (options.responseDelayMs) await new Promise((resolve) => setTimeout(resolve, options.responseDelayMs));
         const content = typeof options.response === "function"
           ? options.response(mockRequest, requests.length - 1)
           : options.response ?? defaultResponse;

@@ -37,7 +37,7 @@ test("Google 2.5 与 3.5 分别使用 GenerateContent 和 Interactions", async (
     });
     expect(interactionsResponse.ok()).toBe(true);
     expect(await interactionsResponse.json()).toMatchObject({ content: "interaction ok", generationProtocol: "google_interactions" });
-    expect(interactions.requests.at(-1)?.url).toBe("/v1beta2/interactions");
+    expect(interactions.requests.at(-1)?.url).toBe("/v1/interactions");
     expect(interactions.requests.at(-1)?.body).toMatchObject({ store: false, service_tier: "priority", generation_config: { thinking_level: "high" } });
     expect(interactions.requests.at(-1)?.body).not.toHaveProperty("contents");
     expect(interactions.requests.at(-1)?.body).not.toHaveProperty("generationConfig");

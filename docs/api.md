@@ -1,5 +1,13 @@
 # API 约定
 
+## Google Interactions、活动展示与记忆边界（2026-07-15）
+
+- `/api/ai/generate` URL 不变。Google Interactions 使用 `/v1beta/interactions`；流式请求使用 `/v1beta/interactions?alt=sse`，并解析 `step.delta`、`interaction.completed` 以及 `total_input_tokens/total_output_tokens/total_tokens`。
+- 连接测试允许在 Google 明确返回“only supports Interactions API”时重试一次；普通对话不得双发。成功协议写入连接和 Base URL 隔离的模型目录缓存。
+- `AiActivityEventDetail.presentation` 为 `conversation | compact-test | background`。该字段只控制客户端展示，不进入服务端请求契约或持久化模型。
+- `PersonalizationSettings.memoryVersion` 为 2，可选保存 `memoryEntries` 与最多 100 条 `memoryRevisions`。每次请求最多检索 8 条、1500 字符；禁止保存 API Key、密码、Token、证件号、附件正文、完整对话和厂商原始响应。
+- `POST /api/ai/models` URL 不变；Qwen 响应从 `output.models` 归一化，Anthropic、Google、MiniMax 与 Qwen 均完成官方分页聚合。
+
 ## 完整模型目录与兼容厂商（2026-07-15）
 
 - `/api/ai/models` URL 不变，响应增加可选 `complete`；客户端目录结果同时记录 `source`、`fetchedAt`、`stale` 和 `complete`，但这些加载元数据不进入连接档案。

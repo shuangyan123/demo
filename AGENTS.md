@@ -4,6 +4,20 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## AI 活动、上下文与自动记忆约定
+
+- AI 活动宿主必须是应用级单例；对话事件不得打开全局浮层，连接测试使用紧凑卡，后台任务只使用单行状态。
+- Google 官方 Interactions 固定使用 `/v1beta/interactions`，流式追加 `?alt=sse`；自定义代理保留用户路径。Qwen 模型目录读取 `output.models`。
+- 跨厂商上下文只迁移可见用户/助手消息、附件摘要和必要工具结果；不得持久化或迁移隐藏思维链、thought signature、密钥和厂商原始响应。
+- 自动记忆 v2 新用户默认开启，旧用户保持原开关；高置信稳定内容可自动生效，冲突、学习状态和敏感内容进入待处理，秘密直接丢弃。每次最多注入 8 条、1500 字符。
+
+## AI 活动、上下文与自动记忆约定
+
+- AI 活动宿主必须是应用级单例；对话事件不得打开全局浮层，连接测试使用紧凑卡，后台任务只使用单行状态。
+- Google 官方 Interactions 固定使用 `/v1beta/interactions`，流式追加 `?alt=sse`；自定义代理保留用户路径。Qwen 模型目录读取 `output.models`。
+- 跨厂商上下文只迁移可见用户/助手消息、附件摘要和必要工具结果；不得持久化或迁移隐藏思维链、thought signature、密钥和厂商原始响应。
+- 自动记忆 v2 新用户默认开启，旧用户保持原开关；高置信稳定内容可自动生效，冲突、学习状态和敏感内容进入待处理，秘密直接丢弃。每次最多注入 8 条、1500 字符。
+
 ## 模型目录完整性与对话轮次约定
 
 - 连接测试、默认能力和对话选择必须共享 `model-directory-service`；静态 fallback 只能首屏占位，完整新鲜在线缓存才可跳过请求。
@@ -240,3 +254,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 常规依赖维护只集中更新同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本；ESLint、TypeScript、Node 类型等 major 变更必须单独开预研 PR。
 - Next、React、React DOM 和 `eslint-config-next` 使用精确版本，避免框架核心版本在 `package.json` 范围内漂移；其他工具依赖沿用既有范围策略，并由 lockfile 固定解析版本。
 - `npm audit` 禁止使用 `--force` 自动跨 major 或降级修复；若修复建议要求退回不可接受的旧 Next 主版本，应记录为上游未提供稳定可接受修复并持续跟踪。
+
+## AI 活动、跨厂商上下文与自动记忆约定
+
+- 全局 AI 活动宿主只渲染紧凑连接测试卡和单行后台状态；普通对话运行只进入消息内工具摘要，不得恢复三栏活动面板、假消息流或假 composer。
+- Google 官方 Interactions 固定使用 `/v1beta/interactions`，流式请求通过同一路径的 `alt=sse`；仅官方域名修正版本，自定义代理必须保留用户路径。
+- 可见消息是跨厂商上下文的唯一事实源；adapter 只能映射用户、助手、附件摘要和可见工具结果，不得迁移隐藏思维链、厂商私有状态、密钥或原始响应。
+- 自动记忆对新用户默认开启，旧用户保持原隐私选择；明确记忆指令可本地处理，其他提取按三轮或空闲 45 秒批量触发，失败不得阻塞对话。
+- 自动生效必须满足高置信、稳定、非敏感且无冲突；秘密直接丢弃，冲突与学习状态进入待处理。记忆和修订各最多 100 条，注入最多 8 条且不超过 1500 字符。

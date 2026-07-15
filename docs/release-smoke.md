@@ -1,5 +1,13 @@
 # 发布前手工冒烟清单
 
+## 2026-07-15 AI 活动、Google 与记忆 v2
+
+- 使用已保存 Google 连接读取目录并发送 8-token “仅回答 OK”测试；确认官方请求为 `/v1beta/interactions` 或 `:generateContent`，失败卡包含模型、协议、阶段和脱敏错误。
+- 连接测试卡任意时刻只能有一个“进行中”，失败后的步骤显示“未执行”；DOM 中不得出现三栏活动面板、假 composer、会话列表或右侧工具链。
+- 在同一对话中从 Google 切换到 Claude/DeepSeek，确认请求保留本地可见历史顺序；不得包含隐藏 thought、Key、附件正文或厂商原始响应。
+- 新用户检查自动记忆默认开启；旧用户保持原开关。验证明确“记住”、三轮/45 秒提取、生效/待处理/归档筛选、冲突、秘密丢弃、撤销和刷新恢复。
+- 真实厂商只测试应用中已配置连接；未配置项记录 `skipped`。报告不得输出 Key、响应正文、模型清单或额度。
+
 ## 2026-07-15 模型目录与对话链回归
 
 - 在已保存 Google、DeepSeek、MiniMax 连接中获取模型；打开“测试模型 ID”后确认当前选择不会隐藏其他候选，MiniMax 同时可见 M3、M2.7、M2.7-highspeed 与账号返回的历史模型。
@@ -10,7 +18,7 @@
 
 ## 2026-07-15 Google 双协议与品牌回归
 
-- 使用本地 mock 分别验证 Gemini 2.5 请求 `:generateContent`、`gemini-3.5-flash` 请求 `/v1beta2/interactions`；后者必须包含 `store:false`，且页面不得发生双发。
+- 使用本地 mock 分别验证 Gemini 2.5 请求 `:generateContent`、`gemini-3.5-flash` 请求 `/v1beta/interactions`；后者必须包含 `store:false`，且页面不得发生双发。
 - 验证 Interactions 图片、结构化输出和流式增量；测试卡应把协议不匹配显示为协议问题，而不是笼统的参数 400。
 - 在默认文本、多模态和“更多默认能力”中检查连接与模型下拉：触发器和选项均有正确厂商图标，键盘、Escape、Tab 和焦点恢复正常。
 - 检查 Obsidian 插件卡、详情标题与知识入口使用相同本地品牌图标；断网后仍可显示。
