@@ -117,7 +117,9 @@ test("MiniMax model directory uses X-Api-Key while Messages keeps Bearer", async
       body: JSON.stringify({ provider: "minimax", apiKey: "fixture-key", baseUrl: "https://api.minimaxi.com/anthropic", providerOptions: { region: "cn" } }),
     }));
     assert.equal(response.status, 200);
-    assert.equal(url, "https://api.minimaxi.com/anthropic/v1/models");
+    const directoryUrl = new URL(url);
+    assert.equal(`${directoryUrl.origin}${directoryUrl.pathname}`, "https://api.minimaxi.com/anthropic/v1/models");
+    assert.equal(directoryUrl.searchParams.get("limit"), "100");
     assert.equal(headers?.["X-Api-Key"], "fixture-key");
     assert.equal(headers?.Authorization, undefined);
     const message = buildGenerateProviderRequest({ ...baseGenerate, provider: "minimax", model: "MiniMax-M3", baseUrl: "https://api.minimaxi.com/anthropic" });
@@ -509,7 +511,9 @@ test("模型目录代理归一化 Google models.list 且不返回密钥和原始
     }));
     const result = await response.json() as { models: Array<Record<string, unknown>>; fetchedAt: string };
     assert.equal(response.status, 200);
-    assert.equal(forwardedUrl, "https://generativelanguage.googleapis.com/v1beta/models");
+    const directoryUrl = new URL(forwardedUrl);
+    assert.equal(`${directoryUrl.origin}${directoryUrl.pathname}`, "https://generativelanguage.googleapis.com/v1beta/models");
+    assert.equal(directoryUrl.searchParams.get("pageSize"), "1000");
     assert.equal(forwardedHeaders?.["x-goog-api-key"], "fixture-key");
     assert.equal(result.models.length, 2);
     assert.equal(result.models[0].id, "gemini-2.5-flash");
