@@ -1,6 +1,6 @@
 import { reviewDb } from "../db/review-db.ts";
 import { toISODate } from "../lib/review-utils.ts";
-import type { CustomPersonaViewMode, PersonaCustomization, PersonaDisplayMode, PersonaModule, PersonaProfile, PersonalMemoryEntry, PersonalMemorySettings, PersonalizationSettings, VoiceProfile } from "../types/review";
+import type { CustomPersonaViewMode, PersonaCustomization, PersonaDisplayMode, PersonaModule, PersonaProfile, PersonalMemoryEntry, PersonalMemoryRevision, PersonalMemorySettings, PersonalizationSettings, VoiceProfile } from "../types/review";
 
 type LegacyVoiceProfile = Partial<VoiceProfile> & {
   mode?: "system" | "cloud";
@@ -25,7 +25,8 @@ type LegacyPersonalizationSettings = Omit<Partial<PersonalizationSettings>, "per
 export const PERSONA_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 export const PERSONA_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
 export const DEFAULT_PERSONAL_MEMORY_SETTINGS: PersonalMemorySettings = {
-  suggestionsEnabled: false,
+  suggestionsEnabled: true,
+  autoMemoryEnabled: true,
   maxEntries: 100,
   contextCharacterLimit: 1500,
 };
@@ -105,9 +106,10 @@ export function createDefaultPersonalizationSettings(today = new Date()): Person
     modulePersonaIds: {},
     customPersonas: [],
     personaCustomizations: {},
-    memoryVersion: 1,
+    memoryVersion: 2,
     memorySettings: { ...DEFAULT_PERSONAL_MEMORY_SETTINGS },
     memoryEntries: [],
+    memoryRevisions: [],
     updatedAt: toISODate(today),
   };
 }
@@ -119,11 +121,15 @@ function normalizeMemoryEntries(input: PersonalMemoryEntry[] | undefined): Perso
     if (!entry || typeof entry !== "object" || !entry.id || !entry.title?.trim() || !entry.content?.trim()) return [];
     if (!["profile", "preference", "goal", "study"].includes(entry.kind)) return [];
     if (!["global", "module", "conversation"].includes(entry.scope)) return [];
-    if (!["manual", "suggested"].includes(entry.source) || !["pending", "active", "archived"].includes(entry.status)) return [];
+    if (!["manual", "auto", "suggested"].includes(entry.source) || !["pending", "active", "archived"].includes(entry.status)) return [];
     return [{
       ...entry,
       title: entry.title.trim().slice(0, 80),
       content: entry.content.trim().slice(0, 2000),
+      canonicalKey: entry.canonicalKey?.trim().slice(0, 160) || undefined,
+      confidence: Number.isFinite(entry.confidence) ? Math.max(0, Math.min(1, Number(entry.confidence))) : undefined,
+      sensitivity: entry.sensitivity === "sensitive" ? "sensitive" as const : "normal" as const,
+      sourceMessageIds: Array.isArray(entry.sourceMessageIds) ? entry.sourceMessageIds.filter((id): id is string => typeof id === "string").slice(0, 12) : undefined,
       moduleId: entry.scope === "module" ? entry.moduleId?.trim() || undefined : undefined,
       sourceConversationId: entry.scope === "conversation" ? entry.sourceConversationId?.trim() || undefined : undefined,
     }];
@@ -132,11 +138,21 @@ function normalizeMemoryEntries(input: PersonalMemoryEntry[] | undefined): Perso
 
 /** 缺少字段的旧配置默认关闭建议，并恢复固定的安全上限。 */
 function normalizeMemorySettings(input: PersonalMemorySettings | undefined): PersonalMemorySettings {
+  const enabled = input?.autoMemoryEnabled ?? input?.suggestionsEnabled === true;
   return {
-    suggestionsEnabled: input?.suggestionsEnabled === true,
+    suggestionsEnabled: enabled,
+    autoMemoryEnabled: enabled,
     maxEntries: Math.max(1, Math.min(100, Number(input?.maxEntries) || DEFAULT_PERSONAL_MEMORY_SETTINGS.maxEntries)),
     contextCharacterLimit: Math.max(200, Math.min(1500, Number(input?.contextCharacterLimit) || DEFAULT_PERSONAL_MEMORY_SETTINGS.contextCharacterLimit)),
   };
+}
+
+/** 修订记录只保留最近 100 条有效动作。 */
+function normalizeMemoryRevisions(input: PersonalMemoryRevision[] | undefined): PersonalMemoryRevision[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((revision) => revision?.id && revision.memoryId && ["add", "update", "archive", "restore"].includes(revision.action) && revision.createdAt)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id))
+    .slice(0, 100);
 }
 
 // 把旧版展示模式映射为“默认 / 定制”，并拒绝意外字符串进入界面状态。
@@ -199,18 +215,20 @@ export function normalizePersonalizationSettings(input?: LegacyPersonalizationSe
     modulePersonaIds: input.modulePersonaIds ?? {},
     customPersonas: Array.isArray(input.customPersonas) ? input.customPersonas : [],
     personaCustomizations: normalizePersonaCustomizations(input),
-    memoryVersion: 1,
+    memoryVersion: 2,
     memorySettings: normalizeMemorySettings(input.memorySettings),
     memoryEntries: normalizeMemoryEntries(input.memoryEntries),
+    memoryRevisions: normalizeMemoryRevisions(input.memoryRevisions),
     updatedAt: input.updatedAt ?? defaults.updatedAt,
   };
 }
 
 function hasLegacyPersonalizationFields(input: LegacyPersonalizationSettings): boolean {
   return ["voice", "personaCardRatio", "personaVoices", "personaAvatarDataUrls"].some((key) => Object.prototype.hasOwnProperty.call(input, key))
-    || input.memoryVersion !== 1
+    || input.memoryVersion !== 2
     || !input.memorySettings
-    || !Array.isArray(input.memoryEntries);
+    || !Array.isArray(input.memoryEntries)
+    || !Array.isArray(input.memoryRevisions);
 }
 
 export const personalizationSettingsRepository = {

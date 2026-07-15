@@ -21,5 +21,6 @@ export type ConversationWorkspaceProps = {
   onOpenTutoringRecords: () => void;
   onRefresh: () => Promise<void>;
   onNotice: (message: string) => void;
+  onPersonalizationChange?: (settings: PersonalizationSettings) => void;
   onClearLaunchContext: () => void;
 };

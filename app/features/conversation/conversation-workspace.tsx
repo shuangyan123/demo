@@ -7,13 +7,14 @@ import { emitAiActivity } from "../../services/ai-activity-events.ts";
 import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues } from "../../services/model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
 import { buildPersonalMemoryContext } from "../../services/personal-memory-context.ts";
+import { buildCanonicalConversationTurns, canonicalTurnsToChatHistory } from "../../services/canonical-conversation-context.ts";
 import type { ChatMessageContent } from "../../services/api-client.ts";
 import { conversationRepository } from "../../services/conversation-repository.ts";
 import { buildConversationTurnTimeline } from "../../services/conversation-turns.ts";
 import type { KnowledgeEvolutionProposal } from "../../types/review";
 import { AppIcon } from "../shared/app-icon";
 import { persistDraftAttachmentSummaries, type DraftAttachment } from "./conversation-attachment-utils";
-import { conversationProviderErrorMessage, readBlobAsDataUrl, toConversationChatHistory } from "./conversation-message-utils";
+import { conversationProviderErrorMessage, readBlobAsDataUrl } from "./conversation-message-utils";
 import { useConversationVisionTools } from "./use-conversation-vision-tools";
 import { ConversationComposer, type ConversationComposerHandle } from "./conversation-composer";
 import { ConversationMcpToolPanel } from "./conversation-mcp-tool-panel";
@@ -21,6 +22,7 @@ import { ConversationProposalBlock } from "./conversation-proposal-block";
 import { ConversationTurnList } from "./conversation-turn-list";
 import type { ConversationWorkspaceProps } from "./conversation-workspace-types";
 import { useConversationModelSelection } from "./use-conversation-model-selection";
+import { useConversationAutoMemory } from "./use-conversation-auto-memory";
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
 
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
@@ -41,6 +43,7 @@ export function ConversationWorkspace({
   onOpenTutoringRecords,
   onRefresh,
   onNotice,
+  onPersonalizationChange,
   onClearLaunchContext,
 }: ConversationWorkspaceProps) {
   const [draft, setDraft] = useState(() => launchContext?.suggestedPrompt ?? "");
@@ -74,6 +77,7 @@ export function ConversationWorkspace({
   );
   const recentConversationSelection = conversations.find((conversation) => conversation.selectedConnectionId && conversation.selectedModelId);
   const defaultSelection = requiresVision ? defaultSelections?.vision : defaultSelections?.text;
+  const { recordCompletedTurn } = useConversationAutoMemory({ connection: connections.find((connection) => connection.id === defaultSelections?.text?.connectionId), modelId: defaultSelections?.text?.modelId, settings: personalization, onSettingsChange: onPersonalizationChange, onNotice });
   const recentSelection = !activeConversation && recentConversationSelection?.selectedConnectionId && recentConversationSelection.selectedModelId && eligibleConnections.some((connection) => connection.id === recentConversationSelection.selectedConnectionId)
     ? { connectionId: recentConversationSelection.selectedConnectionId, modelId: recentConversationSelection.selectedModelId, selectedRuntimeValues: recentConversationSelection.selectedRuntimeValues }
     : undefined;
@@ -215,7 +219,7 @@ export function ConversationWorkspace({
         createdFromDraft = true;
       }
       const persistedAttachments = await persistDraftAttachmentSummaries(conversation.id, attachments);
-      await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: runId, sequence: 0, role: "user", content: content || "已添加附件", attachmentIds: persistedAttachments.map((item) => item.id) });
+      const userMessage = await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: runId, sequence: 0, role: "user", content: content || "已添加附件", attachmentIds: persistedAttachments.map((item) => item.id) });
       await onRefresh();
       await appendStep(conversation.id, runId, "准备上下文", "done", `已读取会话摘要和 ${persistedAttachments.length} 个附件摘要`);
       await appendStep(conversation.id, runId, "选择模型", "done", `${submissionConnection.label} / ${submissionModelId}`);
@@ -225,10 +229,10 @@ export function ConversationWorkspace({
       let finalContent = "";
       let usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined;
       let actualSpeed: string | undefined;
-      const memoryContext = buildPersonalMemoryContext(personalization, { moduleId: "conversation", conversationId: conversation.id });
+      const memoryContext = buildPersonalMemoryContext(personalization, { moduleId: "conversation", conversationId: conversation.id, query: content });
       const history = [
         ...(memoryContext ? [{ role: "system" as const, content: memoryContext }] : []),
-        ...toConversationChatHistory(messages),
+        ...canonicalTurnsToChatHistory(buildCanonicalConversationTurns({ conversation, messages, attachments: snapshot.attachments.filter((attachment) => attachment.conversationId === conversation!.id), runSteps })),
         { role: "user" as const, content: userContent },
       ];
       const purpose = requiresVision ? "vision" : "text";
@@ -246,7 +250,8 @@ export function ConversationWorkspace({
         usage = result.usage;
         actualSpeed = result.actualSpeed;
       }
-      await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: runId, sequence: 2, role: "assistant", content: finalContent.trim() || "模型没有返回文本。" });
+      const assistantMessage = await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: runId, sequence: 2, role: "assistant", content: finalContent.trim() || "模型没有返回文本。" });
+      recordCompletedTurn({ user: userMessage.content, assistant: assistantMessage.content, conversationId: conversation.id, sourceMessageIds: [userMessage.id, assistantMessage.id] });
       if (submissionRuntimeValues && Object.keys(submissionRuntimeValues).length) {
         const selected = [submissionRuntimeValues.reasoning !== undefined ? `推理 ${submissionRuntimeValues.reasoning}` : "", submissionRuntimeValues.speed ? `速度 ${submissionRuntimeValues.speed}` : ""].filter(Boolean).join(" · ");
         await appendStep(conversation.id, runId, "运行档位", "done", `${selected}${submissionRuntimeValues.speed ? ` / 实际 ${actualSpeed ?? "未返回"}` : ""}`);

@@ -28,9 +28,25 @@ export function PersonalMemorySettingsPanel({ settings, onSettingsChange, onNoti
   const [busy, setBusy] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string>();
+  const [statusFilter, setStatusFilter] = useState<"active" | "pending" | "archived">("active");
+  const [query, setQuery] = useState("");
+  const [revisionsOpen, setRevisionsOpen] = useState(false);
+  const [undoClock, setUndoClock] = useState(() => Date.now());
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const entries = settings.memoryEntries ?? [];
+  const filteredEntries = entries.filter((entry) => entry.status === statusFilter && `${entry.title} ${entry.content}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const latestRevision = settings.memoryRevisions?.find((revision) => entries.some((entry) => entry.id === revision.memoryId && entry.source !== "manual"));
+  const undoExpiresAt = latestRevision ? Date.parse(latestRevision.createdAt) + 30_000 : 0;
+  const canUndoLatest = undoExpiresAt > undoClock;
+
+  useEffect(() => {
+    if (!latestRevision) return;
+    const remainingMs = undoExpiresAt - Date.now();
+    if (remainingMs <= 0) return;
+    const timer = window.setTimeout(() => setUndoClock(Date.now()), remainingMs);
+    return () => window.clearTimeout(timer);
+  }, [latestRevision, undoExpiresAt]);
 
   useEffect(() => {
     if (!editorOpen) return;
@@ -87,24 +103,33 @@ export function PersonalMemorySettingsPanel({ settings, onSettingsChange, onNoti
     } finally { setBusy(""); }
   }
 
-  async function mutate(id: string, action: "confirm" | "archive" | "remove"): Promise<void> {
+  async function mutate(id: string, action: "confirm" | "archive" | "restore" | "remove"): Promise<void> {
     setBusy(`${action}:${id}`);
     try {
-      const saved = action === "confirm" ? await personalMemoryRepository.confirm(id) : action === "archive" ? await personalMemoryRepository.updateStatus(id, "archived") : await personalMemoryRepository.remove(id);
+      const saved = action === "confirm" ? await personalMemoryRepository.confirm(id) : action === "archive" ? await personalMemoryRepository.updateStatus(id, "archived") : action === "restore" ? await personalMemoryRepository.updateStatus(id, "active") : await personalMemoryRepository.remove(id);
       onSettingsChange(saved);
       onNotice(action === "confirm" ? "记忆建议已确认" : action === "archive" ? "记忆已归档" : "记忆已删除");
     } catch (error) { onNotice(error instanceof Error ? error.message : "记忆操作失败"); }
     finally { setBusy(""); }
   }
 
-  /** 自动建议默认关闭，切换后立即保存且不会回溯读取历史对话。 */
+  /** 新用户默认开启；切换后立即保存，且不会回溯读取历史对话。 */
   async function toggleSuggestions(enabled: boolean): Promise<void> {
-    const current = settings.memorySettings ?? { suggestionsEnabled: false, maxEntries: 100, contextCharacterLimit: 1500 };
+    const current = settings.memorySettings ?? { suggestionsEnabled: true, autoMemoryEnabled: true, maxEntries: 100, contextCharacterLimit: 1500 };
     try {
-      const saved = await personalMemoryRepository.updateSettings({ ...current, suggestionsEnabled: enabled });
+      const saved = await personalMemoryRepository.updateSettings({ ...current, suggestionsEnabled: enabled, autoMemoryEnabled: enabled });
       onSettingsChange(saved);
       onNotice(enabled ? "已允许 AI 提交待确认记忆建议" : "已关闭自动记忆建议");
     } catch (error) { onNotice(error instanceof Error ? error.message : "记忆建议设置失败"); }
+  }
+
+  async function undoLatest(): Promise<void> {
+    if (!latestRevision) return;
+    try {
+      const saved = await personalMemoryRepository.undoRevision(latestRevision.id);
+      onSettingsChange(saved);
+      onNotice("最近一次自动记忆已撤销");
+    } catch (error) { onNotice(error instanceof Error ? error.message : "撤销失败"); }
   }
 
   return (
@@ -112,27 +137,36 @@ export function PersonalMemorySettingsPanel({ settings, onSettingsChange, onNoti
       <div className={styles.header}>
         <div><h2>记忆</h2><p>仅把你确认的简短资料、偏好、目标和学习情况注入 AI 请求。</p></div>
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <label className="inline-flex min-h-9 items-center gap-2 text-xs"><input checked={settings.memorySettings?.suggestionsEnabled === true} className="ui-checkbox" role="switch" type="checkbox" onChange={(event) => void toggleSuggestions(event.currentTarget.checked)} />允许建议</label>
+          <label className="inline-flex min-h-9 items-center gap-2 text-xs"><input checked={(settings.memorySettings?.autoMemoryEnabled ?? settings.memorySettings?.suggestionsEnabled) === true} className="ui-checkbox" role="switch" type="checkbox" onChange={(event) => void toggleSuggestions(event.currentTarget.checked)} />自动记忆</label>
+          {canUndoLatest ? <Button size="sm" variant="ghost" onClick={() => void undoLatest()}>撤销最近记忆</Button> : null}
           <Button size="sm" variant="outline" onClick={(event) => openCreate(event.currentTarget)}>添加记忆</Button>
         </div>
       </div>
-      {entries.length ? (
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {(["active", "pending", "archived"] as const).map((status) => <Button key={status} size="sm" variant={statusFilter === status ? "primary" : "ghost"} onClick={() => setStatusFilter(status)}>{status === "active" ? "生效" : status === "pending" ? "待处理" : "已归档"}</Button>)}
+        <input aria-label="搜索记忆" className={`${styles.input} ml-auto w-52 max-sm:w-full`} placeholder="搜索记忆" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+      </div>
+      {filteredEntries.length ? (
         <div className={styles.table}>
           <div className={`${styles.tableHeader} ${styles.memoryColumns}`}><span>类型</span><span>范围</span><span>内容</span><span>待确认建议</span><span>操作</span></div>
-          {entries.map((entry) => (
+          {filteredEntries.map((entry) => (
             <div key={entry.id} className={`${styles.tableRow} ${styles.memoryColumns}`}>
               <span>{kindLabels[entry.kind]}</span>
               <span>{scopeLabels[entry.scope]}</span>
               <span className={styles.truncate} title={`${entry.title}：${entry.content}`}><strong>{entry.title}</strong>　<span className={styles.muted}>{entry.content}</span></span>
-              <span className={styles.muted}>{entry.status === "pending" ? "● 新建议" : entry.status === "archived" ? "已归档" : "无"}</span>
+              <span className={styles.muted}>{entry.source === "manual" ? "手动" : entry.source === "auto" ? "自动" : "建议"}{entry.confidence !== undefined ? ` · ${Math.round(entry.confidence * 100)}%` : ""}</span>
               <span className="flex justify-end gap-1">
-                {entry.status === "pending" ? <><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "confirm")}>确认</Button><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "remove")}>忽略</Button></> : <><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={(event) => openEdit(entry, event.currentTarget)}>编辑</Button><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "remove")}>删除</Button></>}
+                {entry.status === "pending" ? <><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "confirm")}>确认</Button><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "remove")}>忽略</Button></> : entry.status === "archived" ? <Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "restore")}>恢复</Button> : <><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={(event) => openEdit(entry, event.currentTarget)}>编辑</Button><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "archive")}>归档</Button></>}
               </span>
             </div>
           ))}
         </div>
-      ) : <div className="mt-4"><EmptyState>还没有记忆。手动添加后会立即生效。</EmptyState></div>}
+      ) : <div className="mt-4"><EmptyState>当前筛选下没有记忆。</EmptyState></div>}
       <p className="mt-3 text-xs text-muted">{entries.length}/100 条 · 每次请求最多注入 {settings.memorySettings?.contextCharacterLimit ?? 1500} 字符</p>
+      <div className="mt-3 border-t border-line pt-3">
+        <Button size="sm" variant="ghost" onClick={() => setRevisionsOpen((open) => !open)}>{revisionsOpen ? "收起修订" : `查看修订（${settings.memoryRevisions?.length ?? 0}）`}</Button>
+        {revisionsOpen ? <ol className="mt-2 grid gap-1 text-xs text-muted">{(settings.memoryRevisions ?? []).slice(0, 20).map((item) => <li key={item.id}>{new Date(item.createdAt).toLocaleString("zh-CN")} · {item.action} · {item.memoryId.slice(0, 8)}</li>)}</ol> : null}
+      </div>
 
       {editorOpen && typeof document !== "undefined" ? createPortal((
         <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditorOpen(false); }}>

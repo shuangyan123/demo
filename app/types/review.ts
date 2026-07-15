@@ -1,10 +1,11 @@
 import type { ApiProvider } from "./domains/ai-provider";
 import type { AiGenerationProtocol } from "./domains/ai-model";
 export type { AiGenerationProtocol } from "./domains/ai-model";
-import type { PersonalMemoryEntry, PersonalMemorySettings } from "./domains/personal-memory";
+import type { PersonalMemoryEntry, PersonalMemoryRevision, PersonalMemorySettings } from "./domains/personal-memory";
 export type {
   PersonalMemoryEntry,
   PersonalMemoryKind,
+  PersonalMemoryRevision,
   PersonalMemoryScope,
   PersonalMemorySettings,
   PersonalMemorySource,
@@ -754,9 +755,10 @@ export type PersonalizationSettings = {
   modulePersonaIds: Partial<Record<PersonaModule, string>>;
   customPersonas: PersonaProfile[];
   personaCustomizations: Record<string, PersonaCustomization>;
-  memoryVersion?: 1;
+  memoryVersion?: 1 | 2;
   memorySettings?: PersonalMemorySettings;
   memoryEntries?: PersonalMemoryEntry[];
+  memoryRevisions?: PersonalMemoryRevision[];
   updatedAt: string;
 };
 

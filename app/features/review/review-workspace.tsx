@@ -824,6 +824,7 @@ export function ReviewWorkspace() {
             onConversationSelected={setActiveConversationId}
             onCreateConversation={createConversationForFirstMessage}
             onNotice={setNotice}
+            onPersonalizationChange={personalization.setSettings}
             onClearLaunchContext={() => setLaunchContext(null)}
             onOpenConnections={() => openApiSettings("请先配置默认文本连接，再继续使用对话")}
             onOpenKnowledge={() => switchView("knowledge")}
