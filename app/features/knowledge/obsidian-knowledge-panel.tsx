@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { Button, Chip, ConfirmDialog, EmptyState, Panel, SoftBlock, TextField } from "../shared/ui-primitives";
 import type { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
@@ -32,7 +33,7 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
   };
 
   return (
-    <Panel title="Obsidian 知识图谱" eyebrow="Vault Bridge">
+    <Panel title={<span className="inline-flex items-center gap-2"><Image alt="" aria-hidden="true" height={20} src="/plugin-icons/obsidian.svg" width={20} />Obsidian 知识图谱</span>} eyebrow="Vault Bridge">
       <div className="grid gap-4">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 max-lg:grid-cols-1">
           <TextField label="Vault 托管目录" value={snapshot.connected ? snapshot.managedRoot : managedRoot} onChange={snapshot.connected ? () => undefined : setManagedRoot} placeholder="AI知识库" />

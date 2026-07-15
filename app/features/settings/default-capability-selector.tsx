@@ -10,6 +10,7 @@ import { getCachedConnectionModelCatalog, loadConnectionModelCatalog } from "../
 import type { AiConnectionPurpose, AiConnectionSnapshot, AiModelCatalogEntry } from "../../types/review";
 import { AppIcon } from "../shared/app-icon";
 import { Button } from "../shared/ui-primitives";
+import { BrandedOptionSelect } from "./branded-option-select";
 import styles from "./settings-compact.module.css";
 
 export const defaultPurposeLabels: Record<AiConnectionPurpose, string> = {
@@ -129,31 +130,30 @@ export function DefaultCapabilitySelector({ snapshot, onSnapshotChange, onChange
     const selectedProfile = selectedProfiles[purpose];
     const models = catalogs[purpose] ?? [];
     const selectedModelId = snapshot.defaults[modelKey] ?? "";
-    const knownModel = models.some((model) => model.id === selectedModelId);
     const editing = manualOpen[purpose] === true;
     return (
       <div key={purpose} className={`${styles.tableRow} ${styles.capabilityRow}`}>
         <strong className="text-sm font-medium">{defaultPurposeLabels[purpose]}</strong>
-        <select
-          aria-label={`${defaultPurposeLabels[purpose]}连接`}
-          className={styles.select}
+        <BrandedOptionSelect
+          ariaLabel={`${defaultPurposeLabels[purpose]}连接`}
           disabled={loading === purpose}
           value={pendingConnectionIds[purpose] ?? snapshot.defaults[connectionKey] ?? ""}
-          onChange={(event) => void selectConnection(purpose, event.currentTarget.value)}
-        >
-          <option value="">未指定</option>
-          {options.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
-        </select>
-        <select
-          aria-label={`${defaultPurposeLabels[purpose]}模型`}
-          className={styles.select}
+          placeholder="未指定"
+          options={[
+            { value: "", label: "未指定" },
+            ...options.map((profile) => ({ value: profile.id, label: profile.label, provider: profile.provider })),
+          ]}
+          onChange={(value) => void selectConnection(purpose, value)}
+        />
+        <BrandedOptionSelect
+          ariaLabel={`${defaultPurposeLabels[purpose]}模型`}
           disabled={!selectedProfile || loading === purpose}
-          value={knownModel ? selectedModelId : ""}
-          onChange={(event) => void selectModel(purpose, event.currentTarget.value)}
-        >
-          <option value="">{selectedModelId && !knownModel ? `手动：${selectedModelId}` : "选择目录模型"}</option>
-          {models.map((model) => <option key={model.id} value={model.id}>{model.label}{model.capabilitySource === "unknown" ? " · 待核验" : ""}</option>)}
-        </select>
+          provider={selectedProfile?.provider}
+          value={selectedModelId}
+          placeholder="选择目录模型"
+          options={models.map((model) => ({ value: model.id, label: model.label, provider: selectedProfile?.provider, description: model.capabilitySource === "unknown" ? "待核验" : undefined }))}
+          onChange={(value) => void selectModel(purpose, value)}
+        />
         <button
           aria-expanded={editing}
           aria-label={`编辑${defaultPurposeLabels[purpose]}手动模型 ID`}

@@ -1,3 +1,5 @@
+import { integrationBranding } from "../../../services/integration-branding.ts";
+
 export type SettingsPluginStatus = "ready" | "warning" | "error" | "disabled";
 export type SettingsPluginCategory = "featured" | "knowledge-sync" | "import-source" | "study-extension";
 export type SettingsPluginPanelKey = "obsidian" | "fenbi-import";
@@ -65,7 +67,7 @@ export const settingsPluginDefinitions: SettingsPluginDefinition[] = [
   {
     id: "obsidian-vault",
     label: "Obsidian Vault",
-    icon: { label: "Ob", background: "#7c3aed", assetPath: "/plugin-icons/obsidian.svg" },
+    icon: { label: "Ob", background: "transparent", assetPath: integrationBranding.obsidian.assetPath },
     shortDescription: "本地 Vault 双向知识同步",
     description: "连接本地 Vault、同步托管知识库、查看 Wikilink 图谱和待确认提案。",
     category: "knowledge-sync",

@@ -264,8 +264,14 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
 
   /** 已保存连接也使用同一草稿测试入口，行内测试不依赖编辑器当前状态。 */
   async function testSavedProfile(profile: ApiConnectionProfile): Promise<void> {
-    const models = getCachedConnectionModelCatalog(profile, profile.capabilities.includes("text") ? "text" : "vision");
-    const modelId = models.find((model) => model.status === "recommended")?.id ?? models[0]?.id;
+    const purpose: AiConnectionPurpose = profile.capabilities.includes("text") ? "text" : "vision";
+    const models = getCachedConnectionModelCatalog(profile, purpose);
+    const defaultConnectionId = snapshot.defaults[`${purpose}ConnectionId`];
+    const defaultModelId = snapshot.defaults[`${purpose}ModelId`];
+    // 已保存连接优先复用与它关联的默认模型，避免盲选目录第一项导致协议或权限错误。
+    const modelId = defaultConnectionId === profile.id && defaultModelId
+      ? defaultModelId
+      : models.find((model) => model.status === "recommended")?.id ?? models[0]?.id;
     if (!modelId) {
       editProfile(profile);
       setFeedback({ tone: "error", text: "请在编辑器中填写测试模型 ID" });

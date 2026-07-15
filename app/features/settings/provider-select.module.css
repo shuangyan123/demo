@@ -31,6 +31,11 @@
   white-space: nowrap;
 }
 
+.emptyIcon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
 .listbox {
   position: absolute;
   z-index: 80;

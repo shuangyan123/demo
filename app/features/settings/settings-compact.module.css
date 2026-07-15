@@ -19,7 +19,7 @@
 
 .table {
   margin-top: 1rem;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--line);
   border-radius: 0.55rem;
   background: var(--surface);
@@ -257,8 +257,8 @@
   }
 
   .capabilityRow > :first-child { grid-column: 1 / -1; }
-  .capabilityRow > select:nth-of-type(1) { grid-column: 1 / -1; }
-  .capabilityRow > select:nth-of-type(2) { grid-column: 1; }
+  .capabilityRow > div:nth-of-type(1) { grid-column: 1 / -1; }
+  .capabilityRow > div:nth-of-type(2) { grid-column: 1; }
   .manualEditor { grid-column: 1 / -1; }
 
   .quotaColumns,

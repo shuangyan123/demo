@@ -55,7 +55,7 @@ export function MasteryDots({ value }: { value: number }) {
 }
 
 // 渲染通用内容面板，集中维护卡片边框、标题和 eyebrow 的视觉层级。
-export function Panel({ children, className, title }: { children: ReactNode; className?: string; eyebrow: string; title: string }) {
+export function Panel({ children, className, title }: { children: ReactNode; className?: string; eyebrow: string; title: ReactNode }) {
   return (
     <section className={cx("ui-panel", className)}>
       <h3 className="ui-panel-title">{title}</h3>
