@@ -1,4 +1,4 @@
-import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
+import type { AiGenerationProtocol, AiSelectedRuntimeValues } from "../types/domains/ai-model";
 import type { ApiProvider } from "../types/domains/ai-provider";
 import type { AiCapability, AiConnectionPurpose } from "../types/review";
 import { emitAiActivity } from "./ai-activity-events.ts";
@@ -22,6 +22,10 @@ export type AiGenerateRequest = {
   baseUrl: string;
   maxOutputTokens?: number;
   model: string;
+  /** 由模型目录解析的 Google 协议；非 Google 请求不得设置。 */
+  generationProtocol?: AiGenerationProtocol;
+  /** 仅连接测试允许在 Google 明确报告协议不匹配时安全重试一次。 */
+  allowProtocolFallback?: boolean;
   messages: ChatMessage[];
   stream?: boolean;
   temperature?: number;
@@ -47,6 +51,8 @@ export type AiGenerateResult = {
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
   /** 厂商响应确认的实际服务档位或速度，可能与请求档位不同。 */
   actualSpeed?: string;
+  /** 连接测试发现的实际协议，用于更新本地模型目录缓存。 */
+  generationProtocol?: AiGenerationProtocol;
 };
 
 export type AiGenerateStreamEvent =
@@ -98,6 +104,7 @@ export type AiModelDirectoryEntry = {
   /** 能力来源用于区分静态核验、厂商元数据与未知模型，避免 UI 猜测。 */
   capabilitySource: "verified" | "provider" | "unknown";
   supportedGenerationMethods?: string[];
+  generationProtocol?: AiGenerationProtocol;
   family?: string;
   generation?: string;
   modalityGroup?: "text" | "multimodal" | "speech" | "transcription" | "realtime";

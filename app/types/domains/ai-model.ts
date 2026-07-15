@@ -1,5 +1,10 @@
 import type { ApiProvider } from "./ai-provider";
 
+/** Google 文本生成按具体模型选择的官方协议。 */
+export type AiGenerationProtocol =
+  | "google_generate_content"
+  | "google_interactions";
+
 /** 模型运行选项的可持久化标量值。 */
 export type AiModelRuntimeValue = string | number;
 

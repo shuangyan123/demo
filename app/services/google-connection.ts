@@ -9,3 +9,9 @@ export function normalizeGoogleApiBaseUrl(value: string): string {
     .replace(/\/models$/i, "")
     .replace(/\/+$/, "");
 }
+
+/** 将 GenerateContent 版本根地址转换为 Interactions API 的 v1beta2 根地址。 */
+export function normalizeGoogleInteractionsBaseUrl(value: string): string {
+  const normalized = normalizeGoogleApiBaseUrl(value);
+  return normalized.replace(/\/(?:v1beta2|v1beta|v1)$/i, "/v1beta2");
+}

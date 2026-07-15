@@ -18,6 +18,17 @@ function sanitizeGoogleErrorText(value: string): string {
     .slice(0, 180);
 }
 
+/** 仅识别 Google 明确返回的协议不匹配，禁止根据状态码盲目切换协议。 */
+export async function isGoogleInteractionsOnlyError(response: Response): Promise<boolean> {
+  if (response.status !== 400 && response.status !== 404) return false;
+  try {
+    const text = await response.clone().text();
+    return /only supports? (?:the )?Interactions API/i.test(text);
+  } catch {
+    return false;
+  }
+}
+
 /** 将 Google 标准错误包络归一化为不泄露请求内容的可行动提示。 */
 export async function googleUpstreamFailureMessage(response: Response, fallbackStage = "请求"): Promise<string> {
   let payload: GoogleErrorPayload = {};
@@ -31,6 +42,10 @@ export async function googleUpstreamFailureMessage(response: Response, fallbackS
   const violation = error?.details?.flatMap((detail) => detail.fieldViolations ?? [])[0];
   const detail = sanitizeGoogleErrorText(violation?.description ?? error?.message ?? "");
   const suffix = detail ? `：${detail}` : "";
+
+  if (/only supports? (?:the )?Interactions API/i.test(detail)) {
+    return `Google 协议不匹配：所选模型需要 Interactions API${suffix}`;
+  }
 
   if (response.status === 400 || status === "INVALID_ARGUMENT") return `Google 参数不兼容${suffix}`;
   if (response.status === 401 || status === "UNAUTHENTICATED") return `Google API Key 无效或已失效${suffix}`;

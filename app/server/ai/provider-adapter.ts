@@ -1,6 +1,6 @@
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent, AiSpeechRequest, AiTranscriptionRequest, AiTranscriptionResult, ChatMessage, ChatMessageContent } from "../../services/api-client";
 import { getProviderContract } from "../../services/provider-contracts.ts";
-import { normalizeGoogleApiBaseUrl } from "../../services/google-connection.ts";
+import { normalizeGoogleApiBaseUrl, normalizeGoogleInteractionsBaseUrl } from "../../services/google-connection.ts";
 import { miniMaxBearerHeaders, normalizeMiniMaxAnthropicBaseUrl } from "../../services/minimax-connection.ts";
 import { mapProviderRuntimeOptions } from "./runtime-option-mappers/index.ts";
 
@@ -68,6 +68,18 @@ function toGeminiParts(content: ChatMessageContent): unknown[] {
   });
 }
 
+/** 将统一内容转换为 Interactions API 的 text/image/video 内容块。 */
+function toGoogleInteractionContent(content: ChatMessageContent): unknown[] {
+  if (typeof content === "string") return [{ type: "text", text: content }];
+  return content.map((item) => {
+    if (item.type === "text") return { type: "text", text: item.text };
+    const mediaUrl = item.type === "video_url" ? item.video_url.url : item.image_url.url;
+    const dataUrl = /^data:([^;]+);base64,([\s\S]+)$/.exec(mediaUrl);
+    if (dataUrl) return { type: item.type === "video_url" ? "video" : "image", mime_type: dataUrl[1], data: dataUrl[2] };
+    return { type: item.type === "video_url" ? "video" : "image", uri: mediaUrl };
+  });
+}
+
 // 把统一消息转换为 Anthropic Messages 的文本和图片块。
 function toAnthropicContent(content: ChatMessageContent): unknown {
   if (typeof content === "string") return content;
@@ -101,7 +113,7 @@ function buildResponsesRequest(input: AiGenerateRequest): ProviderHttpRequest {
   };
 }
 
-function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
+function buildGoogleGenerateContentRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const { system, conversation } = splitSystemMessages(input.messages);
   const runtime = mapProviderRuntimeOptions(input.provider, input);
   return {
@@ -117,6 +129,38 @@ function buildGoogleRequest(input: AiGenerateRequest): ProviderHttpRequest {
         ...runtime.generationFields,
         ...(input.structuredOutput ? { responseMimeType: "application/json", responseJsonSchema: input.structuredOutput.schema } : {}),
       },
+    },
+  };
+}
+
+/** 构造无服务端历史留存的 Google Interactions 请求。 */
+function buildGoogleInteractionsRequest(input: AiGenerateRequest): ProviderHttpRequest {
+  const { system, conversation } = splitSystemMessages(input.messages);
+  const runtime = mapProviderRuntimeOptions(input.provider, input);
+  const generationFields = runtime.generationFields ?? {};
+  const thinkingConfig = asRecord(generationFields.thinkingConfig);
+  const generationConfig = {
+    ...(input.maxOutputTokens ? { max_output_tokens: input.maxOutputTokens } : {}),
+    ...(typeof thinkingConfig.thinkingLevel === "string" ? { thinking_level: thinkingConfig.thinkingLevel } : {}),
+    ...(typeof thinkingConfig.thinkingBudget === "number" ? { thinking_budget: thinkingConfig.thinkingBudget } : {}),
+    ...(!runtime.omitTemperature && input.temperature !== undefined ? { temperature: input.temperature } : {}),
+  };
+  const inputSteps = conversation.map((message) => ({
+    type: message.role === "assistant" ? "model_output" : "user_input",
+    content: toGoogleInteractionContent(message.content),
+  }));
+  return {
+    url: `${normalizeGoogleInteractionsBaseUrl(input.baseUrl)}/interactions`,
+    headers: { "x-goog-api-key": input.apiKey, "Content-Type": "application/json", ...runtime.headers },
+    body: {
+      model: input.model,
+      input: inputSteps.length === 1 && inputSteps[0].type === "user_input" ? inputSteps[0].content : inputSteps,
+      store: false,
+      ...(system ? { system_instruction: system } : {}),
+      ...(Object.keys(generationConfig).length ? { generation_config: generationConfig } : {}),
+      ...(runtime.requestFields?.serviceTier === "priority" ? { service_tier: "priority" } : {}),
+      ...(input.structuredOutput ? { response_format: [{ type: "text", mime_type: "application/json", schema: input.structuredOutput.schema }] } : {}),
+      ...(input.stream ? { stream: true } : {}),
     },
   };
 }
@@ -168,7 +212,11 @@ function buildChatCompletionsRequest(input: AiGenerateRequest): ProviderHttpRequ
 export function buildGenerateProviderRequest(input: AiGenerateRequest): ProviderHttpRequest {
   const format = getProviderContract(input.provider).apiFormat;
   if (format === "responses") return buildResponsesRequest(input);
-  if (format === "google_generate_content") return buildGoogleRequest(input);
+  if (input.provider === "google") {
+    return input.generationProtocol === "google_interactions"
+      ? buildGoogleInteractionsRequest(input)
+      : buildGoogleGenerateContentRequest(input);
+  }
   if (format === "anthropic_messages") return buildAnthropicRequest(input);
   return buildChatCompletionsRequest(input);
 }
@@ -226,6 +274,23 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
   const root = asRecord(payload);
   const format = getProviderContract(input.provider).apiFormat;
   const actualSpeed = actualSpeedFromResponse(input, root, headers);
+  if (input.provider === "google" && input.generationProtocol === "google_interactions") {
+    const steps = Array.isArray(root.steps) ? root.steps : [];
+    const content = steps
+      .filter((step) => asRecord(step).type === "model_output")
+      .flatMap((step) => Array.isArray(asRecord(step).content) ? asRecord(step).content as unknown[] : [])
+      .map((part) => asRecord(part).text)
+      .filter((text): text is string => typeof text === "string")
+      .join("");
+    const usage = asRecord(root.usage);
+    return {
+      content: typeof root.output_text === "string" ? root.output_text : content,
+      requestId: typeof root.id === "string" ? root.id : headers.get("x-request-id") ?? undefined,
+      usage: usageResult(usage.prompt_tokens, usage.completion_tokens, usage.total_tokens),
+      ...(actualSpeed ? { actualSpeed } : {}),
+      generationProtocol: "google_interactions",
+    };
+  }
   if (format === "responses") {
     const output = Array.isArray(root.output) ? root.output : [];
     const nestedText = output
@@ -250,6 +315,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
       requestId: headers.get("x-request-id") ?? undefined,
       usage: usageResult(usage.promptTokenCount, usage.candidatesTokenCount, usage.totalTokenCount),
       ...(actualSpeed ? { actualSpeed } : {}),
+      ...(input.generationProtocol ? { generationProtocol: "google_generate_content" as const } : {}),
     };
   }
   if (format === "anthropic_messages") {
@@ -289,6 +355,19 @@ function usageFromRecord(record: JsonRecord, kind: "openai" | "google" | "anthro
 export function parseGenerateProviderStreamEvent(input: AiGenerateRequest, payload: unknown, headers: Headers): AiGenerateStreamEvent[] {
   const root = asRecord(payload);
   const format = getProviderContract(input.provider).apiFormat;
+  if (input.provider === "google" && input.generationProtocol === "google_interactions") {
+    const eventType = stringValue(root.type) || stringValue(root.event_type);
+    const delta = asRecord(root.delta);
+    if (eventType === "step.delta" && delta.type === "text" && typeof delta.text === "string") {
+      return [{ type: "delta", text: delta.text }];
+    }
+    if (eventType === "interaction.completed") {
+      const interaction = asRecord(root.interaction);
+      const usage = usageFromRecord(asRecord(interaction.usage), "chat");
+      return [{ type: "usage", requestId: stringValue(interaction.id) || headers.get("x-request-id") || undefined, usage, actualSpeed: stringValue(interaction.service_tier) || undefined }];
+    }
+    return [];
+  }
   if (format === "responses") {
     const eventType = stringValue(root.type);
     if (eventType === "response.output_text.delta") return [{ type: "delta", text: stringValue(root.delta) }];

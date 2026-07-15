@@ -24,6 +24,7 @@ function toCatalogEntry(connection: Pick<ApiConnectionProfile, "provider">, mode
     source: "official_live",
     capabilitySource: model.capabilitySource,
     supportedGenerationMethods: model.supportedGenerationMethods,
+    generationProtocol: model.generationProtocol,
     family: model.family,
     generation: model.generation,
     modalityGroup: model.modalityGroup,
@@ -36,9 +37,16 @@ function toCatalogEntry(connection: Pick<ApiConnectionProfile, "provider">, mode
 }
 
 function catalogFromDirectory(connection: Pick<ApiConnectionProfile, "provider">, directory: AiModelsResult, purpose?: AiConnectionPurpose): AiModelCatalogEntry[] {
-  return directory.models
+  const online = directory.models
     .filter((model) => model.status !== "deprecated" && (!purpose || model.purposes.includes(purpose)))
     .map((model) => toCatalogEntry(connection, model, purpose));
+  // Google Models API 不保证列出 Interactions-only 模型；MiniMax 目录也需保留已核验 M3。
+  const verified = ["google", "minimax"].includes(connection.provider)
+    ? getProviderModelCatalog(connection.provider, purpose)
+    : [];
+  const merged = new Map(verified.map((model) => [model.id, model]));
+  for (const model of online) merged.set(model.id, { ...merged.get(model.id), ...model });
+  return [...merged.values()];
 }
 
 /** 同步读取共享缓存；默认能力选择和对话菜单由此看到同一份在线目录。 */

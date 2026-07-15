@@ -1,4 +1,6 @@
 import type { ApiProvider } from "./domains/ai-provider";
+import type { AiGenerationProtocol } from "./domains/ai-model";
+export type { AiGenerationProtocol } from "./domains/ai-model";
 import type { PersonalMemoryEntry, PersonalMemorySettings } from "./domains/personal-memory";
 export type {
   PersonalMemoryEntry,
@@ -1091,6 +1093,8 @@ export type AiModelCatalogEntry = {
   source: "official_live" | "official_fallback" | "manual";
   capabilitySource?: "verified" | "provider" | "unknown";
   supportedGenerationMethods?: string[];
+  /** 仅在厂商文档或在线目录已核验时登记，不按模型名称猜测。 */
+  generationProtocol?: AiGenerationProtocol;
   /** 用于两级选择器按最近两代模型家族分组。 */
   family?: string;
   generation?: string;

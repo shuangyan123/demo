@@ -21,7 +21,7 @@ export type ProviderContract = {
   speechVoices?: Array<{ id: string; label: string }>;
 };
 
-const verifiedAt = "2026-07-12";
+const verifiedAt = "2026-07-15";
 const openAiVoices = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse", "marin", "cedar"];
 const googleVoices = ["Kore", "Puck", "Charon", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"];
 
@@ -32,7 +32,7 @@ function model(
   capabilities: AiCapability[],
   status: AiModelCatalogEntry["status"],
   documentationUrl?: string,
-  limits?: Pick<AiModelCatalogEntry, "contextWindow" | "maxOutputTokens">,
+  limits?: Pick<AiModelCatalogEntry, "contextWindow" | "maxOutputTokens" | "generationProtocol">,
 ): AiModelCatalogEntry {
   const generation = id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
   const modalityGroup = purposes.includes("realtime") ? "realtime" : purposes.includes("speech") ? "speech" : purposes.includes("transcription") && !purposes.includes("text")
@@ -86,12 +86,12 @@ const openAiCatalog = [
 ];
 
 const googleCatalog = [
-  model("google", "gemini-3.5-flash", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "recommended", "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash"),
-  model("google", "gemini-3.1-pro-preview", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview"),
-  model("google", "gemini-3.1-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite"),
-  model("google", "gemini-2.5-flash", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models"),
-  model("google", "gemini-2.5-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models"),
-  model("google", "gemini-2.5-pro", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models"),
+  model("google", "gemini-3.5-flash", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "recommended", "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash", { generationProtocol: "google_interactions" }),
+  model("google", "gemini-3.1-pro-preview", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-3.1-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-2.5-flash", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-2.5-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-2.5-pro", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models", { generationProtocol: "google_generate_content" }),
   model("google", "gemini-3.1-flash-tts-preview", ["speech"], ["speech"], "preview", "https://ai.google.dev/gemini-api/docs/models"),
   model("google", "gemini-2.5-flash-preview-tts", ["speech"], ["speech"], "preview", "https://ai.google.dev/gemini-api/docs/speech-generation"),
   model("google", "gemini-3.1-flash-live-preview", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/live-api"),

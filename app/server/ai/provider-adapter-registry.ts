@@ -7,7 +7,7 @@ type ProviderHttpRequest = { url: string; headers: Record<string, string>; body:
 /** 服务端厂商适配器统一边界；业务路由只依赖归一化输入输出。 */
 export type ProviderAdapter = {
   provider: ApiProvider;
-  protocol: "responses" | "interactions" | "messages" | "chat_completions";
+  protocol: "responses" | "model_routed" | "messages" | "chat_completions";
   capabilities: AiCapability[];
   buildGenerate: (input: AiGenerateRequest) => ProviderHttpRequest;
   parseGenerate: (input: AiGenerateRequest, payload: unknown, headers: Headers) => AiGenerateResult;
@@ -16,7 +16,7 @@ export type ProviderAdapter = {
 
 const definitions: Array<Pick<ProviderAdapter, "provider" | "protocol" | "capabilities">> = [
   { provider: "openai", protocol: "responses", capabilities: ["text", "vision", "structured_output", "streaming"] },
-  { provider: "google", protocol: "interactions", capabilities: ["text", "vision", "structured_output", "streaming", "speech", "transcription", "realtime"] },
+  { provider: "google", protocol: "model_routed", capabilities: ["text", "vision", "structured_output", "streaming", "speech", "transcription", "realtime"] },
   { provider: "anthropic", protocol: "messages", capabilities: ["text", "vision", "structured_output", "streaming"] },
   { provider: "deepseek", protocol: "chat_completions", capabilities: ["text", "structured_output", "streaming"] },
   { provider: "zhipu", protocol: "chat_completions", capabilities: ["text", "vision", "structured_output", "streaming", "speech", "transcription", "realtime"] },

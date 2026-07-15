@@ -1,3 +1,4 @@
+import type { AiGenerationProtocol } from "../types/domains/ai-model";
 import type { AiModelsResult } from "./api-client";
 import type { ApiProvider } from "../types/domains/ai-provider";
 
@@ -28,6 +29,32 @@ export const providerModelCache = {
   save(connectionId: string, provider: ApiProvider, baseUrl: string, value: AiModelsResult): void {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(key(connectionId, provider, baseUrl), JSON.stringify(value));
+  },
+  /** 仅保存连接测试明确学到的协议，不保存请求或响应正文。 */
+  rememberProtocol(connectionId: string, provider: ApiProvider, baseUrl: string, modelId: string, protocol: AiGenerationProtocol): void {
+    if (typeof window === "undefined" || provider !== "google") return;
+    const current = this.load(connectionId, provider, baseUrl) ?? { models: [], fetchedAt: new Date().toISOString() };
+    const existing = current.models.find((model) => model.id === modelId);
+    const learned = existing
+      ? { ...existing, generationProtocol: protocol }
+      : {
+          id: modelId,
+          label: modelId,
+          purposes: ["text" as const],
+          capabilities: ["text" as const, "structured_output" as const, "streaming" as const],
+          status: "unknown" as const,
+          source: "static_catalog" as const,
+          capabilitySource: "unknown" as const,
+          generationProtocol: protocol,
+          supportsStreaming: true,
+          supportsStructuredOutput: true,
+          updatedAt: new Date().toISOString(),
+        };
+    this.save(connectionId, provider, baseUrl, {
+      ...current,
+      models: [...current.models.filter((model) => model.id !== modelId), learned],
+      fetchedAt: new Date().toISOString(),
+    });
   },
   isStale(value: AiModelsResult): boolean {
     return Date.now() - new Date(value.fetchedAt).getTime() > PROVIDER_MODEL_CACHE_TTL;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from "../../../services/api-client";
 import { getProviderAdapter } from "../../../server/ai/provider-adapter-registry.ts";
+import { executeProviderGenerate } from "../../../server/ai/execute-provider-generate.ts";
 import { miniMaxFailureMessage } from "../../../services/minimax-connection.ts";
 import { googleUpstreamFailureMessage } from "../../../server/ai/google-error.ts";
 
@@ -95,22 +96,18 @@ export async function POST(request: Request) {
     const body: unknown = await request.json();
     if (!isGenerateRequest(body)) return new NextResponse("缺少有效的 AI 连接或消息内容", { status: 400 });
     const adapter = getProviderAdapter(body.provider);
-    const providerRequest = adapter.buildGenerate(body);
-    const response = await fetch(providerRequest.url, {
-      method: "POST",
-      headers: providerRequest.headers,
-      body: JSON.stringify(providerRequest.body),
-      cache: "no-store",
-    });
+    const executed = await executeProviderGenerate(body);
+    const effectiveBody = executed.body;
+    const response = executed.response;
     if (!response.ok) {
       const message = body.provider === "google"
         ? await googleUpstreamFailureMessage(response)
         : providerFailureMessage(response.status, body);
       return new NextResponse(message, { status: response.status });
     }
-    if (body.stream) return pipeProviderStream(body, response);
+    if (effectiveBody.stream) return pipeProviderStream(effectiveBody, response);
     const payload: unknown = await response.json();
-    return NextResponse.json(adapter.parseGenerate(body, payload, response.headers));
+    return NextResponse.json(adapter.parseGenerate(effectiveBody, payload, response.headers));
   } catch (error) {
     const message = error instanceof Error && error.message.includes("URL") ? "API 地址无效" : "AI API 请求失败";
     return new NextResponse(message, { status: 500 });
