@@ -409,6 +409,10 @@ select,
   object-fit: contain;
 }
 
+body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
+  filter: invert(1);
+}
+
 .ai-connection-picker {
   display: grid;
   grid-template-columns: minmax(8rem, 0.6fr) minmax(12rem, 1fr) minmax(14rem, 1.4fr) auto;

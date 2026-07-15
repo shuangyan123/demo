@@ -7,7 +7,13 @@ export function ProviderIcon({ provider, size = 24 }: { provider: ApiProvider; s
   const branding = getProviderBranding(provider);
   if (branding.iconPath) {
     return (
-      <span aria-hidden="true" className="provider-icon relative shrink-0" style={{ width: size, height: size }} title={branding.label}>
+      <span
+        aria-hidden="true"
+        className="provider-icon relative shrink-0"
+        data-theme-variant={branding.themeVariant}
+        style={{ width: size, height: size }}
+        title={branding.label}
+      >
         <Image alt="" fill sizes={`${size}px`} src={branding.iconPath} style={{ objectFit: "contain" }} unoptimized />
       </span>
     );

@@ -133,7 +133,7 @@
 .quotaRingWrap { position: relative; display: inline-flex; align-items: center; justify-content: flex-start; }
 
 .quotaRingButton {
-  --quota-ring-color: var(--blue);
+  --quota-ring-color: var(--green);
   position: relative;
   display: grid;
   width: 2rem;
@@ -173,8 +173,8 @@
 .quotaRingButton[data-mode="empty"] { --quota-ring-color: var(--line); color: var(--muted); }
 .quotaRingButton[data-tone="warning"] { --quota-ring-color: var(--yellow); }
 .quotaRingButton[data-tone="danger"] { --quota-ring-color: var(--red); }
-.quotaRingButton[data-tone="stale"] { --quota-ring-color: var(--yellow); filter: saturate(0.72); }
-.quotaRingButton:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 60%, transparent); outline-offset: 2px; }
+.quotaRingButton[data-tone="stale"] { --quota-ring-color: var(--muted); filter: saturate(0.25); }
+.quotaRingButton:focus-visible { outline: 2px solid color-mix(in srgb, var(--green) 72%, transparent); outline-offset: 2px; }
 
 .quotaTooltip {
   position: fixed;

@@ -37,7 +37,7 @@ function sourceLabel(source: AiQuotaMetric["source"]): string {
   return "手动";
 }
 
-/** 将 provider snapshot 推导为不伪造比例的额度环展示模型。 */
+/** 将额度快照推导为“剩余比例”圆环；无可靠分母时只显示中性状态环。 */
 export function deriveQuotaRingPresentation(snapshot?: AiQuotaSnapshot): AiQuotaRingPresentation {
   if (!snapshot) return { mode: "empty", centerLabel: "—", accessibleLabel: "尚无额度数据", details: ["尚未刷新额度"], tone: "normal" };
   const used = metricById(snapshot, "used_cost");
@@ -47,8 +47,8 @@ export function deriveQuotaRingPresentation(snapshot?: AiQuotaSnapshot): AiQuota
   let ratio: number | undefined;
   const centerMetric = remaining ?? used ?? tokens;
   if (limit && limit.value > 0 && remaining) ratio = Math.max(0, Math.min(1, remaining.value / limit.value));
-  else if (limit && limit.value > 0 && used) ratio = Math.max(0, Math.min(1, used.value / limit.value));
-  else if (typeof snapshot.usageRatio === "number") ratio = Math.max(0, Math.min(1, snapshot.usageRatio));
+  else if (limit && limit.value > 0 && used) ratio = Math.max(0, Math.min(1, 1 - used.value / limit.value));
+  else if (typeof snapshot.usageRatio === "number") ratio = Math.max(0, Math.min(1, 1 - snapshot.usageRatio));
   const details = (snapshot.metrics ?? []).map((metric) => {
     const period = metric.periodStart || metric.periodEnd
       ? ` · ${metric.periodStart ? new Date(metric.periodStart).toLocaleDateString("zh-CN") : ""}${metric.periodEnd ? `–${new Date(metric.periodEnd).toLocaleDateString("zh-CN")}` : ""}`
@@ -57,9 +57,9 @@ export function deriveQuotaRingPresentation(snapshot?: AiQuotaSnapshot): AiQuota
   });
   details.push(`最后刷新：${new Date(snapshot.refreshedAt).toLocaleString("zh-CN")}${snapshot.stale ? " · 已过期" : ""}`);
   if (snapshot.sourceLabel) details.push(`来源：${snapshot.sourceLabel}`);
-  const centerLabel = centerMetric ? formatQuotaMetricValue(centerMetric, true).replace(/\s*tokens$/i, "") : ratio !== undefined ? `${Math.round(ratio * 100)}%` : "—";
-  const dangerRatio = limit && remaining ? 1 - (ratio ?? 0) : ratio;
-  const tone = snapshot.stale ? "stale" : dangerRatio !== undefined && dangerRatio >= 0.9 ? "danger" : dangerRatio !== undefined && dangerRatio >= 0.75 ? "warning" : "normal";
+  if (ratio !== undefined) details.unshift(`剩余比例：${Math.round(ratio * 100)}%`);
+  const centerLabel = ratio !== undefined ? `${Math.round(ratio * 100)}%` : "—";
+  const tone = snapshot.stale ? "stale" : ratio !== undefined && ratio < 0.15 ? "danger" : ratio !== undefined && ratio < 0.4 ? "warning" : "normal";
   return {
     mode: ratio === undefined ? (centerMetric ? "status" : "empty") : "determinate",
     ratio,

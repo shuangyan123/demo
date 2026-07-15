@@ -1,5 +1,9 @@
 import type { ApiProvider } from "../types/review";
 
+/** 品牌资产的登记来源，Lobe Icons 仅作为用户指定的社区图标包，不冒充厂商官方品牌包。 */
+export type ProviderBrandingAssetOrigin = "lobe-icons" | "official" | "text";
+
+/** AI 厂商在所有选择器、连接和额度界面共用的品牌描述。 */
 export type ProviderBranding = {
   label: string;
   iconPath?: string;
@@ -8,45 +12,89 @@ export type ProviderBranding = {
   sourceUrl: string;
   assetSourceUrl?: string;
   assetChecksum?: string;
+  assetOrigin: ProviderBrandingAssetOrigin;
+  assetVersion?: string;
   themeVariant?: "single" | "adaptive";
   verifiedAt: string;
   licenseNote: string;
 };
 
-const verifiedAt = "2026-07-14";
-const nominativeNote = "仅用于准确识别兼容服务；商标归各自权利人所有，不表示厂商背书。";
+const VERIFIED_AT = "2026-07-15";
+const LOBE_VERSION = "1.91.0";
+const LOBE_SOURCE = "https://github.com/lobehub/lobe-icons";
+const LOBE_LICENSE = "Lobe Icons 为 MIT 许可的社区品牌图标包；商标仍归各权利人所有，不表示厂商背书。";
+const TEXT_LICENSE = "当前没有采用可核验的图形资产，使用规范文字缩写识别服务。";
 
-function brand(input: Omit<ProviderBranding, "verifiedAt" | "licenseNote"> & Partial<Pick<ProviderBranding, "licenseNote">>): ProviderBranding {
-  return { ...input, verifiedAt, licenseNote: input.licenseNote ?? nominativeNote };
-}
-
-/**
- * 厂商品牌来源集中登记。只有官方已公开且本地已有可用资产时使用图形标志；
- * 对明确限制第三方 Logo 的厂商使用文字缩写，避免用通用机器人图标冒充品牌。
- */
-export const providerBranding: Record<ApiProvider, ProviderBranding> = {
-  openai: brand({ label: "OpenAI", mark: "OA", color: "#111111", sourceUrl: "https://openai.com/brand/", licenseNote: "官方标志下载包含不可裁切的安全留白；当前使用文字缩写，避免继续使用非官方仿制图标。" }),
-  azure_openai: brand({ label: "Azure OpenAI", mark: "Az", color: "#0078d4", sourceUrl: "https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks", licenseNote: "Microsoft 指南限制无授权 Logo 使用，因此使用产品文字缩写。" }),
-  google: brand({ label: "Google Gemini", iconPath: "/provider-icons/google.svg", mark: "G", color: "#8e75b2", sourceUrl: "https://ai.google.dev/", assetSourceUrl: "https://ai.google.dev/", assetChecksum: "2bbf76d70a46c5232054f7ba11cc8cd4ffed5044c13fb2910c7f643ca0f12f5d", themeVariant: "single" }),
-  anthropic: brand({ label: "Anthropic Claude", iconPath: "/provider-icons/anthropic.svg", mark: "A", color: "#191919", sourceUrl: "https://www.anthropic.com/", assetSourceUrl: "https://www.anthropic.com/", assetChecksum: "ed85801f453d8cdca14078a757b70424d38b7744c2724747181078dd7368dac0", themeVariant: "single" }),
-  xai: brand({ label: "xAI Grok", iconPath: "/provider-icons/xai.svg", mark: "x", color: "#000000", sourceUrl: "https://x.ai/", assetSourceUrl: "https://x.ai/", assetChecksum: "fbf71fe10e5e6d9331be75719cdf0afc9d26862cb65212a90ce64c65f766ca5d", themeVariant: "single" }),
-  deepseek: brand({ label: "DeepSeek", iconPath: "/provider-icons/deepseek.svg", mark: "D", color: "#5786fe", sourceUrl: "https://www.deepseek.com/", assetSourceUrl: "https://www.deepseek.com/", assetChecksum: "862be0efea20dc8b0e81489cc29aae4581494824191457608bf0837cfc98d0ca", themeVariant: "single" }),
-  qwen: brand({ label: "Qwen", iconPath: "/provider-icons/qwen.svg", mark: "Q", color: "#ff6a00", sourceUrl: "https://qwen.ai/", assetSourceUrl: "https://qwen.ai/", assetChecksum: "c5859e5e8865a67f2bd7f1951d11c2d90b63ce27d8354a34ad2b283fc47ecd5d", themeVariant: "single" }),
-  openrouter: brand({ label: "OpenRouter", iconPath: "/provider-icons/openrouter.svg", mark: "OR", color: "#c8ff00", sourceUrl: "https://openrouter.ai/brand", assetSourceUrl: "https://openrouter.ai/brand/v2/openrouter-glyph-dark.svg", assetChecksum: "21e68f0a39714b93fca39a29e6676558323d42be0b851adb1363d3d8dd23e22e", themeVariant: "single" }),
-  groq: brand({ label: "Groq", mark: "Gq", color: "#f55036", sourceUrl: "https://groq.com/trademark-policy", licenseNote: "Groq 商标政策限制无授权 Logo 使用，因此使用产品文字缩写。" }),
-  mistral: brand({ label: "Mistral", iconPath: "/provider-icons/mistral.svg", mark: "M", color: "#fa520f", sourceUrl: "https://mistral.ai/", assetSourceUrl: "https://mistral.ai/cms-media/api/media/file/icon-m-flower.svg", assetChecksum: "c0aedb861efc7c0ad9faaeb17176fc1c1cab4d1a70aa3bcc06812450977ba04a", themeVariant: "single" }),
-  siliconflow: brand({ label: "SiliconFlow", mark: "SF", color: "#4f46e5", sourceUrl: "https://siliconflow.cn/" }),
-  zhipu: brand({ label: "智谱 GLM", iconPath: "/provider-icons/zhipu.svg", mark: "GL", color: "#2454ff", sourceUrl: "https://www.bigmodel.cn/", assetSourceUrl: "https://www.bigmodel.cn/", assetChecksum: "4dd428d70a6e0b33a19e3c957bf0b1b5945560295f64a7c47f70c00dd0785a76", themeVariant: "single" }),
-  kimi: brand({ label: "Moonshot Kimi", mark: "K", color: "#111827", sourceUrl: "https://www.kimi.com/" }),
-  doubao: brand({ label: "火山方舟 / 豆包", iconPath: "/provider-icons/bytedance.svg", mark: "豆", color: "#3c8cff", sourceUrl: "https://www.volcengine.com/product/ark", assetSourceUrl: "https://www.volcengine.com/product/ark", assetChecksum: "c3e9a728c21ecf000927c6539784fef7ddff6b1d4148f60a9093631cf8d8df68", themeVariant: "single" }),
-  baidu: brand({ label: "百度千帆", iconPath: "/provider-icons/baidu.svg", mark: "千", color: "#2932e1", sourceUrl: "https://cloud.baidu.com/product/wenxinworkshop", assetSourceUrl: "https://cloud.baidu.com/product/wenxinworkshop", assetChecksum: "d13d77ff36eb92c0e639c948f561327caa3cada9773d983ea33ffa34fa44e2c1", themeVariant: "single" }),
-  tencent: brand({ label: "腾讯混元", mark: "混", color: "#006eff", sourceUrl: "https://cloud.tencent.com/product/hunyuan" }),
-  elevenlabs: brand({ label: "ElevenLabs", iconPath: "/provider-icons/elevenlabs.svg", mark: "11", color: "#000000", sourceUrl: "https://elevenlabs.io/", assetSourceUrl: "https://elevenlabs.io/icon.svg", assetChecksum: "a8ccade64d9d38696c6f47a17ad1eb6d941d687bea0adc7af9b2ccce0e26c29a", themeVariant: "single" }),
-  azure: brand({ label: "Azure AI Speech", mark: "Az", color: "#0078d4", sourceUrl: "https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks", licenseNote: "Microsoft 指南限制无授权 Logo 使用，因此使用产品文字缩写。" }),
-  minimax: brand({ label: "MiniMax", iconPath: "/provider-icons/minimax.svg", mark: "MM", color: "#e21680", sourceUrl: "https://www.minimaxi.com/", assetSourceUrl: "https://www.minimaxi.com/", assetChecksum: "6dd6e9935ca13874afde71471b835830ef917bbaac4ceff34f589d4c98c10d73", themeVariant: "single" }),
-  custom: brand({ label: "Local / Custom", iconPath: "/provider-icons/generic.svg", mark: "AI", color: "#8490a5", sourceUrl: "", licenseNote: "自定义连接使用应用通用图标。" }),
+type LobeBrandInput = {
+  label: string;
+  slug: string;
+  checksum: string;
+  mark: string;
+  color: string;
+  adaptive?: boolean;
 };
 
+/** 创建固定版本的本地 Lobe Icons 登记，禁止运行时访问 CDN。 */
+function lobeBrand(input: LobeBrandInput): ProviderBranding {
+  return {
+    label: input.label,
+    iconPath: `/provider-icons/lobe/${input.slug}.svg`,
+    mark: input.mark,
+    color: input.color,
+    sourceUrl: LOBE_SOURCE,
+    assetSourceUrl: `https://unpkg.com/@lobehub/icons-static-svg@${LOBE_VERSION}/icons/${input.slug}.svg`,
+    assetChecksum: input.checksum,
+    assetOrigin: "lobe-icons",
+    assetVersion: LOBE_VERSION,
+    themeVariant: input.adaptive ? "adaptive" : "single",
+    verifiedAt: VERIFIED_AT,
+    licenseNote: LOBE_LICENSE,
+  };
+}
+
+/** 创建文字回退品牌；只有 custom 使用应用通用图标。 */
+function textBrand(label: string, mark: string, color: string, sourceUrl: string): ProviderBranding {
+  return {
+    label,
+    mark,
+    color,
+    sourceUrl,
+    assetOrigin: "text",
+    verifiedAt: VERIFIED_AT,
+    licenseNote: TEXT_LICENSE,
+  };
+}
+
+/** 厂商品牌来源集中登记，同一厂商在所有界面只渲染同一份资产。 */
+export const providerBranding: Record<ApiProvider, ProviderBranding> = {
+  openai: lobeBrand({ label: "OpenAI", slug: "openai", checksum: "a595df6b423920c67a7f8f73c063e4bfb72d415948097b6cac063a2366bb5186", mark: "OA", color: "#111111", adaptive: true }),
+  azure_openai: lobeBrand({ label: "Azure OpenAI", slug: "azureai-color", checksum: "89bef85d67f45984dba85f8d7e6a8ed91585f706c43f7236a89590d8f4940fde", mark: "Az", color: "#0078d4" }),
+  google: lobeBrand({ label: "Google Gemini", slug: "gemini-color", checksum: "8ab0a9bafec11f7e69bcb9fc4ffd8f1bc927d1ddcbbb6ff36dee5ae8b5a9d602", mark: "G", color: "#8e75b2" }),
+  anthropic: lobeBrand({ label: "Anthropic Claude", slug: "claude", checksum: "365a70a7eb3956d9b9a96086058ebe04e1dbd8e291a756ad964e8a283fbd6d38", mark: "A", color: "#d97757", adaptive: true }),
+  xai: lobeBrand({ label: "xAI Grok", slug: "xai", checksum: "89eb7de9f0d02a41cfecd9109e253d7fd3529e27467dee4254faa67f3ac21451", mark: "x", color: "#111111", adaptive: true }),
+  deepseek: lobeBrand({ label: "DeepSeek", slug: "deepseek-color", checksum: "deba5f98a5c1796e20fcac3149bcd7eb8a32f0bdd04d048819400b1f28bd1439", mark: "D", color: "#5786fe" }),
+  qwen: lobeBrand({ label: "Qwen", slug: "qwen-color", checksum: "77f5768c66d08ce1d3d14e73373975c1bc0454be88c81523ddd0ffd7e2974029", mark: "Q", color: "#615ced" }),
+  openrouter: lobeBrand({ label: "OpenRouter", slug: "openrouter", checksum: "c9e48eae623a76ff784877bad6f70f57c67811a05a4ab2450814c7d285b17d24", mark: "OR", color: "#111111", adaptive: true }),
+  groq: lobeBrand({ label: "Groq", slug: "groq", checksum: "078d5cf6e7a54905040c15ddacf5ea33c13042fe7739e820cedc2096e4406651", mark: "Gq", color: "#f55036", adaptive: true }),
+  mistral: lobeBrand({ label: "Mistral", slug: "mistral-color", checksum: "722f74b289d95486b43662fe24fa883b333701296f618406cd0ed502299170b6", mark: "M", color: "#fa520f" }),
+  siliconflow: lobeBrand({ label: "SiliconFlow", slug: "siliconcloud-color", checksum: "a02d8d7ccb81739fbc720e2e5daaf149013dd5088605dc2dce1b71df0784d424", mark: "SF", color: "#4f46e5" }),
+  zhipu: lobeBrand({ label: "智谱 GLM", slug: "zhipu-color", checksum: "8174e65ff71647d5c705c920c953a82bd723d9e3e42887bdd4ffc9dfe51207a0", mark: "GL", color: "#2454ff" }),
+  kimi: lobeBrand({ label: "Moonshot Kimi", slug: "kimi-color", checksum: "74a7292aeb0220445d14c5d397d75760e2e8c6ed6a9e5fe4f3023471bf62a9ff", mark: "K", color: "#111827" }),
+  doubao: lobeBrand({ label: "火山方舟 / 豆包", slug: "doubao-color", checksum: "3cd31ba03ae44b8c29561597a3b863809efecb13fcdfd08407a086df86a69b55", mark: "豆", color: "#3c8cff" }),
+  baidu: lobeBrand({ label: "百度千帆", slug: "baiducloud-color", checksum: "2269f4c82a3a810f42691c82d0d5086961c2b684a2dcc1e7523cd9f8564e2f35", mark: "千", color: "#2932e1" }),
+  tencent: lobeBrand({ label: "腾讯混元", slug: "hunyuan-color", checksum: "510e7bb438506b5aadfaf8b9551d1606efd5b4171161a64a64204c72a453658a", mark: "混", color: "#006eff" }),
+  elevenlabs: lobeBrand({ label: "ElevenLabs", slug: "elevenlabs", checksum: "152a4a89fd5228924b6ccc91a72675966df35e3b69d1cf93a67b6866cf846584", mark: "11", color: "#111111", adaptive: true }),
+  azure: lobeBrand({ label: "Azure AI Speech", slug: "azureai-color", checksum: "89bef85d67f45984dba85f8d7e6a8ed91585f706c43f7236a89590d8f4940fde", mark: "Az", color: "#0078d4" }),
+  minimax: lobeBrand({ label: "MiniMax", slug: "minimax-color", checksum: "7f7187fa6d9b341ac5f22f6c5a970523afb439dc45566d64eb4f4b9b604d6b01", mark: "MM", color: "#e21680" }),
+  custom: {
+    ...textBrand("Local / Custom", "AI", "#8490a5", ""),
+    iconPath: "/provider-icons/generic.svg",
+    assetOrigin: "official",
+    licenseNote: "应用自有通用图标，仅用于本地或自定义连接。",
+  },
+};
+
+/** 获取厂商品牌描述。 */
 export function getProviderBranding(provider: ApiProvider): ProviderBranding {
   return providerBranding[provider];
 }
