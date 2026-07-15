@@ -1,7 +1,7 @@
 import type { AiModelRuntimeDescriptor, AiModelRuntimeOption, AiModelRuntimeValue, AiSelectedRuntimeValues } from "../types/domains/ai-model";
 import type { ApiProvider } from "../types/domains/ai-provider";
 
-const VERIFIED_AT = "2026-07-13";
+const VERIFIED_AT = "2026-07-15";
 const OPENAI_REASONING_URL = "https://developers.openai.com/api/docs/guides/reasoning";
 const OPENAI_PRIORITY_URL = "https://developers.openai.com/api/docs/guides/priority-processing";
 const GEMINI_THINKING_URL = "https://ai.google.dev/gemini-api/docs/generate-content/thinking";

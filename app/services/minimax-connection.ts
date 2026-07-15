@@ -54,6 +54,11 @@ export function miniMaxBearerHeaders(apiKey: string): Record<string, string> {
   return { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
 }
 
+/** MiniMax Anthropic-compatible 模型目录按官方规范使用独立 X-Api-Key。 */
+export function miniMaxModelDirectoryHeaders(apiKey: string): Record<string, string> {
+  return { "X-Api-Key": apiKey };
+}
+
 /**
  * 将 MiniMax 常见 HTTP 状态归一为可行动提示，避免把区域、套餐和余额问题都误报为鉴权失败。
  */

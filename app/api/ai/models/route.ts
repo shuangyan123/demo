@@ -2,7 +2,7 @@ import type { AiModelDirectoryEntry, AiModelsRequest } from "../../../services/a
 import type { AiCapability, AiConnectionPurpose, ApiProvider } from "../../../types/review";
 import { aiRouteError, aiUpstreamError, readAiRouteJson } from "../../../server/ai/http.ts";
 import { getProviderModelCatalog } from "../../../services/provider-contracts.ts";
-import { miniMaxBearerHeaders, miniMaxFailureMessage, normalizeMiniMaxAnthropicBaseUrl } from "../../../services/minimax-connection.ts";
+import { miniMaxFailureMessage, miniMaxModelDirectoryHeaders, normalizeMiniMaxAnthropicBaseUrl } from "../../../services/minimax-connection.ts";
 import { normalizeGoogleApiBaseUrl } from "../../../services/google-connection.ts";
 import { googleUpstreamFailureMessage } from "../../../server/ai/google-error.ts";
 
@@ -28,7 +28,7 @@ function normalizeBaseUrl(value: string): string {
 
 function providerHeaders(provider: ApiProvider, apiKey: string): Record<string, string> {
   if (provider === "google") return { "x-goog-api-key": apiKey };
-  if (provider === "minimax") return miniMaxBearerHeaders(apiKey);
+  if (provider === "minimax") return miniMaxModelDirectoryHeaders(apiKey);
   if (provider === "anthropic") return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
   return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
 }
@@ -89,6 +89,8 @@ function normalizeModel(provider: ApiProvider, raw: RawModel, updatedAt: string)
     source: "official_api",
     capabilitySource: resolvedCapabilities.source,
     supportedGenerationMethods: raw.supportedGenerationMethods,
+    generationProtocol: verified?.generationProtocol
+      ?? (raw.supportedGenerationMethods?.includes("generateContent") ? "google_generate_content" : undefined),
     family: raw.id.replace(/(?:[-_.](?:pro|mini|nano|flash|lite|turbo|hd|highspeed|reasoning|non-reasoning|preview|latest))+$/gi, ""),
     generation,
     modalityGroup,
