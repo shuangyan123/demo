@@ -7,6 +7,12 @@
 - `PersonalizationSettings` 增加可选 `memoryVersion`、`memorySettings`、`memoryEntries`，仍写入现有 personalization 单例。手动记忆直接 active，AI 建议只能 pending；只有用户确认后的记忆能进入最多 1500 字符的系统片段。
 - 数据管理不新增服务端 API。导入、错题复盘和对话历史通过独立 IndexedDB 事务清理；完整重置删除 `review_workspace` 与本应用 localStorage。
 
+## 粉笔实验直连（2026-07-15）
+
+- `POST /api/import/fenbi/validate`：请求体 `{ cookie }`，只验证 `tiku.fenbi.com` 当前会话，返回 `{ valid }` 或脱敏的稳定错误码。Cookie 不写日志、数据库或响应。
+- `POST /api/import/fenbi/sync`：请求体 `{ cookie, scope }`，以 SSE 依次返回 `stage/progress/drafts/done/error`。服务端固定读取错题板块树、分页错题和分批解析；每批最多 100 个 ID、并发最多 2、分页间隔至少 300ms。
+- 错误码固定为 `invalid_cookie`、`rate_limited`、`upstream_unavailable`、`malformed_response`。私有响应结构变化时客户端提示使用 PDF/Word 导出兜底，不允许任意 URL 转发。
+
 ## 额度验证与刷新（2026-07-14）
 
 `POST /api/ai/quota` 接收 `{ action, provider, credentials, period?, monthlyBudget? }`。`action` 为 `validate | refresh`；旧 OpenAI `{ apiKey }` 请求继续按刷新兼容。响应只包含归一化验证结果或 `AiQuotaMetric[]`，不返回凭据和厂商原始响应。
@@ -175,4 +181,4 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 - `POST /api/ai/models` 按连接厂商调用官方模型目录；OpenAI、Gemini、Anthropic、xAI、DeepSeek 与 MiniMax 支持在线发现，GLM 使用带核验日期的官方静态目录，自定义连接保留手动模型 ID。
 - 未保存连接由连接级客户端将表单草稿临时映射到 `/api/ai/models` 与 `/api/ai/generate`，业务组件不得直接拼装厂商请求，也不得把模型写回 `ApiConnectionProfile`。
 - 完整连接测试必须先选择具体模型，再发送一次极小真实生成请求；该请求可能产生少量用量，成功只更新连接测试状态，不自动改写默认文本、多模态、语音或实时能力。
-- 会话请求的 `providerOptions.serviceTier = "priority"` 仅在目录声明支持时映射为 OpenAI/Gemini 的 `service_tier: "priority"`；MiniMax 高速通过具体模型 ID 选择。
+- 会话请求的 `providerOptions.serviceTier = "priority"` 仅在目录声明支持时映射：OpenAI 使用 `service_tier`，Gemini GenerateContent 使用顶层 `serviceTier`；标准档不发送字段。MiniMax 按具体模型 descriptor 发送官方运行字段。

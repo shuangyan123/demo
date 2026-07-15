@@ -6,6 +6,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 设置与额度验收约定
 
+- Lobe Icons 只作为固定版本的本地社区品牌资产，登记版本、MIT 许可和 SHA-256；运行时不得访问 CDN，也不得宣称为厂商官方包。
+- 粉笔 Cookie 直连永远标记实验功能，只允许 `tiku.fenbi.com` 固定路径；Cookie 本机 AES-GCM 加密，结果先入草稿，结构变化回退 PDF/Word，确认后撤销凭据只保留 30 秒内存。
+- Gemini GenerateContent 优先档使用顶层 `serviceTier`，标准档不发送；`thinkingLevel` 与 `thinkingBudget` 不得同时出现。
+
+- Lobe Icons 只作为固定版本的本地社区品牌资产，登记版本、MIT 许可和 SHA-256；运行时不得访问 CDN，也不得宣称为厂商官方包。
+- 粉笔 Cookie 直连永远标记实验功能，只允许 `tiku.fenbi.com` 固定路径；Cookie 本机 AES-GCM 加密，结果先入草稿，结构变化回退 PDF/Word，确认后撤销凭据只保留 30 秒内存。
+- Gemini GenerateContent 优先档使用顶层 `serviceTier`，标准档不发送；`thinkingLevel` 与 `thinkingBudget` 不得同时出现。
+
 - 设置导航固定为“外观、AI 连接、个性化、额度、MCP、诊断”；旧 `roles` 在入口边界归一化为 `personalization`，持久化结构和 Dexie v16 不变。
 - 模型 tooltip 的可视层只响应 450ms 鼠标停留或用户键盘导航；程序化聚焦与触屏不得显示浮层。菜单外壳不滚动，当前层仅在真实溢出后启用内部滚动。
 - 额度凭据与普通推理 Key 分离并逐项加密。OpenAI、Anthropic、DeepSeek、xAI 只调用官方只读管理/费用/余额接口；Gemini、MiniMax、GLM 只显示控制台与手动记录。

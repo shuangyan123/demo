@@ -1,5 +1,12 @@
 # 应用架构
 
+## 品牌、Gemini 与粉笔账户导入（2026-07-15）
+
+- 厂商品牌仍由 `ProviderBranding` 单一注册表驱动。Lobe Icons 固定为 `@lobehub/icons-static-svg@1.91.0` 并本地固化 SVG、版本、来源、MIT 许可与 SHA-256；运行时不访问 CDN，未匹配厂商使用文字缩写。
+- Google adapter 独占 GenerateContent URL 归一化、`serviceTier`、thinking 字段互斥和脱敏错误分类。标准档不发送服务等级，优先档只发送顶层 `serviceTier: "priority"`，并保留 Gemini 默认采样。
+- 粉笔快捷导入分为 `FenbiAccountImportAdapter`、同源 validate/sync route、`useFenbiQuickImport` 与现有草稿 repository。服务端只访问硬编码 `tiku.fenbi.com/api/xingce/*` 路径；Cookie 仅在本机 AES-GCM 密文与单次请求内存中存在。
+- 账户同步结果与 PDF/Word 兜底统一落入 `ImportDraft`。异常草稿默认展开，正常草稿折叠；确认前不写错题库，确认后只保留 30 秒内存撤销凭据。Dexie 继续保持 `review_workspace` v16。
+
 ## AI 连接、额度运行时与个性化记忆（2026-07-14）
 
 - 连接编辑器只持有当前草稿；目录发现与测试通过 `ai-connection-client` 在草稿 Key 留空时安全复用旧密钥，但厂商、Base URL 和模型永远取当前草稿。连接测试活动使用 `compact-test`，由独立 352px 结果卡渲染，不进入全局 AI 对话结构。
