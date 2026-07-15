@@ -125,6 +125,8 @@ export type AiModelsRequest = {
 export type AiModelsResult = {
   models: AiModelDirectoryEntry[];
   fetchedAt: string;
+  /** 服务端是否已经遍历完厂商目录分页。 */
+  complete?: boolean;
 };
 
 // 调用统一生成路由，客户端不再拼接各厂商 endpoint 或解析厂商响应。

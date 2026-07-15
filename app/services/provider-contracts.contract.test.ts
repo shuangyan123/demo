@@ -4,12 +4,19 @@ import { creatableProviderContracts, getProviderModelCatalog, getProviderModels,
 import { getVoiceProviderDescriptor } from "./voice-provider-descriptors.ts";
 import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues, resolveRuntimeModelId } from "./model-runtime-descriptors.ts";
 
-test("新建连接只暴露七家活跃厂商与高级自定义入口", () => {
+test("新建连接暴露七家原生、六家兼容厂商与高级自定义入口", () => {
   const providers = creatableProviderContracts.map((contract) => contract.provider);
-  assert.deepEqual(providers, ["openai", "google", "anthropic", "xai", "deepseek", "zhipu", "minimax", "custom"]);
-  for (const provider of ["qwen", "openrouter", "groq", "mistral", "siliconflow", "doubao", "baidu", "tencent"] as const) {
+  assert.deepEqual(providers, ["openai", "google", "anthropic", "xai", "deepseek", "qwen", "openrouter", "groq", "mistral", "siliconflow", "kimi", "zhipu", "minimax", "custom"]);
+  for (const provider of ["qwen", "openrouter", "groq", "mistral", "siliconflow", "kimi"] as const) {
+    const compatible = providerContracts.find((contract) => contract.provider === provider);
+    assert.equal(compatible?.supportLevel, "compatible", provider);
+    assert.equal(compatible?.modelListStrategy, "official_api", provider);
+    assert.equal(compatible?.creatable, true, provider);
+  }
+  for (const provider of ["doubao", "baidu", "tencent"] as const) {
     const legacy = providerContracts.find((contract) => contract.provider === provider);
     assert.equal(legacy?.availability, "legacy", provider);
+    assert.equal(legacy?.supportLevel, "legacy", provider);
     assert.equal(legacy?.creatable, false, provider);
   }
 });

@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { testConnectionDraft } from "../../services/ai-connection-client";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
-import { getCachedConnectionModelCatalog, loadDraftModelCatalog, rememberConnectionModelDirectory } from "../../services/model-directory-service";
+import { inspectConnectionModelCatalog, loadDraftModelCatalog, rememberConnectionModelDirectory } from "../../services/model-directory-service";
 import { getProviderContract, getProviderModelCatalog, providerContracts } from "../../services/provider-contracts";
 import { inferMiniMaxRegion, MINIMAX_ANTHROPIC_BASE_URLS, type MiniMaxCredentialPlan, type MiniMaxRegion } from "../../services/minimax-connection";
 import type { AiModelsResult } from "../../services/api-client";
 import type { ApiProvider } from "../../types/domains/ai-provider";
-import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile } from "../../types/review";
+import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, AiModelCatalogEntry, ApiConnectionProfile } from "../../types/review";
 import { Button, EmptyState, cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
 import { ProviderSelect } from "./provider-select";
 import { DefaultCapabilitySelector } from "./default-capability-selector";
+import { ModelCatalogSelect } from "./model-catalog-select";
 import compactStyles from "./settings-compact.module.css";
 
 type SubmitEvent = SyntheticEvent<HTMLFormElement, globalThis.SubmitEvent>;
@@ -70,7 +71,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
   const [form, setForm] = useState<ConnectionForm>(() => createForm());
   const [busyAction, setBusyAction] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
-  const [availableModels, setAvailableModels] = useState<Array<{ id: string; label: string }>>([]);
+  const [availableModels, setAvailableModels] = useState<AiModelCatalogEntry[]>([]);
   const [discoveredDirectory, setDiscoveredDirectory] = useState<AiModelsResult>();
   const [selectedTestModelId, setSelectedTestModelId] = useState("");
   const [testSucceeded, setTestSucceeded] = useState(false);
@@ -124,7 +125,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     });
     setFeedback(null);
     const remembered = typeof window === "undefined" ? "" : window.localStorage.getItem(`review_connection_test_model_v1:${profile.id}`) ?? "";
-    const models = getCachedConnectionModelCatalog(profile).map((model) => ({ id: model.id, label: model.label }));
+    const models = inspectConnectionModelCatalog(profile).models;
     setAvailableModels(models);
     setDiscoveredDirectory(undefined);
     setSelectedTestModelId(models.some((model) => model.id === remembered) ? remembered : models[0]?.id ?? remembered);
@@ -194,14 +195,14 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
         providerOptions: form.provider === "minimax" ? { region: form.minimaxRegion, credentialPlan: form.minimaxCredentialPlan } : undefined,
         existingConnection: snapshot.profiles.find((profile) => profile.id === form.id),
       });
-      const models = result.models.map((model) => ({ id: model.id, label: model.label }));
+      const models = result.models;
       if (!models.length) throw new Error("该厂商需要手动输入模型 ID");
       setAvailableModels(models);
       setDiscoveredDirectory(result.directory);
       setSelectedTestModelId((current) => models.some((model) => model.id === current) ? current : models[0].id);
       setFeedback({ tone: result.source === "live" ? "success" : "neutral", text: result.source === "live" ? `已获取 ${models.length} 个模型` : `已载入 ${models.length} 个已核验模型` });
     } catch (error) {
-      const fallback = getProviderModelCatalog(form.provider).map((model) => ({ id: model.id, label: model.label }));
+      const fallback = getProviderModelCatalog(form.provider);
       if (fallback.length) {
         setAvailableModels(fallback);
         setDiscoveredDirectory(undefined);
@@ -265,7 +266,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
   /** 已保存连接也使用同一草稿测试入口，行内测试不依赖编辑器当前状态。 */
   async function testSavedProfile(profile: ApiConnectionProfile): Promise<void> {
     const purpose: AiConnectionPurpose = profile.capabilities.includes("text") ? "text" : "vision";
-    const models = getCachedConnectionModelCatalog(profile, purpose);
+    const models = inspectConnectionModelCatalog(profile, purpose).models;
     const defaultConnectionId = snapshot.defaults[`${purpose}ConnectionId`];
     const defaultModelId = snapshot.defaults[`${purpose}ModelId`];
     // 已保存连接优先复用与它关联的默认模型，避免盲选目录第一项导致协议或权限错误。
@@ -327,8 +328,14 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
           <div className="ai-connection-test-steps" aria-label="连接配置进度"><span>1 配置连接</span><span>2 获取模型</span><span>3 测试连接</span><span>4 完成</span></div>
           <div className="ai-connection-test-controls">
             <Button type="button" variant="outline" disabled={Boolean(busyAction)} onClick={() => void discoverModels()}>{busyAction === "models" ? "获取中" : "获取模型"}</Button>
-            <input className="settings-input" aria-label="测试模型 ID" list="connection-test-models" placeholder="选择或输入模型 ID" value={selectedTestModelId} onChange={(event) => { setSelectedTestModelId(event.currentTarget.value); setTestSucceeded(false); }} />
-            <datalist id="connection-test-models">{availableModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</datalist>
+            <ModelCatalogSelect
+              ariaLabel="测试模型 ID"
+              models={availableModels}
+              placeholder="选择或输入模型 ID"
+              provider={form.provider}
+              value={selectedTestModelId}
+              onChange={(modelId) => { setSelectedTestModelId(modelId); setTestSucceeded(false); }}
+            />
             <Button type="button" variant="outline" disabled={!selectedTestModelId || Boolean(busyAction)} onClick={() => void testSelectedModel()}>{busyAction === "test" ? "测试中" : "测试连接"}</Button>
             {testSucceeded && form.id ? <Button type="button" variant="ghost" onClick={() => void setTestedAsDefault()}>设为默认</Button> : null}
           </div>

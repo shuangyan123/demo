@@ -2,6 +2,7 @@ import type { ApiProvider } from "../types/domains/ai-provider";
 import type { AiCapability, AiConnectionPurpose, AiModelCatalogEntry, ApiFormat } from "../types/review";
 
 export type ProviderGroup = "commercial" | "open_source" | "speech" | "custom" | "legacy";
+export type ProviderSupportLevel = "native" | "compatible" | "custom" | "legacy";
 
 export type ProviderContract = {
   provider: ApiProvider;
@@ -18,6 +19,7 @@ export type ProviderContract = {
   verifiedAt: string;
   creatable: boolean;
   availability: "active" | "legacy" | "custom";
+  supportLevel: ProviderSupportLevel;
   speechVoices?: Array<{ id: string; label: string }>;
 };
 
@@ -66,10 +68,18 @@ function modelsByPurpose(catalog: AiModelCatalogEntry[]): Partial<Record<AiConne
 }
 
 const activeProviders = new Set<ApiProvider>(["openai", "google", "anthropic", "xai", "deepseek", "minimax", "zhipu"]);
+const compatibleProviders = new Set<ApiProvider>(["qwen", "openrouter", "groq", "mistral", "siliconflow", "kimi"]);
 
-function contract(input: Omit<ProviderContract, "availability" | "models"> & { models?: Partial<Record<AiConnectionPurpose, string[]>> }): ProviderContract {
-  const availability = input.provider === "custom" ? "custom" : activeProviders.has(input.provider) ? "active" : "legacy";
-  return { ...input, availability, creatable: availability !== "legacy", models: input.models ?? modelsByPurpose(input.modelCatalog) };
+function contract(input: Omit<ProviderContract, "availability" | "supportLevel" | "models"> & { models?: Partial<Record<AiConnectionPurpose, string[]>> }): ProviderContract {
+  const supportLevel: ProviderSupportLevel = input.provider === "custom"
+    ? "custom"
+    : activeProviders.has(input.provider)
+      ? "native"
+      : compatibleProviders.has(input.provider)
+        ? "compatible"
+        : "legacy";
+  const availability = supportLevel === "custom" ? "custom" : supportLevel === "legacy" ? "legacy" : "active";
+  return { ...input, availability, supportLevel, creatable: availability !== "legacy", models: input.models ?? modelsByPurpose(input.modelCatalog) };
 }
 
 const openAiCatalog = [
@@ -209,25 +219,25 @@ export const providerContracts: ProviderContract[] = [
     apiFormat: "chat_completions",
     capabilities: ["text", "vision", "structured_output", "streaming", "speech"],
     modelCatalog: [
-      model("qwen", "qwen3-max", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "manual"),
-      model("qwen", "qwen3-plus", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "manual"),
+      model("qwen", "qwen3-max", ["text"], ["text", "structured_output", "streaming"], "manual"),
+      model("qwen", "qwen3-plus", ["text"], ["text", "structured_output", "streaming"], "manual"),
       model("qwen", "qwen-tts", ["speech"], ["speech"], "manual"),
     ],
-    modelListStrategy: "manual",
-    documentationUrl: "https://www.alibabacloud.com/help/en/model-studio/qwen-api-reference",
-    verifiedAt: "",
+    modelListStrategy: "official_api",
+    documentationUrl: "https://help.aliyun.com/en/model-studio/list-deployable-models-api",
+    verifiedAt,
     creatable: true,
   }),
   ...[
-    ["openrouter", "OpenRouter", "https://openrouter.ai/api/v1", "openai/gpt-5.5"],
-    ["groq", "Groq", "https://api.groq.com/openai/v1", "openai/gpt-oss-120b"],
-    ["mistral", "Mistral", "https://api.mistral.ai/v1", "mistral-large-latest"],
-    ["siliconflow", "SiliconFlow", "https://api.siliconflow.cn/v1", "deepseek-ai/DeepSeek-V4-Flash"],
-    ["kimi", "Moonshot Kimi", "https://api.moonshot.cn/v1", "kimi-k2-latest"],
-    ["doubao", "Volcengine Ark / Doubao", "https://ark.cn-beijing.volces.com/api/v3", "doubao-seed-1.6"],
-    ["baidu", "Baidu Qianfan", "https://qianfan.baidubce.com/v2", "ernie-4.5-turbo"],
-    ["tencent", "Tencent Hunyuan", "https://api.hunyuan.cloud.tencent.com/v1", "hunyuan-turbos-latest"],
-  ].map(([provider, label, baseUrl, defaultModel]) => contract({
+    ["openrouter", "OpenRouter", "https://openrouter.ai/api/v1", "openai/gpt-5.5", "https://openrouter.ai/docs/api/api-reference/models/get-models"],
+    ["groq", "Groq", "https://api.groq.com/openai/v1", "openai/gpt-oss-120b", "https://console.groq.com/docs/models"],
+    ["mistral", "Mistral", "https://api.mistral.ai/v1", "mistral-large-latest", "https://docs.mistral.ai/api/endpoint/models"],
+    ["siliconflow", "SiliconFlow", "https://api.siliconflow.cn/v1", "deepseek-ai/DeepSeek-V4-Flash", "https://docs.siliconflow.cn/cn/api-reference/models/get-model-list"],
+    ["kimi", "Moonshot Kimi", "https://api.moonshot.cn/v1", "kimi-k2.7-code", "https://platform.kimi.com/docs/api/list-models"],
+    ["doubao", "Volcengine Ark / Doubao", "https://ark.cn-beijing.volces.com/api/v3", "doubao-seed-1.6", ""],
+    ["baidu", "Baidu Qianfan", "https://qianfan.baidubce.com/v2", "ernie-4.5-turbo", ""],
+    ["tencent", "Tencent Hunyuan", "https://api.hunyuan.cloud.tencent.com/v1", "hunyuan-turbos-latest", ""],
+  ].map(([provider, label, baseUrl, defaultModel, documentationUrl]) => contract({
     provider: provider as ApiProvider,
     label,
     group: provider === "mistral" || provider === "siliconflow" ? "open_source" : "commercial",
@@ -238,9 +248,9 @@ export const providerContracts: ProviderContract[] = [
     modelCatalog: [
       model(provider as ApiProvider, defaultModel, ["text"], ["text", "structured_output", "streaming"], "manual"),
     ],
-    modelListStrategy: "manual" as const,
-    documentationUrl: "",
-    verifiedAt: "",
+    modelListStrategy: compatibleProviders.has(provider as ApiProvider) ? "official_api" as const : "manual" as const,
+    documentationUrl,
+    verifiedAt: documentationUrl ? verifiedAt : "",
     creatable: true,
   })),
   contract({
@@ -342,7 +352,8 @@ export function getProviderModels(provider: ApiProvider, purpose: AiConnectionPu
   return getProviderContract(provider).models[purpose] ?? [];
 }
 
-export function getProviderModelCatalog(provider: ApiProvider, purpose?: AiConnectionPurpose): AiModelCatalogEntry[] {
+export function getProviderModelCatalog(provider: ApiProvider, purpose?: AiConnectionPurpose, includeDeprecated = false): AiModelCatalogEntry[] {
   const catalog = getProviderContract(provider).modelCatalog;
-  return (purpose ? catalog.filter((entry) => entry.purposes.includes(purpose)) : catalog).filter((entry) => entry.lifecycle !== "deprecated");
+  const scoped = purpose ? catalog.filter((entry) => entry.purposes.includes(purpose)) : catalog;
+  return includeDeprecated ? scoped : scoped.filter((entry) => entry.lifecycle !== "deprecated");
 }

@@ -2,7 +2,7 @@ import type { AiGenerationProtocol } from "../types/domains/ai-model";
 import type { AiModelsResult } from "./api-client";
 import type { ApiProvider } from "../types/domains/ai-provider";
 
-const CACHE_PREFIX = "review_provider_models_v2";
+const CACHE_PREFIX = "review_provider_models_v3";
 export const PROVIDER_MODEL_CACHE_TTL = 24 * 60 * 60 * 1000;
 
 export function normalizeProviderBaseUrl(baseUrl: string): string {
@@ -25,6 +25,11 @@ export const providerModelCache = {
     } catch {
       return undefined;
     }
+  },
+  /** 返回缓存及其过期状态，避免调用方把静态兜底误认为在线目录。 */
+  inspect(connectionId: string, provider: ApiProvider, baseUrl: string): { value?: AiModelsResult; stale: boolean } {
+    const value = this.load(connectionId, provider, baseUrl);
+    return { value, stale: value ? this.isStale(value) : true };
   },
   save(connectionId: string, provider: ApiProvider, baseUrl: string, value: AiModelsResult): void {
     if (typeof window === "undefined") return;

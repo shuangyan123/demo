@@ -19,11 +19,18 @@ test("AI 连接编辑器、默认模型选择器和紧凑测试卡保持独立�
   assert.doesNotMatch(source, /generateWithConnection/);
   assert.match(defaults, /setDefaultSelection/);
   assert.match(defaults, /BrandedOptionSelect/);
+  assert.match(defaults, /ModelCatalogSelect/);
   assert.match(defaults, /provider=\{selectedProfile\?\.provider\}/);
   assert.doesNotMatch(defaults, /<select/);
   assert.match(defaults, /手动模型 ID/);
   assert.match(compactCard, /w-\[min\(22rem,calc\(100vw-1\.25rem\)\)\]/);
   assert.doesNotMatch(compactCard, /AI 会话列表|添加附件/);
+});
+
+test("测试模型使用共享搜索列表且不再依赖会过滤当前值的 datalist", async () => {
+  const source = await readSource();
+  assert.match(source, /ModelCatalogSelect/);
+  assert.doesNotMatch(source, /<datalist|connection-test-models/);
 });
 
 test("AI connection page excludes quota details and exposes transcription purpose", async () => {

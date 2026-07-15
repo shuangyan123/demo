@@ -6,11 +6,12 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
-import { getCachedConnectionModelCatalog, loadConnectionModelCatalog } from "../../services/model-directory-service";
+import { inspectConnectionModelCatalog, loadConnectionModelCatalog } from "../../services/model-directory-service";
 import type { AiConnectionPurpose, AiConnectionSnapshot, AiModelCatalogEntry } from "../../types/review";
 import { AppIcon } from "../shared/app-icon";
 import { Button } from "../shared/ui-primitives";
 import { BrandedOptionSelect } from "./branded-option-select";
+import { ModelCatalogSelect } from "./model-catalog-select";
 import styles from "./settings-compact.module.css";
 
 export const defaultPurposeLabels: Record<AiConnectionPurpose, string> = {
@@ -35,7 +36,8 @@ const secondaryPurposes: AiConnectionPurpose[] = ["speech", "transcription", "re
 /** 从目录中选择保留值或推荐回退，未知手动值不会被名字规则误判。 */
 function selectCompatibleModel(models: AiModelCatalogEntry[], currentModelId?: string): string | undefined {
   if (currentModelId && models.some((model) => model.id === currentModelId)) return currentModelId;
-  return models.find((model) => model.status === "recommended")?.id ?? models[0]?.id;
+  const active = models.filter((model) => model.lifecycle !== "deprecated" && model.status !== "deprecated");
+  return active.find((model) => model.status === "recommended")?.id ?? active[0]?.id;
 }
 
 /** 渲染五类默认能力，所有写入都通过 repository 的原子接口完成。 */
@@ -56,9 +58,11 @@ export function DefaultCapabilitySelector({ snapshot, onSnapshotChange, onChange
     void Promise.all(purposes.map(async (purpose) => {
       const profile = selectedProfiles[purpose];
       if (!profile) return [purpose, []] as const;
-      const cached = getCachedConnectionModelCatalog(profile, purpose);
-      const result = cached.length ? cached : (await loadConnectionModelCatalog(profile, purpose)).models;
-      return [purpose, result] as const;
+      const initial = inspectConnectionModelCatalog(profile, purpose);
+      const models = initial.source === "cache" && !initial.stale && initial.complete
+        ? initial.models
+        : (await loadConnectionModelCatalog(profile, purpose)).models;
+      return [purpose, models] as const;
     })).then((entries) => {
       if (active) setCatalogs(Object.fromEntries(entries));
     });
@@ -145,13 +149,13 @@ export function DefaultCapabilitySelector({ snapshot, onSnapshotChange, onChange
           ]}
           onChange={(value) => void selectConnection(purpose, value)}
         />
-        <BrandedOptionSelect
+        <ModelCatalogSelect
           ariaLabel={`${defaultPurposeLabels[purpose]}模型`}
           disabled={!selectedProfile || loading === purpose}
           provider={selectedProfile?.provider}
           value={selectedModelId}
           placeholder="选择目录模型"
-          options={models.map((model) => ({ value: model.id, label: model.label, provider: selectedProfile?.provider, description: model.capabilitySource === "unknown" ? "待核验" : undefined }))}
+          models={models}
           onChange={(value) => void selectModel(purpose, value)}
         />
         <button
