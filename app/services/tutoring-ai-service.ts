@@ -3,7 +3,8 @@ import { generateWithConnection } from "./ai-connection-client";
 import { parseAiJsonObject } from "./ai-json.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
 import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
-import type { ApiConnectionProfile, KnowledgeEntry, Mistake, PersonalizationSettings, TutoringSession, TutoringTurn } from "../types/review";
+import { buildLearningContext } from "./learning-context-assembler.ts";
+import type { ApiConnectionProfile, LearnerStateSnapshot, PersonalizationSettings, TutoringMicroAssessment, TutoringSession, TutoringTurn } from "../types/review";
 
 export type TutoringAiReply = {
   teacherMessage: string;
@@ -13,6 +14,7 @@ export type TutoringAiReply = {
   nextQuestion: string;
   confidence: number;
   frameDescription: string;
+  microAssessment: TutoringMicroAssessment;
 };
 
 export type TutoringSummaryDraft = {
@@ -42,6 +44,53 @@ function clampConfidence(value: unknown): number {
   return Math.max(0, Math.min(1, numberValue));
 }
 
+const TUTOR_REPLY_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    teacherMessage: { type: "string" },
+    boardNotes: { type: "array", items: { type: "string" }, maxItems: 6 },
+    detectedProblem: { type: "string" },
+    studentAction: { type: "string" },
+    nextQuestion: { type: "string" },
+    confidence: { type: "number" },
+    frameDescription: { type: "string" },
+    microQuiz: {
+      type: "array",
+      minItems: 1,
+      maxItems: 3,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          prompt: { type: "string" },
+          options: { type: "array", minItems: 3, maxItems: 4, items: { type: "string" } },
+          correctOptionIndex: { type: "integer", minimum: 0, maximum: 3 },
+          explanation: { type: "string" },
+        },
+        required: ["prompt", "options", "correctOptionIndex", "explanation"],
+      },
+    },
+  },
+  required: ["teacherMessage", "boardNotes", "detectedProblem", "studentAction", "nextQuestion", "confidence", "frameDescription", "microQuiz"],
+} as const;
+
+/** 只接受可确定评分的 1–3 道单选题，异常题目不会进入本地学习状态。 */
+function toMicroAssessment(value: unknown): TutoringMicroAssessment {
+  if (!Array.isArray(value)) return { questions: [] };
+  const questions = value.slice(0, 3).flatMap((raw, index) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+    const item = raw as Record<string, unknown>;
+    const prompt = String(item.prompt ?? "").trim();
+    const options = toStringList(item.options).slice(0, 4);
+    const correctOptionIndex = Number(item.correctOptionIndex);
+    const explanation = String(item.explanation ?? "").trim();
+    if (!prompt || options.length < 3 || !Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex >= options.length) return [];
+    return [{ id: `micro-${index + 1}`, prompt, options, correctOptionIndex, explanation }];
+  });
+  return { questions };
+}
+
 // 构造低成本辅导系统提示词，强调不要求模型假装看到未发送的画面。
 function buildTutorSystemPrompt(personalizationSettings: PersonalizationSettings) {
   const persona = resolvePersona(personalizationSettings, "tutoring");
@@ -50,34 +99,18 @@ function buildTutorSystemPrompt(personalizationSettings: PersonalizationSettings
     "你会根据学生文字、摄像头关键帧描述和本地资料，给出短而有操作性的讲解。",
     "不要编造没有出现在画面、文字或资料中的事实。",
     "只输出 JSON 对象，不要输出 Markdown。",
-    '格式：{"teacherMessage":"老师回复","boardNotes":["板书要点"],"detectedProblem":"发现的问题","studentAction":"学生下一步动作","nextQuestion":"追问","confidence":0.7,"frameDescription":"你对当前画面的简短描述"}',
+    "讲解后必须给 1–3 道可确定评分的单选微测；每题 3–4 个选项，只检验本轮关键概念。",
+    "不能因为自己觉得学生懂了就判定掌握，只有学生提交微测后才能更新学习状态。",
     buildPersonaPrompt(persona),
     buildPersonalMemoryContext(personalizationSettings, { moduleId: "tutoring" }),
   ].join("\n");
-}
-
-// 把本地知识资料压缩成提示词上下文，避免把整库塞进模型造成成本浪费。
-function buildKnowledgeContext(entries: KnowledgeEntry[]) {
-  return entries
-    .slice(0, 8)
-    .map((entry) => `知识：${entry.title}\n分类：${entry.category}\n摘要：${entry.summary}\n标签：${entry.tags.join("、")}`)
-    .join("\n\n");
-}
-
-// 把关联错题压缩成短上下文，用于提醒 AI 老师关注学生常见薄弱点。
-function buildMistakeContext(mistakes: Mistake[]) {
-  return mistakes
-    .slice(0, 8)
-    .map((mistake) => `错题：${mistake.stem}\n板块：${mistake.board}\n错因：${mistake.reasons.join("、")}\n答案：${mistake.answer}`)
-    .join("\n\n");
 }
 
 // 根据一轮学生输入和可选关键帧请求 AI 老师回复；图片只随本次请求发送，不在服务层持久化。
 export async function requestTutorReply(input: {
   frameDataUrl?: string;
   frameDescription?: string;
-  knowledgeEntries: KnowledgeEntry[];
-  mistakes: Mistake[];
+  learnerState: LearnerStateSnapshot;
   recentTurns: TutoringTurn[];
   session: TutoringSession;
   connection: ApiConnectionProfile;
@@ -94,9 +127,8 @@ export async function requestTutorReply(input: {
     `学生本轮输入：${input.studentText || "学生暂未输入文字，请主要根据画面关键帧判断"}`,
     `上一帧描述：${input.frameDescription || "无"}`,
     `最近对话：\n${recentTranscript || "无"}`,
-    `可参考知识：\n${buildKnowledgeContext(input.knowledgeEntries) || "无"}`,
-    `可参考错题：\n${buildMistakeContext(input.mistakes) || "无"}`,
-    "请像真实老师一样先判断学生卡在哪里，再给短讲解和一个下一步动作。",
+    buildLearningContext(input.learnerState, { moduleId: "tutoring", query: `${input.session.topic} ${input.studentText}`, characterLimit: 1400 }) || "暂无可核验的长期学习状态。",
+    "请像真实老师一样先诊断卡点、短讲解、要求一个学生动作，再生成本轮微测。",
   ].join("\n\n");
   const content: ChatMessageContent = input.frameDataUrl
     ? [
@@ -106,6 +138,7 @@ export async function requestTutorReply(input: {
     : promptText;
   const response = await generateWithConnection(input.connection, input.frameDataUrl ? "vision" : "text", {
     maxOutputTokens: 1200,
+    structuredOutput: { name: "tutoring_reply", schema: TUTOR_REPLY_SCHEMA },
     messages: [
       { role: "system", content: buildTutorSystemPrompt(input.personalizationSettings) },
       { role: "user", content },
@@ -121,6 +154,7 @@ export async function requestTutorReply(input: {
     nextQuestion: String(parsed.nextQuestion ?? "").trim(),
     studentAction: String(parsed.studentAction ?? "").trim(),
     teacherMessage: String(parsed.teacherMessage ?? "").trim() || "我先看一下你当前的内容，我们一步一步来。",
+    microAssessment: toMicroAssessment(parsed.microQuiz),
   };
 }
 

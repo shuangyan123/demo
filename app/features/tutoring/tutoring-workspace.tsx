@@ -23,6 +23,8 @@ import {
 } from "../shared/ui-primitives";
 import { useTutoringFlow } from "./use-tutoring-flow";
 import { useTutoringSessionController, type TutoringMediaController, type TutoringSamplerController, type TutoringSpeechController } from "./use-tutoring-session-controller";
+import { TutoringConversationList } from "./tutoring-micro-assessment-view.tsx";
+import { calculateTutoringPilotMetrics } from "../../services/tutoring-pilot-metrics.ts";
 import type { ApiConnectionProfile, KnowledgeEntry, Mistake, PersonalizationSettings, TutoringLink, TutoringMode, TutoringPlan, TutoringSession, TutoringTurn } from "../../types/review";
 
 type TutoringTab = "live" | "records" | "plans" | "links" | "devices";
@@ -82,13 +84,14 @@ export function TutoringWorkspace({
 }) {
   const [tab, setTab] = useState<TutoringTab>("live");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const tutoring = useTutoringFlow({ textConnection, visionConnection, knowledgeEntries, mistakes, onNotice, personalizationSettings });
+  const tutoring = useTutoringFlow({ textConnection, visionConnection, onNotice, personalizationSettings });
   const {
     captureCurrentFrame,
     createSession,
     draftText,
     frameDescription,
     media,
+    online,
     sampler,
     sessionGoal,
     sessionTopic,
@@ -103,6 +106,10 @@ export function TutoringWorkspace({
   const activeLinks = useMemo(
     () => (tutoring.activeSession ? tutoring.snapshot.links.filter((link) => link.sourceType === "session" && link.sourceId === tutoring.activeSession?.id) : []),
     [tutoring.activeSession, tutoring.snapshot.links],
+  );
+  const pilotMetrics = useMemo(
+    () => calculateTutoringPilotMetrics(tutoring.snapshot.sessions, tutoring.snapshot.turns),
+    [tutoring.snapshot.sessions, tutoring.snapshot.turns],
   );
   const selectedPlan = tutoring.snapshot.plans.find((plan) => plan.id === selectedPlanId) ?? tutoring.snapshot.plans[0] ?? null;
   const tabs = [
@@ -153,6 +160,11 @@ export function TutoringWorkspace({
           <MetricCard label="资料关联" value={tutoring.snapshot.links.length} hint="知识库 / 错题" tone="text-yellow" />
           <MetricCard label="采样策略" value={sampler.enabled ? `${sampler.intervalMs / 1000}s` : "手动"} hint="低频关键帧" tone="text-blue" />
           <MetricCard label="隐私模式" value="摘要" hint="不存原始音视频" tone="text-red" />
+          <MetricCard label="有帮助" value={pilotMetrics.helpfulRate === undefined ? "待反馈" : `${Math.round(pilotMetrics.helpfulRate * 100)}%`} hint="目标 ≥70%" tone="text-green" />
+          <MetricCard label="微测正确率" value={pilotMetrics.averageAssessmentRate === undefined ? "待微测" : `${Math.round(pilotMetrics.averageAssessmentRate * 100)}%`} hint={`${pilotMetrics.assessedTurnCount} 轮已提交`} tone="text-yellow" />
+          <MetricCard label="微测提升" value={pilotMetrics.assessmentGain === undefined ? "待复测" : `${Math.round(pilotMetrics.assessmentGain * 100)}pp`} hint="目标 ≥10pp" tone="text-green" />
+          <MetricCard label="D7 同计划返回" value={pilotMetrics.d7Returned ? "已达到" : "待观察"} hint="目标 ≥25%" tone="text-blue" />
+          <MetricCard label="视觉反馈 p95" value={pilotMetrics.responseLatencyP95Ms === undefined ? "待采样" : `${(pilotMetrics.responseLatencyP95Ms / 1000).toFixed(1)}s`} hint="目标 ≤10s" tone="text-blue" />
         </StatGrid>
         <Toolbar className="mt-5">
           <SegmentedTabs active={tab} items={tabs} onChange={setTab} />
@@ -165,6 +177,7 @@ export function TutoringWorkspace({
           draftText={draftText || speech.transcript}
           frameDescription={frameDescription}
           media={media}
+          online={online}
           sampler={sampler}
           session={tutoring.activeSession}
           sessionGoal={sessionGoal}
@@ -174,6 +187,7 @@ export function TutoringWorkspace({
           turns={tutoring.activeTurns}
           visionReady={Boolean(visionConnection)}
           onCaptureFrame={captureCurrentFrame}
+          onCompleteMicroAssessment={(turnId, selections) => void tutoring.completeMicroAssessment(turnId, selections)}
           onCreateSession={createSession}
           onFinishSession={() => tutoring.activeSession && void tutoring.finishSession(tutoring.activeSession)}
           onOpenSettings={onOpenSettings}
@@ -182,6 +196,7 @@ export function TutoringWorkspace({
           onSetSessionGoal={setSessionGoal}
           onSetSessionTopic={setSessionTopic}
           onSubmitTurn={() => void submitTutorTurn()}
+          onSetTurnHelpful={(turnId, helpful) => void tutoring.setTurnHelpful(turnId, helpful)}
           onUpdateSessionStatus={tutoring.updateSessionStatus}
         />
       )}
@@ -241,6 +256,7 @@ function LiveTutoringView({
   draftText,
   frameDescription,
   media,
+  online,
   sampler,
   session,
   sessionGoal,
@@ -250,6 +266,7 @@ function LiveTutoringView({
   turns,
   visionReady,
   onCaptureFrame,
+  onCompleteMicroAssessment,
   onCreateSession,
   onFinishSession,
   onOpenSettings,
@@ -258,12 +275,14 @@ function LiveTutoringView({
   onSetSessionGoal,
   onSetSessionTopic,
   onSubmitTurn,
+  onSetTurnHelpful,
   onUpdateSessionStatus,
 }: {
   busy: boolean;
   draftText: string;
   frameDescription: string;
   media: TutoringMediaController;
+  online: boolean;
   sampler: TutoringSamplerController;
   session: TutoringSession | null;
   sessionGoal: string;
@@ -273,6 +292,7 @@ function LiveTutoringView({
   turns: TutoringTurn[];
   visionReady: boolean;
   onCaptureFrame: () => void;
+  onCompleteMicroAssessment: (turnId: string, selections: number[]) => void;
   onCreateSession: () => void;
   onFinishSession: () => void;
   onOpenSettings: () => void;
@@ -281,13 +301,16 @@ function LiveTutoringView({
   onSetSessionGoal: (value: string) => void;
   onSetSessionTopic: (value: string) => void;
   onSubmitTurn: () => void;
+  onSetTurnHelpful: (turnId: string, helpful: boolean) => void;
   onUpdateSessionStatus: (session: TutoringSession, status: TutoringSession["status"]) => Promise<void>;
 }) {
   const activeTurnRequiresVision = Boolean(sampler.lastFrameDataUrl || media.hasFrame || frameDescription.trim());
-  const canSubmitToAi = activeTurnRequiresVision ? visionReady : textReady;
+  const connectionReady = activeTurnRequiresVision ? visionReady : textReady;
+  const canSubmitToAi = connectionReady && online;
   const missingConnectionText = activeTurnRequiresVision
     ? "当前轮次包含画面，必须配置默认多模态连接后才能发送文本 + 图像。"
     : "请先配置默认文本连接后再发送纯文本辅导。";
+  const availabilityText = online ? missingConnectionText : "当前处于离线状态，输入和当前关键帧只保留在设备内存；联网后可继续发送。";
   return (
     <div className="tutoring-live-grid">
       <Panel className="min-h-[34rem]" eyebrow="VIEW" title="眼镜视角模拟">
@@ -357,7 +380,7 @@ function LiveTutoringView({
               </Button>
             </>
           )}
-          {!canSubmitToAi && (
+          {!connectionReady && (
             <Button variant="soft" onClick={onOpenSettings}>
               去配置 AI 连接
             </Button>
@@ -378,13 +401,13 @@ function LiveTutoringView({
         </SoftBlock>
         {!canSubmitToAi ? (
           <SoftBlock className="mt-3">
-            <p className="text-sm leading-6 text-muted">{missingConnectionText}</p>
+            <p className="text-sm leading-6 text-muted">{availabilityText}</p>
           </SoftBlock>
         ) : activeTurnRequiresVision ? (
-          <p className="mt-3 text-xs text-muted">本轮会把学生输入和当前关键帧一起发送给默认多模态连接。</p>
+          <p className="mt-3 text-xs text-muted">本轮会把学生输入和当前关键帧一起发送给默认多模态连接；视觉请求通常比纯文本消耗更多额度。</p>
         ) : null}
 
-        <ConversationList turns={turns} />
+        <TutoringConversationList turns={turns} onCompleteMicroAssessment={onCompleteMicroAssessment} onSetTurnHelpful={onSetTurnHelpful} />
 
         <div className="mt-4 grid gap-3">
           <TextAreaField label="学生输入 / 语音转写" value={draftText} placeholder="说出或输入你现在看不懂的地方。" onChange={onSetDraftText} />
@@ -395,6 +418,11 @@ function LiveTutoringView({
             <Button size="sm" variant="ghost" onClick={speech.reset}>
               清空语音稿
             </Button>
+            {speech.speaking ? (
+              <Button size="sm" variant="soft" onClick={speech.stopSpeaking}>
+                打断朗读
+              </Button>
+            ) : null}
             <Button disabled={!session || busy || !canSubmitToAi} variant="primary" onClick={onSubmitTurn}>
               {busy ? "分析中..." : "发送给 AI 老师"}
             </Button>
@@ -447,28 +475,6 @@ function DevicePreview({
       )}
       {hasPreviewSource && sourceLabel ? <span className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-black/65 px-3 py-1 text-xs text-white">{sourceLabel}</span> : null}
     </div>
-  );
-}
-
-// 渲染课堂对话列表，AI 轮次会额外展示板书和追问。
-function ConversationList({ turns }: { turns: TutoringTurn[] }) {
-  if (!turns.length) {
-    return <EmptyState>暂无对话。创建会话后，可以发送文字、语音转写或当前关键帧。</EmptyState>;
-  }
-  return (
-    <DataList className="mt-4 max-h-[24rem] overflow-y-auto pr-1">
-      {turns.map((turn) => (
-        <article key={turn.id} className={`rounded-2xl border border-line p-3 ${turn.speaker === "ai_tutor" ? "bg-blue/5" : "bg-surface"}`}>
-          <div className="flex items-center justify-between gap-3">
-            <strong>{turn.speaker === "student" ? "学生" : turn.speaker === "ai_tutor" ? "AI 老师" : "系统"}</strong>
-            <span className="text-xs text-muted">{formatDateTime(turn.createdAt)}</span>
-          </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.content}</p>
-          {turn.detectedProblem && <p className="mt-2 text-sm text-yellow">发现：{turn.detectedProblem}</p>}
-          {turn.nextQuestion && <p className="mt-2 text-sm text-blue">追问：{turn.nextQuestion}</p>}
-        </article>
-      ))}
-    </DataList>
   );
 }
 

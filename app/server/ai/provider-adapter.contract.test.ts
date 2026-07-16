@@ -6,6 +6,7 @@ import { POST as modelsPost } from "../../api/ai/models/route.ts";
 import { executeProviderGenerate } from "./execute-provider-generate.ts";
 import { POST as speechPost } from "../../api/ai/speech/route.ts";
 import { getProviderAdapter, providerAdapterRegistry } from "./provider-adapter-registry.ts";
+import { GoogleInteractionsSdkTransport, type GoogleInteractionsInvoker } from "./provider-transport.ts";
 
 const baseGenerate: Omit<AiGenerateRequest, "provider"> = {
   apiKey: "fixture-key",
@@ -79,6 +80,36 @@ test("Google Interactions stream maps step.delta and interaction.completed", () 
     parseGenerateProviderStreamEvent(input, { type: "interaction.completed", interaction: { id: "int_2", usage: { total_input_tokens: 3, total_output_tokens: 2, total_tokens: 5 } } }, new Headers()),
     [{ type: "usage", requestId: "int_2", usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 }, actualSpeed: undefined }],
   );
+});
+
+test("Google 官方 Interactions SDK 单次请求关闭自动重试并保持 store:false", async () => {
+  let callCount = 0;
+  let observedRetries = -1;
+  let observedStore: unknown;
+  const invoker: GoogleInteractionsInvoker = {
+    async create(input, options) {
+      callCount += 1;
+      observedRetries = options.maxRetries;
+      observedStore = input.store;
+      return { id: "int_sdk", steps: [{ type: "model_output", content: [{ type: "text", text: "SDK OK" }] }] };
+    },
+    async createStream() {
+      throw new Error("本用例不应进入流式调用");
+    },
+  };
+  const transport = new GoogleInteractionsSdkTransport(() => invoker);
+  const response = await transport.generate({
+    ...baseGenerate,
+    provider: "google",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    generationProtocol: "google_interactions",
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-provider-transport"), "google-sdk");
+  assert.equal(callCount, 1);
+  assert.equal(observedRetries, 0);
+  assert.equal(observedStore, false);
+  assert.equal((await response.json() as { id?: string }).id, "int_sdk");
 });
 
 test("Google connection test retries once only on explicit Interactions-only error", async () => {

@@ -23,6 +23,7 @@ export function useTutoringSessionController({
   tutoring: TutoringFlowController;
 }) {
   const [draftText, setDraftText] = useState("");
+  const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
   const [frameDescription, setFrameDescription] = useState("");
   const [sessionGoal, setSessionGoal] = useState("像老师现场辅导一样，先看我当前卡点，再一步一步讲清楚。");
   const [sessionTopic, setSessionTopic] = useState("实时学习辅导");
@@ -34,6 +35,17 @@ export function useTutoringSessionController({
   useEffect(() => {
     if (media.status !== "ready") clearSampler();
   }, [clearSampler, media.status]);
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   async function createSession() {
     const session = await tutoring.startSession({
@@ -56,6 +68,10 @@ export function useTutoringSessionController({
   async function submitTutorTurn() {
     if (!tutoring.activeSession) {
       onNotice("请先创建一场实时辅导会话");
+      return;
+    }
+    if (!online) {
+      onNotice("当前网络不可用，已保留输入和关键帧在内存；恢复网络后再发送本轮请求");
       return;
     }
     let frameDataUrl = sampler.lastFrameDataUrl;
@@ -85,6 +101,7 @@ export function useTutoringSessionController({
     draftText,
     frameDescription,
     media,
+    online,
     sampler,
     sessionGoal,
     sessionTopic,

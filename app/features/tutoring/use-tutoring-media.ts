@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TutoringMode } from "../../types/review";
+import { browserVisionSourceAdapter, type VisionFrame, type VisionSourceSession } from "./vision-source-adapter";
 
 type MediaStatus = "idle" | "starting" | "ready" | "error";
 
@@ -16,35 +17,6 @@ function describeMediaError(reason: unknown, source: "camera" | "screen") {
   return reason instanceof Error && reason.message ? `${label}启动失败：${reason.message}` : `${label}启动失败，请检查浏览器权限。`;
 }
 
-// 把上传文件读取成 data URL；仅保存在当前内存状态，不写入 IndexedDB。
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("图片读取失败，请重新选择文件"));
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.readAsDataURL(file);
-  });
-}
-
-// 把视频当前帧压缩成适合多模态识别的 JPEG，控制宽度以降低请求成本。
-function captureVideoFrame(video: HTMLVideoElement, maxWidth = 960): string {
-  const width = video.videoWidth;
-  const height = video.videoHeight;
-  if (!width || !height) {
-    throw new Error("画面尚未就绪，请稍后再发送");
-  }
-  const scale = Math.min(1, maxWidth / width);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("当前浏览器无法截取画面");
-  }
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.72);
-}
-
 // 管理浏览器摄像头、屏幕共享和上传图片三种输入源；不持久化原始媒体。
 export function useTutoringMedia() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -53,6 +25,7 @@ export function useTutoringMedia() {
   const [mode, setMode] = useState<TutoringMode>("camera");
   const [status, setStatus] = useState<MediaStatus>("idle");
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const sessionRef = useRef<VisionSourceSession | undefined>(undefined);
   const [sourceLabel, setSourceLabel] = useState("");
   const [uploadedFrameDataUrl, setUploadedFrameDataUrl] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState("");
@@ -60,9 +33,9 @@ export function useTutoringMedia() {
   // 组件卸载时释放媒体轨道，避免摄像头或屏幕共享继续占用。
   useEffect(() => {
     return () => {
-      stream?.getTracks().forEach((track) => track.stop());
+      browserVisionSourceAdapter.stop(sessionRef.current);
     };
-  }, [stream]);
+  }, []);
 
   // 用户可从浏览器共享条直接停止；轨道结束时必须同步清理应用状态和陈旧关键帧入口。
   useEffect(() => {
@@ -70,6 +43,7 @@ export function useTutoringMedia() {
     const track = stream.getVideoTracks()[0];
     if (!track) return;
     function handleEnded() {
+      sessionRef.current = undefined;
       setStream(null);
       setSourceLabel("");
       setStatus("idle");
@@ -91,10 +65,9 @@ export function useTutoringMedia() {
 
   // 停止当前媒体输入源并清理上传图片内存态。
   const stop = useCallback(() => {
-    setStream((current) => {
-      current?.getTracks().forEach((track) => track.stop());
-      return null;
-    });
+    browserVisionSourceAdapter.stop(sessionRef.current);
+    sessionRef.current = undefined;
+    setStream(null);
     setUploadedFrameDataUrl("");
     setUploadedFileName("");
     setSourceLabel("");
@@ -116,11 +89,12 @@ export function useTutoringMedia() {
     }
     setStatus("starting");
     try {
-      const nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: "environment" } });
+      const session = await browserVisionSourceAdapter.start("camera");
+      sessionRef.current = session;
       setUploadedFrameDataUrl("");
       setUploadedFileName("");
-      setStream(nextStream);
-      setSourceLabel(nextStream.getVideoTracks()[0]?.label || "摄像头");
+      setStream(session.stream);
+      setSourceLabel(session.label);
       setStatus("ready");
     } catch (reason) {
       setError(describeMediaError(reason, "camera"));
@@ -146,14 +120,12 @@ export function useTutoringMedia() {
     }
     setStatus("starting");
     try {
-      const nextStream = await navigator.mediaDevices.getDisplayMedia({ audio: false, video: true });
+      const session = await browserVisionSourceAdapter.start("screen");
+      sessionRef.current = session;
       setUploadedFrameDataUrl("");
       setUploadedFileName("");
-      setStream(nextStream);
-      const track = nextStream.getVideoTracks()[0];
-      const displaySurface = track?.getSettings().displaySurface;
-      const surfaceLabel = displaySurface === "browser" ? "浏览器标签页" : displaySurface === "window" ? "应用窗口" : displaySurface === "monitor" ? "整个屏幕" : "共享画面";
-      setSourceLabel(track?.label ? `${surfaceLabel} · ${track.label}` : surfaceLabel);
+      setStream(session.stream);
+      setSourceLabel(session.label);
       setNotice("共享中：只会在手动截取或低频观察时发送当前关键帧，不会上传连续视频。");
       setStatus("ready");
     } catch (reason) {
@@ -171,7 +143,7 @@ export function useTutoringMedia() {
       setError("");
       setNotice("");
       try {
-        const dataUrl = await readFileAsDataUrl(file);
+        const dataUrl = await browserVisionSourceAdapter.readUpload(file);
         setUploadedFrameDataUrl(dataUrl);
         setUploadedFileName(file.name);
         setStatus("ready");
@@ -184,16 +156,12 @@ export function useTutoringMedia() {
   );
 
   // 截取当前关键帧；返回值只供本次 AI 请求使用，不会被仓储层保存。
-  const captureFrame = useCallback(() => {
-    if (mode === "upload") {
-      if (!uploadedFrameDataUrl) throw new Error("请先上传一张截图或图片");
-      return uploadedFrameDataUrl;
-    }
+  const captureFrame = useCallback((): VisionFrame => {
     const liveTrack = stream?.getVideoTracks().find((track) => track.readyState === "live");
-    if (!videoRef.current || !liveTrack) {
+    if (mode !== "upload" && (!videoRef.current || !liveTrack)) {
       throw new Error("请先启动摄像头或屏幕共享");
     }
-    return captureVideoFrame(videoRef.current);
+    return browserVisionSourceAdapter.capture({ mode, video: videoRef.current, uploadedDataUrl: uploadedFrameDataUrl });
   }, [mode, stream, uploadedFrameDataUrl]);
 
   return useMemo(

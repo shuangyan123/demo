@@ -1,5 +1,14 @@
 # API 约定
 
+## ProviderTransport 与本地扩展契约（2026-07-16）
+
+- `POST /api/ai/generate` 的客户端请求、响应和 SSE 事件保持不变。服务端新增 `ProviderTransport.generate()`、`stream()` 和 `listModels()`；adapter 继续负责厂商字段映射与输出归一化。
+- 只有 `provider=google`、`generationProtocol=google_interactions` 且 Base URL 为 `generativelanguage.googleapis.com` 时使用 `@google/genai`。调用固定 `apiVersion=v1beta`、`store:false`、`maxRetries:0`，并由路由请求信号和统一 60 秒超时负责取消。
+- Google 自定义代理不进入 SDK，完整保留用户 Base URL 与路径；GenerateContent 仍是模型级明确兼容路径。普通对话不跨协议双发，只有连接测试可在明确 Interactions-only 错误时安全重试一次。
+- 声明式扩展不新增服务端 API。`ExtensionManifestV1` 必须包含 `schemaVersion`、`id`、`version`、`minAppVersion`、`kind`、作者、说明、`data.json` 入口、权限、资产清单、内容 SHA-256 与 ECDSA P-256 签名。
+- 扩展 JSON 顶层只允许 `manifest`、`data`、`assets`。未知字段、`..`/绝对路径、脚本/HTML/CSS/WASM/字体、远程运行时 URL、单资产超过 2MB、整包超过 5MB、摘要或签名错误、应用版本不兼容都会被拒绝。
+- `LearnerStateSnapshot` 与 `TutoringMicroAssessment` 是本地领域契约，不是外部 API。辅导请求只注入经过字符预算裁剪的证据化摘要；媒体 Data URL 只能存在于当前 `/api/ai/generate` 请求内，不得进入 repository。
+
 ## Google Interactions、活动展示与记忆边界（2026-07-15）
 
 - `/api/ai/generate` URL 不变。Google Interactions 使用 `/v1beta/interactions`；流式请求使用 `/v1beta/interactions?alt=sse`，并解析 `step.delta`、`interaction.completed` 以及 `total_input_tokens/total_output_tokens/total_tokens`。

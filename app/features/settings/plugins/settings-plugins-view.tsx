@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
-import type { ApiConnectionProfile, ImportJob, KnowledgeImportDraft, KnowledgeEntry, Mistake, PersonalizationSettings } from "../../../types/review";
+import type { ApiConnectionProfile, AppearanceSettings, ImportJob, KnowledgeImportDraft, KnowledgeEntry, Mistake, PersonalizationSettings } from "../../../types/review";
 import { Button, Chip, EmptyState, IconButton, cx } from "../../shared/ui-primitives";
 import {
   settingsPluginDefinitions,
@@ -24,7 +24,12 @@ const ImportWorkspace = dynamic(() => import("../../import/import-workspace").th
   loading: () => <EmptyState>正在加载粉笔导入插件...</EmptyState>,
 });
 
+const DeclarativeExtensionMarketplace = dynamic(() => import("./declarative-extension-marketplace").then((module) => module.DeclarativeExtensionMarketplace), {
+  loading: () => <EmptyState>正在加载声明式扩展市场...</EmptyState>,
+});
+
 type SettingsPluginsViewProps = {
+  appearanceSettings: AppearanceSettings;
   entries: KnowledgeEntry[];
   initialPluginId?: SettingsPluginId;
   importJobs: ImportJob[];
@@ -35,11 +40,13 @@ type SettingsPluginsViewProps = {
   visionConnection?: ApiConnectionProfile;
   today: Date;
   onChanged: () => Promise<void>;
+  onAppearanceChange: (settings: AppearanceSettings) => void;
   onConfirmKnowledgeDrafts: () => void;
   onDeleteKnowledgeDraft: (id: string) => void;
   onImportKnowledgeText: (event: SubmitReactEvent) => void;
   onNotice: (message: string) => void;
   onOpenConnections: () => void;
+  onPersonalizationChange: (settings: PersonalizationSettings) => void;
   onRefreshWorkspace: () => Promise<void>;
   onUpdateKnowledgeDraft: (id: string, patch: Partial<KnowledgeImportDraft>) => void;
   onUpdateKnowledgeDraftList: (id: string, value: string) => void;
@@ -264,6 +271,7 @@ function PluginInlineDetail({
 
 /** 设置插件目录只渲染轻量注册表数据，重型插件面板等用户打开详情后再按需加载。 */
 export function SettingsPluginsView({
+  appearanceSettings,
   entries,
   initialPluginId,
   importJobs,
@@ -274,11 +282,13 @@ export function SettingsPluginsView({
   visionConnection,
   today,
   onChanged,
+  onAppearanceChange,
   onConfirmKnowledgeDrafts,
   onDeleteKnowledgeDraft,
   onImportKnowledgeText,
   onNotice,
   onOpenConnections,
+  onPersonalizationChange,
   onRefreshWorkspace,
   onUpdateKnowledgeDraft,
   onUpdateKnowledgeDraftList,
@@ -316,6 +326,18 @@ export function SettingsPluginsView({
   }
 
   function renderPanel(plugin: SettingsPluginDefinition) {
+    if (plugin.detailPanelLoader === "declarative-marketplace") {
+      return (
+        <DeclarativeExtensionMarketplace
+          appearanceSettings={appearanceSettings}
+          personalization={personalization}
+          onAppearanceChange={onAppearanceChange}
+          onChanged={onChanged}
+          onPersonalizationChange={onPersonalizationChange}
+          onNotice={onNotice}
+        />
+      );
+    }
     if (plugin.detailPanelLoader === "fenbi-import") {
       return (
         <ImportWorkspace

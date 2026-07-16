@@ -26,3 +26,15 @@ export function normalizeGoogleInteractionsBaseUrl(value: string): string {
   }
   return normalized;
 }
+
+/**
+ * 判断连接是否指向 Google 官方 Gemini API 主机。
+ * 自定义代理必须继续走原生 HTTP，避免官方 SDK 改写用户配置的路径。
+ */
+export function isOfficialGoogleApiBaseUrl(value: string): boolean {
+  try {
+    return new URL(normalizeGoogleApiBaseUrl(value)).hostname === "generativelanguage.googleapis.com";
+  } catch {
+    return false;
+  }
+}

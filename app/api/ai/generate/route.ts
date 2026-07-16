@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     const body: unknown = await request.json();
     if (!isGenerateRequest(body)) return new NextResponse("缺少有效的 AI 连接或消息内容", { status: 400 });
     const adapter = getProviderAdapter(body.provider);
-    const executed = await executeProviderGenerate(body);
+    const executed = await executeProviderGenerate(body, { signal: request.signal });
     const effectiveBody = executed.body;
     const response = executed.response;
     if (!response.ok) {

@@ -180,9 +180,37 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 ## 架构决策
 
 1. 保留 hooks + repository，不引入 Redux、Zustand 或 DI 框架。
-2. 保留单个 Dexie 数据库与 v16 schema，迁移代码按版本模块化。
+2. 核心业务保留 `review_workspace` v16；声明式扩展使用独立 `review_extensions` v1，两个数据库都进入完整导出与重置。
 3. 采用渐进式领域拆分，兼容出口在调用方迁移完成前保留。
 4. 外部 `/api/ai/*` URL 和持久化数据契约保持向后兼容。
+
+## 学习者模型、传输层与声明式扩展（2026-07-16）
+
+```text
+错题 / 知识 / 面试 / 辅导微测 / 计划
+  -> LearnerStateSnapshot（只读、证据化）
+  -> LearningContextAssembler（最多 6–8 条、字符预算）
+  -> 辅导请求
+  -> 学生操作与微测
+  -> TutoringPlan 间隔复练
+
+/api/ai/generate
+  -> ProviderAdapter（字段映射与归一化）
+  -> ProviderTransport（超时、取消、流与目录）
+     -> Google 官方 Interactions：@google/genai，零自动重试
+     -> 自定义代理/兼容厂商：HttpProviderTransport
+
+声明式扩展 JSON
+  -> 严格 schema / 资产摘要 / 内容摘要 / ECDSA 签名
+  -> review_extensions v1
+  -> 现有主题、人设、学习路径、模板和评分标准消费边界
+```
+
+- `PersonalMemoryEntry` 继续只处理稳定资料、偏好和目标；掌握度、错因、到期复习和下一步行动属于动态学习者模型，不写入通用记忆。
+- `LearnerStateSnapshot` 不新增表和索引，每次按当前本地数据计算；所有进入提示词的结论必须至少包含一个 `LearnerEvidenceRef`，上下文只输出证据 ID，不复制完整题库、知识正文或历史对话。
+- `VisionSourceAdapter` 是未来 Android XR 配套应用的输入端口。浏览器实现只管理内存中的 `MediaStream`、关键帧和不可逆灰度指纹；Dexie 只保存观察摘要、时间、置信度和用户确认结果。
+- `review_extensions` 与 `review_workspace` 完全分离。扩展包只有 `data.json` 和受控资产，不能注入 JSX、脚本或 HTML；需要新工具的扩展仍通过独立 MCP 安全边界。
+- 扩展市场是低频动态加载视图；安装、启用、停用、卸载、导出和单版本回滚由 `declarativeExtensionRepository` 管理，完整重置和导出同时覆盖两个数据库。
 
 ## 设置导航与紧凑界面边界（2026-07-14）
 

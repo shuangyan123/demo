@@ -2,6 +2,7 @@ import type { ApiProvider } from "./domains/ai-provider";
 import type { AiGenerationProtocol } from "./domains/ai-model";
 export type { AiGenerationProtocol } from "./domains/ai-model";
 import type { PersonalMemoryEntry, PersonalMemoryRevision, PersonalMemorySettings } from "./domains/personal-memory";
+import type { TutoringMicroAssessment, TutoringObservation } from "./domains/learner-state";
 export type {
   PersonalMemoryEntry,
   PersonalMemoryKind,
@@ -11,6 +12,32 @@ export type {
   PersonalMemorySource,
   PersonalMemoryStatus,
 } from "./domains/personal-memory";
+export type {
+  LearnerEvidenceRef,
+  LearnerEvidenceType,
+  LearnerStateSignal,
+  LearnerStateSnapshot,
+  TutoringMicroAssessment,
+  TutoringMicroQuestion,
+  TutoringObservation,
+} from "./domains/learner-state";
+export type {
+  AutomationPackExtensionData,
+  DeclarativeExtensionPackage,
+  ExtensionAsset,
+  ExtensionAssetManifest,
+  ExtensionAuthor,
+  ExtensionData,
+  ExtensionKind,
+  ExtensionManifestV1,
+  ExtensionPermission,
+  ExtensionSignature,
+  InstalledExtensionRecord,
+  PersonaExtensionData,
+  RubricPackExtensionData,
+  StudyPackExtensionData,
+  ThemeExtensionData,
+} from "./domains/declarative-extension";
 export type {
   AiQuotaAction,
   AiQuotaAdapterInput,
@@ -478,6 +505,8 @@ export type TutoringSession = {
   frameCount: number;
   turnCount: number;
   estimatedCostNote: string;
+  /** 用户对整场辅导的明确反馈；未选择时保持 undefined。 */
+  helpful?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -493,6 +522,14 @@ export type TutoringTurn = {
   studentAction?: string;
   nextQuestion?: string;
   confidence?: number;
+  /** 本轮 AI 返回的确定性单选微测及用户提交结果。 */
+  microAssessment?: TutoringMicroAssessment;
+  /** 首个有效 AI 结果的端到端耗时，供本地试点指标使用。 */
+  responseLatencyMs?: number;
+  /** 用户对单轮讲解的明确反馈。 */
+  helpful?: boolean;
+  /** 只保存观察摘要，绝不保存 data URL、Blob 或连续媒体。 */
+  observation?: TutoringObservation;
   createdAt: string;
 };
 

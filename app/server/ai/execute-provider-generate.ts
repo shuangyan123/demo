@@ -1,20 +1,14 @@
 import type { AiGenerateRequest } from "../../services/api-client";
 import { isGoogleInteractionsOnlyError } from "./google-error.ts";
-import { getProviderAdapter } from "./provider-adapter-registry.ts";
+import { getProviderTransport, type ProviderTransportContext } from "./provider-transport.ts";
 
 /** 执行单次厂商请求，并仅为连接测试提供一次明确的 Google 协议恢复。 */
-export async function executeProviderGenerate(body: AiGenerateRequest): Promise<{ body: AiGenerateRequest; response: Response }> {
-  const adapter = getProviderAdapter(body.provider);
+export async function executeProviderGenerate(body: AiGenerateRequest, context?: ProviderTransportContext): Promise<{ body: AiGenerateRequest; response: Response }> {
   let effectiveBody = body;
 
   async function send(input: AiGenerateRequest): Promise<Response> {
-    const providerRequest = adapter.buildGenerate(input);
-    return fetch(providerRequest.url, {
-      method: "POST",
-      headers: providerRequest.headers,
-      body: JSON.stringify(providerRequest.body),
-      cache: "no-store",
-    });
+    const transport = getProviderTransport(input);
+    return input.stream ? transport.stream(input, context) : transport.generate(input, context);
   }
 
   let response = await send(effectiveBody);

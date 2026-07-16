@@ -255,6 +255,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Next、React、React DOM 和 `eslint-config-next` 使用精确版本，避免框架核心版本在 `package.json` 范围内漂移；其他工具依赖沿用既有范围策略，并由 lockfile 固定解析版本。
 - `npm audit` 禁止使用 `--force` 自动跨 major 或降级修复；若修复建议要求退回不可接受的旧 Next 主版本，应记录为上游未提供稳定可接受修复并持续跟踪。
 
+## 学习者模型、声明式扩展与视觉输入约定
+
+- 通用记忆只保存稳定资料、偏好和目标；掌握度、错因、到期复习和下一步行动必须由 `LearnerStateSnapshot` 从本地可观察结果动态派生，并为每条结论保留证据 ID。
+- 辅导闭环固定为诊断、短讲解、学生操作、1–3 题微测和间隔复练；模型置信度不得直接更新掌握状态。
+- `ProviderAdapter` 继续负责厂商协议映射，`ProviderTransport` 负责超时、取消、流和模型目录。Google 官方 Interactions 使用 `@google/genai` 且显式 `maxRetries: 0`、`store:false`；自定义代理继续走原生 HTTP。
+- 相机、屏幕和上传图片统一实现 `VisionSourceAdapter`；原始媒体、关键帧和灰度指纹只留设备内存，仓储必须拒绝任何媒体 Data URL 或 Blob URL。
+- 顶层插件入口允许声明式扩展市场。V1 只支持 theme、persona、study-pack、automation-pack、rubric-pack，禁止 JavaScript、HTML、远程字体和运行时 CDN；严格校验未知字段、路径、大小、SHA-256 与 ECDSA 签名。
+- 扩展持久化固定使用独立 `review_extensions` v1，不得升级核心 `review_workspace` v16；完整导出和重置必须同时覆盖两个数据库。
+
 ## AI 活动、跨厂商上下文与自动记忆约定
 
 - 全局 AI 活动宿主只渲染紧凑连接测试卡和单行后台状态；普通对话运行只进入消息内工具摘要，不得恢复三栏活动面板、假消息流或假 composer。

@@ -72,10 +72,10 @@ test("turn timeline renders user, visible tools and assistant in one stable turn
 test("legacy same-millisecond replies bind to the latest unfinished user turn", () => {
   const timestamp = "2026-07-15T12:00:00.000Z";
   const timeline = buildConversationTurnTimeline([
-    { id: "user-a", conversationId: "conversation-a", role: "user", content: "问题 A", createdAt: timestamp },
-    { id: "user-b", conversationId: "conversation-a", role: "user", content: "问题 B", createdAt: timestamp },
-    { id: "assistant-a", conversationId: "conversation-a", role: "assistant", content: "回答 B", createdAt: timestamp },
-    { id: "assistant-b", conversationId: "conversation-a", role: "assistant", content: "回答 A", createdAt: timestamp },
+    { id: "user-a", conversationId: "conversation-a", role: "user", content: "问题 A", attachmentIds: [], createdAt: timestamp },
+    { id: "user-b", conversationId: "conversation-a", role: "user", content: "问题 B", attachmentIds: [], createdAt: timestamp },
+    { id: "assistant-a", conversationId: "conversation-a", role: "assistant", content: "回答 B", attachmentIds: [], createdAt: timestamp },
+    { id: "assistant-b", conversationId: "conversation-a", role: "assistant", content: "回答 A", attachmentIds: [], createdAt: timestamp },
   ], []);
 
   assert.equal(timeline.turns.length, 2);

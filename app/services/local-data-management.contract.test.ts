@@ -2,12 +2,15 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
+import { extensionDb } from "../db/extension-db.ts";
 import { localDataManagementRepository } from "./local-data-management-repository.ts";
 
 async function resetDatabase(): Promise<void> {
   reviewDb.close();
-  await reviewDb.delete();
+  extensionDb.close();
+  await Promise.all([reviewDb.delete(), extensionDb.delete()]);
   await reviewDb.open();
+  await extensionDb.open();
 }
 
 test("数据管理按导入、错题复盘和对话范围独立统计与清理", async () => {
@@ -20,11 +23,15 @@ test("数据管理按导入、错题复盘和对话范围独立统计与清理",
   await reviewDb.aiConversationFolders.put({ id: "folder", projectId: "civil-service", label: "测试", createdAt: now, updatedAt: now } as never);
   await reviewDb.aiConversations.put({ id: "conversation", projectId: "civil-service", kind: "general", title: "测试", status: "active", createdAt: now, updatedAt: now } as never);
   await reviewDb.aiConversationMessages.put({ id: "message", conversationId: "conversation", role: "user", content: "测试", createdAt: now } as never);
+  await extensionDb.extensions.put({ id: "extension", kind: "theme", enabled: false, installedAt: now, updatedAt: now } as never);
 
   const summary = await localDataManagementRepository.loadSummary();
   assert.equal(summary.importRecords, 2);
   assert.equal(summary.mistakeReviewRecords, 2);
   assert.equal(summary.conversationRecords, 3);
+  assert.equal(summary.extensionRecords, 1);
+  const exported = JSON.parse(await localDataManagementRepository.exportAll()) as { databases: { review_extensions: { extensions: unknown[] } } };
+  assert.equal(exported.databases.review_extensions.extensions.length, 1);
 
   await localDataManagementRepository.clearImports();
   assert.equal(await reviewDb.importJobs.count(), 0);
@@ -39,5 +46,6 @@ test("数据管理按导入、错题复盘和对话范围独立统计与清理",
 
 test.after(async () => {
   reviewDb.close();
-  await reviewDb.delete();
+  extensionDb.close();
+  await Promise.all([reviewDb.delete(), extensionDb.delete()]);
 });

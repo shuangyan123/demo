@@ -5,9 +5,9 @@ import { integrationBranding } from "../../services/integration-branding.ts";
 
 test("settings plugin registry exposes compact directory metadata", () => {
   const ids = settingsPluginDefinitions.map((plugin) => plugin.id);
-  assert.deepEqual(ids, ["obsidian-vault", "fenbi-import"]);
-  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.detailPanelLoader), ["obsidian", "fenbi-import"]);
-  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.category), ["knowledge-sync", "import-source"]);
+  assert.deepEqual(ids, ["declarative-marketplace", "obsidian-vault", "fenbi-import"]);
+  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.detailPanelLoader), ["declarative-marketplace", "obsidian", "fenbi-import"]);
+  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.category), ["study-extension", "knowledge-sync", "import-source"]);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.icon.label.length > 0), true);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.shortDescription.length > 0 && plugin.shortDescription.length <= 18), true);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.primaryAction.label.length > 0), true);
@@ -27,12 +27,14 @@ test("settings plugin directory keeps MCP out of plugin categories", () => {
   };
   const obsidian = settingsPluginDefinitions.find((plugin) => plugin.id === "obsidian-vault");
   const fenbi = settingsPluginDefinitions.find((plugin) => plugin.id === "fenbi-import");
+  const marketplace = settingsPluginDefinitions.find((plugin) => plugin.id === "declarative-marketplace");
   assert.equal(obsidian?.statusBadgeProvider?.(context).tone, "yellow");
   assert.equal(fenbi?.statusBadgeProvider?.(context).tone, "yellow");
   assert.equal(settingsPluginDefinitions.some((plugin) => String(plugin.id) === "ai-quota"), false);
   assert.equal(settingsPluginDefinitions.some((plugin) => String(plugin.category) === "mcp"), false);
   assert.match(fenbi?.recentActivityProvider?.(context) ?? "", /2/);
   assert.equal(Boolean(obsidian?.recommendedActionProvider?.(context)), true);
+  assert.match(marketplace?.privacyNote ?? "", /JavaScript/);
 });
 
 test("Obsidian 使用固定版本 Lobe 品牌资产并登记校验值", () => {

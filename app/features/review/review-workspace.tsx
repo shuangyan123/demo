@@ -1055,11 +1055,14 @@ export function ReviewWorkspace() {
         )}
         {view === "plugins" && (
           <SettingsPluginsView
+            appearanceSettings={appearanceSettings}
             entries={knowledgeEntries} importJobs={importJobs} knowledgeDrafts={knowledgeDrafts} mistakes={mistakes}
             personalization={personalization.settings} textConnection={aiConnections.textConnection} visionConnection={aiConnections.visionConnection} today={today}
             onChanged={refreshData}
+            onAppearanceChange={updateAppearanceSettings}
             onConfirmKnowledgeDrafts={confirmKnowledgeDrafts} onDeleteKnowledgeDraft={deleteKnowledgeDraft} onImportKnowledgeText={importKnowledgeText} onNotice={setNotice}
             onOpenConnections={() => openApiSettings("在 AI 连接中配置插件所需的模型能力")}
+            onPersonalizationChange={personalization.setSettings}
             onRefreshWorkspace={refreshData} onUpdateKnowledgeDraft={updateKnowledgeDraft} onUpdateKnowledgeDraftList={updateKnowledgeDraftList}
           />
         )}

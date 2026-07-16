@@ -1,0 +1,86 @@
+import "fake-indexeddb/auto";
+import assert from "node:assert/strict";
+import test from "node:test";
+import { reviewDb } from "../db/review-db.ts";
+import { learningMemoryEvalCases } from "../data/evals/learning-memory-evals.ts";
+import { hasMeaningfulVisionChange } from "../features/tutoring/vision-source-adapter.ts";
+import { buildLearningContext } from "./learning-context-assembler.ts";
+import { loadLearnerStateSnapshot } from "./learner-state-service.ts";
+import { tutoringRepository } from "./tutoring-repository.ts";
+
+async function resetReviewDb(): Promise<void> {
+  reviewDb.close();
+  await reviewDb.delete();
+  await reviewDb.open();
+}
+
+test("学习者状态只从本地可观察结果派生，并为每个结论保留证据 ID", async () => {
+  await resetReviewDb();
+  const now = "2026-07-16T00:00:00.000Z";
+  const old = "2026-07-01T00:00:00.000Z";
+  await reviewDb.mistakes.bulkPut([
+    { id: "m1", board: "资料分析", source: "eval", stem: "完整题干不应进入学习上下文 SENTINEL-A", answer: "A", explanation: "", reasons: ["单位换算"], tags: [], mastery: 30, nextReviewAt: old, createdAt: old, updatedAt: now },
+    { id: "m2", board: "资料分析", source: "eval", stem: "另一道完整题干 SENTINEL-B", answer: "B", explanation: "", reasons: ["单位换算"], tags: [], mastery: 40, nextReviewAt: old, createdAt: old, updatedAt: now },
+  ] as never[]);
+  await reviewDb.tutoringTurns.put({
+    id: "turn-evidence",
+    sessionId: "session-evidence",
+    speaker: "ai_tutor",
+    content: "已解释必要条件",
+    detectedProblem: "必要条件与充分条件混淆",
+    microAssessment: { questions: [{ id: "q1", prompt: "哪项是必要条件？", options: ["A", "B"], correctOptionIndex: 0, explanation: "" }] },
+    createdAt: now,
+  } as never);
+
+  const snapshot = await loadLearnerStateSnapshot(new Date(now));
+  assert.ok(snapshot.signals.length > 0);
+  assert.ok(snapshot.signals.every((signal) => signal.evidence.length > 0 && signal.evidence.every((item) => item.id)));
+  assert.ok(snapshot.signals.some((signal) => signal.kind === "misconception" && signal.evidence.length >= 1));
+  const context = buildLearningContext(snapshot, { moduleId: "tutoring", query: "资料分析必要条件", characterLimit: 900 });
+  assert.ok(context.length <= 900);
+  assert.match(context, /证据 (?:mistake|tutoring):/);
+  assert.doesNotMatch(context, /SENTINEL-[AB]/);
+});
+
+test("微测由用户选择确定掌握结果，并生成间隔复习计划", async () => {
+  await resetReviewDb();
+  const session = await tutoringRepository.createSession({ goal: "掌握判断关系", mode: "upload", topic: "逻辑判断" });
+  const turn = await tutoringRepository.addTurn({
+    sessionId: session.id,
+    speaker: "ai_tutor",
+    content: "请完成微测",
+    microAssessment: {
+      questions: [
+        { id: "q1", prompt: "问题一", options: ["A", "B"], correctOptionIndex: 0, explanation: "" },
+        { id: "q2", prompt: "问题二", options: ["A", "B"], correctOptionIndex: 1, explanation: "" },
+      ],
+    },
+  });
+  const today = new Date("2026-07-16T00:00:00.000Z");
+  const result = await tutoringRepository.completeMicroAssessment(turn.id, [0, 0], today);
+  assert.deepEqual({ correctCount: result.correctCount, total: result.total }, { correctCount: 1, total: 2 });
+  assert.equal(result.nextPracticeAt.slice(0, 10), "2026-07-19");
+  assert.equal((await reviewDb.tutoringPlans.get(`auto:${session.id}`))?.status, "active");
+});
+
+test("辅导仓储拒绝原始媒体，视觉指纹抑制重复帧", async () => {
+  await resetReviewDb();
+  const session = await tutoringRepository.createSession({ goal: "视觉练习", mode: "camera", topic: "题目讲解" });
+  await assert.rejects(() => tutoringRepository.addTurn({ sessionId: session.id, speaker: "student", content: "data:image/png;base64,AAAA" }), /禁止持久化/);
+  const flat = "00".repeat(64);
+  const changed = `${"ff"}${"00".repeat(63)}`;
+  assert.equal(hasMeaningfulVisionChange(flat, flat), false);
+  assert.equal(hasMeaningfulVisionChange(flat, changed, 0.01), true);
+});
+
+test("中文记忆与辅导评测集覆盖七类长期行为", () => {
+  assert.equal(new Set(learningMemoryEvalCases.map((item) => item.category)).size, 7);
+  assert.ok(learningMemoryEvalCases.length >= 10);
+  assert.ok(learningMemoryEvalCases.some((item) => item.category === "privacy" && item.expected.action === "discard"));
+  assert.ok(learningMemoryEvalCases.some((item) => item.category === "cross-session-tutoring" && item.expected.evidenceRequired));
+});
+
+test.after(async () => {
+  reviewDb.close();
+  await reviewDb.delete();
+});

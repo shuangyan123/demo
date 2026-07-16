@@ -11,7 +11,7 @@ import styles from "../settings/settings-compact.module.css";
 type DataManagementPanelProps = { onChanged?: () => Promise<void> | void };
 type ClearScope = "imports" | "mistakes" | "conversations";
 
-const emptySummary: LocalDataSummary = { importRecords: 0, mistakeReviewRecords: 0, conversationRecords: 0, totalIndexedDbRecords: 0 };
+const emptySummary: LocalDataSummary = { importRecords: 0, mistakeReviewRecords: 0, conversationRecords: 0, extensionRecords: 0, totalIndexedDbRecords: 0 };
 const scopeLabels: Record<ClearScope, string> = { imports: "导入记录", mistakes: "错题与复盘", conversations: "对话历史" };
 
 /** 数据管理只调用对应 repository；完整重置仍要求输入固定确认文字。 */

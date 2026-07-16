@@ -4,6 +4,7 @@ import { miniMaxModelDirectoryHeaders, normalizeMiniMaxAnthropicBaseUrl } from "
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
 import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 import type { AiCapability, AiConnectionPurpose } from "../../types/review.ts";
+import { HttpProviderTransport } from "./provider-transport.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -205,15 +206,16 @@ function rawModel(provider: ApiProvider, item: JsonObject): RawModel | undefined
 /** 读取完整官方目录；重复游标和超量分页会安全终止。 */
 export async function fetchProviderModelDirectory(input: AiModelsRequest, fetcher: typeof fetch = fetch): Promise<AiModelsResult> {
   const fetchedAt = new Date().toISOString();
+  const transport = new HttpProviderTransport(fetcher);
   const collected = new Map<string, AiModelDirectoryEntry>();
   const seenCursors = new Set<string>();
   let cursor: DirectoryCursor | undefined;
   let complete = true;
 
   for (let pageIndex = 0; pageIndex < 20; pageIndex += 1) {
-    const response = await fetcher(providerModelDirectoryUrl(input, cursor), {
+    const response = await transport.listModels({
+      url: providerModelDirectoryUrl(input, cursor),
       headers: providerModelDirectoryHeaders(input.provider, input.apiKey),
-      cache: "no-store",
     });
     if (!response.ok) throw new ProviderDirectoryHttpError(input.provider, response);
     const payload = await response.json() as unknown;

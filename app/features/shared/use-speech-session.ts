@@ -17,7 +17,12 @@ export function useSpeechSession({
 }) {
   const recognition = useSpeechRecognitionText({ unsupportedMessage });
   const playback = useConnectionSpeechPlayback({ connection: speechConnection, voice });
+  const start = useCallback(() => {
+    playback.stopSpeaking();
+    recognition.start();
+  }, [playback, recognition]);
   const reset = useCallback(() => {
+    playback.stopSpeaking();
     recognition.reset();
     playback.clearError();
   }, [playback, recognition]);
@@ -27,5 +32,6 @@ export function useSpeechSession({
     ...playback,
     error: playback.error || recognition.error,
     reset,
+    start,
   };
 }

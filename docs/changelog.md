@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-16 · 学习者模型、声明式扩展与眼镜输入协议
+
+- 新增只读 `LearnerStateSnapshot` 与 `LearningContextAssembler`，从错题、知识、面试、辅导微测和计划派生带本地证据 ID 的少量学习上下文，不升级 `review_workspace` v16。
+- 辅导回复新增 1–3 题微测；用户提交后按可观察正确率生成 1/3/7 天间隔复练，并记录帮助反馈、首个有效响应延迟和试点指标。模型置信度不再直接改变掌握状态。
+- 新增 `ProviderTransport`。Google 官方 Interactions 主机使用 `@google/genai`，每次调用显式 `maxRetries: 0`、`store:false`；自定义代理和兼容厂商继续使用原生 HTTP，现有 `/api/ai/generate` 与归一化 SSE 契约不变。
+- 新增 `VisionSourceAdapter`，统一相机、屏幕和上传图片，使用低成本灰度指纹抑制重复帧；原始媒体和关键帧继续只留内存，仓储只接受结构化观察摘要。
+- 新增独立 `review_extensions` v1 数据库与声明式扩展市场。V1 支持主题、人设、学习路径、已安排模板和评分标准，严格校验未知字段、路径、大小、SHA-256 与 ECDSA 签名，禁止 JavaScript、HTML、远程字体和运行时 CDN。
+- 增加中文记忆/辅导离线评测集、学习上下文证据契约、SDK 零重试契约、扩展安装生命周期与恶意包拒绝契约；完整重置和本地数据导出同时覆盖核心库与扩展库。
+
 ## 2026-07-15 · AI 活动精简、Google 404 与自动记忆
 
 - 删除三栏 AI 活动面板、模拟消息流和假 composer；对话仅保留消息内工具摘要，连接测试保留紧凑卡，后台任务改为单行状态。
