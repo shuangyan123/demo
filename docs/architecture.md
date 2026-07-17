@@ -239,3 +239,9 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 连接档案只保存厂商、鉴权、 endpoint 与能力。模型发现和真实测试通过连接级 AI 客户端完成，测试模型只保存在本地界面偏好中，必须由用户显式设为默认能力模型。
 - `AiModelRuntimeDescriptor` 位于 `types/domains/ai-model.ts`，由具体模型 ID 声明推理、速度、默认值、文档和核验日期。OpenAI/Gemini/xAI Priority、Claude Fast、MiniMax 配对高速模型分别映射，其他模型不得伪造统一速度档。
 - 明确核验的 `glm-5.2` 保留 `max/xhigh/high/medium/low/minimal/none` 七档，默认 `max`，请求同时发送 `thinking.type=enabled` 与原样 `reasoning_effort`；核验清单内的 GLM-4.5 至 5.1 只发送开关。未来或带自定义后缀的模型在 descriptor 登记前保持未知，不按版本字符串推断。
+
+# 通用工作台外层边界（2026-07-17）
+
+- `WorkspaceShell` 在语义 `<main>` 外统一提供 `chrome-content-frame`；默认 `raised-seam`，显式 `plain` 只供未来确需无边界的宿主使用。
+- 主应用、学习模块、对话和独立设置工作台消费同一外层边界。壳层只管理凹槽、圆角、边线、阴影与贴边关系，内容 padding、滚动和业务布局仍由各视图负责。
+- 桌面侧栏展开时使用 10px 凹槽与 18px 左上圆角；侧栏折叠及移动端取消所有抬升效果。工作区与侧栏共享中性 surface，主题色仅控制强调操作。

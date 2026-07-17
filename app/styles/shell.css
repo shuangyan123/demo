@@ -75,41 +75,62 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
 .chrome-content {
   position: relative;
   z-index: 1;
+  height: 100%;
   min-width: 0;
+  background: var(--chrome-workspace-surface);
   transition:
     border-color var(--motion-fast) var(--motion-ease),
     border-radius var(--motion-fast) var(--motion-ease);
+}
+
+.chrome-content-frame {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chrome-mobile-sidebar-backdrop {
   display: none;
 }
 
-/* 对话区只在与桌面侧栏相接的一边形成凹槽和叠层，其余三边贴齐应用外框。 */
-.chrome-layout.is-sidebar-expanded .conversation-shell-content {
-  margin-left: 10px;
-  border-left: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 82%, transparent);
-  border-top-left-radius: 18px;
-  background: var(--surface);
-  box-shadow:
-    -8px 0 20px rgb(15 23 42 / 10%),
-    -2px 0 5px rgb(15 23 42 / 5%);
+/* 通用工作区只在与桌面侧栏相邻的一边形成凹槽，其余三边继续贴齐应用外框。 */
+.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-seam"] {
+  padding-left: 10px;
+  background: var(--chrome-content-seam-bg);
 }
 
-.chrome-layout.is-sidebar-collapsed .conversation-shell-content {
-  margin-left: 0;
-  border-left-color: transparent;
+.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-seam"] > .chrome-content {
+  border-left: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 82%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 58%, transparent);
+  border-top-left-radius: 18px;
+  background: var(--chrome-workspace-surface);
+  box-shadow:
+    -8px 0 20px rgb(15 23 42 / 10%),
+    -2px 0 5px rgb(15 23 42 / 5%),
+    inset 1px 0 rgb(255 255 255 / 45%);
+}
+
+.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-seam"] {
+  padding-left: 0;
+  background: transparent;
+}
+
+.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-seam"] > .chrome-content {
+  border: 0;
   border-top-left-radius: 0;
   box-shadow: none;
 }
 
-body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .conversation-shell-content {
+body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-seam"] > .chrome-content {
   box-shadow:
     -8px 0 22px rgb(0 0 0 / 32%),
-    -2px 0 6px rgb(0 0 0 / 20%);
+    -2px 0 6px rgb(0 0 0 / 20%),
+    inset 1px 0 rgb(255 255 255 / 4%);
 }
 
-body[data-diffuse-gradient="true"] .chrome-content {
+body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="plain"] > .chrome-content {
   background-color: transparent;
 }
 
@@ -135,13 +156,6 @@ body[data-diffuse-gradient="true"] .chrome-content {
 .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar::before,
 .chrome-layout.is-sidebar-collapsed .chrome-sidebar::before {
   opacity: 0;
-}
-
-/* 设置页折叠侧栏后要取消原来贴着侧栏的圆角和边框，视觉上进入无侧栏工作区。 */
-.chrome-layout[data-sidebar="collapsed"] .settings-content,
-.chrome-layout.is-sidebar-collapsed .settings-content {
-  border-left-color: transparent;
-  border-top-left-radius: 0;
 }
 
 .sidebar-toggle-button:focus {
@@ -220,10 +234,15 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     pointer-events: auto;
   }
 
-  .chrome-layout[data-mobile-sidebar] .conversation-shell-content {
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-seam"] {
     height: 100%;
-    margin-left: 0;
-    border-left: 0;
+    padding-left: 0;
+    background: transparent;
+  }
+
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-seam"] > .chrome-content {
+    height: 100%;
+    border: 0;
     border-top-left-radius: 0;
     box-shadow: none;
   }

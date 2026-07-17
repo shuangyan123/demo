@@ -58,6 +58,7 @@ export function WindowMenuBar({
 export function WorkspaceShell({
   children,
   contentClassName = "",
+  contentSurface = "raised-seam",
   sidebar,
   sidebarClassName = "",
   sidebarCollapsed,
@@ -67,6 +68,7 @@ export function WorkspaceShell({
 }: {
   children: ReactNode;
   contentClassName?: string;
+  contentSurface?: "plain" | "raised-seam";
   sidebar: ReactNode;
   sidebarClassName?: string;
   sidebarCollapsed: boolean;
@@ -91,7 +93,6 @@ export function WorkspaceShell({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
-
   // 抽屉打开时锁定滚动、约束 Tab 焦点，并在关闭后恢复触发按钮焦点。
   useEffect(() => {
     if (!isMobile || !mobileSidebarOpen) return;
@@ -176,7 +177,7 @@ export function WorkspaceShell({
         >
           {sidebar}
         </aside>
-        <main className={`chrome-content min-h-0 min-w-0 overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main>
+        <div className="chrome-content-frame" data-content-surface={contentSurface}><main className={`chrome-content min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main></div>
       </div>
     </div>
   );

@@ -10,6 +10,29 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(size.scrollWidth).toBeLessThanOrEqual(size.clientWidth + 1);
 }
 
+/** 计算每个编号圆环中心到桌面装饰路径的最短屏幕距离。 */
+async function readDesktopFlowNodeDistances(page: Page) {
+  return page.locator(".dashboard-study-flow-canvas").evaluate((canvas) => {
+    const paths = [...canvas.querySelectorAll<SVGPathElement>(".dashboard-study-flow-path-desktop [data-flow-segment]")];
+    return [...canvas.querySelectorAll<HTMLElement>("[data-flow-node]")].map((node) => {
+      const bounds = node.getBoundingClientRect();
+      const center = { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
+      let minimum = Number.POSITIVE_INFINITY;
+      for (const path of paths) {
+        const matrix = path.getScreenCTM();
+        if (!matrix) continue;
+        const length = path.getTotalLength();
+        for (let offset = 0; offset <= length; offset += 1) {
+          const localPoint = path.getPointAtLength(Math.min(offset, length));
+          const point = new DOMPoint(localPoint.x, localPoint.y).matrixTransform(matrix);
+          minimum = Math.min(minimum, Math.hypot(point.x - center.x, point.y - center.y));
+        }
+      }
+      return minimum;
+    });
+  });
+}
+
 test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情区", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
@@ -19,7 +42,34 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   await expect(page.locator(".dashboard-next-action .ui-button-primary")).toHaveCount(1);
   await expect(page.locator(".dashboard-study-flow-list > li")).toHaveCount(7);
   await expect(page.locator(".dashboard-study-flow-path-desktop")).toBeVisible();
+  await expect(page.locator('[data-flow-segment="tail"]')).toHaveAttribute("stroke", "var(--study-flow-green)");
+  for (const distance of await readDesktopFlowNodeDistances(page)) expect(distance).toBeLessThanOrEqual(2);
   await expect(page.getByText("粉笔文本、文件或截图先进入可确认草稿。")).toHaveCount(0);
+
+  const dashboardFrame = page.locator(".chrome-content-frame");
+  const dashboardMain = page.locator(".chrome-content");
+  await expect(dashboardFrame).toHaveAttribute("data-content-surface", "raised-seam");
+  await expect(dashboardFrame).toHaveCSS("padding-left", "10px");
+  await expect(dashboardFrame).toHaveCSS("background-color", "rgb(247, 249, 252)");
+  await expect(dashboardMain).toHaveCSS("border-top-left-radius", "18px");
+  const desktopGeometry = await page.locator(".chrome-layout").evaluate((layout) => {
+    const frame = layout.querySelector<HTMLElement>(".chrome-content-frame")!;
+    const main = layout.querySelector<HTMLElement>(".chrome-content")!;
+    const sidebar = layout.querySelector<HTMLElement>(".chrome-sidebar")!;
+    const layoutBounds = layout.getBoundingClientRect();
+    const mainBounds = main.getBoundingClientRect();
+    return {
+      bottomGap: Math.abs(layoutBounds.bottom - mainBounds.bottom),
+      rightGap: Math.abs(layoutBounds.right - mainBounds.right),
+      surface: getComputedStyle(main).backgroundColor,
+      sidebarSurface: getComputedStyle(sidebar).backgroundColor,
+      topGap: Math.abs(layoutBounds.top - frame.getBoundingClientRect().top),
+    };
+  });
+  expect(desktopGeometry.topGap).toBeLessThanOrEqual(1);
+  expect(desktopGeometry.rightGap).toBeLessThanOrEqual(1);
+  expect(desktopGeometry.bottomGap).toBeLessThanOrEqual(1);
+  expect(desktopGeometry.surface).toBe(desktopGeometry.sidebarSurface);
 
   for (const label of ["六大板块", "知识中枢", "面试与辅导"]) {
     const disclosure = page.locator(".dashboard-disclosure").filter({ hasText: label });
@@ -44,11 +94,13 @@ test("桌面新对话使用左侧叠层边界且空白提示靠近底部输入�
 
   await expect(page.getByRole("heading", { name: "从一个问题开始" })).toBeVisible();
   await expect(page.getByText("发送首条消息后才会创建对话")).toHaveCount(0);
-  const boundary = await page.locator(".conversation-shell-content").evaluate((element) => {
-    const style = getComputedStyle(element);
-    return { marginLeft: style.marginLeft, radius: style.borderTopLeftRadius, shadow: style.boxShadow };
+  const boundary = await page.locator(".chrome-content-frame").evaluate((frame) => {
+    const main = frame.querySelector<HTMLElement>(".chrome-content")!;
+    const frameStyle = getComputedStyle(frame);
+    const mainStyle = getComputedStyle(main);
+    return { paddingLeft: frameStyle.paddingLeft, radius: mainStyle.borderTopLeftRadius, shadow: mainStyle.boxShadow };
   });
-  expect(boundary.marginLeft).toBe("10px");
+  expect(boundary.paddingLeft).toBe("10px");
   expect(boundary.radius).toBe("18px");
   expect(boundary.shadow).not.toBe("none");
 
@@ -61,8 +113,22 @@ test("桌面新对话使用左侧叠层边界且空白提示靠近底部输入�
 
   await page.screenshot({ path: testInfo.outputPath("p0-conversation-desktop.png"), fullPage: false });
   await page.getByRole("button", { name: "收起侧边栏" }).click();
-  await expect(page.locator(".conversation-shell-content")).toHaveCSS("margin-left", "0px");
-  await expect(page.locator(".conversation-shell-content")).toHaveCSS("border-top-left-radius", "0px");
+  await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "0px");
+  await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "0px");
+});
+
+test("普通模块与独立设置工作台共享同一外层边界", async ({ page }) => {
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "错题复盘 暂无到期" }).click();
+  await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-seam");
+  await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "10px");
+  await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "18px");
+
+  await page.getByRole("button", { name: "设置" }).first().click();
+  await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-seam");
+  await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "10px");
+  await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "18px");
 });
 
 test("移动端侧栏是默认关闭的焦点抽屉，七阶段沿 S 曲线自然滚动", async ({ page }, testInfo) => {
@@ -86,6 +152,8 @@ test("移动端侧栏是默认关闭的焦点抽屉，七阶段沿 S 曲线自�
   await expect(page.getByRole("textbox", { name: "对话输入" })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "应用导航" })).toBeHidden();
   await expect(page.locator(".chrome-sidebar")).toHaveCSS("opacity", "0");
+  await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "0px");
+  await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "0px");
   await page.screenshot({ path: testInfo.outputPath("p0-conversation-mobile.png"), fullPage: false });
 
   await page.goto("/");

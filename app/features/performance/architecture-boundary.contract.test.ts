@@ -40,6 +40,33 @@ test("大型 workspace 保持受控预算并使用专用 controller", async () =
   assert.doesNotMatch(reviewSource, /services\/command-search/);
 });
 
+test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () => {
+  const shellSource = await readFile(path.join(APP_ROOT, "features/shared/workspace-shell.tsx"), "utf8");
+  const reviewShellSource = await readFile(path.join(APP_ROOT, "features/review/review-workspace-shell.tsx"), "utf8");
+  const settingsShellSource = await readFile(path.join(APP_ROOT, "features/settings/settings-workspace.tsx"), "utf8");
+  const shellStyles = await readFile(path.join(APP_ROOT, "styles/shell.css"), "utf8");
+
+  assert.match(shellSource, /contentSurface = "raised-seam"/);
+  assert.match(shellSource, /contentSurface\?: "plain" \| "raised-seam"/);
+  assert.match(shellSource, /className="chrome-content-frame"/);
+  assert.match(shellSource, /data-content-surface=\{contentSurface\}/);
+  assert.doesNotMatch(reviewShellSource, /contentSurface=\{view === "conversation"/);
+  assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
+  assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-seam"\]/);
+  assert.doesNotMatch(shellStyles, /\.conversation-shell-content\s*\{[\s\S]*?(?:margin-left|border-top-left-radius|box-shadow)/);
+});
+
+test("公考学习链路拆分为经过节点中心的四段桌面路径", async () => {
+  const flowSource = await readFile(path.join(APP_ROOT, "features/review/dashboard-study-flow.tsx"), "utf8");
+
+  assert.match(flowSource, /data-flow-segment="top" d="M125 40 H875"/);
+  assert.match(flowSource, /data-flow-segment="bend" d="M875 40 C950 40 958 190 875 190"/);
+  assert.match(flowSource, /data-flow-segment="return" d="M875 190 H125"/);
+  assert.match(flowSource, /data-flow-segment="tail" d="M125 190 C70 190 70 250 110 250"/);
+  assert.match(flowSource, /dashboard-flow-gradient-return/);
+  assert.match(flowSource, /data-flow-node=\{index \+ 1\}/);
+});
+
 test("低频功能不通过静态依赖回到主工作台", async () => {
   const source = await readFile(path.join(APP_ROOT, "features/review/review-workspace.tsx"), "utf8");
   const imports = staticImports(source);

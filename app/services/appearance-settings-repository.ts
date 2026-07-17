@@ -240,7 +240,9 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   const neutralColor = isDark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 };
   const chromeSelectedColor = accent;
   const chromeBorderAlpha = 0.1 + contrastRatio * 0.16;
-  const sidebarBg = resolveSidebarBackground(theme, key);
+  // 通用工作区与侧栏使用同一中性表面，主题背景只负责窗口和凹槽层。
+  const workspaceSurface = isDark ? "#202020" : "#ffffff";
+  const sidebarBg = workspaceSurface;
   const diffuseEnabled = theme.diffuseGradient;
   const diffuseCompanionOne = shiftHue(accent, 46);
   const diffuseCompanionTwo = shiftHue(accent, -58);
@@ -263,7 +265,7 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--background", theme.background);
   root.style.setProperty("--foreground", theme.foreground);
   root.style.setProperty("--blue", theme.accent);
-  root.style.setProperty("--surface", isDark ? "#202020" : "#ffffff");
+  root.style.setProperty("--surface", workspaceSurface);
   root.style.setProperty("--surface-muted", isDark ? "#262626" : "#f7f8fa");
   root.style.setProperty("--muted", isDark ? "#b8b8b8" : "#667085");
   root.style.setProperty("--line", rgba(foreground, lineAlpha));
@@ -277,6 +279,8 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--chrome-window-diffuse", windowDiffuseBackground);
   root.style.setProperty("--chrome-topbar-bg", theme.background);
   root.style.setProperty("--chrome-sidebar-bg", sidebarBg);
+  root.style.setProperty("--chrome-workspace-surface", workspaceSurface);
+  root.style.setProperty("--chrome-content-seam-bg", isDark ? theme.background : "#f7f9fc");
   root.style.setProperty("--chrome-sidebar-diffuse", sidebarDiffuseBackground);
   root.style.setProperty("--chrome-sidebar-border", rgba(neutralColor, chromeBorderAlpha));
   root.style.setProperty("--chrome-selected-bg", rgba(chromeSelectedColor, selectedAlpha));

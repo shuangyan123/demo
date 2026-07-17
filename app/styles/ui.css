@@ -233,7 +233,7 @@
   position: relative;
   z-index: 1;
   display: grid;
-  min-height: 16.25rem;
+  min-height: 18.75rem;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   list-style: none;
@@ -246,13 +246,14 @@
 .dashboard-study-flow-list button {
   display: grid;
   width: 100%;
-  min-height: 7.5rem;
+  min-height: 9.375rem;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-content: center;
+  grid-template-rows: 2.45rem auto auto;
+  align-content: start;
   justify-items: center;
   gap: 0.35rem 0.5rem;
   border-radius: 0.7rem;
-  padding: 0.65rem;
+  padding: 1.2695rem 0.65rem 0.65rem;
   text-align: center;
 }
 
@@ -2090,11 +2091,11 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
   .dashboard-configuration-health > section {
     position: fixed;
-    top: calc(var(--chrome-topbar-height) + 0.75rem);
+    top: calc(var(--chrome-topbar-height) + 4.5rem);
     right: 0.75rem;
     left: 0.75rem;
     width: auto;
-    max-height: calc(100dvh - var(--chrome-topbar-height) - 1.5rem);
+    max-height: calc(100dvh - var(--chrome-topbar-height) - 5.25rem);
   }
 
   .dashboard-configuration-health-grid {
