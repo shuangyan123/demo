@@ -214,3 +214,7 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 - 未保存连接由连接级客户端将表单草稿临时映射到 `/api/ai/models` 与 `/api/ai/generate`，业务组件不得直接拼装厂商请求，也不得把模型写回 `ApiConnectionProfile`。
 - 完整连接测试必须先选择具体模型，再发送一次极小真实生成请求；该请求可能产生少量用量，成功只更新连接测试状态，不自动改写默认文本、多模态、语音或实时能力。
 - 会话请求的 `providerOptions.serviceTier = "priority"` 仅在目录声明支持时映射：OpenAI 使用 `service_tier`，Gemini GenerateContent 使用顶层 `serviceTier`；标准档不发送字段。MiniMax 按具体模型 descriptor 发送官方运行字段。
+
+# P0 工作台与公考首页（2026-07-17）
+
+本次 UI/UX 调整不新增或修改服务端 Route、请求体、响应体、AI 协议及 IndexedDB schema。推荐下一步、七阶段短状态和配置健康摘要均由浏览器内已有快照纯计算得到。

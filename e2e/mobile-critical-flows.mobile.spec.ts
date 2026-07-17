@@ -11,20 +11,29 @@ async function expectNoDocumentHorizontalOverflow(page: Page) {
   expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth + 1);
 }
 
+/** 从移动抽屉切换设置分区，并验证导航后抽屉自动关闭。 */
+async function selectMobileSettingsSection(page: Page, sectionName: string) {
+  await page.getByRole("button", { name: "展开侧边栏" }).click();
+  const drawer = page.getByRole("dialog", { name: "应用导航" });
+  await drawer.getByRole("button", { name: sectionName, exact: true }).click();
+  await expect(drawer).toBeHidden();
+}
+
 test("移动视口下关键入口可达且不会出现运行时错误或页面级横向溢出", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
-  await expect(page.getByRole("heading", { name: "配置健康" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
+  await expect(page.locator(".dashboard-configuration-health > summary")).toContainText("配置健康");
+  await expect(page.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
+  await page.locator(".dashboard-configuration-health > summary").click();
   await expect(page.getByRole("button", { name: "连接 Obsidian" })).toBeVisible();
+  await page.locator(".dashboard-configuration-health > summary").click();
   await expectNoFrameworkOverlay(page);
   await expectNoDocumentHorizontalOverflow(page);
 
-  await page.getByRole("button", { name: "收起侧边栏" }).click();
-  await expect(page.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
   await page.getByRole("button", { name: "展开侧边栏" }).click();
+  await expect(page.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
   await expect(page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" })).toBeVisible();
 
   await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
@@ -34,20 +43,22 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await expectNoDocumentHorizontalOverflow(page);
 
   await page.goto("/");
-  await page.getByRole("button", { name: "连接 Obsidian" }).click();
+  await page.locator(".dashboard-configuration-health > summary").click();
+  await page.locator(".dashboard-configuration-health").getByRole("button", { name: "连接 Obsidian" }).click();
   await expect(page.getByText("Obsidian 知识图谱")).toBeVisible();
   await expect(page.getByRole("button", { name: "连接 Vault 文件夹" })).toBeVisible();
   await expectNoDocumentHorizontalOverflow(page);
 
-  await page.getByRole("button", { name: "设置" }).click();
-  await page.getByRole("button", { name: "AI 连接" }).click();
+  await page.getByRole("button", { name: "展开侧边栏" }).click();
+  await page.getByRole("dialog", { name: "应用导航" }).getByRole("button", { name: "设置" }).click();
+  await selectMobileSettingsSection(page, "AI 连接");
   await expect(page.getByRole("heading", { name: "AI 连接" })).toBeVisible();
   await configureCustomTextConnection(page, { label: "E2E 移动本地连接", baseUrl: "http://127.0.0.1:9999/v1", model: "mobile-e2e-model" });
   await expect(page.getByLabel("连接名称")).toHaveValue("E2E 移动本地连接");
-  await page.getByRole("button", { name: "诊断" }).click();
+  await selectMobileSettingsSection(page, "诊断");
   await expect(page.getByRole("heading", { name: "诊断", exact: true })).toBeVisible();
   await expect(page.getByLabel("诊断报告")).toContainText("本地诊断报告");
-  await page.getByRole("button", { name: "个性化" }).click();
+  await selectMobileSettingsSection(page, "个性化");
   const memoryTab = page.getByRole("button", { name: "记忆", exact: true });
   await memoryTab.click();
   const memoryTabBox = await memoryTab.boundingBox();
@@ -55,9 +66,9 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await expect(page.getByRole("heading", { name: "记忆", exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("personalization-memory-mobile.png"), fullPage: false });
   await expectNoDocumentHorizontalOverflow(page);
-  await page.getByRole("button", { name: "外观", exact: true }).click();
+  await selectMobileSettingsSection(page, "外观");
   await page.getByRole("button", { name: "深色", exact: true }).click();
-  await page.getByRole("button", { name: "个性化", exact: true }).click();
+  await selectMobileSettingsSection(page, "个性化");
   await page.getByRole("button", { name: "记忆", exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath("personalization-memory-mobile-dark.png"), fullPage: false });
   await expectNoDocumentHorizontalOverflow(page);

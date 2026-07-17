@@ -3,7 +3,7 @@ import {
   Check, ChevronDown, ChevronRight, ClipboardCheck, Clock3, FileInput, FilePenLine, Folder,
   FolderOpen, FolderPlus, GripVertical, LayoutDashboard, Library, MessageSquare, MessagesSquare, Mic, Monitor,
   CircleAlert, Copy, Moon, MoreHorizontal, Paperclip, Phone, Plus, RefreshCw, ScanLine, Search, Send, Settings, Settings2,
-  Slash, SlidersHorizontal, Sparkles, Sun, Trash2, UserRoundPlus, Wrench, X, type LucideIcon,
+  PanelLeft, Slash, SlidersHorizontal, Sparkles, Sun, Trash2, UserRoundPlus, Wrench, X, type LucideIcon,
 } from "lucide-react";
 
 /** 应用功能图标名称；品牌 Logo 继续由 ProviderIcon 独立管理。 */
@@ -13,7 +13,7 @@ export type AppIconName =
   | "interview" | "knowledge" | "knowledgeTraining" | "library" | "light" | "mcp" | "message"
   | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins"
   | "project" | "review" | "scheduled" | "screenshot" | "search" | "send" | "settings" | "slash" | "sparkles"
-  | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "edit" | "folderPlus"
+  | "sidebar" | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "edit" | "folderPlus"
   | "refresh" | "warning" | "configure" | "copy" | "trash";
 
 const icons: Record<AppIconName, LucideIcon> = {
@@ -24,7 +24,7 @@ const icons: Record<AppIconName, LucideIcon> = {
   light: Sun, mcp: Blocks, message: MessageSquare, mic: Mic, more: MoreHorizontal, motion: Activity,
   newChat: Plus, none: Ban, paperclip: Paperclip, phone: Phone, personalization: UserRoundPlus, plugins: Blocks,
   project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings,
-  slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
+  sidebar: PanelLeft, slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
   tutoring: Bot, check: Check, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, edit: FilePenLine, folderPlus: FolderPlus,
   refresh: RefreshCw, warning: CircleAlert, configure: Settings2, copy: Copy, trash: Trash2,
 };

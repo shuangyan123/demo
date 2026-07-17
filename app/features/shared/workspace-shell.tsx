@@ -1,27 +1,39 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { AppIcon } from "./app-icon";
 
 // 渲染左上角侧栏切换按钮，使用按钮语义让键盘和屏幕阅读器都能识别当前折叠状态。
-export function SidebarToggleButton({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+export function SidebarToggleButton({
+  buttonRef,
+  collapsed,
+  onToggle,
+}: {
+  buttonRef?: Ref<HTMLButtonElement>;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   return (
     <button
-      className="sidebar-toggle-button grid h-7 w-7 place-items-center rounded-lg border border-line text-muted hover:bg-chrome-hover hover:text-foreground"
+      ref={buttonRef}
+      className="sidebar-toggle-button grid h-7 w-7 place-items-center rounded-lg border border-line text-muted hover:bg-chrome-hover hover:text-foreground max-lg:h-11 max-lg:w-11"
       type="button"
       aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
       aria-pressed={collapsed}
       onClick={onToggle}
     >
-      <span className="h-3 w-1 rounded-sm border border-current" />
+      <AppIcon name="sidebar" size={18} />
     </button>
   );
 }
 
 // 渲染应用顶部栏；只保留真实可用的侧栏切换、返回和当前区域标题。
 export function WindowMenuBar({
+  sidebarButtonRef,
   sidebarCollapsed,
   title = "错题复盘",
   onBack,
   onToggleSidebar,
 }: {
+  sidebarButtonRef?: Ref<HTMLButtonElement>;
   sidebarCollapsed: boolean;
   title?: string;
   onBack?: () => void;
@@ -29,7 +41,7 @@ export function WindowMenuBar({
 }) {
   return (
     <header className="chrome-topbar z-40 flex shrink-0 items-center gap-3 border-b border-chrome-sidebar-border px-3 text-sm text-muted">
-      <SidebarToggleButton collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
+      <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
       {onBack && (
         <button
           className="inline-grid h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground"
@@ -65,16 +77,100 @@ export function WorkspaceShell({
   onBack?: () => void;
   onToggleSidebar: () => void;
 }) {
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const mobileSidebarRef = useRef<HTMLElement>(null);
+  const sidebarButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarStateClass = sidebarCollapsed ? "is-sidebar-collapsed" : "is-sidebar-expanded";
+  const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;
+
+  // 移动端侧栏是临时抽屉，桌面端继续使用既有持久化折叠状态。
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1024px)");
+    const update = () => {
+      setIsMobile(media.matches);
+      if (!media.matches) setMobileSidebarOpen(false);
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  // 抽屉打开时锁定滚动、约束 Tab 焦点，并在关闭后恢复触发按钮焦点。
+  useEffect(() => {
+    if (!isMobile || !mobileSidebarOpen) return;
+    const drawer = mobileSidebarRef.current;
+    const restoreTarget = sidebarButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    const focusableSelector = "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
+    document.body.style.overflow = "hidden";
+    drawer?.querySelector<HTMLElement>(focusableSelector)?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileSidebarOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !drawer) return;
+      const controls = [...drawer.querySelectorAll<HTMLElement>(focusableSelector)];
+      if (!controls.length) return;
+      const first = controls[0]!;
+      const last = controls.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      window.requestAnimationFrame(() => restoreTarget?.focus());
+    };
+  }, [isMobile, mobileSidebarOpen]);
+
+  const toggleSidebar = useCallback(() => {
+    if (isMobile) {
+      setMobileSidebarOpen((current) => !current);
+      return;
+    }
+    onToggleSidebar();
+  }, [isMobile, onToggleSidebar]);
 
   return (
     <div className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-      <WindowMenuBar sidebarCollapsed={sidebarCollapsed} title={title} onBack={onBack} onToggleSidebar={onToggleSidebar} />
+      <WindowMenuBar
+        sidebarButtonRef={sidebarButtonRef}
+        sidebarCollapsed={effectiveCollapsed}
+        title={title}
+        onBack={onBack}
+        onToggleSidebar={toggleSidebar}
+      />
       <div
         className={`chrome-layout ${sidebarStateClass} min-h-0 flex-1`}
         data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
+        data-mobile-sidebar={mobileSidebarOpen ? "open" : "closed"}
       >
-        <aside aria-hidden={sidebarCollapsed} className={`chrome-sidebar diffuse-sidebar settings-sidebar-scroll relative z-30 min-h-0 border-r border-chrome-sidebar-border ${sidebarClassName}`}>
+        <button
+          className="chrome-mobile-sidebar-backdrop"
+          type="button"
+          aria-label="关闭侧边栏"
+          tabIndex={mobileSidebarOpen ? 0 : -1}
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+        <aside
+          ref={mobileSidebarRef}
+          aria-hidden={effectiveCollapsed}
+          inert={effectiveCollapsed}
+          aria-label={isMobile ? "应用导航" : undefined}
+          aria-modal={isMobile && mobileSidebarOpen ? true : undefined}
+          className={`chrome-sidebar diffuse-sidebar settings-sidebar-scroll relative z-30 min-h-0 border-r border-chrome-sidebar-border ${sidebarClassName}`}
+          role={isMobile ? "dialog" : undefined}
+        >
           {sidebar}
         </aside>
         <main className={`chrome-content min-h-0 min-w-0 overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main>
@@ -104,12 +200,12 @@ export function SidebarNav<T extends string>({
   }, [activeKey]);
 
   return (
-    <nav className="scrollbar-none grid gap-1 max-lg:flex max-lg:overflow-x-auto max-lg:pb-1" aria-label="侧栏导航">
+    <nav className="scrollbar-none grid gap-1" aria-label="侧栏导航">
       {items.map((item) => (
         <button
           key={item.key}
           ref={activeKey === item.key ? activeItemRef : undefined}
-          className={`grid min-h-9 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:min-h-11 max-lg:min-w-36 ${
+          className={`grid min-h-9 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:min-h-11 ${
             activeKey === item.key ? "bg-chrome-selected" : "hover:bg-chrome-hover"
           }`}
           type="button"

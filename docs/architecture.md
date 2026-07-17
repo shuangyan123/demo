@@ -1,5 +1,12 @@
 # 应用架构
 
+## P0 工作台与公考首页展示边界（2026-07-17）
+
+- `WorkspaceShell` 继续统一桌面持久化侧栏状态；移动端使用不持久化的临时抽屉状态，并负责焦点锁定、Escape、遮罩关闭、滚动锁定和触发器焦点恢复。
+- `ConversationEmptyState` 与 `DashboardStudyFlow` 是独立展示组件；`ConversationWorkspace` 保持在 500 行预算内，既有 controller、repository 和首次发送后才持久化的流程不变。
+- `DashboardView` 只接收结构化配置健康、日期状态和操作回调。`resolveDashboardNextAction()` 是唯一推荐动作排序边界，七阶段路径状态继续来自已有本地快照。
+- 公考首页默认只展开推荐动作、学习路径与三项统计；板块、知识和辅导详情保留在三个原生 disclosure。未新增静态重型依赖、数据库迁移或网络请求。
+
 ## AI 活动、跨厂商上下文与记忆 v2（2026-07-15）
 
 - `AiInteractionPanel` 现在是 `app/page.tsx` 下唯一的应用级活动宿主。`conversation` 事件只写入消息流内的工具摘要；`compact-test` 使用 352px 测试卡；`background` 只渲染一行可关闭状态。设置页和工作台不再各自订阅活动事件。

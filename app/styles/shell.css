@@ -81,6 +81,34 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
     border-radius var(--motion-fast) var(--motion-ease);
 }
 
+.chrome-mobile-sidebar-backdrop {
+  display: none;
+}
+
+/* 对话区只在与桌面侧栏相接的一边形成凹槽和叠层，其余三边贴齐应用外框。 */
+.chrome-layout.is-sidebar-expanded .conversation-shell-content {
+  margin-left: 10px;
+  border-left: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 82%, transparent);
+  border-top-left-radius: 18px;
+  background: var(--surface);
+  box-shadow:
+    -8px 0 20px rgb(15 23 42 / 10%),
+    -2px 0 5px rgb(15 23 42 / 5%);
+}
+
+.chrome-layout.is-sidebar-collapsed .conversation-shell-content {
+  margin-left: 0;
+  border-left-color: transparent;
+  border-top-left-radius: 0;
+  box-shadow: none;
+}
+
+body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .conversation-shell-content {
+  box-shadow:
+    -8px 0 22px rgb(0 0 0 / 32%),
+    -2px 0 6px rgb(0 0 0 / 20%);
+}
+
 body[data-diffuse-gradient="true"] .chrome-content {
   background-color: transparent;
 }
@@ -132,24 +160,72 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
 
 @media (max-width: 1024px) {
   .chrome-layout {
+    display: block;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
   }
 
-  .chrome-sidebar {
-    max-height: 8.5rem;
-    border-right: 0;
-    border-bottom: 1px solid var(--chrome-sidebar-border);
+  .chrome-sidebar,
+  .chrome-layout[data-mobile-sidebar="closed"] .chrome-sidebar {
+    position: fixed;
+    z-index: 70;
+    top: var(--chrome-topbar-height);
+    bottom: 0;
+    left: 0;
+    width: min(20rem, calc(100vw - 3rem));
+    max-height: none;
+    border-right: 1px solid var(--chrome-sidebar-border);
+    border-bottom: 0;
+    box-shadow: 18px 0 48px rgb(15 23 42 / 16%);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-100%);
+    transition:
+      opacity var(--motion-fast) var(--motion-ease),
+      transform var(--motion-structure) var(--motion-ease);
   }
 
   .review-workspace-sidebar {
-    max-height: 18rem;
+    max-height: none;
     overflow-y: auto;
   }
 
   .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar,
-  .chrome-layout.is-sidebar-collapsed .chrome-sidebar {
-    display: none;
+  .chrome-layout.is-sidebar-collapsed .chrome-sidebar,
+  .chrome-layout[data-sidebar="expanded"] .chrome-sidebar,
+  .chrome-layout.is-sidebar-expanded .chrome-sidebar {
+    display: block;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .chrome-layout[data-mobile-sidebar="open"] .chrome-sidebar {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .chrome-mobile-sidebar-backdrop {
+    position: fixed;
+    z-index: 65;
+    inset: var(--chrome-topbar-height) 0 0;
+    display: block;
+    background: rgb(15 23 42 / 28%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .chrome-layout[data-mobile-sidebar="open"] .chrome-mobile-sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .chrome-layout[data-mobile-sidebar] .conversation-shell-content {
+    height: 100%;
+    margin-left: 0;
+    border-left: 0;
+    border-top-left-radius: 0;
+    box-shadow: none;
   }
 }
 

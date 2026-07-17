@@ -97,9 +97,10 @@ export function SettingsWorkspace({
 
   return (
     <WorkspaceShell
+      key={activeSection}
       contentClassName="settings-content settings-main-scroll px-8 py-8 max-lg:px-4 max-lg:py-6"
       sidebarCollapsed={sidebarCollapsed}
-      sidebarClassName="flex flex-col overflow-y-auto px-3 py-4 text-settings-sidebar-text max-lg:overflow-visible"
+      sidebarClassName="flex flex-col overflow-y-auto px-3 py-4 text-settings-sidebar-text"
       title="设置"
       onBack={onBack}
       onToggleSidebar={onToggleSidebar}

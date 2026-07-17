@@ -46,6 +46,13 @@
   --ui-radius: 0.5rem;
   --ui-radius-lg: 0.75rem;
   --ui-control-height: 2.625rem;
+  --study-flow-teal: #159aa3;
+  --study-flow-blue: #3b8edb;
+  --study-flow-indigo: #6477d7;
+  --study-flow-violet: #9a6bc9;
+  --study-flow-coral: #dc716d;
+  --study-flow-amber: #dda42d;
+  --study-flow-green: #68a968;
 }
 
 /* Tailwind v4 主题映射，只把稳定语义 token 暴露给 utility。 */
