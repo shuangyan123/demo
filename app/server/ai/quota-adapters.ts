@@ -75,7 +75,13 @@ function numberSum(value: unknown, keys: string[]): number {
   return Object.values(record).reduce<number>((sum, item) => sum + numberSum(item, keys), 0);
 }
 
-function snapshot(provider: ApiProvider, label: string, metrics: AiQuotaMetric[], message: string): AiQuotaSnapshot {
+function snapshot(
+  provider: ApiProvider,
+  label: string,
+  metrics: AiQuotaMetric[],
+  message: string,
+  options?: { periodLabel?: string; sourceLabel?: string },
+): AiQuotaSnapshot {
   const used = metrics.find((metric) => metric.id === "used_cost");
   const remaining = metrics.find((metric) => metric.id === "remaining_balance");
   return {
@@ -88,8 +94,8 @@ function snapshot(provider: ApiProvider, label: string, metrics: AiQuotaMetric[]
     usedAmount: used?.value,
     remainingAmount: remaining?.value,
     currency: used?.unit ?? remaining?.unit,
-    periodLabel: "本月",
-    sourceLabel: "官方只读 API",
+    periodLabel: options?.periodLabel ?? "本月",
+    sourceLabel: options?.sourceLabel ?? "官方只读 API",
     officialRemainingAvailable: Boolean(remaining?.source === "official"),
     message,
     refreshedAt: new Date().toISOString(),
@@ -178,6 +184,42 @@ const deepSeekAdapter: AiQuotaProviderAdapter = {
   },
 };
 
+/**
+ * 解析 OpenRouter Credits API 的固定对象包络。
+ * 缺失字段时拒绝生成零值快照，避免把异常响应误报为真实余额。
+ */
+function parseOpenRouterCredits(payload: unknown): { totalCredits: number; totalUsage: number } {
+  const data = payload && typeof payload === "object" ? (payload as { data?: unknown }).data : undefined;
+  if (!data || typeof data !== "object") throw new QuotaAdapterError("malformed_response", "OpenRouter 额度响应格式异常", 502);
+  const record = data as Record<string, unknown>;
+  const totalCredits = Number(record.total_credits);
+  const totalUsage = Number(record.total_usage);
+  if (!Number.isFinite(totalCredits) || !Number.isFinite(totalUsage)) {
+    throw new QuotaAdapterError("malformed_response", "OpenRouter 额度响应缺少必要字段", 502);
+  }
+  return { totalCredits, totalUsage };
+}
+
+/** OpenRouter 只使用独立 Management Key 查询官方 Credits API，不复用模型推理凭据。 */
+const openRouterAdapter: AiQuotaProviderAdapter = {
+  async validate(input) {
+    const key = requiredCredential(input, "managementKey");
+    const payload = await requestJson("https://openrouter.ai/api/v1/credits", { headers: { Authorization: `Bearer ${key}` } }, input.signal);
+    parseOpenRouterCredits(payload);
+    return valid("openrouter");
+  },
+  async refresh(input) {
+    const key = requiredCredential(input, "managementKey");
+    const payload = await requestJson("https://openrouter.ai/api/v1/credits", { headers: { Authorization: `Bearer ${key}` } }, input.signal);
+    const { totalCredits, totalUsage } = parseOpenRouterCredits(payload);
+    return snapshot("openrouter", "OpenRouter", [
+      { id: "spend_limit", label: "累计购买额度", value: totalCredits, unit: "USD", source: "official" },
+      { id: "used_cost", label: "累计使用额度", value: totalUsage, unit: "USD", source: "official" },
+      { id: "remaining_balance", label: "官方剩余额度", value: Math.max(0, totalCredits - totalUsage), unit: "USD", source: "official" },
+    ], "已读取 OpenRouter 官方累计额度与使用量", { periodLabel: "累计", sourceLabel: "OpenRouter Credits API" });
+  },
+};
+
 function extractTeamId(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined;
   const record = payload as Record<string, unknown>;
@@ -216,6 +258,7 @@ export const quotaProviderAdapters = new Map<ApiProvider, AiQuotaProviderAdapter
   ["openai", openAiAdapter],
   ["anthropic", anthropicAdapter],
   ["deepseek", deepSeekAdapter],
+  ["openrouter", openRouterAdapter],
   ["xai", xaiAdapter],
 ]);
 

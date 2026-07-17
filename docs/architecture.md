@@ -1,5 +1,13 @@
 # 应用架构
 
+## 额度搜索、厂商扩展与隐私展示（2026-07-17）
+
+- `AiQuotaSettingsPanel` 保持表格与行级配置弹层结构；搜索词只存在 React 本地状态，按厂商名、ID、运行状态和数据来源即时派生可见行，不进入 URL、repository 或 IndexedDB。
+- 额度注册表固定展示 13 项。OpenRouter 通过独立 Management Key 调用官方 `GET /api/v1/credits`；通义千问、Kimi、火山方舟/豆包和 SiliconFlow 只提供官方文档、控制台与手动记录。
+- `/api/ai/quota` 契约不变，服务端新增 OpenRouter 只读 adapter。缺失 `total_credits` 或 `total_usage` 时返回 `malformed_response`，不得生成零余额快照。
+- 表格不直接渲染金额、Token 或百分比；额度环只以形状和颜色表达趋势，精确指标仅在悬浮、键盘聚焦或触屏说明层展示。连接状态仍独立显示运行时状态。
+- `ProviderBranding` 将 Anthropic 切换为固定版本本地 `claude-color.svg`；所有 `ProviderIcon` 使用位置共享同一彩色资产与校验值。
+
 ## AI 活动、跨厂商上下文与记忆 v2（2026-07-15）
 
 - `AiInteractionPanel` 现在是 `app/page.tsx` 下唯一的应用级活动宿主。`conversation` 事件只写入消息流内的工具摘要；`compact-test` 使用 352px 测试卡；`background` 只渲染一行可关闭状态。设置页和工作台不再各自订阅活动事件。

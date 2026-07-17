@@ -6,8 +6,16 @@ import type { AiQuotaSnapshot } from "../../../../types/domains/ai-quota";
 import { deriveQuotaRingPresentation } from "../../../../services/ai-quota-presentation";
 import styles from "../../settings-compact.module.css";
 
-/** 额度环在桌面悬浮、键盘聚焦和触屏点击时展示同一份精确指标。 */
-export function QuotaMetricRing({ snapshot }: { snapshot?: AiQuotaSnapshot }) {
+/** 额度环只在桌面悬浮、键盘聚焦和触屏点击后把精确指标写入说明层。 */
+export function QuotaMetricRing({
+  accessibleLabel,
+  emptyLabel = "—",
+  snapshot,
+}: {
+  accessibleLabel: string;
+  emptyLabel?: string;
+  snapshot?: AiQuotaSnapshot;
+}) {
   const tooltipId = useId();
   const timerRef = useRef<number | undefined>(undefined);
   const pointerFocusRef = useRef(false);
@@ -45,13 +53,21 @@ export function QuotaMetricRing({ snapshot }: { snapshot?: AiQuotaSnapshot }) {
     setVisible(false);
   }
 
+  if (presentation.mode === "empty") {
+    return <span className={styles.muted}>{emptyLabel}</span>;
+  }
+
   return (
-    <span className={styles.quotaRingWrap} onMouseEnter={scheduleOpen} onMouseLeave={close}>
+    <span
+      className={styles.quotaRingWrap}
+      onPointerEnter={(event) => { if (event.pointerType === "mouse") scheduleOpen(); }}
+      onPointerLeave={(event) => { if (event.pointerType === "mouse") close(); }}
+    >
       <button
         ref={buttonRef}
-        aria-describedby={tooltipId}
+        aria-describedby={visible ? tooltipId : undefined}
         aria-expanded={visible}
-        aria-label={presentation.accessibleLabel}
+        aria-label={accessibleLabel}
         className={styles.quotaRingButton}
         data-mode={presentation.mode}
         data-tone={presentation.tone}
@@ -70,7 +86,7 @@ export function QuotaMetricRing({ snapshot }: { snapshot?: AiQuotaSnapshot }) {
           {presentation.details.map((detail) => <span key={detail}>{detail}</span>)}
         </span>,
         document.body,
-      ) : <span id={tooltipId} className={styles.srOnly}>{presentation.accessibleLabel}</span>}
+      ) : null}
     </span>
   );
 }

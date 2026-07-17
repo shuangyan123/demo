@@ -51,6 +51,7 @@ export function AiQuotaSettingsPanel() {
   ])));
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
+  const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<ApiProvider | "manual">();
   const [successId, setSuccessId] = useState<ApiProvider | "manual">();
   const [connectionProfiles, setConnectionProfiles] = useState<ApiConnectionProfile[]>([]);
@@ -60,6 +61,16 @@ export function AiQuotaSettingsPanel() {
   const configById = useMemo(() => new Map(configs.map((config) => [config.id, config])), [configs]);
   const snapshotById = useMemo(() => new Map(snapshots.map((snapshot) => [snapshot.id, snapshot])), [snapshots]);
   const editingPlugin = aiQuotaRepository.plugins.find((plugin) => plugin.id === editingId);
+  const normalizedSearch = search.trim().toLocaleLowerCase("zh-CN");
+  const visiblePlugins = aiQuotaRepository.plugins.filter((plugin) => {
+    if (!normalizedSearch) return true;
+    const form = forms[plugin.id] ?? formFromConfig(configById.get(plugin.id));
+    const snapshot = snapshotById.get(plugin.id);
+    const runtimeStatus = runtime.entries[plugin.id]?.status ?? (form.enabled ? "needs-credentials" : "disabled");
+    const source = snapshot?.sourceLabel ?? (plugin.supportsOfficialRefresh ? "官方 自动同步" : "控制台 手动配置");
+    return [plugin.label, plugin.id, plugin.provider, statusLabels[runtimeStatus], source]
+      .some((value) => value.toLocaleLowerCase("zh-CN").includes(normalizedSearch));
+  });
 
   useEffect(() => {
     void aiQuotaRuntime.initialize();
@@ -170,10 +181,26 @@ export function AiQuotaSettingsPanel() {
         <div><h2>额度与用量</h2><p>账单凭据独立加密；没有官方接口的厂商仅支持控制台或手动记录。</p></div>
         {notice ? <span className={styles.muted} role="status">{notice}</span> : null}
       </div>
-      {aiQuotaRepository.plugins.length ? (
+      <div className={styles.quotaToolbar}>
+        <label className={styles.quotaSearch}>
+          <AppIcon name="search" size={16} />
+          <span className={styles.srOnly}>搜索额度厂商</span>
+          <input
+            aria-label="搜索厂商、状态或来源"
+            placeholder="搜索厂商、状态或来源"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+          />
+        </label>
+        <span className={styles.muted} role="status">
+          {normalizedSearch ? `找到 ${visiblePlugins.length} 个` : `${aiQuotaRepository.plugins.length} 个厂商`}
+        </span>
+      </div>
+      {visiblePlugins.length ? (
         <div className={styles.table}>
-          <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span>启用</span><span>连接状态</span><span>额度/用量</span><span>最后刷新</span><span>数据来源</span><span>操作</span></div>
-          {aiQuotaRepository.plugins.map((plugin) => {
+          <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span>启用</span><span>连接状态</span><span>额度/用量</span><span>最后刷新</span><span>数据来源</span><span>API 文档</span><span>操作</span></div>
+          {visiblePlugins.map((plugin) => {
             const form = forms[plugin.id] ?? formFromConfig(configById.get(plugin.id));
             const snapshot = snapshotById.get(plugin.id);
             const runtimeEntry = runtime.entries[plugin.id];
@@ -184,15 +211,39 @@ export function AiQuotaSettingsPanel() {
                 <button ref={(node) => { if (editingId === plugin.id && node) returnFocusRef.current = node; }} aria-label={`配置${plugin.label}额度`} className={styles.providerCell} type="button" onClick={(event) => { returnFocusRef.current = event.currentTarget; setEditingId(plugin.id); }}><ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={24} /><strong>{plugin.label}</strong><AppIcon name="configure" size={16} /></button>
                 <input aria-label={`启用${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={Boolean(busy)} role="switch" type="checkbox" onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} />
                 <span className={styles.providerCell}><i className={styles.statusDot} data-tone={tone} /><span className={styles.truncate}>{statusLabels[runtimeStatus]}</span></span>
-                <QuotaMetricRing snapshot={snapshot} />
+                <QuotaMetricRing
+                  accessibleLabel={`查看${plugin.label}额度详情`}
+                  emptyLabel={plugin.id === "manual" ? "手动记录" : "—"}
+                  snapshot={snapshot}
+                />
                 <span className={styles.muted}>{snapshot ? new Date(snapshot.refreshedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "未刷新"}</span>
-                <span className={`${styles.muted} ${styles.truncate}`}>{snapshot?.sourceLabel ?? (plugin.supportsOfficialRefresh ? "官方（自动同步）" : "手动配置")}</span>
+                <span className={`${styles.muted} ${styles.truncate}`}>{snapshot?.sourceLabel ?? (plugin.supportsOfficialRefresh ? "官方（自动同步）" : "控制台 / 手动")}</span>
+                {plugin.documentationUrl ? (
+                  <a
+                    aria-label={`打开${plugin.label}官方额度文档`}
+                    className={styles.docsLink}
+                    href={plugin.documentationUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <ProviderIcon provider={plugin.provider} size={20} />
+                    <AppIcon name="externalLink" size={16} />
+                  </a>
+                ) : <span className={styles.muted}>—</span>}
                 <button aria-label={`刷新${plugin.label}额度`} className={styles.iconButton} disabled={Boolean(busy) || !form.enabled} type="button" onClick={() => void refreshQuota(plugin.id)}><span className={runtimeStatus === "refreshing" ? styles.spin : undefined}><AppIcon name={runtimeStatus === "error" || runtimeStatus === "stale" ? "warning" : successId === plugin.id ? "check" : "refresh"} size={16} /></span></button>
               </div>
             );
           })}
         </div>
-      ) : <EmptyState>暂无额度配置。</EmptyState>}
+      ) : (
+        <EmptyState>
+          <div className={styles.quotaEmpty}>
+            <AppIcon name="search" size={20} />
+            <span>没有匹配的额度厂商</span>
+            <Button size="sm" variant="primary" onClick={() => setSearch("")}>清除搜索</Button>
+          </div>
+        </EmptyState>
+      )}
 
       {editingPlugin && editingId && typeof document !== "undefined" ? createPortal((
         <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingId(undefined); }}>

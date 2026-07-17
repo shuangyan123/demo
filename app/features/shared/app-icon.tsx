@@ -1,7 +1,7 @@
 import {
   Activity, ArrowLeft, Ban, Blocks, BookOpen, Bot, Brain, CalendarClock, Camera, ChartNoAxesColumnIncreasing,
   Check, ChevronDown, ChevronRight, ClipboardCheck, Clock3, FileInput, FilePenLine, Folder,
-  FolderOpen, FolderPlus, GripVertical, LayoutDashboard, Library, MessageSquare, MessagesSquare, Mic, Monitor,
+  ExternalLink, FolderOpen, FolderPlus, GripVertical, LayoutDashboard, Library, MessageSquare, MessagesSquare, Mic, Monitor,
   CircleAlert, Copy, Moon, MoreHorizontal, Paperclip, Phone, Plus, RefreshCw, ScanLine, Search, Send, Settings, Settings2,
   Slash, SlidersHorizontal, Sparkles, Sun, Trash2, UserRoundPlus, Wrench, X, type LucideIcon,
 } from "lucide-react";
@@ -14,7 +14,7 @@ export type AppIconName =
   | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins"
   | "project" | "review" | "scheduled" | "screenshot" | "search" | "send" | "settings" | "slash" | "sparkles"
   | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "edit" | "folderPlus"
-  | "refresh" | "warning" | "configure" | "copy" | "trash";
+  | "refresh" | "warning" | "configure" | "copy" | "externalLink" | "trash";
 
 const icons: Record<AppIconName, LucideIcon> = {
   activity: Activity, appearance: Sun, automation: CalendarClock, back: ArrowLeft, blocks: Blocks,
@@ -26,7 +26,7 @@ const icons: Record<AppIconName, LucideIcon> = {
   project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings,
   slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
   tutoring: Bot, check: Check, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, edit: FilePenLine, folderPlus: FolderPlus,
-  refresh: RefreshCw, warning: CircleAlert, configure: Settings2, copy: Copy, trash: Trash2,
+  refresh: RefreshCw, warning: CircleAlert, configure: Settings2, copy: Copy, externalLink: ExternalLink, trash: Trash2,
 };
 
 /** 统一 Lucide 的尺寸、线宽与无障碍表现；交互名称由外层按钮提供。 */

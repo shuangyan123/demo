@@ -131,9 +131,11 @@ GLM 运行能力只按显式模型清单登记。七档清单当前仅含 `glm-5
 
 额度查询使用 `/api/ai/quota`，只接受额度插件凭据，不接受普通模型调用连接。OpenAI 插件调用官方 Admin Costs/Usage API 并返回标准 `AiQuotaSnapshot`；官方未返回余额字段时，`officialRemainingAvailable` 必须为 `false`。
 
+OpenRouter 使用独立 `managementKey` 调用官方 `GET https://openrouter.ai/api/v1/credits`。`data.total_credits`、`data.total_usage` 和两者差值归一化为累计额度、累计使用和官方剩余额度；任一必要字段缺失时返回 `malformed_response`，不保存厂商原始响应。
+
 `AiQuotaSnapshot` 可包含 `periodLabel`、`resetAt`、`sourceLabel`、`usageRatio` 和运行时 `stale` 标记，用于独立额度设置中的紧凑厂商行；这些字段只能来自官方接口、用户手动预算或明确的 unsupported 状态，不能由网页抓取伪造。
 
-`AiQuotaProviderPlugin` 使用 CodexBar 式 descriptor/fetch strategy 描述 provider 标签、官网账单入口、状态页、刷新周期、来源模式和 unsupported 原因。DeepSeek 使用官方 `/user/balance`，且只有用户显式操作时才可引用已保存的同厂商推理 Key；Gemini、MiniMax、GLM 保持控制台/手动记录。禁止网页抓取或用一次推理请求冒充额度验证。
+`AiQuotaProviderPlugin` 使用 CodexBar 式 descriptor/fetch strategy 描述 provider 标签、官网账单入口、状态页、刷新周期、来源模式和 unsupported 原因。DeepSeek 使用官方 `/user/balance`，且只有用户显式操作时才可引用已保存的同厂商推理 Key；Gemini、MiniMax、GLM、通义千问、Kimi、火山方舟/豆包和 SiliconFlow 保持控制台/手动记录。禁止网页抓取或用一次推理请求冒充额度验证。
 
 ## 内置集成目录
 

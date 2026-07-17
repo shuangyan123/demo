@@ -5,7 +5,7 @@
 
 .connectionSection { width: min(100%, 45rem); }
 .capabilitySection { width: min(100%, 35rem); margin-top: 1.75rem; }
-.tableSection { width: min(100%, 47.5rem); }
+.tableSection { width: min(100%, 69rem); }
 
 .header {
   display: flex;
@@ -55,9 +55,48 @@
   min-height: 3.5rem;
 }
 
-.quotaColumns { grid-template-columns: minmax(7.25rem, 1.25fr) 3rem minmax(5rem, 0.75fr) 4.25rem minmax(5.8rem, 0.85fr) minmax(5.8rem, 0.95fr) 2.5rem; }
+.quotaColumns { grid-template-columns: minmax(8rem, 1.3fr) 3rem minmax(5.4rem, 0.85fr) 4rem minmax(5.8rem, 0.9fr) minmax(6.5rem, 1fr) 3.25rem 2.5rem; }
 .memoryColumns { grid-template-columns: 4rem 4rem minmax(0, 1fr) 5.5rem 7rem; }
 .dataColumns { grid-template-columns: minmax(0, 1fr) 5rem 4rem; }
+
+.quotaToolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.quotaSearch {
+  position: relative;
+  display: flex;
+  width: min(20rem, 100%);
+  align-items: center;
+  color: var(--muted);
+}
+
+.quotaSearch > svg {
+  position: absolute;
+  left: 0.65rem;
+  pointer-events: none;
+}
+
+.quotaSearch input {
+  width: 100%;
+  height: 2.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--foreground);
+  background: var(--surface);
+  padding: 0 0.75rem 0 2.1rem;
+  font-size: 0.8125rem;
+  outline: none;
+}
+
+.quotaSearch input:focus-visible {
+  border-color: color-mix(in srgb, var(--blue) 48%, var(--line));
+  outline: 2px solid color-mix(in srgb, var(--blue) 28%, transparent);
+  outline-offset: 1px;
+}
 
 .select,
 .input {
@@ -92,6 +131,37 @@
 }
 
 .iconButton:hover { color: var(--foreground); background: var(--surface-muted); }
+
+.docsLink {
+  position: relative;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.docsLink > svg {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  padding: 0.05rem;
+  border-radius: 0.15rem;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.docsLink:hover { color: var(--foreground); background: var(--surface-muted); }
+
+.docsLink:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--blue) 55%, transparent);
+  outline-offset: 1px;
+}
 
 .manualEditor {
   grid-column: 2 / -1;
@@ -129,6 +199,15 @@
 .statusDot[data-tone="yellow"] { background: var(--yellow); }
 .statusDot[data-tone="red"] { background: var(--red); }
 .muted { color: var(--muted); font-size: 0.75rem; }
+
+.quotaEmpty {
+  display: flex;
+  min-height: 10rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--muted);
+}
 
 .quotaRingWrap { position: relative; display: inline-flex; align-items: center; justify-content: flex-start; }
 
@@ -264,22 +343,37 @@
   .quotaColumns,
   .memoryColumns,
   .dataColumns { grid-template-columns: minmax(0, 1fr) auto; row-gap: 0.45rem; padding-block: 0.65rem; }
-  .quotaColumns > :nth-child(n + 3):not(:last-child),
   .memoryColumns > :nth-child(n + 3):not(:last-child) { grid-column: 1; }
-  .quotaColumns > :last-child,
   .memoryColumns > :last-child,
   .dataColumns > :last-child { grid-column: 2; grid-row: 1; }
-  .quotaColumns > :nth-child(2) { grid-column: 2; grid-row: 2; }
-  .quotaColumns > :nth-child(4) { grid-column: 2; grid-row: 3 / span 2; align-self: center; }
-  .quotaColumns > :nth-child(5),
-  .quotaColumns > :nth-child(6) { grid-column: 1; }
+
+  .quotaToolbar { align-items: flex-start; flex-direction: column; gap: 0.45rem; }
+  .quotaSearch { width: 100%; }
+  .quotaColumns { grid-template-columns: minmax(0, 1fr) 2.75rem 2.75rem; column-gap: 0.5rem; }
+  .quotaColumns > :nth-child(1) { grid-column: 1 / 3; grid-row: 1; }
+  .quotaColumns > :nth-child(2) { grid-column: 3; grid-row: 1; justify-self: end; }
+  .quotaColumns > :nth-child(3) { grid-column: 1; grid-row: 2; }
+  .quotaColumns > :nth-child(4) { grid-column: 2; grid-row: 2; align-self: center; justify-self: center; }
+  .quotaColumns > :nth-child(5) { grid-column: 1; grid-row: 3; }
+  .quotaColumns > :nth-child(6) { grid-column: 1; grid-row: 4; }
+  .quotaColumns > :nth-child(7) { grid-column: 2; grid-row: 3; }
+  .quotaColumns > :nth-child(8) { grid-column: 3; grid-row: 3; }
+  .quotaColumns .docsLink,
+  .quotaColumns .iconButton {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    min-height: 2.75rem;
+  }
   .credentialReuse { grid-template-columns: 1fr; }
+  .quotaEmpty { min-height: 12rem; flex-direction: column; }
 }
 
 @media (pointer: coarse) {
   .select,
   .input,
   .iconButton,
+  .docsLink,
   .tableRow,
   .disclosure > summary { min-height: 2.75rem; height: auto; }
   .quotaRingButton { width: 2.75rem; height: 2.75rem; }

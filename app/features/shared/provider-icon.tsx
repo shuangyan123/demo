@@ -11,7 +11,12 @@ export function ProviderIcon({ provider, size = 24 }: { provider: ApiProvider; s
         aria-hidden="true"
         className="provider-icon relative shrink-0"
         data-theme-variant={branding.themeVariant}
-        style={{ width: size, height: size }}
+        style={{
+          width: size,
+          height: size,
+          backgroundColor: branding.iconBackground,
+          borderRadius: branding.iconBackground ? Math.max(4, Math.round(size * 0.2)) : undefined,
+        }}
         title={branding.label}
       >
         <Image alt="" fill sizes={`${size}px`} src={branding.iconPath} style={{ objectFit: "contain" }} unoptimized />

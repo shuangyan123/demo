@@ -41,6 +41,11 @@ test("设置核心面板使用确认稿的紧凑表格和按需编辑层", async
   assert.match(defaults, /manualOpen/);
   assert.doesNotMatch(quota, /<details|<summary/);
   assert.match(quota, /配置\$\{plugin\.label\}额度/);
+  assert.match(quota, /搜索厂商、状态或来源/);
+  assert.match(quota, /API 文档/);
+  assert.match(quota, /target="_blank"/);
+  assert.match(quota, /emptyLabel=\{plugin\.id === "manual" \? "手动记录" : "—"\}/);
+  assert.doesNotMatch(quota, /充足|注意|不足/);
   assert.match(memory, /添加记忆/);
   assert.match(memory, /role="dialog"/);
   assert.doesNotMatch(data, /window\.confirm/);
@@ -52,4 +57,11 @@ test("十六个内置主题默认零对比度且切换预设保留弥散开关",
   assert.equal(presets.every(({ theme }) => theme.contrast === 0 && theme.diffuseGradient === false), true);
   const source = await readFile(new URL("./appearance-settings-view.tsx", import.meta.url), "utf8");
   assert.match(source, /diffuseGradient: theme\.diffuseGradient/);
+});
+
+test("额度精确值仅在交互说明层挂载", async () => {
+  const source = await readFile(new URL("./plugins/quota/quota-metric-ring.tsx", import.meta.url), "utf8");
+  assert.match(source, /aria-describedby=\{visible \? tooltipId : undefined\}/);
+  assert.match(source, /visible && typeof document !== "undefined"/);
+  assert.doesNotMatch(source, /styles\.srOnly|aria-label=\{presentation\.accessibleLabel\}/);
 });

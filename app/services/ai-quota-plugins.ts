@@ -88,7 +88,14 @@ const quotaDocumentationUrls: Partial<Record<ApiProvider, string>> = {
   xai: "https://docs.x.ai/developers/rest-api-reference/management/billing",
   minimax: "https://platform.minimax.io/docs/faq/about-account",
   zhipu: "https://docs.bigmodel.cn/cn/coding-plan/usage-notes",
+  openrouter: "https://openrouter.ai/docs/api/api-reference/credits/get-credits",
+  qwen: "https://help.aliyun.com/zh/model-studio/model-usage-statistics",
+  kimi: "https://platform.moonshot.cn/docs/intro",
+  doubao: "https://www.volcengine.com/docs/82379/1159199",
+  siliconflow: "https://docs.siliconflow.cn/cn/userguide/introduction",
 };
+
+const officialQuotaProviders = new Set<ApiProvider>(["deepseek", "anthropic", "xai", "openrouter"]);
 
 export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
   {
@@ -138,6 +145,11 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
     ["xai", "xAI", "https://console.x.ai/", "https://status.x.ai/"],
     ["minimax", "MiniMax", "https://platform.minimax.io/", ""],
     ["zhipu", "GLM / 智谱", "https://bigmodel.cn/usercenter/proj-mgmt/apikeys", ""],
+    ["openrouter", "OpenRouter", "https://openrouter.ai/activity", "https://status.openrouter.ai/"],
+    ["qwen", "通义千问", "https://bailian.console.aliyun.com/", ""],
+    ["kimi", "Kimi", "https://platform.moonshot.cn/console", ""],
+    ["doubao", "火山方舟 / 豆包", "https://console.volcengine.com/ark", ""],
+    ["siliconflow", "SiliconFlow", "https://cloud.siliconflow.cn/", ""],
   ] as const).map(([provider, label, dashboardUrl, statusUrl]) => ({
     id: provider,
     provider,
@@ -145,7 +157,7 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
     documentationUrl: quotaDocumentationUrls[provider] ?? "",
     dashboardUrl,
     statusUrl: statusUrl || undefined,
-    sourceModes: (["deepseek", "anthropic", "xai"] as string[]).includes(provider) ? ["official_api", "manual"] as AiQuotaSourceMode[] : ["unsupported", "manual"] as AiQuotaSourceMode[],
+    sourceModes: officialQuotaProviders.has(provider) ? ["official_api", "manual"] as AiQuotaSourceMode[] : ["unsupported", "manual"] as AiQuotaSourceMode[],
     descriptor: makeDescriptor({
       id: provider,
       label,
@@ -153,18 +165,25 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
       documentationUrl: quotaDocumentationUrls[provider] ?? "",
       dashboardUrl,
       statusUrl: statusUrl || undefined,
-      sourceModes: (["deepseek", "anthropic", "xai"] as string[]).includes(provider) ? ["official_api", "manual"] : ["unsupported", "manual"],
+      sourceModes: officialQuotaProviders.has(provider) ? ["official_api", "manual"] : ["unsupported", "manual"],
       color: "#64748b",
       iconLabel: label.slice(0, 2).toUpperCase(),
     }),
     fetchStrategies: [
-      makeStrategy({
-        id: `${provider}.unsupported`,
-        kind: "unsupported",
-        label: "官方实时查询未启用",
-        sourceLabel: "unsupported",
-        unsupportedReason: unsupportedMessage,
-      }),
+      officialQuotaProviders.has(provider)
+        ? makeStrategy({
+            id: `${provider}.official`,
+            kind: "official_api",
+            label: "官方只读额度 API",
+            sourceLabel: `${label} 官方额度`,
+          })
+        : makeStrategy({
+            id: `${provider}.unsupported`,
+            kind: "unsupported",
+            label: "官方实时查询未启用",
+            sourceLabel: "unsupported",
+            unsupportedReason: unsupportedMessage,
+          }),
       makeStrategy({
         id: `${provider}.manual`,
         kind: "manual",
@@ -172,8 +191,8 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
         sourceLabel: "手动维护",
       }),
     ],
-    supportsOfficialRefresh: (["deepseek", "anthropic", "xai"] as string[]).includes(provider),
-    refreshStrategy: (["deepseek", "anthropic", "xai"] as string[]).includes(provider) ? "official_api" as const : "unsupported" as const,
+    supportsOfficialRefresh: officialQuotaProviders.has(provider),
+    refreshStrategy: officialQuotaProviders.has(provider) ? "official_api" as const : "unsupported" as const,
     supportsUsageHistory: provider === "anthropic" || provider === "xai",
     supportsResetWindow: false,
     credentialFields: provider === "deepseek"
@@ -185,6 +204,8 @@ export const aiQuotaProviderPlugins: AiQuotaProviderPlugin[] = [
               { key: "managementKey" as const, label: "xAI Management Key", secret: true, required: true },
               { key: "teamId" as const, label: "Team ID（无法自动推导时填写）", secret: false, required: false },
             ]
+          : provider === "openrouter"
+            ? [{ key: "managementKey" as const, label: "OpenRouter Management Key", secret: true, required: true }]
           : [],
     describeUnsupported: unsupportedMessage,
     unsupportedReason: unsupportedMessage,

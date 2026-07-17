@@ -39,7 +39,7 @@ function sourceLabel(source: AiQuotaMetric["source"]): string {
 
 /** 将额度快照推导为“剩余比例”圆环；无可靠分母时只显示中性状态环。 */
 export function deriveQuotaRingPresentation(snapshot?: AiQuotaSnapshot): AiQuotaRingPresentation {
-  if (!snapshot) return { mode: "empty", centerLabel: "—", accessibleLabel: "尚无额度数据", details: ["尚未刷新额度"], tone: "normal" };
+  if (!snapshot) return { mode: "empty", centerLabel: "", accessibleLabel: "尚无额度数据", details: ["尚未刷新额度"], tone: "normal" };
   const used = metricById(snapshot, "used_cost");
   const remaining = metricById(snapshot, "remaining_balance");
   const limit = metricById(snapshot, "spend_limit");
@@ -58,12 +58,11 @@ export function deriveQuotaRingPresentation(snapshot?: AiQuotaSnapshot): AiQuota
   details.push(`最后刷新：${new Date(snapshot.refreshedAt).toLocaleString("zh-CN")}${snapshot.stale ? " · 已过期" : ""}`);
   if (snapshot.sourceLabel) details.push(`来源：${snapshot.sourceLabel}`);
   if (ratio !== undefined) details.unshift(`剩余比例：${Math.round(ratio * 100)}%`);
-  const centerLabel = ratio !== undefined ? `${Math.round(ratio * 100)}%` : "—";
   const tone = snapshot.stale ? "stale" : ratio !== undefined && ratio < 0.15 ? "danger" : ratio !== undefined && ratio < 0.4 ? "warning" : "normal";
   return {
     mode: ratio === undefined ? (centerMetric ? "status" : "empty") : "determinate",
     ratio,
-    centerLabel,
+    centerLabel: "",
     accessibleLabel: details.join("；"),
     details,
     tone,

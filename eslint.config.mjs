@@ -10,6 +10,8 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".codex/**",
+    // Trunk 会创建并快速清理源码镜像，ESLint 不应扫描工具工作副本。
+    ".trunk/**",
     "out/**",
     "build/**",
     "*.log",
