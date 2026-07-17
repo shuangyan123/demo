@@ -126,6 +126,7 @@ export function ReviewWorkspaceShell({
             {topActions.map((item) => (
               <button
                 key={item.id}
+                data-mobile-sidebar-close="true"
                 className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium ${
                   item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"
                 }`}
@@ -139,6 +140,7 @@ export function ReviewWorkspaceShell({
             ))}
           </nav>
           <button
+            data-mobile-sidebar-close="true"
             className="hidden min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
             type="button"
             onClick={onOpenSettings}
@@ -167,6 +169,7 @@ export function ReviewWorkspaceShell({
                   {civilServiceDomain.modules.map((module) => (
                     <button
                       key={module.id}
+                      data-mobile-sidebar-close="true"
                       className={`grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-md px-2 text-left text-sm ${
                         view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"
                       }`}
@@ -195,6 +198,7 @@ export function ReviewWorkspaceShell({
           </section>
 
           <button
+            data-mobile-sidebar-close="true"
             className="relative z-40 mt-3 grid min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:hidden"
             type="button"
             onClick={onOpenSettings}

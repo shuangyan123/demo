@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
 import { AppIcon } from "./app-icon";
-
 // 渲染左上角侧栏切换按钮，使用按钮语义让键盘和屏幕阅读器都能识别当前折叠状态。
 export function SidebarToggleButton({
   buttonRef,
@@ -24,7 +23,6 @@ export function SidebarToggleButton({
     </button>
   );
 }
-
 // 渲染应用顶部栏；只保留真实可用的侧栏切换、返回和当前区域标题。
 export function WindowMenuBar({
   sidebarButtonRef,
@@ -56,7 +54,6 @@ export function WindowMenuBar({
     </header>
   );
 }
-
 // 渲染 Codex 风格工作台壳层，统一顶部栏、侧栏折叠、内容滚动和弥散侧栏结构。
 export function WorkspaceShell({
   children,
@@ -83,7 +80,6 @@ export function WorkspaceShell({
   const sidebarButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarStateClass = sidebarCollapsed ? "is-sidebar-collapsed" : "is-sidebar-expanded";
   const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;
-
   // 移动端侧栏是临时抽屉，桌面端继续使用既有持久化折叠状态。
   useEffect(() => {
     const media = window.matchMedia("(max-width: 1024px)");
@@ -140,6 +136,12 @@ export function WorkspaceShell({
     }
     onToggleSidebar();
   }, [isMobile, onToggleSidebar]);
+  // 只有显式标记的导航动作会关闭移动抽屉，展开项目等局部操作仍可留在抽屉内完成。
+  const handleMobileSidebarAction = useCallback((event: ReactMouseEvent<HTMLElement>) => {
+    if (!isMobile) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('[data-mobile-sidebar-close="true"]')) setMobileSidebarOpen(false);
+  }, [isMobile]);
 
   return (
     <div className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground">
@@ -170,6 +172,7 @@ export function WorkspaceShell({
           aria-modal={isMobile && mobileSidebarOpen ? true : undefined}
           className={`chrome-sidebar diffuse-sidebar settings-sidebar-scroll relative z-30 min-h-0 border-r border-chrome-sidebar-border ${sidebarClassName}`}
           role={isMobile ? "dialog" : undefined}
+          onClickCapture={handleMobileSidebarAction}
         >
           {sidebar}
         </aside>
@@ -204,6 +207,7 @@ export function SidebarNav<T extends string>({
       {items.map((item) => (
         <button
           key={item.key}
+          data-mobile-sidebar-close="true"
           ref={activeKey === item.key ? activeItemRef : undefined}
           className={`grid min-h-9 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:min-h-11 ${
             activeKey === item.key ? "bg-chrome-selected" : "hover:bg-chrome-hover"

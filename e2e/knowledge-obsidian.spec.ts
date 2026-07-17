@@ -6,7 +6,8 @@ test("知识库 Obsidian 桥接入口在未连接状态下可恢复展示", asyn
 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
-  await page.locator("section").filter({ has: page.getByRole("heading", { name: "配置健康" }) }).first().getByRole("button", { name: "连接 Obsidian" }).click();
+  await page.locator(".dashboard-configuration-health > summary").click();
+  await page.locator(".dashboard-configuration-health").getByRole("button", { name: "连接 Obsidian" }).click();
 
   await expect(page.getByText("Obsidian 知识图谱")).toBeVisible();
   await expect(page.getByLabel("Vault 托管目录")).toHaveValue("AI知识库");
