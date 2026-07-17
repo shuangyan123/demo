@@ -58,7 +58,7 @@ export function WindowMenuBar({
 export function WorkspaceShell({
   children,
   contentClassName = "",
-  contentSurface = "raised-seam",
+  contentSurface = "raised-surface",
   sidebar,
   sidebarClassName = "",
   sidebarCollapsed,
@@ -68,7 +68,7 @@ export function WorkspaceShell({
 }: {
   children: ReactNode;
   contentClassName?: string;
-  contentSurface?: "plain" | "raised-seam";
+  contentSurface?: "plain" | "raised-surface";
   sidebar: ReactNode;
   sidebarClassName?: string;
   sidebarCollapsed: boolean;

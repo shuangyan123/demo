@@ -15,6 +15,8 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(lightDiffuse).toHaveAttribute("aria-checked", "false");
   await lightDiffuse.click();
   await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "true");
+  const workspaceDiffuse = await page.locator(".chrome-content").evaluate((element) => getComputedStyle(element).backgroundImage);
+  expect(workspaceDiffuse).toContain("radial-gradient");
   await page.reload();
   await page.getByRole("button", { name: "设置" }).first().click();
   await expect(page.getByRole("switch", { name: "浅色主题弥散渐变" })).toHaveAttribute("aria-checked", "true");

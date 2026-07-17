@@ -95,43 +95,74 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
   display: none;
 }
 
-/* 通用工作区只在与桌面侧栏相邻的一边形成凹槽，其余三边继续贴齐应用外框。 */
-.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-seam"] {
-  padding-left: 10px;
-  background: var(--chrome-content-seam-bg);
+/* 桌面展开态露出 18px 窗口底层，让工作区成为覆盖其上的统一抬升面。 */
+.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] {
+  padding-left: 18px;
+  background: transparent;
 }
 
-.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-seam"] > .chrome-content {
+.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"]::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: 0;
+  left: 18px;
+  height: 24px;
+  pointer-events: none;
+  border-top-left-radius: 18px;
+  background: linear-gradient(180deg, rgb(15 23 42 / 11%) 0, rgb(15 23 42 / 4%) 7px, transparent 22px);
+}
+
+.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
   border-left: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 82%, transparent);
   border-top: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 58%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 58%, transparent);
   border-top-left-radius: 18px;
-  background: var(--chrome-workspace-surface);
+  border-bottom-left-radius: 18px;
+  background-color: var(--chrome-workspace-surface);
   box-shadow:
-    -8px 0 20px rgb(15 23 42 / 10%),
-    -2px 0 5px rgb(15 23 42 / 5%),
-    inset 1px 0 rgb(255 255 255 / 45%);
+    -18px 0 34px rgb(15 23 42 / 16%),
+    -7px 0 16px rgb(15 23 42 / 10%),
+    -2px 0 5px rgb(15 23 42 / 7%),
+    inset 1px 1px rgb(255 255 255 / 72%);
 }
 
-.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-seam"] {
+.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
   padding-left: 0;
   background: transparent;
 }
 
-.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-seam"] > .chrome-content {
+.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"]::after {
+  display: none;
+}
+
+.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
   border: 0;
   border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
   box-shadow: none;
 }
 
-body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-seam"] > .chrome-content {
+body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"]::after {
+  background: linear-gradient(180deg, rgb(0 0 0 / 32%) 0, rgb(0 0 0 / 12%) 8px, transparent 23px);
+}
+
+body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
   box-shadow:
-    -8px 0 22px rgb(0 0 0 / 32%),
-    -2px 0 6px rgb(0 0 0 / 20%),
-    inset 1px 0 rgb(255 255 255 / 4%);
+    -18px 0 36px rgb(0 0 0 / 50%),
+    -7px 0 17px rgb(0 0 0 / 34%),
+    -2px 0 5px rgb(0 0 0 / 26%),
+    inset 1px 1px rgb(255 255 255 / 7%);
 }
 
 body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="plain"] > .chrome-content {
   background-color: transparent;
+}
+
+/* 抬升工作区保持不透明基底，但重新叠加主题弥散色场，避免通用 surface 把效果遮住。 */
+body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
+  background-image: var(--chrome-window-diffuse);
 }
 
 .chrome-layout.is-sidebar-expanded .chrome-sidebar {
@@ -234,16 +265,21 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     pointer-events: auto;
   }
 
-  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-seam"] {
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] {
     height: 100%;
     padding-left: 0;
     background: transparent;
   }
 
-  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-seam"] > .chrome-content {
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"]::after {
+    display: none;
+  }
+
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
     height: 100%;
     border: 0;
     border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
     box-shadow: none;
   }
 }

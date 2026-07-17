@@ -25,7 +25,7 @@ test("对话链按轮次稳定显示用户消息和 AI 回答", async ({ page })
     await setCustomDefaultTextModel(page, "E2E 轮次连接", "turn-model");
     await page.getByRole("button", { name: "返回应用" }).click();
     await page.getByRole("button", { name: "新对话", exact: true }).click();
-    await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-seam");
+    await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-surface");
     await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "18px");
 
     const input = page.getByRole("textbox", { name: "对话输入" });
@@ -43,7 +43,7 @@ test("对话链按轮次稳定显示用户消息和 AI 回答", async ({ page })
 
     await page.reload();
     await page.locator(".conversation-tree-chat-label").filter({ hasText: "这是同一轮次的问题" }).click();
-    await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-seam");
+    await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-surface");
     await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "18px");
     const restoredTurn = page.locator(".conversation-turn").last();
     await expect(restoredTurn).toContainText("这是同一轮次的问题");

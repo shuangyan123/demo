@@ -242,6 +242,6 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 
 # 通用工作台外层边界（2026-07-17）
 
-- `WorkspaceShell` 在语义 `<main>` 外统一提供 `chrome-content-frame`；默认 `raised-seam`，显式 `plain` 只供未来确需无边界的宿主使用。
-- 主应用、学习模块、对话和独立设置工作台消费同一外层边界。壳层只管理凹槽、圆角、边线、阴影与贴边关系，内容 padding、滚动和业务布局仍由各视图负责。
-- 桌面侧栏展开时使用 10px 凹槽与 18px 左上圆角；侧栏折叠及移动端取消所有抬升效果。工作区与侧栏共享中性 surface，主题色仅控制强调操作。
+- `WorkspaceShell` 在语义 `<main>` 外统一提供 `chrome-content-frame`；默认 `raised-surface`，显式 `plain` 只供未来确需无边界的宿主使用。
+- 主应用、学习模块、对话和独立设置工作台消费同一外层边界。壳层只管理收进、圆角、边线、阴影与贴边关系，内容 padding、滚动和业务布局仍由各视图负责。
+- 桌面侧栏展开时露出 18px 窗口底层，并通过工作区左侧投影、顶部向下阴影和两个左侧圆角形成抬升面；侧栏折叠及移动端取消所有抬升效果。

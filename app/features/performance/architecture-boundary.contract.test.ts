@@ -46,13 +46,13 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   const settingsShellSource = await readFile(path.join(APP_ROOT, "features/settings/settings-workspace.tsx"), "utf8");
   const shellStyles = await readFile(path.join(APP_ROOT, "styles/shell.css"), "utf8");
 
-  assert.match(shellSource, /contentSurface = "raised-seam"/);
-  assert.match(shellSource, /contentSurface\?: "plain" \| "raised-seam"/);
+  assert.match(shellSource, /contentSurface = "raised-surface"/);
+  assert.match(shellSource, /contentSurface\?: "plain" \| "raised-surface"/);
   assert.match(shellSource, /className="chrome-content-frame"/);
   assert.match(shellSource, /data-content-surface=\{contentSurface\}/);
   assert.doesNotMatch(reviewShellSource, /contentSurface=\{view === "conversation"/);
   assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
-  assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-seam"\]/);
+  assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
   assert.doesNotMatch(shellStyles, /\.conversation-shell-content\s*\{[\s\S]*?(?:margin-left|border-top-left-radius|box-shadow)/);
 });
 
