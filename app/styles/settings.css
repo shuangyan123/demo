@@ -10,26 +10,22 @@
   margin: 0;
 }
 
-/* 设置页使用接近 Codex 的浅灰滚动条，避免系统默认滚动条显得过重。 */
-.settings-main-scroll,
+/* 设置侧栏保留紧凑滚动条；主工作区统一隐藏滚动条但仍可正常滚动。 */
 .settings-sidebar-scroll {
   scrollbar-color: var(--settings-scrollbar-thumb) var(--settings-scrollbar-track);
   scrollbar-width: thin;
 }
 
-.settings-main-scroll::-webkit-scrollbar,
 .settings-sidebar-scroll::-webkit-scrollbar {
   height: 12px;
   width: 12px;
 }
 
-.settings-main-scroll::-webkit-scrollbar-track,
 .settings-sidebar-scroll::-webkit-scrollbar-track {
   background: var(--settings-scrollbar-track);
   border-radius: 999px;
 }
 
-.settings-main-scroll::-webkit-scrollbar-thumb,
 .settings-sidebar-scroll::-webkit-scrollbar-thumb {
   background: var(--settings-scrollbar-thumb);
   border: 3px solid transparent;
@@ -37,7 +33,6 @@
   background-clip: content-box;
 }
 
-.settings-main-scroll::-webkit-scrollbar-thumb:hover,
 .settings-sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--settings-scrollbar-thumb-hover);
   background-clip: content-box;

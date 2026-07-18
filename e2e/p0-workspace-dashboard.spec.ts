@@ -65,9 +65,9 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   expect(edgeDecoration.backgroundImage).toBe("none");
   expect(edgeDecoration.content === "none" || edgeDecoration.content === "normal").toBe(true);
   await expect(dashboardMain).toHaveCSS("border-top-left-radius", "18px");
-  await expect(dashboardMain).toHaveCSS("border-bottom-left-radius", "18px");
-  await expect(dashboardMain).toHaveCSS("border-top-width", "0px");
-  await expect(dashboardMain).toHaveCSS("border-left-width", "0px");
+  await expect(dashboardMain).toHaveCSS("border-bottom-left-radius", "0px");
+  await expect(dashboardMain).toHaveCSS("border-top-width", "1px");
+  await expect(dashboardMain).toHaveCSS("border-left-width", "1px");
   await expect(dashboardMain).toHaveCSS("border-bottom-width", "0px");
   const chromeTransition = await page.locator(".chrome-topbar").evaluate((topbar) => {
     const sidebar = document.querySelector<HTMLElement>(".chrome-sidebar")!;
@@ -84,17 +84,16 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
     expect(chromeTransition.topbarBackground).toBe("none");
   }
   expect(chromeTransition.sidebarMask).toContain("12px");
-  const sideElevation = await dashboardFrame.evaluate((element) => {
-    const style = getComputedStyle(element, "::before");
+  const sharedEdge = await dashboardMain.evaluate((element) => {
+    const style = getComputedStyle(element);
     return {
-      bottom: style.bottom,
-      left: style.left,
-      top: style.top,
+      shadow: style.boxShadow,
+      scrollbarWidth: style.scrollbarWidth,
     };
   });
-  expect(sideElevation.top).toBe("28px");
-  expect(sideElevation.bottom).toBe("28px");
-  expect(sideElevation.left).toBe("-18px");
+  expect(sharedEdge.shadow).toContain("inset");
+  expect(sharedEdge.shadow).toContain("3px");
+  expect(sharedEdge.scrollbarWidth).toBe("none");
   const desktopGeometry = await page.locator(".chrome-layout").evaluate((layout) => {
     const main = layout.querySelector<HTMLElement>(".chrome-content")!;
     const sidebar = layout.querySelector<HTMLElement>(".chrome-sidebar")!;
@@ -156,10 +155,11 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
   });
   expect(boundary.paddingLeft).toBe("0px");
   expect(boundary.radius).toBe("18px");
-  expect(boundary.bottomRadius).toBe("18px");
-  expect(boundary.shadow).toBe("none");
-  expect(boundary.topBorderWidth).toBe("0px");
-  expect(boundary.leftBorderWidth).toBe("0px");
+  expect(boundary.bottomRadius).toBe("0px");
+  expect(boundary.shadow.match(/inset/g)).toHaveLength(1);
+  expect(boundary.shadow).toContain("3px");
+  expect(boundary.topBorderWidth).toBe("1px");
+  expect(boundary.leftBorderWidth).toBe("1px");
   expect(boundary.bottomBorderWidth).toBe("0px");
 
   const contentFit = await page.locator(".chrome-content").evaluate((main) => {
