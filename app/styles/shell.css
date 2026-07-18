@@ -166,11 +166,16 @@ body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="p
   background-color: transparent;
 }
 
-/* 抬升工作区保持不透明基底，但重新叠加主题弥散色场，避免通用 surface 把效果遮住。 */
-body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
+/* frame 统一承载圆角内外的弥散底图，避免圆角外露出坐标不同的父级渐变形成三角色块。 */
+body[data-diffuse-gradient="true"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] {
+  background-color: var(--chrome-workspace-surface);
   background-image: var(--chrome-window-diffuse);
-  /* 弥散图只进入内侧内容面，避免半透明共边与圆角抗锯齿重复混色。 */
-  background-clip: padding-box;
+}
+
+/* 弥散开启时 main 只负责共边、圆角、阴影和滚动，不再重复绘制第二套渐变。 */
+body[data-diffuse-gradient="true"] .chrome-layout .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
+  background-color: transparent;
+  background-image: none;
 }
 
 .chrome-layout.is-sidebar-expanded .chrome-sidebar {

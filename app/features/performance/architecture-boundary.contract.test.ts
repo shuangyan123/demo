@@ -72,7 +72,8 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.match(shellStyles, /data-content-surface="raised-surface"\] > \.chrome-content\s*\{\s+border: 0;[\s\S]*?border-top: 1px solid var\(--chrome-sidebar-border\);[\s\S]*?border-left: 1px solid var\(--chrome-sidebar-border\);[\s\S]*?border-top-left-radius: 18px;[\s\S]*?border-bottom-left-radius: 0;[\s\S]*?inset 1px 1px 0[\s\S]*?-1px -1px 3px -1px/);
   assert.match(shellStyles, /\.chrome-content\s*\{[\s\S]*?-ms-overflow-style: none;[\s\S]*?scrollbar-width: none;/);
   assert.match(shellStyles, /\.chrome-content::\-webkit-scrollbar\s*\{[\s\S]*?display: none;/);
-  assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-content-frame\[data-content-surface="raised-surface"\] > \.chrome-content\s*\{[\s\S]*?background-image: var\(--chrome-window-diffuse\);[\s\S]*?background-clip: padding-box;/);
+  assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-layout\.is-sidebar-expanded \.chrome-content-frame\[data-content-surface="raised-surface"\]\s*\{[\s\S]*?background-color: var\(--chrome-workspace-surface\);[\s\S]*?background-image: var\(--chrome-window-diffuse\);/);
+  assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-layout \.chrome-content-frame\[data-content-surface="raised-surface"\] > \.chrome-content\s*\{[\s\S]*?background-color: transparent;[\s\S]*?background-image: none;/);
   assert.match(tokensStyles, /--chrome-topbar-diffuse: none;/);
   assert.match(appearanceSource, /setProperty\("--chrome-topbar-diffuse", topbarDiffuseBackground\)/);
   assert.match(layoutSource, /import \{ GeistMono \} from "geist\/font\/mono"/);

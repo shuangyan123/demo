@@ -15,15 +15,34 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(lightDiffuse).toHaveAttribute("aria-checked", "false");
   await lightDiffuse.click();
   await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "true");
-  const workspaceDiffuse = await page.locator(".chrome-content").evaluate((element) => {
-    const style = getComputedStyle(element);
+  const workspaceDiffuse = await page.locator(".chrome-content-frame").evaluate((frame) => {
+    const main = frame.querySelector<HTMLElement>(".chrome-content")!;
+    const frameStyle = getComputedStyle(frame);
+    const mainStyle = getComputedStyle(main);
     return {
-      backgroundClip: style.backgroundClip,
-      backgroundImage: style.backgroundImage,
+      frameBackgroundColor: frameStyle.backgroundColor,
+      frameBackgroundImage: frameStyle.backgroundImage,
+      mainBackgroundColor: mainStyle.backgroundColor,
+      mainBackgroundImage: mainStyle.backgroundImage,
     };
   });
-  expect(workspaceDiffuse.backgroundImage).toContain("radial-gradient");
-  expect(workspaceDiffuse.backgroundClip.split(", ").every((clip) => clip === "padding-box")).toBe(true);
+  expect(workspaceDiffuse.frameBackgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(workspaceDiffuse.frameBackgroundImage).toContain("radial-gradient");
+  expect(workspaceDiffuse.mainBackgroundColor).toBe("rgba(0, 0, 0, 0)");
+  expect(workspaceDiffuse.mainBackgroundImage).toBe("none");
+  await page.setViewportSize({ width: 1115, height: 792 });
+  const diffuseFrameBox = await page.locator(".chrome-content-frame").boundingBox();
+  expect(diffuseFrameBox).toBeTruthy();
+  await page.screenshot({
+    path: testInfo.outputPath("settings-diffuse-corner-desktop.png"),
+    clip: {
+      x: Math.max(0, diffuseFrameBox!.x - 24),
+      y: Math.max(0, diffuseFrameBox!.y - 20),
+      width: 84,
+      height: 84,
+    },
+  });
+  await page.setViewportSize({ width: 1536, height: 1024 });
   const topbarDiffuse = await page.locator(".chrome-topbar").evaluate((element) => getComputedStyle(element).backgroundImage);
   expect(topbarDiffuse).toContain("radial-gradient");
   const codeFontFamilies = await page.locator(".settings-code-preview, .settings-input.font-mono").evaluateAll((elements) =>
