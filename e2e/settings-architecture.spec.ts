@@ -15,8 +15,15 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(lightDiffuse).toHaveAttribute("aria-checked", "false");
   await lightDiffuse.click();
   await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "true");
-  const workspaceDiffuse = await page.locator(".chrome-content").evaluate((element) => getComputedStyle(element).backgroundImage);
-  expect(workspaceDiffuse).toContain("radial-gradient");
+  const workspaceDiffuse = await page.locator(".chrome-content").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundClip: style.backgroundClip,
+      backgroundImage: style.backgroundImage,
+    };
+  });
+  expect(workspaceDiffuse.backgroundImage).toContain("radial-gradient");
+  expect(workspaceDiffuse.backgroundClip.split(", ").every((clip) => clip === "padding-box")).toBe(true);
   const topbarDiffuse = await page.locator(".chrome-topbar").evaluate((element) => getComputedStyle(element).backgroundImage);
   expect(topbarDiffuse).toContain("radial-gradient");
   const codeFontFamilies = await page.locator(".settings-code-preview, .settings-input.font-mono").evaluateAll((elements) =>

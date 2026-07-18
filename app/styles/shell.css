@@ -169,6 +169,8 @@ body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="p
 /* 抬升工作区保持不透明基底，但重新叠加主题弥散色场，避免通用 surface 把效果遮住。 */
 body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
   background-image: var(--chrome-window-diffuse);
+  /* 弥散图只进入内侧内容面，避免半透明共边与圆角抗锯齿重复混色。 */
+  background-clip: padding-box;
 }
 
 .chrome-layout.is-sidebar-expanded .chrome-sidebar {
