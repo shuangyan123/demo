@@ -40,8 +40,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   expect(workspaceDiffuse.frameRadius).toBe("18px");
   expect(workspaceDiffuse.layoutBackgroundImage).toBe("none");
   expect(workspaceDiffuse.mainBackgroundColor).toBe("rgba(0, 0, 0, 0)");
-  expect(workspaceDiffuse.mainBackgroundImage).toContain("linear-gradient");
-  expect(workspaceDiffuse.mainBackgroundImage).not.toContain("radial-gradient");
+  expect(workspaceDiffuse.mainBackgroundImage).toBe("none");
   await page.setViewportSize({ width: 1115, height: 792 });
   const diffuseFrameBox = await page.locator(".chrome-content-frame").boundingBox();
   expect(diffuseFrameBox).toBeTruthy();

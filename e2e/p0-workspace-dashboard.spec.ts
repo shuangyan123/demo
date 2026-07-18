@@ -94,11 +94,10 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
       scrollbarWidth: style.scrollbarWidth,
     };
   });
-  expect(sharedEdge.shadow).toContain("inset");
-  expect(sharedEdge.shadow).not.toContain("3px");
-  expect(sharedEdge.backgroundImage).toContain("linear-gradient");
-  expect(sharedEdge.backgroundPosition).toBe("0px 18px, 18px 0px");
-  expect(sharedEdge.backgroundSize).toContain("3px");
+  expect(sharedEdge.shadow).toBe("none");
+  expect(sharedEdge.backgroundImage).toBe("none");
+  expect(sharedEdge.backgroundPosition).toBe("0% 0%");
+  expect(sharedEdge.backgroundSize).toBe("auto");
   expect(sharedEdge.scrollbarWidth).toBe("none");
   const desktopGeometry = await page.locator(".chrome-layout").evaluate((layout) => {
     const main = layout.querySelector<HTMLElement>(".chrome-content")!;
@@ -165,11 +164,10 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
   expect(boundary.paddingLeft).toBe("0px");
   expect(boundary.radius).toBe("18px");
   expect(boundary.bottomRadius).toBe("0px");
-  expect(boundary.shadow.match(/inset/g)).toHaveLength(1);
-  expect(boundary.shadow).not.toContain("3px");
-  expect(boundary.backgroundImage).toContain("linear-gradient");
-  expect(boundary.backgroundPosition).toBe("0px 18px, 18px 0px");
-  expect(boundary.backgroundSize).toContain("3px");
+  expect(boundary.shadow).toBe("none");
+  expect(boundary.backgroundImage).toBe("none");
+  expect(boundary.backgroundPosition).toBe("0% 0%");
+  expect(boundary.backgroundSize).toBe("auto");
   expect(boundary.topBorderWidth).toBe("1px");
   expect(boundary.leftBorderWidth).toBe("1px");
   expect(boundary.bottomBorderWidth).toBe("0px");

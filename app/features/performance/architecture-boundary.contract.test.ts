@@ -69,8 +69,9 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.doesNotMatch(shellStyles, /content-frame\[data-content-surface="raised-surface"\]::before/);
   assert.match(shellStyles, /\.chrome-topbar\s*\{[\s\S]*?border-bottom: 0;/);
   assert.match(shellStyles, /\.chrome-sidebar\s*\{[\s\S]*?border-right: 0;/);
-  assert.match(shellStyles, /data-content-surface="raised-surface"\] > \.chrome-content\s*\{\s+border: 0;[\s\S]*?border-top: 1px solid var\(--chrome-sidebar-border\);[\s\S]*?border-left: 1px solid var\(--chrome-sidebar-border\);[\s\S]*?border-top-left-radius: 18px;[\s\S]*?linear-gradient\(90deg,[\s\S]*?transparent 3px\)[\s\S]*?left 0 top 18px[\s\S]*?left 18px top 0[\s\S]*?box-shadow: inset 1px 1px 0/);
+  assert.match(shellStyles, /data-content-surface="raised-surface"\] > \.chrome-content\s*\{\s+border: 0;[\s\S]*?border-top: 1px solid var\(--chrome-sidebar-border\);[\s\S]*?border-left: 1px solid var\(--chrome-sidebar-border\);[\s\S]*?border-top-left-radius: 18px;[\s\S]*?background-image: none;[\s\S]*?box-shadow: none;/);
   assert.doesNotMatch(shellStyles, /-1px -1px 3px -1px/);
+  assert.doesNotMatch(shellStyles, /left 0 top 18px|left 18px top 0/);
   assert.match(shellStyles, /\.chrome-content\s*\{[\s\S]*?-ms-overflow-style: none;[\s\S]*?scrollbar-width: none;/);
   assert.match(shellStyles, /\.chrome-content::\-webkit-scrollbar\s*\{[\s\S]*?display: none;/);
   assert.match(shellStyles, /\.chrome-layout\s*\{[\s\S]*?background-color: var\(--chrome-window-bg\);[\s\S]*?background-image: none;/);
