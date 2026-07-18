@@ -121,6 +121,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 字体与语音约定
 
 - 全局中文 UI 默认使用 `next/font` 自托管的 Noto Sans SC，并通过 `--font-noto-sans-sc` 接入主题字体栈；已知旧内置字体栈应自动迁移，用户手写的自定义字体不得覆盖。
+- 代码、标识符、哈希、Cron 和诊断内容统一使用 `geist@1.7.2` 的 Geist Mono，通过 `--font-geist-mono` 和 `--app-code-font` 接入；内置主题必须共享同一字体栈，局部组件不得硬编码其他等宽字体。
 - 浏览器语音识别仅用于面试和辅导的输入转写；朗读不得调用 `speechSynthesis`、系统音色或任何本机静默回退。
 - 朗读只能使用默认语音连接。缺少连接、Voice ID 或请求失败时必须明确提示并保持静音。
 - 本地部署语音统一走自定义连接的 OpenAI 兼容 `/audio/speech` 协议；自定义连接允许无 API Key，且无 Key 时不得发送空 `Authorization` 请求头。
@@ -130,6 +131,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `ThemeConfig` 只使用 `diffuseGradient`；`translucentSidebar` 仅在导入和 IndexedDB 归一化时作为旧字段读取，导出不得再写旧字段。
 - 八个内置主题（晴空、米白、薄荷、晨雾、深海、暮紫、石墨、夜樱）的对比度均默认为 `0`。迁移时只把仍等于历史预设值的内置主题归零，用户主动修改过的数值必须保留。
 - 顶栏始终使用主题实色背景；侧栏也必须保持不透明，弥散效果只允许用低透明度径向渐变叠加，禁止恢复 `backdrop-filter` 或透明窗口底色。
+- 顶栏弥散必须通过独立 `--chrome-topbar-diffuse` 低强度叠加；抬升面左侧阴影必须避开上下圆角，禁止顶部与左侧渐变在圆角处重叠形成残块。
 - 历史 GitHub Light 统一迁移为可编辑的“晴空”，不得固定侧栏色或禁用弥散；弥散由多组低透明度、非对称的大面积柔和色场组成。
 - 主题菜单保持 Codex 式纯文本结构，只显示主题名和选中勾；调色板使用应用内控件，颜色字段保持圆形色样加 `#RRGGBB` 输入。
 

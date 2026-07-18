@@ -12,7 +12,7 @@
   --surface: #ffffff;
   --surface-muted: #f7f8fa;
   --app-ui-font: var(--font-noto-sans-sc), "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
-  --app-code-font: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --app-code-font: var(--font-geist-mono), "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --app-ui-font-size: 14px;
   --app-code-font-size: 12px;
   --settings-sidebar-bg: #ffffff;
@@ -35,6 +35,7 @@
   --chrome-window-bg: #ffffff;
   --chrome-window-diffuse: none;
   --chrome-topbar-bg: #ffffff;
+  --chrome-topbar-diffuse: none;
   --chrome-sidebar-bg: #ffffff;
   --chrome-workspace-surface: #ffffff;
   --chrome-sidebar-diffuse: none;

@@ -24,6 +24,13 @@ textarea {
   font: inherit;
 }
 
+/* 表单控件默认继承 UI 字体；显式标记为等宽时恢复统一的代码字体变量。 */
+input.font-mono,
+select.font-mono,
+textarea.font-mono {
+  font-family: var(--app-code-font);
+}
+
 button {
   cursor: pointer;
 }

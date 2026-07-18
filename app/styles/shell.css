@@ -27,7 +27,8 @@
 
 .chrome-topbar {
   height: var(--chrome-topbar-height);
-  background: var(--chrome-topbar-bg);
+  background-color: var(--chrome-topbar-bg);
+  background-image: var(--chrome-topbar-diffuse);
 }
 
 /* 展开时保留 248px 侧栏，折叠时把左列压到 0，让主内容自然顶到窗口左侧。 */
@@ -112,9 +113,9 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
   background-image:
     linear-gradient(180deg, rgb(15 23 42 / 8%) 0, rgb(15 23 42 / 3%) 5px, transparent 12px),
     linear-gradient(90deg, rgb(15 23 42 / 7%) 0, rgb(15 23 42 / 2.5%) 4px, transparent 10px);
-  background-position: 0 0;
+  background-position: 0 0, 0 12px;
   background-repeat: no-repeat;
-  background-size: 100% 12px, 10px 100%;
+  background-size: 100% 12px, 10px calc(100% - 24px);
 }
 
 .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {

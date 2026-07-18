@@ -17,6 +17,14 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "true");
   const workspaceDiffuse = await page.locator(".chrome-content").evaluate((element) => getComputedStyle(element).backgroundImage);
   expect(workspaceDiffuse).toContain("radial-gradient");
+  const topbarDiffuse = await page.locator(".chrome-topbar").evaluate((element) => getComputedStyle(element).backgroundImage);
+  expect(topbarDiffuse).toContain("radial-gradient");
+  const codeFontFamilies = await page.locator(".settings-code-preview, .settings-input.font-mono").evaluateAll((elements) =>
+    elements.map((element) => getComputedStyle(element).fontFamily),
+  );
+  expect(codeFontFamilies.length).toBeGreaterThan(1);
+  const primaryCodeFontFamilies = codeFontFamilies.map((family) => family.split(",")[0].replaceAll('"', "").trim());
+  expect(new Set(primaryCodeFontFamilies)).toEqual(new Set(["GeistMono"]));
   await page.reload();
   await page.getByRole("button", { name: "设置" }).first().click();
   await expect(page.getByRole("switch", { name: "浅色主题弥散渐变" })).toHaveAttribute("aria-checked", "true");
@@ -27,6 +35,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   // 视觉基准使用关闭弥散的中性浅色主题，避免背景色场干扰宽度与层级比对。
   await page.getByRole("switch", { name: "浅色主题弥散渐变" }).click();
   await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "false");
+  await expect(page.locator(".chrome-topbar")).toHaveCSS("background-image", "none");
 
   await page.getByRole("button", { name: "AI 连接" }).click();
   const provider = page.getByRole("combobox", { name: "厂商" });

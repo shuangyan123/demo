@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
 // Noto Sans SC 使用仓库内官方可变字体，避免构建时依赖 Google Fonts 网络连接。
@@ -23,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" className={`${notoSansSC.variable} h-full antialiased`}>
+    <html lang="zh-CN" className={`${notoSansSC.variable} ${GeistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

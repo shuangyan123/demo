@@ -1,5 +1,10 @@
 # API 约定
 
+## 主题字体与壳层视觉修复（2026-07-18）
+
+- 本次只调整本地字体资产、主题 CSS 变量和工作台装饰层，不新增或修改服务端 API、请求字段、响应字段及 SSE 事件。
+- IndexedDB 继续使用 `review_workspace` v16；外观设置结构不变，已有自定义 `codeFont` 字符串继续兼容。
+
 ## ProviderTransport 与本地扩展契约（2026-07-16）
 
 - `POST /api/ai/generate` 的客户端请求、响应和 SSE 事件保持不变。服务端新增 `ProviderTransport.generate()`、`stream()` 和 `listModels()`；adapter 继续负责厂商字段映射与输出归一化。

@@ -59,13 +59,15 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
     const style = getComputedStyle(element, "::after");
     return {
       backgroundImage: style.backgroundImage,
+      backgroundPosition: style.backgroundPosition,
       backgroundSize: style.backgroundSize,
       left: style.left,
       top: style.top,
     };
   });
   expect(edgeDecoration.backgroundImage.match(/linear-gradient/g)).toHaveLength(2);
-  expect(edgeDecoration.backgroundSize).toBe("100% 12px, 10px 100%");
+  expect(edgeDecoration.backgroundPosition).toBe("0px 0px, 0px 12px");
+  expect(edgeDecoration.backgroundSize).toBe("100% 12px, 10px calc(100% - 24px)");
   expect(edgeDecoration.left).toBe("0px");
   expect(edgeDecoration.top).toBe("0px");
   await expect(dashboardMain).toHaveCSS("border-top-left-radius", "18px");

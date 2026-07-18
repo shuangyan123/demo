@@ -1,4 +1,5 @@
-import { createDefaultAppearanceSettings, DEFAULT_UI_FONT_STACK } from "../../services/appearance-settings-repository.ts";
+import { createDefaultAppearanceSettings } from "../../services/appearance-settings-repository.ts";
+import { DEFAULT_CODE_FONT_STACK, DEFAULT_UI_FONT_STACK } from "../../services/appearance-theme-fonts.ts";
 import type { ThemeConfig } from "../../types/review";
 
 export type ThemePreset = {
@@ -16,7 +17,7 @@ export const lightThemePresets: ThemePreset[] = [
       background: "#FAF7F0",
       foreground: "#292524",
       uiFont: DEFAULT_UI_FONT_STACK,
-      codeFont: "ui-monospace, SFMono-Regular, Consolas, monospace",
+      codeFont: DEFAULT_CODE_FONT_STACK,
       diffuseGradient: false,
       contrast: 0,
     },
@@ -28,7 +29,7 @@ export const lightThemePresets: ThemePreset[] = [
       background: "#F3FBF8",
       foreground: "#16332D",
       uiFont: DEFAULT_UI_FONT_STACK,
-      codeFont: '"Geist Mono", ui-monospace, monospace',
+      codeFont: DEFAULT_CODE_FONT_STACK,
       diffuseGradient: false,
       contrast: 0,
     },
@@ -40,7 +41,7 @@ export const lightThemePresets: ThemePreset[] = [
       background: "#F5F7FB",
       foreground: "#252A38",
       uiFont: DEFAULT_UI_FONT_STACK,
-      codeFont: '"Geist Mono", ui-monospace, monospace',
+      codeFont: DEFAULT_CODE_FONT_STACK,
       diffuseGradient: false,
       contrast: 0,
     },
@@ -57,7 +58,7 @@ export const lightThemePresets: ThemePreset[] = [
       background,
       foreground,
       uiFont: DEFAULT_UI_FONT_STACK,
-      codeFont: '"Geist Mono", ui-monospace, monospace',
+      codeFont: DEFAULT_CODE_FONT_STACK,
       diffuseGradient: false,
       contrast: 0,
     },
@@ -73,7 +74,7 @@ export const darkThemePresets: ThemePreset[] = [
       background: "#181522",
       foreground: "#F5F0FF",
       uiFont: DEFAULT_UI_FONT_STACK,
-      codeFont: "Consolas, ui-monospace, SFMono-Regular, monospace",
+      codeFont: DEFAULT_CODE_FONT_STACK,
       diffuseGradient: false,
       contrast: 0,
     },
@@ -85,7 +86,7 @@ export const darkThemePresets: ThemePreset[] = [
       background: "#111113",
       foreground: "#F8FAFC",
       uiFont: DEFAULT_UI_FONT_STACK,
-      codeFont: '"Geist Mono", ui-monospace, monospace',
+      codeFont: DEFAULT_CODE_FONT_STACK,
       diffuseGradient: false,
       contrast: 0,
     },
@@ -97,7 +98,7 @@ export const darkThemePresets: ThemePreset[] = [
       background: "#1B141B",
       foreground: "#FFF1F6",
       uiFont: DEFAULT_UI_FONT_STACK,
-      codeFont: '"Geist Mono", ui-monospace, monospace',
+      codeFont: DEFAULT_CODE_FONT_STACK,
       diffuseGradient: false,
       contrast: 0,
     },
@@ -114,7 +115,7 @@ export const darkThemePresets: ThemePreset[] = [
       background,
       foreground,
       uiFont: DEFAULT_UI_FONT_STACK,
-      codeFont: '"Geist Mono", ui-monospace, monospace',
+      codeFont: DEFAULT_CODE_FONT_STACK,
       diffuseGradient: false,
       contrast: 0,
     },

@@ -45,7 +45,12 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   const reviewShellSource = await readFile(path.join(APP_ROOT, "features/review/review-workspace-shell.tsx"), "utf8");
   const settingsShellSource = await readFile(path.join(APP_ROOT, "features/settings/settings-workspace.tsx"), "utf8");
   const shellStyles = await readFile(path.join(APP_ROOT, "styles/shell.css"), "utf8");
+  const baseStyles = await readFile(path.join(APP_ROOT, "styles/base.css"), "utf8");
   const uiStyles = await readFile(path.join(APP_ROOT, "styles/ui.css"), "utf8");
+  const tokensStyles = await readFile(path.join(APP_ROOT, "styles/tokens.css"), "utf8");
+  const appearanceSource = await readFile(path.join(APP_ROOT, "services/appearance-settings-repository.ts"), "utf8");
+  const layoutSource = await readFile(path.join(APP_ROOT, "layout.tsx"), "utf8");
+  const fenbiStyles = await readFile(path.join(APP_ROOT, "features/import/fenbi-quick-import-panel.module.css"), "utf8");
 
   assert.match(shellSource, /contentSurface = "raised-surface"/);
   assert.match(shellSource, /contentSurface\?: "plain" \| "raised-surface"/);
@@ -56,7 +61,16 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
   assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
   assert.match(shellStyles, /padding-left: 0;\s+overflow: visible;/);
-  assert.match(shellStyles, /background-size: 100% 12px, 10px 100%;/);
+  assert.match(shellStyles, /background-position: 0 0, 0 12px;/);
+  assert.match(shellStyles, /background-size: 100% 12px, 10px calc\(100% - 24px\);/);
+  assert.match(shellStyles, /\.chrome-topbar\s*\{[\s\S]*?background-image: var\(--chrome-topbar-diffuse\);/);
+  assert.match(tokensStyles, /--chrome-topbar-diffuse: none;/);
+  assert.match(appearanceSource, /setProperty\("--chrome-topbar-diffuse", topbarDiffuseBackground\)/);
+  assert.match(layoutSource, /import \{ GeistMono \} from "geist\/font\/mono"/);
+  assert.match(layoutSource, /\$\{GeistMono\.variable\}/);
+  assert.match(fenbiStyles, /font-family: var\(--app-code-font\)/);
+  assert.doesNotMatch(fenbiStyles, /font[^;]*ui-monospace/);
+  assert.match(baseStyles, /input\.font-mono,[\s\S]*?font-family: var\(--app-code-font\);/);
   assert.match(shellStyles, /@media \(min-width: 1025px\)[\s\S]*?\.chrome-layout\.is-sidebar-expanded \.chrome-sidebar[\s\S]*?border-right-width: 0;/);
   assert.match(shellStyles, /\.chrome-layout\[data-mobile-sidebar\][\s\S]*?> \.chrome-content[\s\S]*?box-shadow: none !important;/);
   assert.doesNotMatch(shellStyles, /padding-left: 18px;/);
