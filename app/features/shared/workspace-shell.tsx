@@ -38,7 +38,7 @@ export function WindowMenuBar({
   onToggleSidebar: () => void;
 }) {
   return (
-    <header className="chrome-topbar z-40 flex shrink-0 items-center gap-3 border-b border-chrome-sidebar-border px-3 text-sm text-muted">
+    <header className="chrome-topbar z-40 flex shrink-0 items-center gap-3 px-3 text-sm text-muted">
       <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
       {onBack && (
         <button

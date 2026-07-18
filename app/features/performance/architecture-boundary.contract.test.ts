@@ -45,17 +45,23 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   const reviewShellSource = await readFile(path.join(APP_ROOT, "features/review/review-workspace-shell.tsx"), "utf8");
   const settingsShellSource = await readFile(path.join(APP_ROOT, "features/settings/settings-workspace.tsx"), "utf8");
   const shellStyles = await readFile(path.join(APP_ROOT, "styles/shell.css"), "utf8");
+  const uiStyles = await readFile(path.join(APP_ROOT, "styles/ui.css"), "utf8");
 
   assert.match(shellSource, /contentSurface = "raised-surface"/);
   assert.match(shellSource, /contentSurface\?: "plain" \| "raised-surface"/);
   assert.match(shellSource, /className="chrome-content-frame"/);
   assert.match(shellSource, /data-content-surface=\{contentSurface\}/);
+  assert.doesNotMatch(shellSource, /chrome-topbar[^"]*border-b/);
   assert.doesNotMatch(reviewShellSource, /contentSurface=\{view === "conversation"/);
   assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
   assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
   assert.match(shellStyles, /padding-left: 0;\s+overflow: visible;/);
   assert.match(shellStyles, /background-size: 100% 12px, 10px 100%;/);
+  assert.match(shellStyles, /@media \(min-width: 1025px\)[\s\S]*?\.chrome-layout\.is-sidebar-expanded \.chrome-sidebar[\s\S]*?border-right-width: 0;/);
+  assert.match(shellStyles, /\.chrome-layout\[data-mobile-sidebar\][\s\S]*?> \.chrome-content[\s\S]*?box-shadow: none !important;/);
   assert.doesNotMatch(shellStyles, /padding-left: 18px;/);
+  assert.match(uiStyles, /\.conversation-workspace\s*\{[\s\S]*?height: 100%;/);
+  assert.doesNotMatch(uiStyles, /\.conversation-workspace\s*\{[\s\S]*?height: calc\(100dvh - var\(--chrome-topbar-height\)\)/);
   assert.doesNotMatch(shellStyles, /\.conversation-shell-content\s*\{[\s\S]*?(?:margin-left|border-top-left-radius|box-shadow)/);
 });
 

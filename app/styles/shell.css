@@ -175,6 +175,14 @@ body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="r
   transform: none;
 }
 
+/* 桌面抬升面已自行绘制左侧边缘，移除侧栏直线边框，避免它从两个圆角旁露出。 */
+@media (min-width: 1025px) {
+  .chrome-layout.is-sidebar-expanded .chrome-sidebar {
+    border-inline-end-width: 0;
+    border-right-width: 0;
+  }
+}
+
 .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar,
 .chrome-layout.is-sidebar-collapsed .chrome-sidebar {
   border-inline-end-width: 0 !important;
@@ -285,7 +293,7 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     border: 0;
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
-    box-shadow: none;
+    box-shadow: none !important;
   }
 }
 

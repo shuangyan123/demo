@@ -48,6 +48,8 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
 
   const dashboardFrame = page.locator(".chrome-content-frame");
   const dashboardMain = page.locator(".chrome-content");
+  await expect(page.locator(".chrome-topbar")).toHaveCSS("border-bottom-width", "0px");
+  await expect(page.locator(".chrome-sidebar")).toHaveCSS("border-right-width", "0px");
   await expect(dashboardFrame).toHaveAttribute("data-content-surface", "raised-surface");
   await expect(dashboardFrame).toHaveCSS("padding-left", "0px");
   await expect(dashboardFrame).toHaveCSS("overflow", "visible");
@@ -117,11 +119,39 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
     const main = frame.querySelector<HTMLElement>(".chrome-content")!;
     const frameStyle = getComputedStyle(frame);
     const mainStyle = getComputedStyle(main);
-    return { paddingLeft: frameStyle.paddingLeft, radius: mainStyle.borderTopLeftRadius, shadow: mainStyle.boxShadow };
+    return {
+      paddingLeft: frameStyle.paddingLeft,
+      radius: mainStyle.borderTopLeftRadius,
+      bottomRadius: mainStyle.borderBottomLeftRadius,
+      shadow: mainStyle.boxShadow,
+      topBorderWidth: mainStyle.borderTopWidth,
+    };
   });
   expect(boundary.paddingLeft).toBe("0px");
   expect(boundary.radius).toBe("18px");
+  expect(boundary.bottomRadius).toBe("18px");
   expect(boundary.shadow).not.toBe("none");
+  expect(Number.parseFloat(boundary.topBorderWidth)).toBeGreaterThan(0);
+
+  const contentFit = await page.locator(".chrome-content").evaluate((main) => {
+    const workspace = main.querySelector<HTMLElement>(".conversation-workspace")!;
+    const mainBounds = main.getBoundingClientRect();
+    const workspaceBounds = workspace.getBoundingClientRect();
+    const mainStyle = getComputedStyle(main);
+    const contentBounds = {
+      top: mainBounds.top + Number.parseFloat(mainStyle.borderTopWidth),
+      right: mainBounds.right - Number.parseFloat(mainStyle.borderRightWidth),
+      bottom: mainBounds.bottom - Number.parseFloat(mainStyle.borderBottomWidth),
+      left: mainBounds.left + Number.parseFloat(mainStyle.borderLeftWidth),
+    };
+    return {
+      top: Math.abs(workspaceBounds.top - contentBounds.top),
+      right: Math.abs(workspaceBounds.right - contentBounds.right),
+      bottom: Math.abs(workspaceBounds.bottom - contentBounds.bottom),
+      left: Math.abs(workspaceBounds.left - contentBounds.left),
+    };
+  });
+  for (const distance of Object.values(contentFit)) expect(distance).toBeLessThanOrEqual(1);
 
   const composer = await page.locator(".conversation-composer").boundingBox();
   const prompt = await page.locator(".conversation-empty-prompt").boundingBox();
@@ -173,6 +203,7 @@ test("移动端侧栏是默认关闭的焦点抽屉，七阶段沿 S 曲线自�
   await expect(page.locator(".chrome-sidebar")).toHaveCSS("opacity", "0");
   await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "0px");
   await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "0px");
+  await expect(page.locator(".chrome-content")).toHaveCSS("box-shadow", "none");
   await page.screenshot({ path: testInfo.outputPath("p0-conversation-mobile.png"), fullPage: false });
 
   await page.goto("/");
@@ -204,6 +235,7 @@ test("深色模式下桌面与移动端保持学习路径和新对话可用", as
   await page.getByRole("button", { name: "展开侧边栏" }).click();
   await page.getByRole("dialog", { name: "应用导航" }).getByRole("button", { name: "新对话", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "对话输入" })).toBeVisible();
+  await expect(page.locator(".chrome-content")).toHaveCSS("box-shadow", "none");
   await expectNoHorizontalOverflow(page);
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
