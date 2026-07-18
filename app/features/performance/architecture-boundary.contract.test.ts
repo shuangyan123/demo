@@ -53,6 +53,9 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.doesNotMatch(reviewShellSource, /contentSurface=\{view === "conversation"/);
   assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
   assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
+  assert.match(shellStyles, /padding-left: 0;\s+overflow: visible;/);
+  assert.match(shellStyles, /background-size: 100% 12px, 10px 100%;/);
+  assert.doesNotMatch(shellStyles, /padding-left: 18px;/);
   assert.doesNotMatch(shellStyles, /\.conversation-shell-content\s*\{[\s\S]*?(?:margin-left|border-top-left-radius|box-shadow)/);
 });
 

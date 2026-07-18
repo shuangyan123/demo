@@ -244,4 +244,4 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 
 - `WorkspaceShell` 在语义 `<main>` 外统一提供 `chrome-content-frame`；默认 `raised-surface`，显式 `plain` 只供未来确需无边界的宿主使用。
 - 主应用、学习模块、对话和独立设置工作台消费同一外层边界。壳层只管理收进、圆角、边线、阴影与贴边关系，内容 padding、滚动和业务布局仍由各视图负责。
-- 桌面侧栏展开时露出 18px 窗口底层，并通过工作区左侧投影、顶部向下阴影和两个左侧圆角形成抬升面；侧栏折叠及移动端取消所有抬升效果。
+- 桌面侧栏展开时工作区零留白贴合侧栏与顶栏；同一 frame 装饰层使用 12px 顶部衰减和 10px 左侧衰减连接左上圆角，窄幅外投影表达抬升关系。侧栏折叠及移动端取消所有抬升效果。
