@@ -53,7 +53,7 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   await expect(dashboardFrame).toHaveAttribute("data-content-surface", "raised-surface");
   await expect(dashboardFrame).toHaveCSS("padding-left", "0px");
   await expect(dashboardFrame).toHaveCSS("overflow", "visible");
-  await expect(dashboardFrame).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(dashboardFrame).toHaveCSS("background-color", "rgb(255, 255, 255)");
   expect(await dashboardFrame.evaluate((element) => getComputedStyle(element).backgroundImage)).toBe("none");
   const edgeDecoration = await dashboardFrame.evaluate((element) => {
     const style = getComputedStyle(element, "::after");
@@ -87,12 +87,18 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   const sharedEdge = await dashboardMain.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
+      backgroundImage: style.backgroundImage,
+      backgroundPosition: style.backgroundPosition,
+      backgroundSize: style.backgroundSize,
       shadow: style.boxShadow,
       scrollbarWidth: style.scrollbarWidth,
     };
   });
   expect(sharedEdge.shadow).toContain("inset");
-  expect(sharedEdge.shadow).toContain("3px");
+  expect(sharedEdge.shadow).not.toContain("3px");
+  expect(sharedEdge.backgroundImage).toContain("linear-gradient");
+  expect(sharedEdge.backgroundPosition).toBe("0px 18px, 18px 0px");
+  expect(sharedEdge.backgroundSize).toContain("3px");
   expect(sharedEdge.scrollbarWidth).toBe("none");
   const desktopGeometry = await page.locator(".chrome-layout").evaluate((layout) => {
     const main = layout.querySelector<HTMLElement>(".chrome-content")!;
@@ -149,6 +155,9 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
       paddingLeft: frameStyle.paddingLeft,
       radius: mainStyle.borderTopLeftRadius,
       bottomRadius: mainStyle.borderBottomLeftRadius,
+      backgroundImage: mainStyle.backgroundImage,
+      backgroundPosition: mainStyle.backgroundPosition,
+      backgroundSize: mainStyle.backgroundSize,
       shadow: mainStyle.boxShadow,
       topBorderWidth: mainStyle.borderTopWidth,
     };
@@ -157,7 +166,10 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
   expect(boundary.radius).toBe("18px");
   expect(boundary.bottomRadius).toBe("0px");
   expect(boundary.shadow.match(/inset/g)).toHaveLength(1);
-  expect(boundary.shadow).toContain("3px");
+  expect(boundary.shadow).not.toContain("3px");
+  expect(boundary.backgroundImage).toContain("linear-gradient");
+  expect(boundary.backgroundPosition).toBe("0px 18px, 18px 0px");
+  expect(boundary.backgroundSize).toContain("3px");
   expect(boundary.topBorderWidth).toBe("1px");
   expect(boundary.leftBorderWidth).toBe("1px");
   expect(boundary.bottomBorderWidth).toBe("0px");

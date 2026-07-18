@@ -53,20 +53,8 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   height: calc(100dvh - var(--chrome-topbar-height));
   grid-template-columns: var(--chrome-sidebar-width) minmax(0, 1fr);
   background-color: var(--chrome-window-bg);
-  background-image: var(--chrome-window-diffuse);
+  background-image: none;
   transition: grid-template-columns var(--motion-structure) var(--motion-ease);
-}
-
-/* 极淡噪点只给弥散背景增加纸面质感，不覆盖顶栏和内容卡片。 */
-body[data-diffuse-gradient="true"] .chrome-layout::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.16;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.18) 0.45px, transparent 0.55px);
-  background-size: 3px 3px;
 }
 
 .chrome-layout[data-sidebar="collapsed"],
@@ -113,6 +101,7 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  background: var(--chrome-workspace-surface);
 }
 
 .chrome-mobile-sidebar-backdrop {
@@ -123,7 +112,7 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
 .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] {
   padding-left: 0;
   overflow: visible;
-  background: transparent;
+  border-top-left-radius: 18px;
 }
 
 /* 主区独占绘制与顶栏、侧栏共用的两条边，并以 3px 窄影和内高光形成轻量抬升。 */
@@ -136,15 +125,23 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
   background-color: var(--chrome-workspace-surface);
-  box-shadow:
-    inset 1px 1px 0 rgb(255 255 255 / 52%),
-    -1px -1px 3px -1px rgb(15 23 42 / 16%);
+  background-image:
+    linear-gradient(90deg, rgb(15 23 42 / 12%), transparent 3px),
+    linear-gradient(180deg, rgb(15 23 42 / 9%), transparent 3px);
+  background-position:
+    left 0 top 18px,
+    left 18px top 0;
+  background-repeat: no-repeat;
+  background-size:
+    3px calc(100% - 18px),
+    calc(100% - 18px) 3px;
+  box-shadow: inset 1px 1px 0 rgb(255 255 255 / 52%);
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
   padding-left: 0;
   overflow: hidden;
-  background: transparent;
+  border-top-left-radius: 0;
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
@@ -157,25 +154,10 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
 body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
   border-top-color: rgb(255 255 255 / 9%);
   border-left-color: rgb(255 255 255 / 9%);
-  box-shadow:
-    inset 1px 1px 0 rgb(255 255 255 / 8%),
-    -1px -1px 3px -1px rgb(0 0 0 / 42%);
-}
-
-body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="plain"] > .chrome-content {
-  background-color: transparent;
-}
-
-/* frame 统一承载圆角内外的弥散底图，避免圆角外露出坐标不同的父级渐变形成三角色块。 */
-body[data-diffuse-gradient="true"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] {
-  background-color: var(--chrome-workspace-surface);
-  background-image: var(--chrome-window-diffuse);
-}
-
-/* 弥散开启时 main 只负责共边、圆角、阴影和滚动，不再重复绘制第二套渐变。 */
-body[data-diffuse-gradient="true"] .chrome-layout .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
-  background-color: transparent;
-  background-image: none;
+  background-image:
+    linear-gradient(90deg, rgb(0 0 0 / 24%), transparent 3px),
+    linear-gradient(180deg, rgb(0 0 0 / 18%), transparent 3px);
+  box-shadow: inset 1px 1px 0 rgb(255 255 255 / 8%);
 }
 
 .chrome-layout.is-sidebar-expanded .chrome-sidebar {
@@ -290,7 +272,7 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     height: 100%;
     padding-left: 0;
     overflow: hidden;
-    background: transparent;
+    border-top-left-radius: 0;
   }
 
   .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
@@ -298,8 +280,19 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     border: 0;
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
+    background-image: none;
     box-shadow: none !important;
   }
+}
+
+/* 弥散只由带状态圆角的 frame 绘制；layout 保持实色，圆角外不再出现彩色三角。 */
+body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface] {
+  background-image: var(--chrome-window-diffuse);
+}
+
+/* main 保持透明，只负责共边、圆角、窄影和滚动，避免重复渐变坐标。 */
+body[data-diffuse-gradient="true"] .chrome-layout .chrome-content-frame[data-content-surface] > .chrome-content {
+  background-color: transparent;
 }
 
 body[data-reduced-motion="true"] .chrome-layout,
