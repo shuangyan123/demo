@@ -13,6 +13,8 @@
   pointer-events: none;
   z-index: 0;
   background: var(--chrome-sidebar-diffuse);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12px);
+  mask-image: linear-gradient(180deg, transparent 0, #000 12px);
 }
 
 .diffuse-sidebar > * {
@@ -29,6 +31,17 @@
   height: var(--chrome-topbar-height);
   background-color: var(--chrome-topbar-bg);
   background-image: var(--chrome-topbar-diffuse);
+}
+
+body[data-diffuse-gradient="true"] .chrome-topbar {
+  background-image:
+    linear-gradient(
+      180deg,
+      transparent 0,
+      transparent calc(100% - 12px),
+      var(--chrome-topbar-bg) 100%
+    ),
+    var(--chrome-topbar-diffuse);
 }
 
 /* 展开时保留 248px 侧栏，折叠时把左列压到 0，让主内容自然顶到窗口左侧。 */
@@ -103,32 +116,27 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
   background: transparent;
 }
 
-.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"]::after {
+/* 左侧层级只在两个圆角之间出现，避免阴影扩散到圆角上方或下方。 */
+.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"]::before {
   content: "";
   position: absolute;
-  z-index: 3;
-  inset: 0;
+  z-index: 0;
+  top: 28px;
+  bottom: 28px;
+  left: -18px;
+  width: 18px;
   pointer-events: none;
-  border-radius: 18px 0 0 18px;
-  background-image:
-    linear-gradient(180deg, rgb(15 23 42 / 8%) 0, rgb(15 23 42 / 3%) 5px, transparent 12px),
-    linear-gradient(90deg, rgb(15 23 42 / 7%) 0, rgb(15 23 42 / 2.5%) 4px, transparent 10px);
-  background-position: 0 0, 0 12px;
-  background-repeat: no-repeat;
-  background-size: 100% 12px, 10px calc(100% - 24px);
+  background: linear-gradient(90deg, transparent 0, rgb(15 23 42 / 1.5%) 42%, rgb(15 23 42 / 5%) 100%);
+  filter: blur(3px);
+  transform: translateX(-2px);
 }
 
 .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
-  border-left: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 82%, transparent);
-  border-top: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 58%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--chrome-sidebar-border) 58%, transparent);
+  border: 0;
   border-top-left-radius: 18px;
   border-bottom-left-radius: 18px;
   background-color: var(--chrome-workspace-surface);
-  box-shadow:
-    -6px 0 16px rgb(15 23 42 / 10%),
-    -1px 0 3px rgb(15 23 42 / 6%),
-    inset 1px 1px rgb(255 255 255 / 64%);
+  box-shadow: none;
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
@@ -137,7 +145,7 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
   background: transparent;
 }
 
-.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"]::after {
+.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"]::before {
   display: none;
 }
 
@@ -148,17 +156,8 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
   box-shadow: none;
 }
 
-body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"]::after {
-  background-image:
-    linear-gradient(180deg, rgb(0 0 0 / 22%) 0, rgb(0 0 0 / 8%) 5px, transparent 12px),
-    linear-gradient(90deg, rgb(0 0 0 / 18%) 0, rgb(0 0 0 / 6%) 4px, transparent 10px);
-}
-
-body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
-  box-shadow:
-    -6px 0 18px rgb(0 0 0 / 30%),
-    -1px 0 4px rgb(0 0 0 / 22%),
-    inset 1px 1px rgb(255 255 255 / 7%);
+body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"]::before {
+  background: linear-gradient(90deg, transparent 0, rgb(0 0 0 / 6%) 42%, rgb(0 0 0 / 18%) 100%);
 }
 
 body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface="plain"] > .chrome-content {
@@ -285,7 +284,7 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     background: transparent;
   }
 
-  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"]::after {
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"]::before {
     display: none;
   }
 

@@ -171,7 +171,7 @@ export function WorkspaceShell({
           inert={effectiveCollapsed}
           aria-label={isMobile ? "应用导航" : undefined}
           aria-modal={isMobile && mobileSidebarOpen ? true : undefined}
-          className={`chrome-sidebar diffuse-sidebar settings-sidebar-scroll relative z-30 min-h-0 border-r border-chrome-sidebar-border ${sidebarClassName}`}
+          className={`chrome-sidebar diffuse-sidebar settings-sidebar-scroll relative z-30 min-h-0 ${sidebarClassName}`}
           role={isMobile ? "dialog" : undefined}
           onClickCapture={handleMobileSidebarAction}
         >

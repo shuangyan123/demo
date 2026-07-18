@@ -59,19 +59,42 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
     const style = getComputedStyle(element, "::after");
     return {
       backgroundImage: style.backgroundImage,
-      backgroundPosition: style.backgroundPosition,
-      backgroundSize: style.backgroundSize,
+      content: style.content,
+    };
+  });
+  expect(edgeDecoration.backgroundImage).toBe("none");
+  expect(edgeDecoration.content === "none" || edgeDecoration.content === "normal").toBe(true);
+  await expect(dashboardMain).toHaveCSS("border-top-left-radius", "18px");
+  await expect(dashboardMain).toHaveCSS("border-bottom-left-radius", "18px");
+  await expect(dashboardMain).toHaveCSS("border-top-width", "0px");
+  await expect(dashboardMain).toHaveCSS("border-left-width", "0px");
+  await expect(dashboardMain).toHaveCSS("border-bottom-width", "0px");
+  const chromeTransition = await page.locator(".chrome-topbar").evaluate((topbar) => {
+    const sidebar = document.querySelector<HTMLElement>(".chrome-sidebar")!;
+    const sidebarDiffuse = getComputedStyle(sidebar, "::before");
+    return {
+      diffuseEnabled: document.body.dataset.diffuseGradient === "true",
+      sidebarMask: sidebarDiffuse.maskImage || sidebarDiffuse.webkitMaskImage,
+      topbarBackground: getComputedStyle(topbar).backgroundImage,
+    };
+  });
+  if (chromeTransition.diffuseEnabled) {
+    expect(chromeTransition.topbarBackground).toContain("calc(100% - 12px)");
+  } else {
+    expect(chromeTransition.topbarBackground).toBe("none");
+  }
+  expect(chromeTransition.sidebarMask).toContain("12px");
+  const sideElevation = await dashboardFrame.evaluate((element) => {
+    const style = getComputedStyle(element, "::before");
+    return {
+      bottom: style.bottom,
       left: style.left,
       top: style.top,
     };
   });
-  expect(edgeDecoration.backgroundImage.match(/linear-gradient/g)).toHaveLength(2);
-  expect(edgeDecoration.backgroundPosition).toBe("0px 0px, 0px 12px");
-  expect(edgeDecoration.backgroundSize).toBe("100% 12px, 10px calc(100% - 24px)");
-  expect(edgeDecoration.left).toBe("0px");
-  expect(edgeDecoration.top).toBe("0px");
-  await expect(dashboardMain).toHaveCSS("border-top-left-radius", "18px");
-  await expect(dashboardMain).toHaveCSS("border-bottom-left-radius", "18px");
+  expect(sideElevation.top).toBe("28px");
+  expect(sideElevation.bottom).toBe("28px");
+  expect(sideElevation.left).toBe("-18px");
   const desktopGeometry = await page.locator(".chrome-layout").evaluate((layout) => {
     const main = layout.querySelector<HTMLElement>(".chrome-content")!;
     const sidebar = layout.querySelector<HTMLElement>(".chrome-sidebar")!;
@@ -122,6 +145,8 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
     const frameStyle = getComputedStyle(frame);
     const mainStyle = getComputedStyle(main);
     return {
+      bottomBorderWidth: mainStyle.borderBottomWidth,
+      leftBorderWidth: mainStyle.borderLeftWidth,
       paddingLeft: frameStyle.paddingLeft,
       radius: mainStyle.borderTopLeftRadius,
       bottomRadius: mainStyle.borderBottomLeftRadius,
@@ -132,8 +157,10 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
   expect(boundary.paddingLeft).toBe("0px");
   expect(boundary.radius).toBe("18px");
   expect(boundary.bottomRadius).toBe("18px");
-  expect(boundary.shadow).not.toBe("none");
-  expect(Number.parseFloat(boundary.topBorderWidth)).toBeGreaterThan(0);
+  expect(boundary.shadow).toBe("none");
+  expect(boundary.topBorderWidth).toBe("0px");
+  expect(boundary.leftBorderWidth).toBe("0px");
+  expect(boundary.bottomBorderWidth).toBe("0px");
 
   const contentFit = await page.locator(".chrome-content").evaluate((main) => {
     const workspace = main.querySelector<HTMLElement>(".conversation-workspace")!;

@@ -4,6 +4,11 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## 工作台无缝交界约定
+
+- 桌面工作区与顶栏、侧栏交接禁止叠加结构边框、整宽顶部渐变和圆角局部装饰层；默认使用零边框和 18px 左侧圆角，低透明左侧阴影必须避开上下圆角。
+- 顶栏弥散应在底部回到实色，侧栏弥散从顶部渐入，避免不透明 surface 之间形成横线。移动抽屉可保留独立浮层边界。
+
 ## AI 活动、上下文与自动记忆约定
 
 - AI 活动宿主必须是应用级单例；对话事件不得打开全局浮层，连接测试使用紧凑卡，后台任务只使用单行状态。
@@ -277,7 +282,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## P0 工作台与公考首页约定
 
 - 空白新对话只展示标题、单一任务提示和底部输入区；仍只在首次发送后创建持久化会话。
-- 所有 `WorkspaceShell` 内容视图默认使用通用 `raised-surface` 外层边界；桌面工作区必须零留白贴合侧栏与顶栏，使用两个左侧圆角、同层连接的顶部/左侧衰减、窄幅外投影和内侧高光，右侧继续贴齐。折叠侧栏和移动端必须取消这些边界并自然铺满。
+- 所有 `WorkspaceShell` 内容视图默认使用通用 `raised-surface` 外层边界；桌面工作区必须零留白贴合侧栏与顶栏，使用两个左侧圆角，低透明左侧阴影只在圆角之间显示，禁止叠加结构边框、整宽顶部渐变或圆角局部装饰层，右侧继续贴齐。折叠侧栏和移动端必须取消这些边界并自然铺满。
 - 顶栏不得用全宽底边线重复切割侧栏与工作区，桌面展开侧栏不得保留会从工作区圆角旁露出的全高右边框；对话工作区必须继承壳层 `100%` 高度，不得再次用视口高度减顶栏高度，以免边框盒产生亚像素溢出并破坏左侧圆角贴合。
 - 抬升关系不得依赖露底区域或凹槽渐变；开启弥散时，不透明工作区必须继续叠加主题 `--chrome-window-diffuse`。
 - 外层边界只能管理 surface 几何；页面 padding、滚动、标题、消息、空状态和输入区仍由各视图负责，禁止重新绑定到对话业务类名。
