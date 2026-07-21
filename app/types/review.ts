@@ -3,6 +3,25 @@ import type { AiGenerationProtocol } from "./domains/ai-model";
 export type { AiGenerationProtocol } from "./domains/ai-model";
 import type { PersonalMemoryEntry, PersonalMemoryRevision, PersonalMemorySettings } from "./domains/personal-memory";
 import type { TutoringMicroAssessment, TutoringObservation } from "./domains/learner-state";
+import type { AcquisitionProposalProvenance, AcquisitionRunSummary, AutomationCollectionConfig } from "./domains/acquisition";
+export type {
+  AcquisitionAuthority,
+  AcquisitionContentPolicy,
+  AcquisitionDocument,
+  AcquisitionDomain,
+  AcquisitionEvidence,
+  AcquisitionMcpSource,
+  AcquisitionModelRef,
+  AcquisitionProposalProvenance,
+  AcquisitionReviewStatus,
+  AcquisitionRunSummary,
+  AcquisitionSourceConfig,
+  AcquisitionTrustBreakdown,
+  AcquisitionTrustGrade,
+  AcquisitionUrlSource,
+  AcquisitionFeedSource,
+  AutomationCollectionConfig,
+} from "./domains/acquisition";
 export type {
   PersonalMemoryEntry,
   PersonalMemoryKind,
@@ -120,7 +139,7 @@ export type PersonaVerbosity = "concise" | "balanced" | "detailed";
 export type KnowledgeLinkKind = "related" | "internalized";
 export type KnowledgeInternalizationMode = "create" | "merge";
 export type KnowledgeEvolutionMode = "create" | "merge" | "link";
-export type KnowledgeEvolutionSourceType = "mistake" | "interview" | "tutoring" | "knowledge" | "conversation";
+export type KnowledgeEvolutionSourceType = "mistake" | "interview" | "tutoring" | "knowledge" | "conversation" | "external";
 export type KnowledgeEvolutionStatus = "pending" | "accepted" | "rejected";
 export type ObsidianSyncStatus = "synced" | "local_changed" | "vault_changed" | "conflict" | "disconnected";
 export type ObsidianPermissionState = "granted" | "prompt" | "denied" | "unsupported";
@@ -251,6 +270,8 @@ export type KnowledgeEvolutionProposal = {
   proposedLinks: string[];
   reason: string;
   confidence: number;
+  /** 外部采集提案的段落级证据、模型复核和确定性可信度。 */
+  provenance?: AcquisitionProposalProvenance;
   /** 记录提案来自哪条对话，只保存标识，不复制完整对话上下文。 */
   conversationId?: string;
   /** 关联对话内的工具运行，便于在消息时间线中恢复提案状态。 */
@@ -859,7 +880,7 @@ export type KnowledgeStarterTemplate = {
 };
 
 /** 自动化内置模板；custom 表示用户自行维护提示词。 */
-export type AutomationTemplateId = "daily_review" | "knowledge_evolution" | "weekly_progress" | "custom";
+export type AutomationTemplateId = "daily_review" | "knowledge_evolution" | "weekly_progress" | "custom" | "xingce_collection" | "shenlun_collection" | "interview_collection";
 
 /** 自动化只读取用户明确选择的数据范围。 */
 export type AutomationSourceScope = "mistakes" | "knowledge" | "interview" | "tutoring" | "obsidian";
@@ -878,6 +899,8 @@ export type AutomationDefinition = {
   templateId: AutomationTemplateId;
   prompt: string;
   sourceScopes: AutomationSourceScope[];
+  /** 仅采集模板使用；旧任务缺少此字段时保持原行为。 */
+  collectionConfig?: AutomationCollectionConfig;
   enabled: boolean;
   timeZone: string;
   schedule: AutomationSchedule;
@@ -904,7 +927,7 @@ export type AutomationContextSummary = {
 
 /** 自动化失败分类用于给出可恢复动作，避免只展示原始错误。 */
 export type AutomationFailureCategory = "missing_connection" | "network" | "permission" | "model" | "empty_scope" | "unknown";
-export type AutomationRecoveryAction = "configure_ai_connection" | "open_knowledge" | "open_import" | "open_entry" | "check_network" | "retry" | "none";
+export type AutomationRecoveryAction = "configure_ai_connection" | "configure_mcp" | "open_knowledge" | "open_import" | "open_entry" | "check_network" | "retry" | "none";
 
 /** 每次自动化运行都进入收件箱，AI 结果只保存文本和待确认提案引用。 */
 export type AutomationRun = {
@@ -925,6 +948,8 @@ export type AutomationRun = {
   contextCharCount?: number;
   failureCategory?: AutomationFailureCategory;
   failureRecoveryAction?: AutomationRecoveryAction;
+  /** 外部采集运行只持久化聚合数量。 */
+  collectionSummary?: AcquisitionRunSummary;
   createdAt: string;
 };
 
@@ -1110,7 +1135,7 @@ export type McpServerProfile = {
   updatedAt: string;
 };
 
-export type McpToolPermission = "ask" | "allow_session" | "deny";
+export type McpToolPermission = "ask" | "allow_session" | "allow_scheduled" | "deny";
 
 export type McpToolDescriptor = {
   name: string;
