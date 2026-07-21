@@ -176,6 +176,26 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - Dexie 当前版本保持 v16；`review-db-migrations.ts` 承载幂等迁移函数，不为前端切片新增索引。
 - AI route 使用共享 HTTP 错误边界，只返回归一化数据或脱敏错误，不透传厂商原始响应。
 
+## 已安排外部知识采集（2026-07-21）
+
+```text
+本地调度 / 补跑 / Web Lock + IndexedDB 租约
+  -> 白名单 URL、RSS/Atom 或已获 allow_scheduled 的 MCP 搜索
+  -> /api/acquisition/fetch（协议、origin、DNS、重定向、类型、超时、1MB）
+  -> HTML/XML 标准化与 URL/内容哈希去重
+  -> 模型 A 整理 -> 模型 B 独立复核
+  -> 固定 100 分可信度与阻断规则
+  -> knowledgeEvolutionProposals.pending
+  -> 来源哈希 + Vault 目标统一预检
+  -> 逐项写入并即时标记 accepted
+```
+
+- `app/server/acquisition` 只负责服务端网络边界和 Cheerio 解析；`app/services/acquisition-*` 负责浏览器内来源发现、运行期文档、模型整理、复核和评分，UI 不直接访问外网。
+- `AutomationDefinition.collectionConfig` 只保存领域、查询、来源、origin 白名单和 `{connectionId, modelId, selectedRuntimeValues}`；密钥继续只存在连接仓储。旧任务缺少该字段时沿用原执行链。
+- 完整网页、MCP 原始结果、完整提示词和模型原始响应只存在当前运行内存。提案只保存生成稿、360 字以内的必要证据摘录、URL、内容哈希、模型/版本和评分审计。
+- 可信度权重固定为 25/25/15/10/15/10。缺复核模型时最高 B；URL 不可验证、无证据段落、来源哈希变化、精确重复或模型事实冲突会阻止确认。
+- 批量确认不承诺文件系统事务回滚：预检完成后顺序写入，成功项立即 accepted；失败和尚未处理项保持 pending。Dexie 继续使用 `review_workspace` v16，不新增索引。
+
 ## 扩展点
 
 - 新学习专项注册 `StudyDomainDefinition`，不得在 shell 中新增专项分支。

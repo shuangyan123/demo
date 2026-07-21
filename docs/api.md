@@ -197,6 +197,20 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 “已安排”不新增服务端 Route，底层仍复用本地 automation 仓储。每日简报、每周总结和自定义任务通过 `generateWithConnection(connection, "text", input)` 调用默认文本连接；缺少连接时只写入失败运行记录。已安排上下文按用户选择的范围在本地临时组装，不包含密钥、目录句柄或未授权模块数据。
 
 知识演进已安排任务复用既有提案 JSON 契约，只把提案保存为 `pending`。来源表按勾选范围读取；未勾选知识库时不得读取或发送候选知识条目，此时模型只能生成新增提案。用户确认前不得更新知识条目、映射或 Vault 文件。
+## 外部知识安全抓取
+
+`POST /api/acquisition/fetch` 接受：
+
+```json
+{ "url": "https://example.com/article", "allowedOrigins": ["https://example.com"] }
+```
+
+- 只允许 HTTP(S)，并对初始 URL 与最多 3 次重定向逐次校验精确 origin。
+- DNS 解析到环回、私网、链路本地、CGNAT、保留地址或 IPv4 映射 IPv6 时拒绝请求。
+- 超时 10 秒，响应上限 1 MiB，仅接受 HTML、XHTML、RSS、Atom 与 XML。
+- 返回标准化的 `title/publisher/publishedAt/text/excerpt/contentHash/discoveredUrls`；RSS/Atom 最多返回 20 个候选 URL。
+- MCP 搜索结果不能直接成为提案证据，只用于发现候选 URL；候选仍须通过该端点和任务白名单抓取。
+
 # 对话转写接口
 
 `POST /api/ai/transcribe` 只接受 Google Gemini 连接的 `model`、`baseUrl`、临时 `audioBase64` 与 `mimeType`，返回归一化 `{ text, requestId? }`。音频不会被服务端或 IndexedDB 持久化；429/503 统一为可切换模型的容量提示。

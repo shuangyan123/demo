@@ -259,6 +259,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 普通保存、连接测试、额度轮询和父级 snapshot 更新不得改变当前设置分区；只有“返回应用”后再次进入设置才重置为外观。
 - 设置内容按信息密度采用独立最大宽度，桌面行高 32–36px、粗指针至少 44px；额度与数据管理使用紧凑表格，记忆与危险操作使用可锁定焦点并恢复触发器的应用内弹层。
 
+## 已安排外部知识采集约定
+
+- 行测、申论、面试采集来源默认停用；MCP 只有 `allow_scheduled` 权限可用于无人值守任务，`ask` 与 `allow_session` 必须阻止执行。
+- 搜索工具只返回候选 URL，正文统一经过 `/api/acquisition/fetch` 的 HTTP(S)、精确 origin、DNS 私网、逐跳重定向、10 秒、1 MiB 与内容类型校验。
+- 完整网页、MCP 原始结果、完整提示词和模型原始响应只留当前运行内存；提案只保存生成稿、必要证据摘录、URL、哈希和审计元数据。
+- 整理模型和复核模型不拥有写库权限；缺复核时最高 B 并标记未交叉复核，事实冲突、无证据段落、URL/哈希失效和精确重复必须阻止确认。
+- 批量确认先统一复读 Vault 目标与外部来源，再逐项写入；成功立即 accepted，失败和尚未处理项保持 pending。不得升级 `review_workspace` v16。
+
 ## 依赖维护约定
 
 - 常规依赖维护只集中更新同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本；ESLint、TypeScript、Node 类型等 major 变更必须单独开预研 PR。
