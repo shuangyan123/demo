@@ -136,9 +136,25 @@ export function useObsidianKnowledgeBridge({
 
   const acceptProposal = useCallback((id: string) => run(async () => {
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
-    await obsidianKnowledgeRepository.acceptProposal(id);
+    const { verifyAcquisitionProposalSources } = await import("../../services/acquisition-source-service");
+    const result = await obsidianKnowledgeRepository.acceptProposals([id], { verifySource: verifyAcquisitionProposalSources });
+    if (!result.acceptedIds.length) throw new Error(result.failures[0]?.message || "演进提案写入失败");
     return "演进提案已确认并写入 Obsidian";
   }, "演进提案写入失败"), [run]);
+
+  const acceptProposals = useCallback((ids: string[]) => run(async () => {
+    const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
+    const { verifyAcquisitionProposalSources } = await import("../../services/acquisition-source-service");
+    const result = await obsidianKnowledgeRepository.acceptProposals(ids, { verifySource: verifyAcquisitionProposalSources });
+    const suffix = result.failures.length ? `；${result.failures.length} 条失败并保持待确认` : "";
+    return `已写入 ${result.acceptedIds.length} 条提案${suffix}`;
+  }, "批量确认失败"), [run]);
+
+  const updateProposal = useCallback((id: string, patch: Pick<KnowledgeEvolutionProposal, "title" | "summary" | "content" | "tags" | "proposedLinks">) => run(async () => {
+    const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
+    await obsidianKnowledgeRepository.updateProposal(id, patch);
+    return "提案生成稿已保存，证据与评分保持不变";
+  }, "提案修改保存失败"), [run]);
 
   const rejectProposal = useCallback((id: string) => run(async () => {
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
@@ -172,7 +188,7 @@ export function useObsidianKnowledgeBridge({
   }, [mappings, snapshot.managedRoot, snapshot.vaultName]);
 
   return useMemo(() => ({
-    acceptProposal, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals,
-    recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, uriForKnowledge,
-  }), [acceptProposal, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals, recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, uriForKnowledge]);
+    acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals,
+    recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, updateProposal, uriForKnowledge,
+  }), [acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals, recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, updateProposal, uriForKnowledge]);
 }

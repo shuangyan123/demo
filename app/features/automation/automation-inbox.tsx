@@ -79,6 +79,18 @@ function AutomationRunDetails({
         <span>上下文规模：约 {run.contextCharCount ?? 0} 字符</span>
         <span>提案引用：{run.proposalIds.length} 条</span>
       </div>
+      {run.collectionSummary ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface-muted p-3 text-xs sm:grid-cols-4 lg:grid-cols-8">
+          <span>发现 <strong>{run.collectionSummary.discoveredCount}</strong></span>
+          <span>抓取 <strong>{run.collectionSummary.fetchedCount}</strong></span>
+          <span>去重 <strong>{run.collectionSummary.duplicateCount}</strong></span>
+          <span>A 级 <strong>{run.collectionSummary.gradeA}</strong></span>
+          <span>B 级 <strong>{run.collectionSummary.gradeB}</strong></span>
+          <span>C 级 <strong>{run.collectionSummary.gradeC}</strong></span>
+          <span>争议 <strong>{run.collectionSummary.disputedCount}</strong></span>
+          <span>复核 <strong>{run.collectionSummary.reviewStatus === "not_configured" ? "未交叉" : run.collectionSummary.reviewStatus === "disputed" ? "有分歧" : "一致"}</strong></span>
+        </div>
+      ) : null}
       {run.contextSummary?.length ? (
         <div className="mt-3">
           <strong className="text-sm">读取摘要</strong>
