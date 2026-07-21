@@ -118,7 +118,7 @@ export function ReviewWorkspace() {
   const aiConnections = useAiConnections(setNotice);
   const personalization = usePersonalizationSettings(setNotice);
   const automation = useAutomationCenter({
-    connection: aiConnections.textConnection,
+    connection: aiConnections.textConnection, aiSnapshot: aiConnections.snapshot,
     personalization: personalization.settings,
     onChanged: refreshData,
     onNotice: setNotice,

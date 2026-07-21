@@ -55,6 +55,11 @@ export function AutomationView({
       onOpenSettings();
       return;
     }
+    if (action === "configure_mcp") {
+      onOpenSettings();
+      onNotice("请在设置 → MCP 中启用 Server，并将目标工具权限设为“允许已安排任务”");
+      return;
+    }
     if (action === "open_knowledge") {
       onOpenKnowledge();
       return;
@@ -72,7 +77,7 @@ export function AutomationView({
 
   return (
     <div className="grid gap-6">
-      <section className="grid grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)] gap-6 max-xl:grid-cols-1">
+      <section className="grid grid-cols-[minmax(280px,.72fr)_minmax(520px,1.28fr)] gap-6 max-[1399px]:grid-cols-1">
         <AutomationTaskList center={center} onCreateTemplate={startCreate} onEdit={startEdit} onNotice={onNotice} />
         <AutomationEditor
           key={`${editor.definition?.id ?? editor.templateId}:${editor.revision}`}
