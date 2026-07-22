@@ -54,7 +54,7 @@ const viewTitles: Record<ViewKey, string> = {
   conversation: "对话",
   dashboard: "总览",
   library: "错题库",
-  review: "手动复盘",
+  review: "错题复盘",
   knowledgeTraining: "知识训练",
   interview: "面试训练",
   tutoring: "AI 辅导",
@@ -115,10 +115,10 @@ export function ReviewWorkspaceShell({
   return (
     <WorkspaceShell
       key={`${view}:${activeConversationId ?? "none"}`}
-      contentClassName={view === "conversation" ? "conversation-shell-content" : "px-7 py-7 max-sm:px-4"}
+      contentClassName={view === "conversation" ? "conversation-shell-content" : `review-view-${view} px-7 py-7 max-sm:px-4`}
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName="review-workspace-sidebar flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:px-3 max-lg:py-2"
-      title="错题复盘"
+      title={view === "dashboard" || view === "conversation" ? "错题复盘" : viewTitles[view]}
       onToggleSidebar={onToggleSidebar}
       sidebar={
         <>

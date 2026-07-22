@@ -1,5 +1,5 @@
 import { RelatedKnowledgeList } from "../knowledge/knowledge-workspace";
-import { Button, CardButton, Chip, DataList, DetailCard, EmptyState, Panel, SoftBlock } from "../shared/ui-primitives";
+import { Button, CardButton, Chip, DataList, EmptyState, MasteryDots, Panel } from "../shared/ui-primitives";
 import { formatTimerSeconds, type ReviewTimerMode, type ReviewTimerState } from "./use-review-timer";
 import type { KnowledgeMatch } from "../../services/association-matcher";
 import type { KnowledgeEntry, Mistake, ReviewResult } from "../../types/review";
@@ -40,30 +40,44 @@ export function ReviewView({
 }: ReviewViewProps) {
   if (!currentReview) {
     return (
-      <Panel title="今日队列已清空" eyebrow="Review Complete">
+      <Panel title="今日队列已清空" eyebrow="复盘完成">
         <EmptyState>可以去错题库按板块挑选，或录入新的错题。</EmptyState>
       </Panel>
     );
   }
 
   return (
-    <section className="grid grid-cols-[minmax(0,1fr)_300px] gap-4 max-lg:grid-cols-1">
-      <DetailCard className="min-h-[570px]">
-        <p className="text-xs font-extrabold text-muted">
-          {currentReview.board} · {currentReview.source}
-        </p>
-        <h3 className="mt-1 text-xl font-extrabold">
-          第 {reviewIndex + 1} 题 / {dueMistakes.length}
-        </h3>
-        <ReviewTimerBar timer={timer} />
-        <SoftBlock className="my-5 text-lg leading-loose">{currentReview.stem}</SoftBlock>
+    <section className="learning-page">
+      <header className="learning-page-header">
+        <p className="text-sm text-muted">先独立作答，再核对答案并记录掌握情况。</p>
+        <div className="learning-metrics" aria-label="复盘进度">
+          <span><strong>{reviewIndex + 1}</strong>当前题</span>
+          <span><strong>{dueMistakes.length}</strong>本轮队列</span>
+          <span><strong>{currentReview.mastery}</strong>掌握度</span>
+        </div>
+      </header>
+      <div className="review-session-layout">
+      <article className="review-question-canvas">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-bold text-muted">{currentReview.board} · {currentReview.source}</p>
+          <span className="text-sm text-muted">第 {reviewIndex + 1} / {dueMistakes.length} 题</span>
+        </div>
+        <h3 className="my-8 max-w-4xl text-xl font-bold leading-9 max-sm:my-6 max-sm:text-lg">{currentReview.stem}</h3>
         <div className="flex flex-wrap gap-2">
           {currentReview.tags.map((tag) => (
             <Chip key={tag}>{tag}</Chip>
           ))}
           <Chip tone="yellow">掌握度 {currentReview.mastery}</Chip>
         </div>
-        <div className="mt-5 flex flex-wrap gap-3 border-b border-line pb-4">
+        {answerOpen && (
+          <section className="mt-7 border-t border-line pt-5 leading-7" aria-live="polite">
+            <strong className="block">答案</strong>
+            <p>{currentReview.answer}</p>
+            <strong className="mt-4 block">解析</strong>
+            <p>{currentReview.explanation}</p>
+          </section>
+        )}
+        <div className="review-session-actions">
           <Button variant="outline" onClick={onToggleAnswer}>
             {answerOpen ? "收起答案" : "查看答案"}
           </Button>
@@ -77,32 +91,29 @@ export function ReviewView({
             不会
           </Button>
         </div>
-        {answerOpen && (
-          <div className="mt-5 leading-relaxed">
-            <strong className="block">答案</strong>
-            <p>{currentReview.answer}</p>
-            <strong className="mt-3 block">解析</strong>
-            <p>{currentReview.explanation}</p>
-          </div>
-        )}
-      </DetailCard>
+      </article>
 
-      <aside className="space-y-4">
-        <Panel title="本轮队列" eyebrow="Session">
-          <div className="grid gap-3">
-            {dueMistakes.map((item, index) => (
-              <div key={item.id} className="grid grid-cols-[34px_1fr] gap-3">
-                <span className="grid h-7 w-7 place-items-center rounded-full bg-blue/10 text-sm font-extrabold text-blue">{index + 1}</span>
-                <p className="min-w-0">
-                  <strong className="block truncate">{item.board}</strong>
-                  <span className="text-muted">{item.reasons.join(" / ")}</span>
-                </p>
-              </div>
-            ))}
-          </div>
-        </Panel>
+      <aside className="review-session-rail" aria-label="当前轮次">
+        <section>
+          <h3 className="font-extrabold">当前轮次</h3>
+          <dl className="mt-3 grid gap-3 text-sm">
+            <div className="flex justify-between gap-3"><dt className="text-muted">当前错因</dt><dd>{currentReview.reasons.join(" / ") || "未标记"}</dd></div>
+            <div className="flex items-center justify-between gap-3"><dt className="text-muted">掌握情况</dt><dd><MasteryDots value={currentReview.mastery} /></dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-muted">剩余题目</dt><dd>{Math.max(0, dueMistakes.length - reviewIndex - 1)}</dd></div>
+          </dl>
+        </section>
 
-        <Panel title="推荐资料" eyebrow="Knowledge">
+        <ReviewTimerBar timer={timer} />
+
+        <details className="border-t border-line pt-4">
+          <summary className="cursor-pointer font-bold">查看本轮队列（{dueMistakes.length}）</summary>
+          <ol className="mt-3 grid gap-2 text-sm">
+            {dueMistakes.map((item, index) => <li key={item.id} className={index === reviewIndex ? "font-bold text-blue" : "text-muted"}>{index + 1}. {item.board} · {item.reasons.join(" / ")}</li>)}
+          </ol>
+        </details>
+
+        <section className="border-t border-line pt-4">
+          <h3 className="mb-3 font-extrabold">推荐资料</h3>
           <Button className="mb-3 w-full" size="sm" variant="soft" onClick={() => onCreateKnowledgeDraft(currentReview)}>
             沉淀当前错题
           </Button>
@@ -120,8 +131,9 @@ export function ReviewView({
             </div>
           )}
           <RelatedKnowledgeList matches={relatedKnowledge} onOpenKnowledgeEntry={onOpenKnowledgeEntry} compact />
-        </Panel>
+        </section>
       </aside>
+      </div>
     </section>
   );
 }
@@ -144,7 +156,7 @@ function ReviewTimerBar({
   return (
     <section className={`ui-timer-panel ${timer.isTimedOut ? "ui-timer-panel-timeout" : ""}`} aria-label="手动复盘计时">
       <div>
-        <p className="text-xs font-extrabold uppercase text-muted">{timer.mode === "countdown" ? "倒计时" : "手动计时"}</p>
+        <p className="text-xs font-extrabold text-muted">{timer.mode === "countdown" ? "倒计时" : "手动计时"}</p>
         <strong className="ui-timer-display">
           {timer.isTimedOut ? `超时 ${formatTimerSeconds(timeoutOverrun)}` : formatTimerSeconds(primaryTime)}
         </strong>

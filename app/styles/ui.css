@@ -6,6 +6,247 @@
   background: transparent;
 }
 
+/* P1 学习列表工作区：使用统一的紧凑工具条、主从列表和移动端全屏详情。 */
+.learning-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.learning-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.learning-page-title {
+  font-size: clamp(1.5rem, 2vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.learning-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 1.25rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.learning-metrics strong {
+  margin-right: 0.25rem;
+  color: var(--foreground);
+  font-size: 1rem;
+}
+
+.learning-toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(8rem, 10rem)) minmax(14rem, 1fr);
+  align-items: end;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--surface);
+}
+
+.learning-master-detail {
+  display: grid;
+  min-height: 36rem;
+  grid-template-columns: minmax(0, 1.1fr) minmax(22rem, 0.9fr);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.learning-list {
+  min-width: 0;
+  border-right: 1px solid var(--line);
+}
+
+.learning-list-head,
+.learning-list-row {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(15rem, 1fr) 8.5rem 7rem 5.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0 0.9rem;
+}
+
+.learning-list-head {
+  min-height: 2.6rem;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.learning-list-row {
+  border-top: 1px solid var(--line);
+  transition: background var(--motion-fast) var(--motion-ease);
+}
+
+.learning-list-row:hover,
+.learning-list-row[data-active="true"] {
+  background: color-mix(in srgb, var(--blue) 6%, var(--surface));
+}
+
+.learning-list-row button {
+  min-width: 0;
+  text-align: left;
+}
+
+.learning-detail {
+  min-width: 0;
+  padding: 1.15rem;
+  overflow: auto;
+}
+
+.learning-mobile-detail-close {
+  display: none;
+}
+
+.review-session-layout {
+  display: grid;
+  min-height: 38rem;
+  grid-template-columns: minmax(0, 7fr) minmax(17rem, 3fr);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.review-question-canvas {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+.review-session-rail {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  padding: 1.15rem;
+  border-left: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+
+.review-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: auto;
+  padding-top: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  /* 移动端由固定顶栏承担页面标题，学习工作区隐藏重复的大标题和操作区。 */
+  .review-view-library > .workspace-view-header,
+  .review-view-review > .workspace-view-header,
+  .review-view-knowledge > .workspace-view-header {
+    display: none;
+  }
+
+  .learning-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .learning-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .learning-toolbar > :last-child {
+    grid-column: 1 / -1;
+  }
+
+  .learning-master-detail,
+  .review-session-layout {
+    display: block;
+    min-height: 0;
+  }
+
+  .learning-list {
+    border-right: 0;
+  }
+
+  .learning-list-head {
+    display: none;
+  }
+
+  .learning-list-row {
+    grid-template-columns: 2rem minmax(0, 1fr);
+    min-height: 4.6rem;
+    padding-block: 0.65rem;
+  }
+
+  .learning-list-row > :nth-child(n + 3) {
+    display: none;
+  }
+
+  .learning-detail[data-mobile-open="true"] {
+    position: fixed;
+    inset: var(--chrome-topbar-height) 0 0;
+    z-index: 80;
+    background: var(--surface);
+    overscroll-behavior: contain;
+  }
+
+  .learning-detail[data-mobile-open="false"] {
+    display: none;
+  }
+
+  .learning-mobile-detail-close {
+    display: inline-flex;
+    margin-bottom: 1rem;
+  }
+
+  .review-session-rail {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    background: var(--surface);
+  }
+
+  .review-session-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin-inline: -1.25rem;
+    padding: 0.75rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+}
+
+@media (max-width: 520px) {
+  .learning-page {
+    gap: 0.75rem;
+  }
+
+  .learning-toolbar {
+    grid-template-columns: 1fr 1fr;
+    padding: 0.6rem;
+  }
+
+  .learning-metrics {
+    gap: 0.35rem 0.85rem;
+  }
+
+  .review-question-canvas,
+  .review-session-rail {
+    padding: 1rem;
+  }
+
+  .review-session-actions {
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+  }
+}
+
 .ui-panel {
   border-top: 1px solid var(--line);
   padding: 1rem 0;
@@ -515,7 +756,7 @@ body[data-theme="dark"] .ui-detail-content {
 .ui-field {
   display: grid;
   gap: 0.5rem;
-  color: #334155;
+  color: var(--foreground);
   font-size: 0.875rem;
   font-weight: 700;
 }
@@ -1981,8 +2222,9 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 @media (max-width: 640px) {
   .learning-explorer { min-height: calc(100vh - 76px); border-radius: 0; }
-  .learning-explorer-header { padding: 16px; }
-  .learning-explorer-header > div:last-child { display: none; }
+  .learning-explorer-header { align-items: stretch; flex-direction: column; padding: 16px; }
+  .learning-explorer-header > div:last-child { display: flex; flex-wrap: wrap; }
+  .learning-explorer-header > div:last-child .ui-button { flex: 1 1 9rem; }
   .learning-explorer-tabs { padding: 0 10px; }
   .learning-explorer-tabs button { flex: 1; padding: 0 5px; }
   .learning-explorer-scope { padding: 9px 12px; }
