@@ -30,6 +30,9 @@ export function classifyAutomationError(error: unknown, options: { online?: bool
   if (options.online === false || /failed to fetch|networkerror|network request|offline|断网|网络/.test(normalized)) {
     return { category: "network", recoveryAction: "check_network", message };
   }
+  if (/mcp/.test(normalized) && /授权|权限|server|工具|tool/.test(normalized)) {
+    return { category: "permission", recoveryAction: "configure_mcp", message };
+  }
   if (/notallowed|permission|security|vault|obsidian|directory|授权|权限/.test(normalized)) {
     return { category: "permission", recoveryAction: "open_knowledge", message };
   }
@@ -50,6 +53,7 @@ export function automationFailureLabel(category?: AutomationFailureCategory): st
 /** 恢复动作只做导航或提示，不直接触发外部请求。 */
 export function automationRecoveryLabel(action?: AutomationRecoveryAction): string {
   if (action === "configure_ai_connection") return "配置 AI 连接";
+  if (action === "configure_mcp") return "检查 MCP 定时授权";
   if (action === "open_knowledge") return "打开知识库";
   if (action === "open_import") return "导入资料";
   if (action === "open_entry") return "手动录入";

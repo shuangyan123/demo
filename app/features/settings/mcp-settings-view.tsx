@@ -138,7 +138,7 @@ export function McpSettingsView({ onNotice }: { onNotice: (message: string) => v
                 {discovery ? <span>能力 <strong>{discovery.tools.length} tools · {discovery.resources.length} resources · {discovery.prompts.length} prompts</strong></span> : null}
               </div>
               <section className="mcp-tools-section">
-                <div><h3>Tools</h3><p>“每次询问”会在对话中展示 Server、参数键和数据范围，确认后才执行。</p></div>
+                <div><h3>Tools</h3><p>“允许已安排任务”是无人值守调用的唯一有效授权；每次运行仍会复核 Server、工具和任务级白名单。</p></div>
                 {discovery?.toolDescriptors?.length ? (
                   <div className="mcp-tool-table">
                     {discovery.toolDescriptors.map((tool) => (
@@ -147,6 +147,7 @@ export function McpSettingsView({ onNotice }: { onNotice: (message: string) => v
                         <select aria-label={`${tool.name} 权限`} value={tool.permission} onChange={(event) => changePermission(tool.name, event.currentTarget.value as McpToolPermission)}>
                           <option value="ask">每次询问</option>
                           <option value="allow_session">本次会话允许</option>
+                          <option value="allow_scheduled">允许已安排任务</option>
                           <option value="deny">禁止</option>
                         </select>
                       </div>

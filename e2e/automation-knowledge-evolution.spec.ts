@@ -46,7 +46,8 @@ test("知识演进已安排任务可通过 mock JSON 生成待确认提案", asy
     await page.goto("/");
     await expect(page).toHaveTitle("错题复盘");
 
-    await page.getByRole("button", { name: "手动录入" }).first().click();
+    await page.locator(".dashboard-configuration-health > summary").click();
+    await page.locator(".dashboard-configuration-health").getByRole("button", { name: "手动录入" }).click();
     const entryForm = page.locator("form").filter({ has: page.getByRole("button", { name: "保存错题" }) });
     await entryForm.getByLabel("板块").selectOption("资料分析");
     await entryForm.getByLabel("来源").fill("E2E 知识演进数据");
@@ -116,7 +117,8 @@ test("知识演进已安排任务可通过 mock JSON 生成待确认提案", asy
     expect(runPayload.candidates ?? []).toHaveLength(0);
 
     await page.goto("/");
-    await page.locator("section").filter({ has: page.getByRole("heading", { name: "配置健康" }) }).first().getByRole("button", { name: "连接 Obsidian" }).click();
+    await page.locator(".dashboard-configuration-health > summary").click();
+    await page.locator(".dashboard-configuration-health").getByRole("button", { name: "连接 Obsidian" }).click();
     await expect(page.getByRole("heading", { name: "知识演进提案" })).toBeVisible();
     await expect(page.getByText(proposalTitle)).toBeVisible();
     await expect(page.getByText("错题解析暴露出增长率判断步骤混淆。")).toBeVisible();

@@ -1,6 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
 import type {
   ApiConnectionProfile,
+  AiConnectionSnapshot,
   AutomationDefinition,
   AutomationRun,
   AutomationRunTrigger,
@@ -111,7 +112,8 @@ export const automationRepository = {
     if (!current) throw new Error("已安排任务不存在");
     return this.create({
       name: `${current.name} 副本`, templateId: current.templateId, prompt: current.prompt,
-      sourceScopes: [...current.sourceScopes], enabled: false, timeZone: current.timeZone, schedule: { ...current.schedule },
+      sourceScopes: [...current.sourceScopes], collectionConfig: current.collectionConfig ? structuredClone(current.collectionConfig) : undefined,
+      enabled: false, timeZone: current.timeZone, schedule: { ...current.schedule },
     }, now);
   },
 
@@ -147,6 +149,7 @@ export const automationRepository = {
   async run(input: {
     definition: AutomationDefinition;
     connection?: ApiConnectionProfile;
+    aiSnapshot?: AiConnectionSnapshot;
     personalization: PersonalizationSettings;
     trigger: AutomationRunTrigger;
     scheduledAt?: string;
@@ -181,7 +184,7 @@ export const automationRepository = {
       void renewAutomationLease(definition.id, owner).catch(() => undefined);
     }, LEASE_RENEW_INTERVAL_MS);
     try {
-      const output = await executeAutomation({ definition, connection: input.connection, personalization: input.personalization });
+      const output = await executeAutomation({ definition, connection: input.connection, aiSnapshot: input.aiSnapshot, personalization: input.personalization });
       const finishedAt = nowIso();
       const completed: AutomationRun = {
         ...run,
@@ -190,6 +193,7 @@ export const automationRepository = {
         proposalIds: output.proposalIds,
         contextSummary: output.contextSummary,
         contextCharCount: output.contextCharCount,
+        collectionSummary: output.collectionSummary,
         unread: true,
         finishedAt,
       };

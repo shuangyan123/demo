@@ -20,11 +20,11 @@ import { ConversationComposer, type ConversationComposerHandle } from "./convers
 import { ConversationMcpToolPanel } from "./conversation-mcp-tool-panel";
 import { ConversationProposalBlock } from "./conversation-proposal-block";
 import { ConversationTurnList } from "./conversation-turn-list";
+import { ConversationEmptyState } from "./conversation-empty-state";
 import type { ConversationWorkspaceProps } from "./conversation-workspace-types";
 import { useConversationModelSelection } from "./use-conversation-model-selection";
 import { useConversationAutoMemory } from "./use-conversation-auto-memory";
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
-
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({
   activeConversationId,
@@ -424,6 +424,8 @@ export function ConversationWorkspace({
     await onRefresh();
   }
 
+  const conversationEmpty = !activeConversation || !messages.length;
+
   return (
     <section className="conversation-workspace" aria-label="AI 对话工作台">
       <div className="conversation-main">
@@ -437,8 +439,8 @@ export function ConversationWorkspace({
             <button type="button" aria-label="移除对话上下文" onClick={onClearLaunchContext}><AppIcon name="close" size={16} /></button>
           </div>
         ) : null}
-        <div className="conversation-message-list">
-          {!activeConversation || !messages.length ? <div className="conversation-empty-prompt"><h2>从一个问题开始</h2><p>发送首条消息后才会创建对话。可添加文档、图片、音频，或按住麦克风录音。</p></div> : null}
+        <div className={conversationEmpty ? "conversation-message-list is-empty" : "conversation-message-list"}>
+          {conversationEmpty ? <ConversationEmptyState /> : null}
           <ConversationTurnList timeline={timeline} activeTurnId={activeTurnId} assistantDraft={assistantDraft} diagnostics={diagnostics} />
           {conversationProposals.map((proposal) => <ConversationProposalBlock key={proposal.id} proposal={proposal} busy={proposalBusy} onAccept={() => void updateConversationProposal(proposal, "accept")} onReject={() => void updateConversationProposal(proposal, "reject")} />)}
           <div ref={bottomRef} />

@@ -13,6 +13,8 @@
   pointer-events: none;
   z-index: 0;
   background: var(--chrome-sidebar-diffuse);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12px);
+  mask-image: linear-gradient(180deg, transparent 0, #000 12px);
 }
 
 .diffuse-sidebar > * {
@@ -27,7 +29,20 @@
 
 .chrome-topbar {
   height: var(--chrome-topbar-height);
-  background: var(--chrome-topbar-bg);
+  border-bottom: 0;
+  background-color: var(--chrome-topbar-bg);
+  background-image: var(--chrome-topbar-diffuse);
+}
+
+body[data-diffuse-gradient="true"] .chrome-topbar {
+  background-image:
+    linear-gradient(
+      180deg,
+      transparent 0,
+      transparent calc(100% - 12px),
+      var(--chrome-topbar-bg) 100%
+    ),
+    var(--chrome-topbar-diffuse);
 }
 
 /* 展开时保留 248px 侧栏，折叠时把左列压到 0，让主内容自然顶到窗口左侧。 */
@@ -38,20 +53,8 @@
   height: calc(100dvh - var(--chrome-topbar-height));
   grid-template-columns: var(--chrome-sidebar-width) minmax(0, 1fr);
   background-color: var(--chrome-window-bg);
-  background-image: var(--chrome-window-diffuse);
+  background-image: none;
   transition: grid-template-columns var(--motion-structure) var(--motion-ease);
-}
-
-/* 极淡噪点只给弥散背景增加纸面质感，不覆盖顶栏和内容卡片。 */
-body[data-diffuse-gradient="true"] .chrome-layout::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.16;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.18) 0.45px, transparent 0.55px);
-  background-size: 3px 3px;
 }
 
 .chrome-layout[data-sidebar="collapsed"],
@@ -65,6 +68,7 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
   z-index: 1;
   min-width: 0;
   width: 100%;
+  border-right: 0;
   transition:
     opacity var(--motion-structure) var(--motion-ease),
     transform var(--motion-structure) var(--motion-ease),
@@ -75,20 +79,86 @@ body[data-diffuse-gradient="true"] .chrome-layout::after {
 .chrome-content {
   position: relative;
   z-index: 1;
+  height: 100%;
   min-width: 0;
+  background: var(--chrome-workspace-surface);
+  -ms-overflow-style: none;
+  scrollbar-width: none;
   transition:
     border-color var(--motion-fast) var(--motion-ease),
     border-radius var(--motion-fast) var(--motion-ease);
 }
 
-body[data-diffuse-gradient="true"] .chrome-content {
-  background-color: transparent;
+.chrome-content::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.chrome-content-frame {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--chrome-workspace-surface);
+}
+
+.chrome-mobile-sidebar-backdrop {
+  display: none;
+}
+
+/* 桌面展开态让工作区直接贴合侧栏，仅保留圆角与共边。 */
+.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] {
+  padding-left: 0;
+  overflow: visible;
+  border-top-left-radius: 18px;
+}
+
+/* 主区独占绘制与顶栏、侧栏共用的两条边；不叠加阴影或高光，避免圆角伪影。 */
+.chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
+  border: 0;
+  border-top: 1px solid var(--chrome-sidebar-border);
+  border-left: 1px solid var(--chrome-sidebar-border);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+  background-color: var(--chrome-workspace-surface);
+  background-image: none;
+  box-shadow: none;
+}
+
+.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
+  padding-left: 0;
+  overflow: hidden;
+  border-top-left-radius: 0;
+}
+
+.chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
+  border: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  box-shadow: none;
+}
+
+body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
+  border-top-color: rgb(255 255 255 / 9%);
+  border-left-color: rgb(255 255 255 / 9%);
 }
 
 .chrome-layout.is-sidebar-expanded .chrome-sidebar {
   opacity: 1;
   pointer-events: auto;
   transform: none;
+}
+
+/* 桌面抬升面已自行绘制左侧边缘，移除侧栏直线边框，避免它从两个圆角旁露出。 */
+@media (min-width: 1025px) {
+  .chrome-layout.is-sidebar-expanded .chrome-sidebar {
+    border-inline-end-width: 0;
+    border-right-width: 0;
+  }
 }
 
 .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar,
@@ -109,13 +179,6 @@ body[data-diffuse-gradient="true"] .chrome-content {
   opacity: 0;
 }
 
-/* 设置页折叠侧栏后要取消原来贴着侧栏的圆角和边框，视觉上进入无侧栏工作区。 */
-.chrome-layout[data-sidebar="collapsed"] .settings-content,
-.chrome-layout.is-sidebar-collapsed .settings-content {
-  border-left-color: transparent;
-  border-top-left-radius: 0;
-}
-
 .sidebar-toggle-button:focus {
   box-shadow: none;
   outline: none;
@@ -132,25 +195,91 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
 
 @media (max-width: 1024px) {
   .chrome-layout {
+    display: block;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
   }
 
-  .chrome-sidebar {
-    max-height: 8.5rem;
-    border-right: 0;
-    border-bottom: 1px solid var(--chrome-sidebar-border);
+  .chrome-sidebar,
+  .chrome-layout[data-mobile-sidebar="closed"] .chrome-sidebar {
+    position: fixed;
+    z-index: 70;
+    top: var(--chrome-topbar-height);
+    bottom: 0;
+    left: 0;
+    width: min(20rem, calc(100vw - 3rem));
+    max-height: none;
+    border-right: 1px solid var(--chrome-sidebar-border);
+    border-bottom: 0;
+    box-shadow: 18px 0 48px rgb(15 23 42 / 16%);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-100%);
+    transition:
+      opacity var(--motion-fast) var(--motion-ease),
+      transform var(--motion-structure) var(--motion-ease);
   }
 
   .review-workspace-sidebar {
-    max-height: 18rem;
+    max-height: none;
     overflow-y: auto;
   }
 
   .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar,
-  .chrome-layout.is-sidebar-collapsed .chrome-sidebar {
-    display: none;
+  .chrome-layout.is-sidebar-collapsed .chrome-sidebar,
+  .chrome-layout[data-sidebar="expanded"] .chrome-sidebar,
+  .chrome-layout.is-sidebar-expanded .chrome-sidebar {
+    display: block;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
   }
+
+  .chrome-layout[data-mobile-sidebar="open"] .chrome-sidebar {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .chrome-mobile-sidebar-backdrop {
+    position: fixed;
+    z-index: 65;
+    inset: var(--chrome-topbar-height) 0 0;
+    display: block;
+    background: rgb(15 23 42 / 28%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .chrome-layout[data-mobile-sidebar="open"] .chrome-mobile-sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] {
+    height: 100%;
+    padding-left: 0;
+    overflow: hidden;
+    border-top-left-radius: 0;
+  }
+
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
+    height: 100%;
+    border: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    background-image: none;
+    box-shadow: none !important;
+  }
+}
+
+/* 弥散只由带状态圆角的 frame 绘制；layout 保持实色，圆角外不再出现彩色三角。 */
+body[data-diffuse-gradient="true"] .chrome-content-frame[data-content-surface] {
+  background-image: var(--chrome-window-diffuse);
+}
+
+/* main 保持透明，只负责共边、圆角和滚动，避免重复渐变坐标。 */
+body[data-diffuse-gradient="true"] .chrome-layout .chrome-content-frame[data-content-surface] > .chrome-content {
+  background-color: transparent;
 }
 
 body[data-reduced-motion="true"] .chrome-layout,

@@ -78,7 +78,8 @@ test("手动录入可保存错题并在错题库中展示", async ({ page }) => 
 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
-  await page.getByRole("button", { name: "手动录入" }).first().click();
+  await page.locator(".dashboard-configuration-health > summary").click();
+  await page.locator(".dashboard-configuration-health").getByRole("button", { name: "手动录入" }).click();
 
   const entryForm = page.locator("form").filter({ has: page.getByRole("button", { name: "保存错题" }) });
   await entryForm.getByLabel("板块").selectOption("资料分析");

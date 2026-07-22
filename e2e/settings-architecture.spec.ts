@@ -15,6 +15,54 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(lightDiffuse).toHaveAttribute("aria-checked", "false");
   await lightDiffuse.click();
   await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "true");
+  await page.getByRole("button", { name: "返回应用" }).click();
+  await expect(page.getByRole("heading", { name: "总览" })).toBeVisible();
+  const expandSidebar = page.getByRole("button", { name: "展开侧边栏" });
+  if (await expandSidebar.isVisible()) await expandSidebar.click();
+  await expect(page.locator(".chrome-layout")).toHaveClass(/is-sidebar-expanded/);
+  const workspaceDiffuse = await page.locator(".chrome-content-frame").evaluate((frame) => {
+    const main = frame.querySelector<HTMLElement>(".chrome-content")!;
+    const layout = frame.closest<HTMLElement>(".chrome-layout")!;
+    const frameStyle = getComputedStyle(frame);
+    const layoutStyle = getComputedStyle(layout);
+    const mainStyle = getComputedStyle(main);
+    return {
+      frameBackgroundColor: frameStyle.backgroundColor,
+      frameBackgroundImage: frameStyle.backgroundImage,
+      frameRadius: frameStyle.borderTopLeftRadius,
+      layoutBackgroundImage: layoutStyle.backgroundImage,
+      mainBackgroundColor: mainStyle.backgroundColor,
+      mainBackgroundImage: mainStyle.backgroundImage,
+    };
+  });
+  expect(workspaceDiffuse.frameBackgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(workspaceDiffuse.frameBackgroundImage).toContain("radial-gradient");
+  expect(workspaceDiffuse.frameRadius).toBe("18px");
+  expect(workspaceDiffuse.layoutBackgroundImage).toBe("none");
+  expect(workspaceDiffuse.mainBackgroundColor).toBe("rgba(0, 0, 0, 0)");
+  expect(workspaceDiffuse.mainBackgroundImage).toBe("none");
+  await page.setViewportSize({ width: 1115, height: 792 });
+  const diffuseFrameBox = await page.locator(".chrome-content-frame").boundingBox();
+  expect(diffuseFrameBox).toBeTruthy();
+  await page.screenshot({
+    path: testInfo.outputPath("settings-diffuse-corner-desktop.png"),
+    clip: {
+      x: Math.max(0, diffuseFrameBox!.x - 24),
+      y: Math.max(0, diffuseFrameBox!.y - 20),
+      width: 84,
+      height: 84,
+    },
+  });
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.getByRole("button", { name: "设置" }).first().click();
+  const topbarDiffuse = await page.locator(".chrome-topbar").evaluate((element) => getComputedStyle(element).backgroundImage);
+  expect(topbarDiffuse).toContain("radial-gradient");
+  const codeFontFamilies = await page.locator(".settings-code-preview, .settings-input.font-mono").evaluateAll((elements) =>
+    elements.map((element) => getComputedStyle(element).fontFamily),
+  );
+  expect(codeFontFamilies.length).toBeGreaterThan(1);
+  const primaryCodeFontFamilies = codeFontFamilies.map((family) => family.split(",")[0].replaceAll('"', "").trim());
+  expect(new Set(primaryCodeFontFamilies)).toEqual(new Set(["GeistMono"]));
   await page.reload();
   await page.getByRole("button", { name: "设置" }).first().click();
   await expect(page.getByRole("switch", { name: "浅色主题弥散渐变" })).toHaveAttribute("aria-checked", "true");
@@ -25,6 +73,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   // 视觉基准使用关闭弥散的中性浅色主题，避免背景色场干扰宽度与层级比对。
   await page.getByRole("switch", { name: "浅色主题弥散渐变" }).click();
   await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "false");
+  await expect(page.locator(".chrome-topbar")).toHaveCSS("background-image", "none");
 
   await page.getByRole("button", { name: "AI 连接" }).click();
   const provider = page.getByRole("combobox", { name: "厂商" });

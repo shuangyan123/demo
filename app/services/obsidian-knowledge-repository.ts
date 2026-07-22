@@ -1,4 +1,5 @@
 import { reviewDb } from "../db/review-db.ts";
+import { isAcquisitionProposalConfirmable } from "./acquisition-trust.ts";
 import type {
   KnowledgeEntry,
   KnowledgeEvolutionProposal,
@@ -421,6 +422,13 @@ export const obsidianKnowledgeRepository = {
     if (proposals.length) await reviewDb.knowledgeEvolutionProposals.bulkPut(proposals);
   },
 
+  /** 用户可在确认前修订生成稿，但不能改写证据、评分或审计字段。 */
+  async updateProposal(id: string, patch: Pick<KnowledgeEvolutionProposal, "title" | "summary" | "content" | "tags" | "proposedLinks">, today = new Date()): Promise<void> {
+    const proposal = await reviewDb.knowledgeEvolutionProposals.get(id);
+    if (!proposal || proposal.status !== "pending") throw new Error("演进提案已处理或不存在");
+    await reviewDb.knowledgeEvolutionProposals.update(id, { ...patch, updatedAt: nowStamp(today) });
+  },
+
   async resolveConflict(path: string, choice: "vault" | "app", today = new Date()): Promise<void> {
     await withOperationLock(`conflict:${path}`, async () => {
       const [mapping, config] = await Promise.all([reviewDb.obsidianNoteMappings.get(path), requireConnectedConfig()]);
@@ -459,6 +467,7 @@ export const obsidianKnowledgeRepository = {
     return withOperationLock(`proposal:${id}`, async () => {
       const [proposal, config] = await Promise.all([reviewDb.knowledgeEvolutionProposals.get(id), requireConnectedConfig()]);
       if (!proposal || proposal.status !== "pending") throw new Error("演进提案已处理或不存在");
+      if (!isAcquisitionProposalConfirmable(proposal)) throw new Error(proposal.provenance?.trust.blockingIssues.join("；") || "该提案存在争议，不能确认");
       const timestamp = nowStamp(today);
       const entryDate = dayStamp(today);
       let entry: KnowledgeEntry;
@@ -514,6 +523,52 @@ export const obsidianKnowledgeRepository = {
       });
       return entry;
     });
+  },
+
+  /** 批量确认先统一复读目标与来源状态，再逐项写入并返回部分成功结果。 */
+  async acceptProposals(
+    ids: string[],
+    options: { verifySource?: (proposal: KnowledgeEvolutionProposal) => Promise<void>; today?: Date } = {},
+  ): Promise<{ acceptedIds: string[]; failures: Array<{ id: string; message: string }> }> {
+    const uniqueIds = [...new Set(ids)];
+    const proposals = await reviewDb.knowledgeEvolutionProposals.bulkGet(uniqueIds);
+    const config = await requireConnectedConfig();
+    const failures: Array<{ id: string; message: string }> = [];
+    const ready: KnowledgeEvolutionProposal[] = [];
+    for (let index = 0; index < uniqueIds.length; index += 1) {
+      const id = uniqueIds[index];
+      const proposal = proposals[index];
+      try {
+        if (!proposal || proposal.status !== "pending") throw new Error("提案已处理或不存在");
+        if (!isAcquisitionProposalConfirmable(proposal)) throw new Error(proposal.provenance?.trust.blockingIssues.join("；") || "提案存在争议");
+        if (proposal.targetKnowledgeId) {
+          const entry = await reviewDb.knowledgeEntries.get(proposal.targetKnowledgeId);
+          if (!entry) throw new Error("演进目标知识不存在");
+          const mapping = await reviewDb.obsidianNoteMappings.where("knowledgeId").equals(entry.id).first();
+          if (mapping) await assertMappingRevision(config, mapping, entry, "synced");
+        }
+        if (options.verifySource) await options.verifySource(proposal);
+        ready.push(proposal);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "批量确认预检失败";
+        if (proposal?.provenance && /来源 URL 无法验证|来源内容哈希已变化/.test(message)) {
+          const blockingIssues = [...new Set([...proposal.provenance.trust.blockingIssues, message.split("：")[0]])];
+          await reviewDb.knowledgeEvolutionProposals.update(id, { provenance: { ...proposal.provenance, trust: { ...proposal.provenance.trust, blockingIssues } }, updatedAt: nowStamp(options.today) });
+        }
+        failures.push({ id, message });
+      }
+    }
+
+    const acceptedIds: string[] = [];
+    for (const proposal of ready) {
+      try {
+        await this.acceptProposal(proposal.id, options.today);
+        acceptedIds.push(proposal.id);
+      } catch (error) {
+        failures.push({ id: proposal.id, message: error instanceof Error ? error.message : "写入 Vault 失败" });
+      }
+    }
+    return { acceptedIds, failures };
   },
 
   async rejectProposal(id: string, today = new Date()): Promise<void> {

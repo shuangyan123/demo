@@ -23,10 +23,12 @@ function staticImports(source: string): string[] {
 test("大型 workspace 保持受控预算并使用专用 controller", async () => {
   const budgets = new Map([
     ["features/review/review-workspace.tsx", 1080],
+    ["features/review/review-dashboard-view.tsx", 320],
     ["features/knowledge/knowledge-workspace.tsx", 825],
     ["features/tutoring/tutoring-workspace.tsx", 775],
     ["features/conversation/conversation-workspace.tsx", 500],
     ["features/conversation/conversation-composer.tsx", 300],
+    ["features/shared/workspace-shell.tsx", 240],
   ]);
   for (const [relativePath, budget] of budgets) {
     const source = await readFile(path.join(APP_ROOT, relativePath), "utf8");
@@ -36,6 +38,71 @@ test("大型 workspace 保持受控预算并使用专用 controller", async () =
   assert.match(reviewSource, /useReviewConversationController/);
   assert.doesNotMatch(reviewSource, /services\/conversation-repository/);
   assert.doesNotMatch(reviewSource, /services\/command-search/);
+});
+
+test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () => {
+  const shellSource = await readFile(path.join(APP_ROOT, "features/shared/workspace-shell.tsx"), "utf8");
+  const reviewShellSource = await readFile(path.join(APP_ROOT, "features/review/review-workspace-shell.tsx"), "utf8");
+  const settingsShellSource = await readFile(path.join(APP_ROOT, "features/settings/settings-workspace.tsx"), "utf8");
+  const shellStyles = await readFile(path.join(APP_ROOT, "styles/shell.css"), "utf8");
+  const baseStyles = await readFile(path.join(APP_ROOT, "styles/base.css"), "utf8");
+  const uiStyles = await readFile(path.join(APP_ROOT, "styles/ui.css"), "utf8");
+  const tokensStyles = await readFile(path.join(APP_ROOT, "styles/tokens.css"), "utf8");
+  const appearanceSource = await readFile(path.join(APP_ROOT, "services/appearance-settings-repository.ts"), "utf8");
+  const layoutSource = await readFile(path.join(APP_ROOT, "layout.tsx"), "utf8");
+  const fenbiStyles = await readFile(path.join(APP_ROOT, "features/import/fenbi-quick-import-panel.module.css"), "utf8");
+
+  assert.match(shellSource, /contentSurface = "raised-surface"/);
+  assert.match(shellSource, /contentSurface\?: "plain" \| "raised-surface"/);
+  assert.match(shellSource, /className="chrome-content-frame"/);
+  assert.match(shellSource, /data-content-surface=\{contentSurface\}/);
+  assert.doesNotMatch(shellSource, /chrome-topbar[^"]*border-b/);
+  assert.doesNotMatch(shellSource, /chrome-sidebar[^"]*border-r/);
+  assert.doesNotMatch(reviewShellSource, /contentSurface=\{view === "conversation"/);
+  assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
+  assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
+  assert.match(shellStyles, /padding-left: 0;\s+overflow: visible;/);
+  assert.doesNotMatch(shellStyles, /content-frame\[data-content-surface="raised-surface"\]::after/);
+  assert.match(shellStyles, /\.chrome-topbar\s*\{[\s\S]*?background-image: var\(--chrome-topbar-diffuse\);/);
+  assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-topbar\s*\{[\s\S]*?transparent calc\(100% - 12px\),[\s\S]*?var\(--chrome-topbar-bg\) 100%[\s\S]*?var\(--chrome-topbar-diffuse\);/);
+  assert.match(shellStyles, /\.diffuse-sidebar::before\s*\{[\s\S]*?mask-image: linear-gradient\(180deg, transparent 0, #000 12px\);/);
+  assert.doesNotMatch(shellStyles, /content-frame\[data-content-surface="raised-surface"\]::before/);
+  assert.match(shellStyles, /\.chrome-topbar\s*\{[\s\S]*?border-bottom: 0;/);
+  assert.match(shellStyles, /\.chrome-sidebar\s*\{[\s\S]*?border-right: 0;/);
+  assert.match(shellStyles, /data-content-surface="raised-surface"\] > \.chrome-content\s*\{\s+border: 0;[\s\S]*?border-top: 1px solid var\(--chrome-sidebar-border\);[\s\S]*?border-left: 1px solid var\(--chrome-sidebar-border\);[\s\S]*?border-top-left-radius: 18px;[\s\S]*?background-image: none;[\s\S]*?box-shadow: none;/);
+  assert.doesNotMatch(shellStyles, /-1px -1px 3px -1px/);
+  assert.doesNotMatch(shellStyles, /left 0 top 18px|left 18px top 0/);
+  assert.match(shellStyles, /\.chrome-content\s*\{[\s\S]*?-ms-overflow-style: none;[\s\S]*?scrollbar-width: none;/);
+  assert.match(shellStyles, /\.chrome-content::\-webkit-scrollbar\s*\{[\s\S]*?display: none;/);
+  assert.match(shellStyles, /\.chrome-layout\s*\{[\s\S]*?background-color: var\(--chrome-window-bg\);[\s\S]*?background-image: none;/);
+  assert.match(shellStyles, /\.chrome-content-frame\s*\{[\s\S]*?background: var\(--chrome-workspace-surface\);/);
+  assert.match(shellStyles, /\.chrome-layout\.is-sidebar-expanded \.chrome-content-frame\[data-content-surface="raised-surface"\]\s*\{[\s\S]*?border-top-left-radius: 18px;/);
+  assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-content-frame\[data-content-surface\]\s*\{[\s\S]*?background-image: var\(--chrome-window-diffuse\);/);
+  assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-layout \.chrome-content-frame\[data-content-surface\] > \.chrome-content\s*\{[\s\S]*?background-color: transparent;/);
+  assert.match(tokensStyles, /--chrome-topbar-diffuse: none;/);
+  assert.match(appearanceSource, /setProperty\("--chrome-topbar-diffuse", topbarDiffuseBackground\)/);
+  assert.match(layoutSource, /import \{ GeistMono \} from "geist\/font\/mono"/);
+  assert.match(layoutSource, /\$\{GeistMono\.variable\}/);
+  assert.match(fenbiStyles, /font-family: var\(--app-code-font\)/);
+  assert.doesNotMatch(fenbiStyles, /font[^;]*ui-monospace/);
+  assert.match(baseStyles, /input\.font-mono,[\s\S]*?font-family: var\(--app-code-font\);/);
+  assert.match(shellStyles, /@media \(min-width: 1025px\)[\s\S]*?\.chrome-layout\.is-sidebar-expanded \.chrome-sidebar[\s\S]*?border-right-width: 0;/);
+  assert.match(shellStyles, /\.chrome-layout\[data-mobile-sidebar\][\s\S]*?> \.chrome-content[\s\S]*?box-shadow: none !important;/);
+  assert.doesNotMatch(shellStyles, /padding-left: 18px;/);
+  assert.match(uiStyles, /\.conversation-workspace\s*\{[\s\S]*?height: 100%;/);
+  assert.doesNotMatch(uiStyles, /\.conversation-workspace\s*\{[\s\S]*?height: calc\(100dvh - var\(--chrome-topbar-height\)\)/);
+  assert.doesNotMatch(shellStyles, /\.conversation-shell-content\s*\{[\s\S]*?(?:margin-left|border-top-left-radius|box-shadow)/);
+});
+
+test("公考学习链路拆分为经过节点中心的四段桌面路径", async () => {
+  const flowSource = await readFile(path.join(APP_ROOT, "features/review/dashboard-study-flow.tsx"), "utf8");
+
+  assert.match(flowSource, /data-flow-segment="top" d="M125 40 H875"/);
+  assert.match(flowSource, /data-flow-segment="bend" d="M875 40 C950 40 958 190 875 190"/);
+  assert.match(flowSource, /data-flow-segment="return" d="M875 190 H125"/);
+  assert.match(flowSource, /data-flow-segment="tail" d="M125 190 C70 190 70 250 110 250"/);
+  assert.match(flowSource, /dashboard-flow-gradient-return/);
+  assert.match(flowSource, /data-flow-node=\{index \+ 1\}/);
 });
 
 test("低频功能不通过静态依赖回到主工作台", async () => {

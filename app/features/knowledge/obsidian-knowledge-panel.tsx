@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Button, Chip, ConfirmDialog, EmptyState, Panel, SoftBlock, TextField } from "../shared/ui-primitives";
 import type { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
+import { ObsidianProposalReview } from "./obsidian-proposal-review";
 
 type ObsidianController = ReturnType<typeof useObsidianKnowledgeBridge>;
 type PendingAction =
@@ -154,16 +155,7 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
               ) : null}
             </div>
           ) : null}
-          {controller.pendingProposals.length ? controller.pendingProposals.map((proposal) => (
-            <article key={proposal.id} className="ui-card ui-card-muted p-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><div className="flex flex-wrap gap-2"><Chip tone="blue">{proposal.mode}</Chip><Chip>{proposal.category}</Chip><Chip>置信度 {Math.round(proposal.confidence * 100)}%</Chip></div><strong className="mt-2 block">{proposal.title}</strong><p className="mt-1 text-sm leading-6 text-muted">{proposal.reason}</p></div>
-                <div className="flex gap-2"><Button disabled={controller.busy} size="sm" type="button" variant="primary" onClick={() => void controller.acceptProposal(proposal.id)}>确认写入</Button><Button disabled={controller.busy} size="sm" type="button" variant="ghost" onClick={() => void controller.rejectProposal(proposal.id)}>忽略</Button></div>
-              </div>
-              {proposal.content ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{proposal.content}</p> : null}
-              {proposal.proposedLinks.length ? <p className="mt-2 text-xs text-muted">建议双链：{proposal.proposedLinks.join("、")}</p> : null}
-            </article>
-          )) : <EmptyState>AI 只会生成待确认提案，不会后台改写 Vault。</EmptyState>}
+          {controller.pendingProposals.length ? <ObsidianProposalReview controller={controller} /> : <EmptyState>AI 只会生成待确认提案，不会后台改写 Vault。</EmptyState>}
         </div>
       </div>
       <ConfirmDialog

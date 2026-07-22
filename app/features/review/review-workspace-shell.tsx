@@ -114,6 +114,7 @@ export function ReviewWorkspaceShell({
 
   return (
     <WorkspaceShell
+      key={`${view}:${activeConversationId ?? "none"}`}
       contentClassName={view === "conversation" ? "conversation-shell-content" : "px-7 py-7 max-sm:px-4"}
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName="review-workspace-sidebar flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:px-3 max-lg:py-2"
@@ -121,11 +122,12 @@ export function ReviewWorkspaceShell({
       onToggleSidebar={onToggleSidebar}
       sidebar={
         <>
-          <nav className="grid gap-1 max-lg:grid-cols-4" aria-label="工作台快捷入口">
+          <nav className="grid gap-1" aria-label="工作台快捷入口">
             {topActions.map((item) => (
               <button
                 key={item.id}
-                className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:grid-cols-[18px_1fr_auto] max-lg:gap-1.5 max-lg:px-2 max-lg:text-xs ${
+                data-mobile-sidebar-close="true"
+                className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium ${
                   item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"
                 }`}
                 type="button"
@@ -138,6 +140,7 @@ export function ReviewWorkspaceShell({
             ))}
           </nav>
           <button
+            data-mobile-sidebar-close="true"
             className="hidden min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
             type="button"
             onClick={onOpenSettings}
@@ -146,7 +149,7 @@ export function ReviewWorkspaceShell({
             <span>设置</span>
           </button>
 
-          <section className="mt-7 min-h-0 flex-1 overflow-y-auto pr-1 max-lg:mt-2 max-lg:flex-none" aria-label="项目和对话">
+          <section className="mt-7 min-h-0 flex-1 overflow-y-auto pr-1" aria-label="项目和对话">
             <div className="mb-2 flex items-center justify-between gap-2 px-3">
               <p className="text-xs font-medium text-muted">项目</p>
               <span className="text-[11px] text-muted">专项学习</span>
@@ -166,6 +169,7 @@ export function ReviewWorkspaceShell({
                   {civilServiceDomain.modules.map((module) => (
                     <button
                       key={module.id}
+                      data-mobile-sidebar-close="true"
                       className={`grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-md px-2 text-left text-sm ${
                         view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"
                       }`}
@@ -194,6 +198,7 @@ export function ReviewWorkspaceShell({
           </section>
 
           <button
+            data-mobile-sidebar-close="true"
             className="relative z-40 mt-3 grid min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:hidden"
             type="button"
             onClick={onOpenSettings}
@@ -204,7 +209,7 @@ export function ReviewWorkspaceShell({
         </>
       }
     >
-      {view !== "conversation" ? (
+      {view !== "conversation" && view !== "dashboard" ? (
         <ViewHeader
           actions={
             <>

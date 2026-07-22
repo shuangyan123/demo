@@ -18,7 +18,6 @@ import { useAiConnections } from "../settings/use-ai-connections";
 import { usePersonalizationSettings } from "../settings/use-personalization-settings";
 import { useKnowledgeInternalization } from "../knowledge/use-knowledge-internalization";
 import { useAutomationCenter } from "../automation/use-automation-center";
-import { ConfigurationHealthPanel } from "../onboarding/configuration-health-panel";
 import { useWorkspaceNavigation } from "../shared/use-workspace-navigation";
 import { useWorkspaceSidebar } from "../shared/use-workspace-sidebar";
 import { useReviewWorkspaceHealth } from "./use-review-workspace-health";
@@ -119,7 +118,7 @@ export function ReviewWorkspace() {
   const aiConnections = useAiConnections(setNotice);
   const personalization = usePersonalizationSettings(setNotice);
   const automation = useAutomationCenter({
-    connection: aiConnections.textConnection,
+    connection: aiConnections.textConnection, aiSnapshot: aiConnections.snapshot,
     personalization: personalization.settings,
     onChanged: refreshData,
     onNotice: setNotice,
@@ -838,17 +837,18 @@ export function ReviewWorkspace() {
             automationActiveCount={automation.snapshot.definitions.filter((definition) => definition.enabled).length}
             automationUnreadCount={automation.snapshot.unreadCount}
             boardStats={boardStats}
-            configurationHealth={<ConfigurationHealthPanel health={configurationHealth} onAction={openConfigurationHealthAction} />}
-            correctRate={correctRate}
+            configurationHealth={configurationHealth}
+            correctRate={correctRate} dateLabel={toISODate(today)}
             dueKnowledgeEntries={dueKnowledgeEntries}
             dueMistakes={dueMistakes}
             importDraftCount={knowledgeDrafts.length}
             importJobCount={importJobs.length}
             knowledgeCategorySummaries={knowledgeCategorySummaries}
             knowledgeCorrectRate={knowledgeCorrectRate}
-            lowMistakes={lowMistakes}
+            lowMistakes={lowMistakes} notice={notice}
             obsidianConnected={obsidianSnapshot.connected}
             pendingProposalCount={obsidianSnapshot.pendingProposalCount}
+            onConfigurationHealthAction={openConfigurationHealthAction}
             onOpenAutomation={() => switchView("automation")}
             onOpenBoard={openBoard}
             onOpenImport={() => switchView("import")}

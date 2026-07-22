@@ -4,6 +4,14 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## 工作台无缝交界约定
+
+- 桌面工作区与顶栏、侧栏交接禁止叠加重复结构边框、整宽顶部渐变和圆角局部装饰层；顶部和左侧共边只由 `<main>` 绘制。
+- 顶栏弥散应在底部回到实色，侧栏弥散从顶部渐入，避免不透明 surface 之间形成横线。移动抽屉可保留独立浮层边界。
+- 桌面顶栏、侧栏和工作区零留白相交时，由 `<main>` 独占顶部与左侧 1px 共边，顶栏和侧栏不得重复绘制对应边框；仅保留 18px 左上圆角。工作区共边和圆角禁止使用内外阴影、高光、模糊或边缘渐隐。弥散开启时由带同一圆角的 frame 承载渐变，layout 在圆角外保持实色，`<main>` 不得重复绘制渐变。
+- 工作区隐藏原生滚动条时必须继续保留 `overflow-y: auto` 以及滚轮、触控、键盘和程序化滚动；折叠侧栏和移动端继续取消圆角与抬升效果。
+- 弥散工作区的背景图必须由带 18px 左上圆角的 frame 单层承载；圆角外侧必须是 layout 实色，不得让矩形渐变填充该区域。`<main>` 仅负责共边、圆角和滚动。
+
 ## AI 活动、上下文与自动记忆约定
 
 - AI 活动宿主必须是应用级单例；对话事件不得打开全局浮层，连接测试使用紧凑卡，后台任务只使用单行状态。
@@ -121,6 +129,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 字体与语音约定
 
 - 全局中文 UI 默认使用 `next/font` 自托管的 Noto Sans SC，并通过 `--font-noto-sans-sc` 接入主题字体栈；已知旧内置字体栈应自动迁移，用户手写的自定义字体不得覆盖。
+- 代码、标识符、哈希、Cron 和诊断内容统一使用 `geist@1.7.2` 的 Geist Mono，通过 `--font-geist-mono` 和 `--app-code-font` 接入；内置主题必须共享同一字体栈，局部组件不得硬编码其他等宽字体。
 - 浏览器语音识别仅用于面试和辅导的输入转写；朗读不得调用 `speechSynthesis`、系统音色或任何本机静默回退。
 - 朗读只能使用默认语音连接。缺少连接、Voice ID 或请求失败时必须明确提示并保持静音。
 - 本地部署语音统一走自定义连接的 OpenAI 兼容 `/audio/speech` 协议；自定义连接允许无 API Key，且无 Key 时不得发送空 `Authorization` 请求头。
@@ -130,6 +139,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `ThemeConfig` 只使用 `diffuseGradient`；`translucentSidebar` 仅在导入和 IndexedDB 归一化时作为旧字段读取，导出不得再写旧字段。
 - 八个内置主题（晴空、米白、薄荷、晨雾、深海、暮紫、石墨、夜樱）的对比度均默认为 `0`。迁移时只把仍等于历史预设值的内置主题归零，用户主动修改过的数值必须保留。
 - 顶栏始终使用主题实色背景；侧栏也必须保持不透明，弥散效果只允许用低透明度径向渐变叠加，禁止恢复 `backdrop-filter` 或透明窗口底色。
+- 顶栏弥散必须通过独立 `--chrome-topbar-diffuse` 低强度叠加；工作区共边和圆角不得叠加阴影或边缘渐变。
 - 历史 GitHub Light 统一迁移为可编辑的“晴空”，不得固定侧栏色或禁用弥散；弥散由多组低透明度、非对称的大面积柔和色场组成。
 - 主题菜单保持 Codex 式纯文本结构，只显示主题名和选中勾；调色板使用应用内控件，颜色字段保持圆形色样加 `#RRGGBB` 输入。
 
@@ -249,6 +259,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 普通保存、连接测试、额度轮询和父级 snapshot 更新不得改变当前设置分区；只有“返回应用”后再次进入设置才重置为外观。
 - 设置内容按信息密度采用独立最大宽度，桌面行高 32–36px、粗指针至少 44px；额度与数据管理使用紧凑表格，记忆与危险操作使用可锁定焦点并恢复触发器的应用内弹层。
 
+## 已安排外部知识采集约定
+
+- 行测、申论、面试采集来源默认停用；MCP 只有 `allow_scheduled` 权限可用于无人值守任务，`ask` 与 `allow_session` 必须阻止执行。
+- 搜索工具只返回候选 URL，正文统一经过 `/api/acquisition/fetch` 的 HTTP(S)、精确 origin、DNS 私网、逐跳重定向、10 秒、1 MiB 与内容类型校验。
+- 完整网页、MCP 原始结果、完整提示词和模型原始响应只留当前运行内存；提案只保存生成稿、必要证据摘录、URL、哈希和审计元数据。
+- 整理模型和复核模型不拥有写库权限；缺复核时最高 B 并标记未交叉复核，事实冲突、无证据段落、URL/哈希失效和精确重复必须阻止确认。
+- 批量确认先统一复读 Vault 目标与外部来源，再逐项写入；成功立即 accepted，失败和尚未处理项保持 pending。不得升级 `review_workspace` v16。
+
 ## 依赖维护约定
 
 - 常规依赖维护只集中更新同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本；ESLint、TypeScript、Node 类型等 major 变更必须单独开预研 PR。
@@ -271,3 +289,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 可见消息是跨厂商上下文的唯一事实源；adapter 只能映射用户、助手、附件摘要和可见工具结果，不得迁移隐藏思维链、厂商私有状态、密钥或原始响应。
 - 自动记忆对新用户默认开启，旧用户保持原隐私选择；明确记忆指令可本地处理，其他提取按三轮或空闲 45 秒批量触发，失败不得阻塞对话。
 - 自动生效必须满足高置信、稳定、非敏感且无冲突；秘密直接丢弃，冲突与学习状态进入待处理。记忆和修订各最多 100 条，注入最多 8 条且不超过 1500 字符。
+
+## P0 工作台与公考首页约定
+
+- 空白新对话只展示标题、单一任务提示和底部输入区；仍只在首次发送后创建持久化会话。
+- 所有 `WorkspaceShell` 内容视图默认使用通用 `raised-surface` 外层边界；桌面工作区必须零留白贴合侧栏与顶栏，只保留 18px 左上圆角和 1px 共边，禁止叠加阴影、高光、整宽顶部渐变或圆角局部装饰层，右侧继续贴齐。折叠侧栏和移动端必须取消这些边界并自然铺满。
+- 顶栏不得用全宽底边线重复切割侧栏与工作区，桌面展开侧栏不得保留会从工作区圆角旁露出的全高右边框；对话工作区必须继承壳层 `100%` 高度，不得再次用视口高度减顶栏高度，以免边框盒产生亚像素溢出并破坏左侧圆角贴合。
+- 抬升关系不得依赖露底区域或凹槽渐变；开启弥散时，不透明工作区必须继续叠加主题 `--chrome-window-diffuse`。
+- 外层边界只能管理 surface 几何；页面 padding、滚动、标题、消息、空状态和输入区仍由各视图负责，禁止重新绑定到对话业务类名。
+- 移动侧栏使用不持久化临时抽屉，默认关闭，并具备 `inert`、遮罩、Escape、焦点锁定、焦点恢复和页面滚动锁定；导航后自动关闭。
+- 公考首页只保留一个推荐主操作、七阶段短状态路径和今日三项统计。配置健康、六大板块、知识中枢、面试与辅导默认折叠，状态不得只依赖颜色表达。
+- 推荐操作统一通过 `resolveDashboardNextAction()` 按导入草稿、空题库、到期错题、到期知识、Obsidian 提案、已安排未读、对话辅导排序。

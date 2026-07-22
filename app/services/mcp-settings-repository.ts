@@ -151,6 +151,19 @@ export const mcpSettingsRepository = {
     return response.result;
   },
 
+  /** 无人值守任务在调用前重新校验 Server、发现状态和持久化的定时权限。 */
+  async callScheduledTool(serverId: string, toolName: string, args: Record<string, unknown>): Promise<unknown> {
+    const snapshot = readSnapshot();
+    const profile = snapshot.profiles.find((item) => item.id === serverId);
+    if (!profile?.enabled) throw new Error("MCP Server 未启用，已阻止定时调用");
+    const discovery = snapshot.discovery[serverId];
+    if (discovery?.status !== "ready") throw new Error("MCP Server 尚未通过连接发现");
+    const tool = discovery.toolDescriptors?.find((item) => item.name === toolName);
+    if (!tool) throw new Error("MCP 工具不存在或已从 Server 移除");
+    if (tool.permission !== "allow_scheduled") throw new Error("MCP 工具未获得定时任务授权");
+    return this.callTool(profile, toolName, args);
+  },
+
   setToolPermission(serverId: string, toolName: string, permission: McpToolPermission): void {
     const snapshot = readSnapshot();
     const discovery = snapshot.discovery[serverId];

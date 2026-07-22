@@ -367,6 +367,57 @@ test("merge 提案只替换 AI 演进区并保留用户手写正文", async () =
   }
 });
 
+test("批量确认先预检来源并保留部分失败项，外部 URL 写入 sourceRefs", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const fakeHandle = { name: "测试 Vault" } as unknown as FileSystemDirectoryHandle;
+  await reviewDb.obsidianVaultConfigs.put({ id: "default", vaultName: "测试 Vault", managedRoot: "AI知识库", directoryHandle: fakeHandle, createdAt: today.toISOString(), updatedAt: today.toISOString() });
+  const baseProposal: KnowledgeEvolutionProposal = {
+    id: "batch-1", mode: "create", status: "pending", category: "申论", sourceType: "external",
+    sourceIds: ["https://www.gov.cn/policy"], title: "政策证据", summary: "带来源的摘要",
+    content: "政策事实[^e1]\n\n## 来源与证据\n\n[^e1]: 原文摘录 — [来源](https://www.gov.cn/policy)",
+    tags: ["政策"], proposedLinks: [], reason: "外部采集", confidence: 0.9,
+    provenance: {
+      domain: "shenlun", documents: [{ url: "https://www.gov.cn/policy", title: "政策原文", fetchedAt: today.toISOString(), contentHash: "hash-1", acquisitionMethod: "url" }],
+      evidence: [{ id: "e1", documentId: "doc-1", url: "https://www.gov.cn/policy", quote: "原文摘录", contentHash: "hash-1" }],
+      claimEvidence: [{ claimId: "p1", evidenceIds: ["e1"] }], schemaVersion: "acquisition-proposal-v1", promptVersion: "scheduled-collection-v1",
+      reviewStatus: "agreed", reviewIssues: [], trust: { authority: 25, evidenceCoverage: 25, corroboration: 15, recency: 10, modelAgreement: 15, completeness: 10, total: 100, grade: "A", blockingIssues: [] },
+    },
+    createdAt: today.toISOString(), updatedAt: today.toISOString(),
+  };
+  const second = { ...baseProposal, id: "batch-2", title: "第二条政策证据", sourceIds: ["https://www.gov.cn/policy-2"], provenance: undefined };
+  const blocked = { ...baseProposal, id: "batch-blocked", title: "争议证据", provenance: { ...baseProposal.provenance!, trust: { ...baseProposal.provenance!.trust, blockingIssues: ["整理模型与复核模型存在事实冲突"] } } };
+  await reviewDb.knowledgeEvolutionProposals.bulkPut([baseProposal, second, blocked]);
+
+  const originalPermission = obsidianVaultAdapter.permission;
+  const originalWrite = obsidianVaultAdapter.writeMarkdown;
+  let writeCount = 0;
+  const writes: string[] = [];
+  obsidianVaultAdapter.permission = async () => "granted";
+  obsidianVaultAdapter.writeMarkdown = async (_handle, _root, _path, markdown) => {
+    writeCount += 1;
+    if (writeCount === 2) throw new Error("模拟第二项写入失败");
+    writes.push(markdown);
+  };
+  try {
+    const verified: string[] = [];
+    const result = await obsidianKnowledgeRepository.acceptProposals([baseProposal.id, second.id, blocked.id], { verifySource: async (proposal) => { verified.push(proposal.id); } });
+    assert.deepEqual(result.acceptedIds, [baseProposal.id]);
+    assert.equal(result.failures.length, 2);
+    assert.deepEqual(verified, [baseProposal.id, second.id]);
+    assert.equal((await reviewDb.knowledgeEvolutionProposals.get(baseProposal.id))?.status, "accepted");
+    assert.equal((await reviewDb.knowledgeEvolutionProposals.get(second.id))?.status, "pending");
+    assert.equal((await reviewDb.knowledgeEvolutionProposals.get(blocked.id))?.status, "pending");
+    assert.equal(writes[0].includes("[^e1]"), true);
+    assert.equal(writes[0].includes("https://www.gov.cn/policy"), true);
+    assert.equal((await reviewDb.obsidianNoteMappings.where("knowledgeId").equals(baseProposal.id).first())?.sourceRefs.includes("https://www.gov.cn/policy"), true);
+  } finally {
+    obsidianVaultAdapter.permission = originalPermission;
+    obsidianVaultAdapter.writeMarkdown = originalWrite;
+    await reviewDb.delete();
+  }
+});
+
 test("确认演进提案前复读 Vault 并拒绝过期 hash", async () => {
   await reviewDb.delete();
   await reviewDb.open();

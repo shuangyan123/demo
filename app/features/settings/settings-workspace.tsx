@@ -97,15 +97,16 @@ export function SettingsWorkspace({
 
   return (
     <WorkspaceShell
+      key={activeSection}
       contentClassName="settings-content settings-main-scroll px-8 py-8 max-lg:px-4 max-lg:py-6"
       sidebarCollapsed={sidebarCollapsed}
-      sidebarClassName="flex flex-col overflow-y-auto px-3 py-4 text-settings-sidebar-text max-lg:overflow-visible"
+      sidebarClassName="flex flex-col overflow-y-auto px-3 py-4 text-settings-sidebar-text"
       title="设置"
       onBack={onBack}
       onToggleSidebar={onToggleSidebar}
       sidebar={
         <>
-          <button className="mb-3 grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm text-muted hover:bg-chrome-hover max-lg:min-h-11" type="button" onClick={onBack}>
+          <button data-mobile-sidebar-close="true" className="mb-3 grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm text-muted hover:bg-chrome-hover max-lg:min-h-11" type="button" onClick={onBack}>
             <SettingsNavIcon name="back" />
             <span>返回应用</span>
           </button>

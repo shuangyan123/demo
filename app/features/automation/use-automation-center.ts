@@ -4,14 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { automationRepository, type AutomationDefinitionInput } from "../../services/automation-repository";
 import { previewAutomationDefinition, trialAutomationDefinition } from "../../services/automation-executor";
 import { classifyAutomationError } from "../../services/automation-failure";
+import { previewCollectionConfig } from "../../services/acquisition-source-service";
 import type {
   ApiConnectionProfile,
+  AiConnectionSnapshot,
   AutomationContextSummary,
   AutomationDefinition,
   AutomationFailureCategory,
   AutomationRecoveryAction,
   AutomationRun,
   AutomationSnapshot,
+  AcquisitionRunSummary,
   PersonalizationSettings,
 } from "../../types/review";
 
@@ -20,6 +23,7 @@ const EMPTY_SNAPSHOT: AutomationSnapshot = { definitions: [], runs: [], unreadCo
 export type AutomationPreviewResult = {
   summary: AutomationContextSummary[];
   contextCharCount: number;
+  collection?: { sourceLabels: string[]; allowedOrigins: string[]; estimatedDocuments: number };
 };
 
 export type AutomationTrialResult = {
@@ -31,6 +35,7 @@ export type AutomationTrialResult = {
   contextCharCount: number;
   failureCategory?: AutomationFailureCategory;
   failureRecoveryAction?: AutomationRecoveryAction;
+  collectionSummary?: AcquisitionRunSummary;
 };
 
 /** 浏览器支持 Web Locks 时只允许当前标签页立即获得的任务进入 repository。 */
@@ -59,6 +64,7 @@ function draftToTrialDefinition(input: AutomationDefinitionInput): AutomationDef
     name: input.name.trim() || "试运行已安排任务",
     prompt: input.prompt.trim(),
     sourceScopes: [...input.sourceScopes],
+    collectionConfig: input.collectionConfig ? structuredClone(input.collectionConfig) : undefined,
     schedule: { ...input.schedule },
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -68,11 +74,13 @@ function draftToTrialDefinition(input: AutomationDefinitionInput): AutomationDef
 /** 已安排 hook 只维护可序列化快照，调度、租约和执行均委托给服务层。 */
 export function useAutomationCenter({
   connection,
+  aiSnapshot,
   personalization,
   onChanged,
   onNotice,
 }: {
   connection?: ApiConnectionProfile;
+  aiSnapshot: AiConnectionSnapshot;
   personalization: PersonalizationSettings;
   onChanged: () => Promise<void>;
   onNotice: (message: string) => void;
@@ -91,6 +99,7 @@ export function useAutomationCenter({
       const run = await withBrowserLock(`review-automation:${definitionId}`, () => automationRepository.run({
         definition,
         connection,
+        aiSnapshot,
         personalization,
         trigger: scheduled ? scheduled.missedCount > 0 ? "catchup" : "scheduled" : "manual",
         scheduledAt: scheduled?.scheduledAt,
@@ -108,7 +117,7 @@ export function useAutomationCenter({
     } finally {
       setBusyIds((current) => current.filter((id) => id !== definitionId));
     }
-  }, [connection, onChanged, onNotice, personalization, refresh]);
+  }, [aiSnapshot, connection, onChanged, onNotice, personalization, refresh]);
 
   const processDue = useCallback(async () => {
     if (schedulerRunning.current || document.visibilityState === "hidden" || !navigator.onLine) return;
@@ -149,7 +158,8 @@ export function useAutomationCenter({
   }, [onNotice, refresh]);
 
   const preview = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationPreviewResult> => {
-    return previewAutomationDefinition(input);
+    const result = await previewAutomationDefinition(input);
+    return { ...result, collection: input.collectionConfig ? previewCollectionConfig(input.collectionConfig) : undefined };
   }, []);
 
   const trialRun = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationTrialResult> => {
@@ -158,6 +168,7 @@ export function useAutomationCenter({
       const output = await trialAutomationDefinition({
         definition: draftToTrialDefinition(input),
         connection,
+        aiSnapshot,
         personalization,
       });
       return {
@@ -166,6 +177,7 @@ export function useAutomationCenter({
         proposalCount: output.proposalIds.length,
         contextSummary: output.contextSummary,
         contextCharCount: output.contextCharCount,
+        collectionSummary: output.collectionSummary,
       };
     } catch (error) {
       const diagnosis = classifyAutomationError(error, { online: navigator.onLine });
@@ -179,7 +191,7 @@ export function useAutomationCenter({
         failureRecoveryAction: diagnosis.recoveryAction,
       };
     }
-  }, [connection, personalization]);
+  }, [aiSnapshot, connection, personalization]);
 
   const remove = useCallback(async (id: string) => {
     await automationRepository.remove(id);
@@ -215,9 +227,9 @@ export function useAutomationCenter({
   }, [onNotice]);
 
   return useMemo(() => ({
-    busyIds, duplicate, markAllRead, markRead, processDue, refresh, remove, requestNotifications,
+    aiSnapshot, busyIds, duplicate, markAllRead, markRead, processDue, refresh, remove, requestNotifications,
     preview, runNow: runDefinition, save, snapshot, toggle, trialRun,
-  }), [busyIds, duplicate, markAllRead, markRead, preview, processDue, refresh, remove, requestNotifications, runDefinition, save, snapshot, toggle, trialRun]);
+  }), [aiSnapshot, busyIds, duplicate, markAllRead, markRead, preview, processDue, refresh, remove, requestNotifications, runDefinition, save, snapshot, toggle, trialRun]);
 }
 
 /** 自动化子组件共享的 hook 返回类型。 */

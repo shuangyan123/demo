@@ -22,6 +22,14 @@ async function expectCompactTrailingSpace(picker: Locator): Promise<void> {
   expect(trailing).toBeLessThanOrEqual(16.5);
 }
 
+/** 从移动抽屉点击工作台入口，导航完成后抽屉应自动关闭。 */
+async function selectMobileWorkspaceEntry(page: Page, name: string | RegExp): Promise<void> {
+  await page.getByRole("button", { name: "展开侧边栏" }).click();
+  const drawer = page.getByRole("dialog", { name: "应用导航" });
+  await drawer.getByRole("button", { name, exact: typeof name === "string" }).click();
+  await expect(drawer).toBeHidden();
+}
+
 test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与 composer 均可用", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -32,7 +40,7 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
     { id: "mobile-glm-chat", title: "移动 GLM 菜单", connectionId: "mobile-glm", modelId: "glm-5.2", runtime: { reasoning: "max" } },
   ]);
   await page.reload();
-  await page.locator('[data-conversation-id="mobile-glm-chat"] .conversation-tree-chat-label').click();
+  await selectMobileWorkspaceEntry(page, "移动 GLM 菜单");
   await page.locator('[data-conversation-composer] input[type="file"]').setInputFiles(
     Array.from({ length: 6 }, (_, index) => ({
       name: `移动端多行附件-${index + 1}-用于验证动态浮层定位.txt`,
@@ -88,12 +96,11 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-mobile-two-levels.png"), fullPage: false });
 
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "设置" }).first().click();
-  await page.getByRole("button", { name: "外观" }).click();
+  await selectMobileWorkspaceEntry(page, "设置");
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("button", { name: "返回应用" }).click();
-  await page.locator('[data-conversation-id="mobile-glm-chat"] .conversation-tree-chat-label').click();
+  await selectMobileWorkspaceEntry(page, "返回应用");
+  await selectMobileWorkspaceEntry(page, "移动 GLM 菜单");
   await trigger.click();
   await picker.getByRole("button", { name: "GLM / 智谱" }).click();
   await picker.getByRole("radio", { name: /^glm-5\.2/ }).locator("xpath=..").click();

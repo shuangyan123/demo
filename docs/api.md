@@ -1,5 +1,10 @@
 # API 约定
 
+## 主题字体与壳层视觉修复（2026-07-18）
+
+- 本次只调整本地字体资产、主题 CSS 变量和工作台装饰层，不新增或修改服务端 API、请求字段、响应字段及 SSE 事件。
+- IndexedDB 继续使用 `review_workspace` v16；外观设置结构不变，已有自定义 `codeFont` 字符串继续兼容。
+
 ## ProviderTransport 与本地扩展契约（2026-07-16）
 
 - `POST /api/ai/generate` 的客户端请求、响应和 SSE 事件保持不变。服务端新增 `ProviderTransport.generate()`、`stream()` 和 `listModels()`；adapter 继续负责厂商字段映射与输出归一化。
@@ -192,6 +197,20 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 “已安排”不新增服务端 Route，底层仍复用本地 automation 仓储。每日简报、每周总结和自定义任务通过 `generateWithConnection(connection, "text", input)` 调用默认文本连接；缺少连接时只写入失败运行记录。已安排上下文按用户选择的范围在本地临时组装，不包含密钥、目录句柄或未授权模块数据。
 
 知识演进已安排任务复用既有提案 JSON 契约，只把提案保存为 `pending`。来源表按勾选范围读取；未勾选知识库时不得读取或发送候选知识条目，此时模型只能生成新增提案。用户确认前不得更新知识条目、映射或 Vault 文件。
+## 外部知识安全抓取
+
+`POST /api/acquisition/fetch` 接受：
+
+```json
+{ "url": "https://example.com/article", "allowedOrigins": ["https://example.com"] }
+```
+
+- 只允许 HTTP(S)，并对初始 URL 与最多 3 次重定向逐次校验精确 origin。
+- DNS 解析到环回、私网、链路本地、CGNAT、保留地址或 IPv4 映射 IPv6 时拒绝请求。
+- 超时 10 秒，响应上限 1 MiB，仅接受 HTML、XHTML、RSS、Atom 与 XML。
+- 返回标准化的 `title/publisher/publishedAt/text/excerpt/contentHash/discoveredUrls`；RSS/Atom 最多返回 20 个候选 URL。
+- MCP 搜索结果不能直接成为提案证据，只用于发现候选 URL；候选仍须通过该端点和任务白名单抓取。
+
 # 对话转写接口
 
 `POST /api/ai/transcribe` 只接受 Google Gemini 连接的 `model`、`baseUrl`、临时 `audioBase64` 与 `mimeType`，返回归一化 `{ text, requestId? }`。音频不会被服务端或 IndexedDB 持久化；429/503 统一为可切换模型的容量提示。
@@ -214,3 +233,15 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 - 未保存连接由连接级客户端将表单草稿临时映射到 `/api/ai/models` 与 `/api/ai/generate`，业务组件不得直接拼装厂商请求，也不得把模型写回 `ApiConnectionProfile`。
 - 完整连接测试必须先选择具体模型，再发送一次极小真实生成请求；该请求可能产生少量用量，成功只更新连接测试状态，不自动改写默认文本、多模态、语音或实时能力。
 - 会话请求的 `providerOptions.serviceTier = "priority"` 仅在目录声明支持时映射：OpenAI 使用 `service_tier`，Gemini GenerateContent 使用顶层 `serviceTier`；标准档不发送字段。MiniMax 按具体模型 descriptor 发送官方运行字段。
+
+# P0 工作台与公考首页（2026-07-17）
+
+本次 UI/UX 调整不新增或修改服务端 Route、请求体、响应体、AI 协议及 IndexedDB schema。推荐下一步、七阶段短状态和配置健康摘要均由浏览器内已有快照纯计算得到。
+
+通用 `WorkspaceShell` 外层边界、零留白交接、顶栏横线移除、对话圆角贴合与七阶段 SVG 几何修复均只属于客户端展示调整，不新增网络接口、持久化字段或迁移。
+
+2026-07-18 的顶栏、侧栏与工作区无缝交接修复同样仅调整共享壳层 CSS；服务端 Route、请求体、响应体、AI 协议和 IndexedDB v16 均无变化。
+
+后续主区顶部/左侧共边、无阴影圆角与滚动条隐藏仍属于纯展示层修改，不新增任何公共接口或持久化字段。
+
+工作区弥散背景改由带 18px 圆角的 frame 单层承载，layout 保持实色且 `<main>` 保持透明；该圆角伪影修复只调整 CSS 绘制职责，不改变主题配置结构或持久化协议。

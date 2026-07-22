@@ -1,5 +1,19 @@
 # 应用架构
 
+## 主题字体与工作台弥散边界（2026-07-18）
+
+- `theme-fonts.ts` 是内置 UI 与代码字体栈的共享边界；Geist Mono 由根布局通过 `next/font` 注入，主题预设和持久化归一化不再各自维护字体顺序。
+- 已发布的内置代码字体栈在 repository 边界迁移到 Geist Mono，用户手写字体继续原样保留；`--app-code-font` 仍是组件唯一消费入口。
+- 顶栏保持不透明主题底色，并通过独立 `--chrome-topbar-diffuse` 承接低强度弥散色场；关闭弥散时变量为 `none`。
+- `raised-surface` 不再绘制顶部、左侧或圆角阴影；层级只由 `<main>` 的 1px 共边和 18px 左上圆角表达。
+
+## P0 工作台与公考首页展示边界（2026-07-17）
+
+- `WorkspaceShell` 继续统一桌面持久化侧栏状态；移动端使用不持久化的临时抽屉状态，并负责焦点锁定、Escape、遮罩关闭、滚动锁定和触发器焦点恢复。
+- `ConversationEmptyState` 与 `DashboardStudyFlow` 是独立展示组件；`ConversationWorkspace` 保持在 500 行预算内，既有 controller、repository 和首次发送后才持久化的流程不变。
+- `DashboardView` 只接收结构化配置健康、日期状态和操作回调。`resolveDashboardNextAction()` 是唯一推荐动作排序边界，七阶段路径状态继续来自已有本地快照。
+- 公考首页默认只展开推荐动作、学习路径与三项统计；板块、知识和辅导详情保留在三个原生 disclosure。未新增静态重型依赖、数据库迁移或网络请求。
+
 ## AI 活动、跨厂商上下文与记忆 v2（2026-07-15）
 
 - `AiInteractionPanel` 现在是 `app/page.tsx` 下唯一的应用级活动宿主。`conversation` 事件只写入消息流内的工具摘要；`compact-test` 使用 352px 测试卡；`background` 只渲染一行可关闭状态。设置页和工作台不再各自订阅活动事件。
@@ -162,6 +176,26 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - Dexie 当前版本保持 v16；`review-db-migrations.ts` 承载幂等迁移函数，不为前端切片新增索引。
 - AI route 使用共享 HTTP 错误边界，只返回归一化数据或脱敏错误，不透传厂商原始响应。
 
+## 已安排外部知识采集（2026-07-21）
+
+```text
+本地调度 / 补跑 / Web Lock + IndexedDB 租约
+  -> 白名单 URL、RSS/Atom 或已获 allow_scheduled 的 MCP 搜索
+  -> /api/acquisition/fetch（协议、origin、DNS、重定向、类型、超时、1MB）
+  -> HTML/XML 标准化与 URL/内容哈希去重
+  -> 模型 A 整理 -> 模型 B 独立复核
+  -> 固定 100 分可信度与阻断规则
+  -> knowledgeEvolutionProposals.pending
+  -> 来源哈希 + Vault 目标统一预检
+  -> 逐项写入并即时标记 accepted
+```
+
+- `app/server/acquisition` 只负责服务端网络边界和 Cheerio 解析；`app/services/acquisition-*` 负责浏览器内来源发现、运行期文档、模型整理、复核和评分，UI 不直接访问外网。
+- `AutomationDefinition.collectionConfig` 只保存领域、查询、来源、origin 白名单和 `{connectionId, modelId, selectedRuntimeValues}`；密钥继续只存在连接仓储。旧任务缺少该字段时沿用原执行链。
+- 完整网页、MCP 原始结果、完整提示词和模型原始响应只存在当前运行内存。提案只保存生成稿、360 字以内的必要证据摘录、URL、内容哈希、模型/版本和评分审计。
+- 可信度权重固定为 25/25/15/10/15/10。缺复核模型时最高 B；URL 不可验证、无证据段落、来源哈希变化、精确重复或模型事实冲突会阻止确认。
+- 批量确认不承诺文件系统事务回滚：预检完成后顺序写入，成功项立即 accepted；失败和尚未处理项保持 pending。Dexie 继续使用 `review_workspace` v16，不新增索引。
+
 ## 扩展点
 
 - 新学习专项注册 `StudyDomainDefinition`，不得在 shell 中新增专项分支。
@@ -232,3 +266,16 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 连接档案只保存厂商、鉴权、 endpoint 与能力。模型发现和真实测试通过连接级 AI 客户端完成，测试模型只保存在本地界面偏好中，必须由用户显式设为默认能力模型。
 - `AiModelRuntimeDescriptor` 位于 `types/domains/ai-model.ts`，由具体模型 ID 声明推理、速度、默认值、文档和核验日期。OpenAI/Gemini/xAI Priority、Claude Fast、MiniMax 配对高速模型分别映射，其他模型不得伪造统一速度档。
 - 明确核验的 `glm-5.2` 保留 `max/xhigh/high/medium/low/minimal/none` 七档，默认 `max`，请求同时发送 `thinking.type=enabled` 与原样 `reasoning_effort`；核验清单内的 GLM-4.5 至 5.1 只发送开关。未来或带自定义后缀的模型在 descriptor 登记前保持未知，不按版本字符串推断。
+
+# 通用工作台外层边界（2026-07-17）
+
+- `WorkspaceShell` 在语义 `<main>` 外统一提供 `chrome-content-frame`；默认 `raised-surface`，显式 `plain` 只供未来确需无边界的宿主使用。
+- 主应用、学习模块、对话和独立设置工作台消费同一外层边界。壳层只管理收进、圆角、边线、阴影与贴边关系，内容 padding、滚动和业务布局仍由各视图负责。
+- 桌面侧栏展开时工作区零留白贴合侧栏与顶栏；由语义 `<main>` 独占顶部和左侧 1px 共边，顶栏与侧栏不重复绘制对应边框。工作区仅保留 18px 左上圆角，不再叠加内外阴影、高光或边缘渐隐。对话工作区继承壳层 100% 可用高度，避免重复视口计算越过圆角；侧栏折叠及移动端继续铺平。
+
+## 工作台无缝抬升面（2026-07-18）
+
+- 桌面侧栏、顶栏和工作区共用同一几何接缝；工作区保持零留白和 18px 左上圆角，顶部、左侧 1px 边线只由 `<main>` 绘制。边界采用无阴影方案，禁止在共边或圆角添加内外阴影、高光、模糊或渐隐。
+- 顶栏弥散在底部 12px 回到实色，侧栏弥散从顶部 12px 渐入，使两块不透明 surface 的接缝保持连续。移动抽屉仍可使用独立右边界，折叠侧栏与移动工作区继续铺满。
+- `<main>` 继续负责纵向滚动，但隐藏原生滚动条；鼠标滚轮、触控、键盘与程序化滚动保持可用，设置侧栏和页面内部独立滚动容器不受影响。
+- 弥散开启时，`chrome-content-frame` 是工作区唯一的弥散底图承载层，并与 `<main>` 共享 18px 左上圆角；`.chrome-layout` 保持实色，让圆角外侧属于顶栏/侧栏交界。`<main>` 仅绘制共边和圆角并保持透明。
