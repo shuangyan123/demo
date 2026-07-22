@@ -279,3 +279,10 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 顶栏弥散在底部 12px 回到实色，侧栏弥散从顶部 12px 渐入，使两块不透明 surface 的接缝保持连续。移动抽屉仍可使用独立右边界，折叠侧栏与移动工作区继续铺满。
 - `<main>` 继续负责纵向滚动，但隐藏原生滚动条；鼠标滚轮、触控、键盘与程序化滚动保持可用，设置侧栏和页面内部独立滚动容器不受影响。
 - 弥散开启时，`chrome-content-frame` 是工作区唯一的弥散底图承载层，并与 `<main>` 共享 18px 左上圆角；`.chrome-layout` 保持实色，让圆角外侧属于顶栏/侧栏交界。`<main>` 仅绘制共边和圆角并保持透明。
+
+## P1 学习列表展示边界（2026-07-23）
+
+- 错题、知识列表继续消费现有 repository、筛选器、`useBulkSelection` 和渐进显示控制器；展示层不得复制查询、导出或删除状态。
+- 桌面统一使用无阴影的主从布局；移动端详情状态只保存在当前组件内，顶栏下方全屏展示，不写入 IndexedDB。
+- 知识库拆为 `knowledge-library-list`、`knowledge-entry-editor` 与 `knowledge-starter-controls`，Obsidian 和内化控制器仍由 `KnowledgeView` 编排并保持按需加载。
+- `ReviewWorkspace` 的低频动态加载、首屏包体边界、Dexie v16 与 Vault 句柄 repository 边界保持不变。

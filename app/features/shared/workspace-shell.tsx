@@ -228,7 +228,7 @@ export function SidebarNav<T extends string>({
 // 渲染工作台内容区标题、状态提示和右侧操作，统一主应用各视图顶部布局。
 export function ViewHeader({ actions, eyebrow, title }: { actions?: ReactNode; eyebrow: string; title: string }) {
   return (
-    <header className="mb-5 flex items-center justify-between gap-4 max-sm:flex-col max-sm:items-stretch">
+    <header className="workspace-view-header mb-5 flex items-center justify-between gap-4 max-sm:flex-col max-sm:items-stretch">
       <div>
         <p className="mb-1 text-xs font-medium text-muted" role="status">{eyebrow}</p>
         <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
