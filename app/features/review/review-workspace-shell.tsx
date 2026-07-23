@@ -209,7 +209,7 @@ export function ReviewWorkspaceShell({
         </>
       }
     >
-      {view !== "conversation" && view !== "dashboard" ? (
+      {view !== "conversation" && view !== "dashboard" && view !== "automation" ? (
         <ViewHeader
           actions={
             <>

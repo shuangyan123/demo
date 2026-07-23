@@ -175,11 +175,6 @@ body[data-theme="dark"] .color-picker:focus-within {
   box-shadow: none;
 }
 
-/* 设置页代码预览统一使用外观配置里的代码字号，避免 JSX 中散落任意值 class。 */
-.settings-code-preview {
-  font-size: var(--app-code-font-size);
-}
-
 .contrast-slider:focus,
 .contrast-slider:focus-visible {
   box-shadow: none;
