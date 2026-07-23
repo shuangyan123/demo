@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-23 · 0.2.0 企业级升级闭环
+
+- 版本升级至 `0.2.0`，发布分支汇总治理、安全、可靠性、性能、无障碍与架构收口阶段。
+- 发布门禁固定为 typecheck、lint、contracts、生产构建、包体预算、生产依赖审计与桌面/移动端 Playwright；真实 Vault 与真实模型凭据继续只做脱敏人工验收。
+- 保持本机单用户、local-first、`review_workspace` v16、Provider 协议、Obsidian 同步与自动记忆边界不变。
+
 ## 2026-07-23 · P0 依赖与本机 API 安全
 
 - Next/React、Tailwind、Google SDK、Cheerio、Cron、Lucide、ws 与 Node 22 类型更新到同主版本补丁；修复生产依赖中的全部 high/critical 公告。

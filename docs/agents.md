@@ -337,6 +337,7 @@
 # 2026-07-23 · P0 本机 API 安全闭环
 
 - Route Handler 必须通过 `server/http/route-security.ts` 读取有界 JSON、校验浏览器 Origin 并返回结构化脱敏错误；不得重新直接调用 `request.json()`。
+- Next 生产服务器可能把内部 Request URL 规范化为 `localhost`；同源校验应以浏览器 Origin 与实际 Host 共同判断 loopback 入口，不能把 `127.0.0.1` mock 请求误判为跨来源。
 - API 错误固定为 `{ code, message, requestId, retryable }`，SSE 可选携带同字段；成功 JSON、二进制和 SSE 都应返回 `X-Request-Id`。
 - 外联地址禁止 URL 内嵌凭据；Provider/MCP/采集仍需执行各自更严格的协议、主机、DNS 和重定向检查。
 - 生产 audit 的 high/critical 为硬门禁。Next 16.2.11 内置 PostCSS moderate 例外到 2026-08-23，禁止通过 Next 9 降级或 `audit fix --force` 处理。

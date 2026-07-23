@@ -209,7 +209,14 @@
 
 # 0.2.0 升级闭环 Smoke
 
-1. 运行 `typecheck`、`lint`、209 个 contracts、生产 build、bundle 5% 门禁与桌面/移动 axe；确认业务源码兼容类型引用为 0，核心 facade 均小于 500 行。
+1. 运行 `typecheck`、`lint`、210 个 contracts、生产 build、bundle 5% 门禁与桌面/移动 axe；确认业务源码兼容类型引用为 0，核心 facade 均小于 500 行。
 2. 使用本地 mock 验证 AI 连接、对话流、模型切换、SSE、拖拽、MCP discover/call、粉笔导入、已安排成功/失败与根错误恢复。
 3. 在 1536×1024、390×844、浅色/深色、键盘、200% 缩放和减少动态效果下检查控制台、框架错误、焦点恢复、横向溢出和 serious/critical axe。
 4. 真实 Vault 与真实模型凭据只做人工本机 smoke；仅登记脱敏环境、成功/失败和失败类别，不保存正文、额度、密钥或原始响应。
+
+## 2026-07-23 自动验收记录
+
+- 通过：typecheck、lint、210 contracts、Next 16.2.11 生产构建、5% 包体预算、生产 audit 的 0 high/critical。
+- 通过：51 项 Playwright 桌面/390×844 回归，包含 AI、对话、真实指针拖拽、MCP/粉笔 mock、已安排、浅深色与双端 axe。
+- 通过：应用内浏览器总览、动态设置与诊断页 smoke；控制台 0 error，诊断页正确显示版本 `0.2.0`。
+- 未执行：真实 Obsidian Vault、真实模型与额度凭据；等待人工提供临时 Vault/凭据环境后按本清单登记脱敏结果。

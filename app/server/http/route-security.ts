@@ -38,13 +38,22 @@ export function createRequestId(): string {
 export function assertSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
   if (!origin) return;
-  let expected: string;
+  let source: URL;
+  let target: URL;
   try {
-    expected = new URL(request.url).origin;
+    source = new URL(origin);
+    target = new URL(request.url);
   } catch {
     throw new RouteSecurityError("invalid_request_url", "请求地址无效", 400);
   }
-  if (origin !== expected) throw new RouteSecurityError("cross_origin_request", "拒绝跨来源请求", 403);
+  if (source.origin === target.origin) return;
+
+  // Next 生产服务器可能把内部 Request URL 规范化为 localhost；浏览器 Host 头才代表实际访问入口。
+  const requestHost = request.headers.get("host")?.trim().toLowerCase();
+  const sourceHost = source.host.toLowerCase();
+  if (requestHost && sourceHost === requestHost && source.protocol === target.protocol) return;
+
+  throw new RouteSecurityError("cross_origin_request", "拒绝跨来源请求", 403);
 }
 
 /** 读取有界 JSON，避免在解析前把超大请求体完整载入内存。 */
