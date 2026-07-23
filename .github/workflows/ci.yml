@@ -43,8 +43,6 @@ jobs:
     name: Production Dependency Audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # P0 安全提交会移除此临时容错；基线 PR 先产出真实审计结果。
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v5

@@ -1,6 +1,14 @@
-import { NextResponse } from "next/server";
 import type { AiTranscriptionRequest } from "../../../services/api-client";
 import { buildTranscriptionProviderRequest, parseTranscriptionProviderResponse } from "../../../server/ai/provider-adapter.ts";
+import {
+  RouteSecurityError,
+  apiErrorResponse,
+  apiJsonResponse,
+  readRouteJson,
+  validateOutboundHttpUrl,
+} from "../../../server/http/route-security.ts";
+
+const MAX_TRANSCRIPTION_REQUEST_BYTES = 17 * 1024 * 1024;
 
 function isTranscriptionRequest(value: unknown): value is AiTranscriptionRequest {
   if (!value || typeof value !== "object") return false;
@@ -18,8 +26,14 @@ function isTranscriptionRequest(value: unknown): value is AiTranscriptionRequest
 /** 将临时浏览器录音转交 Gemini；不记录音频、提示词或厂商原始响应。 */
 export async function POST(request: Request) {
   try {
-    const body: unknown = await request.json();
-    if (!isTranscriptionRequest(body)) return new NextResponse("缺少有效的 Google Gemini 转写请求", { status: 400 });
+    const body = await readRouteJson(request, MAX_TRANSCRIPTION_REQUEST_BYTES);
+    if (!isTranscriptionRequest(body)) {
+      return apiErrorResponse(
+        new RouteSecurityError("invalid_transcription_request", "缺少有效的 Google Gemini 转写请求", 400),
+        { code: "invalid_transcription_request", message: "转写请求无效", status: 400 },
+      );
+    }
+    validateOutboundHttpUrl(body.baseUrl);
     const providerRequest = buildTranscriptionProviderRequest(body);
     const response = await fetch(providerRequest.url, {
       method: "POST",
@@ -27,9 +41,19 @@ export async function POST(request: Request) {
       body: JSON.stringify(providerRequest.body),
       cache: "no-store",
     });
-    if (!response.ok) return new NextResponse((await response.text()) || "Gemini 转写请求失败", { status: response.status });
-    return NextResponse.json(parseTranscriptionProviderResponse(await response.json(), response.headers));
+    if (!response.ok) {
+      return apiErrorResponse(
+        new RouteSecurityError("transcription_provider_failed", "Gemini 转写请求失败", response.status, response.status >= 429),
+        { code: "transcription_provider_failed", message: "Gemini 转写请求失败", status: response.status },
+      );
+    }
+    return apiJsonResponse(parseTranscriptionProviderResponse(await response.json(), response.headers));
   } catch (error) {
-    return new NextResponse(error instanceof Error ? error.message : "录音转写失败", { status: 500 });
+    return apiErrorResponse(error, {
+      code: "transcription_failed",
+      message: "录音转写失败",
+      status: 500,
+      retryable: true,
+    });
   }
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-23 · P0 依赖与本机 API 安全
+
+- Next/React、Tailwind、Google SDK、Cheerio、Cron、Lucide、ws 与 Node 22 类型更新到同主版本补丁；修复生产依赖中的全部 high/critical 公告。
+- 通过受测 override 修复 MCP Hono server、Sharp、brace-expansion、fast-uri 与 ESLint 内置 js-yaml；Next 内置 PostCSS 的两项 moderate 以构建期不可达证据限时登记。
+- 新增共享 Route 安全层，覆盖跨 Origin、请求体预算、外联 URL、请求 ID、结构化错误和敏感文本脱敏；客户端兼容旧错误格式。
+- 增加 CSP、frame、MIME、Referrer、Permissions Policy 与 no-store 响应策略，不改变现有 Provider、MCP、粉笔、采集和 Dexie v16 业务契约。
+
 ## 2026-07-23 · 0.2.0 升级治理基线
 
 - 以 P3 架构收口版本建立 `develop` 集成基线，后续安全、可靠性、性能和架构升级使用独立回滚边界。

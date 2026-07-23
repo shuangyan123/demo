@@ -1,7 +1,12 @@
-import { NextResponse } from "next/server";
 import { getQuotaProviderAdapter, serializeQuotaError } from "../../../server/ai/quota-adapters";
 import type { AiQuotaAction, AiQuotaCredentialKey } from "../../../types/domains/ai-quota";
 import type { ApiProvider } from "../../../types/domains/ai-provider";
+import {
+  RouteSecurityError,
+  apiErrorResponse,
+  apiJsonResponse,
+  readRouteJson,
+} from "../../../server/http/route-security.ts";
 
 type QuotaRequest = {
   action?: AiQuotaAction;
@@ -18,21 +23,32 @@ type QuotaRequest = {
  */
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as QuotaRequest;
+    const body = await readRouteJson<QuotaRequest>(request);
     if (!body.provider || body.provider === "manual") {
-      return NextResponse.json({ error: "unsupported_account", message: "该厂商仅支持控制台或手动记录" }, { status: 400 });
+      return apiErrorResponse(
+        new RouteSecurityError("unsupported_account", "该厂商仅支持控制台或手动记录", 400),
+        { code: "unsupported_account", message: "该厂商仅支持控制台或手动记录", status: 400 },
+      );
     }
     const adapter = getQuotaProviderAdapter(body.provider);
     if (!adapter) {
-      return NextResponse.json({ error: "unsupported_account", message: "该厂商暂无稳定官方额度 API" }, { status: 400 });
+      return apiErrorResponse(
+        new RouteSecurityError("unsupported_account", "该厂商暂无稳定官方额度 API", 400),
+        { code: "unsupported_account", message: "该厂商暂无稳定官方额度 API", status: 400 },
+      );
     }
     const credentials = { ...(body.credentials ?? {}) };
     if (body.apiKey && body.provider === "openai" && !credentials.adminKey) credentials.adminKey = body.apiKey;
     const input = { provider: body.provider, credentials, period: body.period, monthlyBudget: body.monthlyBudget, signal: request.signal };
     const result = body.action === "validate" ? await adapter.validate(input) : await adapter.refresh(input);
-    return NextResponse.json(result);
+    return apiJsonResponse(result);
   } catch (error) {
     const serialized = serializeQuotaError(error);
-    return NextResponse.json({ error: serialized.code, message: serialized.message }, { status: serialized.status });
+    return apiErrorResponse(error, {
+      code: serialized.code,
+      message: serialized.message,
+      status: serialized.status,
+      retryable: serialized.status === 429 || serialized.status >= 500,
+    });
   }
 }

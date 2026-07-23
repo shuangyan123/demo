@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import ts from "typescript";
 import "../review/learning-insight-model.contract.test.ts";
+import "../../server/http/route-security.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 

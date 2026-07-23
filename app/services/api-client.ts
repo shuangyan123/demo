@@ -2,6 +2,7 @@ import type { AiGenerationProtocol, AiSelectedRuntimeValues } from "../types/dom
 import type { ApiProvider } from "../types/domains/ai-provider";
 import type { AiCapability, AiConnectionPurpose } from "../types/review";
 import { emitAiActivity } from "./ai-activity-events.ts";
+import { readApiErrorMessage } from "./api-error.ts";
 
 export type ChatMessageContent =
   | string
@@ -60,7 +61,7 @@ export type AiGenerateStreamEvent =
   | { type: "delta"; text: string }
   | { type: "usage"; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
   | { type: "done"; content: string; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; code?: string; requestId?: string; retryable?: boolean };
 
 export type AiSpeechRequest = {
   provider: ApiProvider;
@@ -153,7 +154,7 @@ export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenera
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const text = await response.text();
+    const text = await readApiErrorMessage(response, `API 请求失败：${response.status}`);
     emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
     throw new Error(text || `API 请求失败：${response.status}`);
   }
@@ -186,7 +187,7 @@ export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGene
     body: JSON.stringify({ ...input, stream: true }),
   });
   if (!response.ok || !response.body) {
-    const text = await response.text();
+    const text = await readApiErrorMessage(response, `API 请求失败：${response.status}`);
     emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
     throw new Error(text || `API 请求失败：${response.status}`);
   }
@@ -225,7 +226,7 @@ export async function callAiSpeech(input: AiSpeechRequest): Promise<Blob> {
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const text = await response.text();
+    const text = await readApiErrorMessage(response, `语音 API 请求失败：${response.status}`);
     throw new Error(text || `语音 API 请求失败：${response.status}`);
   }
   return response.blob();
@@ -239,7 +240,7 @@ export async function callAiTranscription(input: AiTranscriptionRequest): Promis
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const text = await response.text();
+    const text = await readApiErrorMessage(response, `转写 API 请求失败：${response.status}`);
     throw new Error(text || `转写 API 请求失败：${response.status}`);
   }
   return response.json() as Promise<AiTranscriptionResult>;
@@ -252,6 +253,6 @@ export async function callAiModels(input: AiModelsRequest): Promise<AiModelsResu
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  if (!response.ok) throw new Error((await response.text()) || `模型目录读取失败：${response.status}`);
+  if (!response.ok) throw new Error(await readApiErrorMessage(response, `模型目录读取失败：${response.status}`));
   return response.json() as Promise<AiModelsResult>;
 }

@@ -334,6 +334,13 @@
 - 低频视图的 `next/dynamic` 必须保留在模块顶层并使用显式 import 路径；加载占位不得读取业务数据。
 - 预算采用硬性契约：根组件 150 行、顶层 controller/router 300 行、领域 controller 和任何 React component 500 行；同时扫描循环依赖、旧 `stats` 路由和 Dexie v16。
 - 纯架构重构仍必须跑完整 E2E 与双端视觉回归；不能用类型与单元契约代替真实交互、控制台和横向溢出检查。
+# 2026-07-23 · P0 本机 API 安全闭环
+
+- Route Handler 必须通过 `server/http/route-security.ts` 读取有界 JSON、校验浏览器 Origin 并返回结构化脱敏错误；不得重新直接调用 `request.json()`。
+- API 错误固定为 `{ code, message, requestId, retryable }`，SSE 可选携带同字段；成功 JSON、二进制和 SSE 都应返回 `X-Request-Id`。
+- 外联地址禁止 URL 内嵌凭据；Provider/MCP/采集仍需执行各自更严格的协议、主机、DNS 和重定向检查。
+- 生产 audit 的 high/critical 为硬门禁。Next 16.2.11 内置 PostCSS moderate 例外到 2026-08-23，禁止通过 Next 9 降级或 `audit fix --force` 处理。
+
 # 2026-07-23 · 0.2.0 升级治理基线
 
 - `develop` 是 P3 之后的开发集成分支；安全、可靠性、性能与架构收口必须保持独立提交和回滚边界。

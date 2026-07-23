@@ -1,12 +1,13 @@
 import { toMcpError, withMcpClient } from "../../../server/mcp/client";
+import { apiErrorResponse, apiJsonResponse, readRouteJson } from "../../../server/http/route-security.ts";
 
 type DiscoverRequest = { endpoint?: string; token?: string };
 
 /** 真实发现 MCP tools/resources/prompts，只向客户端返回名称、描述和输入 schema。 */
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as DiscoverRequest;
-    if (!body.endpoint) return Response.json({ error: "缺少 MCP endpoint" }, { status: 400 });
+    const body = await readRouteJson<DiscoverRequest>(request);
+    if (!body.endpoint) return apiErrorResponse(undefined, { code: "invalid_mcp_discovery", message: "缺少 MCP endpoint", status: 400 });
     const result = await withMcpClient({ endpoint: body.endpoint, token: body.token }, async (client) => {
       const [tools, resources, prompts] = await Promise.all([
         client.listTools(),
@@ -19,8 +20,8 @@ export async function POST(request: Request) {
         prompts: prompts.prompts.map((prompt) => ({ name: prompt.name, description: prompt.description })),
       };
     });
-    return Response.json(result);
+    return apiJsonResponse(result);
   } catch (error) {
-    return Response.json({ error: toMcpError(error) }, { status: 502 });
+    return apiErrorResponse(error, { code: "mcp_discovery_failed", message: toMcpError(error), status: 502, retryable: true });
   }
 }

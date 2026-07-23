@@ -3,6 +3,7 @@ import { miniMaxFailureMessage } from "../../../services/minimax-connection.ts";
 import { ProviderDirectoryHttpError, fetchProviderModelDirectory } from "../../../server/ai/model-directory.ts";
 import { googleUpstreamFailureMessage } from "../../../server/ai/google-error.ts";
 import { aiRouteError, aiUpstreamError, readAiRouteJson } from "../../../server/ai/http.ts";
+import { apiJsonResponse, validateOutboundHttpUrl } from "../../../server/http/route-security.ts";
 
 function isRequest(value: unknown): value is AiModelsRequest {
   if (!value || typeof value !== "object") return false;
@@ -15,7 +16,8 @@ export async function POST(request: Request) {
   try {
     const body = await readAiRouteJson(request);
     if (!isRequest(body)) return aiRouteError("缺少有效的模型目录连接参数", 400);
-    return Response.json(await fetchProviderModelDirectory(body));
+    validateOutboundHttpUrl(body.baseUrl);
+    return apiJsonResponse(await fetchProviderModelDirectory(body));
   } catch (error) {
     if (error instanceof ProviderDirectoryHttpError) {
       const response = error.response;

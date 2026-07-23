@@ -17,6 +17,7 @@ type FetchResponse = {
   excerpt: string;
   discoveredUrls: string[];
   error?: string;
+  message?: string;
 };
 
 export type AcquisitionDiscoveryResult = {
@@ -105,7 +106,7 @@ async function fetchDocument(url: string, allowedOrigins: string[]): Promise<Fet
     body: JSON.stringify({ url, allowedOrigins }),
   });
   const result = await response.json() as FetchResponse;
-  if (!response.ok) throw new Error(result.error || "来源抓取失败");
+  if (!response.ok) throw new Error(result.message || result.error || "来源抓取失败");
   return result;
 }
 

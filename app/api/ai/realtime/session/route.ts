@@ -1,5 +1,6 @@
 import { aiRouteError, readAiRouteJson } from "../../../../server/ai/http";
 import { startGlmRealtimeRelay } from "../../../../server/ai/glm-realtime-relay";
+import { apiJsonResponse } from "../../../../server/http/route-security.ts";
 
 type SessionRequest = { provider: "openai" | "google" | "zhipu"; apiKey: string; model: string; voiceId: string };
 
@@ -8,7 +9,7 @@ export async function POST(request: Request) {
   try {
     const input = await readAiRouteJson(request) as Partial<SessionRequest>;
     if (!input.provider || !input.apiKey || !input.model || !input.voiceId) return aiRouteError("缺少实时语音会话参数", 400);
-    if (input.provider === "zhipu") return Response.json({ provider: input.provider, relaySessionId: startGlmRealtimeRelay(input as SessionRequest) });
+    if (input.provider === "zhipu") return apiJsonResponse({ provider: input.provider, relaySessionId: startGlmRealtimeRelay(input as SessionRequest) });
     const url = input.provider === "openai" ? "https://api.openai.com/v1/realtime/client_secrets" : "https://generativelanguage.googleapis.com/v1alpha/auth_tokens";
     const response = await fetch(url, {
       method: "POST",
@@ -22,6 +23,6 @@ export async function POST(request: Request) {
     const payload = await response.json() as Record<string, unknown>;
     const token = input.provider === "openai" ? (payload.value ?? (payload.client_secret as Record<string, unknown> | undefined)?.value) : payload.name;
     if (typeof token !== "string") return aiRouteError("厂商未返回临时凭据", 502);
-    return Response.json({ provider: input.provider, token, expiresIn: 60 });
+    return apiJsonResponse({ provider: input.provider, token, expiresIn: 60 });
   } catch { return aiRouteError("实时语音会话创建失败"); }
 }

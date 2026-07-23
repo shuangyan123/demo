@@ -1,9 +1,18 @@
-import { NextResponse } from "next/server";
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from "../../../services/api-client";
 import { getProviderAdapter } from "../../../server/ai/provider-adapter-registry.ts";
 import { executeProviderGenerate } from "../../../server/ai/execute-provider-generate.ts";
 import { miniMaxFailureMessage } from "../../../services/minimax-connection.ts";
 import { googleUpstreamFailureMessage } from "../../../server/ai/google-error.ts";
+import {
+  RouteSecurityError,
+  apiErrorResponse,
+  apiJsonResponse,
+  createRequestId,
+  readRouteJson,
+  validateOutboundHttpUrl,
+} from "../../../server/http/route-security.ts";
+
+const MAX_GENERATE_REQUEST_BYTES = 20 * 1024 * 1024;
 
 // 校验统一生成请求的最小字段，避免把任意 URL 或空密钥转发到外部服务。
 function isGenerateRequest(value: unknown): value is AiGenerateRequest {
@@ -36,15 +45,21 @@ function providerFailureMessage(status: number, body: AiGenerateRequest): string
   return `厂商 API 请求失败（${status}）`;
 }
 
-async function pipeProviderStream(body: AiGenerateRequest, response: Response): Promise<Response> {
+async function pipeProviderStream(body: AiGenerateRequest, response: Response, routeRequestId: string): Promise<Response> {
   const adapter = getProviderAdapter(body.provider);
-  if (!response.body) return new NextResponse("厂商未返回可读取的流", { status: 502 });
+  if (!response.body) {
+    return apiErrorResponse(
+      new RouteSecurityError("provider_stream_missing", "厂商未返回可读取的流", 502, true),
+      { code: "provider_stream_missing", message: "厂商未返回可读取的流", status: 502 },
+      routeRequestId,
+    );
+  }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let content = "";
   let finalUsage: AiGenerateResult["usage"];
-  let requestId: string | undefined;
+  let providerRequestId: string | undefined;
   let actualSpeed: string | undefined;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -66,16 +81,22 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response): 
               if (event.type === "delta") content += event.text;
               if (event.type === "usage") {
                 finalUsage = event.usage;
-                requestId = event.requestId;
+                providerRequestId = event.requestId;
                 actualSpeed = event.actualSpeed ?? actualSpeed;
               }
               controller.enqueue(encodeSse(event));
             }
           }
         }
-        controller.enqueue(encodeSse({ type: "done", content, requestId, usage: finalUsage, actualSpeed }));
-      } catch (error) {
-        controller.enqueue(encodeSse({ type: "error", message: error instanceof Error ? error.message : "流式响应解析失败" }));
+        controller.enqueue(encodeSse({ type: "done", content, requestId: providerRequestId, usage: finalUsage, actualSpeed }));
+      } catch {
+        controller.enqueue(encodeSse({
+          type: "error",
+          code: "provider_stream_parse_failed",
+          message: "流式响应解析失败",
+          requestId: routeRequestId,
+          retryable: true,
+        }));
       } finally {
         controller.close();
       }
@@ -86,15 +107,25 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response): 
       "Cache-Control": "no-cache, no-transform",
       "Content-Type": "text/event-stream; charset=utf-8",
       Connection: "keep-alive",
+      "X-Content-Type-Options": "nosniff",
+      "X-Request-Id": routeRequestId,
     },
   });
 }
 
 // 代理文本、视觉和结构化输出请求；Key 只存在于本次请求内存，不在服务端持久化。
 export async function POST(request: Request) {
+  const requestId = createRequestId();
   try {
-    const body: unknown = await request.json();
-    if (!isGenerateRequest(body)) return new NextResponse("缺少有效的 AI 连接或消息内容", { status: 400 });
+    const body = await readRouteJson(request, MAX_GENERATE_REQUEST_BYTES);
+    if (!isGenerateRequest(body)) {
+      return apiErrorResponse(
+        new RouteSecurityError("invalid_ai_request", "缺少有效的 AI 连接或消息内容", 400),
+        { code: "invalid_ai_request", message: "AI 请求无效", status: 400 },
+        requestId,
+      );
+    }
+    validateOutboundHttpUrl(body.baseUrl);
     const adapter = getProviderAdapter(body.provider);
     const executed = await executeProviderGenerate(body, { signal: request.signal });
     const effectiveBody = executed.body;
@@ -103,13 +134,21 @@ export async function POST(request: Request) {
       const message = body.provider === "google"
         ? await googleUpstreamFailureMessage(response, "接收响应", effectiveBody.generationProtocol ?? "google_generate_content")
         : providerFailureMessage(response.status, body);
-      return new NextResponse(message, { status: response.status });
+      return apiErrorResponse(
+        new RouteSecurityError("provider_request_failed", message, response.status, response.status >= 429),
+        { code: "provider_request_failed", message, status: response.status },
+        requestId,
+      );
     }
-    if (effectiveBody.stream) return pipeProviderStream(effectiveBody, response);
+    if (effectiveBody.stream) return pipeProviderStream(effectiveBody, response, requestId);
     const payload: unknown = await response.json();
-    return NextResponse.json(adapter.parseGenerate(effectiveBody, payload, response.headers));
+    return apiJsonResponse(adapter.parseGenerate(effectiveBody, payload, response.headers), { requestId });
   } catch (error) {
-    const message = error instanceof Error && error.message.includes("URL") ? "API 地址无效" : "AI API 请求失败";
-    return new NextResponse(message, { status: 500 });
+    return apiErrorResponse(error, {
+      code: "ai_generate_failed",
+      message: error instanceof Error && error.message.includes("URL") ? "API 地址无效" : "AI API 请求失败",
+      status: 500,
+      retryable: true,
+    }, requestId);
   }
 }

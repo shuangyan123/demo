@@ -1,5 +1,6 @@
 import { FenbiAccountImportAdapter, FenbiAccountImportError } from "@/app/server/import/fenbi-account-import-adapter";
 import type { FenbiSyncEvent, FenbiSyncScope, ImportDraft } from "@/app/types/review";
+import { apiErrorResponse, createRequestId, readRouteJson } from "@/app/server/http/route-security";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,13 @@ function encodeEvent(event: FenbiSyncEvent<ImportDraft>): Uint8Array {
 
 /** 以 SSE 返回同步阶段和草稿；响应结束后服务端内存中的 Cookie 随请求释放。 */
 export async function POST(request: Request) {
-  const input = await request.json() as { cookie?: string; scope?: FenbiSyncScope };
+  const requestId = createRequestId();
+  let input: { cookie?: string; scope?: FenbiSyncScope };
+  try {
+    input = await readRouteJson(request, 64 * 1024);
+  } catch (error) {
+    return apiErrorResponse(error, { code: "invalid_fenbi_sync", message: "粉笔同步请求无效", status: 400 });
+  }
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
@@ -41,6 +48,7 @@ export async function POST(request: Request) {
       "Content-Type": "text/event-stream; charset=utf-8",
       Connection: "keep-alive",
       "X-Content-Type-Options": "nosniff",
+      "X-Request-Id": requestId,
     },
   });
 }

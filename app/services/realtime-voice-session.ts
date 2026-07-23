@@ -2,6 +2,7 @@
 
 import { aiConnectionsRepository } from "./ai-connections-repository";
 import type { ApiConnectionProfile, RealtimeVoiceEvent } from "../types/review";
+import { readApiErrorMessage } from "./api-error";
 
 type RealtimeHandle = { stop: () => Promise<void>; mute: (muted: boolean) => void };
 
@@ -77,7 +78,7 @@ export async function startRealtimeVoiceSession(input: { connection: ApiConnecti
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   const apiKey = await aiConnectionsRepository.resolveSecret(input.connection);
   const setup = await fetch("/api/ai/realtime/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: input.connection.provider, apiKey, model: input.model, voiceId: input.voiceId }) });
-  if (!setup.ok) { stream.getTracks().forEach((track) => track.stop()); throw new Error((await setup.text()) || "无法创建实时会话"); }
+  if (!setup.ok) { stream.getTracks().forEach((track) => track.stop()); throw new Error(await readApiErrorMessage(setup, "无法创建实时会话")); }
   const setupPayload = await setup.json() as { token?: string; relaySessionId?: string };
   const { token } = setupPayload;
   if (input.connection.provider === "google") {

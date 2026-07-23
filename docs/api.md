@@ -1,5 +1,13 @@
 # API 约定
 
+## 本机 API 安全与结构化错误（2026-07-23）
+
+- 所有本机 Route Handler 拒绝不匹配当前请求 origin 的浏览器请求；缺少 Origin 的本机 CLI/内部 smoke 保持兼容。
+- JSON 在解析前执行请求体预算：普通配置/MCP 256KB、语音 512KB、实时音频块 2MB、AI 生成 20MB、转写 17MB、粉笔与采集 64KB。
+- 用户配置的 AI/MCP 外联地址只允许 HTTP(S)，禁止在 URL 中嵌入用户名或密码；采集继续执行逐跳 DNS、私网和精确 origin 校验。
+- 非 SSE 错误统一为 `{ code, message, requestId, retryable }`，客户端兼容历史纯文本与 `{ error }` 格式。成功 JSON、二进制和 SSE 响应携带 `X-Request-Id` 且禁止缓存。
+- SSE 错误事件保留 `type/message`，可选增加 `code/requestId/retryable`；不返回厂商原始响应、Cookie、Token 或完整请求体。
+
 ## 主题字体与壳层视觉修复（2026-07-18）
 
 - 本次只调整本地字体资产、主题 CSS 变量和工作台装饰层，不新增或修改服务端 API、请求字段、响应字段及 SSE 事件。

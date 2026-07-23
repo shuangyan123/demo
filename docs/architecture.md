@@ -1,5 +1,13 @@
 # 应用架构
 
+## 0.2.0 本机 API 安全边界（2026-07-23）
+
+- `server/http/route-security.ts` 是同源校验、有界 JSON、外联 URL、请求 ID 和结构化错误的共享边界；Route Handler 只负责业务字段校验和调用领域 adapter。
+- Provider registry、MCP client、采集 safe fetch 继续分别负责厂商协议、Streamable HTTP 和 SSRF 深层校验；共享 Route 边界不绕过这些既有规则。
+- 客户端 `services/api-error.ts` 同时读取新 JSON 错误和历史纯文本错误，避免升级期间改变用户可见恢复提示。
+- 安全响应头由 `next.config.ts` 单点维护；CSP 不允许远程脚本、frame 或 object，仅为本机 API、明确 HTTPS/WSS 外联、媒体 blob 和自托管资产保留能力。
+- 该边界不新增服务端持久化，不记录请求正文，也不升级 `review_workspace` v16。
+
 ## 主题字体与工作台弥散边界（2026-07-18）
 
 - `theme-fonts.ts` 是内置 UI 与代码字体栈的共享边界；Geist Mono 由根布局通过 `next/font` 注入，主题预设和持久化归一化不再各自维护字体顺序。
