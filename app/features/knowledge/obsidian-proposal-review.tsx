@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { isAcquisitionProposalConfirmable } from "../../services/acquisition-trust";
-import type { KnowledgeEvolutionProposal } from "../../types/review";
+import type { KnowledgeEvolutionProposal } from "../../types/domains/obsidian.ts";
 import { Button, Chip, EmptyState } from "../shared/ui-primitives";
-import type { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
+import type { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge.ts";
 
 type Controller = ReturnType<typeof useObsidianKnowledgeBridge>;
 type FilterValue = "all" | string;

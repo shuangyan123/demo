@@ -1,7 +1,8 @@
 "use client";
 
 import { useSpeechSession } from "../shared/use-speech-session";
-import type { ApiConnectionProfile, VoiceProfile } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { VoiceProfile } from "../../types/domains/personalization.ts";
 
 // 辅导模块的语音转写入口；只保留文字，不接触或保存原始录音。
 export function useTutoringSpeech(voice?: VoiceProfile, speechConnection?: ApiConnectionProfile) {

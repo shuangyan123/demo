@@ -1,6 +1,6 @@
-import type { AiGenerationProtocol } from "../types/domains/ai-model";
-import type { AiModelsResult } from "./api-client";
-import type { ApiProvider } from "../types/domains/ai-provider";
+import type { AiGenerationProtocol } from "../types/domains/ai-model.ts";
+import type { AiModelsResult } from "./api-client.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 
 // v4 使错误的 Google Interactions 路径和不完整分页目录立即失效。
 const CACHE_PREFIX = "review_provider_models_v4";

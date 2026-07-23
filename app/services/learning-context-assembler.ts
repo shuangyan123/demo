@@ -1,4 +1,4 @@
-import type { LearnerStateSignal, LearnerStateSnapshot } from "../types/review.ts";
+import type { LearnerStateSignal, LearnerStateSnapshot } from "../types/domains/learner-state.ts";
 
 export type LearningContextScope = {
   moduleId?: string;

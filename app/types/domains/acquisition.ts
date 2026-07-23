@@ -1,4 +1,4 @@
-import type { AiSelectedRuntimeValues } from "./ai-model";
+import type { AiSelectedRuntimeValues } from "./ai-model.ts";
 
 /** 外部知识采集支持的公考领域。 */
 export type AcquisitionDomain = "xingce" | "shenlun" | "interview";

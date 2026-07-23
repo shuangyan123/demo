@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { Button, Chip, ConfirmDialog, EmptyState, Panel, SoftBlock, TextField } from "../shared/ui-primitives";
-import type { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
+import type { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge.ts";
 import { ObsidianProposalReview } from "./obsidian-proposal-review";
 
 type ObsidianController = ReturnType<typeof useObsidianKnowledgeBridge>;

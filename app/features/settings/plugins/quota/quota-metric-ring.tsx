@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { AiQuotaSnapshot } from "../../../../types/domains/ai-quota";
+import type { AiQuotaSnapshot } from "../../../../types/domains/ai-quota.ts";
 import { deriveQuotaRingPresentation } from "../../../../services/ai-quota-presentation";
 import styles from "../../settings-compact.module.css";
 

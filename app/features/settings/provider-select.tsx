@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { getProviderContract } from "../../services/provider-contracts";
-import type { ApiProvider } from "../../types/domains/ai-provider";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
 import styles from "./provider-select.module.css";

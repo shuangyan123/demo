@@ -1,4 +1,4 @@
-import type { AiQuotaMetric, AiQuotaSnapshot } from "../types/domains/ai-quota";
+import type { AiQuotaMetric, AiQuotaSnapshot } from "../types/domains/ai-quota.ts";
 
 export type AiQuotaRingPresentation = {
   mode: "determinate" | "status" | "empty";

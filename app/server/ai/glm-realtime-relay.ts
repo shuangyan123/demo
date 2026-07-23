@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import type { RealtimeVoiceEvent } from "../../types/review";
+import type { RealtimeVoiceEvent } from "../../types/domains/voice.ts";
 
 type RelaySession = { socket: WebSocket; events: RealtimeVoiceEvent[]; touchedAt: number };
 const sessions = new Map<string, RelaySession>();

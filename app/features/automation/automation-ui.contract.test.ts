@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import type { AutomationDefinition, AutomationRun, AutomationSnapshot } from "../../types/review.ts";
+import type { AutomationDefinition, AutomationRun, AutomationSnapshot } from "../../types/domains/automation.ts";
 import { deriveAutomationOverview, filterAutomationDefinitions, latestRunsByAutomation } from "./automation-view-model.ts";
 
 const now = "2026-07-23T08:00:00.000Z";

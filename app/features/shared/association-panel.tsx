@@ -2,7 +2,9 @@
 
 import { Button, CardButton, Chip, DataList, EmptyState, Panel, SoftBlock } from "./ui-primitives";
 import type { KnowledgeMatch, RelatedMistakeMatch } from "../../services/association-matcher";
-import type { AssociationSuggestion, KnowledgeEntry, KnowledgeMistakeLink, Mistake } from "../../types/review";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 
 type AssociationMode = "mistake" | "knowledge";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ThemePreset } from "./theme-presets";
+import type { ThemePreset } from "./theme-presets.ts";
 
 export function ThemePresetSelect({
   presets,

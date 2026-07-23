@@ -1,4 +1,4 @@
-import type { TutoringMode } from "../../types/review";
+import type { TutoringMode } from "../../types/domains/tutoring.ts";
 
 export type VisionSourceKind = Exclude<TutoringMode, "upload">;
 export type VisionSourceStatus = "idle" | "starting" | "ready" | "ended" | "error";

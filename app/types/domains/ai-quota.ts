@@ -1,4 +1,4 @@
-import type { ApiProvider } from "./ai-provider";
+import type { ApiProvider } from "./ai-provider.ts";
 
 /** 额度服务支持的只读动作。 */
 export type AiQuotaAction = "validate" | "refresh";

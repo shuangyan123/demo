@@ -1,6 +1,6 @@
 import { reviewDb } from "../db/review-db";
 import { toISODate } from "../lib/review-utils";
-import type { AssociationSuggestion, KnowledgeMistakeLink } from "../types/review";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../types/domains/association.ts";
 
 type LinkInput = Omit<KnowledgeMistakeLink, "id" | "createdAt" | "updatedAt">;
 

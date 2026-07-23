@@ -17,7 +17,7 @@ import {
 } from "../shared/ui-primitives";
 import { splitInput, textValue } from "../../lib/form-utils";
 import { interviewTypeLabels } from "../../services/interview-rubric";
-import type { InterviewDifficulty, InterviewQuestion, InterviewQuestionDraft, InterviewType } from "../../types/review";
+import type { InterviewDifficulty, InterviewQuestion, InterviewQuestionDraft, InterviewType } from "../../types/domains/interview.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

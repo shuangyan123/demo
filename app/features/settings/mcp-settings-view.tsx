@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { mcpSettingsRepository, type McpSettingsSnapshot } from "../../services/mcp-settings-repository.ts";
-import type { McpServerProfile, McpToolPermission } from "../../types/review";
+import type { McpServerProfile, McpToolPermission } from "../../types/domains/mcp.ts";
 import { AppIcon } from "../shared/app-icon";
 import { Button, Chip, EmptyState, cx } from "../shared/ui-primitives";
 

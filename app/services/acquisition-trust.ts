@@ -1,9 +1,4 @@
-import type {
-  AcquisitionAuthority,
-  AcquisitionDocument,
-  AcquisitionReviewStatus,
-  AcquisitionTrustBreakdown,
-} from "../types/review.ts";
+import type { AcquisitionAuthority, AcquisitionDocument, AcquisitionReviewStatus, AcquisitionTrustBreakdown } from "../types/domains/acquisition.ts";
 
 export type AcquisitionTrustInput = {
   documents: AcquisitionDocument[];

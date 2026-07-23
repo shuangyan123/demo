@@ -1,4 +1,5 @@
-import type { ImportDraft, ImportDraftIssue, Mistake } from "../types/review";
+import type { ImportDraft, ImportDraftIssue } from "../types/domains/import.ts";
+import type { Mistake } from "../types/domains/review.ts";
 
 // 归一化题干文本，用于在本地错题库和当前批次草稿中做轻量重复判断。
 export function normalizeQuestionStem(value: string): string {

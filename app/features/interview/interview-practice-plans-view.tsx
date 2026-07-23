@@ -16,7 +16,7 @@ import {
 } from "../shared/ui-primitives";
 import { textValue } from "../../lib/form-utils";
 import { interviewTypeLabels } from "../../services/interview-rubric";
-import type { InterviewPracticePlan, InterviewQuestion, InterviewQuestionSet, InterviewType } from "../../types/review";
+import type { InterviewPracticePlan, InterviewQuestion, InterviewQuestionSet, InterviewType } from "../../types/domains/interview.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 type PlanType = InterviewType | "mixed";

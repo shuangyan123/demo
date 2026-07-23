@@ -5,8 +5,8 @@ import type {
   AiQuotaProviderAdapter,
   AiQuotaSnapshot,
   AiQuotaVerificationResult,
-} from "../../types/domains/ai-quota";
-import type { ApiProvider } from "../../types/domains/ai-provider";
+} from "../../types/domains/ai-quota.ts";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 
 const TIMEOUT_MS = 12_000;
 

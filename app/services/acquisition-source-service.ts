@@ -1,9 +1,5 @@
-import type {
-  AcquisitionDocument,
-  AcquisitionSourceConfig,
-  AutomationCollectionConfig,
-  KnowledgeEvolutionProposal,
-} from "../types/review.ts";
+import type { AcquisitionDocument, AcquisitionSourceConfig, AutomationCollectionConfig } from "../types/domains/acquisition.ts";
+import type { KnowledgeEvolutionProposal } from "../types/domains/obsidian.ts";
 import { mcpSettingsRepository } from "./mcp-settings-repository.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 

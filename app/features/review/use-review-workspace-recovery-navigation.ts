@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import type { LocalDiagnosticAction } from "../diagnostics/use-local-diagnostics";
 import type { ConfigurationHealthAction } from "../onboarding/use-configuration-health";
 import type { SettingsSectionKey } from "../settings/settings-workspace";
-import type { ViewKey } from "../../types/review";
+import type { ViewKey } from "../../types/domains/workspace.ts";
 
 type ReviewWorkspaceRecoveryNavigationInput = {
   setNotice: (message: string) => void;

@@ -1,11 +1,11 @@
 "use client";
 
-import type { AutomationDefinition, AutomationRun } from "../../types/review";
+import type { AutomationDefinition, AutomationRun } from "../../types/domains/automation.ts";
 import { Button, EmptyState } from "../shared/ui-primitives";
 import styles from "./automation-workspace.module.css";
-import type { AutomationCenter } from "./use-automation-center";
-import type { AutomationStatusFilter } from "./automation-view-model";
-import { automationErrorMessage, formatAutomationDate, formatSchedule } from "./automation-ui";
+import type { AutomationCenter } from "./use-automation-center.ts";
+import type { AutomationStatusFilter } from "./automation-view-model.ts";
+import { automationErrorMessage, formatAutomationDate, formatSchedule } from "./automation-ui.ts";
 
 /** 已安排任务主列表：桌面为行式表格，移动端自动折叠为两列摘要。 */
 export function AutomationTaskList({

@@ -5,8 +5,8 @@ import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, po
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { createPortal } from "react-dom";
 import { conversationRepository } from "../../services/conversation-repository";
-import type { AiConversation, AiConversationFolder } from "../../types/review";
-import { useConversationTreeController } from "./use-conversation-tree-controller";
+import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
+import { useConversationTreeController } from "./use-conversation-tree-controller.ts";
 import { AppIcon } from "../shared/app-icon";
 
 type TreeDragItem = { kind: "folder" | "conversation"; id: string; label: string };

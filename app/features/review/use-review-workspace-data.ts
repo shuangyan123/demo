@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { associationRepository } from "../../services/association-repository";
 import { knowledgeRepository } from "../../services/knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
-import type { Attempt, ImportJob, KnowledgeEntry, KnowledgeMistakeLink, Mistake } from "../../types/review";
+import type { Attempt, Mistake } from "../../types/domains/review.ts";
+import type { ImportJob } from "../../types/domains/import.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { KnowledgeMistakeLink } from "../../types/domains/association.ts";
 
 type ReviewWorkspaceDataNotice = {
   onReadFailed: (error: unknown) => void;

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { fenbiCredentialRepository } from "../../services/fenbi-credential-repository";
 import { fetchLocalApi } from "../../services/local-runtime-diagnostics";
-import type { FenbiImportCredential, FenbiSyncEvent, FenbiSyncScope, ImportDraft } from "../../types/review";
+import type { FenbiImportCredential, FenbiSyncEvent, FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
+import type { ImportDraft } from "../../types/domains/import.ts";
 
 type FenbiQuickImportStatus = "unconfigured" | "ready" | "validating" | "syncing" | "error";
 

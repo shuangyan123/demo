@@ -1,9 +1,12 @@
 "use client";
-
 import { useMemo, useState, type FormEvent } from "react";
-import type { ApiConnectionProfile, KnowledgeEntry, Mistake, PersonalizationSettings, TutoringPlan, TutoringSession } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import type { TutoringPlan, TutoringSession } from "../../types/domains/tutoring.ts";
 import { Button, DataList, DataRow, EmptyState, FormGrid, Panel, SegmentedTabs, SelectField, TextAreaField, TextField, Toolbar } from "../shared/ui-primitives";
-import { useTutoringFlow } from "./use-tutoring-flow";
+import { useTutoringFlow } from "./use-tutoring-flow.ts";
 
 type TutoringHistoryTab = "records" | "plans" | "links";
 

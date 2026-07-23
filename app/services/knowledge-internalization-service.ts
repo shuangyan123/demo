@@ -1,13 +1,10 @@
-import type {
-  ApiConnectionProfile,
-  KnowledgeEntry,
-  KnowledgeInternalizationDraft,
-  Mistake,
-  PersonalizationSettings,
-} from "../types/review";
-import { generateWithConnection } from "./ai-connection-client";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { KnowledgeEntry, KnowledgeInternalizationDraft } from "../types/domains/knowledge.ts";
+import type { Mistake } from "../types/domains/review.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
+import { generateWithConnection } from "./ai-connection-client.ts";
 import { parseAiJsonValue } from "./ai-json.ts";
-import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
+import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
 import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
 
 type InternalizationPayload = {

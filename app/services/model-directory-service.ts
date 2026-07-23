@@ -1,9 +1,10 @@
-import type { AiModelDirectoryEntry, AiModelsResult } from "./api-client";
+import type { AiModelDirectoryEntry, AiModelsResult } from "./api-client.ts";
 import { listModelsWithConnection, listModelsWithConnectionDraft } from "./ai-connection-client.ts";
 import { providerModelCache } from "./provider-model-cache.ts";
 import { getProviderContract, getProviderModelCatalog } from "./provider-contracts.ts";
-import type { ApiProvider } from "../types/domains/ai-provider";
-import type { AiConnectionPurpose, AiModelCatalogEntry, ApiConnectionProfile } from "../types/review";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
+import type { AiConnectionPurpose, ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { AiModelCatalogEntry } from "../types/domains/provider-catalog.ts";
 
 export type ModelCatalogLoadResult = {
   models: AiModelCatalogEntry[];

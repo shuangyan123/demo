@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { hasMeaningfulVisionChange, type VisionFrame } from "./vision-source-adapter";
+import { hasMeaningfulVisionChange, type VisionFrame } from "./vision-source-adapter.ts";
 
 // 管理低频关键帧采样；只在内存保存最近一帧，避免形成连续画面记录。
 export function useFrameSampler(captureFrame: () => VisionFrame) {

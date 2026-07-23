@@ -1,11 +1,7 @@
-import type {
-  AiConversation,
-  AiProject,
-  AutomationSnapshot,
-  CommandSearchResult,
-  KnowledgeEntry,
-  Mistake,
-} from "../types/review.ts";
+import type { AiConversation, AiProject, CommandSearchResult } from "../types/domains/conversation.ts";
+import type { AutomationSnapshot } from "../types/domains/automation.ts";
+import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
+import type { Mistake } from "../types/domains/review.ts";
 import { scheduledWorkspaceDefinition, studyDomainDefinitions } from "../features/study/study-registry.ts";
 
 export type BuildCommandSearchInput = {

@@ -5,18 +5,10 @@ import { automationRepository, type AutomationDefinitionInput } from "../../serv
 import { previewAutomationDefinition, trialAutomationDefinition } from "../../services/automation-executor";
 import { classifyAutomationError } from "../../services/automation-failure";
 import { previewCollectionConfig } from "../../services/acquisition-source-service";
-import type {
-  ApiConnectionProfile,
-  AiConnectionSnapshot,
-  AutomationContextSummary,
-  AutomationDefinition,
-  AutomationFailureCategory,
-  AutomationRecoveryAction,
-  AutomationRun,
-  AutomationSnapshot,
-  AcquisitionRunSummary,
-  PersonalizationSettings,
-} from "../../types/review";
+import type { ApiConnectionProfile, AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
+import type { AutomationContextSummary, AutomationDefinition, AutomationFailureCategory, AutomationRecoveryAction, AutomationRun, AutomationSnapshot } from "../../types/domains/automation.ts";
+import type { AcquisitionRunSummary } from "../../types/domains/acquisition.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 
 const EMPTY_SNAPSHOT: AutomationSnapshot = { definitions: [], runs: [], unreadCount: 0 };
 

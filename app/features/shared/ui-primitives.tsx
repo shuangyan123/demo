@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import type { ExportFormat } from "../../types/review";
+import type { ExportFormat } from "../../types/domains/review.ts";
 
 type ChipTone = "neutral" | "blue" | "green" | "yellow" | "red";
 type ButtonVariant = "primary" | "soft" | "ghost" | "danger" | "outline";

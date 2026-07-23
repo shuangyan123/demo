@@ -1,15 +1,15 @@
 "use client";
 
-import type { AutomationRecoveryAction } from "../../types/review";
+import type { AutomationRecoveryAction } from "../../types/domains/automation.ts";
 import { automationRecoveryLabel } from "../../services/automation-failure";
 import { Button } from "../shared/ui-primitives";
 import { AutomationInbox } from "./automation-inbox";
 import { AutomationEditorLayer, AutomationTaskDetailDrawer } from "./automation-overlays";
 import { AutomationTaskList } from "./automation-task-list";
 import styles from "./automation-workspace.module.css";
-import { useAutomationViewController } from "./use-automation-view-controller";
-import { useAutomationCenter } from "./use-automation-center";
-import { formatAutomationDate } from "./automation-ui";
+import { useAutomationViewController } from "./use-automation-view-controller.ts";
+import { useAutomationCenter } from "./use-automation-center.ts";
+import { formatAutomationDate } from "./automation-ui.ts";
 
 /** 已安排控制台组合视图：只负责主从布局、导航接线和恢复入口。 */
 export function AutomationView({

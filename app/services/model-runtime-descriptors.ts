@@ -1,5 +1,5 @@
-import type { AiModelRuntimeDescriptor, AiModelRuntimeOption, AiModelRuntimeValue, AiSelectedRuntimeValues } from "../types/domains/ai-model";
-import type { ApiProvider } from "../types/domains/ai-provider";
+import type { AiModelRuntimeDescriptor, AiModelRuntimeOption, AiModelRuntimeValue, AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 
 const VERIFIED_AT = "2026-07-15";
 const OPENAI_REASONING_URL = "https://developers.openai.com/api/docs/guides/reasoning";

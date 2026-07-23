@@ -1,4 +1,4 @@
-import type { ApiConnectionProfile } from "../types/review";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 import { generateWithConnection } from "./ai-connection-client.ts";
 import { parseAiJsonObject } from "./ai-json.ts";
 import { canonicalMemoryKey, containsMemorySecret, type AutomaticMemoryCandidate } from "./personal-memory-repository.ts";

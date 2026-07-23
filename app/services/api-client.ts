@@ -1,6 +1,6 @@
-import type { AiGenerationProtocol, AiSelectedRuntimeValues } from "../types/domains/ai-model";
-import type { ApiProvider } from "../types/domains/ai-provider";
-import type { AiCapability, AiConnectionPurpose } from "../types/review";
+import type { AiGenerationProtocol, AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
+import type { AiCapability, AiConnectionPurpose } from "../types/domains/ai-connection.ts";
 import { emitAiActivity } from "./ai-activity-events.ts";
 import { readApiErrorMessage } from "./api-error.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";

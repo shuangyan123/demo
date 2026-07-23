@@ -4,7 +4,7 @@
 
 import { Button, EmptyState, MasteryDots, SelectField, TextField } from "../shared/ui-primitives";
 import { formatShortDate } from "../../lib/review-utils";
-import type { KnowledgeCategorySummary, KnowledgeEntry, KnowledgeFilters } from "../../types/review";
+import type { KnowledgeCategorySummary, KnowledgeEntry, KnowledgeFilters } from "../../types/domains/knowledge.ts";
 
 /** 渲染知识库单行筛选工具条，保持分类、搜索、标签与收藏在同一作用域。 */
 export function KnowledgeLibraryFilters({

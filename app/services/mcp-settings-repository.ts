@@ -1,4 +1,4 @@
-import type { McpDiscoveryResult, McpServerProfile, McpToolDescriptor, McpToolPermission } from "../types/review.ts";
+import type { McpDiscoveryResult, McpServerProfile, McpToolDescriptor, McpToolPermission } from "../types/domains/mcp.ts";
 import { decryptSecret, encryptSecret } from "./crypto-service.ts";
 import type { ClientApiErrorPayload } from "./api-error.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";

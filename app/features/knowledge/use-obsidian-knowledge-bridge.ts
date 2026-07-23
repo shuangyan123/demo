@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ApiConnectionProfile, KnowledgeEntry, KnowledgeEvolutionGenerationResult, KnowledgeEvolutionProposal, ObsidianGraphSnapshot, ObsidianNoteMapping, ObsidianVaultSnapshot, PersonalizationSettings } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { KnowledgeEvolutionGenerationResult, KnowledgeEvolutionProposal, ObsidianGraphSnapshot, ObsidianNoteMapping, ObsidianVaultSnapshot } from "../../types/domains/obsidian.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { emitAiActivity } from "../../services/ai-activity-events";
 
 const EMPTY_SNAPSHOT: ObsidianVaultSnapshot = {

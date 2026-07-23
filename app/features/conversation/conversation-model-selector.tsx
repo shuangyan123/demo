@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, us
 import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
 import { ConversationModelPicker, type ConversationModelPickerProps } from "./conversation-model-picker";
-import { useConversationModelMenu } from "./use-conversation-model-menu";
+import { useConversationModelMenu } from "./use-conversation-model-menu.ts";
 import styles from "./conversation-model-picker.module.css";
 
 /** Composer 可请求打开或聚焦模型选择器，但不接管内部菜单状态。 */

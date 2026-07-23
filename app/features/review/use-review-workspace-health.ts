@@ -4,7 +4,11 @@ import { useCallback, useMemo } from "react";
 import packageJson from "../../../package.json";
 import { useConfigurationHealth } from "../onboarding/use-configuration-health";
 import type { LocalDiagnosticsHookInput } from "../diagnostics/use-local-diagnostics";
-import type { AiConnectionSnapshot, AutomationSnapshot, ImportJob, KnowledgeEntry, Mistake } from "../../types/review";
+import type { AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
+import type { AutomationSnapshot } from "../../types/domains/automation.ts";
+import type { ImportJob } from "../../types/domains/import.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 
 type ReviewWorkspaceHealthInput = {
   aiReadError?: string;

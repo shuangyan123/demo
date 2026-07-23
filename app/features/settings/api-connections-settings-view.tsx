@@ -7,8 +7,9 @@ import { inspectConnectionModelCatalog, loadDraftModelCatalog, rememberConnectio
 import { getProviderContract, getProviderModelCatalog, providerContracts } from "../../services/provider-contracts";
 import { inferMiniMaxRegion, MINIMAX_ANTHROPIC_BASE_URLS, type MiniMaxCredentialPlan, type MiniMaxRegion } from "../../services/minimax-connection";
 import type { AiModelsResult } from "../../services/api-client";
-import type { ApiProvider } from "../../types/domains/ai-provider";
-import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, AiModelCatalogEntry, ApiConnectionProfile } from "../../types/review";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
+import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { AiModelCatalogEntry } from "../../types/domains/provider-catalog.ts";
 import { Button, EmptyState, cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
 import { ProviderSelect } from "./provider-select";

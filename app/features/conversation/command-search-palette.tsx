@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { CommandSearchResult } from "../../types/review";
+import type { CommandSearchResult } from "../../types/domains/conversation.ts";
 import { AppIcon } from "../shared/app-icon";
 import { cx } from "../shared/ui-primitives";
 import styles from "./command-search-palette.module.css";

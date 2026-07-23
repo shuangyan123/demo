@@ -1,6 +1,6 @@
 import { getQuotaProviderAdapter, serializeQuotaError } from "../../../server/ai/quota-adapters";
-import type { AiQuotaAction, AiQuotaCredentialKey } from "../../../types/domains/ai-quota";
-import type { ApiProvider } from "../../../types/domains/ai-provider";
+import type { AiQuotaAction, AiQuotaCredentialKey } from "../../../types/domains/ai-quota.ts";
+import type { ApiProvider } from "../../../types/domains/ai-provider.ts";
 import {
   RouteSecurityError,
   apiErrorResponse,

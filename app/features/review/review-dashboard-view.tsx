@@ -1,11 +1,12 @@
 import type { BoardStat } from "../../lib/review-selectors";
-import type { Board, KnowledgeCategory, KnowledgeCategorySummary, KnowledgeEntry, Mistake } from "../../types/review";
+import type { Board, Mistake } from "../../types/domains/review.ts";
+import type { KnowledgeCategory, KnowledgeCategorySummary, KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import { ConfigurationHealthPanel } from "../onboarding/configuration-health-panel";
 import type { ConfigurationHealth, ConfigurationHealthAction } from "../onboarding/use-configuration-health";
 import { AppIcon } from "../shared/app-icon";
 import { Button, CardButton, Chip, DataList, DataRow, EmptyState, MasteryDots } from "../shared/ui-primitives";
 import { studyDomainDefinitions } from "../study/study-registry";
-import { resolveDashboardNextAction, type DashboardNextActionId } from "./dashboard-next-action";
+import { resolveDashboardNextAction, type DashboardNextActionId } from "./dashboard-next-action.ts";
 import { DashboardStudyFlow, dashboardFlowTones, type DashboardFlowItem } from "./dashboard-study-flow";
 
 const boardColors = ["#2f6fed", "#1a9b71", "#d79018", "#d45145", "#7a5bd4", "#1c8c9a"];

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { AiConversation, ApiConnectionProfile, PersonalizationSettings } from "../../types/review";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import type { AiConversation } from "../../types/domains/conversation.ts";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 
 /** 对话内辅导的结束与摘要状态独立管理，避免主对话编排继续膨胀。 */
 export function useConversationTutoringFinish({

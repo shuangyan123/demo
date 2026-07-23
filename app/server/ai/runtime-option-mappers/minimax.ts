@@ -1,4 +1,4 @@
-import type { ProviderRuntimeMapper } from "./types";
+import type { ProviderRuntimeMapper } from "./types.ts";
 import { runtimeContext } from "./runtime-context.ts";
 
 /** MiniMax M3 映射自适应思考与优先档；M2.x 高速由配对模型 ID 完成。 */

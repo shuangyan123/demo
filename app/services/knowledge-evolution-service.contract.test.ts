@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { KnowledgeEntry } from "../types/review.ts";
+import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
 import { normalizeKnowledgeEvolutionPayload } from "./knowledge-evolution-service.ts";
 import type { KnowledgeEvolutionSource } from "./obsidian-knowledge-repository.ts";
 

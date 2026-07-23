@@ -1,4 +1,4 @@
-import type { ProviderRuntimeMapper } from "./types";
+import type { ProviderRuntimeMapper } from "./types.ts";
 import { runtimeContext } from "./runtime-context.ts";
 
 /** GLM-5.2+ 原样发送七档；旧 GLM 仅发送 thinking.type 开关。 */

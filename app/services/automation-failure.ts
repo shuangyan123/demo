@@ -1,4 +1,4 @@
-import type { AutomationFailureCategory, AutomationRecoveryAction } from "../types/review.ts";
+import type { AutomationFailureCategory, AutomationRecoveryAction } from "../types/domains/automation.ts";
 
 export type AutomationFailureDiagnosis = {
   category: AutomationFailureCategory;

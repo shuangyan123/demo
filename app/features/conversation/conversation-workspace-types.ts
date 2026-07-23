@@ -1,7 +1,10 @@
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { AiConversation, ApiConnectionProfile, KnowledgeEntry, PersonalizationSettings } from "../../types/review";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import type { AiConversation } from "../../types/domains/conversation.ts";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import type { ConversationSnapshot } from "../../services/conversation-repository";
-import type { ConversationLaunchContext } from "./conversation-launch-context";
+import type { ConversationLaunchContext } from "./conversation-launch-context.ts";
 
 /** 对话工作台只接收运行编排所需的稳定输入，具体面板状态留在子组件。 */
 export type ConversationWorkspaceProps = {

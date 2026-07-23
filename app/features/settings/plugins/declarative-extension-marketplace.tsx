@@ -8,14 +8,9 @@ import {
   validateExtensionPackage,
 } from "../../../services/declarative-extension-service.ts";
 import { personalizationSettingsRepository, removeCustomPersona } from "../../../services/personalization-settings-repository.ts";
-import type {
-  AppearanceSettings,
-  DeclarativeExtensionPackage,
-  InstalledExtensionRecord,
-  PersonaExtensionData,
-  PersonalizationSettings,
-  ThemeExtensionData,
-} from "../../../types/review.ts";
+import type { AppearanceSettings } from "../../../types/domains/appearance.ts";
+import type { DeclarativeExtensionPackage, InstalledExtensionRecord, PersonaExtensionData, ThemeExtensionData } from "../../../types/domains/declarative-extension.ts";
+import type { PersonalizationSettings } from "../../../types/domains/personalization.ts";
 import { Button, Chip, EmptyState } from "../../shared/ui-primitives.tsx";
 
 const kindLabels = {

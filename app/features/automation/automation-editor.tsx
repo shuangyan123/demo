@@ -4,16 +4,16 @@ import { useState, type FormEvent } from "react";
 import { automationFailureLabel, automationRecoveryLabel } from "../../services/automation-failure";
 import { AUTOMATION_TEMPLATES } from "../../services/automation-executor";
 import type { AutomationDefinitionInput } from "../../services/automation-repository";
-import type { AutomationContextSummary, AutomationDefinition, AutomationRecoveryAction, AutomationSchedule, AutomationTemplateId } from "../../types/review";
+import type { AutomationContextSummary, AutomationDefinition, AutomationRecoveryAction, AutomationSchedule, AutomationTemplateId } from "../../types/domains/automation.ts";
 import { Button, Chip, Panel } from "../shared/ui-primitives";
-import type { AutomationCenter, AutomationPreviewResult, AutomationTrialResult } from "./use-automation-center";
+import type { AutomationCenter, AutomationPreviewResult, AutomationTrialResult } from "./use-automation-center.ts";
 import {
   AUTOMATION_SOURCE_OPTIONS,
   automationErrorMessage,
   createAutomationDraft,
   createEditDraft,
   createSchedule,
-} from "./automation-ui";
+} from "./automation-ui.ts";
 import { AutomationCollectionEditor } from "./automation-collection-editor";
 
 /** 渲染已安排任务创建/编辑表单，并在保存前执行最小业务校验。 */

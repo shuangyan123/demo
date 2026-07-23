@@ -49,3 +49,4 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 
 - CI 的生产构建后必须执行 `npm run check:bundle`，并上传 `.next/diagnostics/bundle-budget.json`。需要更新基线时必须提交新的 Turbopack analyzer 证据和理由，不能通过单纯放宽 5% 阈值绕过回归。
 - 桌面与移动 Playwright 项目分别运行 axe 严重级门禁；失败时上传 trace 与附件报告。真实模型凭据和真实 Vault 仍只允许本机人工 smoke。
+- 架构发布门禁还要确认业务源码没有 `types/review.ts` import，Provider/Obsidian facade 与内部实现模块均不超过 500 行；本轮没有 Dexie 升级或新增部署变量。

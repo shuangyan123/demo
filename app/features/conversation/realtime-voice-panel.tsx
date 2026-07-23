@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getProviderModelCatalog } from "../../services/provider-contracts";
 import { startRealtimeVoiceSession } from "../../services/realtime-voice-session";
-import type { ApiConnectionProfile, RealtimeVoiceEvent } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { RealtimeVoiceEvent } from "../../types/domains/voice.ts";
 import { ProviderIcon } from "../shared/provider-icon";
 import { AppIcon } from "../shared/app-icon";
 

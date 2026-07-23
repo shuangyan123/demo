@@ -1,5 +1,5 @@
 import type { Transaction } from "dexie";
-import type { AiConversation, AiConversationAttachment, AiConversationMessage, AiConversationRunStep } from "../types/review";
+import type { AiConversation, AiConversationAttachment, AiConversationMessage, AiConversationRunStep } from "../types/domains/conversation.ts";
 
 export const REVIEW_DB_NAME = "review_workspace";
 export const REVIEW_DB_VERSION = 16;

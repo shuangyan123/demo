@@ -10,7 +10,7 @@ import {
   SettingsPluginsView,
   TutoringWorkspace,
 } from "./review-workspace-lazy-views";
-import type { ReviewWorkspaceController } from "./use-review-workspace-controller";
+import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 
 /** 渲染训练、知识和低频专项视图，保持业务依赖由 controller 注入。 */
 export function ReviewWorkspaceSecondaryViews({ controller }: { controller: ReviewWorkspaceController }) {

@@ -1,8 +1,9 @@
 import { RelatedKnowledgeList } from "../knowledge/knowledge-workspace";
 import { Button, CardButton, Chip, DataList, EmptyState, MasteryDots, Panel } from "../shared/ui-primitives";
-import { formatTimerSeconds, type ReviewTimerMode, type ReviewTimerState } from "./use-review-timer";
+import { formatTimerSeconds, type ReviewTimerMode, type ReviewTimerState } from "./use-review-timer.ts";
 import type { KnowledgeMatch } from "../../services/association-matcher";
-import type { KnowledgeEntry, Mistake, ReviewResult } from "../../types/review";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake, ReviewResult } from "../../types/domains/review.ts";
 
 type ReviewViewProps = {
   answerOpen: boolean;

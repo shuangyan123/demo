@@ -1,18 +1,9 @@
 import { reviewDb } from "../db/review-db.ts";
-import type {
-  Board,
-  InterviewEvaluation,
-  KnowledgeAttempt,
-  KnowledgeEntry,
-  LearnerEvidenceRef,
-  LearnerStateSignal,
-  LearnerStateSnapshot,
-  Mistake,
-  ReviewResult,
-  TutoringPlan,
-  TutoringSession,
-  TutoringTurn,
-} from "../types/review.ts";
+import type { Board, Mistake, ReviewResult } from "../types/domains/review.ts";
+import type { InterviewEvaluation } from "../types/domains/interview.ts";
+import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
+import type { LearnerEvidenceRef, LearnerStateSignal, LearnerStateSnapshot } from "../types/domains/learner-state.ts";
+import type { TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 
 type ResultEvidence = {
   id: string;

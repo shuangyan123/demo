@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { synthesizeWithConnection } from "../../services/ai-connection-client";
-import type { ApiConnectionProfile, VoiceProfile } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { VoiceProfile } from "../../types/domains/personalization.ts";
 
 // 只负责默认语音连接的音频播放；不读取浏览器系统音色，也不提供静默回退。
 export function useConnectionSpeechPlayback({

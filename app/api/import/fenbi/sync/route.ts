@@ -1,5 +1,6 @@
 import { FenbiAccountImportAdapter, FenbiAccountImportError } from "@/app/server/import/fenbi-account-import-adapter";
-import type { FenbiSyncEvent, FenbiSyncScope, ImportDraft } from "@/app/types/review";
+import type { FenbiSyncEvent, FenbiSyncScope } from "@/app/types/domains/fenbi-import.ts";
+import type { ImportDraft } from "@/app/types/domains/import.ts";
 import { apiErrorResponse, createRequestId, readRouteJson } from "@/app/server/http/route-security";
 
 export const runtime = "nodejs";

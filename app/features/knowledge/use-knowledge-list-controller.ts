@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useBulkSelection } from "../shared/use-bulk-selection";
 import { useVisibleLimit } from "../shared/use-visible-limit";
-import type { ExportFormat, ExportScope, KnowledgeEntry, KnowledgeFilters } from "../../types/review";
+import type { ExportFormat, ExportScope } from "../../types/domains/review.ts";
+import type { KnowledgeEntry, KnowledgeFilters } from "../../types/domains/knowledge.ts";
 
 const KNOWLEDGE_VISIBLE_STEP = 80;
 

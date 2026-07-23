@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { automationFailureLabel, automationRecoveryLabel } from "../../services/automation-failure";
-import type { AutomationRecoveryAction, AutomationRun } from "../../types/review";
+import type { AutomationRecoveryAction, AutomationRun } from "../../types/domains/automation.ts";
 import { Button, EmptyState } from "../shared/ui-primitives";
 import { AutomationSummaryList } from "./automation-editor";
 import styles from "./automation-workspace.module.css";
-import type { AutomationCenter } from "./use-automation-center";
-import { automationErrorMessage, formatAutomationDate } from "./automation-ui";
+import type { AutomationCenter } from "./use-automation-center.ts";
+import { automationErrorMessage, formatAutomationDate } from "./automation-ui.ts";
 
 /** 运行收件箱：在有限侧栏宽度内展示状态、摘要和按需详情。 */
 export function AutomationInbox({

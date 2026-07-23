@@ -1,5 +1,6 @@
 import { normalizeVoiceProfile } from "../../services/personalization-settings-repository";
-import type { ApiConnectionProfile, PersonaCustomization } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonaCustomization } from "../../types/domains/personalization.ts";
 import { VoiceProfileEditor } from "./voice-profile-editor";
 
 /**

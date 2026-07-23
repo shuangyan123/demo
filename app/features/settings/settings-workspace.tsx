@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import type { AppearanceSettings, PersonalizationSettings } from "../../types/review";
+import type { AppearanceSettings } from "../../types/domains/appearance.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { LocalDiagnosticsPanel } from "../diagnostics/local-diagnostics-panel";
 import { useLocalDiagnostics, type LocalDiagnosticAction, type LocalDiagnosticsHookInput } from "../diagnostics/use-local-diagnostics";
 import { SidebarNav, WorkspaceShell } from "../shared/workspace-shell";

@@ -1,4 +1,4 @@
-import type { InterviewScoreDimension, InterviewType } from "../types/review";
+import type { InterviewScoreDimension, InterviewType } from "../types/domains/interview.ts";
 
 export type InterviewRubric = {
   type: InterviewType;

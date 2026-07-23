@@ -1,11 +1,14 @@
-import type { ChatMessageContent } from "./api-client";
-import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
-import { generateWithConnection } from "./ai-connection-client";
+import type { ChatMessageContent } from "./api-client.ts";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
+import { generateWithConnection } from "./ai-connection-client.ts";
 import { parseAiJsonObject } from "./ai-json.ts";
-import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
+import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
 import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
 import { buildLearningContext } from "./learning-context-assembler.ts";
-import type { ApiConnectionProfile, LearnerStateSnapshot, PersonalizationSettings, TutoringMicroAssessment, TutoringSession, TutoringTurn } from "../types/review";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { LearnerStateSnapshot, TutoringMicroAssessment } from "../types/domains/learner-state.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
+import type { TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 
 export type TutoringAiReply = {
   teacherMessage: string;

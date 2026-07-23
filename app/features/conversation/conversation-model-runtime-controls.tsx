@@ -6,10 +6,10 @@ import type {
   AiModelRuntimeOption,
   AiModelRuntimeValue,
   AiSelectedRuntimeValues,
-} from "../../types/domains/ai-model";
+} from "../../types/domains/ai-model.ts";
 import { AppIcon } from "../shared/app-icon";
 import { UiTooltip } from "../shared/ui-tooltip";
-import type { ConversationModelRuntimeDimension } from "./use-conversation-model-navigation";
+import type { ConversationModelRuntimeDimension } from "./use-conversation-model-navigation.ts";
 import styles from "./conversation-model-picker.module.css";
 
 type ConversationModelRuntimeControlsProps = {

@@ -2,13 +2,14 @@
 
 import type { ReactNode } from "react";
 import { toISODate } from "../../lib/review-utils";
-import type { AiConversation, AiConversationFolder, ViewKey } from "../../types/review";
+import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
+import type { ViewKey } from "../../types/domains/workspace.ts";
 import { Button } from "../shared/ui-primitives";
 import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
 import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../study/study-registry";
 import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
 import { AppIcon } from "../shared/app-icon";
-import { preloadReviewView } from "./review-workspace-preload";
+import { preloadReviewView } from "./review-workspace-preload.ts";
 
 type ReviewNavIconName =
   | "newChat"

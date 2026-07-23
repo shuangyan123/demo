@@ -1,14 +1,7 @@
-import type {
-  AcquisitionModelRef,
-  AcquisitionRunSummary,
-  ApiConnectionProfile,
-  AiConnectionSnapshot,
-  AutomationContextSummary,
-  AutomationDefinition,
-  AutomationSourceScope,
-  AutomationTemplateId,
-  PersonalizationSettings,
-} from "../types/review.ts";
+import type { AcquisitionModelRef, AcquisitionRunSummary } from "../types/domains/acquisition.ts";
+import type { ApiConnectionProfile, AiConnectionSnapshot } from "../types/domains/ai-connection.ts";
+import type { AutomationContextSummary, AutomationDefinition, AutomationSourceScope, AutomationTemplateId } from "../types/domains/automation.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import { generateWithConnection } from "./ai-connection-client.ts";
 import { buildAutomationContextPreview, buildAutomationContextResult, type AutomationContextPreview } from "./automation-context-service.ts";
 import { requestKnowledgeEvolutionProposals } from "./knowledge-evolution-service.ts";

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import type { ApiProvider } from "../../types/domains/ai-provider";
-import type { AiModelCatalogEntry } from "../../types/review";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
+import type { AiModelCatalogEntry } from "../../types/domains/provider-catalog.ts";
 import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
 import styles from "./provider-select.module.css";

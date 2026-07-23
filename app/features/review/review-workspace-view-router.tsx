@@ -5,7 +5,7 @@ import { ReviewWorkspaceCoreViews } from "./review-workspace-core-views";
 import { SettingsWorkspace } from "./review-workspace-lazy-views";
 import { ReviewWorkspaceSecondaryViews } from "./review-workspace-secondary-views";
 import { ReviewWorkspaceShell } from "./review-workspace-shell";
-import type { ReviewWorkspaceController } from "./use-review-workspace-controller";
+import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 
 /** 装配设置、工作台壳层和当前视图；不读取 repository 或持有业务状态。 */
 export function ReviewWorkspaceViewRouter({ controller }: { controller: ReviewWorkspaceController }) {

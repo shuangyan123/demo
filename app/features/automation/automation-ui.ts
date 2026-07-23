@@ -1,13 +1,7 @@
 import { AUTOMATION_TEMPLATES } from "../../services/automation-executor";
 import type { AutomationDefinitionInput } from "../../services/automation-repository";
-import type {
-  AutomationDefinition,
-  AutomationRun,
-  AutomationSchedule,
-  AutomationSourceScope,
-  AutomationTemplateId,
-  AutomationCollectionConfig,
-} from "../../types/review";
+import type { AutomationDefinition, AutomationRun, AutomationSchedule, AutomationSourceScope, AutomationTemplateId } from "../../types/domains/automation.ts";
+import type { AutomationCollectionConfig } from "../../types/domains/acquisition.ts";
 
 /** 已安排编辑器可选择的只读数据范围。 */
 export const AUTOMATION_SOURCE_OPTIONS: Array<{ id: AutomationSourceScope; label: string }> = [

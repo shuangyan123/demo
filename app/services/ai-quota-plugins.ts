@@ -1,4 +1,5 @@
-import type { AiQuotaCredentialKey, AiQuotaFetchStrategy, AiQuotaProviderDescriptor, AiQuotaSnapshot, AiQuotaSourceMode, ApiProvider } from "../types/review";
+import type { AiQuotaCredentialKey, AiQuotaFetchStrategy, AiQuotaProviderDescriptor, AiQuotaSnapshot, AiQuotaSourceMode } from "../types/domains/ai-quota.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 
 export type AiQuotaCredentialField = {
   key: AiQuotaCredentialKey;

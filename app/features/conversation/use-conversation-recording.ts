@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { transcribeWithConnection } from "../../services/ai-connection-client";
-import type { ApiConnectionProfile } from "../../types/review";
-import { conversationProviderErrorMessage, readBlobAsDataUrl } from "./conversation-message-utils";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import { conversationProviderErrorMessage, readBlobAsDataUrl } from "./conversation-message-utils.ts";
 
 /** 录音、MediaRecorder 生命周期与转写集中管理，原始音频永远不离开当前内存。 */
 export function useConversationRecording({

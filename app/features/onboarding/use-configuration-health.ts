@@ -1,14 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  AiConnectionSnapshot,
-  AutomationSnapshot,
-  ImportJob,
-  KnowledgeEntry,
-  Mistake,
-  ObsidianVaultSnapshot,
-} from "../../types/review";
+import type { AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
+import type { AutomationSnapshot } from "../../types/domains/automation.ts";
+import type { ImportJob } from "../../types/domains/import.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
+import type { ObsidianVaultSnapshot } from "../../types/domains/obsidian.ts";
 
 export type ConfigurationHealthStatus = "ready" | "warning" | "missing";
 

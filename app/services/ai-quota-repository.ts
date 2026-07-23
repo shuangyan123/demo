@@ -1,5 +1,6 @@
 import { toISODate } from "../lib/review-utils.ts";
-import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaMetric, AiQuotaSnapshot, AiQuotaVerificationResult, ApiProvider } from "../types/review";
+import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaMetric, AiQuotaSnapshot, AiQuotaVerificationResult } from "../types/domains/ai-quota.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { aiQuotaProviderPlugins, getAiQuotaPlugin } from "./ai-quota-plugins.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";

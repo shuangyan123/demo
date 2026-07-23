@@ -1,4 +1,4 @@
-import type { ProviderRuntimeMapper } from "./types";
+import type { ProviderRuntimeMapper } from "./types.ts";
 import { runtimeContext } from "./runtime-context.ts";
 
 /** Gemini 3.x 使用 thinkingLevel，2.5 使用 thinkingBudget；Priority 位于请求顶层。 */

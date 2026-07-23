@@ -2,14 +2,9 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildLocalDiagnostics, type BrowserCapabilitySnapshot, type LocalDiagnosticsInput } from "./use-local-diagnostics.ts";
-import type {
-  AiConnectionSnapshot,
-  ApiConnectionProfile,
-  AutomationDefinition,
-  AutomationRun,
-  AutomationSnapshot,
-  ObsidianVaultSnapshot,
-} from "../../types/review.ts";
+import type { AiConnectionSnapshot, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { AutomationDefinition, AutomationRun, AutomationSnapshot } from "../../types/domains/automation.ts";
+import type { ObsidianVaultSnapshot } from "../../types/domains/obsidian.ts";
 
 const now = "2026-06-29T08:00:00.000Z";
 

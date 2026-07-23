@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { inspectConnectionModelCatalog, loadConnectionModelCatalog } from "../../services/model-directory-service";
-import type { AiConnectionPurpose, AiModelCatalogEntry, ApiConnectionProfile } from "../../types/review";
+import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { AiModelCatalogEntry } from "../../types/domains/provider-catalog.ts";
 
 /** 对话菜单复用共享模型目录；首帧读缓存/回退，后台仅刷新过期官方目录。 */
 export function useConnectionModelCatalog(connection: ApiConnectionProfile | undefined, purpose: AiConnectionPurpose) {

@@ -1,4 +1,5 @@
-import type { ApiProvider, VoiceProviderDescriptor } from "../types/review";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
+import type { VoiceProviderDescriptor } from "../types/domains/voice.ts";
 import { getProviderContract } from "./provider-contracts.ts";
 
 const googleVoices = ["Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"];

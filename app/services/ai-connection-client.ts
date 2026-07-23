@@ -1,5 +1,5 @@
-import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
-import type { ApiConnectionProfile } from "../types/review";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 import {
   callAiGenerate,
   callAiGenerateStream,

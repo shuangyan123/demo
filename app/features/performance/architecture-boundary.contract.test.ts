@@ -24,6 +24,31 @@ function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
 
+test("业务源码直接引用领域类型且核心 facade 保持预算", async () => {
+  const files = await sourceFiles(APP_ROOT);
+  const compatibilityImports: string[] = [];
+  for (const file of files) {
+    if (file.endsWith(path.join("types", "review.ts"))) continue;
+    const source = await readFile(file, "utf8");
+    if (staticImports(source).some((specifier) => /(?:^|\/)types\/review(?:\.ts)?$/.test(specifier))) {
+      compatibilityImports.push(path.relative(APP_ROOT, file));
+    }
+  }
+  assert.deepEqual(compatibilityImports, []);
+
+  const budgets = new Map([
+    ["types/review.ts", 300],
+    ["server/ai/provider-adapter.ts", 500],
+    ["server/ai/provider-speech-adapter.ts", 500],
+    ["services/obsidian-knowledge-repository.ts", 500],
+    ["services/obsidian-repository-helpers.ts", 500],
+  ]);
+  for (const [relativePath, budget] of budgets) {
+    const lines = (await readFile(path.join(APP_ROOT, relativePath), "utf8")).split(/\r?\n/).length;
+    assert.ok(lines <= budget, `${relativePath} 为 ${lines} 行，超过 ${budget} 行预算`);
+  }
+});
+
 test("大型 workspace 保持受控预算并使用专用 controller", async () => {
   const budgets = new Map([
     ["features/review/review-workspace.tsx", 150],

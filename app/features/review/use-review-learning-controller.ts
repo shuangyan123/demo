@@ -17,16 +17,9 @@ import {
 import { toISODate } from "../../lib/review-utils";
 import { downloadExportFile, exportMistakes } from "../../services/export-service";
 import { reviewRepository } from "../../services/review-repository";
-import type {
-  Attempt,
-  Board,
-  ExportFormat,
-  ExportScope,
-  Filters,
-  Mistake,
-  ViewKey,
-} from "../../types/review";
-import { useReviewTimer } from "./use-review-timer";
+import type { Attempt, Board, ExportFormat, ExportScope, Filters, Mistake } from "../../types/domains/review.ts";
+import type { ViewKey } from "../../types/domains/workspace.ts";
+import { useReviewTimer } from "./use-review-timer.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

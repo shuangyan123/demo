@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "../shared/app-icon";
 import { Button } from "../shared/ui-primitives";
-import type { FenbiImportCredential, FenbiSyncScope } from "../../types/review";
+import type { FenbiImportCredential, FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
 import styles from "./fenbi-quick-import-panel.module.css";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;

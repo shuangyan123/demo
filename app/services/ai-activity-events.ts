@@ -1,5 +1,5 @@
-import type { ApiProvider } from "../types/domains/ai-provider";
-import type { AiGenerationProtocol } from "../types/domains/ai-model";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
+import type { AiGenerationProtocol } from "../types/domains/ai-model.ts";
 
 export type AiActivityEventDetail = {
   phase: "started" | "waiting" | "delta" | "usage" | "done" | "error";

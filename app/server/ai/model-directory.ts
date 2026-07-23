@@ -3,7 +3,7 @@ import { normalizeGoogleApiBaseUrl } from "../../services/google-connection.ts";
 import { miniMaxModelDirectoryHeaders, normalizeMiniMaxAnthropicBaseUrl } from "../../services/minimax-connection.ts";
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
 import type { ApiProvider } from "../../types/domains/ai-provider.ts";
-import type { AiCapability, AiConnectionPurpose } from "../../types/review.ts";
+import type { AiCapability, AiConnectionPurpose } from "../../types/domains/ai-connection.ts";
 import { HttpProviderTransport } from "./provider-transport.ts";
 
 type JsonObject = Record<string, unknown>;

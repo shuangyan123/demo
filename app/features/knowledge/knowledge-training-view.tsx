@@ -1,7 +1,8 @@
 "use client";
 
 import { formatShortDate, masteryLabel } from "../../lib/review-utils";
-import type { KnowledgeEntry, KnowledgeQueueFilter, ReviewResult } from "../../types/review";
+import type { KnowledgeEntry, KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
+import type { ReviewResult } from "../../types/domains/review.ts";
 import { Button, Chip, DetailBlock, DetailCard, EmptyState, MasteryDots, Panel, SoftBlock } from "../shared/ui-primitives";
 import styles from "./knowledge-training-view.module.css";
 

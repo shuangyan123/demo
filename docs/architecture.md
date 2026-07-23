@@ -338,3 +338,10 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 以 Next 16.2.11 `experimental-analyze --output` 和生产构建清单建立 `docs/performance-budget.json`。CI 校验首屏客户端 JavaScript、CSS、最大 JavaScript chunk 均不得超过基线 5%，报告写入 `.next/diagnostics/bundle-budget.json`。
 - 首屏基线为 JavaScript 1,183,694 bytes、CSS 131,222 bytes、最大异步 chunk 568,117 bytes。Turbopack import trace 显示 PDF 与字体映射仍位于低频异步块；结构契约继续阻止 PDF、DOCX、Obsidian、实时媒体、已安排和设置回到静态首屏链路。
 - 已安排、设置、导入、面试、辅导与对话入口只在用户 hover/focus 时预取代码，不触发 repository 或外部请求。桌面 1536×1024 与移动 390×844 使用 axe WCAG A/AA 规则阻断 serious/critical 问题。
+
+## 领域类型与核心服务收口（2026-07-23）
+
+- 业务源码已从 `types/review.ts` 的 191 个引用降为 0。`types/review.ts` 缩为 5 行历史兼容出口，interview、tutoring、obsidian、personalization、appearance、association、import、workspace、MCP、voice 与 provider catalog 均有独立领域入口。
+- `types/domains/legacy-review.ts` 冻结保存历史 schema 类型清单，领域入口作为新代码唯一公共边界；架构契约禁止业务重新导入兼容出口。该整理不改表结构、字段、索引或 `review_workspace` v16。
+- Provider 公共 adapter 保持原导出并缩至 405 行，语音请求/音频解析进入 177 行内部 mapper。Obsidian repository facade 保持原对象 API 并缩至 490 行，纯转换与图谱派生进入 104 行 helper。
+- 拆分保持 Google 双协议、MiniMax 鉴权、SSE、语音、MCP、自动记忆、Obsidian 冲突与 proposal 语义；对应 209 个契约测试继续作为回滚判据。

@@ -1,4 +1,4 @@
-import type { FenbiImportCredential } from "../types/review.ts";
+import type { FenbiImportCredential } from "../types/domains/fenbi-import.ts";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 
 export const FENBI_CREDENTIAL_STORAGE_KEY = "review-workspace:fenbi-import-credential";

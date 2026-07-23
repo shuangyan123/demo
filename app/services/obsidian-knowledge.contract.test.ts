@@ -2,7 +2,8 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
-import type { KnowledgeEntry, KnowledgeEvolutionProposal, ObsidianVaultConfig } from "../types/review.ts";
+import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
+import type { KnowledgeEvolutionProposal, ObsidianVaultConfig } from "../types/domains/obsidian.ts";
 import {
   applyAiEvolutionSection,
   buildObsidianNotePath,

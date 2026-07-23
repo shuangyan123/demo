@@ -1,13 +1,7 @@
-import type {
-  AcquisitionDocument,
-  AcquisitionEvidence,
-  AcquisitionModelRef,
-  AcquisitionReviewStatus,
-  ApiConnectionProfile,
-  AutomationCollectionConfig,
-  KnowledgeCategory,
-  KnowledgeEvolutionProposal,
-} from "../types/review.ts";
+import type { AcquisitionDocument, AcquisitionEvidence, AcquisitionModelRef, AcquisitionReviewStatus, AutomationCollectionConfig } from "../types/domains/acquisition.ts";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { KnowledgeCategory } from "../types/domains/knowledge.ts";
+import type { KnowledgeEvolutionProposal } from "../types/domains/obsidian.ts";
 import { generateWithConnection } from "./ai-connection-client.ts";
 import { parseAiJsonObject } from "./ai-json.ts";
 import { calculateAcquisitionTrust } from "./acquisition-trust.ts";

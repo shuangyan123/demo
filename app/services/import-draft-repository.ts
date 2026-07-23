@@ -1,13 +1,7 @@
 import { reviewDb } from "../db/review-db";
 import { draftToMistakeInput, toISODate } from "../lib/review-utils";
-import type {
-  ImportBatch,
-  ImportBatchSource,
-  ImportDraft,
-  ImportDraftIssue,
-  Mistake,
-  PersistedImportDraft,
-} from "../types/review";
+import type { ImportBatch, ImportBatchSource, ImportDraft, ImportDraftIssue, PersistedImportDraft } from "../types/domains/import.ts";
+import type { Mistake } from "../types/domains/review.ts";
 
 type CreateBatchInput = {
   source: ImportBatchSource;

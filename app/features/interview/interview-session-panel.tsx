@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { interviewRubrics, interviewTypeLabels } from "../../services/interview-rubric";
-import type { InterviewEvaluation, InterviewSession, InterviewSpeaker, InterviewStage, InterviewTurn } from "../../types/review";
+import type { InterviewEvaluation, InterviewSession, InterviewSpeaker, InterviewStage, InterviewTurn } from "../../types/domains/interview.ts";
 import { LearningSessionInsightSection, LearningSessionLayout } from "../shared/learning-session-layout";
 import { Button, EmptyState, ScoreBar, SessionStageRail } from "../shared/ui-primitives";
-import type { useInterviewSpeech } from "./use-interview-speech";
+import type { useInterviewSpeech } from "./use-interview-speech.ts";
 import styles from "./interview-session-panel.module.css";
 
 const stageLabels: Record<InterviewStage, string> = {

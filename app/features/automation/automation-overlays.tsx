@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import type { AutomationDefinition, AutomationRecoveryAction, AutomationRun } from "../../types/review";
+import type { AutomationDefinition, AutomationRecoveryAction, AutomationRun } from "../../types/domains/automation.ts";
 import { Button } from "../shared/ui-primitives";
 import { AutomationEditor } from "./automation-editor";
 import styles from "./automation-workspace.module.css";
-import type { AutomationEditorState } from "./use-automation-view-controller";
-import type { AutomationCenter } from "./use-automation-center";
-import { automationErrorMessage, formatAutomationDate } from "./automation-ui";
+import type { AutomationEditorState } from "./use-automation-view-controller.ts";
+import type { AutomationCenter } from "./use-automation-center.ts";
+import { automationErrorMessage, formatAutomationDate } from "./automation-ui.ts";
 
 /** 为编辑层和移动抽屉提供焦点锁定、Escape 与滚动锁定。 */
 function FocusLayer({

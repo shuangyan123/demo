@@ -7,7 +7,9 @@ import { Button, Chip, EmptyState, MasteryDots, SelectField, SoftBlock, TextArea
 import { splitInput, textValue, toListText } from "../../lib/form-utils";
 import { masteryLabel } from "../../lib/review-utils";
 import type { RelatedMistakeMatch } from "../../services/association-matcher";
-import { KNOWLEDGE_CATEGORIES, type AssociationSuggestion, type KnowledgeCategory, type KnowledgeEntry, type KnowledgeMistakeLink, type Mistake } from "../../types/review";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 
 type KnowledgeEntryEditorProps = {
   aiAssociationBusy: boolean;

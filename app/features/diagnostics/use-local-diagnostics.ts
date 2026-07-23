@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AiConnectionSnapshot, AutomationRun, AutomationSnapshot, ImportJob, ObsidianVaultSnapshot } from "../../types/review";
+import type { AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
+import type { AutomationRun, AutomationSnapshot } from "../../types/domains/automation.ts";
+import type { ImportJob } from "../../types/domains/import.ts";
+import type { ObsidianVaultSnapshot } from "../../types/domains/obsidian.ts";
 
 export type LocalDiagnosticStatus = "ready" | "warning" | "error";
 export type LocalDiagnosticAction = "ai-connections" | "knowledge" | "automation";

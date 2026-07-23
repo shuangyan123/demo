@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
 import { personalMemoryRepository } from "../../services/personal-memory-repository";
-import type { PersonalMemoryEntry, PersonalMemoryKind, PersonalMemoryScope, PersonalizationSettings } from "../../types/review";
+import type { PersonalMemoryEntry, PersonalMemoryKind, PersonalMemoryScope } from "../../types/domains/personal-memory.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { AppIcon } from "../shared/app-icon";
 import { Button, EmptyState } from "../shared/ui-primitives";
 import styles from "./settings-compact.module.css";

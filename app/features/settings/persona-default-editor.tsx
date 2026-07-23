@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import type { ApiConnectionProfile, PersonaCustomization, PersonaProfile } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonaCustomization, PersonaProfile } from "../../types/domains/personalization.ts";
 import { PersonaEditorDialog } from "./persona-editor-dialog";
 import { PersonaVoiceSection } from "./persona-voice-section";
 

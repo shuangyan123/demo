@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Attempt, KnowledgeEntry, Mistake } from "../../types/review.ts";
+import type { Attempt, Mistake } from "../../types/domains/review.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import { deriveLearningInsightSnapshot } from "./learning-insight-model.ts";
 
 const now = new Date("2026-07-23T12:00:00.000Z");

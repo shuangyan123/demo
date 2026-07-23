@@ -1,4 +1,4 @@
-import type { ScheduledWorkspaceState, StudyDomainDefinition, StudyModuleDefinition, ViewKey } from "../../types/review";
+import type { ScheduledWorkspaceState, StudyDomainDefinition, StudyModuleDefinition, ViewKey } from "../../types/domains/workspace.ts";
 
 /** 公考专项复用现有错题、知识、面试和辅导视图；这里只声明导航和能力边界。 */
 const allCivilServiceStudyModules = [

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
-import type { AiConnectionSnapshot } from "../../types/review";
+import type { AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
 
 // 为业务工作台提供当前能力连接快照，设置变更后可显式刷新。
 export function useAiConnections(onError: (message: string) => void) {

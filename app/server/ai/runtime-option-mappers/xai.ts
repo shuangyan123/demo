@@ -1,4 +1,4 @@
-import type { ProviderRuntimeMapper } from "./types";
+import type { ProviderRuntimeMapper } from "./types.ts";
 import { runtimeContext } from "./runtime-context.ts";
 
 /** Grok 4.5 在 Responses 请求中使用 reasoning.effort；多代理模型不在本 mapper 中声明。 */

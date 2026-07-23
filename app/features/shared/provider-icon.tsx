@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { ApiProvider } from "../../types/review";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 import { getProviderBranding } from "../../services/provider-branding";
 
 /** 使用本地厂商 SVG，避免设置页和额度卡各自绘制不一致图标。 */

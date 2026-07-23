@@ -1,6 +1,7 @@
-import type { ApiConnectionProfile, ImportDraft } from "../types/review";
-import { generateWithConnection } from "./ai-connection-client";
-import { buildFenbiSystemPrompt, parseFenbiAiJson, parseFenbiTextByName } from "./fenbi-parser";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { ImportDraft } from "../types/domains/import.ts";
+import { generateWithConnection } from "./ai-connection-client.ts";
+import { buildFenbiSystemPrompt, parseFenbiAiJson, parseFenbiTextByName } from "./fenbi-parser.ts";
 
 type PdfJsModule = {
   getDocument: (input: Record<string, unknown>) => {

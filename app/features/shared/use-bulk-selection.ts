@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { BulkSelectionState } from "../../types/review";
+import type { BulkSelectionState } from "../../types/domains/review.ts";
 
 // 管理列表页批量选择状态；visibleIds 改变时会自动剔除已经不可见的旧选择，避免误删筛选外数据。
 export function useBulkSelection<TId extends string>(visibleIds: TId[]) {

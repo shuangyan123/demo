@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createDefaultPersonalizationSettings, personalizationSettingsRepository } from "../../services/personalization-settings-repository";
-import type { PersonalizationSettings } from "../../types/review";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 
 // 读取并缓存当前个性化设置，让辅导、面试和知识内化共享同一份选择。
 export function usePersonalizationSettings(onError: (message: string) => void) {

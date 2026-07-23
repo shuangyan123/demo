@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { Button, SelectField, TextAreaField, TextField } from "../shared/ui-primitives";
-import { BOARD_OPTIONS } from "../../types/review";
+import { BOARD_OPTIONS } from "../../types/domains/review.ts";
 import styles from "./review-entry-view.module.css";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;

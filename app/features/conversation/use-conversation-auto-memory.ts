@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import type { ApiConnectionProfile, PersonalizationSettings } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { extractAutomaticMemories, extractExplicitMemory, type AutomaticMemoryTurn } from "../../services/automatic-memory-service";
 import { personalMemoryRepository } from "../../services/personal-memory-repository";
 

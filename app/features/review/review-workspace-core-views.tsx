@@ -6,7 +6,7 @@ import { LibraryView } from "./review-library-view";
 import { ReviewView } from "./review-session-view";
 import { StatsView } from "./review-stats-view";
 import { ConversationWorkspace } from "./review-workspace-lazy-views";
-import type { ReviewWorkspaceController } from "./use-review-workspace-controller";
+import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 import { toISODate } from "../../lib/review-utils";
 
 /** 渲染总览、错题、复盘和历史统计等首屏核心路径。 */

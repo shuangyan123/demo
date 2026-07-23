@@ -1,9 +1,10 @@
 "use client";
 
-import { aiConnectionsRepository } from "./ai-connections-repository";
-import type { ApiConnectionProfile, RealtimeVoiceEvent } from "../types/review";
-import { readApiErrorMessage } from "./api-error";
-import { fetchLocalApi } from "./local-runtime-diagnostics";
+import { aiConnectionsRepository } from "./ai-connections-repository.ts";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { RealtimeVoiceEvent } from "../types/domains/voice.ts";
+import { readApiErrorMessage } from "./api-error.ts";
+import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 
 type RealtimeHandle = { stop: () => Promise<void>; mute: (muted: boolean) => void };
 

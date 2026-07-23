@@ -3,9 +3,9 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { createDefaultAppearanceSettings } from "../../services/appearance-settings-repository";
-import type { AppearanceSettings, ThemeConfig } from "../../types/review";
+import type { AppearanceSettings, ThemeConfig } from "../../types/domains/appearance.ts";
 import { ColorPickerField, isValidHexColor } from "./color-picker-field";
-import { cloneTheme, darkThemePresets, lightThemePresets, type ThemePreset } from "./theme-presets";
+import { cloneTheme, darkThemePresets, lightThemePresets, type ThemePreset } from "./theme-presets.ts";
 import { ThemePresetSelect } from "./theme-preset-select";
 import { AppIcon } from "../shared/app-icon";
 import { SettingsSectionHeader } from "./settings-section-header";

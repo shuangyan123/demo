@@ -1,6 +1,7 @@
 import { getProviderContract } from "../../services/provider-contracts";
 import { getVoiceProviderDescriptor } from "../../services/voice-provider-descriptors";
-import type { ApiConnectionProfile, VoiceProfile } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { VoiceProfile } from "../../types/domains/personalization.ts";
 
 export function VoiceProfileEditor({
   disabled = false,

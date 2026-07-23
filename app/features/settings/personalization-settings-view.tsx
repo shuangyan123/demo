@@ -14,7 +14,8 @@ import {
   resolvePersonaById,
   resolvePersonaImage,
 } from "../../services/personalization-settings-repository";
-import type { AiConnectionSnapshot, PersonaCustomization, PersonaModule, PersonaProfile, PersonalizationSettings } from "../../types/review";
+import type { AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
+import type { PersonaCustomization, PersonaModule, PersonaProfile, PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { Button } from "../shared/ui-primitives";
 import { useConnectionSpeechPlayback } from "../shared/use-connection-speech-playback";
 import { PersonaCardBackDialog } from "./persona-card-back-dialog";

@@ -6,21 +6,12 @@ import { Button, Chip, ConfirmDialog, EmptyState, Panel, SelectField, SoftBlock,
 import { useVisibleLimit } from "../shared/use-visible-limit";
 import { toListText } from "../../lib/form-utils";
 import { FenbiQuickImportPanel } from "./fenbi-quick-import-panel";
-import type { useFenbiQuickImport } from "./use-fenbi-quick-import";
+import type { useFenbiQuickImport } from "./use-fenbi-quick-import.ts";
 import styles from "./review-import-view.module.css";
-import {
-  BOARD_OPTIONS,
-  KNOWLEDGE_CATEGORIES,
-  type ApiConnectionProfile,
-  type Board,
-  type ImportBatch,
-  type ImportDraft,
-  type ImportDraftIssue,
-  type ImportJob,
-  type KnowledgeCategory,
-  type KnowledgeImportDraft,
-  type PersistedImportDraft,
-} from "../../types/review";
+import { BOARD_OPTIONS, type Board } from "../../types/domains/review.ts";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeImportDraft } from "../../types/domains/knowledge.ts";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { ImportBatch, ImportDraft, ImportDraftIssue, ImportJob, PersistedImportDraft } from "../../types/domains/import.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

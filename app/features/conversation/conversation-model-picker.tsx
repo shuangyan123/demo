@@ -12,16 +12,17 @@ import {
 } from "react";
 import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues } from "../../services/model-runtime-descriptors";
 import { getProviderContract } from "../../services/provider-contracts";
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { ApiProvider } from "../../types/domains/ai-provider";
-import type { AiConnectionPurpose, AiModelCatalogEntry, ApiConnectionProfile } from "../../types/review";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
+import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { AiModelCatalogEntry } from "../../types/domains/provider-catalog.ts";
 import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
 import { UiTooltip } from "../shared/ui-tooltip";
 import { ConversationModelRuntimeControls } from "./conversation-model-runtime-controls";
-import { useConnectionModelCatalog } from "./use-connection-model-catalog";
-import { useConversationModelNavigation } from "./use-conversation-model-navigation";
-import { useModelPickerOverflow } from "./use-model-picker-overflow";
+import { useConnectionModelCatalog } from "./use-connection-model-catalog.ts";
+import { useConversationModelNavigation } from "./use-conversation-model-navigation.ts";
+import { useModelPickerOverflow } from "./use-model-picker-overflow.ts";
 import styles from "./conversation-model-picker.module.css";
 
 export type ConversationModelSelection = {

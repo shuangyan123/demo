@@ -1,4 +1,4 @@
-import type { ViewKey } from "../../types/review";
+import type { ViewKey } from "../../types/domains/workspace.ts";
 
 const preloaders: Partial<Record<ViewKey, () => Promise<unknown>>> = {
   automation: () => import("../automation/automation-view"),

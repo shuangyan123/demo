@@ -1,21 +1,11 @@
-import { generateWithConnection } from "./ai-connection-client";
+import { generateWithConnection } from "./ai-connection-client.ts";
 import { parseAiJsonObject } from "./ai-json.ts";
-import { buildEmptyInterviewDimensions, interviewRubrics, interviewTypeLabels } from "./interview-rubric";
-import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
+import { buildEmptyInterviewDimensions, interviewRubrics, interviewTypeLabels } from "./interview-rubric.ts";
+import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
 import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
-import type {
-  ApiConnectionProfile,
-  InterviewDifficulty,
-  InterviewEvaluation,
-  InterviewPracticePlan,
-  InterviewQuestion,
-  InterviewQuestionDraft,
-  InterviewSession,
-  InterviewStage,
-  InterviewTurn,
-  InterviewType,
-  PersonalizationSettings,
-} from "../types/review";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { InterviewDifficulty, InterviewEvaluation, InterviewPracticePlan, InterviewQuestion, InterviewQuestionDraft, InterviewSession, InterviewStage, InterviewTurn, InterviewType } from "../types/domains/interview.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 
 export type InterviewAiReply = {
   reply: string;

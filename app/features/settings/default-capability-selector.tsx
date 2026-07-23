@@ -7,7 +7,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
 import { inspectConnectionModelCatalog, loadConnectionModelCatalog } from "../../services/model-directory-service";
-import type { AiConnectionPurpose, AiConnectionSnapshot, AiModelCatalogEntry } from "../../types/review";
+import type { AiConnectionPurpose, AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
+import type { AiModelCatalogEntry } from "../../types/domains/provider-catalog.ts";
 import { AppIcon } from "../shared/app-icon";
 import { Button } from "../shared/ui-primitives";
 import { BrandedOptionSelect } from "./branded-option-select";

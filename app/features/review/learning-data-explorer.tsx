@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { BOARD_OPTIONS, type Attempt, type KnowledgeEntry, type Mistake } from "../../types/review";
+import { BOARD_OPTIONS, type Attempt, type Mistake } from "../../types/domains/review.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { ConversationLaunchContext } from "../conversation/conversation-launch-context";
 import { AppIcon } from "../shared/app-icon";
 import { Button, EmptyState, MasteryDots } from "../shared/ui-primitives";

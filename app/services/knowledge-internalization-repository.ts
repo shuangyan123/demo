@@ -1,5 +1,6 @@
 import { reviewDb } from "../db/review-db";
-import type { KnowledgeEntry, KnowledgeInternalizationDraft, KnowledgeMistakeLink } from "../types/review";
+import type { KnowledgeEntry, KnowledgeInternalizationDraft } from "../types/domains/knowledge.ts";
+import type { KnowledgeMistakeLink } from "../types/domains/association.ts";
 
 // 合并标签并保持原顺序，避免重复标签持续膨胀。
 function mergeTags(...groups: string[][]): string[] {

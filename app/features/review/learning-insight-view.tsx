@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Attempt, KnowledgeEntry, Mistake } from "../../types/review";
+import type { Attempt, Mistake } from "../../types/domains/review.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import { Button, EmptyState } from "../shared/ui-primitives";
-import { deriveLearningInsightSnapshot, type LearningInsightRange } from "./learning-insight-model";
+import { deriveLearningInsightSnapshot, type LearningInsightRange } from "./learning-insight-model.ts";
 import styles from "./learning-insight-view.module.css";
 
 const rangeOptions: Array<{ label: string; value: LearningInsightRange }> = [

@@ -1,19 +1,13 @@
-import type {
-  ApiConnectionProfile,
-  KnowledgeCategory,
-  KnowledgeEntry,
-  KnowledgeEvolutionGenerationDiagnostic,
-  KnowledgeEvolutionGenerationResult,
-  KnowledgeEvolutionProposal,
-  ObsidianGraphSnapshot,
-  PersonalizationSettings,
-} from "../types/review";
-import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { KnowledgeCategory, KnowledgeEntry } from "../types/domains/knowledge.ts";
+import type { KnowledgeEvolutionGenerationDiagnostic, KnowledgeEvolutionGenerationResult, KnowledgeEvolutionProposal, ObsidianGraphSnapshot } from "../types/domains/obsidian.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
 import { generateWithConnection } from "./ai-connection-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { extractAiJsonText, parseAiJsonArray, parseAiJsonObject } from "./ai-json.ts";
 import { emitAiActivity } from "./ai-activity-events.ts";
-import type { KnowledgeEvolutionSource } from "./obsidian-knowledge-repository";
+import type { KnowledgeEvolutionSource } from "./obsidian-knowledge-repository.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
 import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
 

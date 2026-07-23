@@ -3,7 +3,7 @@ import test from "node:test";
 import type { AiModelsResult } from "./api-client.ts";
 import { getCachedConnectionModelCatalog } from "./model-directory-service.ts";
 import { normalizeProviderBaseUrl, PROVIDER_MODEL_CACHE_TTL, providerModelCache } from "./provider-model-cache.ts";
-import type { ApiConnectionProfile } from "../types/review.ts";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 
 const values = new Map<string, string>();
 Object.defineProperty(globalThis, "window", { configurable: true, value: globalThis });

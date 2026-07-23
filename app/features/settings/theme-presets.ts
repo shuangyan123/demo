@@ -1,6 +1,6 @@
 import { createDefaultAppearanceSettings } from "../../services/appearance-settings-repository.ts";
 import { DEFAULT_CODE_FONT_STACK, DEFAULT_UI_FONT_STACK } from "../../services/appearance-theme-fonts.ts";
-import type { ThemeConfig } from "../../types/review";
+import type { ThemeConfig } from "../../types/domains/appearance.ts";
 
 export type ThemePreset = {
   theme: ThemeConfig;

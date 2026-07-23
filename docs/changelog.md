@@ -353,3 +353,5 @@
 - 本机 API 请求增加最多 50 条的内存诊断快照，只记录路由类别、阶段、耗时、状态码和错误类别；移除 3 处 Hook lint 豁免。
 - 新增 Next 16 Turbopack 包体基线与 5% CI 硬门禁，并为桌面、390×844 移动总览增加 axe serious/critical 零问题门禁。
 - 低频工作区入口在 hover/focus 时预取界面代码，继续保持 PDF、DOCX、Obsidian、实时媒体、已安排和设置模块按需加载。
+- 业务源码的兼容类型出口引用从 191 个归零，新增完整领域入口；历史出口缩至 5 行且受架构契约保护。
+- Provider adapter 拆出语音 mapper，Obsidian repository 拆出纯转换与图谱 helper；facade、协议、持久化和 Dexie v16 保持兼容。

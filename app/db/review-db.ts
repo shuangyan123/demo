@@ -1,42 +1,16 @@
 import Dexie, { type Table } from "dexie";
-import type {
-  AiConnectionDefaults,
-  AiConversation,
-  AiConversationAttachment,
-  AiConversationFolder,
-  AiConversationMessage,
-  AiConversationRunStep,
-  AiProject,
-  ApiConnectionProfile,
-  ApiSetting,
-  AppearanceSettings,
-  Attempt,
-  AutomationDefinition,
-  AutomationRun,
-  ImportBatch,
-  ImportJob,
-  InterviewEvaluation,
-  InterviewLink,
-  InterviewPracticePlan,
-  InterviewQuestion,
-  InterviewQuestionSet,
-  InterviewSession,
-  InterviewTurn,
-  KnowledgeAttempt,
-  KnowledgeEntry,
-  KnowledgeEvolutionProposal,
-  KnowledgeInternalizationDraft,
-  KnowledgeMistakeLink,
-  Mistake,
-  ObsidianNoteMapping,
-  ObsidianVaultConfig,
-  PersistedImportDraft,
-  PersonalizationSettings,
-  TutoringLink,
-  TutoringPlan,
-  TutoringSession,
-  TutoringTurn,
-} from "../types/review";
+import type { AiConnectionDefaults, ApiConnectionProfile, ApiSetting } from "../types/domains/ai-connection.ts";
+import type { AiConversation, AiConversationAttachment, AiConversationFolder, AiConversationMessage, AiConversationRunStep, AiProject } from "../types/domains/conversation.ts";
+import type { AppearanceSettings } from "../types/domains/appearance.ts";
+import type { Attempt, Mistake } from "../types/domains/review.ts";
+import type { AutomationDefinition, AutomationRun } from "../types/domains/automation.ts";
+import type { ImportBatch, ImportJob, PersistedImportDraft } from "../types/domains/import.ts";
+import type { InterviewEvaluation, InterviewLink, InterviewPracticePlan, InterviewQuestion, InterviewQuestionSet, InterviewSession, InterviewTurn } from "../types/domains/interview.ts";
+import type { KnowledgeAttempt, KnowledgeEntry, KnowledgeInternalizationDraft } from "../types/domains/knowledge.ts";
+import type { KnowledgeEvolutionProposal, ObsidianNoteMapping, ObsidianVaultConfig } from "../types/domains/obsidian.ts";
+import type { KnowledgeMistakeLink } from "../types/domains/association.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
+import type { TutoringLink, TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 import { createProfileFromLegacySetting } from "../services/legacy-ai-settings-migration.ts";
 import { migrateToV16, REVIEW_DB_NAME } from "./review-db-migrations.ts";
 

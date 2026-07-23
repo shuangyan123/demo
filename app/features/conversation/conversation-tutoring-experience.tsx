@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConversationTurnTimeline } from "../../services/conversation-turns";
 import { tutoringRepository } from "../../services/tutoring-repository";
-import type { AiConversationRunStep, TutoringSession, TutoringTurn } from "../../types/review";
+import type { AiConversationRunStep } from "../../types/domains/conversation.ts";
+import type { TutoringSession, TutoringTurn } from "../../types/domains/tutoring.ts";
 import { LearningSessionInsightSection, LearningSessionLayout } from "../shared/learning-session-layout";
 import { TutoringMicroAssessmentView } from "../tutoring/tutoring-micro-assessment-view";
 import { ConversationTurnList } from "./conversation-turn-list";

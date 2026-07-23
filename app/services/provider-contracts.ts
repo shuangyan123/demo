@@ -1,5 +1,6 @@
-import type { ApiProvider } from "../types/domains/ai-provider";
-import type { AiCapability, AiConnectionPurpose, AiModelCatalogEntry, ApiFormat } from "../types/review";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
+import type { AiCapability, AiConnectionPurpose, ApiFormat } from "../types/domains/ai-connection.ts";
+import type { AiModelCatalogEntry } from "../types/domains/provider-catalog.ts";
 
 export type ProviderGroup = "commercial" | "open_source" | "speech" | "custom" | "legacy";
 export type ProviderSupportLevel = "native" | "compatible" | "custom" | "legacy";

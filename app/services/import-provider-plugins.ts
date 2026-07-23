@@ -1,4 +1,4 @@
-import type { ImportDraft, ImportProviderParseResult, ImportProviderPlugin } from "../types/review";
+import type { ImportDraft, ImportProviderParseResult, ImportProviderPlugin } from "../types/domains/import.ts";
 
 function diagnosticsForDrafts(drafts: ImportDraft[]): ImportProviderParseResult["diagnostics"] {
   const diagnostics: ImportProviderParseResult["diagnostics"] = [

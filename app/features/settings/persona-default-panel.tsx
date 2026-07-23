@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { PersonaModule, PersonaProfile } from "../../types/review";
+import type { PersonaModule, PersonaProfile } from "../../types/domains/personalization.ts";
 
 const moduleLabels: Record<PersonaModule, string> = {
   tutoring: "AI 辅导",

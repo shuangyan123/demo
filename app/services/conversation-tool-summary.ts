@@ -1,4 +1,4 @@
-import type { AiConversationRunStep } from "../types/review.ts";
+import type { AiConversationRunStep } from "../types/domains/conversation.ts";
 
 export type ConversationToolRunSummary = {
   runId: string;

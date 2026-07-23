@@ -1,4 +1,4 @@
-import type { AiConversationMessage, AiConversationRunStep } from "../types/review.ts";
+import type { AiConversationMessage, AiConversationRunStep } from "../types/domains/conversation.ts";
 import { compareConversationMessages } from "./conversation-repository.ts";
 import { summarizeConversationRunSteps, type ConversationToolRunSummary } from "./conversation-tool-summary.ts";
 

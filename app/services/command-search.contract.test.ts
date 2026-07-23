@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AutomationSnapshot, KnowledgeEntry, Mistake } from "../types/review.ts";
+import type { AutomationSnapshot } from "../types/domains/automation.ts";
+import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
+import type { Mistake } from "../types/domains/review.ts";
 import { buildCommandSearchResults } from "./command-search.ts";
 
 const now = "2026-07-09T08:00:00.000Z";

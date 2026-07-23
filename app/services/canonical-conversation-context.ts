@@ -1,5 +1,5 @@
-import type { AiConversation, AiConversationAttachment, AiConversationMessage, AiConversationRunStep } from "../types/review";
-import type { CanonicalConversationTurn } from "../types/domains/ai-conversation-context";
+import type { AiConversation, AiConversationAttachment, AiConversationMessage, AiConversationRunStep } from "../types/domains/conversation.ts";
+import type { CanonicalConversationTurn } from "../types/domains/ai-conversation-context.ts";
 
 export type CanonicalConversationContextInput = {
   conversation?: Pick<AiConversation, "summary">;

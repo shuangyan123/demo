@@ -2,14 +2,8 @@
  * 个性化记忆使用现有 personalization 单例持久化，不新增表或 Dexie 版本。
  * 自动提取只保存短事实与修订元数据，不保存完整对话、附件正文或厂商响应。
  */
-import type {
-  PersonalMemoryEntry,
-  PersonalMemoryKind,
-  PersonalMemoryRevision,
-  PersonalMemoryScope,
-  PersonalMemorySettings,
-  PersonalizationSettings,
-} from "../types/review";
+import type { PersonalMemoryEntry, PersonalMemoryKind, PersonalMemoryRevision, PersonalMemoryScope, PersonalMemorySettings } from "../types/domains/personal-memory.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import { createDefaultPersonalizationSettings, personalizationSettingsRepository } from "./personalization-settings-repository.ts";
 
 type AddMemoryInput = {

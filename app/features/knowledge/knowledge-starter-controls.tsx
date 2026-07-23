@@ -5,7 +5,7 @@
 import type { SyntheticEvent } from "react";
 import { useState } from "react";
 import { Button, Panel, SelectField, TextAreaField, TextField } from "../shared/ui-primitives";
-import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeCategorySummary } from "../../types/review";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeCategorySummary } from "../../types/domains/knowledge.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

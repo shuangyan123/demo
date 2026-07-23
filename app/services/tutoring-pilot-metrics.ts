@@ -1,4 +1,4 @@
-import type { TutoringSession, TutoringTurn } from "../types/review.ts";
+import type { TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 
 export type TutoringPilotMetrics = {
   completedSessions: number;

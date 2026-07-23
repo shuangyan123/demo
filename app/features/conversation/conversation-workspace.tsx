@@ -10,21 +10,21 @@ import { buildCanonicalConversationTurns, canonicalTurnsToChatHistory } from "..
 import type { ChatMessageContent } from "../../services/api-client.ts";
 import { conversationRepository } from "../../services/conversation-repository.ts";
 import { buildConversationTurnTimeline } from "../../services/conversation-turns.ts";
-import type { KnowledgeEvolutionProposal } from "../../types/review";
+import type { KnowledgeEvolutionProposal } from "../../types/domains/obsidian.ts";
 import { AppIcon } from "../shared/app-icon";
-import { persistDraftAttachmentSummaries, type DraftAttachment } from "./conversation-attachment-utils";
-import { conversationProviderErrorMessage, readBlobAsDataUrl } from "./conversation-message-utils";
-import { useConversationVisionTools } from "./use-conversation-vision-tools";
+import { persistDraftAttachmentSummaries, type DraftAttachment } from "./conversation-attachment-utils.ts";
+import { conversationProviderErrorMessage, readBlobAsDataUrl } from "./conversation-message-utils.ts";
+import { useConversationVisionTools } from "./use-conversation-vision-tools.ts";
 import { ConversationComposer, type ConversationComposerHandle } from "./conversation-composer";
 import { ConversationMcpToolPanel } from "./conversation-mcp-tool-panel";
 import { ConversationProposalBlock } from "./conversation-proposal-block";
 import { ConversationTurnList } from "./conversation-turn-list";
 import { ConversationEmptyState } from "./conversation-empty-state";
-import type { ConversationWorkspaceProps } from "./conversation-workspace-types";
-import { useConversationModelSelection } from "./use-conversation-model-selection";
-import { useConversationAutoMemory } from "./use-conversation-auto-memory";
-import { useConversationRecording } from "./use-conversation-recording";
-import { useConversationTutoringFinish } from "./use-conversation-tutoring-finish";
+import type { ConversationWorkspaceProps } from "./conversation-workspace-types.ts";
+import { useConversationModelSelection } from "./use-conversation-model-selection.ts";
+import { useConversationAutoMemory } from "./use-conversation-auto-memory.ts";
+import { useConversationRecording } from "./use-conversation-recording.ts";
+import { useConversationTutoringFinish } from "./use-conversation-tutoring-finish.ts";
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
 const ConversationTutoringExperience = dynamic(() => import("./conversation-tutoring-experience").then((module) => module.ConversationTutoringExperience), {
   loading: () => <div className="conversation-message-list"><span className="ui-spinner" /></div>,

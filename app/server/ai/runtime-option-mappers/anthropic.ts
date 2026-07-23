@@ -1,4 +1,4 @@
-import type { ProviderRuntimeMapper } from "./types";
+import type { ProviderRuntimeMapper } from "./types.ts";
 import { runtimeContext } from "./runtime-context.ts";
 
 /** Claude 新模型组合 adaptive thinking 与 output_config.effort，Fast 追加官方 beta header。 */

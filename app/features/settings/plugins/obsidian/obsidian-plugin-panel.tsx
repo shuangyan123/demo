@@ -1,6 +1,8 @@
 "use client";
 
-import type { ApiConnectionProfile, KnowledgeEntry, PersonalizationSettings } from "../../../../types/review";
+import type { ApiConnectionProfile } from "../../../../types/domains/ai-connection.ts";
+import type { KnowledgeEntry } from "../../../../types/domains/knowledge.ts";
+import type { PersonalizationSettings } from "../../../../types/domains/personalization.ts";
 import { ObsidianKnowledgePanel } from "../../../knowledge/obsidian-knowledge-panel";
 import { useObsidianKnowledgeBridge } from "../../../knowledge/use-obsidian-knowledge-bridge";
 

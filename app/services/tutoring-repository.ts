@@ -1,12 +1,5 @@
 import { reviewDb } from "../db/review-db.ts";
-import type {
-  TutoringLink,
-  TutoringLinkSourceType,
-  TutoringPlan,
-  TutoringSession,
-  TutoringSnapshot,
-  TutoringTurn,
-} from "../types/review.ts";
+import type { TutoringLink, TutoringLinkSourceType, TutoringPlan, TutoringSession, TutoringSnapshot, TutoringTurn } from "../types/domains/tutoring.ts";
 
 type NewTutoringSessionInput = Pick<TutoringSession, "goal" | "mode" | "topic">;
 type NewTutoringTurnInput = Omit<TutoringTurn, "id" | "createdAt">;

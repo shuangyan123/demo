@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import type { ApiProvider } from "../../types/domains/ai-provider";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 
 export type ConversationModelRuntimeDimension = "reasoning" | "speed";
 

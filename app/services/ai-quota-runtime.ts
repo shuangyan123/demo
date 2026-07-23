@@ -2,7 +2,8 @@
  * 额度运行时借鉴桌面状态栏应用的 provider/snapshot/scheduler 边界，
  * 仅调用本项目已核验的官方只读 API，不使用 Cookie 或网页私有接口。
  */
-import type { AiQuotaPluginConfig, AiQuotaSnapshot, ApiProvider } from "../types/review";
+import type { AiQuotaPluginConfig, AiQuotaSnapshot } from "../types/domains/ai-quota.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 import { aiQuotaRepository, type SaveQuotaPluginInput } from "./ai-quota-repository.ts";
 import { getAiQuotaPlugin } from "./ai-quota-plugins.ts";
 

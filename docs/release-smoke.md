@@ -206,3 +206,10 @@
 3. 复验旧 `stats` 入口、首次消息后创建对话、导入确认、复盘计时、知识训练、Obsidian 删除预检和设置恢复导航。
 4. 运行 `npx tsc --noEmit`、`npm run lint`、`npm run test:contracts`、`npm run build` 与完整 `npm run test:e2e`。
 5. 在 1536×1024 与 390×844、浅色与深色下抽查 P3 基准表面；确认零新增布局偏差、零控制台错误、零页面级横向溢出和零失效键盘路径。
+
+# 0.2.0 升级闭环 Smoke
+
+1. 运行 `typecheck`、`lint`、209 个 contracts、生产 build、bundle 5% 门禁与桌面/移动 axe；确认业务源码兼容类型引用为 0，核心 facade 均小于 500 行。
+2. 使用本地 mock 验证 AI 连接、对话流、模型切换、SSE、拖拽、MCP discover/call、粉笔导入、已安排成功/失败与根错误恢复。
+3. 在 1536×1024、390×844、浅色/深色、键盘、200% 缩放和减少动态效果下检查控制台、框架错误、焦点恢复、横向溢出和 serious/critical axe。
+4. 真实 Vault 与真实模型凭据只做人工本机 smoke；仅登记脱敏环境、成功/失败和失败类别，不保存正文、额度、密钥或原始响应。

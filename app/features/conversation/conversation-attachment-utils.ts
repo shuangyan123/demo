@@ -1,5 +1,5 @@
 import { conversationRepository } from "../../services/conversation-repository";
-import type { AiConversationAttachment } from "../../types/review";
+import type { AiConversationAttachment } from "../../types/domains/conversation.ts";
 
 /** 发送前附件只保留在浏览器内存；持久化阶段仅写入安全摘要。 */
 export type DraftAttachment = {

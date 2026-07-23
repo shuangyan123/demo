@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { TutoringMode } from "../../types/review";
-import { browserVisionSourceAdapter, type VisionFrame, type VisionSourceSession } from "./vision-source-adapter";
+import type { TutoringMode } from "../../types/domains/tutoring.ts";
+import { browserVisionSourceAdapter, type VisionFrame, type VisionSourceSession } from "./vision-source-adapter.ts";
 
 type MediaStatus = "idle" | "starting" | "ready" | "error";
 

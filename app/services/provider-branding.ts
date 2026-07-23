@@ -1,4 +1,4 @@
-import type { ApiProvider } from "../types/review";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 
 /** 品牌资产的登记来源，Lobe Icons 仅作为用户指定的社区图标包，不冒充厂商官方品牌包。 */
 export type ProviderBrandingAssetOrigin = "lobe-icons" | "official" | "text";

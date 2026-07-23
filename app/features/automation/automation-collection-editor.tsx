@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import { mcpSettingsRepository } from "../../services/mcp-settings-repository";
-import type { AcquisitionModelRef, AcquisitionSourceConfig, AutomationCollectionConfig } from "../../types/review";
+import type { AcquisitionModelRef, AcquisitionSourceConfig, AutomationCollectionConfig } from "../../types/domains/acquisition.ts";
 import { Button, Chip } from "../shared/ui-primitives";
-import type { AutomationCenter } from "./use-automation-center";
+import type { AutomationCenter } from "./use-automation-center.ts";
 
 type Props = {
   config: AutomationCollectionConfig;

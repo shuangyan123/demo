@@ -1,9 +1,11 @@
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { ApiConnectionProfile, PersonalizationSettings, TutoringSession } from "../../types/review";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import type { TutoringSession } from "../../types/domains/tutoring.ts";
 import { loadLearnerStateSnapshot } from "../../services/learner-state-service";
 import { requestTutorReply, type TutoringAiReply } from "../../services/tutoring-ai-service";
 import { tutoringRepository } from "../../services/tutoring-repository";
-import { readBlobAsDataUrl } from "./conversation-message-utils";
+import { readBlobAsDataUrl } from "./conversation-message-utils.ts";
 
 type TutorTurnInput = {
   connection: ApiConnectionProfile;

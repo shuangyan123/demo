@@ -1,5 +1,6 @@
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from "../../services/api-client";
-import type { AiCapability, ApiProvider } from "../../types/review";
+import type { AiCapability } from "../../types/domains/ai-connection.ts";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 import { buildGenerateProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent } from "./provider-adapter.ts";
 
 type ProviderHttpRequest = { url: string; headers: Record<string, string>; body: unknown };

@@ -1,4 +1,4 @@
-import type { StudyDomainFlowStep } from "../../types/review";
+import type { StudyDomainFlowStep } from "../../types/domains/workspace.ts";
 import { AppIcon } from "../shared/app-icon";
 
 export type DashboardFlowTone = "teal" | "blue" | "indigo" | "violet" | "coral" | "amber" | "green";

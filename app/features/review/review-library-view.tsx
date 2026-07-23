@@ -8,16 +8,9 @@ import { useVisibleLimit } from "../shared/use-visible-limit";
 import type { BoardStat } from "../../lib/review-selectors";
 import { formatShortDate, masteryLabel } from "../../lib/review-utils";
 import type { KnowledgeMatch } from "../../services/association-matcher";
-import type {
-  AssociationSuggestion,
-  Board,
-  ExportFormat,
-  ExportScope,
-  Filters,
-  KnowledgeEntry,
-  KnowledgeMistakeLink,
-  Mistake,
-} from "../../types/review";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { Board, ExportFormat, ExportScope, Filters, Mistake } from "../../types/domains/review.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 
 type LibraryViewProps = {
   aiAssociationBusy: boolean;

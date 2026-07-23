@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
-import type { ApiConnectionProfile, ApiSetting, PersonalizationSettings } from "../types/review.ts";
+import type { ApiConnectionProfile, ApiSetting } from "../types/domains/ai-connection.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { createDefaultPersonalizationSettings, personalizationSettingsRepository } from "./personalization-settings-repository.ts";
 

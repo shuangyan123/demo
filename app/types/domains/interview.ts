@@ -1,0 +1,21 @@
+/** 面试领域类型。 */
+export type {
+  InterviewDifficulty,
+  InterviewEvaluation,
+  InterviewLink,
+  InterviewLinkSourceType,
+  InterviewLinkTargetType,
+  InterviewPlanStatus,
+  InterviewPracticePlan,
+  InterviewQuestion,
+  InterviewQuestionDraft,
+  InterviewQuestionSet,
+  InterviewScoreDimension,
+  InterviewSession,
+  InterviewSnapshot,
+  InterviewSpeaker,
+  InterviewStage,
+  InterviewStatus,
+  InterviewTurn,
+  InterviewType,
+} from "./legacy-review.ts";

@@ -1,4 +1,5 @@
-import type { ExportFormat, ExportScope, KnowledgeEntry, Mistake } from "../types/review";
+import type { ExportFormat, ExportScope, Mistake } from "../types/domains/review.ts";
+import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
 
 export type ExportFile = {
   content: string;

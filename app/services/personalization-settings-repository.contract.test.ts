@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
-import type { PersonalizationSettings } from "../types/review.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import {
   BUILT_IN_PERSONAS,
   createCustomPersonaDraft,

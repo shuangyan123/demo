@@ -1,11 +1,11 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useRef, useState, type FormEvent } from "react";
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/review";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import { AppIcon } from "../shared/app-icon";
 import { cx } from "../shared/ui-primitives";
-import type { DraftAttachment } from "./conversation-attachment-utils";
+import type { DraftAttachment } from "./conversation-attachment-utils.ts";
 import { ConversationModelSelector, type ConversationModelSelectorHandle } from "./conversation-model-selector";
 import type { ConversationModelSelection } from "./conversation-model-picker";
 

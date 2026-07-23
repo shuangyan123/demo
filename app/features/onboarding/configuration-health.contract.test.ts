@@ -2,15 +2,11 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildConfigurationHealth, type ConfigurationHealthInput } from "./use-configuration-health.ts";
-import type {
-  AiConnectionSnapshot,
-  ApiConnectionProfile,
-  AutomationDefinition,
-  AutomationSnapshot,
-  KnowledgeEntry,
-  Mistake,
-  ObsidianVaultSnapshot,
-} from "../../types/review.ts";
+import type { AiConnectionSnapshot, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { AutomationDefinition, AutomationSnapshot } from "../../types/domains/automation.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
+import type { ObsidianVaultSnapshot } from "../../types/domains/obsidian.ts";
 
 const now = "2026-06-29T00:00:00.000Z";
 

@@ -1,6 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
 import { toISODate } from "../lib/review-utils.ts";
-import type { CustomPersonaViewMode, PersonaCustomization, PersonaDisplayMode, PersonaModule, PersonaProfile, PersonalMemoryEntry, PersonalMemoryRevision, PersonalMemorySettings, PersonalizationSettings, VoiceProfile } from "../types/review";
+import type { CustomPersonaViewMode, PersonaCustomization, PersonaDisplayMode, PersonaModule, PersonaProfile, PersonalizationSettings, VoiceProfile } from "../types/domains/personalization.ts";
+import type { PersonalMemoryEntry, PersonalMemoryRevision, PersonalMemorySettings } from "../types/domains/personal-memory.ts";
 
 type LegacyVoiceProfile = Partial<VoiceProfile> & {
   mode?: "system" | "cloud";

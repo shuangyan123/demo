@@ -5,7 +5,7 @@ import type {
   ConfigurationHealthAction,
   ConfigurationHealthItem,
   ConfigurationHealthStatus,
-} from "./use-configuration-health";
+} from "./use-configuration-health.ts";
 
 type ConfigurationHealthPanelProps = {
   health: ConfigurationHealth;

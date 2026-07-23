@@ -1,6 +1,6 @@
 "use client";
 
-import type { KnowledgeEvolutionProposal } from "../../types/review";
+import type { KnowledgeEvolutionProposal } from "../../types/domains/obsidian.ts";
 import { Button, Chip } from "../shared/ui-primitives";
 
 /** 在消息时间线内呈现可确认的 Obsidian 提案，不跳转到独立卡片墙。 */

@@ -4,16 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { requestTutorReply, requestTutorSummary } from "../../services/tutoring-ai-service";
 import { loadLearnerStateSnapshot } from "../../services/learner-state-service.ts";
 import { tutoringRepository } from "../../services/tutoring-repository";
-import type {
-  ApiConnectionProfile,
-  PersonalizationSettings,
-  TutoringLink,
-  TutoringMode,
-  TutoringPlan,
-  TutoringSession,
-  TutoringSnapshot,
-  TutoringTurn,
-} from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import type { TutoringLink, TutoringMode, TutoringPlan, TutoringSession, TutoringSnapshot, TutoringTurn } from "../../types/domains/tutoring.ts";
 
 const emptySnapshot: TutoringSnapshot = {
   links: [],

@@ -1,7 +1,8 @@
 "use client";
 
 import { useSpeechSession } from "../shared/use-speech-session";
-import type { ApiConnectionProfile, VoiceProfile } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { VoiceProfile } from "../../types/domains/personalization.ts";
 
 // 面试模块保留原 hook 名称作为兼容入口，内部复用 shared 语音转写能力。
 export function useInterviewSpeech(voice?: VoiceProfile, speechConnection?: ApiConnectionProfile) {

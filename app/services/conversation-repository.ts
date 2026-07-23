@@ -1,19 +1,9 @@
 import { reviewDb } from "../db/review-db.ts";
-import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
 import { legacyRuntimeValues } from "./model-runtime-descriptors.ts";
-import type {
-  AiConversation,
-  AiConversationAttachment,
-  AiConversationFolder,
-  AiConversationKind,
-  AiConversationMessage,
-  AiConversationRole,
-  AiConversationRunStep,
-  AiConversationSourceType,
-  AiProject,
-  AiUsageRecord,
-  StudyDomainId,
-} from "../types/review.ts";
+import type { AiConversation, AiConversationAttachment, AiConversationFolder, AiConversationKind, AiConversationMessage, AiConversationRole, AiConversationRunStep, AiConversationSourceType, AiProject } from "../types/domains/conversation.ts";
+import type { AiUsageRecord } from "../types/domains/ai-connection.ts";
+import type { StudyDomainId } from "../types/domains/workspace.ts";
 
 export const DEFAULT_AI_PROJECT_ID = "civil-service";
 

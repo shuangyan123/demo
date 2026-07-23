@@ -1,4 +1,4 @@
-import type { ApiProvider } from "./ai-provider";
+import type { ApiProvider } from "./ai-provider.ts";
 
 /** Google 文本生成按具体模型选择的官方协议。 */
 export type AiGenerationProtocol =

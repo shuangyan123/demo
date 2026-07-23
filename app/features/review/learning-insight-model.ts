@@ -1,4 +1,5 @@
-import type { Attempt, KnowledgeEntry, Mistake, ReviewResult } from "../../types/review";
+import type { Attempt, Mistake, ReviewResult } from "../../types/domains/review.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 
 /** 薄弱分析支持的时间范围。 */
 export type LearningInsightRange = 7 | 30 | 90 | "all";

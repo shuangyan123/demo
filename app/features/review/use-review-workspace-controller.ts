@@ -12,14 +12,15 @@ import {
   createDefaultAppearanceSettings,
 } from "../../services/appearance-settings-repository";
 import { makeToday } from "../../lib/review-utils";
-import type { AppearanceSettings, ViewKey } from "../../types/review";
-import { useReviewConversationController } from "./use-review-conversation-controller";
-import { useReviewKnowledgeController } from "./use-review-knowledge-controller";
-import { useReviewLearningController } from "./use-review-learning-controller";
-import { useReviewNotice } from "./use-review-notice";
-import { useReviewWorkspaceData } from "./use-review-workspace-data";
-import { useReviewWorkspaceHealth } from "./use-review-workspace-health";
-import { useReviewWorkspaceRecoveryNavigation } from "./use-review-workspace-recovery-navigation";
+import type { AppearanceSettings } from "../../types/domains/appearance.ts";
+import type { ViewKey } from "../../types/domains/workspace.ts";
+import { useReviewConversationController } from "./use-review-conversation-controller.ts";
+import { useReviewKnowledgeController } from "./use-review-knowledge-controller.ts";
+import { useReviewLearningController } from "./use-review-learning-controller.ts";
+import { useReviewNotice } from "./use-review-notice.ts";
+import { useReviewWorkspaceData } from "./use-review-workspace-data.ts";
+import { useReviewWorkspaceHealth } from "./use-review-workspace-health.ts";
+import { useReviewWorkspaceRecoveryNavigation } from "./use-review-workspace-recovery-navigation.ts";
 
 /** 组合领域 controller 与跨模块依赖；展示结构由独立 view router 负责。 */
 export function useReviewWorkspaceController() {

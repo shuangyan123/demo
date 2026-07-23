@@ -1,17 +1,5 @@
 import { reviewDb } from "../db/review-db";
-import type {
-  InterviewEvaluation,
-  InterviewLink,
-  InterviewLinkSourceType,
-  InterviewPracticePlan,
-  InterviewQuestion,
-  InterviewQuestionSet,
-  InterviewSession,
-  InterviewSnapshot,
-  InterviewStage,
-  InterviewTurn,
-  InterviewType,
-} from "../types/review";
+import type { InterviewEvaluation, InterviewLink, InterviewLinkSourceType, InterviewPracticePlan, InterviewQuestion, InterviewQuestionSet, InterviewSession, InterviewSnapshot, InterviewStage, InterviewTurn, InterviewType } from "../types/domains/interview.ts";
 
 type NewQuestionInput = Omit<InterviewQuestion, "id" | "createdAt" | "updatedAt">;
 type NewQuestionSetInput = Omit<InterviewQuestionSet, "id" | "createdAt" | "updatedAt">;

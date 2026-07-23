@@ -1,5 +1,6 @@
 /** 将用户确认过的记忆裁剪为稳定、可审计的短上下文。 */
-import type { PersonalMemoryEntry, PersonalMemoryKind, PersonalizationSettings } from "../types/review";
+import type { PersonalMemoryEntry, PersonalMemoryKind } from "../types/domains/personal-memory.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 
 export type PersonalMemoryContextScope = { moduleId?: string; conversationId?: string; query?: string };
 

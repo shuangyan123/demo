@@ -1,4 +1,5 @@
-import { BOARD_OPTIONS, type ImportDraft, type ImportDraftIssue } from "../types/review.ts";
+import { BOARD_OPTIONS } from "../types/domains/review.ts";
+import type { ImportDraft, ImportDraftIssue } from "../types/domains/import.ts";
 import { normalizeBoard } from "../lib/review-utils.ts";
 import { parseAiJsonValue } from "./ai-json.ts";
 

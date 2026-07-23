@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Button, CheckboxRow, DataList, EmptyState, Panel, SelectField, TagGroup, TextAreaField, TextField, Toolbar } from "../shared/ui-primitives";
 import { splitInput, textValue } from "../../lib/form-utils";
 import { interviewTypeLabels } from "../../services/interview-rubric";
-import type { InterviewQuestion, InterviewQuestionSet, InterviewType } from "../../types/review";
+import type { InterviewQuestion, InterviewQuestionSet, InterviewType } from "../../types/domains/interview.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 type SetType = InterviewType | "mixed";

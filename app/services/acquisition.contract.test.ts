@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseAcquisitionDocument } from "../server/acquisition/document-parser.ts";
 import { isPrivateAddress, normalizeAllowedOrigin, safeFetchAcquisition } from "../server/acquisition/safe-fetch.ts";
-import type { AcquisitionDocument, AutomationCollectionConfig } from "../types/review.ts";
+import type { AcquisitionDocument, AutomationCollectionConfig } from "../types/domains/acquisition.ts";
 import { buildAcquisitionEvidence } from "./acquisition-proposal-service.ts";
 import { extractCandidateUrls, normalizeCollectionConfig, previewCollectionConfig } from "./acquisition-source-service.ts";
 import { calculateAcquisitionTrust } from "./acquisition-trust.ts";

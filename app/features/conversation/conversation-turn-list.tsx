@@ -1,5 +1,5 @@
 import type { ConversationTurnTimeline } from "../../services/conversation-turns";
-import type { AiConversationRunStep } from "../../types/review";
+import type { AiConversationRunStep } from "../../types/domains/conversation.ts";
 import type { ReactNode } from "react";
 import { ConversationToolRunSummary } from "./conversation-tool-run-summary";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { TutoringTurn } from "../../types/review.ts";
+import type { TutoringTurn } from "../../types/domains/tutoring.ts";
 import { Button, Chip, DataList, EmptyState, Toolbar } from "../shared/ui-primitives.tsx";
 
 function formatDateTime(value: string): string {

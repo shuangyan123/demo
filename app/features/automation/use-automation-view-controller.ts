@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { AutomationDefinition, AutomationRun, AutomationTemplateId } from "../../types/review";
-import { deriveAutomationOverview, filterAutomationDefinitions, latestRunsByAutomation, type AutomationStatusFilter } from "./automation-view-model";
-import type { AutomationCenter } from "./use-automation-center";
+import type { AutomationDefinition, AutomationRun, AutomationTemplateId } from "../../types/domains/automation.ts";
+import { deriveAutomationOverview, filterAutomationDefinitions, latestRunsByAutomation, type AutomationStatusFilter } from "./automation-view-model.ts";
+import type { AutomationCenter } from "./use-automation-center.ts";
 
 export type AutomationEditorState =
   | { mode: "closed" }

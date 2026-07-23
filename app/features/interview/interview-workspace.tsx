@@ -4,7 +4,11 @@ import { useMemo, useState } from "react";
 import { Button, Panel, SegmentedTabs, Toolbar } from "../shared/ui-primitives";
 import { interviewTypeLabels } from "../../services/interview-rubric";
 import { resolvePersonaVoice } from "../../services/personalization-settings-repository";
-import type { ApiConnectionProfile, InterviewQuestion, InterviewType, KnowledgeEntry, Mistake, PersonalizationSettings } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { InterviewQuestion, InterviewType } from "../../types/domains/interview.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { InterviewLinkPanel } from "./interview-link-panel";
 import { InterviewPracticePlansView } from "./interview-practice-plans-view";
 import { InterviewQuestionBank } from "./interview-question-bank";
@@ -12,8 +16,8 @@ import { InterviewQuestionSetsView } from "./interview-question-sets-view";
 import { InterviewRecordsView } from "./interview-records-view";
 import { InterviewRubricView } from "./interview-rubric-view";
 import { InterviewSessionPanel } from "./interview-session-panel";
-import { useInterviewFlow } from "./use-interview-flow";
-import { useInterviewSpeech } from "./use-interview-speech";
+import { useInterviewFlow } from "./use-interview-flow.ts";
+import { useInterviewSpeech } from "./use-interview-speech.ts";
 
 type InterviewTab = "questions" | "plans" | "session" | "records";
 

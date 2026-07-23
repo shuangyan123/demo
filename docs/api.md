@@ -276,3 +276,8 @@ P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controll
 
 - 本阶段没有新增公开 Route 或响应字段。客户端仍兼容旧纯文本错误，并从结构化错误读取 `code/message/requestId/retryable`。
 - `fetchLocalApi` 仅包装 `/api/*` 调用以生成有界内存诊断；URL 查询、请求体和响应体不会进入快照，外部 WebRTC 请求仍由专用协议实现直接管理。
+
+## 领域与 adapter 兼容边界（2026-07-23）
+
+- HTTP Route、请求体、成功响应、SSE 事件和结构化错误格式均无新增变更。Provider adapter 的语音实现迁入内部模块，但 `buildSpeechProviderRequest`、`parseSpeechJsonResponse` 与 `SpeechParseMode` 仍从原 facade 导出。
+- Obsidian repository 的方法名、参数、返回类型、冲突校验与 proposal 状态机保持不变。图谱派生 helper 不持有目录句柄，目录句柄仍只存在 repository/IndexedDB 边界。

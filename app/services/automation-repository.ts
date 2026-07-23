@@ -1,13 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
-import type {
-  ApiConnectionProfile,
-  AiConnectionSnapshot,
-  AutomationDefinition,
-  AutomationRun,
-  AutomationRunTrigger,
-  AutomationSnapshot,
-  PersonalizationSettings,
-} from "../types/review.ts";
+import type { ApiConnectionProfile, AiConnectionSnapshot } from "../types/domains/ai-connection.ts";
+import type { AutomationDefinition, AutomationRun, AutomationRunTrigger, AutomationSnapshot } from "../types/domains/automation.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import { calculateDueAutomation, nextAutomationRun, validateAutomationSchedule } from "./automation-schedule.ts";
 import { executeAutomation, previewAutomationDefinition } from "./automation-executor.ts";
 import { classifyAutomationError } from "./automation-failure.ts";

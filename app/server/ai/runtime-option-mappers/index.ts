@@ -1,10 +1,10 @@
-import type { ApiProvider } from "../../../types/domains/ai-provider";
+import type { ApiProvider } from "../../../types/domains/ai-provider.ts";
 import { mapAnthropicRuntimeOptions } from "./anthropic.ts";
 import { mapDeepSeekRuntimeOptions } from "./deepseek.ts";
 import { mapGoogleRuntimeOptions } from "./google.ts";
 import { mapMiniMaxRuntimeOptions } from "./minimax.ts";
 import { mapOpenAiRuntimeOptions } from "./openai.ts";
-import type { ProviderRuntimeMapper, ProviderRuntimeRequestMapping } from "./types";
+import type { ProviderRuntimeMapper, ProviderRuntimeRequestMapping } from "./types.ts";
 import { mapXaiRuntimeOptions } from "./xai.ts";
 import { mapZhipuRuntimeOptions } from "./zhipu.ts";
 

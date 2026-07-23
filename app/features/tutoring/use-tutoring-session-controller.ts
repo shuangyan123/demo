@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useFrameSampler } from "./use-frame-sampler";
-import type { useTutoringFlow } from "./use-tutoring-flow";
-import { useTutoringMedia } from "./use-tutoring-media";
-import { useTutoringSpeech } from "./use-tutoring-speech";
+import { useFrameSampler } from "./use-frame-sampler.ts";
+import type { useTutoringFlow } from "./use-tutoring-flow.ts";
+import { useTutoringMedia } from "./use-tutoring-media.ts";
+import { useTutoringSpeech } from "./use-tutoring-speech.ts";
 import { resolvePersonaVoice } from "../../services/personalization-settings-repository";
-import type { ApiConnectionProfile, PersonalizationSettings } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 
 type TutoringFlowController = ReturnType<typeof useTutoringFlow>;
 

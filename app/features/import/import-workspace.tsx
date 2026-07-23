@@ -2,9 +2,12 @@
 
 import type { SyntheticEvent } from "react";
 import { ImportView } from "./review-import-view";
-import { useImportDrafts } from "./use-import-drafts";
-import { useFenbiQuickImport } from "./use-fenbi-quick-import";
-import type { ApiConnectionProfile, ImportJob, KnowledgeImportDraft, Mistake } from "../../types/review";
+import { useImportDrafts } from "./use-import-drafts.ts";
+import { useFenbiQuickImport } from "./use-fenbi-quick-import.ts";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { ImportJob } from "../../types/domains/import.ts";
+import type { KnowledgeImportDraft } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

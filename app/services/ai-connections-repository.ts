@@ -1,13 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
 import { toISODate } from "../lib/review-utils.ts";
-import type {
-  AiConnectionDefaults,
-  AiConnectionPurpose,
-  AiConnectionSnapshot,
-  AiCapability,
-  ApiConnectionProfile,
-  ApiProvider,
-} from "../types/review";
+import type { AiConnectionDefaults, AiConnectionPurpose, AiConnectionSnapshot, AiCapability, ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { getProviderContract, getProviderModelCatalog } from "./provider-contracts.ts";
 import { createProfileFromLegacySetting } from "./legacy-ai-settings-migration.ts";

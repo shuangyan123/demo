@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ApiConnectionProfile } from "../types/review.ts";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 import { generateWithConnection, synthesizeWithConnection, testConnectionDraft, transcribeWithConnection } from "./ai-connection-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 

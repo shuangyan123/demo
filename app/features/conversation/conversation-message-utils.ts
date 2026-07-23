@@ -1,4 +1,4 @@
-import type { AiConversationMessage } from "../../types/review";
+import type { AiConversationMessage } from "../../types/domains/conversation.ts";
 
 /** 将消息时间格式化为当前中文区域的短时间。 */
 export function formatConversationTime(value: string): string {

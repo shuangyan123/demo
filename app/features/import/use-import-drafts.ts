@@ -7,7 +7,9 @@ import { markDuplicateDrafts } from "../../services/dedupe-service";
 import { importDraftRepository } from "../../services/import-draft-repository";
 import { getImportProviderPlugin } from "../../services/import-provider-plugins";
 import { reviewRepository } from "../../services/review-repository";
-import type { ApiConnectionProfile, ImportBatch, ImportDraft, ImportJob, Mistake, PersistedImportDraft } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { ImportBatch, ImportDraft, ImportJob, PersistedImportDraft } from "../../types/domains/import.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

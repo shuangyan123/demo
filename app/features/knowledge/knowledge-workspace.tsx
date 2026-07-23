@@ -8,27 +8,16 @@ import { KnowledgeEntryEditor } from "./knowledge-entry-editor";
 import { KnowledgeLibraryFilters, KnowledgeLibraryList } from "./knowledge-library-list";
 import { KnowledgeCreateForm, KnowledgeStarterGuide } from "./knowledge-starter-controls";
 import { ObsidianKnowledgePanel } from "./obsidian-knowledge-panel";
-import { useKnowledgeListController } from "./use-knowledge-list-controller";
-import { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
-import type { KnowledgeInternalizationController } from "./use-knowledge-internalization";
+import { useKnowledgeListController } from "./use-knowledge-list-controller.ts";
+import { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge.ts";
+import type { KnowledgeInternalizationController } from "./use-knowledge-internalization.ts";
 import { formatShortDate, masteryLabel } from "../../lib/review-utils";
 import type { KnowledgeMatch, RelatedMistakeMatch } from "../../services/association-matcher";
-import {
-  KNOWLEDGE_CATEGORIES,
-  type AssociationSuggestion,
-  type ApiConnectionProfile,
-  type ExportFormat,
-  type ExportScope,
-  type KnowledgeCategory,
-  type KnowledgeCategorySummary,
-  type KnowledgeEntry,
-  type KnowledgeFilters,
-  type KnowledgeMistakeLink,
-  type KnowledgeQueueFilter,
-  type Mistake,
-  type PersonalizationSettings,
-  type ReviewResult,
-} from "../../types/review";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeCategorySummary, type KnowledgeEntry, type KnowledgeFilters, type KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { ExportFormat, ExportScope, Mistake, ReviewResult } from "../../types/domains/review.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

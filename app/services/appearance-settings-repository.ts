@@ -3,7 +3,7 @@ import {
   DEFAULT_CODE_FONT_STACK,
   DEFAULT_UI_FONT_STACK,
 } from "./appearance-theme-fonts.ts";
-import type { AppearanceSettings, ThemeConfig } from "../types/review";
+import type { AppearanceSettings, ThemeConfig } from "../types/domains/appearance.ts";
 
 const SETTINGS_ID = "default";
 

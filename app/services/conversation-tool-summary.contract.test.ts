@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AiConversationRunStep } from "../types/review.ts";
+import type { AiConversationRunStep } from "../types/domains/conversation.ts";
 import { summarizeConversationRunSteps } from "./conversation-tool-summary.ts";
 import { buildConversationTurnTimeline } from "./conversation-turns.ts";
 

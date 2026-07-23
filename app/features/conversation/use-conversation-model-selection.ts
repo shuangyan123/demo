@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { conversationRepository } from "../../services/conversation-repository";
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { AiConversation } from "../../types/review";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import type { AiConversation } from "../../types/domains/conversation.ts";
 
 /** 对话模型选择只保存连接引用、模型 ID 与归一化运行值，不复制连接密钥。 */
 export type ConversationModelSelectionValue = {

@@ -1,4 +1,4 @@
-import type { AutomationDefinition, AutomationRun, AutomationSnapshot } from "../../types/review.ts";
+import type { AutomationDefinition, AutomationRun, AutomationSnapshot } from "../../types/domains/automation.ts";
 
 /** 已安排任务列表支持的轻量筛选。 */
 export type AutomationStatusFilter = "all" | "enabled" | "disabled" | "failed";

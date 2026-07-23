@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCommandSearchResults } from "../../services/command-search";
 import { conversationRepository, type ConversationSnapshot } from "../../services/conversation-repository";
-import type { AiConversation, CommandSearchResult } from "../../types/domains/conversation";
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model";
-import type { AutomationSnapshot } from "../../types/domains/automation";
-import type { KnowledgeEntry } from "../../types/domains/knowledge";
-import type { Mistake, ViewKey } from "../../types/domains/review";
+import type { AiConversation, CommandSearchResult } from "../../types/domains/conversation.ts";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import type { AutomationSnapshot } from "../../types/domains/automation.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
+import type { ViewKey } from "../../types/domains/workspace.ts";
 import type { ConversationLaunchContext } from "../conversation/conversation-launch-context";
 
 type UseReviewConversationControllerInput = {

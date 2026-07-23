@@ -2,10 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
-import type { ApiConnectionProfile, AppearanceSettings, ImportJob, KnowledgeImportDraft, KnowledgeEntry, Mistake, PersonalizationSettings } from "../../../types/review";
+import type { ApiConnectionProfile } from "../../../types/domains/ai-connection.ts";
+import type { AppearanceSettings } from "../../../types/domains/appearance.ts";
+import type { ImportJob } from "../../../types/domains/import.ts";
+import type { KnowledgeImportDraft, KnowledgeEntry } from "../../../types/domains/knowledge.ts";
+import type { Mistake } from "../../../types/domains/review.ts";
+import type { PersonalizationSettings } from "../../../types/domains/personalization.ts";
 import { AppIcon } from "../../shared/app-icon";
 import { Button, Chip, EmptyState } from "../../shared/ui-primitives";
-import { settingsPluginDefinitions, type SettingsPluginDefinition, type SettingsPluginId, type SettingsPluginRuntimeContext } from "./settings-plugin-registry";
+import { settingsPluginDefinitions, type SettingsPluginDefinition, type SettingsPluginId, type SettingsPluginRuntimeContext } from "./settings-plugin-registry.ts";
 import styles from "./settings-plugins-view.module.css";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;

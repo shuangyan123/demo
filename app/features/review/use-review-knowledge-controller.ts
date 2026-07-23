@@ -19,22 +19,12 @@ import { findRelatedKnowledgeEntries, findRelatedMistakesForKnowledge } from "..
 import { associationRepository, suggestionToLinkInput } from "../../services/association-repository";
 import { downloadExportFile, exportKnowledgeEntries } from "../../services/export-service";
 import { knowledgeRepository } from "../../services/knowledge-repository";
-import type {
-  ApiConnectionProfile,
-  AssociationSuggestion,
-  ExportFormat,
-  ExportScope,
-  KnowledgeCategory,
-  KnowledgeEntry,
-  KnowledgeFilters,
-  KnowledgeImportDraft,
-  KnowledgeMistakeLink,
-  KnowledgeQueueFilter,
-  Mistake,
-  PersonalizationSettings,
-  ReviewResult,
-  ViewKey,
-} from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { ExportFormat, ExportScope, Mistake, ReviewResult } from "../../types/domains/review.ts";
+import type { KnowledgeCategory, KnowledgeEntry, KnowledgeFilters, KnowledgeImportDraft, KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import type { ViewKey } from "../../types/domains/workspace.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

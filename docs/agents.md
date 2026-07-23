@@ -359,3 +359,9 @@
 - 包体预算必须从生产清单按首屏实际资产计算，chunk 文件名只作证据展示，不能成为固定判断条件；基线增长上限为 5%。
 - `experimental-analyze` 的模块总榜包含异步块，不能把其中的大模块误判为首屏依赖。应同时核对首屏清单和静态 import 契约。
 - 低频预取只允许由 hover/focus 意图触发代码加载，不得顺带读取 repository 或发业务请求。桌面与 390×844 移动关键页必须保持 axe serious/critical 为零。
+
+# 2026-07-23 · 领域类型与 facade 收口
+
+- 新业务必须直接从 `types/domains/*` 引用；`types/review.ts` 只保留历史兼容出口，架构契约阻止业务依赖回流。Node 契约测试使用领域入口时保留显式 `.ts` 扩展。
+- Provider 与 Obsidian 拆分必须保持原 facade 导出、错误语义和持久化顺序。纯 helper 不持有 Vault 句柄，语音 mapper 不改变厂商鉴权或请求字段。
+- 每个实现模块继续限制在 500 行以内；类型和 facade 整理不是升级 Dexie 的理由，`review_workspace` 维持 v16。

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Chip, Panel, cx } from "../shared/ui-primitives";
-import type { LocalDiagnosticAction, LocalDiagnosticItem, LocalDiagnosticStatus, LocalDiagnostics } from "./use-local-diagnostics";
+import type { LocalDiagnosticAction, LocalDiagnosticItem, LocalDiagnosticStatus, LocalDiagnostics } from "./use-local-diagnostics.ts";
 import { DataManagementPanel } from "./data-management-panel";
 
 type LocalDiagnosticsPanelProps = {

@@ -1,5 +1,6 @@
 import { normalizeFenbiDraft, type FenbiDraftInput } from "../../services/fenbi-parser.ts";
-import type { FenbiSyncScope, ImportDraft } from "../../types/review.ts";
+import type { FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
+import type { ImportDraft } from "../../types/domains/import.ts";
 
 const FENBI_ORIGIN = "https://tiku.fenbi.com";
 const PAGE_SIZE = 100;
