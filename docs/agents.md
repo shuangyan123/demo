@@ -334,3 +334,9 @@
 - 低频视图的 `next/dynamic` 必须保留在模块顶层并使用显式 import 路径；加载占位不得读取业务数据。
 - 预算采用硬性契约：根组件 150 行、顶层 controller/router 300 行、领域 controller 和任何 React component 500 行；同时扫描循环依赖、旧 `stats` 路由和 Dexie v16。
 - 纯架构重构仍必须跑完整 E2E 与双端视觉回归；不能用类型与单元契约代替真实交互、控制台和横向溢出检查。
+# 2026-07-23 · 0.2.0 升级治理基线
+
+- `develop` 是 P3 之后的开发集成分支；安全、可靠性、性能与架构收口必须保持独立提交和回滚边界。
+- `docs/dependency-maintenance.md` 负责依赖策略，`docs/upgrade-roadmap.md` 负责本轮状态与证据，changelog/agents 只保留摘要。
+- CI 显式执行 typecheck、lint、contracts、build，并按桌面/移动拆分 E2E；P0 完成后生产依赖 audit 必须成为硬门禁。
+- 依赖补丁不得使用 `npm audit fix --force`，Node.js 22、TypeScript 5、ESLint 9 与 Dexie v16 保持不变。

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-23 · 0.2.0 升级治理基线
+
+- 以 P3 架构收口版本建立 `develop` 集成基线，后续安全、可靠性、性能和架构升级使用独立回滚边界。
+- 恢复依赖维护单一事实源，新增升级状态矩阵、独立 typecheck/audit/analyzer 脚本。
+- CI 拆分静态检查、安全审计、生产构建和桌面/移动 E2E，并在浏览器失败时上传 Playwright 证据。
+- 本阶段不修改业务行为、HTTP 契约或 `review_workspace` v16；生产安全审计在 P0 提交前仅报告、不阻断。
+
 ## 2026-07-23 · P3 ReviewWorkspace 架构终止收口
 
 - 将 `ReviewWorkspace` 缩减为仅组合顶层 controller 与 view router 的根组件，并拆出学习、知识两个领域 controller。

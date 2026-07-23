@@ -5,15 +5,16 @@ on:
   push:
     branches:
       - main
+      - develop
 
 permissions:
   contents: read
 
 jobs:
-  quality:
-    name: Type Check, ESLint, Contracts, Build, E2E
+  static:
+    name: Type Check, ESLint, Contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
       # 固定官方 Node 22 LTS 环境，并复用 npm 下载缓存。
@@ -29,17 +30,85 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: TypeScript
+        run: npm run typecheck
+
       - name: ESLint
         run: npm run lint
 
       - name: Contract tests
         run: npm run test:contracts
 
-      - name: Production build and type check
+  security:
+    name: Production Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # P0 安全提交会移除此临时容错；基线 PR 先产出真实审计结果。
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Audit production dependencies
+        run: npm run audit:prod
+
+  build:
+    name: Production Build
+    needs: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Production build
         run: npm run build
 
+  e2e:
+    name: E2E (${{ matrix.project }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - chromium
+          - chromium-mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
       - name: E2E tests
-        run: npm run test:e2e
+        run: npm run test:e2e -- --project=${{ matrix.project }}
+
+      - name: Upload Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ matrix.project }}
+          path: .playwright-results
+          if-no-files-found: ignore
