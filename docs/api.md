@@ -261,3 +261,5 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 # P3 最终收口接口说明
 
 P3 没有新增或修改 HTTP Route、请求体、响应体或公开路由。导入、手动录入、知识训练、薄弱分析、插件检查器和全局搜索均复用现有客户端 repository/controller；`LearningInsightSnapshot` 只存在于内存展示层，不写入 IndexedDB。插件详情继续按需调用既有 Obsidian、粉笔导入与声明式扩展面板。
+
+P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controller、route component 与类型边界；没有新增公开接口、持久化字段或迁移，`review_workspace` 继续保持 v16。

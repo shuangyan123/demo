@@ -326,3 +326,11 @@
 - 移动全屏搜索的层级必须高于应用顶栏；仅设置 `position: fixed` 不足以保证覆盖，需要在 390×844 实截图中核对首行。
 - 低频面板继续使用 `next/dynamic`，加载占位不得触发 repository 或外部请求；页面状态组件只负责说明与恢复动作。
 - 视觉验收需要分别比较布局、文案、字体/颜色、图标、间距、响应式和交互，并把因业务真实性产生的差异写入 fidelity ledger。
+
+# P3 ReviewWorkspace 架构收口经验（2026-07-23）
+
+- 根工作台应只负责 controller 组合与 view router 渲染；学习和知识的筛选、选择、队列、计时与动作分别归领域 controller，避免根组件再次成为跨域状态容器。
+- route component 只消费显式 controller 类型并装配视图，禁止直接导入 repository/service。需要 Vault 或 AI 服务的动作继续在领域 controller 内按需动态加载。
+- 低频视图的 `next/dynamic` 必须保留在模块顶层并使用显式 import 路径；加载占位不得读取业务数据。
+- 预算采用硬性契约：根组件 150 行、顶层 controller/router 300 行、领域 controller 和任何 React component 500 行；同时扫描循环依赖、旧 `stats` 路由和 Dexie v16。
+- 纯架构重构仍必须跑完整 E2E 与双端视觉回归；不能用类型与单元契约代替真实交互、控制台和横向溢出检查。

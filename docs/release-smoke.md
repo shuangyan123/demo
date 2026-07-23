@@ -198,3 +198,11 @@
 5. 打开插件管理，确认只有声明式扩展市场、Obsidian Vault、粉笔导入；详情显示来源、状态、能力、签名说明、本地数据边界与恢复动作，MCP 不出现。
 6. 从触发按钮打开全局搜索，使用上下键、Enter、Tab、Shift+Tab 与 Escape；桌面为居中面板，移动为覆盖顶栏的全屏层，关闭后焦点回到触发器。
 7. 浅色/深色在 1536×1024 与 390×844 检查 14 个 ViewKey、主要编辑层和底部抽屉；检查控制台、框架错误、减少动态效果和页面级溢出。
+
+# P3 ReviewWorkspace 架构收口 Smoke
+
+1. 运行架构契约，确认 `review-workspace.tsx` 不超过 150 行，顶层 controller/router 不超过 300 行，领域 controller 与任意 React component 不超过 500 行。
+2. 确认 route 文件不导入 repository/service，低频视图仍使用模块顶层的显式 `next/dynamic`，加载占位只渲染 `WorkspaceViewState`。
+3. 复验旧 `stats` 入口、首次消息后创建对话、导入确认、复盘计时、知识训练、Obsidian 删除预检和设置恢复导航。
+4. 运行 `npx tsc --noEmit`、`npm run lint`、`npm run test:contracts`、`npm run build` 与完整 `npm run test:e2e`。
+5. 在 1536×1024 与 390×844、浅色与深色下抽查 P3 基准表面；确认零新增布局偏差、零控制台错误、零页面级横向溢出和零失效键盘路径。

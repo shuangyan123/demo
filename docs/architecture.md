@@ -309,3 +309,12 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 插件管理只读取 `settingsPluginDefinitions` 三项真实登记，详情面板在选择后动态加载；MCP、密钥、Vault 句柄和第三方代码均未进入注册表快照。
 - 命令搜索在桌面使用居中面板、移动使用全屏层，并统一焦点锁定、Escape、页面滚动锁定与触发器焦点恢复。
 - P3 共享页面状态只负责呈现加载、空、错误或离线说明，不执行业务读取。HTTP API、公开路由、持久化对象和 `review_workspace` v16 均未变化。
+
+## P3 补充：ReviewWorkspace 架构终止收口
+
+- `ReviewWorkspace` 现在只调用 `useReviewWorkspaceController` 并渲染 `ReviewWorkspaceViewRouter`；根编排组件限制为 150 行以内，不再直接拥有学习、知识、会话或设置业务状态。
+- `useReviewLearningController` 独占错题筛选、选择、复盘队列、计时、统计与相关动作；`useReviewKnowledgeController` 独占知识筛选、关联建议、导入草稿、训练队列与相关动作。两者通过显式类型交给路由，不引入覆盖工作台的 React Context。
+- `useReviewWorkspaceController` 只组合工作区数据、导航、AI 连接、个性化、自动化、会话、设置恢复与健康状态，并以 `workspace`、`learning`、`knowledge`、`conversation` 四组稳定边界返回。
+- `ReviewWorkspaceViewRouter` 只装配设置页、工作台壳层、命令搜索和核心/低频 route component。route 文件禁止导入 repository/service；低频视图继续在模块顶层用显式路径 `next/dynamic` 加载。
+- 架构契约硬性限制根组件不超过 150 行，顶层 controller 与 view router 不超过 300 行，领域 controller 与任何 React component 不超过 500 行；同时检查动态加载、无循环依赖、旧 `stats` 映射和 `review_workspace` v16 不变。
+- 本次重构不改变可见 UI、业务语义、HTTP API、IndexedDB schema、首次消息持久化、导入确认、复盘计时、Obsidian 句柄或恢复导航边界。
