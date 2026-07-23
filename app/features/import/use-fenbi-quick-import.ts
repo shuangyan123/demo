@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { fenbiCredentialRepository } from "../../services/fenbi-credential-repository";
+import { fetchLocalApi } from "../../services/local-runtime-diagnostics";
 import type { FenbiImportCredential, FenbiSyncEvent, FenbiSyncScope, ImportDraft } from "../../types/review";
 
 type FenbiQuickImportStatus = "unconfigured" | "ready" | "validating" | "syncing" | "error";
@@ -36,7 +37,7 @@ export function useFenbiQuickImport({ onDrafts, setNotice }: UseFenbiQuickImport
     setError("");
     try {
       const plainCookie = cookie ?? await fenbiCredentialRepository.reveal();
-      const response = await fetch("/api/import/fenbi/validate", {
+      const response = await fetchLocalApi("/api/import/fenbi/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cookie: plainCookie }),
@@ -75,7 +76,7 @@ export function useFenbiQuickImport({ onDrafts, setNotice }: UseFenbiQuickImport
     setFallbackRecommended(false);
     try {
       const cookie = await fenbiCredentialRepository.reveal();
-      const response = await fetch("/api/import/fenbi/sync", {
+      const response = await fetchLocalApi("/api/import/fenbi/sync", {
         method: "POST",
         headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
         body: JSON.stringify({ cookie, scope }),

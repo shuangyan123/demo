@@ -2,6 +2,7 @@ import { toISODate } from "../lib/review-utils.ts";
 import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaMetric, AiQuotaSnapshot, AiQuotaVerificationResult, ApiProvider } from "../types/review";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { aiQuotaProviderPlugins, getAiQuotaPlugin } from "./ai-quota-plugins.ts";
+import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 
 export type SaveQuotaPluginInput = {
   id: ApiProvider | "manual";
@@ -63,7 +64,7 @@ async function requestViaRoute(config: AiQuotaPluginConfig, action: "validate" |
   const timeoutMs = getAiQuotaPlugin(config.id).fetchStrategies.find((strategy) => strategy.kind === "official_api")?.timeoutMs ?? 12_000;
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
-  const response = await fetch("/api/ai/quota", {
+  const response = await fetchLocalApi("/api/ai/quota", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

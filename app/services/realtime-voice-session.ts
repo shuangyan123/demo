@@ -3,6 +3,7 @@
 import { aiConnectionsRepository } from "./ai-connections-repository";
 import type { ApiConnectionProfile, RealtimeVoiceEvent } from "../types/review";
 import { readApiErrorMessage } from "./api-error";
+import { fetchLocalApi } from "./local-runtime-diagnostics";
 
 type RealtimeHandle = { stop: () => Promise<void>; mute: (muted: boolean) => void };
 
@@ -77,7 +78,7 @@ function normalizeOpenAiEvent(value: unknown): RealtimeVoiceEvent[] {
 export async function startRealtimeVoiceSession(input: { connection: ApiConnectionProfile; model: string; voiceId: string; onEvent: (event: RealtimeVoiceEvent) => void }): Promise<RealtimeHandle> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   const apiKey = await aiConnectionsRepository.resolveSecret(input.connection);
-  const setup = await fetch("/api/ai/realtime/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: input.connection.provider, apiKey, model: input.model, voiceId: input.voiceId }) });
+  const setup = await fetchLocalApi("/api/ai/realtime/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: input.connection.provider, apiKey, model: input.model, voiceId: input.voiceId }) });
   if (!setup.ok) { stream.getTracks().forEach((track) => track.stop()); throw new Error(await readApiErrorMessage(setup, "无法创建实时会话")); }
   const setupPayload = await setup.json() as { token?: string; relaySessionId?: string };
   const { token } = setupPayload;
@@ -101,10 +102,10 @@ export async function startRealtimeVoiceSession(input: { connection: ApiConnecti
     const relaySessionId = setupPayload.relaySessionId;
     if (!relaySessionId) { stream.getTracks().forEach((track) => track.stop()); throw new Error("未取得 GLM 中继会话"); }
     const player = createPcmPlayer(); let stopped = false;
-    const capture = await createPcmCapture(stream, (pcmBase64) => { void fetch("/api/ai/realtime/glm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: relaySessionId, pcmBase64 }) }); });
-    const poll = window.setInterval(async () => { if (stopped) return; try { const response = await fetch(`/api/ai/realtime/glm?sessionId=${encodeURIComponent(relaySessionId)}`, { cache: "no-store" }); const payload = await response.json() as { events?: RealtimeVoiceEvent[] }; for (const event of payload.events ?? []) { if (event.type === "audio") player.play(event.pcmBase64); if (event.type === "interrupted") player.interrupt(); input.onEvent(event); } } catch { input.onEvent({ type: "error", message: "GLM 中继事件读取失败" }); } }, 150);
+    const capture = await createPcmCapture(stream, (pcmBase64) => { void fetchLocalApi("/api/ai/realtime/glm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: relaySessionId, pcmBase64 }) }); });
+    const poll = window.setInterval(async () => { if (stopped) return; try { const response = await fetchLocalApi(`/api/ai/realtime/glm?sessionId=${encodeURIComponent(relaySessionId)}`, { cache: "no-store" }); const payload = await response.json() as { events?: RealtimeVoiceEvent[] }; for (const event of payload.events ?? []) { if (event.type === "audio") player.play(event.pcmBase64); if (event.type === "interrupted") player.interrupt(); input.onEvent(event); } } catch { input.onEvent({ type: "error", message: "GLM 中继事件读取失败" }); } }, 150);
     input.onEvent({ type: "connected" });
-    return { mute: (muted) => stream.getAudioTracks().forEach((track) => { track.enabled = !muted; }), stop: async () => { stopped = true; window.clearInterval(poll); await fetch(`/api/ai/realtime/glm?sessionId=${encodeURIComponent(relaySessionId)}`, { method: "DELETE" }); capture.processor.disconnect(); await capture.context.close(); await player.close(); stream.getTracks().forEach((track) => track.stop()); input.onEvent({ type: "ended" }); } };
+    return { mute: (muted) => stream.getAudioTracks().forEach((track) => { track.enabled = !muted; }), stop: async () => { stopped = true; window.clearInterval(poll); await fetchLocalApi(`/api/ai/realtime/glm?sessionId=${encodeURIComponent(relaySessionId)}`, { method: "DELETE" }); capture.processor.disconnect(); await capture.context.close(); await player.close(); stream.getTracks().forEach((track) => track.stop()); input.onEvent({ type: "ended" }); } };
   }
   if (!token) { stream.getTracks().forEach((track) => track.stop()); throw new Error("未取得临时凭据"); }
   const peer = new RTCPeerConnection();

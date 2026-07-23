@@ -5,6 +5,7 @@ import type {
   KnowledgeEvolutionProposal,
 } from "../types/review.ts";
 import { mcpSettingsRepository } from "./mcp-settings-repository.ts";
+import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 
 type FetchResponse = {
   url: string;
@@ -100,7 +101,7 @@ export function extractCandidateUrls(value: unknown): string[] {
 }
 
 async function fetchDocument(url: string, allowedOrigins: string[]): Promise<FetchResponse> {
-  const response = await fetch("/api/acquisition/fetch", {
+  const response = await fetchLocalApi("/api/acquisition/fetch", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, allowedOrigins }),

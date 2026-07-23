@@ -347,3 +347,9 @@
 - `docs/dependency-maintenance.md` 负责依赖策略，`docs/upgrade-roadmap.md` 负责本轮状态与证据，changelog/agents 只保留摘要。
 - CI 显式执行 typecheck、lint、contracts、build，并按桌面/移动拆分 E2E；P0 完成后生产依赖 audit 必须成为硬门禁。
 - 依赖补丁不得使用 `npm audit fix --force`，Node.js 22、TypeScript 5、ESLint 9 与 Dexie v16 保持不变。
+
+# 2026-07-23 · 可靠性与脱敏诊断
+
+- 根错误边界不得渲染 `error.message`、堆栈或原始响应；用户可复制的内容只允许稳定类别、时间和框架 digest。
+- API 可观测性保持本机、有界、内存态。只记录路由类别、阶段、耗时、状态码和错误类别，禁止为了诊断保存请求体、响应体、Cookie、Token、音频或 Vault 正文。
+- Effect 初始化异步资源时使用可取消任务和卸载保护；不得通过 `react-hooks/set-state-in-effect` 注释绕过生命周期问题。

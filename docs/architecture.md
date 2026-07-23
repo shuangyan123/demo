@@ -326,3 +326,9 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `ReviewWorkspaceViewRouter` 只装配设置页、工作台壳层、命令搜索和核心/低频 route component。route 文件禁止导入 repository/service；低频视图继续在模块顶层用显式路径 `next/dynamic` 加载。
 - 架构契约硬性限制根组件不超过 150 行，顶层 controller 与 view router 不超过 300 行，领域 controller 与任何 React component 不超过 500 行；同时检查动态加载、无循环依赖、旧 `stats` 映射和 `review_workspace` v16 不变。
 - 本次重构不改变可见 UI、业务语义、HTTP API、IndexedDB schema、首次消息持久化、导入确认、复盘计时、Obsidian 句柄或恢复导航边界。
+
+## 根级恢复与本机运行诊断（2026-07-23）
+
+- `app/error.tsx` 与 `app/global-error.tsx` 复用 `WorkspaceViewState`，提供重试、返回工作台和复制脱敏诊断；诊断只包含稳定错误类别、时间和 Next digest，不输出堆栈、用户正文或厂商原始响应。
+- 浏览器内同源 API 调用统一经过 `fetchLocalApi`。该边界仅在内存保存最近 50 条路由类别、阶段、耗时、状态码和错误类别，既不写 IndexedDB，也不记录请求体、响应体、Cookie、Token、音频或 Vault 正文。
+- 异步初始化 Hook 使用零延时任务与 `active` 卸载保护，避免 Effect 同步写状态并防止组件卸载后的错误通知；业务源码不再需要 `react-hooks/set-state-in-effect` 豁免。

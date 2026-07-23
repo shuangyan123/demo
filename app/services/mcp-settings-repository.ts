@@ -1,6 +1,7 @@
 import type { McpDiscoveryResult, McpServerProfile, McpToolDescriptor, McpToolPermission } from "../types/review.ts";
 import { decryptSecret, encryptSecret } from "./crypto-service.ts";
 import type { ClientApiErrorPayload } from "./api-error.ts";
+import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 
 const STORAGE_KEY = "review-workspace:mcp-settings:v2";
 const LEGACY_STORAGE_KEY = "review-workspace:mcp-settings:v1";
@@ -66,7 +67,7 @@ async function tokenFor(profile: McpServerProfile): Promise<string> {
 }
 
 async function requestJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
-  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const response = await fetchLocalApi(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   const result = await response.json() as T & ClientApiErrorPayload;
   if (!response.ok) throw new Error(result.message || result.error || "MCP 请求失败");
   return result;

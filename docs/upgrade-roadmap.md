@@ -6,7 +6,7 @@
 | --- | --- | --- | --- | --- |
 | 基线 | 建立 `develop`，恢复依赖维护事实源 | typecheck、lint、203 contracts | 删除新分支与治理提交 | 已完成 |
 | P0 安全 | 生产 high/critical 清零，统一本机 API 防护 | audit、Route 安全契约、Provider/MCP contracts | 安全补丁提交 | 已完成 |
-| P1 可靠性 | 全局恢复、统一错误、脱敏诊断、零 Hook 豁免 | 错误边界 E2E、诊断契约、lint | 可靠性提交 | 待处理 |
+| P1 可靠性 | 全局恢复、统一错误、脱敏诊断、零 Hook 豁免 | 根错误边界、208 contracts、typecheck/lint/build | 可靠性提交 | 已完成 |
 | P2 性能/无障碍 | 包体回归不超过 5%，axe 严重问题清零 | analyzer、桌面/移动 E2E | 性能门禁提交 | 待处理 |
 | P3 架构 | 领域类型直引、超预算服务拆分、Dexie v16 不变 | 架构契约、全量 contracts/build | 各领域拆分提交 | 待处理 |
 | 发布 | `develop` 到 `main` 的 0.2.0 发布 | CI、浏览器 smoke、人工 Vault/凭据记录 | release PR revert | 待处理 |

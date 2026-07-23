@@ -9,8 +9,16 @@ export function usePersonalizationSettings(onError: (message: string) => void) {
   const [settings, setSettings] = useState<PersonalizationSettings>(() => createDefaultPersonalizationSettings());
   const refresh = useCallback(async () => setSettings(await personalizationSettingsRepository.load()), []);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refresh().catch((error) => onError(error instanceof Error ? error.message : "个性化设置读取失败"));
+    let active = true;
+    const timer = window.setTimeout(() => {
+      refresh().catch((error) => {
+        if (active) onError(error instanceof Error ? error.message : "个性化设置读取失败");
+      });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [onError, refresh]);
   return { refresh, setSettings, settings };
 }

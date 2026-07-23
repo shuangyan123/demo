@@ -52,11 +52,18 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
   }, [notice, today]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refreshData().catch((error) => {
-      notice.onReadFailed(error);
-      setLoading(false);
-    });
+    let active = true;
+    const timer = window.setTimeout(() => {
+      refreshData().catch((error) => {
+        if (!active) return;
+        notice.onReadFailed(error);
+        setLoading(false);
+      });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [notice, refreshData]);
 
   return {

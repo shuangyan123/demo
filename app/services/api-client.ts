@@ -3,6 +3,7 @@ import type { ApiProvider } from "../types/domains/ai-provider";
 import type { AiCapability, AiConnectionPurpose } from "../types/review";
 import { emitAiActivity } from "./ai-activity-events.ts";
 import { readApiErrorMessage } from "./api-error.ts";
+import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 
 export type ChatMessageContent =
   | string
@@ -148,7 +149,7 @@ export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenera
   };
   emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在准备 AI 请求" });
   emitAiActivity({ ...activityBase, phase: "waiting", label: `${input.provider} · ${input.model}`, stepId: "request", text: "正在调用模型" });
-  const response = await fetch("/api/ai/generate", {
+  const response = await fetchLocalApi("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -181,7 +182,7 @@ export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGene
     generationProtocol: input.generationProtocol,
   };
   emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在建立流式连接" });
-  const response = await fetch("/api/ai/generate", {
+  const response = await fetchLocalApi("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...input, stream: true }),
@@ -220,7 +221,7 @@ export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGene
 
 // 调用云端语音路由并返回临时音频 Blob；调用方负责撤销对应 object URL。
 export async function callAiSpeech(input: AiSpeechRequest): Promise<Blob> {
-  const response = await fetch("/api/ai/speech", {
+  const response = await fetchLocalApi("/api/ai/speech", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -234,7 +235,7 @@ export async function callAiSpeech(input: AiSpeechRequest): Promise<Blob> {
 
 /** 调用统一转写路由；浏览器录音在请求结束后由调用方立即释放。 */
 export async function callAiTranscription(input: AiTranscriptionRequest): Promise<AiTranscriptionResult> {
-  const response = await fetch("/api/ai/transcribe", {
+  const response = await fetchLocalApi("/api/ai/transcribe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -248,7 +249,7 @@ export async function callAiTranscription(input: AiTranscriptionRequest): Promis
 
 /** 读取归一化厂商模型目录；调用方只能缓存公开模型元数据。 */
 export async function callAiModels(input: AiModelsRequest): Promise<AiModelsResult> {
-  const response = await fetch("/api/ai/models", {
+  const response = await fetchLocalApi("/api/ai/models", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
