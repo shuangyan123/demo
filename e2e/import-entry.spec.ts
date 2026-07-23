@@ -55,7 +55,7 @@ test("导入资料可生成知识资料草稿并确认入库", async ({ page }) 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
   await page.getByRole("button", { name: "导入资料" }).first().click();
-  await expect(page.getByRole("heading", { name: "粉笔导入", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "导入资料", exact: true })).toBeVisible();
 
   const knowledgeImportForm = page.locator("form").filter({ has: page.getByRole("button", { name: "生成资料草稿" }) });
   await knowledgeImportForm.getByLabel("资料文本").fill("E2E 知识资料标题\n\n这是一段用于端到端测试的知识资料正文。");

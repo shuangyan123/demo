@@ -1,20 +1,23 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { BOARD_OPTIONS, type KnowledgeEntry, type Mistake } from "../../types/review";
+import { BOARD_OPTIONS, type Attempt, type KnowledgeEntry, type Mistake } from "../../types/review";
 import type { ConversationLaunchContext } from "../conversation/conversation-launch-context";
 import { AppIcon } from "../shared/app-icon";
 import { Button, EmptyState, MasteryDots } from "../shared/ui-primitives";
+import { LearningInsightView } from "./learning-insight-view";
 
 type ExplorerTab = "mistakes" | "knowledge" | "weak";
 type ExplorerRecord = { id: string; kind: "mistake" | "knowledge"; title: string; subtitle: string; board: string; mastery: number; tags: string[]; updatedAt: string; source: Mistake | KnowledgeEntry };
 
 type LearningDataExplorerProps = {
+  attempts: Attempt[];
   knowledgeEntries: KnowledgeEntry[];
   managementContent: ReactNode;
   mistakes: Mistake[];
   onOpenKnowledgeOperations: () => void;
   onOpenKnowledgeTraining: (id?: string) => void;
+  onOpenReview: (id?: string) => void;
   onStartConversation: (context: ConversationLaunchContext) => void;
 };
 
@@ -27,7 +30,7 @@ function toKnowledgeRecord(item: KnowledgeEntry): ExplorerRecord {
 }
 
 /** 统一浏览错题、知识和薄弱项；板块筛选只在此处维护一次。 */
-export function LearningDataExplorer({ knowledgeEntries, managementContent, mistakes, onOpenKnowledgeOperations, onOpenKnowledgeTraining, onStartConversation }: LearningDataExplorerProps) {
+export function LearningDataExplorer({ attempts, knowledgeEntries, managementContent, mistakes, onOpenKnowledgeOperations, onOpenKnowledgeTraining, onOpenReview, onStartConversation }: LearningDataExplorerProps) {
   const [tab, setTab] = useState<ExplorerTab>("mistakes");
   const [search, setSearch] = useState("");
   const [board, setBoard] = useState("全部");
@@ -70,6 +73,18 @@ export function LearningDataExplorer({ knowledgeEntries, managementContent, mist
         <button className={tab === "knowledge" ? "is-active" : ""} type="button" onClick={() => { setTab("knowledge"); setSelectedId(null); }}>知识 <span>{knowledgeEntries.length}</span></button>
         <button className={tab === "weak" ? "is-active" : ""} type="button" onClick={() => { setTab("weak"); setSelectedId(null); }}>薄弱分析</button>
       </nav>
+      {tab === "weak" ? (
+        <div className="p-5 max-sm:p-3">
+          <LearningInsightView
+            attempts={attempts}
+            knowledgeEntries={knowledgeEntries}
+            mistakes={mistakes}
+            onOpenKnowledgeTraining={onOpenKnowledgeTraining}
+            onOpenReview={onOpenReview}
+          />
+        </div>
+      ) : (
+      <>
       <div className="learning-explorer-scope">
         <label><AppIcon name="search" size={16} /><input aria-label="搜索学习数据" placeholder="搜索题目、知识或标签" value={search} onChange={(event) => setSearch(event.currentTarget.value)} /></label>
         <button className="learning-filter-trigger" type="button" onClick={() => setFiltersOpen((value) => !value)}><AppIcon name="configuration" size={16} />筛选</button>
@@ -86,6 +101,8 @@ export function LearningDataExplorer({ knowledgeEntries, managementContent, mist
         </div>
         {selected ? <aside className="learning-record-detail"><button className="learning-detail-close" type="button" aria-label="关闭详情" onClick={() => setSelectedId(null)}><AppIcon name="close" size={16} /></button><p>{selected.kind === "mistake" ? "错题" : "知识"} / {selected.board}</p><h2>{selected.title}</h2><div className="learning-detail-summary">{selected.kind === "mistake" ? (selected.source as Mistake).explanation : (selected.source as KnowledgeEntry).summary}</div><section><h3>关联与标签</h3><p>{selected.tags.join("、") || "暂无标签"}</p></section><section><h3>学习状态</h3><MasteryDots value={selected.mastery} /></section><div className="learning-detail-actions"><Button variant="primary" onClick={() => startConversation(selected)}><AppIcon name="newChat" size={16} />在新对话中继续</Button>{selected.kind === "knowledge" ? <Button variant="soft" onClick={() => onOpenKnowledgeTraining(selected.id)}>加入知识训练</Button> : null}</div></aside> : null}
       </div>
+      </>
+      )}
     </section>
   );
 }

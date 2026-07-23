@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
+import "../review/learning-insight-model.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -35,6 +36,11 @@ test("大型 workspace 保持受控预算并使用专用 controller", async () =
     ["features/automation/automation-overlays.tsx", 240],
     ["features/automation/automation-task-list.tsx", 190],
     ["features/automation/automation-inbox.tsx", 190],
+    ["features/import/review-import-view.tsx", 500],
+    ["features/knowledge/knowledge-training-view.tsx", 180],
+    ["features/review/learning-insight-view.tsx", 180],
+    ["features/settings/plugins/settings-plugins-view.tsx", 300],
+    ["features/conversation/command-search-palette.tsx", 220],
     ["features/shared/learning-session-layout.tsx", 200],
     ["features/shared/workspace-shell.tsx", 240],
   ]);
@@ -46,6 +52,24 @@ test("大型 workspace 保持受控预算并使用专用 controller", async () =
   assert.match(reviewSource, /useReviewConversationController/);
   assert.doesNotMatch(reviewSource, /services\/conversation-repository/);
   assert.doesNotMatch(reviewSource, /services\/command-search/);
+  assert.match(reviewSource, /dynamic\(\(\) => import\("\.\.\/knowledge\/knowledge-training-view"\)/);
+  assert.doesNotMatch(reviewSource, /from "\.\.\/knowledge\/knowledge-training-view"/);
+});
+
+test("P3 低频表面使用本地样式与真实派生模型", async () => {
+  const importSource = await readFile(path.join(APP_ROOT, "features/import/review-import-view.tsx"), "utf8");
+  const insightSource = await readFile(path.join(APP_ROOT, "features/review/learning-insight-model.ts"), "utf8");
+  const pluginSource = await readFile(path.join(APP_ROOT, "features/settings/plugins/settings-plugins-view.tsx"), "utf8");
+  const searchSource = await readFile(path.join(APP_ROOT, "features/conversation/command-search-palette.tsx"), "utf8");
+
+  assert.match(importSource, /review-import-view\.module\.css/);
+  assert.match(importSource, /type ImportMobileStep = "source" \| "draft" \| "confirm"/);
+  assert.match(insightSource, /MIN_RELIABLE_ATTEMPTS = 5/);
+  assert.match(insightSource, /mistakeById\.has\(attempt\.mistakeId\)/);
+  assert.match(pluginSource, /settingsPluginDefinitions\.filter/);
+  assert.doesNotMatch(pluginSource, /download|rating|推荐插件/);
+  assert.match(searchSource, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(searchSource, /restoreFocusRef\.current\?\.focus\(\)/);
 });
 
 test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () => {

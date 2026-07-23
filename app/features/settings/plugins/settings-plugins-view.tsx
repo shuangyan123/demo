@@ -1,31 +1,23 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
-import type { ReactNode, SyntheticEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import type { ApiConnectionProfile, AppearanceSettings, ImportJob, KnowledgeImportDraft, KnowledgeEntry, Mistake, PersonalizationSettings } from "../../../types/review";
-import { Button, Chip, EmptyState, IconButton, cx } from "../../shared/ui-primitives";
-import {
-  settingsPluginDefinitions,
-  type SettingsPluginCategory,
-  type SettingsPluginDefinition,
-  type SettingsPluginId,
-  type SettingsPluginRuntimeContext,
-  type SettingsPluginSurface,
-} from "./settings-plugin-registry";
+import { AppIcon } from "../../shared/app-icon";
+import { Button, Chip, EmptyState } from "../../shared/ui-primitives";
+import { settingsPluginDefinitions, type SettingsPluginDefinition, type SettingsPluginId, type SettingsPluginRuntimeContext } from "./settings-plugin-registry";
+import styles from "./settings-plugins-view.module.css";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
 const ObsidianPluginPanel = dynamic(() => import("./obsidian/obsidian-plugin-panel").then((module) => module.ObsidianPluginPanel), {
-  loading: () => <EmptyState>正在加载 Obsidian 插件...</EmptyState>,
+  loading: () => <EmptyState>正在加载 Obsidian Vault…</EmptyState>,
 });
-
 const ImportWorkspace = dynamic(() => import("../../import/import-workspace").then((module) => module.ImportWorkspace), {
-  loading: () => <EmptyState>正在加载粉笔导入插件...</EmptyState>,
+  loading: () => <EmptyState>正在加载粉笔导入…</EmptyState>,
 });
-
 const DeclarativeExtensionMarketplace = dynamic(() => import("./declarative-extension-marketplace").then((module) => module.DeclarativeExtensionMarketplace), {
-  loading: () => <EmptyState>正在加载声明式扩展市场...</EmptyState>,
+  loading: () => <EmptyState>正在加载声明式扩展市场…</EmptyState>,
 });
 
 type SettingsPluginsViewProps = {
@@ -52,406 +44,159 @@ type SettingsPluginsViewProps = {
   onUpdateKnowledgeDraftList: (id: string, value: string) => void;
 };
 
-type DirectorySection = {
-  key: SettingsPluginCategory;
-  label: string;
-};
-
-const directorySections: DirectorySection[] = [
-  { key: "featured", label: "Featured" },
-  { key: "knowledge-sync", label: "知识同步" },
-  { key: "import-source", label: "导入源" },
-  { key: "study-extension", label: "专项学习" },
-];
-
-const surfaceTabs: Array<{ key: SettingsPluginSurface; label: string }> = [
-  { key: "plugin", label: "插件" },
-  { key: "skill", label: "技能" },
-];
-
-function pluginMatchesSearch(plugin: SettingsPluginDefinition, keyword: string) {
-  if (!keyword) return true;
-  const haystack = [
-    plugin.label,
-    plugin.shortDescription,
-    plugin.description,
-    plugin.providerLabel,
-    plugin.category,
-    plugin.capabilities.join(" "),
-  ].join(" ").toLowerCase();
-  return haystack.includes(keyword);
+function matchesPlugin(plugin: SettingsPluginDefinition, query: string) {
+  if (!query) return true;
+  return [plugin.label, plugin.shortDescription, plugin.description, plugin.providerLabel, ...plugin.capabilities]
+    .join(" ")
+    .toLocaleLowerCase("zh-CN")
+    .includes(query);
 }
 
-function categoryPlugins(section: DirectorySection, plugins: SettingsPluginDefinition[], searchKeyword: string) {
-  if (section.key === "featured") {
-    return searchKeyword ? [] : plugins.filter((plugin) => plugin.featured);
-  }
-  return plugins.filter((plugin) => plugin.category === section.key);
-}
-
-function PluginGlyph({ plugin, size = "md" }: { plugin: SettingsPluginDefinition; size?: "sm" | "md" | "lg" }) {
-  const sizeClass = size === "lg" ? "h-12 w-12 rounded-xl text-sm" : size === "sm" ? "h-9 w-9 rounded-lg text-xs" : "h-10 w-10 rounded-xl text-xs";
+function PluginGlyph({ plugin }: { plugin: SettingsPluginDefinition }) {
   return (
-    <span
-      aria-hidden="true"
-      className={cx("grid shrink-0 place-items-center font-bold text-white shadow-sm", sizeClass)}
-      style={{ backgroundColor: plugin.icon.background }}
-    >
-      {plugin.icon.assetPath ? (
-        <span
-          className="h-3/5 w-3/5 bg-contain bg-center bg-no-repeat"
-          style={{ backgroundImage: `url(${plugin.icon.assetPath})` }}
-        />
-      ) : plugin.icon.label}
+    <span className={styles.glyph} style={{ backgroundColor: plugin.icon.background }} aria-hidden="true">
+      {plugin.icon.assetPath ? <span style={{ backgroundImage: `url(${plugin.icon.assetPath})` }} /> : plugin.icon.label}
     </span>
   );
 }
 
-function VectorIcon({ name }: { name: "search" | "refresh" | "settings" | "plus" | "more" | "close" | "filter" }) {
-  const common = { className: "h-4 w-4", fill: "none", stroke: "currentColor", strokeLinecap: "round" as const, strokeLinejoin: "round" as const, strokeWidth: 1.8 };
-  if (name === "search") {
-    return <svg viewBox="0 0 24 24" {...common}><circle cx="11" cy="11" r="7" /><path d="m16.5 16.5 4 4" /></svg>;
-  }
-  if (name === "refresh") {
-    return <svg viewBox="0 0 24 24" {...common}><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M19 12a7 7 0 0 0-12-5l-3 3" /><path d="M5 12a7 7 0 0 0 12 5l3-3" /></svg>;
-  }
-  if (name === "settings") {
-    return <svg viewBox="0 0 24 24" {...common}><circle cx="12" cy="12" r="3" /><path d="M12 2v3" /><path d="M12 19v3" /><path d="m4.9 4.9 2.1 2.1" /><path d="m17 17 2.1 2.1" /><path d="M2 12h3" /><path d="M19 12h3" /><path d="m4.9 19.1 2.1-2.1" /><path d="m17 7 2.1-2.1" /></svg>;
-  }
-  if (name === "plus") {
-    return <svg viewBox="0 0 24 24" {...common}><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
-  }
-  if (name === "close") {
-    return <svg viewBox="0 0 24 24" {...common}><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>;
-  }
-  if (name === "filter") {
-    return <svg viewBox="0 0 24 24" {...common}><path d="M4 7h16" /><path d="M7 12h10" /><path d="M10 17h4" /></svg>;
-  }
-  return <svg viewBox="0 0 24 24" {...common}><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>;
-}
-
-function PluginMenu({ plugin, onNotice }: { plugin: SettingsPluginDefinition; onNotice: (message: string) => void }) {
-  return (
-    <details className="relative">
-      <summary
-        aria-label={`${plugin.label} 更多操作`}
-        className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-md text-muted transition hover:bg-surface-muted hover:text-foreground [&::-webkit-details-marker]:hidden"
-      >
-        <VectorIcon name="more" />
-      </summary>
-      <div className="absolute right-0 top-9 z-20 w-40 rounded-lg border border-line bg-surface p-1 text-sm shadow-lg">
-        {plugin.menuActions.map((action) => action.href ? (
-          <a key={action.kind} className="block rounded-md px-3 py-2 hover:bg-surface-muted" href={action.href} rel="noreferrer" target={action.href.startsWith("http") ? "_blank" : undefined}>
-            {action.label}
-          </a>
-        ) : (
-          <button
-            key={action.kind}
-            className="block w-full rounded-md px-3 py-2 text-left hover:bg-surface-muted"
-            type="button"
-            onClick={() => onNotice(action.kind === "privacy" ? plugin.privacyNote : `${plugin.label} ${action.label} 已在详情中提供`)}
-          >
-            {action.label}
-          </button>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-function PluginListItem({
-  context,
-  plugin,
-  onOpen,
-  onNotice,
-}: {
-  context: SettingsPluginRuntimeContext;
-  plugin: SettingsPluginDefinition;
-  onOpen: (plugin: SettingsPluginDefinition) => void;
-  onNotice: (message: string) => void;
-}) {
-  const runtimeStatus = plugin.statusProvider?.(context) ?? "ready";
-  const badge = plugin.statusBadgeProvider?.(context) ?? plugin.statusBadge;
-  return (
-    <article className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-line/70 py-4 last:border-b-0 max-sm:grid-cols-[minmax(0,1fr)_auto]">
-      <button className="grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-3 text-left" type="button" onClick={() => onOpen(plugin)}>
-        <PluginGlyph plugin={plugin} />
-        <span className="min-w-0">
-          <span className="flex min-w-0 items-center gap-2">
-            <strong className="truncate text-sm">{plugin.label}</strong>
-            <Chip tone={badge.tone}>{badge.label}</Chip>
-          </span>
-          <span className="mt-1 block truncate text-sm text-muted">{plugin.shortDescription}</span>
-        </span>
-      </button>
-      <Button className="min-w-[5.25rem]" size="sm" variant={runtimeStatus === "ready" ? "outline" : "soft"} onClick={() => onOpen(plugin)}>
-        {plugin.primaryAction.label}
-      </Button>
-      <div className="max-sm:hidden">
-        <PluginMenu plugin={plugin} onNotice={onNotice} />
-      </div>
-    </article>
-  );
-}
-
-function BuiltInIntegrationStrip({
-  context,
-  plugins,
-  onOpen,
-}: {
-  context: SettingsPluginRuntimeContext;
-  plugins: SettingsPluginDefinition[];
-  onOpen: (plugin: SettingsPluginDefinition) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      {plugins.map((plugin) => {
-        const runtimeStatus = plugin.statusProvider?.(context) ?? "ready";
-        return (
-          <button
-            key={plugin.id}
-            aria-label={plugin.label}
-            className={cx(
-              "relative rounded-xl p-1 transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2",
-              runtimeStatus !== "ready" && "after:absolute after:right-1 after:top-1 after:h-2.5 after:w-2.5 after:rounded-full after:bg-yellow"
-            )}
-            title={plugin.label}
-            type="button"
-            onClick={() => onOpen(plugin)}
-          >
-            <PluginGlyph plugin={plugin} size="lg" />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function PluginInlineDetail({
-  children,
-  context,
-  onClose,
-  plugin,
-}: {
-  children: ReactNode;
-  context: SettingsPluginRuntimeContext;
-  onClose: () => void;
-  plugin: SettingsPluginDefinition;
-}) {
-  const badge = plugin.statusBadgeProvider?.(context) ?? plugin.statusBadge;
-  const recentActivity = plugin.recentActivityProvider?.(context);
-  return (
-    <section className="plugin-detail-inline mt-8 overflow-hidden" aria-label={`${plugin.label} 插件详情`}>
-        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <div className="grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-3">
-            <PluginGlyph plugin={plugin} />
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <h2 className="truncate text-base font-semibold">{plugin.label}</h2>
-                <Chip tone={badge.tone}>{badge.label}</Chip>
-              </div>
-              <p className="mt-1 truncate text-sm text-muted">{plugin.providerLabel}</p>
-            </div>
-          </div>
-          <IconButton aria-label="关闭插件详情" onClick={onClose}>
-            <VectorIcon name="close" />
-          </IconButton>
-        </header>
-        <div className="grid grid-cols-3 gap-2 border-b border-line px-5 py-3 text-xs text-muted max-sm:grid-cols-1">
-          <span className="truncate">状态：{badge.label}</span>
-          <span className="truncate">来源：{plugin.providerLabel}</span>
-          <span className="truncate">活动：{recentActivity ?? "暂无"}</span>
-        </div>
-        <div className="p-5">
-          {children}
-        </div>
-    </section>
-  );
-}
-
-/** 设置插件目录只渲染轻量注册表数据，重型插件面板等用户打开详情后再按需加载。 */
-export function SettingsPluginsView({
-  appearanceSettings,
-  entries,
-  initialPluginId,
-  importJobs,
-  knowledgeDrafts,
-  mistakes,
-  personalization,
-  textConnection,
-  visionConnection,
-  today,
-  onChanged,
-  onAppearanceChange,
-  onConfirmKnowledgeDrafts,
-  onDeleteKnowledgeDraft,
-  onImportKnowledgeText,
-  onNotice,
-  onOpenConnections,
-  onPersonalizationChange,
-  onRefreshWorkspace,
-  onUpdateKnowledgeDraft,
-  onUpdateKnowledgeDraftList,
-}: SettingsPluginsViewProps) {
-  const [activeSurface, setActiveSurface] = useState<SettingsPluginSurface>("plugin");
+/** 设置插件页只读取静态注册表；详情面板在用户选择后才动态加载。 */
+export function SettingsPluginsView(props: SettingsPluginsViewProps) {
   const [query, setQuery] = useState("");
-  const [activePluginId, setActivePluginId] = useState<SettingsPluginId | undefined>(initialPluginId);
-  const pluginContext: SettingsPluginRuntimeContext = {
-    entryCount: entries.length,
-    importJobCount: importJobs.length,
-    knowledgeDraftCount: knowledgeDrafts.length,
-    mistakeCount: mistakes.length,
-    hasTextConnection: Boolean(textConnection),
-    hasVisionConnection: Boolean(visionConnection),
+  const [activePluginId, setActivePluginId] = useState<SettingsPluginId | undefined>(props.initialPluginId);
+  const detailRef = useRef<HTMLElement | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const context: SettingsPluginRuntimeContext = {
+    entryCount: props.entries.length,
+    importJobCount: props.importJobs.length,
+    knowledgeDraftCount: props.knowledgeDrafts.length,
+    mistakeCount: props.mistakes.length,
+    hasTextConnection: Boolean(props.textConnection),
+    hasVisionConnection: Boolean(props.visionConnection),
   };
-  const selectedPlugin = settingsPluginDefinitions.find((plugin) => plugin.id === activePluginId);
-  const activePlugin = selectedPlugin?.surface === activeSurface ? selectedPlugin : undefined;
-  const searchKeyword = query.trim().toLowerCase();
-  const visiblePlugins = useMemo(
-    () => settingsPluginDefinitions.filter((plugin) => plugin.surface === activeSurface && pluginMatchesSearch(plugin, searchKeyword)),
-    [activeSurface, searchKeyword]
-  );
-  const builtInIntegrations = useMemo(
-    () => settingsPluginDefinitions.filter((plugin) => plugin.surface === activeSurface),
-    [activeSurface]
-  );
+  const keyword = query.trim().toLocaleLowerCase("zh-CN");
+  const plugins = useMemo(() => settingsPluginDefinitions.filter((plugin) => matchesPlugin(plugin, keyword)), [keyword]);
+  const activePlugin = settingsPluginDefinitions.find((plugin) => plugin.id === activePluginId);
+
+  useEffect(() => {
+    if (!activePlugin) return;
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    window.setTimeout(() => detailRef.current?.focus(), 0);
+    return () => restoreFocusRef.current?.focus();
+  }, [activePlugin]);
 
   function openPlugin(plugin: SettingsPluginDefinition) {
     setActivePluginId(plugin.id);
-  }
-
-  function selectSurface(surface: SettingsPluginSurface) {
-    setActiveSurface(surface);
-    setActivePluginId(undefined);
   }
 
   function renderPanel(plugin: SettingsPluginDefinition) {
     if (plugin.detailPanelLoader === "declarative-marketplace") {
       return (
         <DeclarativeExtensionMarketplace
-          appearanceSettings={appearanceSettings}
-          personalization={personalization}
-          onAppearanceChange={onAppearanceChange}
-          onChanged={onChanged}
-          onPersonalizationChange={onPersonalizationChange}
-          onNotice={onNotice}
+          appearanceSettings={props.appearanceSettings}
+          personalization={props.personalization}
+          onAppearanceChange={props.onAppearanceChange}
+          onChanged={props.onChanged}
+          onPersonalizationChange={props.onPersonalizationChange}
+          onNotice={props.onNotice}
         />
       );
     }
     if (plugin.detailPanelLoader === "fenbi-import") {
       return (
         <ImportWorkspace
-          textConnection={textConnection}
-          visionConnection={visionConnection}
-          importJobs={importJobs}
-          knowledgeDrafts={knowledgeDrafts}
-          mistakes={mistakes}
-          today={today}
-          onConfirmKnowledgeDrafts={onConfirmKnowledgeDrafts}
-          onDeleteKnowledgeDraft={onDeleteKnowledgeDraft}
-          onImportKnowledgeText={onImportKnowledgeText}
-          onRefreshWorkspace={onRefreshWorkspace}
-          onSwitchSettings={onOpenConnections}
-          onUpdateKnowledgeDraft={onUpdateKnowledgeDraft}
-          onUpdateKnowledgeDraftList={onUpdateKnowledgeDraftList}
-          setNotice={onNotice}
+          textConnection={props.textConnection}
+          visionConnection={props.visionConnection}
+          importJobs={props.importJobs}
+          knowledgeDrafts={props.knowledgeDrafts}
+          mistakes={props.mistakes}
+          today={props.today}
+          onConfirmKnowledgeDrafts={props.onConfirmKnowledgeDrafts}
+          onDeleteKnowledgeDraft={props.onDeleteKnowledgeDraft}
+          onImportKnowledgeText={props.onImportKnowledgeText}
+          onRefreshWorkspace={props.onRefreshWorkspace}
+          onSwitchSettings={props.onOpenConnections}
+          onUpdateKnowledgeDraft={props.onUpdateKnowledgeDraft}
+          onUpdateKnowledgeDraftList={props.onUpdateKnowledgeDraftList}
+          setNotice={props.onNotice}
         />
       );
     }
     return (
       <ObsidianPluginPanel
-        entries={entries}
-        personalization={personalization}
-        textConnection={textConnection}
-        onChanged={onChanged}
-        onNotice={onNotice}
+        entries={props.entries}
+        personalization={props.personalization}
+        textConnection={props.textConnection}
+        onChanged={props.onChanged}
+        onNotice={props.onNotice}
       />
     );
   }
 
   return (
-    <section aria-label="插件目录" className="mx-auto min-h-[76vh] w-full max-w-5xl">
-      <div className="flex items-center justify-between gap-3">
-        <div className="inline-flex rounded-xl bg-surface-muted p-1">
-          {surfaceTabs.map((tab) => (
-            <button
-              key={tab.key}
-              className={cx("rounded-lg px-3 py-1.5 text-sm text-muted transition", activeSurface === tab.key && "bg-surface text-foreground shadow-sm")}
-              type="button"
-              onClick={() => selectSurface(tab.key)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 text-muted">
-          <IconButton aria-label="刷新插件状态" onClick={() => void onRefreshWorkspace()}>
-            <VectorIcon name="refresh" />
-          </IconButton>
-          <IconButton aria-label="打开 AI 连接设置" onClick={onOpenConnections}>
-            <VectorIcon name="settings" />
-          </IconButton>
-        </div>
-      </div>
-
-      <header className="mx-auto mt-10 max-w-3xl text-center">
-        <h1 className="text-4xl font-semibold tracking-tight max-sm:text-3xl">插件</h1>
-        <p className="mt-3 text-base text-muted">在常用工具中使用学习工作台能力</p>
-        <label className="mx-auto mt-6 grid h-11 max-w-2xl grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-2 rounded-full border border-line bg-surface px-4 text-muted">
-          <VectorIcon name="search" />
-          <input
-            className="min-w-0 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
-            placeholder="搜索插件"
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
-        </label>
+    <section className={styles.workspace} aria-label="插件管理">
+      <header className={styles.header}>
+        <div><h1>插件管理</h1><p>只展示应用已登记的本地扩展；MCP 仍在设置中单独管理。</p></div>
+        <Button variant="outline" onClick={() => void props.onRefreshWorkspace()}><AppIcon name="refresh" size={16} />刷新状态</Button>
       </header>
 
-      <section className="mt-10">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">内置集成</h2>
-          <IconButton aria-label="筛选插件" onClick={() => onNotice("可通过搜索框筛选插件")}>
-            <VectorIcon name="filter" />
-          </IconButton>
+      <div className={styles.toolbar}>
+        <label><AppIcon name="search" size={16} /><input aria-label="搜索插件" placeholder="搜索名称、能力或来源" value={query} onChange={(event) => setQuery(event.currentTarget.value)} /></label>
+        <span>{plugins.length} 个已登记扩展</span>
+      </div>
+
+      <div className={styles.layout}>
+        <div className={styles.list} role="list">
+          {plugins.map((plugin) => {
+            const badge = plugin.statusBadgeProvider?.(context) ?? plugin.statusBadge;
+            const health = plugin.healthSummaryProvider?.(context) ?? plugin.description;
+            return (
+              <button
+                key={plugin.id}
+                className={activePlugin?.id === plugin.id ? styles.activeRow : styles.row}
+                type="button"
+                onClick={() => openPlugin(plugin)}
+              >
+                <PluginGlyph plugin={plugin} />
+                <span className={styles.rowBody}><strong>{plugin.label}</strong><small>{plugin.shortDescription}</small><em>{health}</em></span>
+                <Chip tone={badge.tone}>{badge.label}</Chip>
+                <AppIcon name="chevronRight" size={16} />
+              </button>
+            );
+          })}
+          {!plugins.length ? <EmptyState>没有匹配的已登记扩展。</EmptyState> : null}
         </div>
-        {builtInIntegrations.length ? (
-          <BuiltInIntegrationStrip context={pluginContext} plugins={builtInIntegrations} onOpen={openPlugin} />
-        ) : (
-          <EmptyState>暂无内置集成。</EmptyState>
-        )}
-      </section>
 
-      <div className="mt-8 flex flex-wrap gap-3 text-sm text-muted">
-        <Chip tone="neutral">由应用提供</Chip>
-        <Chip tone="neutral">个人</Chip>
-        <Chip tone="neutral">本地优先</Chip>
-      </div>
-
-      {activePlugin ? (
-        <PluginInlineDetail context={pluginContext} plugin={activePlugin} onClose={() => setActivePluginId(undefined)}>
-          {renderPanel(activePlugin)}
-        </PluginInlineDetail>
-      ) : null}
-
-      <div className="mt-9 grid gap-10 pb-16">
-        {directorySections.map((section) => {
-          const plugins = categoryPlugins(section, visiblePlugins, searchKeyword);
-          if (!plugins.length) return null;
-          return (
-            <section key={section.key}>
-              <h2 className="text-lg font-semibold">{section.label}</h2>
-              <div className="mt-3 grid grid-cols-2 gap-x-12 border-t border-line max-lg:grid-cols-1">
-                {plugins.map((plugin) => (
-                  <PluginListItem key={`${section.key}:${plugin.id}`} context={pluginContext} plugin={plugin} onOpen={openPlugin} onNotice={onNotice} />
-                ))}
+        {activePlugin ? (
+          <div className={styles.detailBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setActivePluginId(undefined); }}>
+            <aside
+              ref={detailRef}
+              className={styles.detail}
+              tabIndex={-1}
+              aria-label={`${activePlugin.label} 详情`}
+              onKeyDown={(event) => { if (event.key === "Escape") setActivePluginId(undefined); }}
+            >
+              <header className={styles.detailHeader}>
+                <PluginGlyph plugin={activePlugin} />
+                <div><h2>{activePlugin.label}</h2><p>{activePlugin.providerLabel}</p></div>
+                <button aria-label="关闭插件详情" type="button" onClick={() => setActivePluginId(undefined)}><AppIcon name="close" size={18} /></button>
+              </header>
+              <div className={styles.auditGrid}>
+                <div><span>状态</span><strong>{(activePlugin.statusBadgeProvider?.(context) ?? activePlugin.statusBadge).label}</strong></div>
+                <div><span>权限</span><strong>{activePlugin.capabilities.join("、")}</strong></div>
+                <div><span>签名摘要</span><strong>{activePlugin.id === "declarative-marketplace" ? "安装时校验 SHA-256 与签名" : "应用内固定登记"}</strong></div>
+                <div><span>本地数据边界</span><strong>{activePlugin.privacyNote}</strong></div>
               </div>
-            </section>
-          );
-        })}
-        {!visiblePlugins.length ? <EmptyState>没有匹配的插件。</EmptyState> : null}
+              {activePlugin.recommendedActionProvider?.(context) ? (
+                <div className={styles.recovery}><strong>下一步</strong><span>{activePlugin.recommendedActionProvider(context)}</span></div>
+              ) : null}
+              <div className={styles.panel}>{renderPanel(activePlugin)}</div>
+            </aside>
+          </div>
+        ) : (
+          <aside className={styles.placeholder}><AppIcon name="plugins" size={22} /><strong>选择一个扩展</strong><span>查看来源、权限、签名摘要和本地数据边界。</span></aside>
+        )}
       </div>
-
     </section>
   );
 }

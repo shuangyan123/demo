@@ -325,3 +325,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 设置移动分区选择器必须复用 `useReviewWorkspaceRecoveryNavigation` 的受控状态；不得新增内部活动分区或异步镜像。
 - AI 连接使用桌面表格和移动列表，详情不显示密钥；默认文本、多模态和语音继续分别保存连接与具体模型，未知模型不得推断能力。
 - 外观页不再显示代码对比预览；低频设置和已安排继续动态加载，HTTP API、持久化对象与 `review_workspace` v16 不变。
+## P3 最终 UI/UX 收口约定
+
+- 薄弱分析只从有错题关联的 `Attempt.reviewedAt/result` 计算正确率趋势；当前掌握度仅作当前快照，板块少于 5 次有效复盘必须显示“数据不足”。
+- 导入移动流程使用来源、草稿、确认三步展示状态，但解析、确认、撤销和原始文件安全边界继续由既有 controller/repository 负责。
+- 插件页只展示 `settingsPluginDefinitions` 的真实登记；MCP 留在设置，概念稿中的版本、评分、下载量和签名值不得伪造。
+- 全局搜索移动层必须覆盖顶栏，锁定页面滚动，支持 Tab/Shift+Tab、Escape 和触发器焦点恢复。
+- P3 后仅在新增功能或发现新缺陷时开启下一轮 UI/UX；当前功能的偏差必须记录在 `docs/ui-ux-audit.md` fidelity ledger。

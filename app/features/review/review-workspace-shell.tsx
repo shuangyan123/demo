@@ -209,7 +209,10 @@ export function ReviewWorkspaceShell({
         </>
       }
     >
-      {view !== "conversation" && view !== "dashboard" && view !== "automation" ? (
+      {["library", "import", "entry", "plugins"].includes(view) && notice !== "本地题库已同步" ? (
+        <div className="mb-3 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted" role="status">{notice}</div>
+      ) : null}
+      {!["conversation", "dashboard", "automation", "library", "import", "entry", "plugins"].includes(view) ? (
         <ViewHeader
           actions={
             <>

@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CommandSearchResult } from "../../types/review";
+import { AppIcon } from "../shared/app-icon";
 import { cx } from "../shared/ui-primitives";
+import styles from "./command-search-palette.module.css";
 
 type CommandSearchPaletteProps = {
   open: boolean;
@@ -27,6 +30,8 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
   const groupedResults = useMemo(() => {
     const groups = new Map<CommandSearchResult["group"], CommandSearchResult[]>();
     for (const result of results) {
@@ -39,7 +44,14 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
 
   useEffect(() => {
     if (!open) return;
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     window.setTimeout(() => inputRef.current?.focus(), 0);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      restoreFocusRef.current?.focus();
+    };
   }, [open]);
 
   useEffect(() => {
@@ -63,20 +75,46 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
     onSelect(result);
   }
 
-  return (
-    <div className="command-palette-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-      <section aria-label="搜索聊天或运行命令" aria-modal="true" className="command-palette" role="dialog">
-        <input
-          ref={inputRef}
-          aria-label="搜索聊天或运行命令"
-          placeholder="搜索聊天或运行命令"
-          value={query}
-          onChange={(event) => {
-            setQuery(event.currentTarget.value);
-            setActiveIndex(0);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") close();
+  return createPortal(
+    <div className={cx("command-palette-backdrop", styles.backdrop)} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+      <section
+        ref={dialogRef}
+        aria-label="搜索聊天或运行命令"
+        aria-modal="true"
+        className={cx("command-palette", styles.palette)}
+        role="dialog"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            close();
+          }
+          if (event.key === "Tab") {
+            const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("input, button:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? []);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable.at(-1);
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          }
+        }}
+      >
+        <div className={styles.searchRow}>
+          <AppIcon name="search" size={18} />
+          <input
+            ref={inputRef}
+            aria-label="搜索聊天或运行命令"
+            placeholder="搜索聊天、学习资料或设置"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.currentTarget.value);
+              setActiveIndex(0);
+            }}
+            onKeyDown={(event) => {
             if (event.key === "ArrowDown") {
               event.preventDefault();
               setActiveIndex((index) => Math.min(results.length - 1, index + 1));
@@ -90,11 +128,13 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
               choose(results[selectedIndex]);
             }
           }}
-        />
-        <div className="max-h-[68vh] overflow-y-auto p-3">
+          />
+          <button className={styles.close} type="button" onClick={close}>关闭</button>
+        </div>
+        <div className={styles.results}>
           {groupedResults.length ? groupedResults.map(([group, groupItems]) => (
-            <div key={group} className="mb-3 last:mb-0">
-              <p className="px-2 pb-1 text-xs font-semibold text-muted">{groupLabels[group]}</p>
+            <div key={group} className={styles.group}>
+              <p className={styles.groupLabel}>{groupLabels[group]}</p>
               <div className="grid gap-1">
                 {groupItems.map((result) => {
                   const flatIndex = results.findIndex((item) => item.id === result.id);
@@ -116,9 +156,10 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
                 })}
               </div>
             </div>
-          )) : <p className="px-2 py-6 text-center text-sm text-muted">没有匹配结果</p>}
+          )) : <p className={styles.empty}>没有匹配结果，换一个关键词试试。</p>}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
