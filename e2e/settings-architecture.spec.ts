@@ -57,12 +57,8 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.getByRole("button", { name: "设置" }).first().click();
   const topbarDiffuse = await page.locator(".chrome-topbar").evaluate((element) => getComputedStyle(element).backgroundImage);
   expect(topbarDiffuse).toContain("radial-gradient");
-  const codeFontFamilies = await page.locator(".settings-code-preview, .settings-input.font-mono").evaluateAll((elements) =>
-    elements.map((element) => getComputedStyle(element).fontFamily),
-  );
-  expect(codeFontFamilies.length).toBeGreaterThan(1);
-  const primaryCodeFontFamilies = codeFontFamilies.map((family) => family.split(",")[0].replaceAll('"', "").trim());
-  expect(new Set(primaryCodeFontFamilies)).toEqual(new Set(["GeistMono"]));
+  const codeFontFamily = await page.locator("body").evaluate((element) => getComputedStyle(element).getPropertyValue("--app-code-font"));
+  expect(codeFontFamily).toContain("GeistMono");
   await page.reload();
   await page.getByRole("button", { name: "设置" }).first().click();
   await expect(page.getByRole("switch", { name: "浅色主题弥散渐变" })).toHaveAttribute("aria-checked", "true");

@@ -1,5 +1,6 @@
 import "fake-indexeddb/auto";
 import "./acquisition.contract.test.ts";
+import "../features/automation/automation-ui.contract.test.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import Dexie from "dexie";

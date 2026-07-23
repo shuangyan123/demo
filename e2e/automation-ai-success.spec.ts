@@ -28,6 +28,7 @@ test("已安排使用默认文本连接时可完成试运行和成功运行详�
     await page.goto("/");
     await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
     await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "新建任务" }).click();
     await page.getByLabel("模板").selectOption("custom");
     await page.getByLabel("名称").fill("AI 成功态回归");
     await page.getByLabel("提示词").fill("请只基于面试和辅导数据生成一段成功态回归结果。");
@@ -53,7 +54,8 @@ test("已安排使用默认文本连接时可完成试运行和成功运行详�
     await page.getByRole("button", { name: "创建已安排" }).click();
     const taskCard = page.locator("article").filter({ hasText: "AI 成功态回归" }).first();
     await expect(taskCard).toBeVisible();
-    await taskCard.getByRole("button", { name: "立即运行" }).click();
+    await taskCard.getByRole("button", { name: /AI 成功态回归/ }).click();
+    await page.getByRole("button", { name: "立即运行" }).click();
     await expect.poll(() => provider.requests.length).toBe(2);
 
     const inbox = page.locator("section").filter({ hasText: "运行收件箱" }).first();

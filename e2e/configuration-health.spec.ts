@@ -35,7 +35,7 @@ test("配置健康面板展示新库缺项并可导航到补齐入口", async ({
   await page.locator(".dashboard-configuration-health > summary").click();
   await page.getByRole("button", { name: "设置已安排" }).click();
   await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
-  await expect(page.getByText("新建已安排")).toBeVisible();
+  await expect(page.getByRole("button", { name: "新建任务" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
 
   await page.goto("/");

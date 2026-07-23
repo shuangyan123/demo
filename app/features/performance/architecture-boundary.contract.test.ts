@@ -31,6 +31,10 @@ test("大型 workspace 保持受控预算并使用专用 controller", async () =
     ["features/conversation/conversation-tutoring-experience.tsx", 300],
     ["features/interview/interview-workspace.tsx", 300],
     ["features/interview/interview-session-panel.tsx", 200],
+    ["features/automation/automation-view.tsx", 220],
+    ["features/automation/automation-overlays.tsx", 240],
+    ["features/automation/automation-task-list.tsx", 190],
+    ["features/automation/automation-inbox.tsx", 190],
     ["features/shared/learning-session-layout.tsx", 200],
     ["features/shared/workspace-shell.tsx", 240],
   ]);

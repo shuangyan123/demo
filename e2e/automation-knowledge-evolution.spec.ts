@@ -70,6 +70,7 @@ test("知识演进已安排任务可通过 mock JSON 生成待确认提案", asy
     await page.goto("/");
     await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
     await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "新建任务" }).click();
     await page.getByLabel("模板").selectOption("knowledge_evolution");
     await page.getByLabel("名称").fill("E2E 知识演进闭环");
     await page.getByRole("checkbox", { name: "知识库" }).uncheck();
@@ -102,7 +103,8 @@ test("知识演进已安排任务可通过 mock JSON 生成待确认提案", asy
     await page.getByRole("button", { name: "创建已安排" }).click();
     const taskCard = page.locator("article").filter({ hasText: "E2E 知识演进闭环" }).first();
     await expect(taskCard).toBeVisible();
-    await taskCard.getByRole("button", { name: "立即运行" }).click();
+    await taskCard.getByRole("button", { name: /E2E 知识演进闭环/ }).click();
+    await page.getByRole("button", { name: "立即运行" }).click();
     await expect.poll(() => provider.requests.length).toBe(2);
 
     const inbox = page.locator("section").filter({ hasText: "运行收件箱" }).first();

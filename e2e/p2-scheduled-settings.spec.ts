@@ -1,0 +1,31 @@
+import { expect, test } from "@playwright/test";
+import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
+
+test("P2 桌面已安排与设置在浅色和深色模式下保持主从布局", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "已安排" }).first().click();
+  await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
+  await expect(page.getByText("运行收件箱", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "新建任务", exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("p2-scheduled-desktop-1536x1024.png"), fullPage: false });
+
+  await page.getByRole("button", { name: "设置" }).first().click();
+  await page.getByRole("button", { name: "AI 连接" }).click();
+  await expect(page.getByRole("heading", { name: "AI 连接" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("p2-settings-desktop-1536x1024.png"), fullPage: false });
+
+  await page.getByRole("button", { name: "外观" }).click();
+  await page.getByRole("button", { name: "深色", exact: true }).click();
+  await page.getByRole("button", { name: "AI 连接" }).click();
+  await page.screenshot({ path: testInfo.outputPath("p2-settings-desktop-dark-1536x1024.png"), fullPage: false });
+  await page.getByRole("button", { name: "返回应用" }).click();
+  await page.getByRole("button", { name: "已安排" }).first().click();
+  await page.screenshot({ path: testInfo.outputPath("p2-scheduled-desktop-dark-1536x1024.png"), fullPage: false });
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});

@@ -38,6 +38,7 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
 
   await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
   await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "新建任务", exact: true }).click();
   await page.getByLabel("名称").fill("移动视口回归");
   await expect(page.getByLabel("名称")).toHaveValue("移动视口回归");
   await expectNoDocumentHorizontalOverflow(page);

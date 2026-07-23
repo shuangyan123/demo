@@ -27,6 +27,8 @@ test("设置分区使用受控单一状态源且不通过异步 effect 回退", 
   assert.match(navigation, /const \[settingsSection, setSettingsSection\]/);
   assert.match(workspace, /activeSection=\{settingsSection\}/);
   assert.match(workspace, /onSectionChange=\{setSettingsSection\}/);
+  assert.match(source, /aria-label="设置分区"/);
+  assert.match(source, /onSectionChange\(event\.currentTarget\.value as SettingsSectionKey\)/);
 });
 
 test("设置核心面板使用确认稿的紧凑表格和按需编辑层", async () => {
@@ -52,4 +54,14 @@ test("十六个内置主题默认零对比度且切换预设保留弥散开关",
   assert.equal(presets.every(({ theme }) => theme.contrast === 0 && theme.diffuseGradient === false), true);
   const source = await readFile(new URL("./appearance-settings-view.tsx", import.meta.url), "utf8");
   assert.match(source, /diffuseGradient: theme\.diffuseGradient/);
+  assert.doesNotMatch(source, /DiffPreview|settings-code-preview/);
+});
+
+test("AI 连接使用紧凑主从表格且详情不展示密钥", async () => {
+  const source = await readFile(new URL("./api-connections-settings-view.tsx", import.meta.url), "utf8");
+  assert.match(source, /connectionTable/);
+  assert.match(source, /连接详情/);
+  assert.match(source, /密钥仅保存在本机加密仓储/);
+  assert.match(source, />添加连接</);
+  assert.doesNotMatch(source, /selectedProfile\.apiKey/);
 });
