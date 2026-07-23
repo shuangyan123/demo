@@ -279,7 +279,7 @@ export function SessionStageRail({
   return (
     <div className="ui-stage-rail">
       {stages.map((stage, index) => (
-        <span key={stage.id} className={cx("ui-stage-step", index <= activeIndex && "ui-stage-step-done", stage.id === activeId && "ui-stage-step-active")}>
+        <span key={stage.id} aria-current={stage.id === activeId ? "step" : undefined} className={cx("ui-stage-step", index <= activeIndex && "ui-stage-step-done", stage.id === activeId && "ui-stage-step-active")}>
           <i />
           <small>{stage.label}</small>
         </span>

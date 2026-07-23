@@ -1,0 +1,128 @@
+.sessionHeader {
+  display: grid;
+  gap: 0.8rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1rem;
+  padding: 0.25rem 0 1rem;
+}
+
+.sessionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sessionMeta p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.sessionMeta strong {
+  color: var(--foreground);
+}
+
+.nav {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav button {
+  min-height: 36px;
+  flex: 0 0 auto;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.nav button:first-child {
+  border-bottom-color: var(--blue);
+  color: var(--blue);
+}
+
+.assessment {
+  max-width: 46rem;
+  margin: 0 0 1rem 2.6rem;
+}
+
+.progress {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.progress li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.progress span:first-child {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  font-size: 0.6875rem;
+}
+
+.progress li[data-complete="true"] span:first-child {
+  background: color-mix(in srgb, var(--green) 15%, transparent);
+  color: var(--green);
+}
+
+.privacy {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.privacy summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.finish {
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--red) 50%, var(--line));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--red);
+  padding: 0.45rem 0.75rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .sessionHeader {
+    position: sticky;
+    z-index: 8;
+    top: 0;
+    background: var(--surface);
+    padding-top: 0.65rem;
+  }
+
+  .sessionMeta {
+    align-items: flex-start;
+  }
+
+  .assessment {
+    margin-left: 0;
+  }
+}
