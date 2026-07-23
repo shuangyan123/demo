@@ -7,6 +7,7 @@ import { useVisibleLimit } from "../shared/use-visible-limit";
 import { toListText } from "../../lib/form-utils";
 import { FenbiQuickImportPanel } from "./fenbi-quick-import-panel";
 import type { useFenbiQuickImport } from "./use-fenbi-quick-import";
+import styles from "./review-import-view.module.css";
 import {
   BOARD_OPTIONS,
   KNOWLEDGE_CATEGORIES,
@@ -24,6 +25,7 @@ import {
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
 const IMPORT_DRAFT_VISIBLE_STEP = 60;
+type ImportMobileStep = "source" | "draft" | "confirm";
 
 // 导入页只负责展示导入入口和草稿编辑；实际解析、入库和 API 调用都由父级状态编排传入。
 export function ImportView({
@@ -75,8 +77,20 @@ export function ImportView({
   onUpdateKnowledgeDraftList: (id: string, value: string) => void;
   onUndoConfirmation: () => void;
 }) {
+  const [mobileStep, setMobileStep] = useState<ImportMobileStep>("source");
   return (
-    <section className="space-y-4">
+    <section className={styles.workspace} data-step={mobileStep}>
+      <header className={styles.header}>
+        <div><h1>导入资料</h1><p>来源解析与草稿确认完全分离；确认前不会写入错题库或知识库。</p></div>
+        <Chip tone={drafts.length + knowledgeDrafts.length ? "yellow" : "neutral"}>{drafts.length + knowledgeDrafts.length} 条待确认</Chip>
+      </header>
+      <nav className={styles.steps} aria-label="导入步骤">
+        {([["source", "1 来源"], ["draft", "2 草稿"], ["confirm", "3 确认"]] as Array<[ImportMobileStep, string]>).map(([value, label]) => (
+          <button key={value} aria-current={mobileStep === value ? "step" : undefined} type="button" onClick={() => setMobileStep(value)}>{label}</button>
+        ))}
+      </nav>
+      <div className={styles.layout}>
+      <div className={styles.sources}>
       <FenbiQuickImportPanel
         credential={fenbiQuickImport.credential}
         error={fenbiQuickImport.error}
@@ -161,7 +175,9 @@ export function ImportView({
           </Button>
         </form>
       </Panel>
+      </div>
 
+      <div className={styles.drafts}>
       <KnowledgeImportDrafts
         drafts={knowledgeDrafts}
         onConfirmDrafts={onConfirmKnowledgeDrafts}
@@ -203,6 +219,8 @@ export function ImportView({
           )}
         </div>
       </Panel>
+      </div>
+      </div>
     </section>
   );
 }

@@ -3,9 +3,7 @@
 import type { SyntheticEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import {
-  KnowledgeTrainingView,
-  KnowledgeView,
+import { KnowledgeView,
   buildKnowledgeCategorySummaries,
   filterKnowledgeTrainingQueue,
 } from "../knowledge/knowledge-workspace";
@@ -20,6 +18,7 @@ import { useKnowledgeInternalization } from "../knowledge/use-knowledge-internal
 import { useAutomationCenter } from "../automation/use-automation-center";
 import { useWorkspaceNavigation } from "../shared/use-workspace-navigation";
 import { useWorkspaceSidebar } from "../shared/use-workspace-sidebar";
+import { WorkspaceViewState } from "../shared/workspace-view-state";
 import { useReviewWorkspaceHealth } from "./use-review-workspace-health";
 import { useReviewWorkspaceRecoveryNavigation } from "./use-review-workspace-recovery-navigation";
 import { ReviewWorkspaceShell } from "./review-workspace-shell";
@@ -73,10 +72,9 @@ import {
 } from "../../types/review";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
-
 // 低频工作区用动态加载保持首屏包体收敛；loading 只占位，不触发业务读取。
 function WorkspaceViewLoading() {
-  return <div className="ui-card px-5 py-4 text-sm font-bold text-muted">正在加载模块...</div>;
+  return <WorkspaceViewState title="正在加载模块" description="界面代码加载完成后才会读取对应业务数据。" />;
 }
 
 const SettingsWorkspace = dynamic(() => import("../settings/settings-workspace").then((module) => module.SettingsWorkspace), { loading: WorkspaceViewLoading });
@@ -86,13 +84,13 @@ const TutoringWorkspace = dynamic(() => import("../tutoring/tutoring-workspace")
 const ImportWorkspace = dynamic(() => import("../import/import-workspace").then((module) => module.ImportWorkspace), { loading: WorkspaceViewLoading });
 const ConversationWorkspace = dynamic(() => import("../conversation/conversation-workspace").then((module) => module.ConversationWorkspace), { loading: WorkspaceViewLoading });
 const SettingsPluginsView = dynamic(() => import("../settings/plugins/settings-plugins-view").then((module) => module.SettingsPluginsView), { loading: WorkspaceViewLoading });
+const KnowledgeTrainingView = dynamic(() => import("../knowledge/knowledge-training-view").then((module) => module.KnowledgeTrainingView), { loading: WorkspaceViewLoading });
 
 // Obsidian 仓库只在删除映射资料时加载，避免总览首屏携带 Vault 同步实现。
 async function loadObsidianKnowledgeRepository() {
   const { obsidianKnowledgeRepository } = await import("../../services/obsidian-knowledge-repository");
   return obsidianKnowledgeRepository;
 }
-
 const initialFilters: Filters = { board: "全部", mastery: "all", search: "" };
 const initialKnowledgeFilters: KnowledgeFilters = { category: "全部", search: "", tag: "全部", favoriteOnly: false };
 
@@ -368,6 +366,12 @@ export function ReviewWorkspace() {
     }
     setKnowledgeAnswerOpen(false);
     setView("knowledgeTraining");
+  }
+
+  function openReviewEntry(id?: string) {
+    if (id) setReviewIndex(Math.max(0, dueMistakes.findIndex((item) => item.id === id)));
+    setAnswerOpen(false);
+    setView("review");
   }
 
   // 使用 AI 分析当前错题和本地候选资料之间的关系；结果只进入预览区，不直接写库。
@@ -871,10 +875,12 @@ export function ReviewWorkspace() {
         )}
         {view === "library" && (
           <LearningDataExplorer
+            attempts={attempts}
             knowledgeEntries={knowledgeEntries}
             mistakes={mistakes}
             onOpenKnowledgeOperations={() => switchView("knowledge")}
             onOpenKnowledgeTraining={openKnowledgeTrainingEntry}
+            onOpenReview={openReviewEntry}
             onStartConversation={openBlankConversation}
             managementContent={<LibraryView
             aiAssociationBusy={associationBusy}
@@ -962,15 +968,10 @@ export function ReviewWorkspace() {
         {view === "stats" && (
           <StatsView
             attempts={attempts}
-            attemptsCount={attemptsCount}
-            boardStats={boardStats}
-            knowledgeAttemptsCount={knowledgeAttemptsCount}
-            knowledgeCorrectRate={knowledgeCorrectRate}
             knowledgeEntries={knowledgeEntries}
-            lowKnowledgeEntries={lowKnowledgeEntries}
             mistakes={mistakes}
-            onOpenKnowledgeEntry={openKnowledgeEntry}
             onOpenKnowledgeTraining={openKnowledgeTrainingEntry}
+            onOpenReview={openReviewEntry}
           />
         )}
         {view === "knowledge" && (

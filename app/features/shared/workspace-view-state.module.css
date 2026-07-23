@@ -1,0 +1,44 @@
+.state {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 28px;
+  border: 1px dashed var(--color-line);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.state strong {
+  color: var(--color-foreground);
+  font-size: 14px;
+}
+
+.state span {
+  max-width: 440px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--color-line);
+  border-top-color: var(--color-blue);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--color-line);
+  }
+}
