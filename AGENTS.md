@@ -308,3 +308,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 错题复盘桌面使用题目画布与当前轮次侧栏，移动端按题目、作答、轮次、计时、队列顺序纵向展开，并保留底部作答操作。
 - 知识列表、知识编辑器和模板控件保持独立组件；列表筛选、批量删除与导出继续由 `useKnowledgeListController` 管理，不升级 Dexie v16。
 - 工作台壳层已经显示页面标题时，业务视图只显示说明和指标；移动顶栏显示当前视图名并隐藏重复的大标题。
+## P1 辅导与面试当前轮次约定
+
+- `conversation.kind === "tutoring"` 的实时辅导布局与运行适配器必须动态加载；独立辅导页只保留记录、计划和资料关联，不得恢复媒体控制主模块。
+- 辅导会话使用可选 `conversationId`，结构化轮次使用可选 `conversationMessageId`；确定性 ID 保证重试幂等，继续保持 `review_workspace` v16 且不得为关联查询新增索引。
+- 辅导模型调用必须显式使用当前对话的 `modelId` 和 `selectedRuntimeValues`，不得回退连接档案历史模型。
+- 原始图片、摄像头、屏幕和录音只留当前运行内存；辅导与面试仓储只持久化文字、摘要、观察描述、微测和真实评分。
+- `LearningSessionLayout` 只共享桌面信息侧栏与移动底部抽屉，不共享业务状态；移动抽屉必须支持 Escape、焦点锁定/恢复、滚动锁定、安全区和至少 44px 触控目标。
+- 面试导航固定为模拟现场、题库、训练计划和复盘记录；阶段取真实 session stage 并使用 `aria-current`，评分只在 evaluation 存在后展示，移动端必须保留可见的“结束并复盘”操作。

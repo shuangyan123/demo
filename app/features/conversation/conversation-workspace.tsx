@@ -1,8 +1,7 @@
 "use client";
-
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import dynamic from "next/dynamic";
-import { generateWithConnection, generateWithConnectionStream, transcribeWithConnection } from "../../services/ai-connection-client.ts";
+import { generateWithConnection, generateWithConnectionStream } from "../../services/ai-connection-client.ts";
 import { emitAiActivity } from "../../services/ai-activity-events.ts";
 import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues } from "../../services/model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
@@ -24,7 +23,12 @@ import { ConversationEmptyState } from "./conversation-empty-state";
 import type { ConversationWorkspaceProps } from "./conversation-workspace-types";
 import { useConversationModelSelection } from "./use-conversation-model-selection";
 import { useConversationAutoMemory } from "./use-conversation-auto-memory";
+import { useConversationRecording } from "./use-conversation-recording";
+import { useConversationTutoringFinish } from "./use-conversation-tutoring-finish";
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
+const ConversationTutoringExperience = dynamic(() => import("./conversation-tutoring-experience").then((module) => module.ConversationTutoringExperience), {
+  loading: () => <div className="conversation-message-list"><span className="ui-spinner" /></div>,
+});
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({
   activeConversationId,
@@ -52,7 +56,6 @@ export function ConversationWorkspace({
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [moveDrawerOpen, setMoveDrawerOpen] = useState(false);
-  const [recording, setRecording] = useState(false);
   const [mcpPanelOpen, setMcpPanelOpen] = useState(false);
   const [proposalPanelOpen, setProposalPanelOpen] = useState(false);
   const [proposalBusy, setProposalBusy] = useState(false);
@@ -62,12 +65,16 @@ export function ConversationWorkspace({
   const [knowledgeContext, setKnowledgeContext] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<ConversationComposerHandle | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recordingChunksRef = useRef<Blob[]>([]);
   const realtimeConversationIdRef = useRef<string | undefined>(undefined);
   const runStepOrdinalsRef = useRef(new Map<string, number>());
   const { capture: captureVision, mode: visionMode, start: startVision, stop: stopVision, videoRef: visionVideoRef } = useConversationVisionTools(onNotice);
+  const recording = useConversationRecording({
+    disabled: busy,
+    transcriptionConnection,
+    onNotice,
+    onOpenConnections,
+    onTranscript: (text) => setDraft((current) => `${current}${current ? "\n" : ""}${text}`),
+  });
   const conversations = useMemo(() => snapshot.conversations.filter((conversation) => conversation.status === "active"), [snapshot.conversations]);
   const activeConversation = activeConversationId === null ? null : conversations.find((conversation) => conversation.id === activeConversationId) ?? conversations[0] ?? null;
   const requiresVision = attachments.some((attachment) => attachment.kind === "image");
@@ -97,6 +104,14 @@ export function ConversationWorkspace({
   const effectiveConnection = selectedConnection;
   const runtimeDescriptor = effectiveConnection && selectedModelId ? getAiModelRuntimeDescriptor(effectiveConnection.provider, selectedModelId) : undefined;
   const selectedRuntimeValues = runtimeDescriptor ? normalizeAiSelectedRuntimeValues(runtimeDescriptor, storedRuntimeValues) : storedRuntimeValues;
+  const tutoringFinish = useConversationTutoringFinish({
+    connection: effectiveConnection,
+    conversation: activeConversation,
+    modelId: selectedModelId,
+    onNotice,
+    personalizationSettings: personalization,
+    selectedRuntimeValues,
+  });
   const messages = useMemo(() => snapshot.messages.filter((message) => message.conversationId === activeConversation?.id), [activeConversation?.id, snapshot.messages]);
   const runSteps = useMemo(() => snapshot.runSteps.filter((step) => step.conversationId === activeConversation?.id).slice(-100), [activeConversation?.id, snapshot.runSteps]);
   const timeline = useMemo(() => buildConversationTurnTimeline(messages, runSteps), [messages, runSteps]);
@@ -108,14 +123,12 @@ export function ConversationWorkspace({
     }
     return groups;
   }, [runSteps]);
-
   useEffect(() => {
     if (activeConversationId === undefined && activeConversation?.id) onConversationSelected(activeConversation.id);
   }, [activeConversation?.id, activeConversationId, onConversationSelected]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [assistantDraft, messages.length]);
-  useEffect(() => () => mediaStreamRef.current?.getTracks().forEach((track) => track.stop()), []);
   useEffect(() => {
     let active = true;
     if (!activeConversation?.id) return;
@@ -145,7 +158,6 @@ export function ConversationWorkspace({
     await conversationRepository.appendMessage({ conversationId, role, content: text });
     await onRefresh();
   }
-
   async function buildUserContent(content: string): Promise<ChatMessageContent> {
     const launchContent = launchContext ? `【${launchContext.moduleLabel}上下文】\n${launchContext.summary}\n\n` : "";
     const knowledgeContent = knowledgeContext ? `【用户已选择的知识库摘要】\n${knowledgeContext}\n\n` : "";
@@ -157,7 +169,6 @@ export function ConversationWorkspace({
     }
     return parts.length === 1 && parts[0]?.type === "text" ? parts[0].text : parts;
   }
-
   async function captureVisionFrame() {
     const file = await captureVision();
     if (!file) return;
@@ -229,28 +240,48 @@ export function ConversationWorkspace({
       let finalContent = "";
       let usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined;
       let actualSpeed: string | undefined;
-      const memoryContext = buildPersonalMemoryContext(personalization, { moduleId: "conversation", conversationId: conversation.id, query: content });
-      const history = [
-        ...(memoryContext ? [{ role: "system" as const, content: memoryContext }] : []),
-        ...canonicalTurnsToChatHistory(buildCanonicalConversationTurns({ conversation, messages, attachments: snapshot.attachments.filter((attachment) => attachment.conversationId === conversation!.id), runSteps })),
-        { role: "user" as const, content: userContent },
-      ];
-      const purpose = requiresVision ? "vision" : "text";
-      if (submissionConnection.capabilities.includes("streaming")) {
-        await appendStep(conversation.id, runId, "流式输出", "running", "正在接收内容");
-        for await (const event of generateWithConnectionStream(submissionConnection, purpose, { modelId: submissionModelId, selectedRuntimeValues: submissionRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: submissionConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
-          if (event.type === "delta") { finalContent += event.text; setAssistantDraft(finalContent); }
-          if (event.type === "done") { finalContent = event.content || finalContent; usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
-          if (event.type === "usage") { usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
-          if (event.type === "error") throw new Error(event.message);
-        }
+      let tutoringTurn: Awaited<ReturnType<(typeof import("./conversation-tutoring-runtime"))["runConversationTutorTurn"]>> | undefined;
+      if (conversation.kind === "tutoring") {
+        const { runConversationTutorTurn } = await import("./conversation-tutoring-runtime");
+        const imageAttachment = attachments.find((attachment) => attachment.kind === "image");
+        tutoringTurn = await runConversationTutorTurn({
+          connection: submissionConnection,
+          conversationId: conversation.id,
+          goal: launchContext?.summary ?? "围绕当前卡点完成讲解、微测和下一步复练。",
+          imageAttachment,
+          modelId: submissionModelId,
+          personalizationSettings: personalization,
+          selectedRuntimeValues: submissionRuntimeValues,
+          studentText: content,
+          topic: launchContext?.title ?? conversation.title,
+          userMessageId: userMessage.id,
+        });
+        finalContent = tutoringTurn.content;
       } else {
-        const result = await generateWithConnection(submissionConnection, purpose, { modelId: submissionModelId, selectedRuntimeValues: submissionRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: submissionConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
-        finalContent = result.content;
-        usage = result.usage;
-        actualSpeed = result.actualSpeed;
+        const memoryContext = buildPersonalMemoryContext(personalization, { moduleId: "conversation", conversationId: conversation.id, query: content });
+        const history = [
+          ...(memoryContext ? [{ role: "system" as const, content: memoryContext }] : []),
+          ...canonicalTurnsToChatHistory(buildCanonicalConversationTurns({ conversation, messages, attachments: snapshot.attachments.filter((attachment) => attachment.conversationId === conversation!.id), runSteps })),
+          { role: "user" as const, content: userContent },
+        ];
+        const purpose = requiresVision ? "vision" : "text";
+        if (submissionConnection.capabilities.includes("streaming")) {
+          await appendStep(conversation.id, runId, "流式输出", "running", "正在接收内容");
+          for await (const event of generateWithConnectionStream(submissionConnection, purpose, { modelId: submissionModelId, selectedRuntimeValues: submissionRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: submissionConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
+            if (event.type === "delta") { finalContent += event.text; setAssistantDraft(finalContent); }
+            if (event.type === "done") { finalContent = event.content || finalContent; usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
+            if (event.type === "usage") { usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
+            if (event.type === "error") throw new Error(event.message);
+          }
+        } else {
+          const result = await generateWithConnection(submissionConnection, purpose, { modelId: submissionModelId, selectedRuntimeValues: submissionRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: submissionConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
+          finalContent = result.content;
+          usage = result.usage;
+          actualSpeed = result.actualSpeed;
+        }
       }
       const assistantMessage = await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: runId, sequence: 2, role: "assistant", content: finalContent.trim() || "模型没有返回文本。" });
+      if (tutoringTurn) await tutoringTurn.persist(assistantMessage.id);
       recordCompletedTurn({ user: userMessage.content, assistant: assistantMessage.content, conversationId: conversation.id, sourceMessageIds: [userMessage.id, assistantMessage.id] });
       if (submissionRuntimeValues && Object.keys(submissionRuntimeValues).length) {
         const selected = [submissionRuntimeValues.reasoning !== undefined ? `推理 ${submissionRuntimeValues.reasoning}` : "", submissionRuntimeValues.speed ? `速度 ${submissionRuntimeValues.speed}` : ""].filter(Boolean).join(" · ");
@@ -279,55 +310,6 @@ export function ConversationWorkspace({
         onClearLaunchContext();
       }
     }
-  }
-
-  async function transcribeBlob(blob: Blob) {
-    if (!transcriptionConnection) {
-      onNotice("请先在 AI 连接中配置 Google Gemini 录音转写连接");
-      onOpenConnections();
-      return;
-    }
-    try {
-      setBusy(true);
-      const dataUrl = await readBlobAsDataUrl(blob);
-      const audioBase64 = dataUrl.split(",")[1] ?? "";
-      const result = await transcribeWithConnection(transcriptionConnection, { audioBase64, mimeType: blob.type || "audio/webm" });
-      setDraft((current) => `${current}${current ? "\n" : ""}${result.text}`);
-      onNotice("录音已转写到输入框，请确认后发送");
-    } catch (error) {
-      onNotice(conversationProviderErrorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function startRecording() {
-    if (recording || busy) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      recordingChunksRef.current = [];
-      mediaStreamRef.current = stream;
-      mediaRecorderRef.current = recorder;
-      recorder.ondataavailable = (event) => { if (event.data.size) recordingChunksRef.current.push(event.data); };
-      recorder.onstop = () => {
-        const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        stream.getTracks().forEach((track) => track.stop());
-        mediaStreamRef.current = null;
-        mediaRecorderRef.current = null;
-        void transcribeBlob(blob);
-      };
-      recorder.start();
-      setRecording(true);
-    } catch (error) {
-      onNotice(error instanceof Error ? error.message : "无法打开麦克风");
-    }
-  }
-
-  function stopRecording() {
-    const recorder = mediaRecorderRef.current;
-    if (recorder?.state === "recording") recorder.stop();
-    setRecording(false);
   }
 
   async function runInternalTool(kind: "knowledge" | "attachments" | "obsidian" | "scheduled") {
@@ -425,6 +407,7 @@ export function ConversationWorkspace({
   }
 
   const conversationEmpty = !activeConversation || !messages.length;
+  const tutoringMode = activeConversation?.kind === "tutoring" || launchContext?.kind === "tutoring";
 
   return (
     <section className="conversation-workspace" aria-label="AI 对话工作台">
@@ -439,9 +422,26 @@ export function ConversationWorkspace({
             <button type="button" aria-label="移除对话上下文" onClick={onClearLaunchContext}><AppIcon name="close" size={16} /></button>
           </div>
         ) : null}
-        <div className={conversationEmpty ? "conversation-message-list is-empty" : "conversation-message-list"}>
-          {conversationEmpty ? <ConversationEmptyState /> : null}
-          <ConversationTurnList timeline={timeline} activeTurnId={activeTurnId} assistantDraft={assistantDraft} diagnostics={diagnostics} />
+        <div className={conversationEmpty && !tutoringMode ? "conversation-message-list is-empty" : "conversation-message-list"}>
+          {tutoringMode ? (
+            <ConversationTutoringExperience
+              activeTurnId={activeTurnId}
+              assistantDraft={assistantDraft}
+              conversationId={activeConversation?.id}
+              diagnostics={diagnostics}
+              finishing={tutoringFinish.finishing}
+              launchSummary={launchContext?.summary}
+              launchTitle={launchContext?.title}
+              timeline={timeline}
+              onFinish={tutoringFinish.finish}
+              onOpenHistory={onOpenTutoringRecords}
+            />
+          ) : (
+            <>
+              {conversationEmpty ? <ConversationEmptyState /> : null}
+              <ConversationTurnList timeline={timeline} activeTurnId={activeTurnId} assistantDraft={assistantDraft} diagnostics={diagnostics} />
+            </>
+          )}
           {conversationProposals.map((proposal) => <ConversationProposalBlock key={proposal.id} proposal={proposal} busy={proposalBusy} onAccept={() => void updateConversationProposal(proposal, "accept")} onReject={() => void updateConversationProposal(proposal, "reject")} />)}
           <div ref={bottomRef} />
         </div>
@@ -463,11 +463,11 @@ export function ConversationWorkspace({
           ref={composerRef}
           activeConversation={Boolean(activeConversation)}
           attachments={attachments}
-          busy={busy}
+          busy={busy || recording.busy}
           connections={connections}
           draft={draft}
           purpose={requiresVision ? "vision" : "text"}
-          recording={recording}
+          recording={recording.recording}
           selectedConnection={effectiveConnection}
           selectedModelId={selectedModelId}
           selectedRuntimeValues={selectedRuntimeValues}
@@ -486,9 +486,9 @@ export function ConversationWorkspace({
           onSearchKnowledge={() => void runInternalTool("knowledge")}
           onSelectModel={({ connection, modelId, selectedRuntimeValues: runtimeValues }) => selectModel({ connectionId: connection.id, modelId, selectedRuntimeValues: runtimeValues })}
           onStartCamera={() => void startVision("camera")}
-          onStartRecording={() => void startRecording()}
+          onStartRecording={() => void recording.start()}
           onStartScreen={() => void startVision("screen")}
-          onStopRecording={stopRecording}
+          onStopRecording={recording.stop}
           onSubmit={submitMessage}
         />
         {realtimeVoiceOpen ? <RealtimeVoicePanel connections={connections} onClose={() => setRealtimeVoiceOpen(false)} onFinalTranscript={persistRealtimeTranscript} /> : null}

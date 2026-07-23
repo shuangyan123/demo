@@ -1,12 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, MetricCard, Panel, SegmentedTabs, StatGrid, Toolbar } from "../shared/ui-primitives";
+import { Button, Panel, SegmentedTabs, Toolbar } from "../shared/ui-primitives";
 import { interviewTypeLabels } from "../../services/interview-rubric";
 import { resolvePersonaVoice } from "../../services/personalization-settings-repository";
 import type { ApiConnectionProfile, InterviewQuestion, InterviewType, KnowledgeEntry, Mistake, PersonalizationSettings } from "../../types/review";
 import { InterviewLinkPanel } from "./interview-link-panel";
-import { InterviewOverview } from "./interview-overview";
 import { InterviewPracticePlansView } from "./interview-practice-plans-view";
 import { InterviewQuestionBank } from "./interview-question-bank";
 import { InterviewQuestionSetsView } from "./interview-question-sets-view";
@@ -16,7 +15,7 @@ import { InterviewSessionPanel } from "./interview-session-panel";
 import { useInterviewFlow } from "./use-interview-flow";
 import { useInterviewSpeech } from "./use-interview-speech";
 
-type InterviewTab = "overview" | "questions" | "sets" | "plans" | "session" | "records" | "rubric";
+type InterviewTab = "questions" | "plans" | "session" | "records";
 
 const starterQuestions: Array<Omit<InterviewQuestion, "id" | "createdAt" | "updatedAt">> = [
   {
@@ -76,7 +75,7 @@ export function InterviewWorkspace({
   onNotice: (message: string) => void;
   onOpenSettings: () => void;
 }) {
-  const [tab, setTab] = useState<InterviewTab>("overview");
+  const [tab, setTab] = useState<InterviewTab>("session");
   const [typeFilter, setTypeFilter] = useState<InterviewType | "all">("all");
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -96,13 +95,10 @@ export function InterviewWorkspace({
   const sessionLinks = activeSession ? interviewData.snapshot.links.filter((link) => link.sourceType === "session" && link.sourceId === activeSession.id) : [];
 
   const tabs: Array<{ key: InterviewTab; label: string; count?: number }> = [
-    { key: "overview", label: "总览" },
+    { key: "session", label: "模拟现场" },
     { key: "questions", label: "题库", count: interviewData.snapshot.questions.length },
-    { key: "sets", label: "题组", count: interviewData.snapshot.questionSets.length },
     { key: "plans", label: "训练计划", count: interviewData.snapshot.practicePlans.length },
-    { key: "session", label: "开始模拟" },
     { key: "records", label: "复盘记录", count: interviewData.snapshot.sessions.length },
-    { key: "rubric", label: "评分标准" },
   ];
 
   // 启动 AI 模拟前检查 API 配置；无配置时跳转设置页，避免静默失败。
@@ -119,52 +115,21 @@ export function InterviewWorkspace({
     }
   }
 
-  const sessionCountByType = useMemo(() => {
-    return interviewData.snapshot.sessions.reduce<Record<InterviewType, number>>(
-      (acc, session) => {
-        acc[session.type] += 1;
-        return acc;
-      },
-      { leaderless_group: 0, structured: 0, structured_group: 0 },
-    );
-  }, [interviewData.snapshot.sessions]);
-
   return (
     <div className="grid gap-5">
       <Panel eyebrow="INTERVIEW" title="面试训练">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-3xl text-sm leading-6 text-muted">
-            支持结构化面试、结构化小组和无领导小组线上模拟。语音识别只生成文字稿，系统不会保存原始录音。
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-3xl text-sm leading-6 text-muted">聚焦当前阶段、实时文字稿和结束后的证据化复盘；原始录音不会保存。</p>
           {!textConnection && (
             <Button variant="primary" onClick={onOpenSettings}>
               配置 AI 连接
             </Button>
           )}
         </div>
-        <StatGrid>
-          <MetricCard label="面试题" value={interviewData.snapshot.questions.length} hint="三类题库合计" tone="text-blue" />
-          <MetricCard label="题组" value={interviewData.snapshot.questionSets.length} hint="专题训练包" tone="text-green" />
-          <MetricCard label="计划" value={interviewData.snapshot.practicePlans.length} hint="持续训练目标" tone="text-yellow" />
-          <MetricCard label="结构化" value={sessionCountByType.structured} hint="已练习场次" tone="text-blue" />
-          <MetricCard label="小组/无领导" value={sessionCountByType.structured_group + sessionCountByType.leaderless_group} hint="已练习场次" tone="text-red" />
-        </StatGrid>
-        <Toolbar className="mt-5">
+        <Toolbar className="mt-4">
           <SegmentedTabs active={tab} items={tabs} onChange={setTab} />
         </Toolbar>
       </Panel>
-
-      {tab === "overview" && (
-        <InterviewOverview
-          evaluations={interviewData.snapshot.evaluations}
-          plans={interviewData.snapshot.practicePlans}
-          questions={interviewData.snapshot.questions}
-          sessions={interviewData.snapshot.sessions}
-          onOpenPlans={() => setTab("plans")}
-          onOpenQuestions={() => setTab("questions")}
-          onOpenRecords={() => setTab("records")}
-        />
-      )}
 
       {tab === "questions" && (
         <>
@@ -201,18 +166,21 @@ export function InterviewWorkspace({
               onDeleteLink={interviewData.deleteLink}
             />
           )}
+          <details className="ui-detail-card">
+            <summary className="cursor-pointer font-bold">题组与评分标准</summary>
+            <div className="mt-4 grid gap-5">
+              <InterviewQuestionSetsView
+                busy={interviewData.busy}
+                questionSets={interviewData.snapshot.questionSets}
+                questions={interviewData.snapshot.questions}
+                onAddQuestionSet={interviewData.addQuestionSet}
+                onDeleteQuestionSet={interviewData.deleteQuestionSet}
+                onStartQuestion={(question) => void startSession(question)}
+              />
+              <InterviewRubricView />
+            </div>
+          </details>
         </>
-      )}
-
-      {tab === "sets" && (
-        <InterviewQuestionSetsView
-          busy={interviewData.busy}
-          questionSets={interviewData.snapshot.questionSets}
-          questions={interviewData.snapshot.questions}
-          onAddQuestionSet={interviewData.addQuestionSet}
-          onDeleteQuestionSet={interviewData.deleteQuestionSet}
-          onStartQuestion={(question) => void startSession(question)}
-        />
       )}
 
       {tab === "plans" && (
@@ -233,6 +201,7 @@ export function InterviewWorkspace({
       {tab === "session" && (
         <>
           <InterviewSessionPanel
+            key={activeSession?.id ?? "empty-interview-session"}
             busy={interviewData.busy}
             evaluation={activeEvaluation}
             expectedDurationSec={activeSessionQuestion?.expectedDurationSec}
@@ -267,8 +236,6 @@ export function InterviewWorkspace({
           }}
         />
       )}
-
-      {tab === "rubric" && <InterviewRubricView />}
 
       <p className="text-xs text-muted">
         当前评分表覆盖：{Object.values(interviewTypeLabels).join("、")}。AI 评分仅作为训练反馈，最终以正式面试规则和考官判断为准。

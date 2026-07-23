@@ -1030,9 +1030,8 @@ export function ReviewWorkspace() {
             knowledgeEntries={knowledgeEntries}
             mistakes={mistakes}
             personalizationSettings={personalization.settings}
-            speechConnection={aiConnections.speechConnection}
             onNotice={setNotice}
-            onOpenSettings={() => openApiSettings("请配置默认文本连接；关键帧分析还需要默认多模态连接")}
+            onOpenConversation={openConversation}
           />
         )}
         {view === "import" && (

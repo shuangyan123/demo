@@ -63,6 +63,40 @@ test("微测由用户选择确定掌握结果，并生成间隔复习计划", as
   assert.equal((await reviewDb.tutoringPlans.get(`auto:${session.id}`))?.status, "active");
 });
 
+test("对话与辅导会话、轮次使用稳定 ID 幂等关联", async () => {
+  await resetReviewDb();
+  const firstSession = await tutoringRepository.ensureConversationSession({
+    conversationId: "conversation-1",
+    goal: "完成资料分析讲解",
+    mode: "upload",
+    topic: "资料分析",
+  });
+  const [retriedSession] = await Promise.all([
+    tutoringRepository.ensureConversationSession({ conversationId: "conversation-1", goal: "重试不应覆盖原会话", mode: "upload", topic: "资料分析" }),
+    tutoringRepository.ensureConversationSession({ conversationId: "conversation-1", goal: "并行重试也不能重复", mode: "upload", topic: "资料分析" }),
+  ]);
+  assert.equal(firstSession.id, "conversation:conversation-1");
+  assert.equal(retriedSession.id, firstSession.id);
+  assert.equal((await reviewDb.tutoringSessions.toArray()).filter((session) => session.conversationId === "conversation-1").length, 1);
+
+  const input = {
+    conversationMessageId: "message-1",
+    sessionId: firstSession.id,
+    speaker: "ai_tutor" as const,
+    content: "先统一单位，再比较增长量。",
+    detectedProblem: "单位换算遗漏",
+  };
+  const [firstTurn, retriedTurn] = await Promise.all([
+    tutoringRepository.putConversationTurn(input),
+    tutoringRepository.putConversationTurn(input),
+  ]);
+  const restored = await tutoringRepository.loadConversationSession("conversation-1");
+  assert.equal(firstTurn.id, "conversation-message:message-1");
+  assert.equal(retriedTurn.id, firstTurn.id);
+  assert.equal(restored.turns.length, 1);
+  assert.equal(restored.session?.turnCount, 1);
+});
+
 test("辅导仓储拒绝原始媒体，视觉指纹抑制重复帧", async () => {
   await resetReviewDb();
   const session = await tutoringRepository.createSession({ goal: "视觉练习", mode: "camera", topic: "题目讲解" });

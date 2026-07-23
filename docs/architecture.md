@@ -286,3 +286,11 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 桌面统一使用无阴影的主从布局；移动端详情状态只保存在当前组件内，顶栏下方全屏展示，不写入 IndexedDB。
 - 知识库拆为 `knowledge-library-list`、`knowledge-entry-editor` 与 `knowledge-starter-controls`，Obsidian 和内化控制器仍由 `KnowledgeView` 编排并保持按需加载。
 - `ReviewWorkspace` 的低频动态加载、首屏包体边界、Dexie v16 与 Vault 句柄 repository 边界保持不变。
+# P1 辅导与面试当前轮次架构（2026-07-23）
+
+- `conversation.kind === "tutoring"` 时，由 `ConversationWorkspace` 动态加载 `ConversationTutoringExperience`，运行时再按需加载 `conversation-tutoring-runtime`；普通对话与核心工作台不静态依赖辅导服务。
+- 可见用户/老师消息继续写入对话表，结构化卡点、下一步、微测和复练状态写入带 `conversationId` 的辅导会话与带 `conversationMessageId` 的轮次。确定性 ID 保证模型失败重试、刷新恢复和计划生成不会重复写入。
+- 独立辅导页只承担历史记录、计划和资料关联；实时媒体、当前轮次和模型选择留在对话内。模型请求显式使用当前对话的 `modelId` 与 `selectedRuntimeValues`，不读取连接历史模型。
+- `LearningSessionLayout` 只共享桌面信息侧栏与移动底部抽屉的布局、焦点锁定、Escape、滚动锁定和焦点恢复；辅导、面试业务状态保持在各自 feature。
+- 面试主导航收敛为模拟现场、题库、训练计划和复盘记录。阶段栏读取真实 session stage，评分只读取完成后的 evaluation；原始录音、摄像头、屏幕与关键帧仍只驻留当前运行内存。
+- `TutoringSession.conversationId` 与 `TutoringTurn.conversationMessageId` 均为可选兼容字段，不新增索引，不升级 `review_workspace` v16，也不新增 HTTP API。

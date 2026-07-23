@@ -249,3 +249,8 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 # P1 学习列表 UI（2026-07-23）
 
 错题库、错题复盘和知识库的 P1 调整只改变客户端组件结构、响应式样式与可访问名称；未新增 Route、请求字段、响应字段或 IndexedDB schema。批量导出、删除、知识训练和 Obsidian 操作继续调用既有浏览器服务边界。
+# P1 辅导与面试内部契约（2026-07-23）
+
+- 本阶段不新增 HTTP API 或公开路由。辅导仍复用 `/api/ai/generate`，面试继续使用现有本地 repository 和 AI 连接边界。
+- 辅导请求必须显式传入当前对话选择的 `modelId` 与 `selectedRuntimeValues`；`ApiConnectionProfile.model` 仍只用于历史迁移，不能作为运行时回退。
+- `ensureConversationSession()` 和 `putConversationTurn()` 使用对话/消息确定性 ID，重试返回既有记录。持久化输入继续拒绝 `data:image`、`data:audio`、`data:video` 与 `blob:`。

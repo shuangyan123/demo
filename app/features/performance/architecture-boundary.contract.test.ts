@@ -25,9 +25,13 @@ test("大型 workspace 保持受控预算并使用专用 controller", async () =
     ["features/review/review-workspace.tsx", 1080],
     ["features/review/review-dashboard-view.tsx", 320],
     ["features/knowledge/knowledge-workspace.tsx", 825],
-    ["features/tutoring/tutoring-workspace.tsx", 775],
+    ["features/tutoring/tutoring-workspace.tsx", 230],
     ["features/conversation/conversation-workspace.tsx", 500],
     ["features/conversation/conversation-composer.tsx", 300],
+    ["features/conversation/conversation-tutoring-experience.tsx", 300],
+    ["features/interview/interview-workspace.tsx", 300],
+    ["features/interview/interview-session-panel.tsx", 200],
+    ["features/shared/learning-session-layout.tsx", 200],
     ["features/shared/workspace-shell.tsx", 240],
   ]);
   for (const [relativePath, budget] of budgets) {

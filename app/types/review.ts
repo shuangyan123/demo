@@ -514,6 +514,8 @@ export type InterviewLink = {
 
 export type TutoringSession = {
   id: string;
+  /** 对话内辅导使用稳定关联；旧独立辅导记录保持未定义。 */
+  conversationId?: string;
   mode: TutoringMode;
   topic: string;
   goal: string;
@@ -535,6 +537,8 @@ export type TutoringSession = {
 export type TutoringTurn = {
   id: string;
   sessionId: string;
+  /** 指向用户可见的对话消息，便于刷新后恢复结构化讲解与微测。 */
+  conversationMessageId?: string;
   speaker: TutoringSpeaker;
   content: string;
   frameDescription?: string;

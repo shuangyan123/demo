@@ -1,4 +1,5 @@
 import type { ChatMessageContent } from "./api-client";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model";
 import { generateWithConnection } from "./ai-connection-client";
 import { parseAiJsonObject } from "./ai-json.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
@@ -114,6 +115,8 @@ export async function requestTutorReply(input: {
   recentTurns: TutoringTurn[];
   session: TutoringSession;
   connection: ApiConnectionProfile;
+  modelId?: string;
+  selectedRuntimeValues?: AiSelectedRuntimeValues;
   studentText: string;
   personalizationSettings: PersonalizationSettings;
 }): Promise<TutoringAiReply> {
@@ -137,6 +140,8 @@ export async function requestTutorReply(input: {
       ]
     : promptText;
   const response = await generateWithConnection(input.connection, input.frameDataUrl ? "vision" : "text", {
+    modelId: input.modelId,
+    selectedRuntimeValues: input.selectedRuntimeValues,
     maxOutputTokens: 1200,
     structuredOutput: { name: "tutoring_reply", schema: TUTOR_REPLY_SCHEMA },
     messages: [
@@ -162,11 +167,15 @@ export async function requestTutorReply(input: {
 export async function requestTutorSummary(input: {
   session: TutoringSession;
   connection: ApiConnectionProfile;
+  modelId?: string;
+  selectedRuntimeValues?: AiSelectedRuntimeValues;
   turns: TutoringTurn[];
   personalizationSettings: PersonalizationSettings;
 }): Promise<TutoringSummaryDraft> {
   const transcript = input.turns.map((turn) => `${turn.speaker}: ${turn.content}`).join("\n");
   const response = await generateWithConnection(input.connection, "text", {
+    modelId: input.modelId,
+    selectedRuntimeValues: input.selectedRuntimeValues,
     maxOutputTokens: 900,
     messages: [
       {

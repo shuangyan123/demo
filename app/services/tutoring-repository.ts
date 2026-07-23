@@ -72,6 +72,43 @@ export const tutoringRepository = {
     return session;
   },
 
+  /**
+   * 为辅导对话建立唯一会话。使用确定性 ID 避免模型失败重试或刷新恢复时生成重复记录。
+   */
+  async ensureConversationSession(input: NewTutoringSessionInput & { conversationId: string }): Promise<TutoringSession> {
+    const id = `conversation:${input.conversationId}`;
+    return reviewDb.transaction("rw", reviewDb.tutoringSessions, async () => {
+      const existing = await reviewDb.tutoringSessions.get(id);
+      if (existing) return existing;
+      const now = nowISO();
+      const session: TutoringSession = {
+        ...input,
+        completedAt: undefined,
+        createdAt: now,
+        estimatedCostNote: "对话内按需采样，不保存原始音视频",
+        frameCount: 0,
+        id,
+        nextActions: [],
+        startedAt: now,
+        status: "active",
+        summary: "",
+        transcriptText: "",
+        turnCount: 0,
+        updatedAt: now,
+      };
+      await reviewDb.tutoringSessions.add(session);
+      return session;
+    });
+  },
+
+  /** 按对话读取辅导会话及轮次，供按需加载的对话侧栏恢复状态。 */
+  async loadConversationSession(conversationId: string): Promise<{ session: TutoringSession | null; turns: TutoringTurn[] }> {
+    const session = await reviewDb.tutoringSessions.get(`conversation:${conversationId}`);
+    if (!session) return { session: null, turns: [] };
+    const turns = await reviewDb.tutoringTurns.where("sessionId").equals(session.id).sortBy("createdAt");
+    return { session, turns };
+  },
+
   // 更新会话状态、摘要或目标；调用方不能通过这里写入媒体 Blob。
   async updateSession(id: string, patch: Partial<Omit<TutoringSession, "id" | "createdAt">>): Promise<void> {
     await reviewDb.tutoringSessions.update(id, { ...patch, updatedAt: nowISO() });
@@ -99,6 +136,30 @@ export const tutoringRepository = {
       }
     });
     return turn;
+  },
+
+  /**
+   * 写入与可见对话消息关联的辅导轮次。conversationMessageId 同时作为稳定 ID，确保重试幂等。
+   */
+  async putConversationTurn(input: NewTutoringTurnInput & { conversationMessageId: string }): Promise<TutoringTurn> {
+    assertNoMediaPayload(input);
+    const id = `conversation-message:${input.conversationMessageId}`;
+    return reviewDb.transaction("rw", reviewDb.tutoringSessions, reviewDb.tutoringTurns, async () => {
+      const existing = await reviewDb.tutoringTurns.get(id);
+      if (existing) return existing;
+      const turn: TutoringTurn = { ...input, id, createdAt: nowISO() };
+      const session = await reviewDb.tutoringSessions.get(input.sessionId);
+      await reviewDb.tutoringTurns.add(turn);
+      if (session) {
+        await reviewDb.tutoringSessions.update(input.sessionId, {
+          frameCount: session.frameCount + (input.frameDescription ? 1 : 0),
+          transcriptText: [session.transcriptText, formatTranscriptLine(input)].filter(Boolean).join("\n"),
+          turnCount: session.turnCount + 1,
+          updatedAt: nowISO(),
+        });
+      }
+      return turn;
+    });
   },
 
   /** 更新反馈、微测或观察摘要；仍通过同一媒体保护边界。 */
