@@ -300,3 +300,12 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `AutomationView` 只装配任务列表、运行收件箱和两个可访问编辑层。调度、补跑、租约、采集与恢复动作仍由既有 service/controller 提供，展示层不触发隐式重试。
 - 设置分区继续由 `useReviewWorkspaceRecoveryNavigation` 单一受控；`SettingsSectionHeader` 和 feature-local CSS Module 只共享展示结构，不引入第二份分区状态。
 - AI 连接表格和详情只消费序列化连接快照，不渲染密钥；默认能力仍保存独立的连接、模型与运行值。HTTP API、Dexie v16 和低频动态加载边界不变。
+
+# P3 全产品 UI/UX 最终收口架构（2026-07-23）
+
+- 导入页继续由 `ImportWorkspace` 持有解析与草稿 controller，`review-import-view` 只新增 38/62 来源/草稿布局和移动三步状态；原始文件、粉笔凭据、确认与撤销语义未迁移到展示层。
+- `LearningInsightSnapshot` 是纯派生展示模型，只从存在错题关联的 `Attempt.reviewedAt/result`、当前错题掌握度和到期日期计算。板块少于 5 次有效复盘时不生成趋势方向。
+- 知识训练拆为独立动态 `knowledge-training-view`，训练画布、队列和会话摘要仍消费既有间隔训练状态，不复制算法或 repository。
+- 插件管理只读取 `settingsPluginDefinitions` 三项真实登记，详情面板在选择后动态加载；MCP、密钥、Vault 句柄和第三方代码均未进入注册表快照。
+- 命令搜索在桌面使用居中面板、移动使用全屏层，并统一焦点锁定、Escape、页面滚动锁定与触发器焦点恢复。
+- P3 共享页面状态只负责呈现加载、空、错误或离线说明，不执行业务读取。HTTP API、公开路由、持久化对象和 `review_workspace` v16 均未变化。
