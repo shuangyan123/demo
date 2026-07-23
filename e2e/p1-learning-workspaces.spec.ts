@@ -38,7 +38,7 @@ test("P1 桌面错题、复盘和知识工作区保持紧凑主从布局", async
 
   await openDesktopModule(page, "学习数据");
   await page.getByRole("button", { name: "批量管理" }).click();
-  await expect(page.getByRole("heading", { name: "错题库", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "返回统一浏览" })).toBeVisible();
   await expect(page.locator(".learning-master-detail")).toBeVisible();
   await expect(page.getByRole("button", { name: /某地区今年产值增长/ })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("p1-mistakes-desktop.png"), fullPage: false });
