@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-23 · P3 ReviewWorkspace 架构终止收口
+
+- 将 `ReviewWorkspace` 缩减为仅组合顶层 controller 与 view router 的根组件，并拆出学习、知识两个领域 controller。
+- 新增核心视图、低频视图和顶层动态加载边界；route component 不再直接依赖 repository、连接解密或 Vault 服务。
+- 收紧架构契约：根组件 150 行、顶层 controller/router 300 行、领域 controller 与任意 React component 500 行，并继续锁定旧 `stats` 映射、无循环依赖和 Dexie v16。
+- 本次为纯内部重构；可见 UI、HTTP API、业务语义、持久化结构与动态加载范围不变。
+
 ## 2026-07-23 · P3 全产品 UI/UX 最终收口
 
 - 导入资料升级为桌面来源/草稿主从控制台和移动“来源、草稿、确认”三步状态；手动录入统一移动安全区操作栏与未保存刷新保护。

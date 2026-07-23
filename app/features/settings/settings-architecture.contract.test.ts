@@ -19,14 +19,14 @@ test("设置分区使用受控单一状态源且不通过异步 effect 回退", 
   const [source, navigation, workspace] = await Promise.all([
     readFile(new URL("./settings-workspace.tsx", import.meta.url), "utf8"),
     readFile(new URL("../review/use-review-workspace-recovery-navigation.ts", import.meta.url), "utf8"),
-    readFile(new URL("../review/review-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../review/review-workspace-view-router.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(source, /activeSection: SettingsSectionKey/);
   assert.match(source, /onSectionChange: \(section: SettingsSectionKey\) => void/);
   assert.doesNotMatch(source, /initialSection|setActiveSection|setTimeout\(\(\) => setActiveSection/);
   assert.match(navigation, /const \[settingsSection, setSettingsSection\]/);
-  assert.match(workspace, /activeSection=\{settingsSection\}/);
-  assert.match(workspace, /onSectionChange=\{setSettingsSection\}/);
+  assert.match(workspace, /activeSection=\{workspace\.settingsSection\}/);
+  assert.match(workspace, /onSectionChange=\{workspace\.setSettingsSection\}/);
   assert.match(source, /aria-label="设置分区"/);
   assert.match(source, /onSectionChange\(event\.currentTarget\.value as SettingsSectionKey\)/);
 });

@@ -8,6 +8,8 @@ async function readSource(path: string) {
 
 test("ReviewWorkspace 首屏不再静态引入低频视图和重型服务", async () => {
   const source = await readSource("../review/review-workspace.tsx");
+  const lazyViews = await readSource("../review/review-workspace-lazy-views.tsx");
+  const knowledgeController = await readSource("../review/use-review-knowledge-controller.ts");
   const forbiddenStaticImports = [
     "../import/review-import-view",
     "../import/use-import-drafts",
@@ -23,20 +25,22 @@ test("ReviewWorkspace 首屏不再静态引入低频视图和重型服务", asyn
     assert.doesNotMatch(source, new RegExp(`import\\s+(?:type\\s+)?[\\s\\S]*?from\\s+["']${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`));
   }
 
-  assert.match(source, /dynamic\(\(\) => import\("\.\.\/import\/import-workspace"\)/);
-  assert.match(source, /await import\("\.\.\/\.\.\/services\/ai-association-service"\)/);
-  assert.match(source, /await import\("\.\.\/\.\.\/services\/obsidian-knowledge-repository"\)/);
+  assert.match(lazyViews, /dynamic\(\s*\(\) => import\("\.\.\/import\/import-workspace"\)/);
+  assert.match(knowledgeController, /await import\("\.\.\/\.\.\/services\/ai-association-service"\)/);
+  assert.match(knowledgeController, /await import\("\.\.\/\.\.\/services\/obsidian-knowledge-repository"\)/);
 });
 
 test("ReviewWorkspace 把健康检查、诊断输入和恢复导航交给专用 hook", async () => {
   const source = await readSource("../review/review-workspace.tsx");
+  const controller = await readSource("../review/use-review-workspace-controller.ts");
 
-  assert.match(source, /useReviewWorkspaceHealth/);
-  assert.match(source, /useReviewWorkspaceRecoveryNavigation/);
-  assert.doesNotMatch(source, /from\s+["']\.\.\/onboarding\/use-configuration-health["']/);
-  assert.doesNotMatch(source, /from\s+["']\.\.\/diagnostics\/use-local-diagnostics["']/);
-  assert.doesNotMatch(source, /from\s+["']\.\.\/\.\.\/\.\.\/package\.json["']/);
-  assert.doesNotMatch(source, /setSettingsInitialSection/);
+  assert.match(source, /useReviewWorkspaceController/);
+  assert.match(controller, /useReviewWorkspaceHealth/);
+  assert.match(controller, /useReviewWorkspaceRecoveryNavigation/);
+  assert.doesNotMatch(controller, /from\s+["']\.\.\/onboarding\/use-configuration-health["']/);
+  assert.doesNotMatch(controller, /from\s+["']\.\.\/diagnostics\/use-local-diagnostics["']/);
+  assert.doesNotMatch(controller, /from\s+["']\.\.\/\.\.\/\.\.\/package\.json["']/);
+  assert.doesNotMatch(controller, /setSettingsInitialSection/);
 });
 
 test("KnowledgeWorkspace 把列表控制和 Obsidian 重服务留在专用边界", async () => {

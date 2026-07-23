@@ -332,3 +332,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 插件页只展示 `settingsPluginDefinitions` 的真实登记；MCP 留在设置，概念稿中的版本、评分、下载量和签名值不得伪造。
 - 全局搜索移动层必须覆盖顶栏，锁定页面滚动，支持 Tab/Shift+Tab、Escape 和触发器焦点恢复。
 - P3 后仅在新增功能或发现新缺陷时开启下一轮 UI/UX；当前功能的偏差必须记录在 `docs/ui-ux-audit.md` fidelity ledger。
+
+## P3 ReviewWorkspace 架构终止约定
+
+- `ReviewWorkspace` 只调用顶层 controller 并渲染 view router，文件不得超过 150 行；`useReviewWorkspaceController` 与 `ReviewWorkspaceViewRouter` 各不得超过 300 行。
+- 错题/复盘/统计状态归 `useReviewLearningController`，知识/导入草稿/训练/关联状态归 `useReviewKnowledgeController`；领域 controller 和任何 React component 不得超过 500 行。
+- route component 只能消费显式 controller 类型，不得导入 repository/service、解密连接或持有 Vault 句柄；禁止用覆盖整个工作台的 React Context 代替边界类型。
+- 低频视图继续使用模块顶层、显式路径的 `next/dynamic`；加载占位只渲染 `WorkspaceViewState`，不得触发业务读取。
+- 架构契约必须持续锁定组件预算、controller 所有权、旧 `stats` 映射、动态加载、无循环依赖和 `review_workspace` v16。

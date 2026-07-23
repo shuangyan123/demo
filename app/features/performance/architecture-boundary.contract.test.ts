@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
+import ts from "typescript";
 import "../review/learning-insight-model.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
@@ -23,7 +24,15 @@ function staticImports(source: string): string[] {
 
 test("大型 workspace 保持受控预算并使用专用 controller", async () => {
   const budgets = new Map([
-    ["features/review/review-workspace.tsx", 1080],
+    ["features/review/review-workspace.tsx", 150],
+    ["features/review/use-review-workspace-controller.ts", 300],
+    ["features/review/use-review-learning-controller.ts", 500],
+    ["features/review/use-review-knowledge-controller.ts", 500],
+    ["features/review/review-workspace-view-router.tsx", 300],
+    ["features/review/review-workspace-core-views.tsx", 300],
+    ["features/review/review-workspace-secondary-views.tsx", 300],
+    ["features/review/review-workspace-lazy-views.tsx", 120],
+    ["features/review/review-workspace-shell.tsx", 500],
     ["features/review/review-dashboard-view.tsx", 320],
     ["features/knowledge/knowledge-workspace.tsx", 825],
     ["features/tutoring/tutoring-workspace.tsx", 230],
@@ -49,11 +58,48 @@ test("大型 workspace 保持受控预算并使用专用 controller", async () =
     assert.ok(source.split(/\r?\n/).length <= budget, `${relativePath} 超过 ${budget} 行架构预算`);
   }
   const reviewSource = await readFile(path.join(APP_ROOT, "features/review/review-workspace.tsx"), "utf8");
-  assert.match(reviewSource, /useReviewConversationController/);
-  assert.doesNotMatch(reviewSource, /services\/conversation-repository/);
-  assert.doesNotMatch(reviewSource, /services\/command-search/);
-  assert.match(reviewSource, /dynamic\(\(\) => import\("\.\.\/knowledge\/knowledge-training-view"\)/);
-  assert.doesNotMatch(reviewSource, /from "\.\.\/knowledge\/knowledge-training-view"/);
+  const controllerSource = await readFile(path.join(APP_ROOT, "features/review/use-review-workspace-controller.ts"), "utf8");
+  const lazyViewsSource = await readFile(path.join(APP_ROOT, "features/review/review-workspace-lazy-views.tsx"), "utf8");
+  const routeSources = await Promise.all([
+    "features/review/review-workspace-view-router.tsx",
+    "features/review/review-workspace-core-views.tsx",
+    "features/review/review-workspace-secondary-views.tsx",
+  ].map((relativePath) => readFile(path.join(APP_ROOT, relativePath), "utf8")));
+
+  assert.match(reviewSource, /useReviewWorkspaceController/);
+  assert.match(reviewSource, /ReviewWorkspaceViewRouter/);
+  assert.doesNotMatch(reviewSource, /useState|repository|services\//);
+  assert.match(controllerSource, /useReviewConversationController/);
+  assert.match(controllerSource, /useReviewLearningController/);
+  assert.match(controllerSource, /useReviewKnowledgeController/);
+  assert.match(lazyViewsSource, /dynamic\(\s*\(\) => import\("\.\.\/knowledge\/knowledge-training-view"\)/);
+  assert.match(lazyViewsSource, /dynamic\(\s*\(\) => import\("\.\.\/conversation\/conversation-workspace"\)/);
+  routeSources.forEach((source) => {
+    assert.equal(staticImports(source).some((target) => target.includes("/services/") || target.includes("repository")), false);
+  });
+  assert.match(routeSources[1], /view === "stats"/);
+});
+
+test("所有 React 组件均不超过五百行", async () => {
+  const files = (await sourceFiles(APP_ROOT)).filter((file) => file.endsWith(".tsx"));
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const inspect = (node: ts.Node) => {
+      let name = "";
+      if (ts.isFunctionDeclaration(node)) name = node.name?.text ?? "";
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {
+        name = node.name.text;
+      }
+      if (/^[A-Z]/.test(name)) {
+        const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line;
+        const end = sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line;
+        assert.ok(end - start + 1 <= 500, `${path.relative(APP_ROOT, file)} 中组件 ${name} 超过 500 行`);
+      }
+      ts.forEachChild(node, inspect);
+    };
+    inspect(sourceFile);
+  }
 });
 
 test("P3 低频表面使用本地样式与真实派生模型", async () => {
