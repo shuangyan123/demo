@@ -52,14 +52,27 @@ test("KnowledgeWorkspace 把列表控制和 Obsidian 重服务留在专用边界
   assert.match(obsidianSource, /await import\("\.\.\/\.\.\/services\/knowledge-evolution-service"\)/);
 });
 
-test("TutoringWorkspace 把实时会话媒体和语音控制交给专用 controller", async () => {
+test("TutoringWorkspace 只保留记录、计划和资料关联，实时辅导按对话动态加载", async () => {
   const source = await readSource("../tutoring/tutoring-workspace.tsx");
+  const conversationSource = await readSource("../conversation/conversation-workspace.tsx");
 
-  assert.match(source, /useTutoringSessionController/);
+  assert.doesNotMatch(source, /useTutoringSessionController/);
   assert.doesNotMatch(source, /from\s+["']\.\/use-tutoring-media["']/);
   assert.doesNotMatch(source, /from\s+["']\.\/use-frame-sampler["']/);
   assert.doesNotMatch(source, /from\s+["']\.\/use-tutoring-speech["']/);
   assert.doesNotMatch(source, /resolvePersonaVoice/);
+  assert.match(conversationSource, /dynamic\([\s\S]*?conversation-tutoring-experience/);
+  assert.match(conversationSource, /await import\("\.\/conversation-tutoring-runtime"\)/);
+  assert.doesNotMatch(conversationSource, /from\s+["']\.\/conversation-tutoring-runtime["']/);
+});
+
+test("辅导模型请求显式传递对话模型与运行参数", async () => {
+  const source = await readSource("../../services/tutoring-ai-service.ts");
+
+  assert.match(source, /modelId\?: string/);
+  assert.match(source, /selectedRuntimeValues\?: AiSelectedRuntimeValues/);
+  assert.match(source, /modelId: input\.modelId/);
+  assert.match(source, /selectedRuntimeValues: input\.selectedRuntimeValues/);
 });
 
 test("模块上下文和视觉工具统一进入新对话", async () => {
