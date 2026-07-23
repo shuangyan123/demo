@@ -8,6 +8,7 @@ import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
 import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../study/study-registry";
 import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
 import { AppIcon } from "../shared/app-icon";
+import { preloadReviewView } from "./review-workspace-preload";
 
 type ReviewNavIconName =
   | "newChat"
@@ -98,8 +99,9 @@ export function ReviewWorkspaceShell({
     active?: boolean;
     badge?: number;
     onClick: () => void;
+    preload?: ViewKey;
   }> = [
-    { id: "new-chat", label: "新对话", icon: "newChat", active: view === "conversation" && activeConversationId === null, onClick: () => onStartNewConversation() },
+    { id: "new-chat", label: "新对话", icon: "newChat", active: view === "conversation" && activeConversationId === null, onClick: () => onStartNewConversation(), preload: "conversation" },
     { id: "search", label: "搜索", icon: "search", onClick: onOpenSearch },
     {
       id: "scheduled",
@@ -108,8 +110,9 @@ export function ReviewWorkspaceShell({
       active: view === scheduledWorkspaceDefinition.viewKey,
       badge: automationUnreadCount || undefined,
       onClick: () => onSelectView(scheduledWorkspaceDefinition.viewKey),
+      preload: "automation",
     },
-    { id: "plugins", label: "插件", icon: "plugins", active: view === "plugins", onClick: () => onSelectView("plugins") },
+    { id: "plugins", label: "插件", icon: "plugins", active: view === "plugins", onClick: () => onSelectView("plugins"), preload: "plugins" },
   ];
 
   return (
@@ -132,6 +135,8 @@ export function ReviewWorkspaceShell({
                 }`}
                 type="button"
                 onClick={item.onClick}
+                onFocus={() => preloadReviewView(item.preload)}
+                onMouseEnter={() => preloadReviewView(item.preload)}
               >
                 <ReviewNavIcon name={item.icon} />
                 <span className="truncate">{item.label}</span>
@@ -144,6 +149,8 @@ export function ReviewWorkspaceShell({
             className="hidden min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
             type="button"
             onClick={onOpenSettings}
+            onFocus={() => preloadReviewView("settings")}
+            onMouseEnter={() => preloadReviewView("settings")}
           >
             <ReviewNavIcon name="settings" />
             <span>设置</span>
@@ -176,6 +183,8 @@ export function ReviewWorkspaceShell({
                       type="button"
                       title={module.description}
                       onClick={() => onSelectView(module.id)}
+                      onFocus={() => preloadReviewView(module.id)}
+                      onMouseEnter={() => preloadReviewView(module.id)}
                     >
                       <ReviewNavIcon name={module.icon as ReviewNavIconName} />
                       <span className="truncate">{module.label}</span>
@@ -202,6 +211,8 @@ export function ReviewWorkspaceShell({
             className="relative z-40 mt-3 grid min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:hidden"
             type="button"
             onClick={onOpenSettings}
+            onFocus={() => preloadReviewView("settings")}
+            onMouseEnter={() => preloadReviewView("settings")}
           >
             <ReviewNavIcon name="settings" />
             <span>设置</span>
@@ -216,7 +227,7 @@ export function ReviewWorkspaceShell({
         <ViewHeader
           actions={
             <>
-              <Button variant="outline" onClick={onOpenImport}>
+              <Button variant="outline" onClick={onOpenImport} onFocus={() => preloadReviewView("import")} onMouseEnter={() => preloadReviewView("import")}>
                 导入资料
               </Button>
               <Button variant="primary" onClick={onOpenEntry}>

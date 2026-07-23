@@ -45,3 +45,7 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 - 本轮没有新增环境变量、服务端依赖、Route、数据库迁移或外网服务。
 - 生产验收继续使用 Node.js 22、`next build` 与单实例 `next start`；CI 的导入、搜索、插件和学习数据流程全部使用本地状态或明确 mock。
 - 发布前必须完成 1536×1024 与 390×844 的浅色/深色截图、控制台检查、键盘路径、减少动态效果和横向溢出检查。
+# 0.2.0 升级门禁
+
+- CI 的生产构建后必须执行 `npm run check:bundle`，并上传 `.next/diagnostics/bundle-budget.json`。需要更新基线时必须提交新的 Turbopack analyzer 证据和理由，不能通过单纯放宽 5% 阈值绕过回归。
+- 桌面与移动 Playwright 项目分别运行 axe 严重级门禁；失败时上传 trace 与附件报告。真实模型凭据和真实 Vault 仍只允许本机人工 smoke。

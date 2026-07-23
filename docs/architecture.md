@@ -332,3 +332,9 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `app/error.tsx` 与 `app/global-error.tsx` 复用 `WorkspaceViewState`，提供重试、返回工作台和复制脱敏诊断；诊断只包含稳定错误类别、时间和 Next digest，不输出堆栈、用户正文或厂商原始响应。
 - 浏览器内同源 API 调用统一经过 `fetchLocalApi`。该边界仅在内存保存最近 50 条路由类别、阶段、耗时、状态码和错误类别，既不写 IndexedDB，也不记录请求体、响应体、Cookie、Token、音频或 Vault 正文。
 - 异步初始化 Hook 使用零延时任务与 `active` 卸载保护，避免 Effect 同步写状态并防止组件卸载后的错误通知；业务源码不再需要 `react-hooks/set-state-in-effect` 豁免。
+
+## 包体与无障碍门禁（2026-07-23）
+
+- 以 Next 16.2.11 `experimental-analyze --output` 和生产构建清单建立 `docs/performance-budget.json`。CI 校验首屏客户端 JavaScript、CSS、最大 JavaScript chunk 均不得超过基线 5%，报告写入 `.next/diagnostics/bundle-budget.json`。
+- 首屏基线为 JavaScript 1,183,694 bytes、CSS 131,222 bytes、最大异步 chunk 568,117 bytes。Turbopack import trace 显示 PDF 与字体映射仍位于低频异步块；结构契约继续阻止 PDF、DOCX、Obsidian、实时媒体、已安排和设置回到静态首屏链路。
+- 已安排、设置、导入、面试、辅导与对话入口只在用户 hover/focus 时预取代码，不触发 repository 或外部请求。桌面 1536×1024 与移动 390×844 使用 axe WCAG A/AA 规则阻断 serious/critical 问题。
