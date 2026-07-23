@@ -294,3 +294,9 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `LearningSessionLayout` 只共享桌面信息侧栏与移动底部抽屉的布局、焦点锁定、Escape、滚动锁定和焦点恢复；辅导、面试业务状态保持在各自 feature。
 - 面试主导航收敛为模拟现场、题库、训练计划和复盘记录。阶段栏读取真实 session stage，评分只读取完成后的 evaluation；原始录音、摄像头、屏幕与关键帧仍只驻留当前运行内存。
 - `TutoringSession.conversationId` 与 `TutoringTurn.conversationMessageId` 均为可选兼容字段，不新增索引，不升级 `review_workspace` v16，也不新增 HTTP API。
+# P2 已安排与设置展示架构
+
+- `features/automation/use-automation-view-controller.ts` 只维护搜索、状态、当前任务、收件箱筛选、编辑模式、移动页签与抽屉；`automation-view-model.ts` 负责可测试的摘要、最近运行和筛选派生。
+- `AutomationView` 只装配任务列表、运行收件箱和两个可访问编辑层。调度、补跑、租约、采集与恢复动作仍由既有 service/controller 提供，展示层不触发隐式重试。
+- 设置分区继续由 `useReviewWorkspaceRecoveryNavigation` 单一受控；`SettingsSectionHeader` 和 feature-local CSS Module 只共享展示结构，不引入第二份分区状态。
+- AI 连接表格和详情只消费序列化连接快照，不渲染密钥；默认能力仍保存独立的连接、模型与运行值。HTTP API、Dexie v16 和低频动态加载边界不变。

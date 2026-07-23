@@ -41,6 +41,7 @@ for (const item of cases) {
 
       await page.goto("/");
       await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
+      await page.getByRole("button", { name: "新建任务" }).click();
       await page.getByLabel("模板").selectOption(item.template);
       await page.getByRole("button", { name: "+ 页面" }).click();
       await page.getByLabel("来源名称").fill("E2E 白名单来源");
@@ -68,7 +69,8 @@ for (const item of cases) {
 
       await page.getByRole("button", { name: "创建已安排" }).click();
       const taskCard = page.locator("article").filter({ hasText: item.label }).first();
-      await taskCard.getByRole("button", { name: "立即运行" }).click();
+      await taskCard.getByRole("button", { name: new RegExp(item.label) }).click();
+      await page.getByRole("button", { name: "立即运行" }).click();
       await expect.poll(() => provider.requests.length).toBe(2);
       expect(fetchCount).toBe(2);
       const inbox = page.locator("section").filter({ hasText: "运行收件箱" }).first();
@@ -131,6 +133,7 @@ test("MCP 搜索只提供候选 URL 且丢弃非白名单结果", async ({ page 
 
     await page.goto("/");
     await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
+    await page.getByRole("button", { name: "新建任务" }).click();
     await page.getByLabel("模板").selectOption("xingce_collection");
     await page.getByRole("button", { name: "+ MCP" }).click();
     await page.getByRole("checkbox", { name: "启用" }).check();
@@ -169,6 +172,7 @@ test("双模型事实分歧进入争议并阻止确认", async ({ page }) => {
     await setCustomDefaultTextModel(page, "Dual Model Mock", "curator-model");
     await page.goto("/");
     await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
+    await page.getByRole("button", { name: "新建任务" }).click();
     await page.getByLabel("模板").selectOption("interview_collection");
     await page.getByRole("button", { name: "+ 页面" }).click();
     await page.getByRole("checkbox", { name: "启用" }).check();
@@ -181,7 +185,8 @@ test("双模型事实分歧进入争议并阻止确认", async ({ page }) => {
     await page.getByLabel("复核模型 B模型 ID").fill("reviewer-model");
     await page.getByRole("button", { name: "创建已安排" }).click();
     const card = page.locator("article").filter({ hasText: "面试采集" }).first();
-    await card.getByRole("button", { name: "立即运行" }).click();
+    await card.getByRole("button", { name: /面试采集/ }).click();
+    await page.getByRole("button", { name: "立即运行" }).click();
     await expect.poll(() => provider.requests.length).toBe(2);
     await page.goto("/");
     await page.locator(".dashboard-configuration-health > summary").click();

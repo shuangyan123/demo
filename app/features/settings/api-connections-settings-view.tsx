@@ -15,6 +15,7 @@ import { ProviderSelect } from "./provider-select";
 import { DefaultCapabilitySelector } from "./default-capability-selector";
 import { ModelCatalogSelect } from "./model-catalog-select";
 import compactStyles from "./settings-compact.module.css";
+import { SettingsSectionHeader } from "./settings-section-header";
 
 type SubmitEvent = SyntheticEvent<HTMLFormElement, globalThis.SubmitEvent>;
 type Feedback = { tone: "success" | "error" | "neutral"; text: string } | null;
@@ -314,15 +315,27 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
 
   const editableContracts = providerContracts;
   const formCapabilities = contract.capabilities.filter((capability) => capabilityLabels[capability]);
+  const selectedProfile = snapshot.profiles.find((profile) => profile.id === form.id);
 
   return (
-    <section className={`ai-connections-compact ${compactStyles.connectionSection}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">AI 连接</h1>
+    <section className={`ai-connections-compact ${compactStyles.connectionSection} ${compactStyles.connectionLayout}`}>
+      <div className={compactStyles.connectionHeader}>
+        <SettingsSectionHeader
+          title="AI 连接"
+          description="连接档案只保存厂商、鉴权和端点；具体模型由会话或默认能力单独选择。"
+          action={<Button variant="primary" onClick={() => {
+            setForm(createForm());
+            setAvailableModels([]);
+            setDiscoveredDirectory(undefined);
+            setSelectedTestModelId("");
+            setTestSucceeded(false);
+            window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+          }}>添加连接</Button>}
+        />
         <InlineStatus feedback={feedback} />
       </div>
 
-      <form ref={formRef} className="mt-6 grid gap-5" onSubmit={saveConnection}>
+      <form ref={formRef} className={`${compactStyles.connectionForm} grid gap-5`} onSubmit={saveConnection}>
         <div className="ai-connection-picker">
           <label>厂商<ProviderSelect value={form.provider} providers={editableContracts.map((item) => item.provider)} onChange={selectProvider} /></label>
         </div>
@@ -363,18 +376,28 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
         <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button>{form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setAvailableModels([]); setDiscoveredDirectory(undefined); setSelectedTestModelId(""); setTestSucceeded(false); }}>新建</Button> : null}</div>
       </form>
 
-      <DefaultCapabilitySelector snapshot={snapshot} onSnapshotChange={setSnapshot} onChanged={onChanged} onFeedback={(text, tone = "success") => setFeedback({ text, tone })} />
-      <section className="mt-7" aria-label="已保存连接">
+      <div className={compactStyles.connectionDefaults}>
+        <DefaultCapabilitySelector snapshot={snapshot} onSnapshotChange={setSnapshot} onChanged={onChanged} onFeedback={(text, tone = "success") => setFeedback({ text, tone })} />
+      </div>
+      <section className={compactStyles.connectionList} aria-label="已保存连接">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">已保存连接</h2>
             <span className="text-sm text-muted">{snapshot.profiles.length} 个</span>
           </div>
-          <div className="mt-3 divide-y divide-line border-y border-line">
+          <div className={compactStyles.connectionTable}>
+            <div className={compactStyles.connectionTableHeader} aria-hidden="true">
+              <span>厂商 / 连接名称</span><span>Base URL</span><span>状态</span><span>最近测试</span><span>操作</span>
+            </div>
             {snapshot.profiles.length ? snapshot.profiles.map((profile) => (
-              <article key={profile.id} className="grid min-h-14 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 py-2">
-                  <ProviderIcon provider={profile.provider} size={26} />
-                  <button className="min-w-0 text-left" type="button" onClick={() => editProfile(profile)}><strong className="block truncate text-sm font-medium">{profile.label}</strong><span className="block truncate text-xs text-muted">{getProviderContract(profile.provider).label} · {statusLabel(profile)}</span></button>
-                  <div className="flex shrink-0 gap-1">
+              <article key={profile.id} className={compactStyles.connectionRow} data-selected={form.id === profile.id}>
+                  <button className={compactStyles.connectionIdentity} type="button" onClick={() => editProfile(profile)}>
+                    <ProviderIcon provider={profile.provider} size={26} />
+                    <span><strong>{getProviderContract(profile.provider).label}</strong><small>{profile.label}</small></span>
+                  </button>
+                  <code className={compactStyles.connectionUrl}>{profile.baseUrl}</code>
+                  <span className={compactStyles.connectionStatus} data-status={profile.testStatus ?? "saved"}>{statusLabel(profile)}</span>
+                  <span className="text-xs text-muted">{profile.testStatus && profile.testStatus !== "idle" ? formatConnectionDate(profile.updatedAt) : "尚未测试"}</span>
+                  <div className={compactStyles.connectionActions}>
                     <Button size="sm" variant="ghost" onClick={() => editProfile(profile)}>编辑</Button>
                     <Button size="sm" variant="ghost" disabled={Boolean(busyAction)} onClick={() => void testSavedProfile(profile)}>{busyAction === `test:${profile.id}` ? "测试中" : "测试"}</Button>
                     <Button size="sm" variant="danger" onClick={() => void removeProfile(profile)}>删除</Button>
@@ -382,7 +405,21 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
               </article>
             )) : <div className="py-4"><EmptyState>尚未保存连接。</EmptyState></div>}
           </div>
+          {selectedProfile ? (
+            <div className={compactStyles.connectionDetails} aria-label={`${selectedProfile.label}连接详情`}>
+              <div><span>连接名称</span><strong>{selectedProfile.label}</strong></div>
+              <div><span>鉴权状态</span><strong>{statusLabel(selectedProfile)}</strong></div>
+              <div><span>Base URL</span><code>{selectedProfile.baseUrl}</code></div>
+              <div><span>最近测试</span><strong>{selectedProfile.testStatus && selectedProfile.testStatus !== "idle" ? formatConnectionDate(selectedProfile.updatedAt) : "尚未测试"}</strong></div>
+              <p>密钥仅保存在本机加密仓储，此处不会显示或复制。</p>
+            </div>
+          ) : null}
       </section>
     </section>
   );
+}
+
+/** 使用紧凑本地时间展示连接测试时间。 */
+function formatConnectionDate(value: string): string {
+  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }

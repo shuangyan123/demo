@@ -6,6 +6,7 @@ test("390×844 采集配置保持单栏且无横向溢出", async ({ page }, tes
   await page.goto("/");
   await page.getByRole("button", { name: "展开侧边栏" }).click();
   await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
+  await page.getByRole("button", { name: "新建任务" }).click();
   await page.getByLabel("模板").selectOption("xingce_collection");
   await page.getByRole("button", { name: "+ 页面" }).click();
   await expect(page.getByText("外部知识采集")).toBeVisible();

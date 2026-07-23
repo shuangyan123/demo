@@ -8,6 +8,7 @@ import { ColorPickerField, isValidHexColor } from "./color-picker-field";
 import { cloneTheme, darkThemePresets, lightThemePresets, type ThemePreset } from "./theme-presets";
 import { ThemePresetSelect } from "./theme-preset-select";
 import { AppIcon } from "../shared/app-icon";
+import { SettingsSectionHeader } from "./settings-section-header";
 
 export type SettingsIconName = "appearance" | "back" | "configuration" | "diagnostics" | "mcp" | "personalization" | "plugins" | "dark" | "light" | "motion" | "none" | "system";
 
@@ -58,9 +59,9 @@ export function AppearanceSettingsView({ settings, onChange, onNotify }: Appeara
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold tracking-tight">外观</h1>
+      <SettingsSectionHeader title="外观" description="统一管理主题、字体、弥散效果和动态偏好。" />
 
-      <div className="mt-8 overflow-hidden rounded-lg border border-line bg-surface">
+      <div className="mt-6 overflow-hidden rounded-lg border border-line bg-surface">
         <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-4 max-md:flex-col max-md:items-stretch">
           <div>
             <h2 className="text-base font-semibold">主题</h2>
@@ -76,8 +77,6 @@ export function AppearanceSettingsView({ settings, onChange, onNotify }: Appeara
             onChange={(value) => updateSettings({ mode: value as AppearanceSettings["mode"] })}
           />
         </div>
-
-        <DiffPreview />
 
         <ThemeEditor
           label="浅色主题"
@@ -226,54 +225,6 @@ function ThemeEditor({ label, presets, theme, themeKey, onChange, onNotify, onRe
   );
 }
 
-// 渲染主题代码预览，让颜色、字体和代码字号变化有直接参照。
-function DiffPreview() {
-  return (
-    <div className="settings-code-preview grid grid-cols-2 overflow-hidden border-b border-line font-mono max-md:grid-cols-1">
-      <pre className="m-0 overflow-x-auto border-r border-line bg-surface-muted p-0 max-md:border-r-0 max-md:border-b">
-        {[
-          ["1", "const themePreview: ThemeConfig = {"],
-          ["2", '  surface: "sidebar",'],
-          ["3", '  accent: "#2563eb",'],
-          ["4", "  contrast: 42,"],
-          ["5", "};"],
-        ].map(([line, code], index) => (
-          <DiffLine key={line} code={code} line={line} tone={index > 0 && index < 4 ? "removed" : "neutral"} />
-        ))}
-      </pre>
-      <pre className="m-0 overflow-x-auto bg-surface-muted p-0">
-        {[
-          ["1", "const themePreview: ThemeConfig = {"],
-          ["2", '  surface: "sidebar-elevated",'],
-          ["3", '  accent: "#0ea5e9",'],
-          ["4", "  contrast: 68,"],
-          ["5", "};"],
-        ].map(([line, code], index) => (
-          <DiffLine key={line} code={code} line={line} tone={index > 0 && index < 4 ? "added" : "neutral"} />
-        ))}
-      </pre>
-    </div>
-  );
-}
-
-// 渲染差异预览中的单行代码，按颜色或符号模式展示变更。
-function DiffLine({ code, line, tone }: { code: string; line: string; tone: "added" | "removed" | "neutral" }) {
-  const toneStyle =
-    tone === "added"
-      ? { background: "var(--diff-added-bg)", color: "var(--diff-added-text)" }
-      : tone === "removed"
-        ? { background: "var(--diff-removed-bg)", color: "var(--diff-removed-text)" }
-        : undefined;
-  const stripeColor = tone === "added" ? "var(--diff-added-line)" : tone === "removed" ? "var(--diff-removed-line)" : "transparent";
-  return (
-    <span className="grid grid-cols-[4px_44px_minmax(420px,1fr)] px-0 py-1" style={toneStyle}>
-      <span aria-hidden="true" style={{ background: stripeColor }} />
-      <span className="text-right text-muted">{line}</span>
-      <code>{code}</code>
-    </span>
-  );
-}
-
 // 渲染通用设置行，左侧为说明，右侧为具体控件。
 function SettingsRow({ control, description, title }: { control: ReactNode; description?: string; title: string }) {
   return (
@@ -328,7 +279,7 @@ function ToggleSwitch({ ariaLabel, checked, disabled = false, onChange }: { aria
       type="button"
       onClick={() => onChange(!checked)}
     >
-      <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition ${checked ? "left-7" : "left-1"}`} />
+      <span className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${checked ? "left-7" : "left-1"}`} />
     </button>
   );
 }

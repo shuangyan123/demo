@@ -3,18 +3,25 @@
 import { useState } from "react";
 import { automationFailureLabel, automationRecoveryLabel } from "../../services/automation-failure";
 import type { AutomationRecoveryAction, AutomationRun } from "../../types/review";
-import { Button, EmptyState, Panel } from "../shared/ui-primitives";
+import { Button, EmptyState } from "../shared/ui-primitives";
 import { AutomationSummaryList } from "./automation-editor";
+import styles from "./automation-workspace.module.css";
 import type { AutomationCenter } from "./use-automation-center";
 import { automationErrorMessage, formatAutomationDate } from "./automation-ui";
 
-/** 渲染本地运行收件箱及通知、已读操作。 */
+/** 运行收件箱：在有限侧栏宽度内展示状态、摘要和按需详情。 */
 export function AutomationInbox({
   center,
+  filter,
+  runs,
+  onFilterChange,
   onNotice,
   onRecoveryAction,
 }: {
   center: AutomationCenter;
+  filter: "all" | "unread" | "succeeded" | "failed";
+  runs: AutomationRun[];
+  onFilterChange: (value: "all" | "unread" | "succeeded" | "failed") => void;
   onNotice: (message: string) => void;
   onRecoveryAction: (action: AutomationRecoveryAction) => void;
 }) {
@@ -26,88 +33,101 @@ export function AutomationInbox({
   }
 
   return (
-    <Panel title={`运行收件箱${center.snapshot.unreadCount ? ` · ${center.snapshot.unreadCount} 未读` : ""}`} eyebrow="结果仅供确认，不会自动修改业务数据">
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => runAction(center.requestNotifications(), "浏览器通知开启失败")}>开启浏览器通知</Button>
-        <Button variant="outline" disabled={!center.snapshot.unreadCount} onClick={() => runAction(center.markAllRead(), "收件箱更新失败")}>全部标为已读</Button>
+    <>
+      <div className={styles.inboxToolbar}>
+        <select
+          aria-label="筛选运行收件箱"
+          className={styles.select}
+          value={filter}
+          onChange={(event) => onFilterChange(event.currentTarget.value as typeof filter)}
+        >
+          <option value="all">全部运行</option>
+          <option value="unread">未读优先</option>
+          <option value="succeeded">成功</option>
+          <option value="failed">失败</option>
+        </select>
+        <Button variant="outline" disabled={!center.snapshot.unreadCount} onClick={() => runAction(center.markAllRead(), "收件箱更新失败")}>全部已读</Button>
       </div>
-      {center.snapshot.runs.length ? (
-        <div className="grid gap-3">
-          {center.snapshot.runs.map((run) => (
-            <article key={run.id} className={`rounded-xl border p-4 ${run.unread ? "border-blue bg-blue/5" : "border-line bg-surface"}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <strong>{run.automationName}</strong>
-                <span className={`text-xs ${run.status === "failed" ? "text-danger" : "text-muted"}`}>
-                  {run.status === "failed" ? "失败" : run.status === "succeeded" ? "已完成" : "运行中"} · {formatAutomationDate(run.startedAt || run.createdAt)}
+      {runs.length ? (
+        <div className={styles.inboxList}>
+          {runs.map((run) => (
+            <article key={run.id} className={styles.runCard} data-status={run.status} data-unread={run.unread}>
+              <button aria-label={`查看详情：${run.automationName}`} className={styles.runSummary} type="button" onClick={() => setExpandedRunId((current) => current === run.id ? undefined : run.id)}>
+                <span>
+                  <strong>{run.automationName}</strong>
+                  <small>{run.status === "failed" ? "失败" : run.status === "succeeded" ? "成功" : "运行中"} · {formatAutomationDate(run.startedAt || run.createdAt)}</small>
                 </span>
-              </div>
-              {run.missedCount > 0 ? <p className="mt-2 text-xs text-muted">本次为合并补跑，跳过 {run.missedCount} 个旧周期。</p> : null}
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{run.result || run.error || "正在生成结果…"}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => setExpandedRunId((current) => current === run.id ? undefined : run.id)}>
-                  {expandedRunId === run.id ? "收起详情" : "查看详情"}
-                </Button>
-                {run.unread ? <Button variant="outline" onClick={() => runAction(center.markRead(run.id), "运行记录更新失败")}>标为已读</Button> : null}
-              </div>
-              {expandedRunId === run.id ? <AutomationRunDetails run={run} onRecoveryAction={onRecoveryAction} /> : null}
+                <span>{run.unread ? "未读" : ""} ›</span>
+              </button>
+              <p className={styles.runExcerpt}>{run.result || run.error || "正在生成结果…"}</p>
+              {run.collectionSummary ? (
+                <div className={styles.metricStrip} aria-label="采集运行摘要">
+                  <span>发现 <strong>{run.collectionSummary.discoveredCount}</strong></span>
+                  <span>抓取 <strong>{run.collectionSummary.fetchedCount}</strong></span>
+                  <span>去重 <strong>{run.collectionSummary.duplicateCount}</strong></span>
+                  <span>A/B/C <strong>{run.collectionSummary.gradeA}/{run.collectionSummary.gradeB}/{run.collectionSummary.gradeC}</strong></span>
+                  <span>争议 <strong>{run.collectionSummary.disputedCount}</strong></span>
+                </div>
+              ) : null}
+              {expandedRunId === run.id ? (
+                <AutomationRunDetails run={run} onRecoveryAction={onRecoveryAction} onMarkRead={() => runAction(center.markRead(run.id), "运行记录更新失败")} />
+              ) : null}
             </article>
           ))}
         </div>
       ) : (
-        <EmptyState><strong>收件箱为空</strong><p className="mt-2">任务完成或失败后都会在这里留下可追溯记录。</p></EmptyState>
+        <EmptyState>
+          <div className={styles.empty}>
+            <strong>{center.snapshot.runs.length ? "没有匹配的运行记录" : "收件箱为空"}</strong>
+            <p className="mt-2">任务完成或失败后都会在这里留下可追溯摘要。</p>
+          </div>
+        </EmptyState>
       )}
-    </Panel>
+      <div className={styles.inboxFooter}>
+        <Button variant="outline" onClick={() => runAction(center.requestNotifications(), "浏览器通知开启失败")}>浏览器通知</Button>
+        <span>共 {runs.length} 条</span>
+      </div>
+    </>
   );
 }
 
 /** 展示运行详情，只读取运行记录摘要，不展示完整上下文。 */
 function AutomationRunDetails({
   run,
+  onMarkRead,
   onRecoveryAction,
 }: {
   run: AutomationRun;
+  onMarkRead: () => void;
   onRecoveryAction: (action: AutomationRecoveryAction) => void;
 }) {
-  const failed = run.status === "failed";
   return (
-    <div className="mt-4 rounded-lg border border-line bg-background p-3">
-      <div className="grid gap-2 text-xs text-muted sm:grid-cols-2">
+    <div className={styles.runDetails}>
+      <p>{run.result || run.error || "正在生成结果…"}</p>
+      <div className={styles.detailGrid}>
         <span>触发方式：{run.trigger === "manual" ? "手动" : run.trigger === "catchup" ? "合并补跑" : "计划任务"}</span>
-        <span>计划时间：{formatAutomationDate(run.scheduledAt)}</span>
-        <span>开始时间：{formatAutomationDate(run.startedAt)}</span>
-        <span>完成时间：{formatAutomationDate(run.finishedAt)}</span>
         <span>上下文规模：约 {run.contextCharCount ?? 0} 字符</span>
+        <span>完成：{formatAutomationDate(run.finishedAt)}</span>
         <span>提案引用：{run.proposalIds.length} 条</span>
       </div>
       {run.collectionSummary ? (
-        <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface-muted p-3 text-xs sm:grid-cols-4 lg:grid-cols-8">
-          <span>发现 <strong>{run.collectionSummary.discoveredCount}</strong></span>
-          <span>抓取 <strong>{run.collectionSummary.fetchedCount}</strong></span>
-          <span>去重 <strong>{run.collectionSummary.duplicateCount}</strong></span>
-          <span>A 级 <strong>{run.collectionSummary.gradeA}</strong></span>
-          <span>B 级 <strong>{run.collectionSummary.gradeB}</strong></span>
-          <span>C 级 <strong>{run.collectionSummary.gradeC}</strong></span>
-          <span>争议 <strong>{run.collectionSummary.disputedCount}</strong></span>
-          <span>复核 <strong>{run.collectionSummary.reviewStatus === "not_configured" ? "未交叉" : run.collectionSummary.reviewStatus === "disputed" ? "有分歧" : "一致"}</strong></span>
-        </div>
+        <p className="text-xs text-muted">
+          A 级 {run.collectionSummary.gradeA} · B 级 {run.collectionSummary.gradeB} · C 级 {run.collectionSummary.gradeC} ·
+          复核 {run.collectionSummary.reviewStatus === "not_configured" ? "未交叉" : run.collectionSummary.reviewStatus === "disputed" ? "有分歧" : "一致"}
+        </p>
       ) : null}
-      {run.contextSummary?.length ? (
-        <div className="mt-3">
-          <strong className="text-sm">读取摘要</strong>
-          <AutomationSummaryList summary={run.contextSummary} />
-        </div>
-      ) : null}
-      {failed ? (
-        <div className="mt-3 rounded-lg border border-red/20 bg-red/5 p-3">
-          <strong className="text-sm text-danger">{automationFailureLabel(run.failureCategory)}</strong>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{run.error}</p>
+      {run.contextSummary?.length ? <div><strong className="text-sm">读取摘要</strong><AutomationSummaryList summary={run.contextSummary} /></div> : null}
+      {run.status === "failed" ? (
+        <div className={styles.failure}>
+          <strong>{automationFailureLabel(run.failureCategory)}</strong>
           {run.failureRecoveryAction && run.failureRecoveryAction !== "none" ? (
-            <Button className="mt-3" size="sm" variant="outline" onClick={() => onRecoveryAction(run.failureRecoveryAction!)}>
+            <Button size="sm" variant="outline" onClick={() => onRecoveryAction(run.failureRecoveryAction!)}>
               {automationRecoveryLabel(run.failureRecoveryAction)}
             </Button>
           ) : null}
         </div>
       ) : null}
+      {run.unread ? <Button size="sm" variant="outline" onClick={onMarkRead}>标为已读</Button> : null}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { SidebarNav, WorkspaceShell } from "../shared/workspace-shell";
 import { ApiConnectionsSettingsView } from "./api-connections-settings-view";
 import { AppearanceSettingsView, SettingsNavIcon, type SettingsIconName } from "./appearance-settings-view";
 import { McpSettingsView } from "./mcp-settings-view";
+import layoutStyles from "./settings-layout.module.css";
 const PersonalizationSettingsView = dynamic(() => import("./personalization-settings-view").then((module) => module.PersonalizationSettingsView));
 const AiQuotaSettingsPanel = dynamic(() => import("./plugins/quota/ai-quota-settings-panel").then((module) => module.AiQuotaSettingsPanel));
 
@@ -119,6 +120,16 @@ export function SettingsWorkspace({
         </>
       }
     >
+      <label className="sr-only" htmlFor="mobile-settings-section">设置分区</label>
+      <select
+        id="mobile-settings-section"
+        aria-label="设置分区"
+        className={layoutStyles.mobilePicker}
+        value={activeSection}
+        onChange={(event) => onSectionChange(event.currentTarget.value as SettingsSectionKey)}
+      >
+        {settingsSections.map((section) => <option key={section.key} value={section.key}>{section.label}</option>)}
+      </select>
       <div key={activeSection} className="settings-section-enter settings-section-layout">{renderSection()}</div>
       {toast ? <div className="ui-toast fixed left-1/2 top-14 z-50 -translate-x-1/2 border border-line bg-surface px-4 py-2 text-sm">{toast}</div> : null}
     </WorkspaceShell>

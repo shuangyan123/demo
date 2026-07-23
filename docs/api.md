@@ -254,3 +254,6 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 - 本阶段不新增 HTTP API 或公开路由。辅导仍复用 `/api/ai/generate`，面试继续使用现有本地 repository 和 AI 连接边界。
 - 辅导请求必须显式传入当前对话选择的 `modelId` 与 `selectedRuntimeValues`；`ApiConnectionProfile.model` 仍只用于历史迁移，不能作为运行时回退。
 - `ensureConversationSession()` 和 `putConversationTurn()` 使用对话/消息确定性 ID，重试返回既有记录。持久化输入继续拒绝 `data:image`、`data:audio`、`data:video` 与 `blob:`。
+# P2 已安排与设置界面说明
+
+本轮没有新增或修改 HTTP API。已安排摘要、筛选和最近运行映射均在客户端从现有序列化快照派生；设置继续调用现有连接、模型目录、额度、MCP 与诊断接口。连接详情不返回或展示解密后的密钥，运行记录也不新增网页正文、MCP 原始结果或完整提示词字段。

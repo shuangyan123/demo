@@ -9,6 +9,7 @@ test("已安排表单完整交互不会触发空事件目标运行时错误", as
   await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
 
   await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "新建任务" }).click();
   await expect(page.getByText("新建已安排")).toBeVisible();
   await expectNoFrameworkOverlay(page);
 
@@ -55,7 +56,8 @@ test("已安排表单完整交互不会触发空事件目标运行时错误", as
   await page.getByRole("button", { name: "创建已安排" }).click();
   const taskCard = page.locator("article").filter({ hasText: "事件生命周期回归" }).first();
   await expect(taskCard).toBeVisible();
-  await taskCard.getByRole("button", { name: "立即运行" }).click();
+  await taskCard.getByRole("button", { name: /事件生命周期回归/ }).click();
+  await page.getByRole("button", { name: "立即运行" }).click();
 
   const inbox = page.locator("section").filter({ hasText: "运行收件箱" }).first();
   await expect(inbox.getByText("请先配置默认文本连接")).toBeVisible();
