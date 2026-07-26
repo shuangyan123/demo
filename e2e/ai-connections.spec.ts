@@ -75,6 +75,18 @@ test("本机密钥库缺失时连接进入可恢复状态且重输只替换当�
 
 test("官方厂商保存反馈就近显示且切换厂商原地更新", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
+  // 本用例只验证本机保存语义；隔离默认能力选择器的后台官方目录刷新，禁止 CI 访问真实模型服务。
+  await page.route("**/api/ai/models", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        models: [],
+        fetchedAt: "2026-07-26T00:00:00.000Z",
+        complete: true,
+      }),
+    });
+  });
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "AI 连接" }).click();
