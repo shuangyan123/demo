@@ -5,7 +5,7 @@ import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { aiQuotaProviderPlugins, getAiQuotaPlugin } from "./ai-quota-plugins.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 import { secretContext } from "./secret-context.ts";
-import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
+import { attemptStoredSecretsMigration } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
 
 export type SaveQuotaPluginInput = {
@@ -50,7 +50,6 @@ async function getConfig(id: ApiProvider | "manual"): Promise<AiQuotaPluginConfi
 }
 
 async function decryptCredentials(config: AiQuotaPluginConfig): Promise<Partial<Record<AiQuotaCredentialKey, string>>> {
-  await ensureStoredSecretsMigrated();
   const credentials: Partial<Record<AiQuotaCredentialKey, string>> = { teamId: config.parameters?.teamId };
   for (const [key, encrypted] of Object.entries(config.encryptedCredentials ?? {})) {
     if (!encrypted) continue;
@@ -141,7 +140,8 @@ export const aiQuotaRepository = {
   },
 
   async saveConfig(input: SaveQuotaPluginInput): Promise<AiQuotaPluginConfig> {
-    await ensureStoredSecretsMigrated();
+    // 旧凭据迁移是尽力而为的后台维护，不能阻断当前额度配置使用新的 v2 密钥保存。
+    void attemptStoredSecretsMigration();
     const configs = readActiveQuotaRecords<AiQuotaPluginConfig>(AI_QUOTA_CONFIG_STORAGE_KEY);
     const existing = configs.find((config) => config.id === input.id);
     const plugin = getAiQuotaPlugin(input.id);
@@ -167,6 +167,26 @@ export const aiQuotaRepository = {
       updatedAt: toISODate(input.today),
     };
     writeJsonArray(AI_QUOTA_CONFIG_STORAGE_KEY, [config, ...configs.filter((item) => item.id !== input.id)]);
+    return config;
+  },
+
+  /** 启停只更新目标记录，不读取凭据，也不触发共享旧密钥迁移。 */
+  async setEnabled(id: ApiProvider | "manual", enabled: boolean, today: Date): Promise<AiQuotaPluginConfig> {
+    const configs = readActiveQuotaRecords<AiQuotaPluginConfig>(AI_QUOTA_CONFIG_STORAGE_KEY);
+    const existing = configs.find((config) => config.id === id);
+    const plugin = getAiQuotaPlugin(id);
+    const config: AiQuotaPluginConfig = existing
+      ? { ...existing, enabled, updatedAt: toISODate(today) }
+      : {
+          id,
+          provider: plugin.provider,
+          label: plugin.label,
+          enabled,
+          encryptedCredentials: {},
+          currency: "USD",
+          updatedAt: toISODate(today),
+        };
+    writeJsonArray(AI_QUOTA_CONFIG_STORAGE_KEY, [config, ...configs.filter((item) => item.id !== id)]);
     return config;
   },
 

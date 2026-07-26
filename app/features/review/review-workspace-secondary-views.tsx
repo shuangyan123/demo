@@ -13,7 +13,7 @@ import {
 import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 
 /** 渲染训练、知识和低频专项视图，保持业务依赖由 controller 注入。 */
-export function ReviewWorkspaceSecondaryViews({ controller }: { controller: ReviewWorkspaceController }) {
+export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }: { controller: ReviewWorkspaceController; developmentExample?: string }) {
   const { aiConnections, automation, conversation, data, knowledge, learning, personalization, workspace } = controller;
   const view = workspace.view;
 
@@ -145,6 +145,7 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
           textConnection={aiConnections.textConnection}
           visionConnection={aiConnections.visionConnection}
           today={workspace.today}
+          developmentExample={developmentExample}
           onChanged={data.refreshData}
           onAppearanceChange={workspace.updateAppearanceSettings}
           onConfirmKnowledgeDrafts={knowledge.actions.confirmDrafts}

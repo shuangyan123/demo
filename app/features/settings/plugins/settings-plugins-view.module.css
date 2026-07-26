@@ -42,20 +42,26 @@
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  border: 1px solid var(--color-line);
+  border: 0;
   border-radius: 7px;
+  outline: 0;
+  background: var(--color-surface-muted);
+  box-shadow: none;
 }
 
 .toolbar label:focus-within {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: 0;
+  background: color-mix(in srgb, var(--color-foreground) 7%, var(--color-surface));
+  box-shadow: none;
 }
 
 .toolbar input {
   width: 100%;
   min-height: 34px;
-  outline: none;
+  border: 0 !important;
+  outline: 0 !important;
   background: transparent;
+  box-shadow: none !important;
   font-size: 13px;
 }
 
@@ -66,7 +72,8 @@
 
 .layout {
   display: grid;
-  min-height: 620px;
+  height: min(620px, calc(100dvh - 10rem));
+  min-height: 360px;
   grid-template-columns: minmax(360px, 42%) minmax(0, 1fr);
   border: 1px solid var(--color-line);
   border-top: 0;
@@ -75,6 +82,8 @@
 }
 
 .list {
+  min-height: 0;
+  overflow-y: auto;
   border-right: 1px solid var(--color-line);
 }
 
@@ -151,18 +160,29 @@
 
 .detailBackdrop {
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .detail {
+  container-type: inline-size;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   outline: none;
 }
 
 .detailHeader {
+  position: sticky;
+  z-index: 2;
+  top: 0;
   min-height: 74px;
   justify-content: flex-start;
   padding: 14px 18px;
   border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
 }
 
 .detailHeader > div {
@@ -281,6 +301,7 @@
 
   .layout {
     display: block;
+    height: auto;
     min-height: 0;
   }
 
@@ -303,6 +324,7 @@
   }
 
   .detail {
+    height: auto;
     max-height: min(88dvh, 760px);
     overflow-y: auto;
     border-radius: 16px 16px 0 0;

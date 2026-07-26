@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { settingsPluginDefinitions, type SettingsPluginRuntimeContext } from "./plugins/settings-plugin-registry.ts";
 import { integrationBranding } from "../../services/integration-branding.ts";
@@ -43,4 +44,16 @@ test("Obsidian 使用固定版本 Lobe 品牌资产并登记校验值", () => {
   assert.equal(integrationBranding.obsidian.version, "1.91.0");
   assert.equal(integrationBranding.obsidian.license, "MIT");
   assert.match(integrationBranding.obsidian.sha256, /^[a-f0-9]{64}$/);
+});
+
+test("插件搜索无黑色焦点框且详情使用容器级滚动边界", async () => {
+  const [styles, importStyles] = await Promise.all([
+    readFile(new URL("./plugins/settings-plugins-view.module.css", import.meta.url), "utf8"),
+    readFile(new URL("../import/review-import-view.module.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(styles, /\.toolbar label[\s\S]*border:\s*0/);
+  assert.match(styles, /\.toolbar input[\s\S]*box-shadow:\s*none !important/);
+  assert.match(styles, /\.detail[\s\S]*container-type:\s*inline-size/);
+  assert.match(styles, /\.detail[\s\S]*overflow-x:\s*hidden/);
+  assert.match(importStyles, /@container \(max-width: 720px\)/);
 });

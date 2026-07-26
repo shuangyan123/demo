@@ -55,6 +55,7 @@
   background: var(--surface-muted);
   font-size: .6875rem;
   font-weight: 650;
+  text-align: center;
 }
 
 .connectionRow {
@@ -77,14 +78,15 @@
   color: inherit;
   background: transparent;
   text-align: left;
+  justify-self: center;
 }
 
 .connectionIdentity strong,
 .connectionIdentity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connectionIdentity strong { font-size: .8125rem; }
 .connectionIdentity small { margin-top: .15rem; color: var(--muted); font-size: .7rem; }
-.connectionUrl { overflow: hidden; color: var(--muted); font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
-.connectionStatus { color: var(--muted); font-size: .75rem; }
+.connectionUrl { overflow: hidden; color: var(--muted); font-size: .7rem; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.connectionStatus { color: var(--muted); font-size: .75rem; text-align: center; }
 .connectionStatus[data-status="success"] { color: var(--green); }
 .connectionStatus[data-status="failed"] { color: var(--red); }
 
@@ -101,7 +103,11 @@
 .credentialRecovery span {
   color: var(--muted);
 }
-.connectionActions { display: flex; justify-content: flex-end; gap: .15rem; }
+.connectionActions { display: flex; justify-content: center; gap: .15rem; }
+
+.connectionRow > :nth-child(4) {
+  text-align: center;
+}
 
 .connectionDetails {
   display: grid;

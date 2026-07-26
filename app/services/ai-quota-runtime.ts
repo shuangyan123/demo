@@ -71,22 +71,25 @@ export class QuotaRuntimeStore {
 
   /** 测试可显式释放监听器；产品运行时保持单例直到页面关闭。 */
   dispose(): void {
-    if (typeof window === "undefined" || !this.initialized) return;
-    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
-    window.removeEventListener("online", this.handleOnline);
-    window.removeEventListener("offline", this.handleOffline);
-    if (this.intervalId) window.clearInterval(this.intervalId);
+    if (typeof window === "undefined") return;
+    if (this.initialized) {
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+      window.removeEventListener("online", this.handleOnline);
+      window.removeEventListener("offline", this.handleOffline);
+      if (this.intervalId) window.clearInterval(this.intervalId);
+    }
     for (const controller of this.inFlight.values()) controller.abort();
     this.inFlight.clear();
+    while (this.queue.length) this.queue.shift()?.resolve();
     this.initialized = false;
   }
 
-  /** 启用状态立即保存；凭据完整时先验证再强制刷新一次。 */
+  /** 保存配置后立即发布；外部验证放到后台，失败不会撤销已保存配置。 */
   async saveAndActivate(input: SaveQuotaPluginInput): Promise<void> {
     await aiQuotaRepository.saveConfig(input);
     this.syncFromRepository();
     if (!input.enabled) {
-      this.inFlight.get(input.id)?.abort();
+      this.cancel(input.id);
       this.setEntry(input.id, { status: "disabled", message: "未启用" });
       return;
     }
@@ -94,7 +97,23 @@ export class QuotaRuntimeStore {
       this.setEntry(input.id, { status: "needs-credentials", message: "待配置额度查询凭据" });
       return;
     }
-    await this.enqueue(input.id, true);
+    void this.enqueue(input.id, true).catch(() => undefined);
+  }
+
+  /** 启停使用独立短事务；启用后的网络工作始终在后台运行。 */
+  async setEnabled(id: ApiProvider | "manual", enabled: boolean, today = new Date()): Promise<void> {
+    await aiQuotaRepository.setEnabled(id, enabled, today);
+    this.syncFromRepository();
+    if (!enabled) {
+      this.cancel(id);
+      this.setEntry(id, { status: "disabled", message: "未启用" });
+      return;
+    }
+    if (!aiQuotaRepository.isConfigured(id)) {
+      this.setEntry(id, { status: "needs-credentials", message: "待配置额度查询凭据" });
+      return;
+    }
+    void this.enqueue(id, true).catch(() => undefined);
   }
 
   /** 手动刷新绕过过期判断，但仍受四路并发、超时和取消约束。 */
@@ -179,6 +198,17 @@ export class QuotaRuntimeStore {
       this.queue.push({ id, validateFirst, resolve, reject });
       this.drainQueue();
     });
+  }
+
+  /** 同时取消运行中和排队中的单一厂商任务，避免停用后仍发起请求。 */
+  private cancel(id: ApiProvider | "manual"): void {
+    this.inFlight.get(id)?.abort();
+    for (let index = this.queue.length - 1; index >= 0; index -= 1) {
+      const item = this.queue[index];
+      if (item.id !== id) continue;
+      this.queue.splice(index, 1);
+      item.resolve();
+    }
   }
 
   private drainQueue(): void {

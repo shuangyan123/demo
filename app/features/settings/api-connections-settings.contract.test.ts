@@ -50,3 +50,15 @@ test("AI 连接保存反馈靠近提交按钮且切换厂商保留编辑记录",
   assert.match(source, /切换厂商后必须重新输入 API Key/);
   assert.match(source, /apiKeyInputRef\.current\?\.focus\(\)/);
 });
+
+test("AI 连接开发示例复用五列表格且真实仓储容器按示例状态隔离", async () => {
+  const [source, styles] = await Promise.all([
+    readSource(),
+    readFile(new URL("./settings-compact.module.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(source, /ApiConnectionsDevelopmentExample/);
+  assert.match(source, /ApiConnectionsSettingsLiveView/);
+  assert.match(source, /if \(example\.value\)/);
+  assert.match(styles, /\.connectionTableHeader[\s\S]*text-align:\s*center/);
+  assert.match(styles, /\.connectionActions[\s\S]*justify-content:\s*center/);
+});

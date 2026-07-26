@@ -12,6 +12,7 @@ import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnec
 import type { AiModelCatalogEntry } from "../../types/domains/provider-catalog.ts";
 import { Button, EmptyState, cx } from "../shared/ui-primitives";
 import { ProviderIcon } from "../shared/provider-icon";
+import { DevelopmentExampleSwitcher, useDevelopmentExample, type DevelopmentExampleOption } from "../shared/development-example-switcher";
 import { ProviderSelect } from "./provider-select";
 import { DefaultCapabilitySelector } from "./default-capability-selector";
 import { ModelCatalogSelect } from "./model-catalog-select";
@@ -34,6 +35,11 @@ type ConnectionForm = {
 };
 
 const capabilityLabels: Partial<Record<AiCapability, string>> = { text: "文本", vision: "多模态", structured_output: "结构化输出", speech: "语音", transcription: "录音转写" };
+const connectionExampleOptions: DevelopmentExampleOption[] = [
+  { id: "connections-ready", label: "非空连接表" },
+  { id: "credential-recovery", label: "凭据需要重输" },
+  { id: "connection-failed", label: "连接测试失败" },
+];
 
 // 连接档案只描述厂商、鉴权与协议能力，模型由会话或默认能力单独持有。
 function createForm(provider: ApiProvider = "openai"): ConnectionForm {
@@ -81,8 +87,27 @@ function providerOptionsForForm(form: ConnectionForm): Record<string, string> {
   return {};
 }
 
+/** AI 连接入口在开发环境可切换纯内存示例，示例态不会挂载真实仓储容器。 */
+export function ApiConnectionsSettingsView({ developmentExample, onChanged }: { developmentExample?: string; onChanged?: () => void }) {
+  const example = useDevelopmentExample(developmentExample, connectionExampleOptions);
+  if (example.value) {
+    return (
+      <section className={compactStyles.connectionLayout}>
+        <DevelopmentExampleSwitcher options={connectionExampleOptions} value={example.value} onChange={example.select} />
+        <ApiConnectionsDevelopmentExample scenario={example.value} />
+      </section>
+    );
+  }
+  return (
+    <>
+      {example.enabled ? <DevelopmentExampleSwitcher options={connectionExampleOptions} value={example.value} onChange={example.select} /> : null}
+      <ApiConnectionsSettingsLiveView onChanged={onChanged} />
+    </>
+  );
+}
+
 // 配置多厂商连接、能力默认值和连接测试；厂商协议细节只存在于服务端适配器。
-export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => void }) {
+function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void }) {
   const [snapshot, setSnapshot] = useState<AiConnectionSnapshot>({ profiles: [], defaults: { id: "default", updatedAt: "" } });
   const [form, setForm] = useState<ConnectionForm>(() => createForm());
   const [busyAction, setBusyAction] = useState("");
@@ -477,6 +502,39 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
             </div>
           ) : null}
       </section>
+    </section>
+  );
+}
+
+/** 展示连接表的典型非空和恢复状态，只使用固定脱敏元数据。 */
+function ApiConnectionsDevelopmentExample({ scenario }: { scenario: string }) {
+  const recovery = scenario === "credential-recovery";
+  const failed = scenario === "connection-failed";
+  const rows = [
+    { id: "example-openai", provider: "openai" as const, vendor: "OpenAI", label: "默认文本连接", url: "https://api.openai.com/v1", status: recovery ? "需要重新输入" : "已验证", tested: recovery ? "凭据不可读" : "今天 10:24" },
+    { id: "example-claude", provider: "anthropic" as const, vendor: "Anthropic Claude", label: "长文本分析", url: "https://api.anthropic.com", status: failed ? "验证失败" : "已保存", tested: failed ? "刚刚" : "尚未测试" },
+  ];
+  return (
+    <section className={compactStyles.connectionList} aria-label="AI 连接开发示例">
+      <div className="flex items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">AI 连接</h1><p className="mt-1 text-sm text-muted">示例数据仅用于批注布局和异常状态。</p></div><span className="text-sm text-muted">2 个</span></div>
+      {recovery ? <div className={`${compactStyles.credentialRecovery} mt-4`} role="status"><strong>凭据需要重新输入</strong><span>当前来源无法读取原凭据；重新输入只会替换此连接。</span></div> : null}
+      <div className={compactStyles.connectionTable}>
+        <div className={compactStyles.connectionTableHeader} aria-hidden="true">
+          <span>厂商 / 连接名称</span><span>Base URL</span><span>状态</span><span>最近测试</span><span>操作</span>
+        </div>
+        {rows.map((row) => (
+          <article key={row.id} className={compactStyles.connectionRow}>
+            <button className={compactStyles.connectionIdentity} type="button">
+              <ProviderIcon provider={row.provider} size={26} />
+              <span><strong>{row.vendor}</strong><small>{row.label}</small></span>
+            </button>
+            <code className={compactStyles.connectionUrl}>{row.url}</code>
+            <span className={compactStyles.connectionStatus} data-status={row.status.includes("失败") || row.status.includes("重新") ? "failed" : "success"}>{row.status}</span>
+            <span className="text-center text-xs text-muted">{row.tested}</span>
+            <div className={compactStyles.connectionActions}><Button size="sm" variant="ghost">{recovery && row.id === "example-openai" ? "重新输入密钥" : "编辑"}</Button><Button size="sm" variant="ghost">测试</Button></div>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

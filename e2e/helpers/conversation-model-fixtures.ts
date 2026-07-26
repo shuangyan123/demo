@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 export type ModelConnectionFixture = {
   id: string;
   label: string;
-  provider: "openai" | "google" | "zhipu" | "custom";
+  provider: "openai" | "google" | "anthropic" | "zhipu" | "custom";
   apiFormat: "responses" | "google_generate_content" | "chat_completions";
   baseUrl?: string;
 };

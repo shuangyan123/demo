@@ -61,6 +61,19 @@
   }
 }
 
+/* 插件详情是窄容器时按真实可用宽度降为单列，不依赖整个浏览器宽度。 */
+@container (max-width: 720px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sources {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 @media (max-width: 640px) {
   .header {
     align-items: stretch;
