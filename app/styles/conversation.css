@@ -46,8 +46,8 @@
 
 .conversation-tree-folder-row.is-drop-target,
 .conversation-tree-root.is-drop-target {
-  outline: 1px solid var(--blue);
-  background: color-mix(in srgb, var(--blue) 9%, transparent);
+  outline: 2px solid var(--focus-ring);
+  background: var(--interactive-selected-bg);
 }
 
 .conversation-tree-folder-label,
@@ -88,7 +88,7 @@
 .conversation-tree-inline-rename {
   min-width: 0;
   min-height: 1.8rem;
-  border: 1px solid var(--blue);
+  border: 1px solid var(--foreground);
   border-radius: 0.35rem;
   background: var(--surface);
   padding: 0.2rem 0.45rem;
@@ -111,8 +111,8 @@
 }
 
 .conversation-tree-root-target.is-drop-target {
-  border-color: var(--blue);
-  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+  border-color: var(--foreground);
+  background: var(--interactive-selected-bg);
   color: var(--foreground);
 }
 
@@ -193,17 +193,32 @@
   box-shadow: 0 -20px 55px rgba(0, 0, 0, 0.3);
 }
 
+.conversation-tree-drawer section > button,
+.conversation-tree-move-menu > button {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.25rem;
+  text-align: left;
+}
+
+.conversation-tree-drawer section > button > span,
+.conversation-tree-move-menu > button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .conversation-tree-drawer-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.conversation-tree-drawer label {
-  display: grid;
-  gap: 0.3rem;
-  color: var(--muted);
-  font-size: 0.75rem;
+.conversation-tree-move-menu {
+  max-height: min(24rem, calc(100vh - 1rem));
+  overflow-y: auto;
 }
 
 .conversation-tree-drawer .is-danger {
@@ -215,7 +230,7 @@
     position: fixed;
     right: auto;
     bottom: auto;
-    width: 11.5rem;
+    width: 13rem;
     border-radius: 0.55rem;
     padding: 0.35rem;
     box-shadow: 0 12px 32px rgb(0 0 0 / 16%);
@@ -229,9 +244,60 @@
     display: none;
   }
 
-  .conversation-tree-drawer > section > button,
-  .conversation-tree-drawer > section > label {
-    min-height: 2rem;
+  .conversation-tree-drawer > section > button {
+    min-height: 2.25rem;
+  }
+
+  .conversation-tree-drawer > section > .conversation-tree-move-menu {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 0.5rem);
+    width: 14rem;
+    justify-self: auto;
+    gap: 0.2rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    background: var(--surface);
+    padding: 0.35rem;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 16%);
+  }
+
+  .conversation-tree-drawer > section[data-submenu-side="left"] .conversation-tree-move-menu {
+    right: calc(100% + 0.5rem);
+    left: auto;
+  }
+
+  .conversation-tree-move-menu > button {
+    min-height: 2.25rem;
+    border-radius: 0.45rem;
+    padding: 0.35rem 0.55rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .conversation-tree-drawer section > button,
+  .conversation-tree-move-menu > button {
+    min-height: 2.75rem;
+  }
+
+  .conversation-tree-drawer > section[data-mobile-hidden="true"] > :not(.conversation-tree-move-menu) {
+    display: none;
+  }
+
+  .conversation-tree-drawer > section[data-mobile-hidden="true"] {
+    padding: 0;
+  }
+
+  .conversation-tree-move-menu {
+    display: grid;
+    gap: 0.65rem;
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .conversation-tree-move-menu .conversation-tree-drawer-title {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) 2rem;
   }
 }
 
