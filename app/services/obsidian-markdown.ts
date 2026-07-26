@@ -1,4 +1,4 @@
-import type { KnowledgeCategory, KnowledgeEntry } from "../types/review";
+import type { KnowledgeCategory, KnowledgeEntry } from "../types/domains/knowledge.ts";
 
 const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const WIKILINK_PATTERN = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;

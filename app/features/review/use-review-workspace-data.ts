@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { associationRepository } from "../../services/association-repository";
 import { knowledgeRepository } from "../../services/knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
-import type { Attempt, ImportJob, KnowledgeEntry, KnowledgeMistakeLink, Mistake } from "../../types/review";
+import type { Attempt, Mistake } from "../../types/domains/review.ts";
+import type { ImportJob } from "../../types/domains/import.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { KnowledgeMistakeLink } from "../../types/domains/association.ts";
 
 type ReviewWorkspaceDataNotice = {
   onReadFailed: (error: unknown) => void;
@@ -52,11 +55,18 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
   }, [notice, today]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refreshData().catch((error) => {
-      notice.onReadFailed(error);
-      setLoading(false);
-    });
+    let active = true;
+    const timer = window.setTimeout(() => {
+      refreshData().catch((error) => {
+        if (!active) return;
+        notice.onReadFailed(error);
+        setLoading(false);
+      });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [notice, refreshData]);
 
   return {

@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import type { PersonaCustomization, PersonaProfile } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonaCustomization, PersonaProfile } from "../../types/domains/personalization.ts";
 import { PersonaEditorDialog } from "./persona-editor-dialog";
 import { PersonaVoiceSection } from "./persona-voice-section";
 
@@ -19,6 +20,7 @@ export function PersonaDefaultEditor({
   onStopVoice,
   onUpdate,
   speechError,
+  speechConnection,
   speaking,
 }: {
   customization: PersonaCustomization;
@@ -31,6 +33,7 @@ export function PersonaDefaultEditor({
   onStopVoice: () => void;
   onUpdate: (patch: Partial<PersonaCustomization>) => void;
   speechError?: string;
+  speechConnection?: ApiConnectionProfile;
   speaking: boolean;
 }) {
   const inputClass = "settings-input rounded-lg border border-line bg-surface px-3 py-2 text-sm";
@@ -95,6 +98,7 @@ export function PersonaDefaultEditor({
           onStopVoice={onStopVoice}
           onUpdate={onUpdate}
           speechError={speechError}
+          speechConnection={speechConnection}
           speaking={speaking}
         />
         </div>

@@ -1,20 +1,22 @@
 import { reviewDb } from "../db/review-db.ts";
-import type {
-  KnowledgeEntry,
-  KnowledgeEvolutionProposal,
-  ObsidianNoteMapping,
-  ObsidianSyncReport,
-  ObsidianVaultConfig,
-  ObsidianVaultSnapshot,
-} from "../types/review";
+import { isAcquisitionProposalConfirmable } from "./acquisition-trust.ts";
+import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
+import type { KnowledgeEvolutionProposal, ObsidianNoteMapping, ObsidianGraphSnapshot, ObsidianSyncReport, ObsidianVaultConfig, ObsidianVaultSnapshot } from "../types/domains/obsidian.ts";
 import {
   applyAiEvolutionSection,
   buildObsidianNotePath,
-  hashObsidianState,
   parseObsidianMarkdown,
   serializeObsidianEntry,
-  toKnowledgeSemanticState,
 } from "./obsidian-markdown.ts";
+import {
+  dayStamp,
+  entryFromNote,
+  loadObsidianGraphSnapshot,
+  normalizeKnowledgeDay,
+  nowStamp,
+  semanticHash,
+  withoutSelfLinks,
+} from "./obsidian-repository-helpers.ts";
 import {
   normalizeObsidianPath,
   ObsidianVaultError,
@@ -33,51 +35,6 @@ export type KnowledgeEvolutionSource = {
   tags: string[];
 };
 
-function nowStamp(today = new Date()): string {
-  return today.toISOString();
-}
-
-/** 知识训练日期沿用知识库的 YYYY-MM-DD 契约，避免完整时间戳破坏列表格式化。 */
-function dayStamp(today = new Date()): string {
-  return today.toISOString().slice(0, 10);
-}
-
-/** 兼容早期 Obsidian 导入写入的完整时间戳，并保持无效值不会进入训练队列。 */
-function normalizeKnowledgeDay(value: string | undefined, fallback: string): string {
-  if (!value) return fallback;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? fallback : dayStamp(parsed);
-}
-
-/** Wikilink 不允许指向当前笔记自身，避免模型提案制造无意义自环。 */
-function withoutSelfLinks(links: string[], title: string): string[] {
-  return links.filter((link) => link.trim() && link.trim() !== title.trim());
-}
-
-function entryFromNote(note: Awaited<ReturnType<typeof parseObsidianMarkdown>>, path: string, today: Date, existing?: KnowledgeEntry): KnowledgeEntry {
-  const now = dayStamp(today);
-  return {
-    id: existing?.id ?? note.reviewId ?? crypto.randomUUID(),
-    category: note.category,
-    title: note.title,
-    summary: note.summary,
-    content: note.content,
-    tags: note.tags,
-    source: `Obsidian / ${path}`,
-    favorite: existing?.favorite ?? false,
-    mastery: existing?.mastery ?? 2,
-    nextReviewAt: normalizeKnowledgeDay(existing?.nextReviewAt, now),
-    lastReviewedAt: existing?.lastReviewedAt,
-    reviewCount: existing?.reviewCount ?? 0,
-    createdAt: normalizeKnowledgeDay(existing?.createdAt, now),
-    updatedAt: now,
-  };
-}
-
-async function semanticHash(entry: KnowledgeEntry, wikilinks: string[]): Promise<string> {
-  return hashObsidianState(toKnowledgeSemanticState(entry, wikilinks));
-}
 
 /** 防止同一 repository 操作被双击或多组件并发执行。 */
 async function withOperationLock<T>(key: string, task: () => Promise<T>): Promise<T> {
@@ -326,6 +283,10 @@ export const obsidianKnowledgeRepository = {
     return reviewDb.obsidianNoteMappings.orderBy("updatedAt").reverse().toArray();
   },
 
+  async loadGraphSnapshot(): Promise<ObsidianGraphSnapshot> {
+    return loadObsidianGraphSnapshot();
+  },
+
   async mappingForKnowledge(knowledgeId: string): Promise<ObsidianNoteMapping | undefined> {
     return reviewDb.obsidianNoteMappings.where("knowledgeId").equals(knowledgeId).first();
   },
@@ -357,7 +318,8 @@ export const obsidianKnowledgeRepository = {
       !allowed || allowed.has("knowledge") ? reviewDb.knowledgeEntries.orderBy("updatedAt").reverse().limit(limit).toArray() : Promise.resolve([]),
       reviewDb.knowledgeEvolutionProposals.toArray(),
     ]);
-    const used = new Set(proposals.flatMap((item) => item.sourceIds));
+    // 已忽略提案不再永久消耗来源，用户可以修正连接或提示后重新生成。
+    const used = new Set(proposals.filter((item) => item.status === "pending" || item.status === "accepted").flatMap((item) => item.sourceIds));
     const sources: KnowledgeEvolutionSource[] = [
       ...mistakes.map((item) => ({ id: `mistake:${item.id}`, type: "mistake" as const, title: item.stem.slice(0, 80), content: [item.answer, item.explanation, item.reasons.join("、")].filter(Boolean).join("\n"), tags: [item.board, ...item.tags, ...item.reasons] })),
       ...evaluations.map((item) => ({ id: `interview:${item.id}`, type: "interview" as const, title: `面试复盘 ${item.totalScore} 分`, content: [...item.problems, ...item.suggestions, ...item.evidence].join("\n"), tags: [item.type, ...item.strengths] })),
@@ -369,6 +331,13 @@ export const obsidianKnowledgeRepository = {
 
   async saveProposals(proposals: KnowledgeEvolutionProposal[]): Promise<void> {
     if (proposals.length) await reviewDb.knowledgeEvolutionProposals.bulkPut(proposals);
+  },
+
+  /** 用户可在确认前修订生成稿，但不能改写证据、评分或审计字段。 */
+  async updateProposal(id: string, patch: Pick<KnowledgeEvolutionProposal, "title" | "summary" | "content" | "tags" | "proposedLinks">, today = new Date()): Promise<void> {
+    const proposal = await reviewDb.knowledgeEvolutionProposals.get(id);
+    if (!proposal || proposal.status !== "pending") throw new Error("演进提案已处理或不存在");
+    await reviewDb.knowledgeEvolutionProposals.update(id, { ...patch, updatedAt: nowStamp(today) });
   },
 
   async resolveConflict(path: string, choice: "vault" | "app", today = new Date()): Promise<void> {
@@ -409,6 +378,7 @@ export const obsidianKnowledgeRepository = {
     return withOperationLock(`proposal:${id}`, async () => {
       const [proposal, config] = await Promise.all([reviewDb.knowledgeEvolutionProposals.get(id), requireConnectedConfig()]);
       if (!proposal || proposal.status !== "pending") throw new Error("演进提案已处理或不存在");
+      if (!isAcquisitionProposalConfirmable(proposal)) throw new Error(proposal.provenance?.trust.blockingIssues.join("；") || "该提案存在争议，不能确认");
       const timestamp = nowStamp(today);
       const entryDate = dayStamp(today);
       let entry: KnowledgeEntry;
@@ -464,6 +434,52 @@ export const obsidianKnowledgeRepository = {
       });
       return entry;
     });
+  },
+
+  /** 批量确认先统一复读目标与来源状态，再逐项写入并返回部分成功结果。 */
+  async acceptProposals(
+    ids: string[],
+    options: { verifySource?: (proposal: KnowledgeEvolutionProposal) => Promise<void>; today?: Date } = {},
+  ): Promise<{ acceptedIds: string[]; failures: Array<{ id: string; message: string }> }> {
+    const uniqueIds = [...new Set(ids)];
+    const proposals = await reviewDb.knowledgeEvolutionProposals.bulkGet(uniqueIds);
+    const config = await requireConnectedConfig();
+    const failures: Array<{ id: string; message: string }> = [];
+    const ready: KnowledgeEvolutionProposal[] = [];
+    for (let index = 0; index < uniqueIds.length; index += 1) {
+      const id = uniqueIds[index];
+      const proposal = proposals[index];
+      try {
+        if (!proposal || proposal.status !== "pending") throw new Error("提案已处理或不存在");
+        if (!isAcquisitionProposalConfirmable(proposal)) throw new Error(proposal.provenance?.trust.blockingIssues.join("；") || "提案存在争议");
+        if (proposal.targetKnowledgeId) {
+          const entry = await reviewDb.knowledgeEntries.get(proposal.targetKnowledgeId);
+          if (!entry) throw new Error("演进目标知识不存在");
+          const mapping = await reviewDb.obsidianNoteMappings.where("knowledgeId").equals(entry.id).first();
+          if (mapping) await assertMappingRevision(config, mapping, entry, "synced");
+        }
+        if (options.verifySource) await options.verifySource(proposal);
+        ready.push(proposal);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "批量确认预检失败";
+        if (proposal?.provenance && /来源 URL 无法验证|来源内容哈希已变化/.test(message)) {
+          const blockingIssues = [...new Set([...proposal.provenance.trust.blockingIssues, message.split("：")[0]])];
+          await reviewDb.knowledgeEvolutionProposals.update(id, { provenance: { ...proposal.provenance, trust: { ...proposal.provenance.trust, blockingIssues } }, updatedAt: nowStamp(options.today) });
+        }
+        failures.push({ id, message });
+      }
+    }
+
+    const acceptedIds: string[] = [];
+    for (const proposal of ready) {
+      try {
+        await this.acceptProposal(proposal.id, options.today);
+        acceptedIds.push(proposal.id);
+      } catch (error) {
+        failures.push({ id: proposal.id, message: error instanceof Error ? error.message : "写入 Vault 失败" });
+      }
+    }
+    return { acceptedIds, failures };
   },
 
   async rejectProposal(id: string, today = new Date()): Promise<void> {

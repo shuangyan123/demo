@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
-test("个性化设置可切换定制视图并打开默认人设编辑弹层", async ({ page }) => {
+test("角色设置可切换定制视图并打开默认人设编辑弹层", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");

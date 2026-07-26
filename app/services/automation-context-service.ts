@@ -1,5 +1,5 @@
 import { reviewDb } from "../db/review-db.ts";
-import type { AutomationContextSummary, AutomationSourceScope } from "../types/review.ts";
+import type { AutomationContextSummary, AutomationSourceScope } from "../types/domains/automation.ts";
 
 const MAX_ITEMS_PER_SCOPE = 30;
 const MAX_TEXT_LENGTH = 1200;

@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
-import type { PersonalizationSettings } from "../types/review.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import {
   BUILT_IN_PERSONAS,
   createCustomPersonaDraft,
@@ -14,6 +14,8 @@ import {
   resolvePersona,
   resolvePersonaVoice,
 } from "./personalization-settings-repository.ts";
+import { buildPersonalMemoryContext, selectPersonalMemories } from "./personal-memory-context.ts";
+import { personalMemoryRepository } from "./personal-memory-repository.ts";
 
 const today = new Date("2026-06-19T08:00:00.000Z");
 
@@ -114,4 +116,94 @@ test("删除自定义角色会清理定制、默认选择和模块引用", () =>
   assert.equal(cleaned.defaultPersonaId, BUILT_IN_PERSONAS[0].id);
   assert.deepEqual(cleaned.modulePersonaIds, {});
   assert.equal(cleaned.personaCustomizations[custom.id], undefined);
+});
+
+test("旧个性化数据默认空记忆并关闭自动建议", () => {
+  const normalized = normalizePersonalizationSettings({ defaultPersonaId: "patient-teacher" }, today);
+  assert.equal(normalized.memoryVersion, 2);
+  assert.equal(normalized.memorySettings?.suggestionsEnabled, false);
+  assert.deepEqual(normalized.memoryEntries, []);
+  assert.equal(normalized.memorySettings?.contextCharacterLimit, 1500);
+});
+
+test("记忆建议必须待确认，作用域筛选和注入上限保持确定", async () => {
+  await reviewDb.personalizationSettings.clear();
+  await personalizationSettingsRepository.save(createDefaultPersonalizationSettings(today), today);
+  await personalMemoryRepository.updateSettings({ suggestionsEnabled: false, autoMemoryEnabled: false, maxEntries: 100, contextCharacterLimit: 200 }, today);
+  await assert.rejects(personalMemoryRepository.addSuggested({ kind: "preference", scope: "global", title: "风格", content: "先说结论" }, today), /已关闭/);
+  await personalMemoryRepository.updateSettings({ suggestionsEnabled: true, autoMemoryEnabled: true, maxEntries: 100, contextCharacterLimit: 200 }, today);
+  const suggested = await personalMemoryRepository.addSuggested({ kind: "preference", scope: "global", title: "风格", content: "先说结论" }, today);
+  assert.equal(suggested.memoryEntries?.[0]?.status, "pending");
+  assert.equal(buildPersonalMemoryContext(suggested), "");
+  const confirmed = await personalMemoryRepository.confirm(suggested.memoryEntries![0].id, today);
+  const withModule = {
+    ...confirmed,
+    memoryEntries: [
+      ...(confirmed.memoryEntries ?? []),
+      { id: "module", kind: "study" as const, scope: "module" as const, title: "面试", content: "回答时先列结构".repeat(2), source: "manual" as const, status: "active" as const, moduleId: "interview", createdAt: today.toISOString(), updatedAt: today.toISOString() },
+      { id: "other", kind: "goal" as const, scope: "module" as const, title: "辅导", content: "不应注入", source: "manual" as const, status: "active" as const, moduleId: "tutoring", createdAt: today.toISOString(), updatedAt: today.toISOString() },
+    ],
+  };
+  assert.deepEqual(selectPersonalMemories(withModule, { moduleId: "interview" }).map((entry) => entry.id), ["module", suggested.memoryEntries![0].id]);
+  const context = buildPersonalMemoryContext(withModule, { moduleId: "interview" });
+  assert.ok(context.includes("先说结论"));
+  assert.ok(context.includes("回答时先列结构"));
+  assert.equal(context.includes("不应注入"), false);
+  assert.ok(context.length <= 200);
+});
+
+test("手动记忆支持编辑且不改变来源、状态和创建时间", async () => {
+  await reviewDb.personalizationSettings.clear();
+  await personalizationSettingsRepository.save(createDefaultPersonalizationSettings(today), today);
+  const created = await personalMemoryRepository.addManual({ kind: "preference", scope: "global", title: "原标题", content: "原内容" }, today);
+  const entry = created.memoryEntries![0];
+  const later = new Date("2026-07-15T08:00:00.000Z");
+  const updated = await personalMemoryRepository.update(entry.id, { kind: "goal", scope: "module", title: "新标题", content: "新内容", moduleId: "conversation" }, later);
+  assert.deepEqual(updated.memoryEntries?.[0], {
+    ...entry,
+    kind: "goal",
+    scope: "module",
+    title: "新标题",
+    content: "新内容",
+    moduleId: "conversation",
+    updatedAt: later.toISOString(),
+  });
+});
+
+test("重置角色、清空记忆和全部重置互不误删", async () => {
+  await reviewDb.personalizationSettings.clear();
+  const initial = createDefaultPersonalizationSettings(today);
+  initial.defaultPersonaId = "strict-coach";
+  initial.memoryEntries = [{ id: "memory", kind: "goal", scope: "global", title: "目标", content: "通过考试", source: "manual", status: "active", createdAt: today.toISOString(), updatedAt: today.toISOString() }];
+  await personalizationSettingsRepository.save(initial, today);
+  const rolesReset = await personalMemoryRepository.resetRoles(today);
+  assert.equal(rolesReset.defaultPersonaId, "patient-teacher");
+  assert.equal(rolesReset.memoryEntries?.length, 1);
+  const memoryCleared = await personalMemoryRepository.clear(today);
+  assert.equal(memoryCleared.defaultPersonaId, "patient-teacher");
+  assert.deepEqual(memoryCleared.memoryEntries, []);
+  const allReset = await personalMemoryRepository.resetAll(today);
+  assert.equal(allReset.memorySettings?.autoMemoryEnabled, true);
+  assert.deepEqual(allReset.memoryEntries, []);
+});
+
+test("自动记忆按置信度、冲突和秘密规则分流并支持撤销", async () => {
+  await reviewDb.personalizationSettings.clear();
+  await personalizationSettingsRepository.save(createDefaultPersonalizationSettings(today), today);
+  const first = await personalMemoryRepository.applyAutomaticCandidates([
+    { kind: "preference", scope: "global", title: "回答风格", content: "先给结论", canonicalKey: "answer-style", confidence: 0.95, sensitivity: "normal", sourceMessageIds: ["m1"] },
+    { kind: "study", scope: "global", title: "学习状态", content: "行测较弱", canonicalKey: "study-state", confidence: 0.99, sensitivity: "normal" },
+    { kind: "profile", scope: "global", title: "密钥", content: "API Key: sk-secret-value-123456", confidence: 1, sensitivity: "normal" },
+  ], today);
+  assert.equal(first.active, 1);
+  assert.equal(first.pending, 1);
+  assert.equal(first.discarded, 1);
+  assert.equal(first.settings.memoryEntries?.some((entry) => entry.content.includes("sk-secret")), false);
+  const conflict = await personalMemoryRepository.applyAutomaticCandidates([
+    { kind: "preference", scope: "global", title: "回答风格", content: "先解释再结论", canonicalKey: "answer-style", confidence: 0.98, sensitivity: "normal" },
+  ], new Date(today.getTime() + 1000));
+  assert.equal(conflict.pending, 1);
+  assert.ok(conflict.settings.memoryEntries?.find((entry) => entry.content === "先解释再结论")?.supersedesId);
+  const undone = await personalMemoryRepository.undoRevision(conflict.lastRevisionId!, new Date(today.getTime() + 2000));
+  assert.equal(undone.memoryEntries?.some((entry) => entry.content === "先解释再结论"), false);
 });

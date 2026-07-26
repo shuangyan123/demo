@@ -1,15 +1,29 @@
 import { reviewDb } from "../db/review-db.ts";
-import type { AppearanceSettings, ThemeConfig } from "../types/review";
+import {
+  DEFAULT_CODE_FONT_STACK,
+  DEFAULT_UI_FONT_STACK,
+} from "./appearance-theme-fonts.ts";
+import type { AppearanceSettings, ThemeConfig } from "../types/domains/appearance.ts";
 
 const SETTINGS_ID = "default";
 
-export const DEFAULT_UI_FONT_STACK = 'var(--font-noto-sans-sc), "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif';
+export { DEFAULT_CODE_FONT_STACK, DEFAULT_UI_FONT_STACK } from "./appearance-theme-fonts.ts";
 
 // 这些字体栈只来自旧版内置主题；命中时升级为新默认字体，其他用户自定义值原样保留。
 const LEGACY_BUILT_IN_UI_FONTS = new Set([
   "Geist, Inter, system-ui, sans-serif",
   "-apple-system, BlinkMacSystemFont, Geist, Inter, system-ui, sans-serif",
   "-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif",
+]);
+
+// 仅迁移项目曾经发布过的代码字体栈，避免覆盖用户手写的自定义字体。
+const LEGACY_BUILT_IN_CODE_FONTS = new Set([
+  '"Geist Mono", ui-monospace, SFMono-Regular, Consolas, monospace',
+  'ui-monospace, "SFMono-Regular", "Geist Mono", Consolas, monospace',
+  "ui-monospace, SFMono-Regular, Consolas, monospace",
+  '"Geist Mono", ui-monospace, monospace',
+  "Consolas, ui-monospace, SFMono-Regular, monospace",
+  "ui-monospace, SFMono-Regular, Menlo, monospace",
 ]);
 
 type RgbColor = {
@@ -131,8 +145,8 @@ function defaultLightTheme(): ThemeConfig {
     background: "#FFFFFF",
     foreground: "#111827",
     uiFont: DEFAULT_UI_FONT_STACK,
-    codeFont: '"Geist Mono", ui-monospace, SFMono-Regular, Consolas, monospace',
-    diffuseGradient: true,
+    codeFont: DEFAULT_CODE_FONT_STACK,
+    diffuseGradient: false,
     contrast: 0,
   };
 }
@@ -145,8 +159,8 @@ function defaultDarkTheme(): ThemeConfig {
     background: "#181818",
     foreground: "#FFFFFF",
     uiFont: DEFAULT_UI_FONT_STACK,
-    codeFont: 'ui-monospace, "SFMono-Regular", "Geist Mono", Consolas, monospace',
-    diffuseGradient: true,
+    codeFont: DEFAULT_CODE_FONT_STACK,
+    diffuseGradient: false,
     contrast: 0,
   };
 }
@@ -171,6 +185,7 @@ export function createDefaultAppearanceSettings(): AppearanceSettings {
 // 合并主题字段，保证旧版本 IndexedDB 中缺少的新字段能自动补齐。
 function mergeThemeConfig(input: LegacyThemeConfig | undefined, fallback: ThemeConfig): ThemeConfig {
   const savedUiFont = input?.uiFont?.trim();
+  const savedCodeFont = input?.codeFont?.trim();
   const savedContrast = Number.isFinite(input?.contrast) ? Number(input?.contrast) : fallback.contrast;
   const legacyPresetContrast = input?.name ? LEGACY_PRESET_CONTRAST.get(input.name) : undefined;
   return {
@@ -181,7 +196,7 @@ function mergeThemeConfig(input: LegacyThemeConfig | undefined, fallback: ThemeC
     background: input?.background || fallback.background,
     foreground: input?.foreground || fallback.foreground,
     uiFont: savedUiFont && !LEGACY_BUILT_IN_UI_FONTS.has(savedUiFont) ? savedUiFont : fallback.uiFont,
-    codeFont: input?.codeFont?.trim() || fallback.codeFont,
+    codeFont: savedCodeFont && !LEGACY_BUILT_IN_CODE_FONTS.has(savedCodeFont) ? savedCodeFont : fallback.codeFont,
     diffuseGradient: input?.diffuseGradient ?? input?.translucentSidebar ?? fallback.diffuseGradient,
     contrast: savedContrast === legacyPresetContrast ? 0 : savedContrast,
   };
@@ -240,7 +255,9 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   const neutralColor = isDark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 };
   const chromeSelectedColor = accent;
   const chromeBorderAlpha = 0.1 + contrastRatio * 0.16;
-  const sidebarBg = resolveSidebarBackground(theme, key);
+  // 通用工作区与侧栏使用同一中性表面，主题背景只负责抬升面下方的窗口底层。
+  const workspaceSurface = isDark ? "#202020" : "#ffffff";
+  const sidebarBg = workspaceSurface;
   const diffuseEnabled = theme.diffuseGradient;
   const diffuseCompanionOne = shiftHue(accent, 46);
   const diffuseCompanionTwo = shiftHue(accent, -58);
@@ -250,6 +267,10 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
     : "none";
   const sidebarDiffuseBackground = diffuseEnabled
     ? `radial-gradient(ellipse 92% 34% at 8% 8%, ${rgba(accent, isDark ? 0.09 : 0.065)}, transparent 76%), radial-gradient(ellipse 86% 38% at 92% 72%, ${rgba(diffuseCompanionTwo, isDark ? 0.065 : 0.04)}, transparent 78%)`
+    : "none";
+  // 顶栏只承接低强度主题色场，保持应用标题和窗口操作区清晰。
+  const topbarDiffuseBackground = diffuseEnabled
+    ? `radial-gradient(ellipse 42% 150% at 12% 0%, ${rgba(accent, isDark ? 0.07 : 0.045)}, transparent 78%), radial-gradient(ellipse 36% 130% at 88% 20%, ${rgba(diffuseCompanionTwo, isDark ? 0.05 : 0.03)}, transparent 80%)`
     : "none";
   const scrollbarTrackAlpha = 0.34 + contrastRatio * 0.28;
   const scrollbarThumbAlpha = 0.28 + contrastRatio * 0.38;
@@ -263,7 +284,7 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--background", theme.background);
   root.style.setProperty("--foreground", theme.foreground);
   root.style.setProperty("--blue", theme.accent);
-  root.style.setProperty("--surface", isDark ? "#202020" : "#ffffff");
+  root.style.setProperty("--surface", workspaceSurface);
   root.style.setProperty("--surface-muted", isDark ? "#262626" : "#f7f8fa");
   root.style.setProperty("--muted", isDark ? "#b8b8b8" : "#667085");
   root.style.setProperty("--line", rgba(foreground, lineAlpha));
@@ -276,7 +297,9 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--chrome-window-bg", theme.background);
   root.style.setProperty("--chrome-window-diffuse", windowDiffuseBackground);
   root.style.setProperty("--chrome-topbar-bg", theme.background);
+  root.style.setProperty("--chrome-topbar-diffuse", topbarDiffuseBackground);
   root.style.setProperty("--chrome-sidebar-bg", sidebarBg);
+  root.style.setProperty("--chrome-workspace-surface", workspaceSurface);
   root.style.setProperty("--chrome-sidebar-diffuse", sidebarDiffuseBackground);
   root.style.setProperty("--chrome-sidebar-border", rgba(neutralColor, chromeBorderAlpha));
   root.style.setProperty("--chrome-selected-bg", rgba(chromeSelectedColor, selectedAlpha));

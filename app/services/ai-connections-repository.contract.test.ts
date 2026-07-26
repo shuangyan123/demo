@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
-import type { ApiConnectionProfile, ApiSetting, PersonalizationSettings } from "../types/review.ts";
+import type { ApiConnectionProfile, ApiSetting } from "../types/domains/ai-connection.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { createDefaultPersonalizationSettings, personalizationSettingsRepository } from "./personalization-settings-repository.ts";
 
@@ -111,12 +112,12 @@ test("OpenAI 兼容本地语音连接允许无 API Key 并保存为无鉴权", a
     provider: "custom",
     capabilities: ["speech"],
     baseUrl: "http://127.0.0.1:8000/v1",
-    model: "local-tts",
     apiKey: "",
     today,
   });
 
   assert.deepEqual(profile.capabilities, ["speech"]);
+  assert.equal("model" in profile, false);
   assert.equal(profile.maskedKey, "无鉴权");
   assert.equal(await aiConnectionsRepository.resolveSecret(profile), "");
 });
@@ -154,6 +155,39 @@ test("读取快照会清理不存在或能力不匹配的默认连接", async ()
   assert.deepEqual(await reviewDb.apiConnectionDefaults.get("default"), snapshot.defaults);
 });
 
+test("官方 Google 连接在读写边界补齐多模态能力，自定义连接保持用户声明", async () => {
+  await resetDatabase();
+  const googleProfile: ApiConnectionProfile = {
+    id: "google-old",
+    label: "旧 Gemini",
+    provider: "google",
+    apiFormat: "google_generate_content",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    capabilities: ["text"],
+    encryptedKey: "ciphertext",
+    iv: "iv",
+    maskedKey: "****-key",
+    providerOptions: {},
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  };
+  await reviewDb.apiConnectionProfiles.put(googleProfile);
+  const loaded = await aiConnectionsRepository.loadSnapshot(today);
+  assert.equal(loaded.profiles[0].capabilities.includes("vision"), true);
+  assert.equal((await reviewDb.apiConnectionProfiles.get(googleProfile.id))?.capabilities.includes("vision"), true);
+
+  localStorageValues.clear();
+  const custom = await aiConnectionsRepository.saveProfile({
+    label: "自定义文本",
+    provider: "custom",
+    baseUrl: "http://127.0.0.1:8000/v1",
+    apiKey: "",
+    capabilities: ["text"],
+    today,
+  });
+  assert.deepEqual(custom.capabilities, ["text"]);
+});
+
 test("编辑默认文本连接会同步旧表，移除文本能力时会清理默认值和旧记录", async () => {
   await resetDatabase();
   localStorageValues.clear();
@@ -162,10 +196,10 @@ test("编辑默认文本连接会同步旧表，移除文本能力时会清理�
     provider: "custom",
     capabilities: ["text", "vision"],
     baseUrl: "http://127.0.0.1:8000/v1",
-    model: "model-v1",
     apiKey: "",
     today,
   });
+  await aiConnectionsRepository.setDefaultSelection("text", profile.id, "model-v1", today);
   await aiConnectionsRepository.setDefault("vision", profile.id, today);
 
   await aiConnectionsRepository.saveProfile({
@@ -174,11 +208,10 @@ test("编辑默认文本连接会同步旧表，移除文本能力时会清理�
     provider: profile.provider,
     capabilities: ["text", "vision"],
     baseUrl: profile.baseUrl,
-    model: "model-v2",
     apiKey: "",
     today,
   });
-  assert.equal((await reviewDb.apiSettings.get("default"))?.model, "model-v2");
+  assert.equal((await reviewDb.apiSettings.get("default"))?.model, "model-v1");
 
   await aiConnectionsRepository.saveProfile({
     id: profile.id,
@@ -186,7 +219,6 @@ test("编辑默认文本连接会同步旧表，移除文本能力时会清理�
     provider: profile.provider,
     capabilities: ["vision"],
     baseUrl: profile.baseUrl,
-    model: "vision-only",
     apiKey: "",
     today,
   });

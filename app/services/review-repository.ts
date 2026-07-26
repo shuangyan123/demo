@@ -1,6 +1,7 @@
 import { reviewDb } from "../db/review-db";
 import { buildAttempt, nextStateAfterReview, normalizeBoard, toISODate } from "../lib/review-utils";
-import type { ImportJob, Mistake, ReviewResult, ReviewSnapshot } from "../types/review";
+import type { ImportJob } from "../types/domains/import.ts";
+import type { Mistake, ReviewResult, ReviewSnapshot } from "../types/domains/review.ts";
 
 type LegacyMistake = Mistake & {
   module?: string;
@@ -142,6 +143,10 @@ export const reviewRepository = {
         reviewDb.tutoringTurns,
         reviewDb.tutoringPlans,
         reviewDb.tutoringLinks,
+        reviewDb.aiConversations,
+        reviewDb.aiConversationAttachments,
+        reviewDb.aiConversationMessages,
+        reviewDb.aiConversationRunSteps,
       ],
       async () => {
         await reviewDb.mistakes.clear();
@@ -161,6 +166,10 @@ export const reviewRepository = {
         await reviewDb.tutoringTurns.clear();
         await reviewDb.tutoringPlans.clear();
         await reviewDb.tutoringLinks.clear();
+        await reviewDb.aiConversations.clear();
+        await reviewDb.aiConversationAttachments.clear();
+        await reviewDb.aiConversationMessages.clear();
+        await reviewDb.aiConversationRunSteps.clear();
       },
     );
   },

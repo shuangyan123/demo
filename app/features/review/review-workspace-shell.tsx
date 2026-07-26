@@ -2,12 +2,19 @@
 
 import type { ReactNode } from "react";
 import { toISODate } from "../../lib/review-utils";
-import type { Board, ViewKey } from "../../types/review";
-import type { BoardStat } from "../../lib/review-selectors";
+import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
+import type { ViewKey } from "../../types/domains/workspace.ts";
 import { Button } from "../shared/ui-primitives";
-import { SidebarNav, ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
+import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
+import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../study/study-registry";
+import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
+import { AppIcon } from "../shared/app-icon";
+import { preloadReviewView } from "./review-workspace-preload.ts";
 
 type ReviewNavIconName =
+  | "newChat"
+  | "search"
+  | "scheduled"
   | "dashboard"
   | "library"
   | "review"
@@ -19,118 +26,194 @@ type ReviewNavIconName =
   | "tutoring"
   | "import"
   | "entry"
+  | "project"
+  | "plugins"
   | "settings";
 
 type ReviewWorkspaceShellProps = {
   automationUnreadCount: number;
-  boardStats: BoardStat[];
   children: ReactNode;
+  conversations: AiConversation[];
+  folders: AiConversationFolder[];
+  activeConversationId?: string | null;
   notice: string;
-  selectedBoard: Board | null;
   sidebarCollapsed: boolean;
   today: Date;
   view: ViewKey;
-  onOpenBoard: (board: Board) => void;
+  onOpenConversation: (id: string) => void;
   onOpenEntry: () => void;
   onOpenImport: () => void;
+  onOpenSearch: () => void;
   onOpenSettings: () => void;
+  onStartNewConversation: () => void;
+  onNotice: (message: string) => void;
+  onRefreshConversations: () => Promise<void>;
   onSelectView: (view: ViewKey) => void;
   onToggleSidebar: () => void;
 };
 
-const navItems: Array<{ key: ViewKey; label: string; icon: ReviewNavIconName }> = [
-  { key: "dashboard", label: "总览", icon: "dashboard" },
-  { key: "library", label: "错题库", icon: "library" },
-  { key: "review", label: "开始复盘", icon: "review" },
-  { key: "knowledge", label: "知识库", icon: "knowledge" },
-  { key: "knowledgeTraining", label: "知识训练", icon: "knowledgeTraining" },
-  { key: "automation", label: "自动化", icon: "automation" },
-  { key: "interview", label: "面试训练", icon: "interview" },
-  { key: "tutoring", label: "AI 辅导", icon: "tutoring" },
-  { key: "stats", label: "薄弱分析", icon: "stats" },
-  { key: "import", label: "导入", icon: "import" },
-  { key: "entry", label: "手动录入", icon: "entry" },
-];
-
 const viewTitles: Record<ViewKey, string> = {
+  conversation: "对话",
   dashboard: "总览",
   library: "错题库",
-  review: "开始复盘",
+  review: "错题复盘",
   knowledgeTraining: "知识训练",
   interview: "面试训练",
   tutoring: "AI 辅导",
   stats: "薄弱分析",
   knowledge: "知识库",
-  automation: "自动化",
-  import: "导入",
+  automation: "已安排",
+  import: "粉笔导入",
   entry: "手动录入",
+  plugins: "插件",
   settings: "设置",
 };
 
 /** 渲染复盘应用的稳定壳层，业务模块只向这里传入导航状态和页面内容。 */
 export function ReviewWorkspaceShell({
   automationUnreadCount,
-  boardStats,
   children,
+  conversations,
+  folders,
+  activeConversationId,
   notice,
-  selectedBoard,
   sidebarCollapsed,
   today,
   view,
-  onOpenBoard,
+  onOpenConversation,
   onOpenEntry,
   onOpenImport,
+  onOpenSearch,
   onOpenSettings,
+  onStartNewConversation,
+  onNotice,
+  onRefreshConversations,
   onSelectView,
   onToggleSidebar,
 }: ReviewWorkspaceShellProps) {
+  const civilServiceDomain = studyDomainDefinitions[0];
+  const projectActive = view === "conversation" || isStudyModuleView(view);
+  const topActions: Array<{
+    id: string;
+    label: string;
+    icon: ReviewNavIconName;
+    active?: boolean;
+    badge?: number;
+    onClick: () => void;
+    preload?: ViewKey;
+  }> = [
+    { id: "new-chat", label: "新对话", icon: "newChat", active: view === "conversation" && activeConversationId === null, onClick: () => onStartNewConversation(), preload: "conversation" },
+    { id: "search", label: "搜索", icon: "search", onClick: onOpenSearch },
+    {
+      id: "scheduled",
+      label: scheduledWorkspaceDefinition.label,
+      icon: "scheduled",
+      active: view === scheduledWorkspaceDefinition.viewKey,
+      badge: automationUnreadCount || undefined,
+      onClick: () => onSelectView(scheduledWorkspaceDefinition.viewKey),
+      preload: "automation",
+    },
+    { id: "plugins", label: "插件", icon: "plugins", active: view === "plugins", onClick: () => onSelectView("plugins"), preload: "plugins" },
+  ];
+
   return (
     <WorkspaceShell
-      contentClassName="px-7 py-7 max-sm:px-4"
+      key={`${view}:${activeConversationId ?? "none"}`}
+      contentClassName={view === "conversation" ? "conversation-shell-content" : `review-view-${view} px-7 py-7 max-sm:px-4`}
       sidebarCollapsed={sidebarCollapsed}
-      sidebarClassName="flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:overflow-visible max-lg:px-3 max-lg:py-2"
-      title="错题复盘"
+      sidebarClassName="review-workspace-sidebar flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:px-3 max-lg:py-2"
+      title={view === "dashboard" || view === "conversation" ? "错题复盘" : viewTitles[view]}
       onToggleSidebar={onToggleSidebar}
       sidebar={
         <>
-          <SidebarNav
-            activeKey={view}
-            items={navItems.map((item) => item.key === "automation" ? { ...item, badge: automationUnreadCount || undefined } : item)}
-            renderIcon={(icon) => <ReviewNavIcon name={icon as ReviewNavIconName} />}
-            onSelect={onSelectView}
-          />
+          <nav className="grid gap-1" aria-label="工作台快捷入口">
+            {topActions.map((item) => (
+              <button
+                key={item.id}
+                data-mobile-sidebar-close="true"
+                className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium ${
+                  item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"
+                }`}
+                type="button"
+                onClick={item.onClick}
+                onFocus={() => preloadReviewView(item.preload)}
+                onMouseEnter={() => preloadReviewView(item.preload)}
+              >
+                <ReviewNavIcon name={item.icon} />
+                <span className="truncate">{item.label}</span>
+                {item.badge ? <span className="inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-blue px-1 text-[11px] text-white">{item.badge}</span> : null}
+              </button>
+            ))}
+          </nav>
           <button
-            className="hidden min-h-10 min-w-36 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
+            data-mobile-sidebar-close="true"
+            className="hidden min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
             type="button"
             onClick={onOpenSettings}
+            onFocus={() => preloadReviewView("settings")}
+            onMouseEnter={() => preloadReviewView("settings")}
           >
             <ReviewNavIcon name="settings" />
             <span>设置</span>
           </button>
 
-          <section className="mt-8 min-h-0 flex-1 overflow-y-auto pr-1 max-lg:hidden" aria-label="板块快捷入口">
-            <p className="mb-2 px-3 text-xs font-medium text-muted">板块</p>
-            <div className="grid gap-1">
-              {boardStats.map((stat) => (
-                <button
-                  key={stat.board}
-                  className={`grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 rounded-lg px-3 text-left text-sm ${
-                    selectedBoard === stat.board ? "bg-chrome-selected" : "hover:bg-chrome-hover"
-                  }`}
-                  type="button"
-                  onClick={() => onOpenBoard(stat.board)}
-                >
-                  <span className="truncate">{stat.board}</span>
-                  <span className="text-sm text-muted">{stat.total}</span>
-                </button>
-              ))}
+          <section className="mt-7 min-h-0 flex-1 overflow-y-auto pr-1" aria-label="项目和对话">
+            <div className="mb-2 flex items-center justify-between gap-2 px-3">
+              <p className="text-xs font-medium text-muted">项目</p>
+              <span className="text-[11px] text-muted">专项学习</span>
             </div>
+            <details className="group rounded-lg bg-chrome-selected/60 p-1">
+              <summary className={`grid min-h-10 cursor-pointer list-none grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-md px-2 text-left text-sm font-semibold [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"}`}>
+                <ReviewNavIcon name="project" />
+                <span className="truncate">{civilServiceDomain.label}</span>
+                <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
+              </summary>
+              <div className="mt-1 grid gap-1 pl-2">
+                <details className="group/modules">
+                  <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover [&::-webkit-details-marker]:hidden">
+                    <span>模块</span><span className="transition group-open/modules:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
+                  </summary>
+                  <div className="grid gap-1 pl-1">
+                  {civilServiceDomain.modules.map((module) => (
+                    <button
+                      key={module.id}
+                      data-mobile-sidebar-close="true"
+                      className={`grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-md px-2 text-left text-sm ${
+                        view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"
+                      }`}
+                      type="button"
+                      title={module.description}
+                      onClick={() => onSelectView(module.id)}
+                      onFocus={() => preloadReviewView(module.id)}
+                      onMouseEnter={() => preloadReviewView(module.id)}
+                    >
+                      <ReviewNavIcon name={module.icon as ReviewNavIconName} />
+                      <span className="truncate">{module.label}</span>
+                    </button>
+                  ))}
+                  </div>
+                </details>
+              </div>
+            </details>
+
+            <ConversationFolderTree
+              activeConversationId={activeConversationId}
+              conversations={conversations}
+              folders={folders}
+              projectId={civilServiceDomain.id}
+              onConversationSelected={onOpenConversation}
+              onNotice={onNotice}
+              onRefresh={onRefreshConversations}
+            />
           </section>
 
           <button
+            data-mobile-sidebar-close="true"
             className="relative z-40 mt-3 grid min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:hidden"
             type="button"
             onClick={onOpenSettings}
+            onFocus={() => preloadReviewView("settings")}
+            onMouseEnter={() => preloadReviewView("settings")}
           >
             <ReviewNavIcon name="settings" />
             <span>设置</span>
@@ -138,20 +221,25 @@ export function ReviewWorkspaceShell({
         </>
       }
     >
-      <ViewHeader
-        actions={
-          <>
-            <Button variant="outline" onClick={onOpenImport}>
-              导入
-            </Button>
-            <Button variant="primary" onClick={onOpenEntry}>
-              手动录入
-            </Button>
-          </>
-        }
-        eyebrow={`${toISODate(today)} · ${notice}`}
-        title={viewTitles[view]}
-      />
+      {["library", "import", "entry", "plugins"].includes(view) && notice !== "本地题库已同步" ? (
+        <div className="mb-3 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted" role="status">{notice}</div>
+      ) : null}
+      {!["conversation", "dashboard", "automation", "library", "import", "entry", "plugins"].includes(view) ? (
+        <ViewHeader
+          actions={
+            <>
+              <Button variant="outline" onClick={onOpenImport} onFocus={() => preloadReviewView("import")} onMouseEnter={() => preloadReviewView("import")}>
+                导入资料
+              </Button>
+              <Button variant="primary" onClick={onOpenEntry}>
+                手动录入
+              </Button>
+            </>
+          }
+          eyebrow={`${toISODate(today)} · ${notice}`}
+          title={viewTitles[view]}
+        />
+      ) : null}
       {children}
     </WorkspaceShell>
   );
@@ -159,6 +247,7 @@ export function ReviewWorkspaceShell({
 
 /** 渲染侧边栏线性图标，避免为少量导航图标额外引入依赖。 */
 function ReviewNavIcon({ name }: { name: ReviewNavIconName }) {
+  if (name) return <AppIcon name={name} size={20} />;
   const common = {
     className: "h-5 w-5",
     fill: "none",
@@ -168,6 +257,37 @@ function ReviewNavIcon({ name }: { name: ReviewNavIconName }) {
     strokeWidth: 1.9,
     viewBox: "0 0 24 24",
   };
+
+  if (name === "newChat") {
+    return <svg aria-hidden="true" {...common}><path d="M12 5v14M5 12h14" /></svg>;
+  }
+
+  if (name === "search") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <circle cx="11" cy="11" r="6" />
+        <path d="m16 16 4 4" />
+      </svg>
+    );
+  }
+
+  if (name === "scheduled") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <circle cx="12" cy="12" r="8" />
+        <path d="M12 7.5V12l3 2" />
+      </svg>
+    );
+  }
+
+  if (name === "project") {
+    return (
+      <svg aria-hidden="true" {...common}>
+        <path d="M4.5 6.5h6l1.5 2h7.5v9a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2Z" />
+        <path d="M8 12.5h8" />
+      </svg>
+    );
+  }
 
   if (name === "dashboard") {
     return (

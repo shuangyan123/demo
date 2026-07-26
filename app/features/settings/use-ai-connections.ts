@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { aiConnectionsRepository } from "../../services/ai-connections-repository";
-import type { AiConnectionSnapshot } from "../../types/review";
+import type { AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
 
 // 为业务工作台提供当前能力连接快照，设置变更后可显式刷新。
 export function useAiConnections(onError: (message: string) => void) {
@@ -24,8 +24,16 @@ export function useAiConnections(onError: (message: string) => void) {
     }
   }, []);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refresh().catch((error) => onError(error instanceof Error ? error.message : "AI 连接读取失败"));
+    let active = true;
+    const timer = window.setTimeout(() => {
+      refresh().catch((error) => {
+        if (active) onError(error instanceof Error ? error.message : "AI 连接读取失败");
+      });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [onError, refresh]);
   const textConnection = snapshot.profiles.find((profile) => profile.id === snapshot.defaults.textConnectionId);
   const visionConnection = snapshot.profiles.find((profile) => profile.id === snapshot.defaults.visionConnectionId);

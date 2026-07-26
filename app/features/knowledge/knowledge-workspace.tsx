@@ -2,58 +2,24 @@
 
 import type { SyntheticEvent } from "react";
 import { useState } from "react";
-import { AssociationPanel } from "../shared/association-panel";
-import { BulkToolbar, Button, CardButton, Chip, ConfirmDialog, DetailBlock, DetailCard, EmptyState, MasteryDots, MetricCard, Panel, SelectField, SoftBlock, TextAreaField, TextField } from "../shared/ui-primitives";
+import { BulkToolbar, Button, CardButton, Chip, ConfirmDialog, DetailBlock, DetailCard, EmptyState, MasteryDots, Panel, SoftBlock } from "../shared/ui-primitives";
 import { KnowledgeInternalizationPanel } from "./knowledge-internalization-panel";
+import { KnowledgeEntryEditor } from "./knowledge-entry-editor";
+import { KnowledgeLibraryFilters, KnowledgeLibraryList } from "./knowledge-library-list";
+import { KnowledgeCreateForm, KnowledgeStarterGuide } from "./knowledge-starter-controls";
 import { ObsidianKnowledgePanel } from "./obsidian-knowledge-panel";
-import { useKnowledgeListController } from "./use-knowledge-list-controller";
-import { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
-import type { KnowledgeInternalizationController } from "./use-knowledge-internalization";
-import { splitInput, textValue, toListText } from "../../lib/form-utils";
+import { useKnowledgeListController } from "./use-knowledge-list-controller.ts";
+import { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge.ts";
+import type { KnowledgeInternalizationController } from "./use-knowledge-internalization.ts";
 import { formatShortDate, masteryLabel } from "../../lib/review-utils";
 import type { KnowledgeMatch, RelatedMistakeMatch } from "../../services/association-matcher";
-import {
-  KNOWLEDGE_CATEGORIES,
-  type AssociationSuggestion,
-  type ApiConnectionProfile,
-  type ExportFormat,
-  type ExportScope,
-  type KnowledgeCategory,
-  type KnowledgeCategorySummary,
-  type KnowledgeEntry,
-  type KnowledgeFilters,
-  type KnowledgeMistakeLink,
-  type KnowledgeQueueFilter,
-  type Mistake,
-  type PersonalizationSettings,
-  type ReviewResult,
-} from "../../types/review";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeCategorySummary, type KnowledgeEntry, type KnowledgeFilters, type KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { ExportFormat, ExportScope, Mistake, ReviewResult } from "../../types/domains/review.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
-
-const knowledgeTemplateCopy: Record<KnowledgeCategory, { title: string; summary: string; tags: string; source: string; content: string }> = {
-  政治理论: {
-    title: "例如：新发展理念核心要点",
-    summary: "概念、关键词、易混点和对应题型",
-    tags: "理论关键词、时政、易混概念",
-    source: "教材 / 课程 / 时政整理",
-    content: "整理概念定义、关键词、常见问法和易混表述。",
-  },
-  常识判断: {
-    title: "例如：行政法高频概念",
-    summary: "定义、适用条件、例外和易错点",
-    tags: "法律、科技、人文、地理",
-    source: "题库 / 课程 / 手动整理",
-    content: "整理知识点、判断标准、典型例子和容易混淆的选项。",
-  },
-  申论: {
-    title: "例如：基层治理写作框架",
-    summary: "适用主题、表达框架和可迁移素材",
-    tags: "写作框架、素材、治理",
-    source: "范文 / 材料 / 手动整理",
-    content: "整理问题表现、原因分析、对策表达和可复用句式。",
-  },
-};
 
 // 汇总三类知识库的资料、待训、薄弱和收藏数量，供知识中枢卡片复用。
 export function buildKnowledgeCategorySummaries(entries: KnowledgeEntry[], dueEntries: KnowledgeEntry[], lowEntries: KnowledgeEntry[]): KnowledgeCategorySummary[] {
@@ -372,73 +338,51 @@ export function KnowledgeView({
   const weakCount = summaries.reduce((sum, item) => sum + item.weak, 0);
   const obsidian = useObsidianKnowledgeBridge({ entries: allKnowledgeEntries, personalization: personalizationSettings, textConnection, onChanged: onKnowledgeChanged, onNotice });
   const knowledgeList = useKnowledgeListController({ entries, filters, onBulkDeleteEntries, onExportKnowledgeEntries });
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   return (
-    <section className="space-y-4">
-      <div className="grid grid-cols-5 gap-4 max-2xl:grid-cols-3 max-lg:grid-cols-1">
-        <MetricCard label="资料总数" value={total} hint="政治理论、常识判断、申论三类资料" tone="bg-blue/10 text-blue" />
-        <MetricCard label="收藏资料" value={favorites} hint="常用知识点可优先过滤" tone="bg-amber-50 text-yellow" />
-        <MetricCard label="今日待训" value={dueCount} hint="下次训练日期已到期" tone="bg-blue/10 text-blue" />
-        <MetricCard label="薄弱资料" value={weakCount} hint="掌握度 1-2 的资料" tone="bg-red/10 text-red" />
-        <MetricCard label="当前结果" value={entries.length} hint="受分类、标签和搜索条件影响" tone="bg-emerald-50 text-green" />
-      </div>
-
-      <KnowledgeInternalizationPanel controller={internalization} entries={allKnowledgeEntries} mistakes={allMistakes} onOpenSettings={onOpenSettings} />
-
-      <ObsidianKnowledgePanel controller={obsidian} />
-
-      <Panel title="三类知识中枢" eyebrow="Knowledge Hub">
-        <div className="grid grid-cols-3 gap-3 max-xl:grid-cols-1">
-          {summaries.map((item) => (
-            <article
-              key={item.category}
-              className="ui-card ui-card-muted grid gap-4 text-left transition hover:border-blue/40 hover:bg-blue/5"
-            >
-              <button className="text-left" type="button" onClick={() => onChangeFilters({ ...filters, category: item.category })}>
-                <strong className="text-lg">{item.category}</strong>
-              </button>
-              <span className="grid grid-cols-4 gap-2 text-sm text-muted">
-                <span><b className="block text-xl text-foreground">{item.total}</b>资料</span>
-                <span><b className="block text-xl text-blue">{item.due}</b>待训</span>
-                <span><b className="block text-xl text-red">{item.weak}</b>薄弱</span>
-                <span><b className="block text-xl text-yellow">{item.favorites}</b>收藏</span>
-              </span>
-              <Button className="w-fit" size="sm" type="button" variant="outline" onClick={() => onCreateStarterDrafts(item.category)}>
-                生成模板草稿
-              </Button>
-            </article>
-          ))}
+    <section className="learning-page">
+      <header className="learning-page-header">
+        <p className="text-sm text-muted">整理资料、训练薄弱知识，并同步到 Obsidian。</p>
+        <div className="learning-metrics" aria-label="知识库概览">
+          <span><strong>{total}</strong>全部资料</span>
+          <span><strong>{favorites}</strong>收藏</span>
+          <span><strong>{dueCount}</strong>今日待训</span>
+          <span><strong>{weakCount}</strong>薄弱项</span>
+          <span><strong>{entries.length}</strong>当前结果</span>
         </div>
-      </Panel>
+      </header>
 
-      <KnowledgeStarterGuide summaries={summaries} onCreateStarterDrafts={onCreateStarterDrafts} />
-
-      <div className="grid grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] gap-4 max-2xl:grid-cols-1">
-        <div className="space-y-4">
-          <KnowledgeFiltersPanel filters={filters} summaries={summaries} tagOptions={tagOptions} onChangeFilters={onChangeFilters} />
-          <BulkToolbar
-            allVisibleSelected={knowledgeList.bulkSelection.state.allVisibleSelected}
-            selectedCount={knowledgeList.bulkSelection.state.count}
-            totalCount={knowledgeList.visibleEntries.length}
-            onClearSelection={knowledgeList.bulkSelection.clear}
-            onDeleteSelected={() => knowledgeList.setBulkDeleteOpen(true)}
-            onExportFiltered={(format) => knowledgeList.exportKnowledgeScope("filtered", format)}
-            onExportSelected={(format) => knowledgeList.exportKnowledgeScope("selected", format)}
-            onSelectAllVisible={knowledgeList.bulkSelection.selectAllVisible}
-          />
-          <KnowledgeEntryList
+      <KnowledgeLibraryFilters filters={filters} summaries={summaries} tagOptions={tagOptions} onChangeFilters={onChangeFilters} />
+      <BulkToolbar
+        allVisibleSelected={knowledgeList.bulkSelection.state.allVisibleSelected}
+        selectedCount={knowledgeList.bulkSelection.state.count}
+        totalCount={knowledgeList.visibleEntries.length}
+        onClearSelection={knowledgeList.bulkSelection.clear}
+        onDeleteSelected={() => knowledgeList.setBulkDeleteOpen(true)}
+        onExportFiltered={(format) => knowledgeList.exportKnowledgeScope("filtered", format)}
+        onExportSelected={(format) => knowledgeList.exportKnowledgeScope("selected", format)}
+        onSelectAllVisible={knowledgeList.bulkSelection.selectAllVisible}
+      />
+      <div className="learning-master-detail">
+        <div className="learning-list">
+          <KnowledgeLibraryList
             entries={knowledgeList.visibleEntries}
             hasMoreEntries={knowledgeList.hasMoreEntries}
             selectedEntry={selectedEntry}
             selectedIds={knowledgeList.bulkSelection.state.ids}
             totalCount={entries.length}
             onLoadMore={knowledgeList.loadMoreEntries}
-            onSelectEntry={onSelectEntry}
+            onSelectEntry={(id) => {
+              onSelectEntry(id);
+              setMobileDetailOpen(true);
+            }}
             onToggleSelected={knowledgeList.bulkSelection.toggle}
           />
         </div>
 
-        <div className="space-y-4">
+        <div className="learning-detail" data-mobile-open={mobileDetailOpen}>
+          <Button className="learning-mobile-detail-close" size="sm" variant="ghost" onClick={() => setMobileDetailOpen(false)}>返回知识列表</Button>
           <KnowledgeEntryEditor
             aiAssociationBusy={aiAssociationBusy}
             apiReady={apiReady}
@@ -465,6 +409,39 @@ export function KnowledgeView({
           <KnowledgeCreateForm defaultCategory={filters.category === "全部" ? "政治理论" : filters.category} onAddEntry={onAddEntry} />
         </div>
       </div>
+      <KnowledgeInternalizationPanel controller={internalization} entries={allKnowledgeEntries} mistakes={allMistakes} onOpenSettings={onOpenSettings} />
+
+      <ObsidianKnowledgePanel controller={obsidian} />
+
+      <details className="ui-board-panel">
+        <summary className="cursor-pointer px-4 py-3 font-bold">分类模板与知识工具</summary>
+        <div className="border-t border-line p-4">
+        <div className="grid grid-cols-3 gap-3 max-xl:grid-cols-1">
+          {summaries.map((item) => (
+            <article
+              key={item.category}
+              className="ui-card ui-card-muted grid gap-4 text-left transition hover:border-blue/40 hover:bg-blue/5"
+            >
+              <button className="text-left" type="button" onClick={() => onChangeFilters({ ...filters, category: item.category })}>
+                <strong className="text-lg">{item.category}</strong>
+              </button>
+              <span className="grid grid-cols-4 gap-2 text-sm text-muted">
+                <span><b className="block text-xl text-foreground">{item.total}</b>资料</span>
+                <span><b className="block text-xl text-blue">{item.due}</b>待训</span>
+                <span><b className="block text-xl text-red">{item.weak}</b>薄弱</span>
+                <span><b className="block text-xl text-yellow">{item.favorites}</b>收藏</span>
+              </span>
+              <Button className="w-fit" size="sm" type="button" variant="outline" onClick={() => onCreateStarterDrafts(item.category)}>
+                生成模板草稿
+              </Button>
+            </article>
+          ))}
+        </div>
+        </div>
+      </details>
+
+      <KnowledgeStarterGuide summaries={summaries} onCreateStarterDrafts={onCreateStarterDrafts} />
+
       <ConfirmDialog
         confirmLabel="删除"
         description={`将删除 ${knowledgeList.bulkSelection.state.count} 条知识资料，并同步清理训练记录和错题关联。此操作不会删除错题、API 设置或导入任务。`}
@@ -477,345 +454,13 @@ export function KnowledgeView({
   );
 }
 
-// 渲染知识库搭建引导，帮助空库用户按三类资料先生成可编辑模板草稿。
-function KnowledgeStarterGuide({
-  onCreateStarterDrafts,
-  summaries,
-}: {
-  onCreateStarterDrafts: (category?: KnowledgeCategory) => void;
-  summaries: KnowledgeCategorySummary[];
-}) {
-  const emptyCategories = summaries.filter((item) => item.total === 0);
-  return (
-    <Panel title="资料搭建助手" eyebrow="Starter">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 max-lg:grid-cols-1">
-        <div className="text-sm leading-6 text-muted">
-          <strong className="mb-1 block text-base text-foreground">先搭框架，再填内容。</strong>
-          政治理论、常识判断、申论会生成不同的整理模板，进入草稿区后可逐条编辑、删除或确认入库。
-          {emptyCategories.length > 0 && (
-            <span className="mt-1 block">当前空分类：{emptyCategories.map((item) => item.category).join("、")}。</span>
-          )}
-        </div>
-        <div className="flex flex-wrap justify-end gap-2 max-lg:justify-start">
-          {summaries.map((item) => (
-            <Button
-              key={item.category}
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => onCreateStarterDrafts(item.category)}
-            >
-              {item.category}
-            </Button>
-          ))}
-          <Button size="sm" type="button" variant="primary" onClick={() => onCreateStarterDrafts()}>
-            全部模板
-          </Button>
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
-// 渲染知识库筛选区，保持分类、标签、搜索和收藏筛选集中在一块。
-function KnowledgeFiltersPanel({
-  filters,
-  summaries,
-  tagOptions,
-  onChangeFilters,
-}: {
-  filters: KnowledgeFilters;
-  summaries: KnowledgeCategorySummary[];
-  tagOptions: string[];
-  onChangeFilters: (filters: KnowledgeFilters) => void;
-}) {
-  const total = summaries.reduce((sum, item) => sum + item.total, 0);
-  return (
-    <Panel title="筛选" eyebrow="Search">
-      <div className="grid gap-3">
-        <button
-          className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition ${
-            filters.category === "全部" ? "border-blue/30 bg-blue/10 text-blue" : "border-line hover:bg-surface-muted"
-          }`}
-          type="button"
-          onClick={() => onChangeFilters({ ...filters, category: "全部" })}
-        >
-          <strong>全部资料</strong>
-          <span className="text-sm text-muted">{total}</span>
-        </button>
-        {summaries.map((item) => (
-          <button
-            key={item.category}
-            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition ${
-              filters.category === item.category ? "border-blue/30 bg-blue/10 text-blue" : "border-line hover:bg-surface-muted"
-            }`}
-            type="button"
-            onClick={() => onChangeFilters({ ...filters, category: item.category })}
-          >
-            <span>
-              <strong className="block">{item.category}</strong>
-              <small className="text-muted">待训 {item.due} · 薄弱 {item.weak}</small>
-            </span>
-            <span className="text-sm text-muted">{item.total}</span>
-          </button>
-        ))}
-        <TextField label="搜索" value={filters.search} placeholder="标题、摘要、正文、来源" onChange={(value) => onChangeFilters({ ...filters, search: value })} />
-        <SelectField label="标签" value={filters.tag} options={tagOptions} onChange={(value) => onChangeFilters({ ...filters, tag: value })} />
-        <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
-          <input checked={filters.favoriteOnly} type="checkbox" onChange={(event) => onChangeFilters({ ...filters, favoriteOnly: event.target.checked })} />
-          只看收藏
-        </label>
-      </div>
-    </Panel>
-  );
-}
-
-// 渲染知识库条目列表，列表中直接展示训练状态，便于快速扫弱项。
-function KnowledgeEntryList({
-  entries,
-  hasMoreEntries,
-  selectedEntry,
-  selectedIds,
-  totalCount,
-  onLoadMore,
-  onSelectEntry,
-  onToggleSelected,
-}: {
-  entries: KnowledgeEntry[];
-  hasMoreEntries: boolean;
-  selectedEntry: KnowledgeEntry | null;
-  selectedIds: Set<string>;
-  totalCount: number;
-  onLoadMore: () => void;
-  onSelectEntry: (id: string) => void;
-  onToggleSelected: (id: string, checked: boolean) => void;
-}) {
-  return (
-    <Panel title="知识条目" eyebrow="Entries">
-      <div className="grid gap-3">
-        {entries.length ? (
-          entries.map((entry) => (
-            <div
-              key={entry.id}
-              className={`ui-card ui-card-muted grid grid-cols-[28px_minmax(0,1fr)] gap-3 p-3 transition hover:border-blue/40 hover:bg-blue/5 ${
-                selectedEntry?.id === entry.id ? "ui-list-row-active" : ""
-              }`}
-            >
-              <input
-                aria-label={`选择知识资料：${entry.title}`}
-                checked={selectedIds.has(entry.id)}
-                className="ui-checkbox mt-1"
-                type="checkbox"
-                onChange={(event) => onToggleSelected(entry.id, event.target.checked)}
-              />
-              <button className="min-w-0 text-left" type="button" onClick={() => onSelectEntry(entry.id)}>
-                <div className="flex items-start justify-between gap-3">
-                  <strong>{entry.title}</strong>
-                  <span className="text-yellow">{entry.favorite ? "★" : ""}</span>
-                </div>
-                <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{entry.summary || entry.content}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Chip tone="blue">{entry.category}</Chip>
-                  <Chip tone={entry.mastery <= 2 ? "yellow" : "green"}>{formatShortDate(entry.nextReviewAt)} 训练</Chip>
-                  {entry.tags.slice(0, 3).map((tag) => (
-                    <Chip key={tag}>{tag}</Chip>
-                  ))}
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted">
-                  <span>已训练 {entry.reviewCount} 次</span>
-                  <MasteryDots value={entry.mastery} />
-                </div>
-              </button>
-            </div>
-          ))
-        ) : (
-          <EmptyState>暂无匹配资料</EmptyState>
-        )}
-        {hasMoreEntries && (
-          <div className="text-center">
-            <Button type="button" variant="soft" onClick={onLoadMore}>
-              显示更多（{entries.length}/{totalCount}）
-            </Button>
-          </div>
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-// 渲染选中知识条目的编辑区；保存时只提交表单字段，避免覆盖创建时间和 ID。
-function KnowledgeEntryEditor({
-  aiAssociationBusy,
-  apiReady,
-  associationLinks,
-  associationSuggestions,
-  entry,
-  knowledgeEntries,
-  mistakes,
-  relatedMistakes,
-  onAnalyzeKnowledgeAssociations,
-  onClearAssociationSuggestions,
-  onConfirmAssociationSuggestions,
-  onDeleteAssociationSuggestion,
-  onDeleteEntry,
-  onOpenRelatedMistake,
-  onOpenSettings,
-  onRemoveAssociationLink,
-  onStartTraining,
-  onToggleAssociationSuggestion,
-  onToggleFavorite,
-  onUpdateEntry,
-  obsidianUri,
-}: {
-  aiAssociationBusy: boolean;
-  apiReady: boolean;
-  associationLinks: KnowledgeMistakeLink[];
-  associationSuggestions: AssociationSuggestion[];
-  entry: KnowledgeEntry | null;
-  knowledgeEntries: KnowledgeEntry[];
-  mistakes: Mistake[];
-  relatedMistakes: RelatedMistakeMatch[];
-  onAnalyzeKnowledgeAssociations: (entry: KnowledgeEntry) => void;
-  onClearAssociationSuggestions: (targetId: string) => void;
-  onConfirmAssociationSuggestions: () => void;
-  onDeleteAssociationSuggestion: (id: string) => void;
-  onDeleteEntry: (id: string) => void;
-  onOpenRelatedMistake: (mistake: Mistake) => void;
-  onOpenSettings: () => void;
-  onRemoveAssociationLink: (id: string) => void;
-  onStartTraining: (entryId?: string) => void;
-  onToggleAssociationSuggestion: (id: string, selected: boolean) => void;
-  onToggleFavorite: (entry: KnowledgeEntry) => void;
-  onUpdateEntry: (id: string, patch: Partial<Omit<KnowledgeEntry, "id" | "createdAt" | "updatedAt">>) => void;
-  obsidianUri?: string;
-}) {
-  if (!entry) {
-    return (
-      <Panel title="详情编辑" eyebrow="Detail">
-        <EmptyState>选择一条资料后在这里编辑；也可以直接新增资料。</EmptyState>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel title="详情编辑" eyebrow="Detail">
-      <form
-        key={entry.id}
-        className="grid gap-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const formData = new FormData(event.currentTarget);
-          onUpdateEntry(entry.id, {
-            category: textValue(formData.get("category")) as KnowledgeCategory,
-            title: textValue(formData.get("title")),
-            summary: textValue(formData.get("summary")),
-            content: textValue(formData.get("content")),
-            tags: splitInput(formData.get("tags")),
-            source: textValue(formData.get("source")),
-            favorite: entry.favorite,
-          });
-        }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Chip tone="blue">{entry.category}</Chip>
-          <div className="flex gap-2">
-            {obsidianUri ? <a className="ui-button ui-button-outline ui-button-sm" href={obsidianUri}>在 Obsidian 打开</a> : null}
-            <Button size="sm" type="button" variant="soft" onClick={() => onStartTraining(entry.id)}>
-              训练
-            </Button>
-            <Button size="sm" type="button" variant="outline" onClick={() => onToggleFavorite(entry)}>
-              {entry.favorite ? "取消收藏" : "收藏"}
-            </Button>
-            <Button size="sm" type="button" variant="danger" onClick={() => onDeleteEntry(entry.id)}>
-              删除
-            </Button>
-          </div>
-        </div>
-        <SelectField label="分类" name="category" defaultValue={entry.category} options={[...KNOWLEDGE_CATEGORIES]} />
-        <TextField label="标题" name="title" defaultValue={entry.title} required />
-        <TextField label="摘要" name="summary" defaultValue={entry.summary} placeholder="列表中显示的短摘要" />
-        <TextField label="标签" name="tags" defaultValue={toListText(entry.tags)} placeholder="用逗号或顿号分隔" />
-        <TextField label="来源" name="source" defaultValue={entry.source} placeholder="手动整理 / 课程 / 资料导入" />
-        <TextAreaField className="min-h-64" label="正文" name="content" defaultValue={entry.content} required />
-        <Button type="submit" variant="primary">
-          保存修改
-        </Button>
-        <SoftBlock className="grid gap-2 text-sm text-muted">
-          <div className="flex flex-wrap items-center gap-3">
-            <span>掌握度：{masteryLabel(entry.mastery)}</span>
-            <MasteryDots value={entry.mastery} />
-          </div>
-          <span>
-            下次训练：{entry.nextReviewAt} · 已训练 {entry.reviewCount} 次{entry.lastReviewedAt ? ` · 最近训练 ${entry.lastReviewedAt}` : ""}
-          </span>
-        </SoftBlock>
-      </form>
-      <div className="mt-4">
-        <AssociationPanel
-          aiBusy={aiAssociationBusy}
-          apiReady={apiReady}
-          knowledgeEntries={knowledgeEntries}
-          links={associationLinks}
-          localMistakeMatches={relatedMistakes}
-          mistakes={mistakes}
-          mode="knowledge"
-          suggestions={associationSuggestions}
-          onAnalyze={() => onAnalyzeKnowledgeAssociations(entry)}
-          onClearSuggestions={() => onClearAssociationSuggestions(entry.id)}
-          onConfirmSuggestions={onConfirmAssociationSuggestions}
-          onDeleteSuggestion={onDeleteAssociationSuggestion}
-          onOpenKnowledgeEntry={() => undefined}
-          onOpenMistake={onOpenRelatedMistake}
-          onOpenSettings={onOpenSettings}
-          onRemoveLink={onRemoveAssociationLink}
-          onToggleSuggestion={onToggleAssociationSuggestion}
-        />
-      </div>
-    </Panel>
-  );
-}
-
-// 渲染新增知识资料表单，分类变化时只调整提示模板，不自动写入任何示例资料。
-function KnowledgeCreateForm({ defaultCategory, onAddEntry }: { defaultCategory: KnowledgeCategory; onAddEntry: (event: SubmitReactEvent) => void }) {
-  const [category, setCategory] = useState<KnowledgeCategory>(defaultCategory);
-  const template = knowledgeTemplateCopy[category];
-  return (
-    <Panel title="新增资料" eyebrow="Create">
-      <form className="grid gap-3" onSubmit={onAddEntry}>
-        <SelectField label="分类" name="category" value={category} onChange={(value) => setCategory(value as KnowledgeCategory)} options={[...KNOWLEDGE_CATEGORIES]} />
-        <TextField label="标题" name="title" placeholder={template.title} required />
-        <TextField label="摘要" name="summary" placeholder={template.summary} />
-        <TextField label="标签" name="tags" placeholder={template.tags} />
-        <TextField label="来源" name="source" placeholder={template.source} />
-        <TextAreaField label="正文" name="content" placeholder={template.content} required />
-        <Button type="submit" variant="primary">
-          保存到知识库
-        </Button>
-      </form>
-    </Panel>
-  );
-}
-
-// 渲染训练队列筛选按钮，四个模式只影响前端队列，不修改资料数据。
+// 渲染训练队列筛选项，切换仅改变当前内存中的训练范围。
 function QueueFilterTabs({ active, onChange }: { active: KnowledgeQueueFilter; onChange: (filter: KnowledgeQueueFilter) => void }) {
-  const options: Array<[KnowledgeQueueFilter, string]> = [
-    ["due", "今日到期"],
-    ["weak", "薄弱"],
-    ["favorite", "收藏"],
-    ["all", "全部"],
-  ];
+  const options: Array<[KnowledgeQueueFilter, string]> = [["due", "今日到期"], ["weak", "薄弱"], ["favorite", "收藏"], ["all", "全部"]];
   return (
     <div className="flex flex-wrap gap-2">
       {options.map(([value, label]) => (
-        <Button
-          key={value}
-          type="button"
-          size="sm"
-          variant={active === value ? "soft" : "outline"}
-          onClick={() => onChange(value)}
-        >
-          {label}
-        </Button>
+        <Button key={value} type="button" size="sm" variant={active === value ? "soft" : "outline"} onClick={() => onChange(value)}>{label}</Button>
       ))}
     </div>
   );

@@ -4,17 +4,132 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## 工作台无缝交界约定
+
+- 桌面工作区与顶栏、侧栏交接禁止叠加重复结构边框、整宽顶部渐变和圆角局部装饰层；顶部和左侧共边只由 `<main>` 绘制。
+- 顶栏弥散应在底部回到实色，侧栏弥散从顶部渐入，避免不透明 surface 之间形成横线。移动抽屉可保留独立浮层边界。
+- 桌面顶栏、侧栏和工作区零留白相交时，由 `<main>` 独占顶部与左侧 1px 共边，顶栏和侧栏不得重复绘制对应边框；仅保留 18px 左上圆角。工作区共边和圆角禁止使用内外阴影、高光、模糊或边缘渐隐。弥散开启时由带同一圆角的 frame 承载渐变，layout 在圆角外保持实色，`<main>` 不得重复绘制渐变。
+- 工作区隐藏原生滚动条时必须继续保留 `overflow-y: auto` 以及滚轮、触控、键盘和程序化滚动；折叠侧栏和移动端继续取消圆角与抬升效果。
+- 弥散工作区的背景图必须由带 18px 左上圆角的 frame 单层承载；圆角外侧必须是 layout 实色，不得让矩形渐变填充该区域。`<main>` 仅负责共边、圆角和滚动。
+
+## AI 活动、上下文与自动记忆约定
+
+- AI 活动宿主必须是应用级单例；对话事件不得打开全局浮层，连接测试使用紧凑卡，后台任务只使用单行状态。
+- Google 官方 Interactions 固定使用 `/v1beta/interactions`，流式追加 `?alt=sse`；自定义代理保留用户路径。Qwen 模型目录读取 `output.models`。
+- 跨厂商上下文只迁移可见用户/助手消息、附件摘要和必要工具结果；不得持久化或迁移隐藏思维链、thought signature、密钥和厂商原始响应。
+- 自动记忆 v2 新用户默认开启，旧用户保持原开关；高置信稳定内容可自动生效，冲突、学习状态和敏感内容进入待处理，秘密直接丢弃。每次最多注入 8 条、1500 字符。
+
+## AI 活动、上下文与自动记忆约定
+
+- AI 活动宿主必须是应用级单例；对话事件不得打开全局浮层，连接测试使用紧凑卡，后台任务只使用单行状态。
+- Google 官方 Interactions 固定使用 `/v1beta/interactions`，流式追加 `?alt=sse`；自定义代理保留用户路径。Qwen 模型目录读取 `output.models`。
+- 跨厂商上下文只迁移可见用户/助手消息、附件摘要和必要工具结果；不得持久化或迁移隐藏思维链、thought signature、密钥和厂商原始响应。
+- 自动记忆 v2 新用户默认开启，旧用户保持原开关；高置信稳定内容可自动生效，冲突、学习状态和敏感内容进入待处理，秘密直接丢弃。每次最多注入 8 条、1500 字符。
+
+## 模型目录完整性与对话轮次约定
+
+- 连接测试、默认能力和对话选择必须共享 `model-directory-service`；静态 fallback 只能首屏占位，完整新鲜在线缓存才可跳过请求。
+- Google、MiniMax、Qwen 目录必须聚合分页；OpenRouter、Groq、Mistral、SiliconFlow、Kimi、Qwen 是兼容厂商，未知模型不推断多模态、推理或速度。
+- 模型选择器的当前值不得过滤其他候选，手动模型 ID 始终保留；历史模型分组显示但不得自动选为默认。
+- 对话主链固定为用户、必要工具、AI；内部流水线标记 `diagnostic` 并默认折叠，消息以 `turnId/sequence` 稳定排序且不升级 Dexie v16。
+
+## 模型目录完整性与对话轮次约定
+
+- 连接测试、默认能力和对话选择必须共享 `model-directory-service`；静态 fallback 只能首屏占位，完整新鲜在线缓存才可跳过请求。
+- Google、MiniMax、Qwen 目录必须聚合分页；OpenRouter、Groq、Mistral、SiliconFlow、Kimi、Qwen 是兼容厂商，未知模型不推断多模态、推理或速度。
+- 模型选择器的当前值不得过滤其他候选，手动模型 ID 始终保留；历史模型分组显示但不得自动选为默认。
+- 对话主链固定为用户、必要工具、AI；内部流水线标记 `diagnostic` 并默认折叠，消息以 `turnId/sequence` 稳定排序且不升级 Dexie v16。
+
+## Google 双协议与品牌选择约定
+
+- Google 生成协议由具体模型目录项解析；`gemini-3.5-flash` 使用 Interactions，Gemini 2.5 等已核验模型使用 GenerateContent，未知手动模型不得按名称猜测。
+- 只有连接测试可在明确 `only supports Interactions API` 时重试一次并缓存协议，正常对话禁止跨协议双发。
+- Interactions 必须发送 `store:false`，不得持久化 interaction ID；GenerateContent 与 Interactions 字段必须保持互斥。
+- 默认能力的连接和模型下拉必须显示 `ProviderIcon`，但持久化仍只保存 `{ connectionId, modelId }`。
+- Obsidian 使用独立 integration branding 的固定版本本地资产，不得混入 AI provider registry。
+- MiniMax 模型目录使用 `X-Api-Key`，消息生成使用 Bearer，禁止复用单一鉴权 helper。
+
+## Google 双协议与品牌选择约定
+
+- Google 生成协议由具体模型目录项解析；`gemini-3.5-flash` 使用 Interactions，Gemini 2.5 等已核验模型使用 GenerateContent，未知手动模型不得按名称猜测。
+- 只有连接测试可在明确 `only supports Interactions API` 时重试一次并缓存协议，正常对话禁止跨协议双发。
+- Interactions 必须发送 `store:false`，不得持久化 interaction ID；GenerateContent 与 Interactions 字段必须保持互斥。
+- 默认能力的连接和模型下拉必须显示 `ProviderIcon`，但持久化仍只保存 `{ connectionId, modelId }`。
+- Obsidian 使用独立 integration branding 的固定版本本地资产，不得混入 AI provider registry。
+- MiniMax 模型目录使用 `X-Api-Key`，消息生成使用 Bearer，禁止复用单一鉴权 helper。
+
+## 设置与额度验收约定
+
+- Lobe Icons 只作为固定版本的本地社区品牌资产，登记版本、MIT 许可和 SHA-256；运行时不得访问 CDN，也不得宣称为厂商官方包。
+- 粉笔 Cookie 直连永远标记实验功能，只允许 `tiku.fenbi.com` 固定路径；Cookie 本机 AES-GCM 加密，结果先入草稿，结构变化回退 PDF/Word，确认后撤销凭据只保留 30 秒内存。
+- Gemini GenerateContent 优先档使用顶层 `serviceTier`，标准档不发送；`thinkingLevel` 与 `thinkingBudget` 不得同时出现。
+
+- Lobe Icons 只作为固定版本的本地社区品牌资产，登记版本、MIT 许可和 SHA-256；运行时不得访问 CDN，也不得宣称为厂商官方包。
+- 粉笔 Cookie 直连永远标记实验功能，只允许 `tiku.fenbi.com` 固定路径；Cookie 本机 AES-GCM 加密，结果先入草稿，结构变化回退 PDF/Word，确认后撤销凭据只保留 30 秒内存。
+- Gemini GenerateContent 优先档使用顶层 `serviceTier`，标准档不发送；`thinkingLevel` 与 `thinkingBudget` 不得同时出现。
+
+- 设置导航固定为“外观、AI 连接、个性化、额度、MCP、诊断”；旧 `roles` 在入口边界归一化为 `personalization`，持久化结构和 Dexie v16 不变。
+- 模型 tooltip 的可视层只响应 450ms 鼠标停留或用户键盘导航；程序化聚焦与触屏不得显示浮层。菜单外壳不滚动，当前层仅在真实溢出后启用内部滚动。
+- 额度凭据与普通推理 Key 分离并逐项加密。OpenAI、Anthropic、DeepSeek、xAI 只调用官方只读管理/费用/余额接口；Gemini、MiniMax、GLM 只显示控制台与手动记录。
+- 厂商品牌登记必须包含来源、核验日期和许可说明；官方限制第三方 Logo 时使用文字缩写，禁止无授权复制。
+- 额度行主操作固定为刷新；环形概览仅在存在可靠分母时显示比例，只有余额时使用状态环。精确金额通过悬浮、键盘或触屏说明层读取。
+- MiniMax 中国大陆站使用 `https://api.minimaxi.com/anthropic` 与 Bearer 鉴权；区域和套餐显式保存。`MiniMax-M3` 精确声明文本、图片、视频、工具、1M 上下文与运行档位，M2.x 不得推断视觉能力。
+- 额度行主操作固定为刷新；环形概览仅在存在可靠分母时显示比例，只有余额时使用状态环。精确金额通过悬浮、键盘或触屏说明层读取。
+- MiniMax 中国大陆站使用 `https://api.minimaxi.com/anthropic` 与 Bearer 鉴权；区域和套餐显式保存。`MiniMax-M3` 精确声明文本、图片、视频、工具、1M 上下文与运行档位，M2.x 不得推断视觉能力。
+
+## 2026-07-14 设置架构约定
+
+- 设置导航固定为外观、AI 连接、个性化、额度、MCP、诊断；额度不得回到 AI 连接详情或内置集成页。
+- 个性化记忆以可选字段保存在现有 personalization 单例；手动记忆 active，AI 建议只能 pending，最多 100 条且每次请求注入不超过 1500 字符。
+- 额度启用必须立即落库并进入 `QuotaRuntimeStore` 生命周期；隐藏、离线暂停，恢复只刷新过期项，临时失败保留上次成功快照。
+- React 事件值进入函数式状态更新前必须先复制到局部变量，禁止在更新器执行时再读取可能已清空的 `event.currentTarget`。
+- 模型 tooltip 只在鼠标停留或用户键盘导航后可见；程序化焦点与触屏保持静默，但必须保留 `aria-describedby`。
+- 额度只调用官方只读管理、费用或余额接口；真实 smoke 必须显式启用且绝不记录数值、密钥或原始响应。
+
+## 架构边界约定
+
+- 错题、知识和薄弱分析使用统一学习数据浏览器与单一筛选作用域；侧栏不得恢复重复板块筛选。
+- 摄像头、屏幕共享和截图是新对话工具，原始媒体只留在内存；历史辅导记录可以保留次级入口，但不得恢复为并列主模块。
+- 模块通过 `ConversationLaunchContext` 启动空白对话，只有首次发送才创建持久化会话和 `context` 摘要附件。
+
+- `ReviewWorkspace` 只负责导航、连接注入和视图装配；对话快照、命令搜索与快捷键统一交给 `useReviewConversationController`。
+- 新代码优先从 `app/types/domains/*` 引用领域类型，`app/types/review.ts` 仅作为兼容出口并逐步缩减。
+- Dexie 迁移放在 `app/db/review-db-migrations.ts`，数据库继续使用 `review_workspace` v16，未经慢查询证据不得新增索引或升级 schema。
+- `architecture-boundary.contract.test.ts` 必须持续检查 workspace 预算、低频静态依赖和循环依赖。
+
 ## AI 连接架构约定
+
+- 模型目录采用官方在线发现优先、带核验日期的官方回退；对话选择器保持厂商图标到单厂商模型的两步状态。
+- 音色设置由 `VoiceProviderDescriptor` 驱动；实时语音只持久化最终双方转写，PCM、临时凭据和厂商原始事件只留当前运行内存。
+- OpenAI Realtime 使用 WebRTC；GLM 本地中继只支持单实例标准 Next 进程，禁止宣称支持多实例或 Serverless。
 
 - 业务功能只接收 `ApiConnectionProfile`，不得读取或透传旧 `apiSetting`。
 - 文本任务使用默认文本连接，图片/OCR/关键帧使用默认多模态连接，云端朗读使用默认语音连接；缺失时明确提示，不跨能力静默回退。
 - `apiSettings` 旧表与 `ApiSetting` 类型只用于历史迁移和旧版本回退，清空默认文本连接时必须同步清理旧记录。
 - 密钥解密和连接参数映射统一放在连接级 AI 客户端，业务 service 不得自行解密密钥或推断厂商协议。
+- 流式输出只允许通过 `/api/ai/generate` 的 SSE 分支和 provider adapter 归一化事件实现；业务 UI 不得解析厂商原始流。
+- AI 活动面板按 run/step 展示工具链阶段、短文本片段和 usage 摘要，不得持久化 prompt、截图、完整上下文、Vault 正文或厂商原始事件。
+- AI 额度必须通过独立插件适配层查询，账单凭据与普通模型调用 Key 分开保存；无官方稳定账单 API 的厂商只能显示 unsupported/manual，不得抓取网页后台。
+- 设置中不保留插件目录；粉笔导入放在“公考 → 导入资料”，Obsidian 放在知识库，AI 额度使用独立设置项。
+- AI 额度插件采用 CodexBar 式 descriptor/fetch strategy 边界；provider 卡片、官网入口、状态页、刷新周期、来源模式和 unsupported 原因必须从插件注册表读取。
+- AI 连接模型选择必须使用下拉列表加手动模型 ID 兜底；推荐、预览、弃用、官方和能力标签只作为说明，不再铺成一排推荐按钮。
 - 回归验证至少运行 `npm run lint`、`npm run test:contracts` 和 `npm run build`，涉及交互时还要用应用内浏览器检查页面、控制台和关键流程。
+
+## 工作台与插件约定
+
+- 顶层工作台采用 Codex 式结构：新对话、搜索、已安排和项目；公考是默认折叠的唯一项目树节点，后续专项通过 `StudyDomainDefinition` 扩展。
+- 公考首页必须展示导入/错题、知识沉淀、知识训练、AI 辅导、已安排复盘和 Obsidian 输出的学习链路状态；后续专项也应通过 domain registry 声明自己的首页链路。
+- 新对话必须进入 Codex 式空白草稿；只有发送第一条消息后才创建持久化会话。项目、文件夹、会话、消息、附件摘要和工具步骤通过 IndexedDB v16 保存，但不得保存 prompt、截图正文、Vault 正文或厂商原始响应。
+- 对话工具链必须内嵌在消息流里，默认折叠为“已运行 N 条命令”，不得恢复右侧常驻工具栏作为唯一展示方式。
+- 公考项目在侧栏默认只显示一个项目入口，模块和六大板块放入公考内部折叠入口；板块只作为错题筛选，不再与项目并列。
+- 内部适配器不得重新暴露为设置插件目录；MCP 必须独立在 `设置 → MCP`，真实 server/tools/resources/prompts 通过后续手动连接测试闭环验证。
+- 粉笔导入属于应用内部 `ImportProviderPlugin`，不得重新作为主导航板块；解析结果必须先进入草稿和诊断，用户确认前不得写题库。
+- “已安排”是原本本地自动化能力的产品入口，底层 `automation` 类型、表和 repository 继续兼容；不得为了命名调整升级 Dexie schema。
 
 ## 字体与语音约定
 
 - 全局中文 UI 默认使用 `next/font` 自托管的 Noto Sans SC，并通过 `--font-noto-sans-sc` 接入主题字体栈；已知旧内置字体栈应自动迁移，用户手写的自定义字体不得覆盖。
+- 代码、标识符、哈希、Cron 和诊断内容统一使用 `geist@1.7.2` 的 Geist Mono，通过 `--font-geist-mono` 和 `--app-code-font` 接入；内置主题必须共享同一字体栈，局部组件不得硬编码其他等宽字体。
 - 浏览器语音识别仅用于面试和辅导的输入转写；朗读不得调用 `speechSynthesis`、系统音色或任何本机静默回退。
 - 朗读只能使用默认语音连接。缺少连接、Voice ID 或请求失败时必须明确提示并保持静音。
 - 本地部署语音统一走自定义连接的 OpenAI 兼容 `/audio/speech` 协议；自定义连接允许无 API Key，且无 Key 时不得发送空 `Authorization` 请求头。
@@ -24,6 +139,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `ThemeConfig` 只使用 `diffuseGradient`；`translucentSidebar` 仅在导入和 IndexedDB 归一化时作为旧字段读取，导出不得再写旧字段。
 - 八个内置主题（晴空、米白、薄荷、晨雾、深海、暮紫、石墨、夜樱）的对比度均默认为 `0`。迁移时只把仍等于历史预设值的内置主题归零，用户主动修改过的数值必须保留。
 - 顶栏始终使用主题实色背景；侧栏也必须保持不透明，弥散效果只允许用低透明度径向渐变叠加，禁止恢复 `backdrop-filter` 或透明窗口底色。
+- 顶栏弥散必须通过独立 `--chrome-topbar-diffuse` 低强度叠加；工作区共边和圆角不得叠加阴影或边缘渐变。
 - 历史 GitHub Light 统一迁移为可编辑的“晴空”，不得固定侧栏色或禁用弥散；弥散由多组低透明度、非对称的大面积柔和色场组成。
 - 主题菜单保持 Codex 式纯文本结构，只显示主题名和选中勾；调色板使用应用内控件，颜色字段保持圆形色样加 `#RRGGBB` 输入。
 
@@ -50,41 +166,82 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Obsidian 只通过浏览器 File System Access API 访问用户选择的 Vault，不安装插件、不启动 REST 服务，也不上传 Vault 内容。
 - 应用只读写可配置托管根目录（默认 `AI知识库`）及政治理论、常识判断、申论子目录；目录句柄只能保存在 repository/IndexedDB，React 状态不得持有。
 - Markdown Properties 使用稳定 `review-id`，关系使用标准 Wikilink。同步采用基础/Vault/应用三方哈希；双边修改必须进入冲突，不得静默覆盖，文件删除只标记断开。
+- Wikilink 图谱只能由同步后的 mapping 派生为可序列化 `ObsidianGraphSnapshot`；React 不得持有目录句柄，AI 只接收节点/边摘要。
 - 错题、面试、辅导和知识资料可自动进入本地候选；AI 仅通过默认文本连接生成 `create | merge | link` 提案。用户确认前不得写知识库或 Vault，确认后也只能修改显式 AI 演进区块和托管链接。
+- 知识演进提案生成必须显示解析数量、过滤数量、空结果原因和诊断说明；不得让生成结果只落为空状态。
 - Vault 同步必须先完成目录遍历、重复 `review-id` 和三方哈希预检，再写文件并提交 IndexedDB 基线；托管根目录缺失不得标记全部映射断开。
 - 冲突选择与提案确认前必须复读 Vault 并拒绝过期哈希；`link` 提案只更新 Wikilink 和来源引用，失败重试不得生成重复知识条目。
 
 - 知识演进确认闭环必须区分 `create`、`merge`、`link`：`merge` 只能替换显式 AI 演进区并维护摘要、标签、托管链接和来源引用，`link` 只能维护 Wikilink/sourceRefs；两者确认前都要复读 Vault 并校验过期 hash，写入失败后 proposal 必须保持 pending 以便重试。
-## 本地自动化约定
+## 本地已安排约定
 
-- 自动化只在应用打开时执行；启动、恢复可见和网络恢复时可合并补跑一次，不得暗示浏览器关闭后仍会后台运行。
+- 已安排任务只在应用打开时执行；启动、恢复可见和网络恢复时可合并补跑一次，不得暗示浏览器关闭后仍会后台运行。
 - 调度支持不少于五分钟的固定间隔、每日、每周和五段式 Cron；使用任务保存的 IANA 时区，并由 Web Locks 与可续期 IndexedDB 租约双重去重。
-- 自动化严格使用默认文本连接，不回退多模态或语音。缺连接、断网和模型失败必须进入运行收件箱，并推进到下一计划时间。
+- 已安排严格使用默认文本连接，不回退多模态或语音。缺连接、断网和模型失败必须进入运行收件箱，并推进到下一计划时间。
 - 自定义任务只能读取用户勾选的数据范围；知识演进的来源和候选知识也必须分别受范围约束。除创建待确认提案外，不得自动修改知识库、训练计划、Obsidian 或文件。
 - 预览读取范围只展示本地摘要，不调用 AI、不保存任务、不推进调度；试运行只在用户显式点击后调用默认文本连接，且不得创建 run、写 proposal、保存定义或更新 `nextRunAt`。
 - 运行详情只持久化 scope、数量、样本标题、上下文字符数、失败分类和恢复动作；不得保存完整上下文 JSON、完整题干集合、完整知识正文或完整 prompt。
 - 失败恢复 CTA 只能导航或提示，不得自动重试运行、测试连接、选择 Vault、创建任务或触发外部请求。
-- 自动化 AI 成功态回归必须使用 E2E 本地 mock provider 覆盖真实 UI 配置默认文本连接、试运行成功、立即运行成功和详情展开；不得在 CI 中依赖真实 API Key、真实模型服务或外网。
-- 知识演进自动化成功态回归必须使用 E2E 本地 mock JSON provider；CI 只验证待确认提案生成和展示，不得连接真实 Vault、确认写入 Vault 或请求外网模型。
+- 已安排 AI 成功态回归必须使用 E2E 本地 mock provider 覆盖真实 UI 配置默认文本连接、试运行成功、立即运行成功和详情展开；不得在 CI 中依赖真实 API Key、真实模型服务或外网。
+- 知识演进已安排成功态回归必须使用 E2E 本地 mock JSON provider；CI 只验证待确认提案生成和展示，不得连接真实 Vault、确认写入 Vault 或请求外网模型。
 - 空白闪卡正面只显示加号，不显示“添加角色图片”或“未命名角色”；已有图片的角色仍显示名称，上传入口保留无障碍标签。
 
 ## 性能与包体约定
 
-- `ReviewWorkspace` 首屏只保留总览、错题、复盘、知识库和统计等核心路径；导入、自动化、设置、面试、辅导等低频视图必须使用 `next/dynamic` 动态加载，不得重新静态引入主工作台。
+- 对话模型选择采用“厂商 → 连接档案/具体模型”两级下拉；会话级覆盖保存 `selectedModelId` 与归一化 `selectedRuntimeValues`，不得为切换模型复制连接密钥。
+- MCP 只支持安全的 Streamable HTTP，并与插件目录分离；原始结果只留当前运行内存，持久化 run/step 只能保存 Server、工具、参数键和脱敏状态。
+- Obsidian 提案生成、解析与 pending 保存必须出现在对话时间线，`conversationId` / `runId` 只作关联且不得触发 Dexie schema 升级。
+- 手动复盘进入和切题只重置为暂停的 `00:00`，不得自动启动；倒计时只作为次级 disclosure。
+
+- `ReviewWorkspace` 首屏只保留总览、错题、复盘、知识库和统计等核心路径；粉笔导入、已安排、设置、面试、辅导等低频视图必须使用 `next/dynamic` 动态加载，不得重新静态引入主工作台。
 - 导入页的 `useImportDrafts` 必须留在导入视图内部 wrapper 中；`pdfjs-dist`、`mammoth` 等文件解析依赖只能在实际解析函数里 `await import()`，避免进入首屏包体。
 - AI 关联分析、Obsidian repository 等重型服务应在用户触发对应动作时按需加载；React 状态仍不得持有 Vault 目录句柄。
 - KnowledgeWorkspace 的列表分页、批量选择、批量删除和导出范围计算应保留在 `useKnowledgeListController`；Obsidian repository 与知识演进 AI service 只能在刷新或用户动作中动态加载，不得通过知识库视图静态回到核心首屏链路。
 - TutoringWorkspace 的实时媒体源、关键帧采样、语音转写/朗读、本地草稿和当前轮次提交应保留在 `useTutoringSessionController`；主工作台只接线 tab、计划、关联和设备视图，且不得破坏默认文本/多模态/语音连接边界。
 - 大列表第一阶段采用渐进显示：错题和知识资料默认 80 条、导入草稿默认 60 条，批量全选只覆盖当前显示项，导出筛选结果仍保留完整筛选语义。
-- IndexedDB 索引优化必须基于真实页面访问路径和慢查询证据；没有 repository 级分页或明确性能瓶颈时，不为前端列表切片单独升级 Dexie schema。
+- IndexedDB 索引优化必须基于真实页面访问路径和慢查询证据；v16 只执行旧空草稿清理，不得为前端列表切片新增索引。
+- 额度插件这类小型设置使用本地加密存储，不得为了配置面板升级 Dexie schema。
 - 配置健康、诊断输入和恢复 CTA 导航属于工作台 glue code，必须保留在专用 hook 中；`ReviewWorkspace` 不得重新直接导入配置健康 hook、诊断 hook 或 `package.json` 版本信息。
 
 ## AI JSON 约定
+
+## 连接模型解耦与对话树约定
+
+- `ApiConnectionProfile.model` 只作历史迁移输入；新建、编辑、测试连接不得要求或写回模型。
+- 对话保存连接、模型和可选运行值；后台默认能力保存各自的连接与模型，默认文本只在空白对话没有最近选择时作为初始值，不得覆盖已有会话选择。
+- MiniMax 静态回退以 `MiniMax-M3` 为旗舰，M2.7 为次级，M2.5 为 Legacy；GLM 静态回退以 `glm-5.2` 为旗舰。
+- 对话模型选择器必须是单栏钻取，已选厂商优先，其余按英文名排序；推理参数只能展示厂商真实支持项。
+- 对话和文件夹进入任意嵌套层级后都必须能拖回根目录；拖拽期间固定显示根目录目标，仍拒绝跨项目、自身与子孙嵌套。
+
+## 公考树、产品图标与六厂商适配经验
+
+- 公考内部的模块和板块筛选必须使用独立原生 disclosure，默认折叠且不持久化；测试应直接断言各层 `open` 状态，不能依赖空数据库下不存在的板块按钮。
+- 产品功能图标统一通过 `AppIcon` 使用 Lucide；AI 品牌只能通过 `ProviderIcon` 与集中注册表渲染，禁止恢复 Unicode 占位或重复内联 SVG。
+- 对话拖拽统一使用 dnd-kit Pointer/Touch/Keyboard sensors，名称区域作为拖拽表面并保留 6px 激活距离；repository 继续校验跨项目、自身与非法子孙嵌套。
+- 指针拖拽 E2E 必须先通过 locator hover 完成 actionability，pointerdown 后留出事件循环并发送多次移动；等待 `DragOverlay` 后再查找根目标，pointerup 后等待拖拽态完整卸载再继续。
+- 只有 `modelListStrategy === official_api` 的连接允许后台刷新模型目录；自定义与手动目录不得在保存后额外请求模型服务。
+- structured output 由统一请求契约进入 provider adapter；知识演进固定使用对象包络并兼容历史数组，空响应/解析失败/全部过滤最多修复重试一次。
+- rejected 知识演进提案不再消费来源；pending 与 accepted 仍需排除，避免重复待确认或已确认提案。
 
 - 模型返回 JSON 必须通过 `app/services/ai-json.ts` 统一处理 Markdown fence、对象/数组主体提取和稳定错误消息；业务 service 不得重新手写 fence 清理或裸 `JSON.parse`。
 - JSON helper 只负责解析稳定性，不改变现有 prompt 契约、不引入额外 schema 依赖；字段缺失、空数组和业务归一化继续由各业务 service 自己处理。
 
 ## 发布验收与数据性能约定
+
+## 对话拖拽与七厂商适配经验
+
+- 对话和文件夹拖拽统一使用 dnd-kit 的 Pointer、Touch 与 Keyboard sensors；拖拽上下文留在 `ConversationFolderTree`，移动合法性继续由 repository 判断。
+- 模型选择列表点击即生效，不得恢复“使用此模型”二次确认；来源、核验日期和协议说明只进入诊断或详情。
+- AI 连接新建不再选择用途；连接档案只保存鉴权、endpoint 与厂商能力，默认用途单独保存连接和模型。
+- OpenAI、Gemini、Claude、DeepSeek、GLM、MiniMax、Grok 通过显式 `ProviderAdapter` 注册；其他厂商只作为兼容边界，不得宣称原生已核验。
+- MiniMax 文本使用官方推荐 Anthropic-compatible `/anthropic/v1/messages`，语音使用原生 T2A；两类请求不得共用通用 Chat Completions 请求体。
+- 模型运行能力只能来自具体模型 `AiModelRuntimeDescriptor`；未知模型不推断，UI 只保存 `{ reasoning, speed }`，七家独立 mapper 负责最终厂商字段。
+- `glm-5.2` 必须原样支持 `max/xhigh/high/medium/low/minimal/none` 且默认 `max`；GLM-4.5 至 5.1 只按显式核验清单显示开启/关闭，未来或带后缀模型不得按版本字符串推断。
+- 模型目录缓存按连接 ID、厂商和规范化 Base URL 隔离 24 小时；设置测试、能力默认和对话选择器必须共用目录服务。
+- 对话模型菜单只渲染当前钻取层；厂商、模型、普通运行和预算层按内容采用独立宽度，高度随内容变化，禁止用绝对覆盖、`:has()` 固定最小高度或不可聚焦的视觉隐藏替代卸载。
+- 模型、推理和速度点击即乐观保存且菜单保持打开；持久化选择必须按 `conversationId` 隔离并串行写入，失败回滚当前会话，空白草稿不得与其他对话共用乐观值。
+- 运行档位使用原生 radio 语义；共享能力 tooltip 必须支持 hover、键盘与触屏 focus、`role="tooltip"`、`aria-describedby` 和视口碰撞。手动模型 ID 允许 Enter 与紧凑行尾提交，不增加全局确认按钮。
+- `kind: "budget"` 的推理 descriptor 必须声明 `customRange`；范围内自定义整数和模型明确允许的 `0/-1` 必须保留。Anthropic 最终 `max_tokens` 必须包含思考预算和调用方正文输出额度。
 
 - 数据层性能第二阶段必须先记录真实页面访问路径和慢查询证据；没有页面级分页需求或明确慢查询时，不得升级 Dexie schema 或新增索引。
 - 真实浏览器与 Vault 发布验收按 `docs/release-smoke.md` 执行，重点覆盖 connect、sync、conflict、proposal confirm；CI 不得连接真实 Vault、真实模型服务或外网 API Key。
@@ -96,8 +253,90 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Node 26 下若出现 `[DEP0205] module.register()`，先检查 Tailwind 运行时依赖；`@tailwindcss/node` 需保持在已优先调用 `module.registerHooks()` 的 4.3.2 或同补丁线后续版本。
 - 处理运行时 deprecation warning 不得通过隐藏 warning 交付，必须定位调用栈、更新依赖或锁定受支持运行时，并完成 lint、contracts、build 验证。
 
+## 设置导航与确认稿 UI 约定
+
+- `useReviewWorkspaceRecoveryNavigation` 是设置分区唯一状态源；`SettingsWorkspace` 必须保持受控，禁止新增内部活动分区、`initialSection` 镜像或定时同步。
+- 普通保存、连接测试、额度轮询和父级 snapshot 更新不得改变当前设置分区；只有“返回应用”后再次进入设置才重置为外观。
+- 设置内容按信息密度采用独立最大宽度，桌面行高 32–36px、粗指针至少 44px；额度与数据管理使用紧凑表格，记忆与危险操作使用可锁定焦点并恢复触发器的应用内弹层。
+
+## 已安排外部知识采集约定
+
+- 行测、申论、面试采集来源默认停用；MCP 只有 `allow_scheduled` 权限可用于无人值守任务，`ask` 与 `allow_session` 必须阻止执行。
+- 搜索工具只返回候选 URL，正文统一经过 `/api/acquisition/fetch` 的 HTTP(S)、精确 origin、DNS 私网、逐跳重定向、10 秒、1 MiB 与内容类型校验。
+- 完整网页、MCP 原始结果、完整提示词和模型原始响应只留当前运行内存；提案只保存生成稿、必要证据摘录、URL、哈希和审计元数据。
+- 整理模型和复核模型不拥有写库权限；缺复核时最高 B 并标记未交叉复核，事实冲突、无证据段落、URL/哈希失效和精确重复必须阻止确认。
+- 批量确认先统一复读 Vault 目标与外部来源，再逐项写入；成功立即 accepted，失败和尚未处理项保持 pending。不得升级 `review_workspace` v16。
+
 ## 依赖维护约定
 
 - 常规依赖维护只集中更新同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本；ESLint、TypeScript、Node 类型等 major 变更必须单独开预研 PR。
 - Next、React、React DOM 和 `eslint-config-next` 使用精确版本，避免框架核心版本在 `package.json` 范围内漂移；其他工具依赖沿用既有范围策略，并由 lockfile 固定解析版本。
 - `npm audit` 禁止使用 `--force` 自动跨 major 或降级修复；若修复建议要求退回不可接受的旧 Next 主版本，应记录为上游未提供稳定可接受修复并持续跟踪。
+
+## 学习者模型、声明式扩展与视觉输入约定
+
+- 通用记忆只保存稳定资料、偏好和目标；掌握度、错因、到期复习和下一步行动必须由 `LearnerStateSnapshot` 从本地可观察结果动态派生，并为每条结论保留证据 ID。
+- 辅导闭环固定为诊断、短讲解、学生操作、1–3 题微测和间隔复练；模型置信度不得直接更新掌握状态。
+- `ProviderAdapter` 继续负责厂商协议映射，`ProviderTransport` 负责超时、取消、流和模型目录。Google 官方 Interactions 使用 `@google/genai` 且显式 `maxRetries: 0`、`store:false`；自定义代理继续走原生 HTTP。
+- 相机、屏幕和上传图片统一实现 `VisionSourceAdapter`；原始媒体、关键帧和灰度指纹只留设备内存，仓储必须拒绝任何媒体 Data URL 或 Blob URL。
+- 顶层插件入口允许声明式扩展市场。V1 只支持 theme、persona、study-pack、automation-pack、rubric-pack，禁止 JavaScript、HTML、远程字体和运行时 CDN；严格校验未知字段、路径、大小、SHA-256 与 ECDSA 签名。
+- 扩展持久化固定使用独立 `review_extensions` v1，不得升级核心 `review_workspace` v16；完整导出和重置必须同时覆盖两个数据库。
+
+## AI 活动、跨厂商上下文与自动记忆约定
+
+- 全局 AI 活动宿主只渲染紧凑连接测试卡和单行后台状态；普通对话运行只进入消息内工具摘要，不得恢复三栏活动面板、假消息流或假 composer。
+- Google 官方 Interactions 固定使用 `/v1beta/interactions`，流式请求通过同一路径的 `alt=sse`；仅官方域名修正版本，自定义代理必须保留用户路径。
+- 可见消息是跨厂商上下文的唯一事实源；adapter 只能映射用户、助手、附件摘要和可见工具结果，不得迁移隐藏思维链、厂商私有状态、密钥或原始响应。
+- 自动记忆对新用户默认开启，旧用户保持原隐私选择；明确记忆指令可本地处理，其他提取按三轮或空闲 45 秒批量触发，失败不得阻塞对话。
+- 自动生效必须满足高置信、稳定、非敏感且无冲突；秘密直接丢弃，冲突与学习状态进入待处理。记忆和修订各最多 100 条，注入最多 8 条且不超过 1500 字符。
+
+## P0 工作台与公考首页约定
+
+- 空白新对话只展示标题、单一任务提示和底部输入区；仍只在首次发送后创建持久化会话。
+- 所有 `WorkspaceShell` 内容视图默认使用通用 `raised-surface` 外层边界；桌面工作区必须零留白贴合侧栏与顶栏，只保留 18px 左上圆角和 1px 共边，禁止叠加阴影、高光、整宽顶部渐变或圆角局部装饰层，右侧继续贴齐。折叠侧栏和移动端必须取消这些边界并自然铺满。
+- 顶栏不得用全宽底边线重复切割侧栏与工作区，桌面展开侧栏不得保留会从工作区圆角旁露出的全高右边框；对话工作区必须继承壳层 `100%` 高度，不得再次用视口高度减顶栏高度，以免边框盒产生亚像素溢出并破坏左侧圆角贴合。
+- 抬升关系不得依赖露底区域或凹槽渐变；开启弥散时，不透明工作区必须继续叠加主题 `--chrome-window-diffuse`。
+- 外层边界只能管理 surface 几何；页面 padding、滚动、标题、消息、空状态和输入区仍由各视图负责，禁止重新绑定到对话业务类名。
+- 移动侧栏使用不持久化临时抽屉，默认关闭，并具备 `inert`、遮罩、Escape、焦点锁定、焦点恢复和页面滚动锁定；导航后自动关闭。
+- 公考首页只保留一个推荐主操作、七阶段短状态路径和今日三项统计。配置健康、六大板块、知识中枢、面试与辅导默认折叠，状态不得只依赖颜色表达。
+- 推荐操作统一通过 `resolveDashboardNextAction()` 按导入草稿、空题库、到期错题、到期知识、Obsidian 提案、已安排未读、对话辅导排序。
+
+## P1 错题、复盘与知识列表约定
+
+- 错题与知识批量管理使用单一筛选条、单一批量工具条和紧凑主从列表；不得恢复板块卡片墙或重复筛选作用域。
+- 移动端条目详情从应用顶栏下方覆盖工作区，必须提供真实可点击的返回入口；不得仅依赖更高 `z-index` 处理顶栏层叠上下文。
+- 错题复盘桌面使用题目画布与当前轮次侧栏，移动端按题目、作答、轮次、计时、队列顺序纵向展开，并保留底部作答操作。
+- 知识列表、知识编辑器和模板控件保持独立组件；列表筛选、批量删除与导出继续由 `useKnowledgeListController` 管理，不升级 Dexie v16。
+- 工作台壳层已经显示页面标题时，业务视图只显示说明和指标；移动顶栏显示当前视图名并隐藏重复的大标题。
+## P1 辅导与面试当前轮次约定
+
+- `conversation.kind === "tutoring"` 的实时辅导布局与运行适配器必须动态加载；独立辅导页只保留记录、计划和资料关联，不得恢复媒体控制主模块。
+- 辅导会话使用可选 `conversationId`，结构化轮次使用可选 `conversationMessageId`；确定性 ID 保证重试幂等，继续保持 `review_workspace` v16 且不得为关联查询新增索引。
+- 辅导模型调用必须显式使用当前对话的 `modelId` 和 `selectedRuntimeValues`，不得回退连接档案历史模型。
+- 原始图片、摄像头、屏幕和录音只留当前运行内存；辅导与面试仓储只持久化文字、摘要、观察描述、微测和真实评分。
+- `LearningSessionLayout` 只共享桌面信息侧栏与移动底部抽屉，不共享业务状态；移动抽屉必须支持 Escape、焦点锁定/恢复、滚动锁定、安全区和至少 44px 触控目标。
+- 面试导航固定为模拟现场、题库、训练计划和复盘记录；阶段取真实 session stage 并使用 `aria-current`，评分只在 evaluation 存在后展示，移动端必须保留可见的“结束并复盘”操作。
+
+## P2 已安排与设置界面约定
+
+- 已安排摘要只能从当前任务和运行快照确定性派生；搜索、状态、当前任务、收件箱筛选、编辑模式和移动抽屉统一由专用 view controller 管理。
+- 桌面固定为任务/运行收件箱主从控制台；移动端使用不丢状态的任务/收件箱页签，任务详情与编辑层必须支持 Escape、焦点锁定/恢复、页面滚动锁定和安全区。
+- 编辑层、预览、试运行与恢复 CTA 不得改变既有调度语义：预览和试运行不保存任务或推进计划，恢复 CTA 只导航或提示。
+- 设置移动分区选择器必须复用 `useReviewWorkspaceRecoveryNavigation` 的受控状态；不得新增内部活动分区或异步镜像。
+- AI 连接使用桌面表格和移动列表，详情不显示密钥；默认文本、多模态和语音继续分别保存连接与具体模型，未知模型不得推断能力。
+- 外观页不再显示代码对比预览；低频设置和已安排继续动态加载，HTTP API、持久化对象与 `review_workspace` v16 不变。
+## P3 最终 UI/UX 收口约定
+
+- 薄弱分析只从有错题关联的 `Attempt.reviewedAt/result` 计算正确率趋势；当前掌握度仅作当前快照，板块少于 5 次有效复盘必须显示“数据不足”。
+- 导入移动流程使用来源、草稿、确认三步展示状态，但解析、确认、撤销和原始文件安全边界继续由既有 controller/repository 负责。
+- 插件页只展示 `settingsPluginDefinitions` 的真实登记；MCP 留在设置，概念稿中的版本、评分、下载量和签名值不得伪造。
+- 全局搜索移动层必须覆盖顶栏，锁定页面滚动，支持 Tab/Shift+Tab、Escape 和触发器焦点恢复。
+- P3 后仅在新增功能或发现新缺陷时开启下一轮 UI/UX；当前功能的偏差必须记录在 `docs/ui-ux-audit.md` fidelity ledger。
+
+## P3 ReviewWorkspace 架构终止约定
+
+- `ReviewWorkspace` 只调用顶层 controller 并渲染 view router，文件不得超过 150 行；`useReviewWorkspaceController` 与 `ReviewWorkspaceViewRouter` 各不得超过 300 行。
+- 错题/复盘/统计状态归 `useReviewLearningController`，知识/导入草稿/训练/关联状态归 `useReviewKnowledgeController`；领域 controller 和任何 React component 不得超过 500 行。
+- route component 只能消费显式 controller 类型，不得导入 repository/service、解密连接或持有 Vault 句柄；禁止用覆盖整个工作台的 React Context 代替边界类型。
+- 低频视图继续使用模块顶层、显式路径的 `next/dynamic`；加载占位只渲染 `WorkspaceViewState`，不得触发业务读取。
+- 架构契约必须持续锁定组件预算、controller 所有权、旧 `stats` 映射、动态加载、无循环依赖和 `review_workspace` v16。

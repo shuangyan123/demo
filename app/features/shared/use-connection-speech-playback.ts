@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { synthesizeWithConnection } from "../../services/ai-connection-client";
-import type { ApiConnectionProfile, VoiceProfile } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { VoiceProfile } from "../../types/domains/personalization.ts";
 
 // 只负责默认语音连接的音频播放；不读取浏览器系统音色，也不提供静默回退。
 export function useConnectionSpeechPlayback({
@@ -44,11 +45,15 @@ export function useConnectionSpeechPlayback({
     try {
       setSpeaking(true);
       const blob = await synthesizeWithConnection(connection, {
-        model: voice.model || connection.model,
+        model: voice.model,
         voiceId: voice.voiceId,
         text,
         style: voice.style,
         speed: voice.rate,
+        volume: voice.volume,
+        pitch: voice.pitch,
+        emotion: voice.emotion,
+        languageBoost: voice.languageBoost,
       });
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;

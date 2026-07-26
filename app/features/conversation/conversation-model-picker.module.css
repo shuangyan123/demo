@@ -1,0 +1,442 @@
+.selector {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  width: auto;
+  height: 2rem;
+  max-width: 11rem;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  padding: 0.25rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.trigger:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--foreground) 58%, transparent);
+  outline-offset: 1px;
+}
+
+.picker {
+  position: absolute;
+  z-index: 55;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  max-height: min(32rem, calc(100dvh - 8rem - env(safe-area-inset-top, 0px)));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 18px 42px rgb(15 23 42 / 18%);
+}
+
+.scrollViewport {
+  max-height: inherit;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.scrollViewport[data-scrollable="true"] {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.picker[data-model-picker-view="providers"] {
+  width: min(13rem, calc(100vw - 1.25rem));
+}
+
+.picker[data-model-picker-view="models"] {
+  width: min(15rem, calc(100vw - 1.25rem));
+}
+
+.picker[data-model-picker-view="reasoning"],
+.picker[data-model-picker-view="speed"] {
+  width: min(10rem, calc(100vw - 1.25rem));
+}
+
+.picker[data-picker-has-budget="true"] {
+  width: min(12.5rem, calc(100vw - 1.25rem));
+}
+
+.layer {
+  display: block;
+  min-width: 0;
+  animation: picker-layer-enter 110ms ease-out;
+}
+
+@keyframes picker-layer-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.providerRow,
+.emptyRow,
+.manageRow,
+.runtimeEntries > button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.providerRow {
+  display: grid;
+  width: calc(100% - 0.5rem);
+  min-height: 2rem;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.25rem;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.providerRow:hover,
+.providerRow:focus-visible,
+.emptyRow:hover,
+.emptyRow:focus-visible,
+.manageRow:hover,
+.manageRow:focus-visible,
+.runtimeEntries > button:hover,
+.runtimeEntries > button:focus-visible {
+  background: var(--surface-muted);
+  color: var(--foreground);
+  outline: none;
+}
+
+.header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: grid;
+  min-height: 2.25rem;
+  grid-template-columns: 1.75rem 1.125rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0 0.4rem;
+  font-size: 0.78rem;
+}
+
+.header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backButton {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+}
+
+.backButton:hover,
+.backButton:focus-visible {
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.profileRow {
+  display: block;
+  border-bottom: 1px solid var(--line);
+  padding: 0.25rem;
+}
+
+.profileRow select {
+  width: 100%;
+  min-width: 0;
+  height: 2rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: var(--surface-muted);
+  padding: 0.25rem 0.4rem;
+  color: var(--foreground);
+  font-size: 0.72rem;
+}
+
+.profileRow select:focus-visible,
+.budgetRow input:focus-visible,
+.manualRow input:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--foreground) 58%, transparent);
+  outline-offset: 1px;
+}
+
+.modelList,
+.radioGroup {
+  display: grid;
+  padding: 0.25rem;
+}
+
+.radioLabel {
+  position: relative;
+  display: block;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.radioInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.radioRow {
+  display: grid;
+  width: 100%;
+  min-height: 2rem;
+  grid-template-columns: minmax(0, 1fr) 1rem;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.radioRow strong,
+.radioRow > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radioLabel:hover .radioRow,
+.radioInput:checked + .radioRow {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.radioInput:focus-visible + .radioRow {
+  outline: 1px solid color-mix(in srgb, var(--foreground) 58%, transparent);
+  outline-offset: -1px;
+}
+
+.runtimeEntries {
+  border-top: 1px solid var(--line);
+  padding: 0.25rem;
+}
+
+.runtimeEntries > button {
+  display: flex;
+  width: 100%;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.73rem;
+}
+
+.runtimeEntries > button > span:last-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtimePanel .header {
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+}
+
+.budgetRow {
+  display: grid;
+  min-height: 2.75rem;
+  grid-template-columns: minmax(0, 1fr) 5.8rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-top: 1px solid var(--line);
+  margin-top: 0.2rem;
+  padding: 0.35rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.budgetRow input {
+  min-width: 0;
+  height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  padding: 0.25rem 0.35rem;
+  color: var(--foreground);
+  font-size: 0.7rem;
+}
+
+.manualRow {
+  display: grid;
+  gap: 0.25rem;
+  border-top: 1px solid var(--line);
+  padding: 0.35rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.manualRow > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.8rem;
+  align-items: stretch;
+}
+
+.manualRow input {
+  min-width: 0;
+  height: 1.875rem;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 0.4rem 0 0 0.4rem;
+  background: var(--surface);
+  padding: 0.25rem 0.4rem;
+  color: var(--foreground);
+}
+
+.manualRow button {
+  display: grid;
+  width: 1.8rem;
+  height: 1.875rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 0 0.4rem 0.4rem 0;
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.manualRow button:disabled {
+  color: var(--muted);
+  opacity: 0.45;
+}
+
+.emptyRow,
+.manageRow {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.45rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: left;
+}
+
+.manageRow {
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 640px) {
+  .picker {
+    position: fixed;
+    right: auto;
+    bottom: calc(var(--model-picker-mobile-bottom, 7.75rem) + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    max-height: calc(100dvh - var(--model-picker-mobile-bottom, 7.75rem) - 0.75rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+  }
+
+  .picker[data-model-picker-view="providers"] {
+    width: min(20rem, calc(100vw - 1.25rem));
+  }
+
+  .picker[data-model-picker-view="models"] {
+    width: min(22rem, calc(100vw - 1.25rem));
+  }
+
+  .picker[data-model-picker-view="reasoning"],
+  .picker[data-model-picker-view="speed"] {
+    width: min(18rem, calc(100vw - 1.25rem));
+  }
+
+  .picker[data-picker-has-budget="true"] {
+    width: min(20rem, calc(100vw - 1.25rem));
+  }
+}
+
+@media (pointer: coarse) {
+  .providerRow,
+  .emptyRow,
+  .manageRow,
+  .radioRow,
+  .runtimeEntries > button,
+  .profileRow select {
+    min-height: 2.75rem;
+  }
+
+  .header {
+    min-height: 2.75rem;
+    grid-template-columns: 2.75rem 1.125rem minmax(0, 1fr);
+    padding-left: 0;
+  }
+
+  .runtimePanel .header {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+
+  .backButton {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .budgetRow {
+    min-height: 2.75rem;
+  }
+
+  .budgetRow input,
+  .manualRow input,
+  .manualRow button {
+    height: 2.75rem;
+  }
+
+  .manualRow > div {
+    grid-template-columns: minmax(0, 1fr) 2.75rem;
+  }
+
+  .manualRow button {
+    width: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layer {
+    animation: none;
+  }
+}

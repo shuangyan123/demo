@@ -15,6 +15,12 @@ export type MockAiProvider = {
 
 export type MockAiProviderOptions = {
   response?: string | ((request: MockAiRequest, requestIndex: number) => string);
+  protocol?: "chat_completions" | "openai_responses" | "google_generate_content" | "google_interactions";
+  models?: string[];
+  actualSpeed?: string;
+  /** 用于验证进行中 UI 与取消流程，默认不延迟。 */
+  responseDelayMs?: number;
+  streamCompletionDelayMs?: number;
 };
 
 const defaultResponse = "## Mock 自动化结果\n- 已读取授权范围\n- 下一步建议：继续复盘";
@@ -37,21 +43,83 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
-/** 启动本地 Chat Completions 兼容服务，只供 E2E 成功态回归使用。 */
+/** 启动本地 Chat Completions 或 Responses 兼容服务，只供 E2E 成功态回归使用。 */
 export async function startMockAiProvider(options: MockAiProviderOptions = {}): Promise<MockAiProvider> {
   const requests: MockAiRequest[] = [];
   const server = createServer((request, response) => {
     void readJson(request)
-      .then((body) => {
+      .then(async (body) => {
         const mockRequest = { method: request.method, url: request.url, body };
-        requests.push(mockRequest);
-        if (request.method !== "POST" || request.url !== "/v1/chat/completions") {
+        if (request.method === "GET" && new URL(request.url ?? "/", "http://mock.local").pathname === "/v1/models") {
+          requests.push(mockRequest);
+          const models = options.models ?? ["gpt-5.5"];
+          writeJson(response, 200, options.protocol === "google_generate_content"
+            ? { models: models.map((id) => ({ name: `models/${id}`, displayName: id, supportedGenerationMethods: ["generateContent"] })) }
+            : { data: models.map((id) => ({ id, status: "active" })) });
+          return;
+        }
+        if (options.protocol === "google_generate_content" && request.method === "POST" && /^\/v1\/models\/[^:]+:(?:generateContent|streamGenerateContent\?alt=sse)$/.test(request.url ?? "")) {
+          requests.push(mockRequest);
+          if (options.responseDelayMs) await new Promise((resolve) => setTimeout(resolve, options.responseDelayMs));
+          const content = typeof options.response === "function" ? options.response(mockRequest, requests.length - 1) : options.response ?? defaultResponse;
+          if (request.url?.includes("streamGenerateContent")) {
+            response.writeHead(200, { "Content-Type": "text/event-stream", "x-request-id": `mock-${requests.length}` });
+            response.write(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 8, totalTokenCount: 20 } })}\n\n`);
+            response.end();
+            return;
+          }
+          writeJson(response, 200, { candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 8, totalTokenCount: 20 } });
+          return;
+        }
+        if (options.protocol === "google_interactions" && request.method === "POST" && request.url === "/v1/interactions") {
+          requests.push(mockRequest);
+          if (options.responseDelayMs) await new Promise((resolve) => setTimeout(resolve, options.responseDelayMs));
+          const content = typeof options.response === "function" ? options.response(mockRequest, requests.length - 1) : options.response ?? defaultResponse;
+          writeJson(response, 200, {
+            id: `interaction-${requests.length}`,
+            steps: [{ type: "model_output", content: [{ type: "text", text: content }] }],
+            usage: { total_input_tokens: 12, total_output_tokens: 8, total_tokens: 20 },
+          });
+          return;
+        }
+        const expectedPath = options.protocol === "openai_responses" ? "/v1/responses" : "/v1/chat/completions";
+        if (request.method !== "POST" || request.url !== expectedPath) {
           writeJson(response, 404, { error: "not found" });
           return;
         }
+        requests.push(mockRequest);
+        if (options.responseDelayMs) await new Promise((resolve) => setTimeout(resolve, options.responseDelayMs));
         const content = typeof options.response === "function"
           ? options.response(mockRequest, requests.length - 1)
           : options.response ?? defaultResponse;
+        if (options.protocol === "openai_responses") {
+          const input = body as { stream?: boolean };
+          if (input.stream) {
+            response.writeHead(200, { "Content-Type": "text/event-stream", "x-request-id": `mock-${requests.length}` });
+            response.write(`data: ${JSON.stringify({ type: "response.output_text.delta", delta: content })}\n\n`);
+            if (options.streamCompletionDelayMs) await new Promise((resolve) => setTimeout(resolve, options.streamCompletionDelayMs));
+            response.write(`data: ${JSON.stringify({ type: "response.completed", response: { id: `mock-${requests.length}`, service_tier: options.actualSpeed ?? "priority", usage: { input_tokens: 12, output_tokens: 8, total_tokens: 20 } } })}\n\n`);
+            response.end();
+            return;
+          }
+          writeJson(response, 200, {
+            id: `mock-${requests.length}`,
+            output_text: content,
+            service_tier: options.actualSpeed ?? "priority",
+            usage: { input_tokens: 12, output_tokens: 8, total_tokens: 20 },
+          });
+          return;
+        }
+        const input = body as { stream?: boolean };
+        if (input.stream) {
+          response.writeHead(200, { "Content-Type": "text/event-stream", "x-request-id": `mock-${requests.length}` });
+          response.write(`data: ${JSON.stringify({ id: `mock-${requests.length}`, choices: [{ delta: { content } }] })}\n\n`);
+          if (options.streamCompletionDelayMs) await new Promise((resolve) => setTimeout(resolve, options.streamCompletionDelayMs));
+          response.write(`data: ${JSON.stringify({ id: `mock-${requests.length}`, choices: [], usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 } })}\n\n`);
+          response.write("data: [DONE]\n\n");
+          response.end();
+          return;
+        }
         writeJson(response, 200, {
           id: `mock-${requests.length}`,
           choices: [{ message: { role: "assistant", content } }],

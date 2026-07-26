@@ -3,7 +3,7 @@
 import Image from "next/image";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useRef } from "react";
-import type { PersonaProfile } from "../../types/review";
+import type { PersonaProfile } from "../../types/domains/personalization.ts";
 
 export function PersonaFlashCard({
   imageSrc,

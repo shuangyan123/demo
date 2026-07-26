@@ -1,18 +1,38 @@
-import type { ApiConnectionProfile } from "../types/review";
+import type { AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 import {
   callAiGenerate,
+  callAiGenerateStream,
+  callAiModels,
   callAiSpeech,
+  callAiTranscription,
+  type AiGenerateStreamEvent,
   type AiGenerateRequest,
   type AiGenerateResult,
+  type AiModelsResult,
   type AiSpeechRequest,
+  type AiTranscriptionResult,
 } from "./api-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
+import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues, resolveRuntimeModelId } from "./model-runtime-descriptors.ts";
+import { getProviderModelCatalog } from "./provider-contracts.ts";
+import { providerModelCache } from "./provider-model-cache.ts";
 
 export type GenerateConnectionPurpose = "text" | "vision";
-type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions">;
+type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions" | "runtime"> & { modelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues };
 type ConnectionSpeechInput = Omit<AiSpeechRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & {
   model?: string;
 };
+
+/** 按精确 descriptor、连接目录缓存顺序解析 Google 模型协议。 */
+function resolveConnectionGenerationProtocol(connection: ApiConnectionProfile, modelId: string) {
+  if (connection.provider !== "google") return undefined;
+  const verified = getProviderModelCatalog("google").find((model) => model.id === modelId)?.generationProtocol;
+  if (verified) return verified;
+  const cached = providerModelCache.load(connection.id, connection.provider, connection.baseUrl)?.models.find((model) => model.id === modelId);
+  return cached?.generationProtocol
+    ?? (cached?.supportedGenerationMethods?.includes("generateContent") ? "google_generate_content" : undefined);
+}
 
 // 使用连接档案发起文本或多模态请求，业务服务不再自行解密密钥或判断厂商协议。
 export async function generateWithConnection(
@@ -24,12 +44,55 @@ export async function generateWithConnection(
     throw new Error(`当前连接不支持${purpose === "vision" ? "多模态" : "文本"}能力`);
   }
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  const selectedModel = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
+  const descriptor = getAiModelRuntimeDescriptor(connection.provider, selectedModel);
+  const runtime = normalizeAiSelectedRuntimeValues(descriptor, input.selectedRuntimeValues);
+  const model = resolveRuntimeModelId(descriptor, selectedModel, runtime);
+  const runtimePayload = Object.keys(runtime).length ? { runtime } : {};
+  const request = { ...input };
+  delete request.modelId;
+  delete request.selectedRuntimeValues;
   return callAiGenerate({
-    ...input,
+    ...request,
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
-    model: connection.model,
+    model,
+    generationProtocol: resolveConnectionGenerationProtocol(connection, model),
+    ...runtimePayload,
+    providerOptions: connection.providerOptions,
+  });
+}
+
+/** 使用连接档案发起流式生成；调用方只能消费归一化事件，不能接触明文 Key。 */
+export async function* generateWithConnectionStream(
+  connection: ApiConnectionProfile,
+  purpose: GenerateConnectionPurpose,
+  input: ConnectionGenerateInput,
+): AsyncGenerator<AiGenerateStreamEvent> {
+  if (!connection.capabilities.includes(purpose)) {
+    throw new Error(`当前连接不支持${purpose === "vision" ? "多模态" : "文本"}能力`);
+  }
+  if (!connection.capabilities.includes("streaming")) {
+    throw new Error("当前连接未声明流式输出能力");
+  }
+  const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  const selectedModel = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
+  const descriptor = getAiModelRuntimeDescriptor(connection.provider, selectedModel);
+  const runtime = normalizeAiSelectedRuntimeValues(descriptor, input.selectedRuntimeValues);
+  const model = resolveRuntimeModelId(descriptor, selectedModel, runtime);
+  const runtimePayload = Object.keys(runtime).length ? { runtime } : {};
+  const request = { ...input };
+  delete request.modelId;
+  delete request.selectedRuntimeValues;
+  yield* callAiGenerateStream({
+    ...request,
+    provider: connection.provider,
+    apiKey,
+    baseUrl: connection.baseUrl,
+    model,
+    generationProtocol: resolveConnectionGenerationProtocol(connection, model),
+    ...runtimePayload,
     providerOptions: connection.providerOptions,
   });
 }
@@ -48,7 +111,88 @@ export async function synthesizeWithConnection(
     provider: connection.provider,
     apiKey,
     baseUrl: connection.baseUrl,
-    model: input.model || connection.model,
+    model: await aiConnectionsRepository.resolveRuntimeModel(connection, "speech", input.model),
     providerOptions: connection.providerOptions,
   });
+}
+
+/** 使用独立转写连接请求 Gemini 音频理解；业务层永远接触不到 API Key。 */
+export async function transcribeWithConnection(
+  connection: ApiConnectionProfile,
+  input: { audioBase64: string; mimeType: string },
+): Promise<AiTranscriptionResult> {
+  if (!connection.capabilities.includes("transcription")) throw new Error("当前连接未启用录音转写能力");
+  if (connection.provider !== "google") throw new Error("当前仅支持 Google Gemini 录音转写连接");
+  const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  return callAiTranscription({
+    provider: connection.provider,
+    apiKey,
+    baseUrl: connection.baseUrl,
+    model: await aiConnectionsRepository.resolveRuntimeModel(connection, "transcription"),
+    mimeType: input.mimeType,
+    audioBase64: input.audioBase64,
+    providerOptions: connection.providerOptions,
+  });
+}
+
+/** 使用已保存连接读取官方模型目录，密钥仍只在连接客户端内解密。 */
+export async function listModelsWithConnection(connection: ApiConnectionProfile): Promise<AiModelsResult> {
+  const apiKey = await aiConnectionsRepository.resolveSecret(connection);
+  return callAiModels({ provider: connection.provider, apiKey, baseUrl: connection.baseUrl, providerOptions: connection.providerOptions });
+}
+
+/** 新建连接保存前读取模型目录；明文密钥只存在于本次请求内存。 */
+export async function listModelsWithDraft(input: { provider: ApiConnectionProfile["provider"]; apiKey: string; baseUrl: string; providerOptions?: Record<string, string> }): Promise<AiModelsResult> {
+  return callAiModels(input);
+}
+
+/** 编辑草稿可复用已保存密钥，但厂商、地址和模型必须始终来自当前草稿。 */
+export async function resolveConnectionDraftSecret(input: { apiKey: string; existingConnection?: ApiConnectionProfile }): Promise<string> {
+  if (input.apiKey.trim()) return input.apiKey.trim();
+  if (input.existingConnection) return aiConnectionsRepository.resolveSecret(input.existingConnection);
+  return "";
+}
+
+/** 新建或编辑连接时使用当前草稿读取模型目录，不回退到旧档案地址。 */
+export async function listModelsWithConnectionDraft(input: {
+  provider: ApiConnectionProfile["provider"];
+  apiKey: string;
+  baseUrl: string;
+  providerOptions?: Record<string, string>;
+  existingConnection?: ApiConnectionProfile;
+}): Promise<AiModelsResult> {
+  const apiKey = await resolveConnectionDraftSecret(input);
+  return callAiModels({ provider: input.provider, apiKey, baseUrl: input.baseUrl, providerOptions: input.providerOptions ?? input.existingConnection?.providerOptions });
+}
+
+/** 使用当前连接草稿执行极小真实测试，并以紧凑结果卡展示活动。 */
+export async function testConnectionDraft(input: {
+  provider: ApiConnectionProfile["provider"];
+  apiKey: string;
+  baseUrl: string;
+  modelId: string;
+  label?: string;
+  providerOptions?: Record<string, string>;
+  existingConnection?: ApiConnectionProfile;
+}): Promise<AiGenerateResult> {
+  const apiKey = await resolveConnectionDraftSecret(input);
+  const generationProtocol = input.existingConnection
+    ? resolveConnectionGenerationProtocol(input.existingConnection, input.modelId)
+    : getProviderModelCatalog(input.provider).find((model) => model.id === input.modelId)?.generationProtocol;
+  const result = await callAiGenerate({
+    provider: input.provider,
+    apiKey,
+    baseUrl: input.baseUrl,
+    model: input.modelId,
+    generationProtocol,
+    allowProtocolFallback: input.provider === "google" && !generationProtocol,
+    messages: [{ role: "user", content: "仅回复 OK" }],
+    maxOutputTokens: 12,
+    providerOptions: input.providerOptions ?? input.existingConnection?.providerOptions,
+    activity: { connectionLabel: input.label, presentation: "compact-test", purpose: "connection-test" },
+  });
+  if (input.existingConnection && result.generationProtocol) {
+    providerModelCache.rememberProtocol(input.existingConnection.id, input.existingConnection.provider, input.existingConnection.baseUrl, input.modelId, result.generationProtocol);
+  }
+  return result;
 }

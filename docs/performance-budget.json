@@ -1,0 +1,18 @@
+{
+  "capturedAt": "2026-07-23",
+  "nextVersion": "16.2.11",
+  "maxGrowthPercent": 5,
+  "metrics": {
+    "initialJavaScriptBytes": 1183694,
+    "initialCssBytes": 131222,
+    "largestJavaScriptChunkBytes": 568117
+  },
+  "forbiddenInitialClientModules": [
+    "pdfjs-dist",
+    "mammoth",
+    "obsidian-knowledge-repository",
+    "realtime-voice-session",
+    "automation-view.tsx",
+    "settings-workspace.tsx"
+  ]
+}

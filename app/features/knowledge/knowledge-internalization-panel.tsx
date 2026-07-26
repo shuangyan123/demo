@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { KnowledgeInternalizationController } from "./use-knowledge-internalization";
+import type { KnowledgeInternalizationController } from "./use-knowledge-internalization.ts";
 import { splitInput } from "../../lib/form-utils";
-import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeEntry, type KnowledgeInternalizationMode, type Mistake } from "../../types/review";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeEntry, type KnowledgeInternalizationMode } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 import { Button, Chip, EmptyState, Panel, SelectField, SoftBlock, TextAreaField, TextField } from "../shared/ui-primitives";
 
 // 提供“选择错题 -> AI 草稿 -> 编辑预览 -> 用户确认”的完整内化界面。

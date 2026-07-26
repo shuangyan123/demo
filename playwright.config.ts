@@ -23,7 +23,8 @@ export default defineConfig({
     {
       name: "chromium-mobile",
       testMatch: /.*\.mobile\.spec\.ts/,
-      use: { ...devices["Pixel 5"] },
+      // 产品移动验收基准固定为 390×844，避免沿用 Pixel 5 的 393×727 掩盖矮屏布局问题。
+      use: { ...devices["Pixel 5"], viewport: { width: 390, height: 844 } },
     },
   ],
   webServer: {

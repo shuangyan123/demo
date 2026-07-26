@@ -1,0 +1,332 @@
+.workspace {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.header,
+.toolbar,
+.detailHeader,
+.recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+}
+
+.header p,
+.detailHeader p {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.toolbar {
+  min-height: 56px;
+  margin-top: 20px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px 10px 0 0;
+  background: var(--color-surface);
+}
+
+.toolbar label {
+  display: flex;
+  width: min(420px, 100%);
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 7px;
+}
+
+.toolbar input {
+  width: 100%;
+  min-height: 34px;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.toolbar > span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.layout {
+  display: grid;
+  min-height: 620px;
+  grid-template-columns: minmax(360px, 42%) minmax(0, 1fr);
+  border: 1px solid var(--color-line);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: var(--color-surface);
+}
+
+.list {
+  border-right: 1px solid var(--color-line);
+}
+
+.row,
+.activeRow {
+  display: grid;
+  width: 100%;
+  min-height: 86px;
+  grid-template-columns: 42px minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+}
+
+.row:hover,
+.activeRow {
+  background: var(--color-surface-muted);
+}
+
+.activeRow {
+  box-shadow: inset 3px 0 var(--color-blue);
+}
+
+.glyph {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 10px;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.glyph > span {
+  width: 65%;
+  height: 65%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.rowBody {
+  min-width: 0;
+}
+
+.rowBody strong,
+.rowBody small,
+.rowBody em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowBody strong {
+  font-size: 14px;
+}
+
+.rowBody small {
+  margin-top: 3px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.rowBody em {
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.detailBackdrop {
+  min-width: 0;
+}
+
+.detail {
+  min-width: 0;
+  outline: none;
+}
+
+.detailHeader {
+  min-height: 74px;
+  justify-content: flex-start;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.detailHeader > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.detailHeader h2 {
+  font-size: 16px;
+  font-weight: 740;
+}
+
+.detailHeader button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 7px;
+}
+
+.detailHeader button:hover {
+  background: var(--color-surface-muted);
+}
+
+.auditGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.auditGrid div {
+  min-width: 0;
+  padding: 12px 16px;
+  border-right: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.auditGrid div:nth-child(2n) {
+  border-right: 0;
+}
+
+.auditGrid span,
+.auditGrid strong {
+  display: block;
+}
+
+.auditGrid span {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.auditGrid strong {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.recovery {
+  justify-content: flex-start;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--color-blue) 8%, var(--color-surface));
+  font-size: 12px;
+}
+
+.recovery span {
+  color: var(--color-muted);
+}
+
+.panel {
+  padding: 16px;
+}
+
+.placeholder {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.placeholder strong {
+  color: var(--color-foreground);
+}
+
+.placeholder span {
+  max-width: 280px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header button {
+    min-height: 44px;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .toolbar label {
+    width: 100%;
+  }
+
+  .toolbar input {
+    min-height: 44px;
+  }
+
+  .layout {
+    display: block;
+    min-height: 0;
+  }
+
+  .list {
+    border-right: 0;
+  }
+
+  .row,
+  .activeRow {
+    min-height: 92px;
+  }
+
+  .detailBackdrop {
+    position: fixed;
+    z-index: 95;
+    inset: 0;
+    display: grid;
+    align-items: end;
+    background: rgb(15 23 42 / 38%);
+  }
+
+  .detail {
+    max-height: min(88dvh, 760px);
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    background: var(--color-surface);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .detailHeader {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    background: var(--color-surface);
+  }
+
+  .detailHeader button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .auditGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .auditGrid div,
+  .auditGrid div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .placeholder {
+    display: none;
+  }
+}

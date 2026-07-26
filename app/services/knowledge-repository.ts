@@ -1,7 +1,8 @@
 import { reviewDb } from "../db/review-db";
 import { relativeDate, toISODate } from "../lib/review-utils";
-import type { KnowledgeAttempt, KnowledgeCategory, KnowledgeEntry, KnowledgeImportDraft, KnowledgeStarterTemplate, KnowledgeTrainingSnapshot, Mistake, ReviewResult } from "../types/review";
-import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository";
+import type { KnowledgeAttempt, KnowledgeCategory, KnowledgeEntry, KnowledgeImportDraft, KnowledgeStarterTemplate, KnowledgeTrainingSnapshot } from "../types/domains/knowledge.ts";
+import type { Mistake, ReviewResult } from "../types/domains/review.ts";
+import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
 
 type KnowledgeInput = Omit<KnowledgeEntry, "id" | "createdAt" | "updatedAt" | "mastery" | "nextReviewAt" | "lastReviewedAt" | "reviewCount"> &
   Partial<Pick<KnowledgeEntry, "mastery" | "nextReviewAt" | "lastReviewedAt" | "reviewCount">>;

@@ -2,7 +2,7 @@
 
 import { Button, DataList, EmptyState, ListRow, Panel } from "../shared/ui-primitives";
 import { interviewTypeLabels } from "../../services/interview-rubric";
-import type { InterviewEvaluation, InterviewSession } from "../../types/review";
+import type { InterviewEvaluation, InterviewSession } from "../../types/domains/interview.ts";
 
 // 面试记录视图展示历史会话和评分入口，删除时由 repository 清理文字稿与关联。
 export function InterviewRecordsView({

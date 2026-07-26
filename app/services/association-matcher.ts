@@ -1,4 +1,5 @@
-import { BOARD_OPTIONS, KNOWLEDGE_CATEGORIES, type Board, type KnowledgeCategory, type KnowledgeEntry, type Mistake } from "../types/review";
+import { BOARD_OPTIONS, type Board, type Mistake } from "../types/domains/review.ts";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeEntry } from "../types/domains/knowledge.ts";
 
 export type KnowledgeMatch = {
   entry: KnowledgeEntry;

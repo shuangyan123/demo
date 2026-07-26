@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import type { ExportFormat } from "../../types/review";
+import type { ExportFormat } from "../../types/domains/review.ts";
 
 type ChipTone = "neutral" | "blue" | "green" | "yellow" | "red";
 type ButtonVariant = "primary" | "soft" | "ghost" | "danger" | "outline";
@@ -55,7 +55,7 @@ export function MasteryDots({ value }: { value: number }) {
 }
 
 // 渲染通用内容面板，集中维护卡片边框、标题和 eyebrow 的视觉层级。
-export function Panel({ children, className, title }: { children: ReactNode; className?: string; eyebrow: string; title: string }) {
+export function Panel({ children, className, title }: { children: ReactNode; className?: string; eyebrow: string; title: ReactNode }) {
   return (
     <section className={cx("ui-panel", className)}>
       <h3 className="ui-panel-title">{title}</h3>
@@ -279,7 +279,7 @@ export function SessionStageRail({
   return (
     <div className="ui-stage-rail">
       {stages.map((stage, index) => (
-        <span key={stage.id} className={cx("ui-stage-step", index <= activeIndex && "ui-stage-step-done", stage.id === activeId && "ui-stage-step-active")}>
+        <span key={stage.id} aria-current={stage.id === activeId ? "step" : undefined} className={cx("ui-stage-step", index <= activeIndex && "ui-stage-step-done", stage.id === activeId && "ui-stage-step-active")}>
           <i />
           <small>{stage.label}</small>
         </span>

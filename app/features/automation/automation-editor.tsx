@@ -4,18 +4,19 @@ import { useState, type FormEvent } from "react";
 import { automationFailureLabel, automationRecoveryLabel } from "../../services/automation-failure";
 import { AUTOMATION_TEMPLATES } from "../../services/automation-executor";
 import type { AutomationDefinitionInput } from "../../services/automation-repository";
-import type { AutomationContextSummary, AutomationDefinition, AutomationRecoveryAction, AutomationSchedule, AutomationTemplateId } from "../../types/review";
+import type { AutomationContextSummary, AutomationDefinition, AutomationRecoveryAction, AutomationSchedule, AutomationTemplateId } from "../../types/domains/automation.ts";
 import { Button, Chip, Panel } from "../shared/ui-primitives";
-import type { AutomationCenter, AutomationPreviewResult, AutomationTrialResult } from "./use-automation-center";
+import type { AutomationCenter, AutomationPreviewResult, AutomationTrialResult } from "./use-automation-center.ts";
 import {
   AUTOMATION_SOURCE_OPTIONS,
   automationErrorMessage,
   createAutomationDraft,
   createEditDraft,
   createSchedule,
-} from "./automation-ui";
+} from "./automation-ui.ts";
+import { AutomationCollectionEditor } from "./automation-collection-editor";
 
-/** 渲染自动化创建/编辑表单，并在保存前执行最小业务校验。 */
+/** 渲染已安排任务创建/编辑表单，并在保存前执行最小业务校验。 */
 export function AutomationEditor({
   center,
   definition,
@@ -50,16 +51,21 @@ export function AutomationEditor({
   }
 
   /** 预览、试运行和保存共享同一组表单底线校验。 */
-  function validateDraft(): void {
-    if (!draft.name.trim()) throw new Error("请输入自动化名称");
-    if (draft.templateId === "custom" && !draft.prompt.trim()) throw new Error("自定义自动化必须填写提示词");
-    if (!draft.sourceScopes.length) throw new Error("请至少选择一个数据范围");
+  function validateDraft(requireModel = true): void {
+    if (!draft.name.trim()) throw new Error("请输入已安排任务名称");
+    if (draft.templateId === "custom" && !draft.prompt.trim()) throw new Error("自定义已安排任务必须填写提示词");
+    if (draft.collectionConfig) {
+      if (!draft.collectionConfig.sources.some((source) => source.enabled)) throw new Error("请至少明确启用一个采集来源");
+      if (!draft.collectionConfig.allowedOrigins.length) throw new Error("请配置任务允许域名");
+      if (requireModel && (!draft.collectionConfig.curator?.connectionId || !draft.collectionConfig.curator.modelId.trim())) throw new Error("请选择整理模型 A 并填写模型 ID");
+      if (requireModel && draft.collectionConfig.reviewer?.connectionId && draft.collectionConfig.reviewer.connectionId === draft.collectionConfig.curator?.connectionId && draft.collectionConfig.reviewer.modelId.trim() === draft.collectionConfig.curator?.modelId.trim()) throw new Error("复核模型 B 必须与整理模型 A 不同");
+    } else if (!draft.sourceScopes.length) throw new Error("请至少选择一个数据范围");
   }
 
   /** 本地预览只读取摘要，不调用模型或修改仓储。 */
   async function previewContext(): Promise<void> {
     try {
-      validateDraft();
+      validateDraft(false);
       setPreviewBusy(true);
       const result = await center.preview(draft);
       setPreviewResult(result);
@@ -76,12 +82,13 @@ export function AutomationEditor({
     try {
       validateDraft();
       setTrialBusy(true);
+      const preview = await center.preview(draft);
       const result = await center.trialRun(draft);
       setTrialResult(result);
-      setPreviewResult({ summary: result.contextSummary, contextCharCount: result.contextCharCount });
-      onNotice(result.status === "succeeded" ? "自动化试运行完成，结果未写入收件箱" : `试运行失败：${result.error}`);
+      setPreviewResult({ ...preview, summary: result.contextSummary, contextCharCount: result.contextCharCount });
+      onNotice(result.status === "succeeded" ? "已安排任务试运行完成，结果未写入收件箱" : `试运行失败：${result.error}`);
     } catch (error) {
-      onNotice(automationErrorMessage(error, "自动化试运行失败"));
+      onNotice(automationErrorMessage(error, "已安排任务试运行失败"));
     } finally {
       setTrialBusy(false);
     }
@@ -95,12 +102,12 @@ export function AutomationEditor({
       await center.save({ ...draft, name: draft.name.trim(), prompt: draft.prompt.trim() }, definition?.id);
       onFinished();
     } catch (error) {
-      onNotice(automationErrorMessage(error, "自动化保存失败"));
+      onNotice(automationErrorMessage(error, "已安排任务保存失败"));
     }
   }
 
   return (
-    <Panel title={definition ? "编辑自动化" : "新建自动化"} eyebrow="AI 结果进入收件箱，不会自动改写数据">
+    <Panel title={definition ? "编辑已安排" : "新建已安排"} eyebrow="AI 结果进入收件箱，不会自动改写数据">
       <form className="grid min-w-0 gap-4" onSubmit={submit}>
         <label className="grid min-w-0 gap-1 text-sm">
           名称
@@ -111,21 +118,21 @@ export function AutomationEditor({
         </label>
         <label className="grid min-w-0 gap-1 text-sm">
           模板
-          <select className="min-h-10 min-w-0 rounded-lg border border-line bg-background px-3" value={draft.templateId} onChange={(event) => {
+          <select aria-label="任务模板" className="min-h-10 min-w-0 rounded-lg border border-line bg-background px-3" value={draft.templateId} onChange={(event) => {
             const templateId = event.currentTarget.value as AutomationTemplateId;
             chooseTemplate(templateId);
           }}>
             {AUTOMATION_TEMPLATES.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
-        <label className="grid min-w-0 gap-1 text-sm">
+        {!draft.collectionConfig ? <label className="grid min-w-0 gap-1 text-sm">
           提示词
           <textarea className="min-h-28 min-w-0 rounded-lg border border-line bg-background p-3" value={draft.prompt} onChange={(event) => {
             const prompt = event.currentTarget.value;
             setDraft((current) => ({ ...current, prompt }));
           }} />
-        </label>
-        <fieldset>
+        </label> : null}
+        {!draft.collectionConfig ? <fieldset>
           <legend className="mb-2 text-sm">只读数据范围</legend>
           <div className="flex flex-wrap gap-3">
             {AUTOMATION_SOURCE_OPTIONS.map((source) => (
@@ -147,7 +154,8 @@ export function AutomationEditor({
               </label>
             ))}
           </div>
-        </fieldset>
+        </fieldset> : null}
+        {draft.collectionConfig ? <AutomationCollectionEditor config={draft.collectionConfig} center={center} onChange={(collectionConfig) => setDraft((current) => ({ ...current, collectionConfig }))} /> : null}
         <div className="grid min-w-0 grid-cols-2 gap-3 max-sm:grid-cols-1">
           <label className="grid min-w-0 gap-1 text-sm">
             周期
@@ -228,7 +236,7 @@ export function AutomationEditor({
         {previewResult ? <AutomationContextSummaryView result={previewResult} /> : null}
         {trialResult ? <AutomationTrialResultView result={trialResult} onRecoveryAction={onRecoveryAction} /> : null}
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" type="submit">{definition ? "保存修改" : "创建自动化"}</Button>
+          <Button variant="primary" type="submit">{definition ? "保存修改" : "创建已安排"}</Button>
           {definition ? <Button variant="outline" onClick={onFinished}>取消编辑</Button> : null}
         </div>
       </form>
@@ -239,12 +247,19 @@ export function AutomationEditor({
 /** 展示上下文摘要，避免在表单里暴露完整题干或知识正文。 */
 function AutomationContextSummaryView({ result }: { result: AutomationPreviewResult }) {
   return (
-    <div aria-label="自动化读取范围预览" className="rounded-lg border border-line bg-surface-muted p-3" role="region">
+    <div aria-label="已安排读取范围预览" className="rounded-lg border border-line bg-surface-muted p-3" role="region">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <strong className="text-sm">读取范围预览</strong>
         <Chip tone="blue">约 {result.contextCharCount} 字符</Chip>
       </div>
       <AutomationSummaryList summary={result.summary} />
+      {result.collection ? (
+        <div className="mt-3 grid gap-2 text-sm">
+          <p>将访问：{result.collection.sourceLabels.length ? result.collection.sourceLabels.join("、") : "无已启用来源"}</p>
+          <p className="break-all text-muted">允许域名：{result.collection.allowedOrigins.length ? result.collection.allowedOrigins.join("、") : "未配置"}</p>
+          <p className="text-muted">预计最多读取 {result.collection.estimatedDocuments} 个文档；本次预览未联网、未调用模型。</p>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createDefaultAppearanceSettings,
+  DEFAULT_CODE_FONT_STACK,
   DEFAULT_UI_FONT_STACK,
   normalizeAppearanceSettings,
   resolveSidebarBackground,
 } from "./appearance-settings-repository.ts";
+import { darkThemePresets, lightThemePresets } from "../features/settings/theme-presets.ts";
 
 /** 验证旧内置字体栈只迁移到新的中文默认字体。 */
 test("旧内置主题字体栈升级为 Noto Sans SC", () => {
@@ -28,6 +30,32 @@ test("用户自定义主题字体保留原值", () => {
     lightTheme: { ...defaults.lightTheme, uiFont: '"Custom Chinese Font", sans-serif' },
   });
   assert.equal(normalized.lightTheme.uiFont, '"Custom Chinese Font", sans-serif');
+});
+
+/** 验证默认主题、内置预设和历史内置值统一升级到 Geist Mono。 */
+test("内置代码字体统一使用 Geist Mono", () => {
+  const defaults = createDefaultAppearanceSettings();
+  assert.equal(defaults.lightTheme.codeFont, DEFAULT_CODE_FONT_STACK);
+  assert.equal(defaults.darkTheme.codeFont, DEFAULT_CODE_FONT_STACK);
+  for (const preset of [...lightThemePresets, ...darkThemePresets]) {
+    assert.equal(preset.theme.codeFont, DEFAULT_CODE_FONT_STACK);
+  }
+
+  const normalized = normalizeAppearanceSettings({
+    ...defaults,
+    lightTheme: { ...defaults.lightTheme, codeFont: "Consolas, ui-monospace, SFMono-Regular, monospace" },
+  });
+  assert.equal(normalized.lightTheme.codeFont, DEFAULT_CODE_FONT_STACK);
+});
+
+/** 验证用户手写的代码字体配置不会被内置迁移覆盖。 */
+test("用户自定义代码字体保留原值", () => {
+  const defaults = createDefaultAppearanceSettings();
+  const normalized = normalizeAppearanceSettings({
+    ...defaults,
+    lightTheme: { ...defaults.lightTheme, codeFont: '"JetBrains Mono", monospace' },
+  });
+  assert.equal(normalized.lightTheme.codeFont, '"JetBrains Mono", monospace');
 });
 
 /** 验证所有新建内置主题的对比度从零开始。 */

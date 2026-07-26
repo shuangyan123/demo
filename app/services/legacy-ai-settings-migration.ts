@@ -1,4 +1,4 @@
-import type { AiCapability, ApiConnectionProfile, ApiSetting } from "../types/review";
+import type { AiCapability, ApiConnectionProfile, ApiSetting } from "../types/domains/ai-connection.ts";
 import { getProviderContract } from "./provider-contracts.ts";
 
 // 把旧版单连接设置转换成新连接档案；复用原密文，避免迁移过程接触 API Key 明文。

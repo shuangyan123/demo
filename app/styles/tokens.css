@@ -12,7 +12,7 @@
   --surface: #ffffff;
   --surface-muted: #f7f8fa;
   --app-ui-font: var(--font-noto-sans-sc), "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
-  --app-code-font: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --app-code-font: var(--font-geist-mono), "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --app-ui-font-size: 14px;
   --app-code-font-size: 12px;
   --settings-sidebar-bg: #ffffff;
@@ -35,7 +35,9 @@
   --chrome-window-bg: #ffffff;
   --chrome-window-diffuse: none;
   --chrome-topbar-bg: #ffffff;
+  --chrome-topbar-diffuse: none;
   --chrome-sidebar-bg: #ffffff;
+  --chrome-workspace-surface: #ffffff;
   --chrome-sidebar-diffuse: none;
   --chrome-sidebar-border: rgba(0, 0, 0, 0.08);
   --chrome-selected-bg: rgba(0, 122, 204, 0.08);
@@ -46,6 +48,13 @@
   --ui-radius: 0.5rem;
   --ui-radius-lg: 0.75rem;
   --ui-control-height: 2.625rem;
+  --study-flow-teal: #159aa3;
+  --study-flow-blue: #3b8edb;
+  --study-flow-indigo: #6477d7;
+  --study-flow-violet: #9a6bc9;
+  --study-flow-coral: #dc716d;
+  --study-flow-amber: #dda42d;
+  --study-flow-green: #68a968;
 }
 
 /* Tailwind v4 主题映射，只把稳定语义 token 暴露给 utility。 */

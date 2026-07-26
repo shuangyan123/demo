@@ -1,4 +1,4 @@
-import type { CustomPersonaViewMode, PersonaProfile } from "../../types/review";
+import type { CustomPersonaViewMode, PersonaProfile } from "../../types/domains/personalization.ts";
 import { PersonaAvatarCard } from "./persona-avatar-card";
 import { PersonaFlashCard } from "./persona-flash-card";
 

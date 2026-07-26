@@ -2,8 +2,12 @@
 
 import type { SyntheticEvent } from "react";
 import { ImportView } from "./review-import-view";
-import { useImportDrafts } from "./use-import-drafts";
-import type { ApiConnectionProfile, ImportJob, KnowledgeImportDraft, Mistake } from "../../types/review";
+import { useImportDrafts } from "./use-import-drafts.ts";
+import { useFenbiQuickImport } from "./use-fenbi-quick-import.ts";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { ImportJob } from "../../types/domains/import.ts";
+import type { KnowledgeImportDraft } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
@@ -50,6 +54,7 @@ export function ImportWorkspace({
     setNotice,
     today,
   });
+  const fenbiQuickImport = useFenbiQuickImport({ onDrafts: importDraftFlow.importAccountDrafts, setNotice });
 
   return (
     <ImportView
@@ -59,6 +64,8 @@ export function ImportWorkspace({
       drafts={importDraftFlow.drafts}
       importBusy={importDraftFlow.importBusy}
       importJobs={importJobs}
+      fenbiQuickImport={fenbiQuickImport}
+      canUndoConfirmation={importDraftFlow.canUndoConfirmation}
       knowledgeDrafts={knowledgeDrafts}
       onBulkUpdateDrafts={importDraftFlow.updateDrafts}
       onConfirmDrafts={importDraftFlow.confirmDrafts}
@@ -73,6 +80,7 @@ export function ImportWorkspace({
       onUpdateDraftList={importDraftFlow.updateDraftList}
       onUpdateKnowledgeDraft={onUpdateKnowledgeDraft}
       onUpdateKnowledgeDraftList={onUpdateKnowledgeDraftList}
+      onUndoConfirmation={importDraftFlow.undoLastConfirmation}
     />
   );
 }

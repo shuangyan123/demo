@@ -2,19 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { requestTutorReply, requestTutorSummary } from "../../services/tutoring-ai-service";
+import { loadLearnerStateSnapshot } from "../../services/learner-state-service.ts";
 import { tutoringRepository } from "../../services/tutoring-repository";
-import type {
-  ApiConnectionProfile,
-  KnowledgeEntry,
-  Mistake,
-  PersonalizationSettings,
-  TutoringLink,
-  TutoringMode,
-  TutoringPlan,
-  TutoringSession,
-  TutoringSnapshot,
-  TutoringTurn,
-} from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import type { TutoringLink, TutoringMode, TutoringPlan, TutoringSession, TutoringSnapshot, TutoringTurn } from "../../types/domains/tutoring.ts";
 
 const emptySnapshot: TutoringSnapshot = {
   links: [],
@@ -29,15 +21,11 @@ type NewTutoringPlanInput = Omit<TutoringPlan, "id" | "createdAt" | "updatedAt">
 export function useTutoringFlow({
   textConnection,
   visionConnection,
-  knowledgeEntries,
-  mistakes,
   onNotice,
   personalizationSettings,
 }: {
   textConnection?: ApiConnectionProfile;
   visionConnection?: ApiConnectionProfile;
-  knowledgeEntries: KnowledgeEntry[];
-  mistakes: Mistake[];
   onNotice: (message: string) => void;
   personalizationSettings: PersonalizationSettings;
 }) {
@@ -118,18 +106,24 @@ export function useTutoringFlow({
     }
     setBusy(true);
     try {
+      const requestStartedAt = performance.now();
       const studentTurn = await tutoringRepository.addTurn({
         content: text || "请看当前画面，帮我判断应该怎么学。",
         frameDescription: input.frameDescription,
+        observation: input.frameDataUrl ? {
+          capturedAt: new Date().toISOString(),
+          source: input.session.mode,
+          summary: input.frameDescription?.trim().slice(0, 240) || undefined,
+        } : undefined,
         sessionId: input.session.id,
         speaker: "student",
       });
       const nextTurns = [...activeTurns, studentTurn];
+      const learnerState = await loadLearnerStateSnapshot();
       const aiReply = await requestTutorReply({
         frameDataUrl: input.frameDataUrl,
         frameDescription: input.frameDescription,
-        knowledgeEntries,
-        mistakes,
+        learnerState,
         recentTurns: nextTurns,
         session: input.session,
         connection,
@@ -143,6 +137,8 @@ export function useTutoringFlow({
         detectedProblem: aiReply.detectedProblem,
         frameDescription: aiReply.frameDescription,
         nextQuestion: aiReply.nextQuestion,
+        microAssessment: aiReply.microAssessment,
+        responseLatencyMs: Math.max(0, Math.round(performance.now() - requestStartedAt)),
         sessionId: input.session.id,
         speaker: "ai_tutor",
         studentAction: aiReply.studentAction,
@@ -156,6 +152,33 @@ export function useTutoringFlow({
       return null;
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** 保存单轮帮助反馈；反馈只留本地并立即刷新指标。 */
+  async function setTurnHelpful(turnId: string, helpful: boolean) {
+    await tutoringRepository.setTurnHelpful(turnId, helpful);
+    await refresh();
+    onNotice(helpful ? "已记录：本轮讲解有帮助" : "已记录：本轮讲解需要改进");
+  }
+
+  /** 保存整场帮助反馈，作为试点留存与质量指标的一部分。 */
+  async function setSessionHelpful(sessionId: string, helpful: boolean) {
+    await tutoringRepository.setSessionHelpful(sessionId, helpful);
+    await refresh();
+    onNotice(helpful ? "感谢反馈，本场辅导已标记为有帮助" : "反馈已记录，后续辅导会优先换一种讲法");
+  }
+
+  /** 提交微测并生成确定性的间隔复练任务。 */
+  async function completeMicroAssessment(turnId: string, selections: number[]) {
+    try {
+      const result = await tutoringRepository.completeMicroAssessment(turnId, selections);
+      await refresh();
+      onNotice(`微测 ${result.correctCount}/${result.total}，下次复练已安排到 ${result.nextPracticeAt.slice(0, 10)}`);
+      return result;
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "微测提交失败");
+      return null;
     }
   }
 
@@ -233,8 +256,11 @@ export function useTutoringFlow({
     deletePlan,
     deleteSession,
     finishSession,
+    completeMicroAssessment,
     refresh,
     setActiveSessionId,
+    setSessionHelpful,
+    setTurnHelpful,
     snapshot,
     startSession,
     submitStudentMessage,

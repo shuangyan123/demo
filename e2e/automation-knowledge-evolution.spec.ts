@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
+import { configureCustomTextConnection, setCustomDefaultTextModel } from "./helpers/configure-custom-ai";
 import { startMockAiProvider, type MockAiProvider, type MockAiRequest } from "./helpers/mock-ai-provider";
 
 const proposalTitle = "E2E 知识演进提案";
@@ -37,7 +38,7 @@ function proposalResponse(request: MockAiRequest): string {
   ]);
 }
 
-test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ page }) => {
+test("知识演进已安排任务可通过 mock JSON 生成待确认提案", async ({ page }) => {
   const provider = await startMockAiProvider({ response: proposalResponse });
   const runtimeErrors = collectRuntimeErrors(page);
 
@@ -45,7 +46,8 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     await page.goto("/");
     await expect(page).toHaveTitle("错题复盘");
 
-    await page.getByLabel("侧栏导航").getByRole("button", { name: "手动录入" }).click();
+    await page.locator(".dashboard-configuration-health > summary").click();
+    await page.locator(".dashboard-configuration-health").getByRole("button", { name: "手动录入" }).click();
     const entryForm = page.locator("form").filter({ has: page.getByRole("button", { name: "保存错题" }) });
     await entryForm.getByLabel("板块").selectOption("资料分析");
     await entryForm.getByLabel("来源").fill("E2E 知识演进数据");
@@ -60,18 +62,15 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
 
     await page.getByRole("button", { name: "设置" }).first().click();
     await page.getByRole("button", { name: "AI 连接" }).click();
-    await page.getByRole("button", { name: /本地部署 \/ 自定义连接/ }).click();
-    await page.getByLabel("连接名称").fill("E2E 知识演进 Mock");
-    await page.getByLabel("Base URL").fill(provider.baseUrl);
-    await page.getByLabel("模型").fill("mock-json-model");
-    await page.getByRole("button", { name: "保存" }).click();
+    await configureCustomTextConnection(page, { label: "E2E 知识演进 Mock", baseUrl: provider.baseUrl, model: "mock-json-model" });
     await expect(page.getByRole("status")).toContainText("配置已保存");
-    await page.getByLabel("默认文本").selectOption({ label: "E2E 知识演进 Mock" });
-    await expect(page.getByRole("status")).toContainText("默认文本已更新");
+    await setCustomDefaultTextModel(page, "E2E 知识演进 Mock", "mock-json-model");
+    await expect(page.getByRole("status")).toContainText("默认文本模型已更新");
 
     await page.goto("/");
-    await page.getByLabel("侧栏导航").getByRole("button", { name: "自动化" }).click();
-    await expect(page.getByRole("heading", { name: "自动化", exact: true })).toBeVisible();
+    await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
+    await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "新建任务" }).click();
     await page.getByLabel("模板").selectOption("knowledge_evolution");
     await page.getByLabel("名称").fill("E2E 知识演进闭环");
     await page.getByRole("checkbox", { name: "知识库" }).uncheck();
@@ -79,7 +78,7 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     await page.getByRole("checkbox", { name: "辅导" }).uncheck();
 
     await page.getByRole("button", { name: "预览读取范围" }).click();
-    const previewPanel = page.getByRole("region", { name: "自动化读取范围预览" });
+    const previewPanel = page.getByRole("region", { name: "已安排读取范围预览" });
     await expect(previewPanel).toBeVisible();
     await expect(previewPanel.getByText("错题", { exact: true })).toBeVisible();
     await expect(previewPanel.getByText("资料分析 · E2E 知识演进错题")).toBeVisible();
@@ -101,10 +100,11 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     expect(JSON.stringify(trialPayload)).not.toContain("interview:");
     expect(JSON.stringify(trialPayload)).not.toContain("tutoring:");
 
-    await page.getByRole("button", { name: "创建自动化" }).click();
+    await page.getByRole("button", { name: "创建已安排" }).click();
     const taskCard = page.locator("article").filter({ hasText: "E2E 知识演进闭环" }).first();
     await expect(taskCard).toBeVisible();
-    await taskCard.getByRole("button", { name: "立即运行" }).click();
+    await taskCard.getByRole("button", { name: /E2E 知识演进闭环/ }).click();
+    await page.getByRole("button", { name: "立即运行" }).click();
     await expect.poll(() => provider.requests.length).toBe(2);
 
     const inbox = page.locator("section").filter({ hasText: "运行收件箱" }).first();
@@ -118,7 +118,9 @@ test("知识演进自动化可通过 mock JSON 生成待确认提案", async ({ 
     expect(runPayload.sources?.map((source) => source.type)).toEqual(["mistake"]);
     expect(runPayload.candidates ?? []).toHaveLength(0);
 
-    await page.getByLabel("侧栏导航").getByRole("button", { name: "知识库" }).click();
+    await page.goto("/");
+    await page.locator(".dashboard-configuration-health > summary").click();
+    await page.locator(".dashboard-configuration-health").getByRole("button", { name: "连接 Obsidian" }).click();
     await expect(page.getByRole("heading", { name: "知识演进提案" })).toBeVisible();
     await expect(page.getByText(proposalTitle)).toBeVisible();
     await expect(page.getByText("错题解析暴露出增长率判断步骤混淆。")).toBeVisible();

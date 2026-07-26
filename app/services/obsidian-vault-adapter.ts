@@ -1,4 +1,5 @@
-import type { KnowledgeCategory, ObsidianPermissionState } from "../types/review";
+import type { KnowledgeCategory } from "../types/domains/knowledge.ts";
+import type { ObsidianPermissionState } from "../types/domains/obsidian.ts";
 
 type PermissionMode = "read" | "readwrite";
 type PermissionHandle = FileSystemDirectoryHandle & {

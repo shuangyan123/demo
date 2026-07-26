@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRef } from "react";
-import type { PersonaProfile } from "../../types/review";
+import type { PersonaProfile } from "../../types/domains/personalization.ts";
 
 /** 定制人设的紧凑头像卡；编辑、换图和删除行为与闪卡模式保持一致。 */
 export function PersonaAvatarCard({

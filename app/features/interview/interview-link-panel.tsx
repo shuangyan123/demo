@@ -3,7 +3,9 @@
 import type { SyntheticEvent } from "react";
 import { Button, DataList, EmptyState, Panel, SelectField, TextField } from "../shared/ui-primitives";
 import { textValue } from "../../lib/form-utils";
-import type { InterviewLink, InterviewLinkSourceType, InterviewLinkTargetType, KnowledgeEntry, Mistake } from "../../types/review";
+import type { InterviewLink, InterviewLinkSourceType, InterviewLinkTargetType } from "../../types/domains/interview.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 

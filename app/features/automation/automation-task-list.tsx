@@ -1,88 +1,132 @@
 "use client";
 
-import { useMemo } from "react";
-import { AUTOMATION_TEMPLATES } from "../../services/automation-executor";
-import type { AutomationDefinition, AutomationTemplateId } from "../../types/review";
-import { Button, EmptyState, Panel } from "../shared/ui-primitives";
-import type { AutomationCenter } from "./use-automation-center";
-import {
-  AUTOMATION_SOURCE_OPTIONS,
-  automationErrorMessage,
-  countRunsByAutomation,
-  formatAutomationDate,
-  formatSchedule,
-} from "./automation-ui";
+import type { AutomationDefinition, AutomationRun } from "../../types/domains/automation.ts";
+import { Button, EmptyState } from "../shared/ui-primitives";
+import styles from "./automation-workspace.module.css";
+import type { AutomationCenter } from "./use-automation-center.ts";
+import type { AutomationStatusFilter } from "./automation-view-model.ts";
+import { automationErrorMessage, formatAutomationDate, formatSchedule } from "./automation-ui.ts";
 
-/** 渲染自动化定义列表，并将异步操作错误统一反馈到应用通知。 */
+/** 已安排任务主列表：桌面为行式表格，移动端自动折叠为两列摘要。 */
 export function AutomationTaskList({
   center,
-  onCreateTemplate,
+  definitions,
+  latestRuns,
+  search,
+  selectedDefinitionId,
+  statusFilter,
   onEdit,
   onNotice,
+  onSearchChange,
+  onSelect,
+  onStatusFilterChange,
 }: {
   center: AutomationCenter;
-  onCreateTemplate: (templateId: AutomationTemplateId) => void;
+  definitions: AutomationDefinition[];
+  latestRuns: Map<string, AutomationRun>;
+  search: string;
+  selectedDefinitionId?: string;
+  statusFilter: AutomationStatusFilter;
   onEdit: (definition: AutomationDefinition) => void;
   onNotice: (message: string) => void;
+  onSearchChange: (value: string) => void;
+  onSelect: (definition: AutomationDefinition) => void;
+  onStatusFilterChange: (value: AutomationStatusFilter) => void;
 }) {
-  const runsByTask = useMemo(() => countRunsByAutomation(center.snapshot.runs), [center.snapshot.runs]);
-
-  /** 启动界面动作并捕获 Promise 拒绝，避免产生未处理异常。 */
+  /** 捕获任务动作错误并转为应用内反馈。 */
   function runAction(task: Promise<unknown>, fallback: string): void {
     void task.catch((error) => onNotice(automationErrorMessage(error, fallback)));
   }
 
   return (
-    <Panel title="自动化任务" eyebrow="应用打开时执行 · 漏跑合并一次">
-      <div className="mb-4 flex flex-wrap gap-2">
-        {AUTOMATION_TEMPLATES.map((template) => (
-          <Button key={template.id} variant="outline" onClick={() => onCreateTemplate(template.id)}>{template.name}</Button>
-        ))}
+    <>
+      <div className={styles.toolbar}>
+        <input
+          aria-label="搜索已安排任务"
+          className={styles.input}
+          placeholder="搜索任务"
+          type="search"
+          value={search}
+          onChange={(event) => onSearchChange(event.currentTarget.value)}
+        />
+        <select
+          aria-label="筛选任务状态"
+          className={styles.select}
+          value={statusFilter}
+          onChange={(event) => onStatusFilterChange(event.currentTarget.value as AutomationStatusFilter)}
+        >
+          <option value="all">全部状态</option>
+          <option value="enabled">已启用</option>
+          <option value="disabled">已停用</option>
+          <option value="failed">最近失败</option>
+        </select>
       </div>
-      {center.snapshot.definitions.length ? (
-        <div className="grid gap-3">
-          {center.snapshot.definitions.map((definition) => {
-            const busy = center.busyIds.includes(definition.id);
-            const sourceLabels = definition.sourceScopes
-              .map((id) => AUTOMATION_SOURCE_OPTIONS.find((item) => item.id === id)?.label)
-              .filter(Boolean)
-              .join("、");
-            return (
-              <article key={definition.id} className="rounded-xl border border-line bg-surface p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong>{definition.name}</strong>
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${definition.enabled ? "bg-success-soft text-success" : "bg-subtle text-muted"}`}>
-                        {definition.enabled ? "已启用" : "已停用"}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-muted">{formatSchedule(definition.schedule)} · 下次 {formatAutomationDate(definition.nextRunAt)}</p>
-                    <p className="mt-1 text-xs text-muted">运行 {runsByTask.get(definition.id) ?? 0} 次 · {sourceLabels}</p>
-                  </div>
-                  <label className="flex flex-none items-center gap-2 whitespace-nowrap text-sm">
-                    <input type="checkbox" checked={definition.enabled} onChange={(event) => {
-                      const enabled = event.currentTarget.checked;
-                      runAction(center.toggle(definition.id, enabled), "自动化状态更新失败");
-                    }} />
-                    启用
-                  </label>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="primary" disabled={busy} onClick={() => runAction(center.runNow(definition.id), "自动化运行失败")}>{busy ? "运行中" : "立即运行"}</Button>
-                  <Button variant="outline" onClick={() => onEdit(definition)}>编辑</Button>
-                  <Button variant="outline" onClick={() => runAction(center.duplicate(definition.id), "自动化复制失败")}>复制</Button>
-                  <Button variant="outline" onClick={() => {
-                    if (window.confirm(`删除“${definition.name}”及其运行记录？`)) runAction(center.remove(definition.id), "自动化删除失败");
-                  }}>删除</Button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <EmptyState><strong>还没有自动化</strong><p className="mt-2">选择上方模板，或创建一个只读的自定义任务。</p></EmptyState>
+      <div className={styles.tableHeader} aria-hidden="true">
+        <span>任务名</span><span>模板</span><span>下次运行 / 最近结果</span><span>启用</span>
+      </div>
+      {definitions.length ? definitions.map((definition) => {
+        const latestRun = latestRuns.get(definition.id);
+        const tone = latestRun?.status === "failed" ? "danger" : latestRun?.status === "succeeded" ? "success" : latestRun ? "warning" : "muted";
+        const resultLabel = latestRun?.status === "failed" ? "失败" : latestRun?.status === "succeeded" ? "成功" : latestRun ? "运行中" : "从未运行";
+        return (
+          <article
+            key={definition.id}
+            className={styles.taskRow}
+            data-selected={selectedDefinitionId === definition.id}
+          >
+            <button className={styles.taskMain} type="button" onClick={() => onSelect(definition)}>
+              <span className={styles.taskName}>
+                <strong>{definition.name}</strong>
+                <span>{formatSchedule(definition.schedule)}</span>
+              </span>
+              <span className={styles.taskMeta}>
+                <strong>{definition.templateId === "custom" ? "自定义任务" : definition.name}</strong>
+                <span>{definition.collectionConfig ? `${definition.collectionConfig.domain} · 最多 ${definition.collectionConfig.maxDocuments} 篇` : "本地只读范围"}</span>
+              </span>
+              <span className={styles.taskMeta}>
+                <strong>{definition.nextRunAt ? formatAutomationDate(definition.nextRunAt) : "尚未安排"}</strong>
+                <span className={styles.status} data-tone={tone}>{resultLabel}{latestRun ? ` · ${formatAutomationDate(latestRun.finishedAt || latestRun.createdAt)}` : ""}</span>
+              </span>
+            </button>
+            <label className={styles.switch} aria-label={`${definition.name}启用状态`}>
+              <input
+                type="checkbox"
+                checked={definition.enabled}
+                onChange={(event) => {
+                  const enabled = event.currentTarget.checked;
+                  runAction(center.toggle(definition.id, enabled), "已安排状态更新失败");
+                }}
+              />
+            </label>
+          </article>
+        );
+      }) : (
+        <EmptyState>
+          <div className={styles.empty}>
+            <strong>{center.snapshot.definitions.length ? "没有匹配的任务" : "还没有已安排任务"}</strong>
+            <p className="mt-2">{center.snapshot.definitions.length ? "调整搜索或状态筛选后重试。" : "创建任务后，它会在应用打开且联网时按计划执行。"}</p>
+          </div>
+        </EmptyState>
       )}
-    </Panel>
+      {selectedDefinitionId ? (
+        <div className={styles.taskActions}>
+          {(() => {
+            const selected = center.snapshot.definitions.find((item) => item.id === selectedDefinitionId);
+            if (!selected) return null;
+            const busy = center.busyIds.includes(selected.id);
+            return (
+              <>
+                <Button variant="primary" disabled={busy} onClick={() => runAction(center.runNow(selected.id), "已安排任务运行失败")}>{busy ? "运行中" : "立即运行"}</Button>
+                <Button variant="outline" onClick={() => onEdit(selected)}>编辑</Button>
+                <Button variant="outline" onClick={() => runAction(center.duplicate(selected.id), "已安排任务复制失败")}>复制</Button>
+                <Button variant="outline" onClick={() => {
+                  if (window.confirm(`删除“${selected.name}”及其运行记录？`)) runAction(center.remove(selected.id), "已安排任务删除失败");
+                }}>删除</Button>
+              </>
+            );
+          })()}
+        </div>
+      ) : null}
+    </>
   );
 }

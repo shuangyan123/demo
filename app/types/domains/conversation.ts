@@ -1,0 +1,2 @@
+/** 对话领域的稳定类型入口；迁移期间由兼容总表导出。 */
+export type { AiConversation, AiConversationAttachment, AiConversationFolder, AiConversationKind, AiConversationMessage, AiConversationRole, AiConversationRunStep, AiConversationSourceType, AiConversationStatus, AiProject, CodexConversation, CodexMessage, CodexToolStep, CommandSearchResult } from "./legacy-review.ts";

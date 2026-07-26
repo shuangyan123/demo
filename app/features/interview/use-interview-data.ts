@@ -3,22 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { requestInterviewEvaluation, requestInterviewPracticePlan, requestInterviewQuestions, requestInterviewReply } from "../../services/interview-ai-service";
 import { interviewRepository } from "../../services/interview-repository";
-import type {
-  ApiConnectionProfile,
-  InterviewEvaluation,
-  InterviewLink,
-  InterviewPracticePlan,
-  InterviewQuestion,
-  InterviewQuestionDraft,
-  InterviewQuestionSet,
-  InterviewSession,
-  InterviewSnapshot,
-  InterviewSpeaker,
-  InterviewStage,
-  InterviewTurn,
-  InterviewType,
-  PersonalizationSettings,
-} from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { InterviewEvaluation, InterviewLink, InterviewPracticePlan, InterviewQuestion, InterviewQuestionDraft, InterviewQuestionSet, InterviewSession, InterviewSnapshot, InterviewSpeaker, InterviewStage, InterviewTurn, InterviewType } from "../../types/domains/interview.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 
 const emptySnapshot: InterviewSnapshot = {
   evaluations: [],

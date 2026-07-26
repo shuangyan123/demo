@@ -33,8 +33,8 @@ test("设置页诊断面板展示当前快照并提供只读恢复入口", async
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "诊断" }).click();
-  await page.getByRole("button", { name: "打开自动化中心" }).first().click();
-  await expect(page.getByRole("heading", { name: "自动化", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "打开已安排" }).first().click();
+  await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
 
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);

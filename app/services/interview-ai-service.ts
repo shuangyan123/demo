@@ -1,20 +1,11 @@
-import { generateWithConnection } from "./ai-connection-client";
+import { generateWithConnection } from "./ai-connection-client.ts";
 import { parseAiJsonObject } from "./ai-json.ts";
-import { buildEmptyInterviewDimensions, interviewRubrics, interviewTypeLabels } from "./interview-rubric";
-import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository";
-import type {
-  ApiConnectionProfile,
-  InterviewDifficulty,
-  InterviewEvaluation,
-  InterviewPracticePlan,
-  InterviewQuestion,
-  InterviewQuestionDraft,
-  InterviewSession,
-  InterviewStage,
-  InterviewTurn,
-  InterviewType,
-  PersonalizationSettings,
-} from "../types/review";
+import { buildEmptyInterviewDimensions, interviewRubrics, interviewTypeLabels } from "./interview-rubric.ts";
+import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
+import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { InterviewDifficulty, InterviewEvaluation, InterviewPracticePlan, InterviewQuestion, InterviewQuestionDraft, InterviewSession, InterviewStage, InterviewTurn, InterviewType } from "../types/domains/interview.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 
 export type InterviewAiReply = {
   reply: string;
@@ -127,6 +118,7 @@ function buildInterviewSystemPrompt(type: InterviewType, personalizationSettings
   return [
     `你是严格、克制、专业的${interviewTypeLabels[type]}线上模拟面试官。`,
     buildPersonaPrompt(persona),
+    buildPersonalMemoryContext(personalizationSettings, { moduleId: "interview" }),
     "你需要按真实面试流程推进，不要闲聊，不要生成不存在的本地数据 ID。",
     "每次回复必须是 JSON 对象，不能输出 Markdown。",
     "对话回复格式：{\"reply\":\"面试官发言\",\"nextStage\":\"briefing|preparation|answering|follow_up|peer_review|response|discussion|summary|evaluated\",\"shouldEvaluate\":false}",
@@ -190,6 +182,7 @@ export async function requestInterviewQuestions(input: {
         content: [
           "你是公务员录用面试训练题库编辑，只输出严格 JSON。",
           buildPersonaPrompt(resolvePersona(input.personalizationSettings, "interview")),
+          buildPersonalMemoryContext(input.personalizationSettings, { moduleId: "interview" }),
           "不要输出 Markdown，不要编造本地数据库 ID。",
           "题目必须适合线上模拟训练，材料题要把材料放进 material 字段。",
           '返回格式：{"items":[{"type":"structured|structured_group|leaderless_group","title":"标题","prompt":"题干","material":"材料","tags":["标签"],"difficulty":"easy|medium|hard","expectedDurationSec":180,"source":"来源","confidence":0.8}]}',
@@ -247,6 +240,7 @@ export async function requestInterviewPracticePlan(input: {
         content: [
           "你是面试训练计划教练，只输出严格 JSON。",
           buildPersonaPrompt(resolvePersona(input.personalizationSettings, "interview")),
+          buildPersonalMemoryContext(input.personalizationSettings, { moduleId: "interview" }),
           "计划只能引用用户提供的候选题目 ID，不能生成新的 ID。",
           '返回格式：{"title":"计划名","type":"structured|structured_group|leaderless_group|mixed","questionIds":["本地题目ID"],"targetSessionCount":5,"nextPracticeAt":"ISO日期","reason":"安排理由"}',
         ].join("\n"),

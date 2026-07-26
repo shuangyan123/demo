@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { knowledgeInternalizationRepository } from "../../services/knowledge-internalization-repository";
 import { rankInternalizationCandidates, requestKnowledgeInternalization } from "../../services/knowledge-internalization-service";
-import type { ApiConnectionProfile, KnowledgeEntry, KnowledgeInternalizationDraft, KnowledgeMistakeLink, Mistake, PersonalizationSettings } from "../../types/review";
+import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { KnowledgeEntry, KnowledgeInternalizationDraft } from "../../types/domains/knowledge.ts";
+import type { KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { Mistake } from "../../types/domains/review.ts";
+import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 
 // 把错题内化的草稿恢复、生成、编辑和确认集中在独立 hook，避免继续膨胀主工作台。
 export function useKnowledgeInternalization({

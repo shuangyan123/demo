@@ -2,22 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { AssociationPanel } from "../shared/association-panel";
-import { BulkToolbar, Button, Chip, ConfirmDialog, DetailBlock, DetailCard, EmptyState, MasteryDots, SelectField, SoftBlock } from "../shared/ui-primitives";
+import { BulkToolbar, Button, Chip, ConfirmDialog, DetailBlock, DetailCard, EmptyState, MasteryDots, SelectField } from "../shared/ui-primitives";
 import { useBulkSelection } from "../shared/use-bulk-selection";
 import { useVisibleLimit } from "../shared/use-visible-limit";
 import type { BoardStat } from "../../lib/review-selectors";
 import { formatShortDate, masteryLabel } from "../../lib/review-utils";
 import type { KnowledgeMatch } from "../../services/association-matcher";
-import type {
-  AssociationSuggestion,
-  Board,
-  ExportFormat,
-  ExportScope,
-  Filters,
-  KnowledgeEntry,
-  KnowledgeMistakeLink,
-  Mistake,
-} from "../../types/review";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { Board, ExportFormat, ExportScope, Filters, Mistake } from "../../types/domains/review.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 
 type LibraryViewProps = {
   aiAssociationBusy: boolean;
@@ -101,6 +94,7 @@ export function LibraryView({
   const visibleMistakeIds = useMemo(() => visibleMistakes.map((item) => item.id), [visibleMistakes]);
   const bulkSelection = useBulkSelection(visibleMistakeIds);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const selectedMistakes = useMemo(
     () => filteredMistakes.filter((item) => bulkSelection.state.ids.has(item.id)),
     [bulkSelection.state.ids, filteredMistakes],
@@ -119,40 +113,26 @@ export function LibraryView({
     setBulkDeleteOpen(false);
   }
 
+  const dueCount = boardStats.reduce((sum, item) => sum + item.due, 0);
+  const weakCount = boardStats.reduce((sum, item) => sum + item.weak, 0);
+
   return (
-    <section className="space-y-4">
-      <section className="ui-board-panel">
-        <div className="ui-board-header">
-          <strong className="text-2xl">专项练习</strong>
-          <span className="ui-board-header-badge">六大固定板块</span>
+    <section className="learning-page">
+      <header className="learning-page-header">
+        <p className="text-sm text-muted">集中筛选、复盘并沉淀高价值错题。</p>
+        <div className="learning-metrics" aria-label="错题库概览">
+          <span><strong>{mistakes.length}</strong>全部错题</span>
+          <span><strong>{dueCount}</strong>今日待复盘</span>
+          <span><strong>{weakCount}</strong>薄弱项</span>
+          <span><strong>{filteredMistakes.length}</strong>当前结果</span>
         </div>
-        <div className="px-7 py-4 max-sm:px-4">
-          {boardStats.map((item) => {
-            const expanded = selectedBoard === item.board;
-            return (
-              <div key={item.board} className="ui-board-row">
-                <button
-                  className="grid w-full grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-5 py-5 text-left"
-                  type="button"
-                  aria-expanded={expanded}
-                  onClick={() => {
-                    setSelectedBoard(expanded ? null : item.board);
-                    setFilters((current) => ({ ...current, board: item.board }));
-                  }}
-                >
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-blue/10 text-blue">{expanded ? "v" : ">"}</span>
-                  <strong className="ui-board-title max-sm:text-xl">{item.board}</strong>
-                  <span className="text-sm text-muted">
-                    {item.total} 题 · {item.due} 待复盘 · {item.weak} 薄弱
-                  </span>
-                </button>
-                {expanded && (
-                  <div className="pb-5">
-                    <LibraryBoardList
+      </header>
+      <LibraryBoardList
                       aiAssociationBusy={aiAssociationBusy}
                       apiReady={apiReady}
                       associationLinks={associationLinks}
                       associationSuggestions={associationSuggestions}
+                      boardStats={boardStats}
                       filteredMistakes={filteredMistakes}
                       filters={filters}
                       knowledgeEntries={knowledgeEntries}
@@ -162,10 +142,12 @@ export function LibraryView({
                       reasonOptions={reasonOptions}
                       selectedId={selectedId}
                       selectedMistake={selectedMistake}
+                      selectedBoard={selectedBoard}
                       visibleMistakes={visibleMistakes}
                       setFilters={setFilters}
                       setReasonFilter={setReasonFilter}
                       setSelectedId={setSelectedId}
+                      setSelectedBoard={setSelectedBoard}
                       setTagFilter={setTagFilter}
                       tagFilter={tagFilter}
                       tagOptions={tagOptions}
@@ -190,14 +172,13 @@ export function LibraryView({
                       onRemoveAssociationLink={onRemoveAssociationLink}
                       onToggleAssociationSuggestion={onToggleAssociationSuggestion}
                       hasMoreMistakes={hasMoreMistakes}
+                      mobileDetailOpen={mobileDetailOpen}
+                      onCloseMobileDetail={() => setMobileDetailOpen(false)}
+                      onOpenMistake={(id) => {
+                        setSelectedId(id);
+                        setMobileDetailOpen(true);
+                      }}
                     />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
       <ConfirmDialog
         confirmLabel="删除"
         description={`将删除 ${bulkSelection.state.count} 道错题，并同步清理对应复盘记录和知识关联。此操作不会影响知识库资料、API 设置或导入任务。`}
@@ -210,12 +191,13 @@ export function LibraryView({
   );
 }
 
-// 渲染单个板块展开后的筛选区、错题列表和详情栏。
+// 渲染统一筛选区、紧凑错题列表和详情栏。
 function LibraryBoardList({
   aiAssociationBusy,
   apiReady,
   associationLinks,
   associationSuggestions,
+  boardStats,
   filteredMistakes,
   filters,
   knowledgeEntries,
@@ -224,11 +206,12 @@ function LibraryBoardList({
   reasonFilter,
   reasonOptions,
   selectedId,
+  selectedBoard,
   selectedMistake,
   visibleMistakes,
   setFilters,
   setReasonFilter,
-  setSelectedId,
+  setSelectedBoard,
   setTagFilter,
   tagFilter,
   tagOptions,
@@ -253,7 +236,10 @@ function LibraryBoardList({
   onRemoveAssociationLink,
   onToggleAssociationSuggestion,
   hasMoreMistakes,
-}: Omit<LibraryViewProps, "boardStats" | "selectedBoard" | "setSelectedBoard" | "onBulkDeleteMistakes" | "onExportMistakes"> & {
+  mobileDetailOpen,
+  onCloseMobileDetail,
+  onOpenMistake,
+}: Omit<LibraryViewProps, "onBulkDeleteMistakes" | "onExportMistakes"> & {
   bulkAllVisibleSelected: boolean;
   bulkSelectedCount: number;
   bulkSelectedIds: Set<string>;
@@ -266,10 +252,23 @@ function LibraryBoardList({
   onExportFiltered: (format: ExportFormat) => void;
   onExportSelected: (format: ExportFormat) => void;
   onLoadMoreMistakes: () => void;
+  mobileDetailOpen: boolean;
+  onCloseMobileDetail: () => void;
+  onOpenMistake: (id: string) => void;
 }) {
   return (
-    <SoftBlock className="space-y-4">
-      <div className="grid grid-cols-[150px_150px_150px_minmax(220px,1fr)] gap-3 max-xl:grid-cols-2 max-sm:grid-cols-1">
+    <>
+      <div className="learning-toolbar">
+        <SelectField
+          label="板块"
+          value={selectedBoard ?? "全部"}
+          onChange={(value) => {
+            const board = value === "全部" ? null : value as Board;
+            setSelectedBoard(board);
+            setFilters((current) => ({ ...current, board: board ?? "全部" }));
+          }}
+          options={[["全部", "全部板块"], ...boardStats.map((item) => [item.board, item.board] as [string, string])]}
+        />
         <SelectField
           label="掌握度"
           value={filters.mastery}
@@ -305,9 +304,9 @@ function LibraryBoardList({
         onSelectAllVisible={onBulkSelectAll}
       />
 
-      <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-4 max-xl:grid-cols-1">
-        <section className="ui-board-panel">
-          <div className="grid min-h-12 grid-cols-[36px_minmax(260px,1fr)_150px_120px_96px] items-center gap-3 bg-surface-muted px-4 text-xs font-extrabold text-muted max-lg:hidden">
+      <div className="learning-master-detail">
+        <section className="learning-list" aria-label="错题列表">
+          <div className="learning-list-head">
             <span>选择</span>
             <span>题目</span>
             <span>错因</span>
@@ -318,9 +317,8 @@ function LibraryBoardList({
             visibleMistakes.map((item) => (
               <article
                 key={item.id}
-                className={`grid w-full grid-cols-[36px_minmax(260px,1fr)_150px_120px_96px] items-center gap-3 border-t border-line px-4 py-3 text-left hover:bg-blue/5 max-lg:grid-cols-[36px_minmax(0,1fr)] ${
-                  item.id === selectedId ? "bg-blue/5" : "bg-surface"
-                }`}
+                className="learning-list-row"
+                data-active={item.id === selectedId}
               >
                 <input
                   aria-label={`选择错题：${item.stem.slice(0, 24)}`}
@@ -329,14 +327,14 @@ function LibraryBoardList({
                   type="checkbox"
                   onChange={(event) => onBulkToggleMistake(item.id, event.target.checked)}
                 />
-                <button className="contents text-left" type="button" onClick={() => setSelectedId(item.id)}>
+                <button className="contents text-left" type="button" onClick={() => onOpenMistake(item.id)}>
                   <span className="min-w-0">
                     <strong className="block truncate">{item.stem}</strong>
                     <span className="mt-1 block text-xs text-muted">{item.source}</span>
                   </span>
-                  <span className="max-lg:hidden">{item.reasons.slice(0, 2).join(" / ")}</span>
-                  <span className="max-lg:hidden">{formatShortDate(item.nextReviewAt)}</span>
-                  <span className="max-lg:hidden">
+                  <span>{item.reasons.slice(0, 2).join(" / ")}</span>
+                  <span>{formatShortDate(item.nextReviewAt)}</span>
+                  <span>
                     <MasteryDots value={item.mastery} />
                   </span>
                 </button>
@@ -356,7 +354,9 @@ function LibraryBoardList({
           )}
         </section>
 
-        <MistakeDetail
+        <div className="learning-detail" data-mobile-open={mobileDetailOpen}>
+          <Button className="learning-mobile-detail-close" size="sm" variant="ghost" onClick={onCloseMobileDetail}>返回错题列表</Button>
+          <MistakeDetail
           aiAssociationBusy={aiAssociationBusy}
           apiReady={apiReady}
           associationLinks={associationLinks}
@@ -375,9 +375,10 @@ function LibraryBoardList({
           onOpenSettings={onOpenSettings}
           onRemoveAssociationLink={onRemoveAssociationLink}
           onToggleAssociationSuggestion={onToggleAssociationSuggestion}
-        />
+          />
+        </div>
       </div>
-    </SoftBlock>
+    </>
   );
 }
 

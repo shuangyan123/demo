@@ -1,72 +1,347 @@
 # 应用架构
 
-## AI 连接边界
+## 0.2.0 本机 API 安全边界（2026-07-23）
+
+- `server/http/route-security.ts` 是同源校验、有界 JSON、外联 URL、请求 ID 和结构化错误的共享边界；Route Handler 只负责业务字段校验和调用领域 adapter。
+- Provider registry、MCP client、采集 safe fetch 继续分别负责厂商协议、Streamable HTTP 和 SSRF 深层校验；共享 Route 边界不绕过这些既有规则。
+- 客户端 `services/api-error.ts` 同时读取新 JSON 错误和历史纯文本错误，避免升级期间改变用户可见恢复提示。
+- 安全响应头由 `next.config.ts` 单点维护；CSP 不允许远程脚本、frame 或 object，仅为本机 API、明确 HTTPS/WSS 外联、媒体 blob 和自托管资产保留能力。
+- 该边界不新增服务端持久化，不记录请求正文，也不升级 `review_workspace` v16。
+
+## 主题字体与工作台弥散边界（2026-07-18）
+
+- `theme-fonts.ts` 是内置 UI 与代码字体栈的共享边界；Geist Mono 由根布局通过 `next/font` 注入，主题预设和持久化归一化不再各自维护字体顺序。
+- 已发布的内置代码字体栈在 repository 边界迁移到 Geist Mono，用户手写字体继续原样保留；`--app-code-font` 仍是组件唯一消费入口。
+- 顶栏保持不透明主题底色，并通过独立 `--chrome-topbar-diffuse` 承接低强度弥散色场；关闭弥散时变量为 `none`。
+- `raised-surface` 不再绘制顶部、左侧或圆角阴影；层级只由 `<main>` 的 1px 共边和 18px 左上圆角表达。
+
+## P0 工作台与公考首页展示边界（2026-07-17）
+
+- `WorkspaceShell` 继续统一桌面持久化侧栏状态；移动端使用不持久化的临时抽屉状态，并负责焦点锁定、Escape、遮罩关闭、滚动锁定和触发器焦点恢复。
+- `ConversationEmptyState` 与 `DashboardStudyFlow` 是独立展示组件；`ConversationWorkspace` 保持在 500 行预算内，既有 controller、repository 和首次发送后才持久化的流程不变。
+- `DashboardView` 只接收结构化配置健康、日期状态和操作回调。`resolveDashboardNextAction()` 是唯一推荐动作排序边界，七阶段路径状态继续来自已有本地快照。
+- 公考首页默认只展开推荐动作、学习路径与三项统计；板块、知识和辅导详情保留在三个原生 disclosure。未新增静态重型依赖、数据库迁移或网络请求。
+
+## AI 活动、跨厂商上下文与记忆 v2（2026-07-15）
+
+- `AiInteractionPanel` 现在是 `app/page.tsx` 下唯一的应用级活动宿主。`conversation` 事件只写入消息流内的工具摘要；`compact-test` 使用 352px 测试卡；`background` 只渲染一行可关闭状态。设置页和工作台不再各自订阅活动事件。
+- `CanonicalConversationTurn` 以 IndexedDB 中的可见用户/助手消息为事实源，并按附件摘要与可见工具结果补充上下文。未超限时发送完整可见历史；超限时使用会话摘要和最近 12 轮。隐藏思维链、thought signature、厂商缓存与私有工具状态不进入该结构。
+- Google 官方主机的 GenerateContent 固定为 `/v1beta/models/{model}:generateContent`，Interactions 固定为 `/v1beta/interactions`，流式使用 `?alt=sse`。自定义代理保留用户路径，避免错误改写代理版本。
+- 模型目录缓存升级为 v4；Qwen 从 `output.models` 读取分页，Anthropic 使用 `has_more/last_id`。已保存连接测试按“最近成功模型 → 关联默认模型 → 推荐模型”选择。
+- 自动记忆仍保存在 personalization 单例，不升级 Dexie v16。新用户默认开启；旧用户由 v1 开关迁移。明确“记住”本地提取，其他内容按三轮或 45 秒批处理；高置信稳定事实自动生效，学习状态、敏感项和冲突进入待处理，秘密直接丢弃。
+
+## 模型目录完整性与按轮次对话链（2026-07-15）
+
+- `ModelCatalogSelect` 是连接测试和默认能力的共享选择边界；当前值只决定选中态，不参与候选过滤，手动模型 ID 始终可用。对话模型菜单继续复用同一 `model-directory-service` 数据源。
+- 目录读取返回 `live/cache/fallback`、`stale` 与 `complete`。静态 fallback 只用于首屏占位，只有 24 小时内且 `complete=true` 的 v3 在线缓存可以跳过请求。
+- `server/ai/model-directory.ts` 集中处理 Google、MiniMax、Qwen 分页以及 OpenRouter、Groq、Mistral、SiliconFlow、Kimi 的官方目录；在线状态优先，精确 descriptor 只补充已核验能力和协议。
+- OpenRouter、Groq、Mistral、SiliconFlow、Kimi、Qwen 标记为 `compatible`，复用 OpenAI-compatible 生成边界；未知模型不得推断多模态、推理或速度能力。
+- 对话通过 `turnId/sequence` 将用户消息、可见工具和 AI 回答稳定组成轮次。准备上下文、选模型、调用和流式状态属于 `diagnostic`，默认折叠在轮次详情中；Dexie 仍为 v16。
+
+## Google 双协议与品牌选择边界（2026-07-15）
+
+- Google adapter registry 是请求构建、响应解析和流式分发的唯一执行入口，协议由具体模型目录项决定：`google_generate_content` 或 `google_interactions`。
+- 协议解析按精确 descriptor、在线目录、连接级 24 小时缓存依次进行；未知手动模型仅在连接测试收到明确协议不匹配时重试一次，普通对话禁止双发。
+- Interactions 固定发送 `store: false`，不保存 `previous_interaction_id`；应用继续发送完整历史，厂商原始步骤与响应不持久化。
+- 默认能力的连接与模型选择复用紧凑品牌选择器，图标仅为展示数据，不写入默认能力或连接记录。
+- Obsidian 属于 integration branding，不进入 AI provider registry；品牌资产以固定版本本地 SVG 和校验值登记。
+
+## 品牌、Gemini 与粉笔账户导入（2026-07-15）
+
+- 厂商品牌仍由 `ProviderBranding` 单一注册表驱动。Lobe Icons 固定为 `@lobehub/icons-static-svg@1.91.0` 并本地固化 SVG、版本、来源、MIT 许可与 SHA-256；运行时不访问 CDN，未匹配厂商使用文字缩写。
+- Google adapter 独占 GenerateContent URL 归一化、`serviceTier`、thinking 字段互斥和脱敏错误分类。标准档不发送服务等级，优先档只发送顶层 `serviceTier: "priority"`，并保留 Gemini 默认采样。
+- 粉笔快捷导入分为 `FenbiAccountImportAdapter`、同源 validate/sync route、`useFenbiQuickImport` 与现有草稿 repository。服务端只访问硬编码 `tiku.fenbi.com/api/xingce/*` 路径；Cookie 仅在本机 AES-GCM 密文与单次请求内存中存在。
+- 账户同步结果与 PDF/Word 兜底统一落入 `ImportDraft`。异常草稿默认展开，正常草稿折叠；确认前不写错题库，确认后只保留 30 秒内存撤销凭据。Dexie 继续保持 `review_workspace` v16。
+
+## AI 连接、额度运行时与个性化记忆（2026-07-14）
+
+- 连接编辑器只持有当前草稿；目录发现与测试通过 `ai-connection-client` 在草稿 Key 留空时安全复用旧密钥，但厂商、Base URL 和模型永远取当前草稿。连接测试活动使用 `compact-test`，由独立 352px 结果卡渲染，不进入全局 AI 对话结构。
+- 默认能力通过 `DefaultCapabilitySelector` 原子保存 `{ connectionId, modelId }`。无目录连接只在组件内保留待选连接，输入手动模型后才整体落库；共享目录与手动模型 ID 始终并存。官方连接能力在 repository 边界按当前 contract 归一化，自定义连接继续尊重用户声明。
+- `QuotaRuntimeStore` 是额度启用、缓存、四路并发、超时、页面可见性和在线恢复的唯一调度边界。临时失败保留上次成功快照并标记过期；普通模型 Key 与账单凭据仍完全分离。
+- 额度表格通过纯函数 presentation 层把官方指标转换成 32px 环形概览；有分母才计算比例，只有余额时使用状态环。精确数值只进入 450ms 悬浮、键盘聚焦或触屏点击后的说明层，刷新仍是行级主操作。
+- MiniMax 连接在 repository 与 provider adapter 边界显式保存 `region`、`credentialPlan` 并规范化 Anthropic-compatible 根地址。M3 的文本、图片、视频、thinking 与 service tier 都由精确 descriptor 声明，M2.x 不继承视觉能力。
+- 设置导航为外观、AI 连接、个性化、额度、MCP、诊断。个性化内部拆分角色和记忆；记忆以可选版本字段保存在现有 personalization 单例，最多 100 条，只有 active 条目可按范围裁剪到 1500 字符后注入请求，不升级 IndexedDB v16。
+- 数据删除只由“诊断 → 数据管理”提供，按导入、错题复盘、对话历史和完整重置分域执行；AI 连接页不再承载业务数据清理。
+
+## 设置、模型菜单与额度边界（2026-07-14）
+
+- 设置导航固定为外观、AI 连接、个性化、额度、MCP、诊断；个性化与额度使用模块顶层 `next/dynamic`，旧 `roles` 入口只在导航边界归一化为 `personalization`。
+- 模型菜单外壳不滚动，当前层由独立 viewport 承担真实溢出；换层同步清零滚动位置并通过 `ResizeObserver` 决定是否启用滚动。tooltip 使用单例 intent，程序化聚焦和触屏不创建可视浮层。
+- 额度领域类型位于 `types/domains/ai-quota.ts`。浏览器 repository 逐项加密管理凭据，服务端 `quota-adapters.ts` 负责 OpenAI、Anthropic、DeepSeek、xAI 的官方只读 API 和统一错误分类。
+- AI 连接只保存推理凭据；额度管理凭据、Team ID、本地预算和指标单独保存。Dexie 保持 `review_workspace` v16，旧单密钥与旧快照只在读取边界兼容转换。
+
+## 对话拖拽与厂商适配器边界（2026-07-12）
+
+- `ConversationFolderTree` 在自身 Client Component 边界内持有 `DndContext`、Pointer/Touch/Keyboard sensors 与拖拽覆盖层；`ReviewWorkspace` 不接触拖拽状态。
+- 文件夹和对话移动仍由 `conversationRepository` 校验项目、根目录、自身及子孙关系，UI 只提交目标并显示结果。
+- AI 连接档案只负责厂商、鉴权、Base URL 与声明能力；默认用途通过 `AiConnectionDefaults` 独立保存连接与模型。
+- 七家已核验厂商通过 `providerAdapterRegistry` 进入明确协议；其他厂商只进入兼容边界。
+- 模型选择器采用厂商到模型的紧凑钻取，点击模型立即保存会话选择，不再维护额外确认状态。
+
+## 连接与运行时模型边界（2026-07-12）
+
+- `ApiConnectionProfile` 只持有厂商、地址、密钥与能力；历史 `model` 只用于一次性初始化默认能力模型，新建和编辑不再写入。
+- 后台任务通过 `AiConnectionDefaults` 的“连接 + 模型”组合运行；对话通过 `selectedConnectionId`、`selectedModelId` 与 `selectedRuntimeValues` 运行，两者互不覆盖。旧推理/速度字段只在 repository 读取时折叠，不升级 Dexie v16。
+- 模型选择器采用单栏钻取：当前会话厂商优先，其余按英文名排序；进入厂商后只显示连接、模型、能力 tooltip 和独立推理/速度子列表，所有选择点击即保存。
+- 官方 Models API 成功时展示账户可用的全部未弃用模型；失败时才使用带 `verifiedAt` 的回退目录。MiniMax 当前旗舰为 `MiniMax-M3`，GLM 当前旗舰为 `glm-5.2`。
+- 对话树名称区域承担 dnd-kit 拖拽，拖拽期间始终提供根目录目标；repository 继续拒绝跨项目、自身和子孙嵌套。
+
+## 对话模型菜单分层（2026-07-13）
+
+- `ConversationWorkspace` 只编排会话运行、消息和工具状态；输入器由 `ConversationComposer` 承载，模型触发器与弹层由 `ConversationModelSelector` 装配，目录加载、菜单导航和选择持久化分别进入专用 hook。
+- 模型菜单状态使用 `providers → models → reasoning/speed` 单层判别联合。`ConversationModelPicker` 每次只渲染当前层，不以绝对定位把新面板覆盖在仍可聚焦的旧面板上。
+- 空白对话选择保存在 `draftSelection`；持久化对话使用按 `conversationId` 隔离的乐观选择。写入按用户操作顺序串行化，刷新确认后清理，失败时只回滚当前对话并显示错误，禁止把 A 对话的临时选择带到 B 对话。
+- 选项宽高由内容和当前层决定：桌面厂商、模型、普通运行、预算层分别为 208/240/160/200px；移动端在 390×844 基准下限制为 320/352/288/320px 且不超过视口安全宽度。仅内容超过可用高度时内部滚动。
+- 运行值继续只以 `selectedRuntimeValues` 持久化，不改变 IndexedDB v16 或 `/api/ai/models`、`/api/ai/generate`。UI 提交归一化值，provider runtime mapper 负责厂商字段。
 
 ```text
-ReviewWorkspace → feature hook → AI service
-→ ai-connection-client → /api/ai/generate|speech → provider adapter
+选择模型/档位
+  → descriptor 归一化
+  → 当前对话乐观状态
+  → conversationRepository 串行写入
+  → 刷新 snapshot
+  → /api/ai/generate
+  → provider runtime mapper
 ```
-
-- `ReviewWorkspace` 只向业务模块注入已按用途解析的 `ApiConnectionProfile`。
-- 文本、关键帧和朗读分别声明 `text`、`vision`、`speech` 能力；连接级客户端在解密前拒绝能力不匹配的请求。
-- `ai-connections-repository` 统一维护默认连接、密钥密文、旧表同步和失效默认值清理。业务 service 不读取 `apiSettings`，也不推断厂商协议。
-- `/api/ai/generate` 与 `/api/ai/speech` 是仅有的浏览器代理入口，厂商 endpoint、鉴权和响应解析集中在 provider adapter。
-
-## 人设与主题架构
-
-## 模块边界
-
-- `persona-flash-card.tsx`：只负责 2:3 卡片正面、原始 PNG 镶边与悬停操作。
-- `persona-avatar-card.tsx`：复用同一人设数据和编辑动作，提供更高密度的头像视图。
-- `persona-card-back-dialog.tsx`：只负责定制角色的名称、描述和独立音色。
-- `persona-default-editor.tsx`：只负责默认人设头像及完整字段，采用固定外壳和独立滚动区。
-- `personalization-settings-repository.ts`：负责旧数据迁移、归一化、独立音色解析和 IndexedDB 持久化。
-- `appearance-settings-repository.ts`：负责主题迁移、色彩变量和弥散色场生成。
-
-## 数据流
 
 ```text
-IndexedDB 读取 → repository 一次性迁移与归一化 → 页面本地草稿
-→ 用户编辑/预览 → repository 保存 → 业务模块按实际人设解析独立音色
+features/conversation/
+├── conversation-workspace.tsx             会话运行编排
+├── conversation-composer.tsx              输入、附件与工具装配
+├── conversation-model-selector.tsx        触发器与弹层生命周期
+├── conversation-model-picker.tsx          当前钻取层
+├── conversation-model-runtime-controls.tsx 运行 radio 与预算输入
+├── use-conversation-model-navigation.ts   判别联合与跨层焦点
+├── use-conversation-model-selection.ts    草稿/对话选择与串行写入
+└── use-connection-model-catalog.ts         共享目录读取
+features/shared/ui-tooltip.tsx              可访问共享 tooltip
 ```
 
-页面不引入全局状态库。朗读只接收默认语音连接与当前人设音色，不跨能力回退；无音色时明确提示并保持静音。
-
-## 资产策略
-
-`public/personas/persona-card-frame-2x3.png` 由 `scripts/extract-persona-frame.mjs` 对用户确认的 1024×1536 参考图执行确定性透明化。前端仅等比缩放，保留金色纹理、抗锯齿及底部蓝色，不使用 SVG 或生成式重画。
-
-## 屏幕共享边界
-
-`TutoringWorkspace → useTutoringMedia → useFrameSampler → tutoring AI service` 保持单向依赖。`MediaStream` 和最近关键帧只存在浏览器内存；浏览器停止共享时立即清理采样状态。多模态连接只接收手动或三秒低频采样的 JPEG，不接收连续视频或系统音频。
-
-## Obsidian 知识图谱桥接
+## 分层与依赖方向
 
 ```text
-KnowledgeView → useObsidianKnowledgeBridge → knowledge evolution service
-→ obsidian-knowledge-repository → Vault adapter / IndexedDB v12
+App Shell / ReviewWorkspace
+  -> Domain Feature / Application Controller
+  -> Domain Service / Repository Port
+  -> Browser Adapter / Dexie / AI HTTP Route
+  -> External Provider or Local File System
 ```
 
-- React 只保存 `ObsidianVaultSnapshot`、映射和提案；`FileSystemDirectoryHandle` 仅由 repository 与 Vault adapter 读取。
-- Vault 的 `AI知识库/政治理论|常识判断|申论` 是 Markdown 正文和 Wikilink 主源；IndexedDB 保存正文镜像、训练状态、三方哈希与冲突。
-- 手动同步以最后同步哈希为基线：单边变化自动同步，双边变化保留两份内容并等待选择，文件消失只标记断开。
-- AI 自动收集错题、面试复盘、辅导摘要和知识条目作为候选，但只生成 `create | merge | link` 提案；确认后才修改显式 AI 演进区块并写入 Vault。
-- 同步采用“完整遍历与重复 ID 预检 → Vault 写入 → IndexedDB 事务提交”；预检或文件写入失败时不得更新同步基线。托管根目录缺失属于连接故障，不等同于空目录。
-- 冲突选择和提案确认都会重新读取 Vault 并校验三方哈希，过期页面不得覆盖新版本；`link` 提案只更新 Wikilink 和来源引用。
+- 依赖只能沿箭头向下；UI 不直接读取其他领域的 repository。
+- `ReviewWorkspace` 只负责导航、连接注入、视图装配和跨模块通知。
+- 长生命周期交互状态由专用 controller 管理；可持久化状态只通过 repository 写入。
+- `MediaStream`、`FileSystemDirectoryHandle`、密钥明文、完整 prompt、截图和 Vault 正文不得进入全局 React 状态或持久化日志。
 
-## 扩展原则
-
-新增人设字段时先扩展 `PersonaCustomization` 和 repository 归一化，再分别接入默认编辑器或定制卡背。新增主题只需增加预设，不得为单个主题新增名称判断或固定色分支。
-
-## 本地自动化中心
+## 目录与模块
 
 ```text
-AutomationView → TaskList / Editor / Inbox → useAutomationCenter
-→ scheduler / executor → automation-repository
-→ IndexedDB v13 / 默认文本连接
+app/
+├── api/ai/                 AI 浏览器代理路由
+├── api/mcp/                MCP Streamable HTTP 发现与调用边界
+├── db/                     Dexie 实例、schema 与版本迁移
+├── features/               按业务领域组织的 UI 与 controller
+├── server/ai/              provider adapter 与 HTTP 公共边界
+│   └── runtime-option-mappers/ 七家厂商运行参数映射
+├── server/mcp/             MCP SDK 客户端与 URL 安全校验
+├── services/               迁移中的 repository、adapter 与纯业务服务
+└── types/domains/          领域稳定类型入口
 ```
 
-- 自动化定义和运行收件箱由 IndexedDB 管理；React 只保存可序列化快照，任务运行次数一次遍历派生，定时器、Web Locks 和租约留在 hook/repository。
-- 应用启动、恢复可见和网络恢复时检查到期任务。关闭期间的多个周期合并为一次补跑，执行后直接推进到下一计划时间。
-- 自定义任务只读取明确勾选的错题、知识、面试、辅导或 Obsidian 映射；知识演进来源和候选知识同样按范围读取。除保存待确认知识演进提案外，不修改业务数据。
-- 多标签页先申请 Web Lock，再由 IndexedDB 五分钟可续期租约兜底；计划执行前校验定义版本，提交结果前复核所有者。任务失败同样写入收件箱并推进计划，避免无限重试。
+- Review：错题、复盘、统计与主工作台装配。
+- Knowledge：知识资料、训练、内化、演进与 Obsidian 桥接。
+- Conversation：项目、文件夹、空白草稿、消息与工具步骤。
+- Automation：仅在应用打开时调度的“已安排”任务。
+- Interview / Tutoring / Import / Settings：低频功能，必须动态加载。
+- AI Connection：连接档案、能力边界、模型目录、语音与额度插件。
+
+## 对话、插件与 MCP
+
+- `ConversationWorkspace` 由 `ConversationComposer`、两级模型选择、媒体工具、MCP 调用和 Obsidian 提案等独立组件协作；会话可以保存 `selectedModelId` 覆盖，但继续复用同一连接档案的密钥和 endpoint。
+- 顶层“插件”只展示应用内扩展状态和领域跳转；MCP 独立位于设置，并通过对话工具实际调用，不伪装成插件目录条目。
+- MCP 首期仅支持 Streamable HTTP：远程 HTTPS、本机 loopback HTTP、无认证或本地加密 Bearer。原始调用结果仅在当前工具面板内存中存在，run/step 只保存 Server、工具、参数键和结果长度等脱敏摘要。
+- Obsidian 提案以当前对话和用户勾选的知识摘要为来源；生成、解析和 pending 保存形成同一对话 run，确认时才恢复目录权限、复读 Vault 并执行哈希检查。
+- 复盘计时是页面 controller 的临时状态：默认正计时且暂停在 `00:00`，切题只重置，用户点击开始后才累计。
+
+## 模块与新对话
+
+- 错题、知识和薄弱分析统一进入“学习数据”浏览器，共享板块、掌握度与搜索作用域；侧栏不再重复提供板块筛选。
+- 业务模块通过内存态 `ConversationLaunchContext` 把来源、摘要和建议问题交给空白对话；点击入口不会创建记录，首次发送后才持久化会话与脱敏上下文摘要。
+- 摄像头、屏幕共享和截图属于对话工具。原始 `MediaStream` 与帧只驻留内存，截图只有在用户发送后才进入多模态请求。
+- 历史辅导 session/turn 表继续兼容，通过对话工具菜单的“历史辅导记录”进入，不升级 Dexie schema。
+
+`app/types/review.ts` 是迁移期兼容出口；新代码应从 `app/types/domains/*` 引用。领域类型完成迁移后再缩减兼容出口，避免一次性改动全部调用方。
+
+## 数据流与状态归属
+
+```text
+User Event -> Feature Controller -> Domain Service -> Repository -> IndexedDB
+AI Request -> Connection Client -> Runtime Descriptor -> /api/ai/* -> Provider Mapper -> Provider Adapter -> Provider
+Vault Event -> Obsidian Controller -> Repository -> File System Access API
+```
+
+- 页面草稿、筛选、展开和媒体状态留在 feature/controller。
+- 业务实体、会话摘要、运行结果和迁移基线存入 `review_workspace`。
+- Dexie 当前版本保持 v16；`review-db-migrations.ts` 承载幂等迁移函数，不为前端切片新增索引。
+- AI route 使用共享 HTTP 错误边界，只返回归一化数据或脱敏错误，不透传厂商原始响应。
+
+## 已安排外部知识采集（2026-07-21）
+
+```text
+本地调度 / 补跑 / Web Lock + IndexedDB 租约
+  -> 白名单 URL、RSS/Atom 或已获 allow_scheduled 的 MCP 搜索
+  -> /api/acquisition/fetch（协议、origin、DNS、重定向、类型、超时、1MB）
+  -> HTML/XML 标准化与 URL/内容哈希去重
+  -> 模型 A 整理 -> 模型 B 独立复核
+  -> 固定 100 分可信度与阻断规则
+  -> knowledgeEvolutionProposals.pending
+  -> 来源哈希 + Vault 目标统一预检
+  -> 逐项写入并即时标记 accepted
+```
+
+- `app/server/acquisition` 只负责服务端网络边界和 Cheerio 解析；`app/services/acquisition-*` 负责浏览器内来源发现、运行期文档、模型整理、复核和评分，UI 不直接访问外网。
+- `AutomationDefinition.collectionConfig` 只保存领域、查询、来源、origin 白名单和 `{connectionId, modelId, selectedRuntimeValues}`；密钥继续只存在连接仓储。旧任务缺少该字段时沿用原执行链。
+- 完整网页、MCP 原始结果、完整提示词和模型原始响应只存在当前运行内存。提案只保存生成稿、360 字以内的必要证据摘录、URL、内容哈希、模型/版本和评分审计。
+- 可信度权重固定为 25/25/15/10/15/10。缺复核模型时最高 B；URL 不可验证、无证据段落、来源哈希变化、精确重复或模型事实冲突会阻止确认。
+- 批量确认不承诺文件系统事务回滚：预检完成后顺序写入，成功项立即 accepted；失败和尚未处理项保持 pending。Dexie 继续使用 `review_workspace` v16，不新增索引。
+
+## 扩展点
+
+- 新学习专项注册 `StudyDomainDefinition`，不得在 shell 中新增专项分支。
+- 新导入来源实现 `ImportProviderPlugin`。
+- 新 AI 厂商扩展 provider registry、provider adapter 与具体模型 runtime descriptor/mapper；未知模型不得按名称猜测运行参数。
+- 新额度来源扩展 descriptor/fetch strategy；无稳定官方 API 时只能使用 manual/unsupported。
+- MCP 保持独立设置边界，真实调用最终进入 conversation run/step 状态机。
+
+## 性能与架构守卫
+
+- 低频 Client Component 使用模块顶层 `next/dynamic`；重型库在用户动作中使用 `await import()`。
+- `architecture-boundary.contract.test.ts` 检查 workspace 预算、低频静态依赖和相对 import 循环。
+- `bundle-boundary.contract.test.ts` 检查首屏重型依赖、controller 边界和 Dexie 迁移约束。
+- 新增跨域依赖前应先提供 facade/controller；禁止把 repository 重新接回主工作台。
+
+## 架构决策
+
+1. 保留 hooks + repository，不引入 Redux、Zustand 或 DI 框架。
+2. 核心业务保留 `review_workspace` v16；声明式扩展使用独立 `review_extensions` v1，两个数据库都进入完整导出与重置。
+3. 采用渐进式领域拆分，兼容出口在调用方迁移完成前保留。
+4. 外部 `/api/ai/*` URL 和持久化数据契约保持向后兼容。
+
+## 学习者模型、传输层与声明式扩展（2026-07-16）
+
+```text
+错题 / 知识 / 面试 / 辅导微测 / 计划
+  -> LearnerStateSnapshot（只读、证据化）
+  -> LearningContextAssembler（最多 6–8 条、字符预算）
+  -> 辅导请求
+  -> 学生操作与微测
+  -> TutoringPlan 间隔复练
+
+/api/ai/generate
+  -> ProviderAdapter（字段映射与归一化）
+  -> ProviderTransport（超时、取消、流与目录）
+     -> Google 官方 Interactions：@google/genai，零自动重试
+     -> 自定义代理/兼容厂商：HttpProviderTransport
+
+声明式扩展 JSON
+  -> 严格 schema / 资产摘要 / 内容摘要 / ECDSA 签名
+  -> review_extensions v1
+  -> 现有主题、人设、学习路径、模板和评分标准消费边界
+```
+
+- `PersonalMemoryEntry` 继续只处理稳定资料、偏好和目标；掌握度、错因、到期复习和下一步行动属于动态学习者模型，不写入通用记忆。
+- `LearnerStateSnapshot` 不新增表和索引，每次按当前本地数据计算；所有进入提示词的结论必须至少包含一个 `LearnerEvidenceRef`，上下文只输出证据 ID，不复制完整题库、知识正文或历史对话。
+- `VisionSourceAdapter` 是未来 Android XR 配套应用的输入端口。浏览器实现只管理内存中的 `MediaStream`、关键帧和不可逆灰度指纹；Dexie 只保存观察摘要、时间、置信度和用户确认结果。
+- `review_extensions` 与 `review_workspace` 完全分离。扩展包只有 `data.json` 和受控资产，不能注入 JSX、脚本或 HTML；需要新工具的扩展仍通过独立 MCP 安全边界。
+- 扩展市场是低频动态加载视图；安装、启用、停用、卸载、导出和单版本回滚由 `declarativeExtensionRepository` 管理，完整重置和导出同时覆盖两个数据库。
+
+## 设置导航与紧凑界面边界（2026-07-14）
+
+- `useReviewWorkspaceRecoveryNavigation` 是设置分区的唯一状态源；`SettingsWorkspace` 只接收受控的 `activeSection` 与 `onSectionChange`，不得再通过本地 state、定时器或 `initialSection` 镜像父级状态。
+- 侧栏、健康检查 CTA 与诊断入口统一写入同一 `settingsSection`；旧 `roles` 只在入口边界归一化为 `personalization`。普通保存、轮询、连接测试和父级重渲染不得修改当前分区。
+- 设置内容按信息密度使用独立宽度：连接表单 720px、默认能力 560px、额度与数据管理 760px、记忆 840px；移动端统一限制在视口安全宽度内。
+- 默认能力首屏只保留文本与多模态，语音类能力进入原生 disclosure；额度和数据管理采用紧凑表格，记忆与危险操作通过具备焦点锁定、Escape、遮罩关闭和焦点恢复的应用内弹层编辑。
+# 模型目录与实时语音边界（2026-07-12）
+
+- 模型目录采用官方在线发现优先、带核验日期的官方回退清单；按连接 ID、厂商和规范化 Base URL 隔离缓存 24 小时，密钥和厂商原始响应不得缓存。设置测试、默认能力和对话菜单共用 `model-directory-service`。
+- 对话模型选择保持“厂商图标 → 单厂商连接/模型”两级状态，空白对话仍只在首条文本或最终用户语音转写后创建。
+- 语音试听由 `VoiceProviderDescriptor` 驱动，只向 OpenAI、Gemini、MiniMax、GLM 发送各自支持的字段。
+- 实时语音运行对象、PCM、增量转写和临时凭据只留内存。OpenAI 使用 WebRTC；GLM 使用本地单实例 WebSocket 中继与同源 HTTP 入口，空闲两分钟回收，不支持多实例或 Serverless。
+
+# 对话树与连接测试闭环（2026-07-13）
+
+- 对话树的名称区域直接作为 dnd-kit 拖拽表面，不再占用六点手柄或鼠标提示；拖动时用浮层和固定根目录目标反馈，移动合法性仍由 repository 校验。
+- 文件夹和对话统一使用“展开位/空位、图标名称、操作位”网格；根图标严格对齐，只有 `.conversation-tree-children` 按层级增加缩进。两者通过右键菜单进入行内重命名；Enter 提交、Escape 取消。
+- 连接档案只保存厂商、鉴权、 endpoint 与能力。模型发现和真实测试通过连接级 AI 客户端完成，测试模型只保存在本地界面偏好中，必须由用户显式设为默认能力模型。
+- `AiModelRuntimeDescriptor` 位于 `types/domains/ai-model.ts`，由具体模型 ID 声明推理、速度、默认值、文档和核验日期。OpenAI/Gemini/xAI Priority、Claude Fast、MiniMax 配对高速模型分别映射，其他模型不得伪造统一速度档。
+- 明确核验的 `glm-5.2` 保留 `max/xhigh/high/medium/low/minimal/none` 七档，默认 `max`，请求同时发送 `thinking.type=enabled` 与原样 `reasoning_effort`；核验清单内的 GLM-4.5 至 5.1 只发送开关。未来或带自定义后缀的模型在 descriptor 登记前保持未知，不按版本字符串推断。
+
+# 通用工作台外层边界（2026-07-17）
+
+- `WorkspaceShell` 在语义 `<main>` 外统一提供 `chrome-content-frame`；默认 `raised-surface`，显式 `plain` 只供未来确需无边界的宿主使用。
+- 主应用、学习模块、对话和独立设置工作台消费同一外层边界。壳层只管理收进、圆角、边线、阴影与贴边关系，内容 padding、滚动和业务布局仍由各视图负责。
+- 桌面侧栏展开时工作区零留白贴合侧栏与顶栏；由语义 `<main>` 独占顶部和左侧 1px 共边，顶栏与侧栏不重复绘制对应边框。工作区仅保留 18px 左上圆角，不再叠加内外阴影、高光或边缘渐隐。对话工作区继承壳层 100% 可用高度，避免重复视口计算越过圆角；侧栏折叠及移动端继续铺平。
+
+## 工作台无缝抬升面（2026-07-18）
+
+- 桌面侧栏、顶栏和工作区共用同一几何接缝；工作区保持零留白和 18px 左上圆角，顶部、左侧 1px 边线只由 `<main>` 绘制。边界采用无阴影方案，禁止在共边或圆角添加内外阴影、高光、模糊或渐隐。
+- 顶栏弥散在底部 12px 回到实色，侧栏弥散从顶部 12px 渐入，使两块不透明 surface 的接缝保持连续。移动抽屉仍可使用独立右边界，折叠侧栏与移动工作区继续铺满。
+- `<main>` 继续负责纵向滚动，但隐藏原生滚动条；鼠标滚轮、触控、键盘与程序化滚动保持可用，设置侧栏和页面内部独立滚动容器不受影响。
+- 弥散开启时，`chrome-content-frame` 是工作区唯一的弥散底图承载层，并与 `<main>` 共享 18px 左上圆角；`.chrome-layout` 保持实色，让圆角外侧属于顶栏/侧栏交界。`<main>` 仅绘制共边和圆角并保持透明。
+
+## P1 学习列表展示边界（2026-07-23）
+
+- 错题、知识列表继续消费现有 repository、筛选器、`useBulkSelection` 和渐进显示控制器；展示层不得复制查询、导出或删除状态。
+- 桌面统一使用无阴影的主从布局；移动端详情状态只保存在当前组件内，顶栏下方全屏展示，不写入 IndexedDB。
+- 知识库拆为 `knowledge-library-list`、`knowledge-entry-editor` 与 `knowledge-starter-controls`，Obsidian 和内化控制器仍由 `KnowledgeView` 编排并保持按需加载。
+- `ReviewWorkspace` 的低频动态加载、首屏包体边界、Dexie v16 与 Vault 句柄 repository 边界保持不变。
+# P1 辅导与面试当前轮次架构（2026-07-23）
+
+- `conversation.kind === "tutoring"` 时，由 `ConversationWorkspace` 动态加载 `ConversationTutoringExperience`，运行时再按需加载 `conversation-tutoring-runtime`；普通对话与核心工作台不静态依赖辅导服务。
+- 可见用户/老师消息继续写入对话表，结构化卡点、下一步、微测和复练状态写入带 `conversationId` 的辅导会话与带 `conversationMessageId` 的轮次。确定性 ID 保证模型失败重试、刷新恢复和计划生成不会重复写入。
+- 独立辅导页只承担历史记录、计划和资料关联；实时媒体、当前轮次和模型选择留在对话内。模型请求显式使用当前对话的 `modelId` 与 `selectedRuntimeValues`，不读取连接历史模型。
+- `LearningSessionLayout` 只共享桌面信息侧栏与移动底部抽屉的布局、焦点锁定、Escape、滚动锁定和焦点恢复；辅导、面试业务状态保持在各自 feature。
+- 面试主导航收敛为模拟现场、题库、训练计划和复盘记录。阶段栏读取真实 session stage，评分只读取完成后的 evaluation；原始录音、摄像头、屏幕与关键帧仍只驻留当前运行内存。
+- `TutoringSession.conversationId` 与 `TutoringTurn.conversationMessageId` 均为可选兼容字段，不新增索引，不升级 `review_workspace` v16，也不新增 HTTP API。
+# P2 已安排与设置展示架构
+
+- `features/automation/use-automation-view-controller.ts` 只维护搜索、状态、当前任务、收件箱筛选、编辑模式、移动页签与抽屉；`automation-view-model.ts` 负责可测试的摘要、最近运行和筛选派生。
+- `AutomationView` 只装配任务列表、运行收件箱和两个可访问编辑层。调度、补跑、租约、采集与恢复动作仍由既有 service/controller 提供，展示层不触发隐式重试。
+- 设置分区继续由 `useReviewWorkspaceRecoveryNavigation` 单一受控；`SettingsSectionHeader` 和 feature-local CSS Module 只共享展示结构，不引入第二份分区状态。
+- AI 连接表格和详情只消费序列化连接快照，不渲染密钥；默认能力仍保存独立的连接、模型与运行值。HTTP API、Dexie v16 和低频动态加载边界不变。
+
+# P3 全产品 UI/UX 最终收口架构（2026-07-23）
+
+- 导入页继续由 `ImportWorkspace` 持有解析与草稿 controller，`review-import-view` 只新增 38/62 来源/草稿布局和移动三步状态；原始文件、粉笔凭据、确认与撤销语义未迁移到展示层。
+- `LearningInsightSnapshot` 是纯派生展示模型，只从存在错题关联的 `Attempt.reviewedAt/result`、当前错题掌握度和到期日期计算。板块少于 5 次有效复盘时不生成趋势方向。
+- 知识训练拆为独立动态 `knowledge-training-view`，训练画布、队列和会话摘要仍消费既有间隔训练状态，不复制算法或 repository。
+- 插件管理只读取 `settingsPluginDefinitions` 三项真实登记，详情面板在选择后动态加载；MCP、密钥、Vault 句柄和第三方代码均未进入注册表快照。
+- 命令搜索在桌面使用居中面板、移动使用全屏层，并统一焦点锁定、Escape、页面滚动锁定与触发器焦点恢复。
+- P3 共享页面状态只负责呈现加载、空、错误或离线说明，不执行业务读取。HTTP API、公开路由、持久化对象和 `review_workspace` v16 均未变化。
+
+## P3 补充：ReviewWorkspace 架构终止收口
+
+- `ReviewWorkspace` 现在只调用 `useReviewWorkspaceController` 并渲染 `ReviewWorkspaceViewRouter`；根编排组件限制为 150 行以内，不再直接拥有学习、知识、会话或设置业务状态。
+- `useReviewLearningController` 独占错题筛选、选择、复盘队列、计时、统计与相关动作；`useReviewKnowledgeController` 独占知识筛选、关联建议、导入草稿、训练队列与相关动作。两者通过显式类型交给路由，不引入覆盖工作台的 React Context。
+- `useReviewWorkspaceController` 只组合工作区数据、导航、AI 连接、个性化、自动化、会话、设置恢复与健康状态，并以 `workspace`、`learning`、`knowledge`、`conversation` 四组稳定边界返回。
+- `ReviewWorkspaceViewRouter` 只装配设置页、工作台壳层、命令搜索和核心/低频 route component。route 文件禁止导入 repository/service；低频视图继续在模块顶层用显式路径 `next/dynamic` 加载。
+- 架构契约硬性限制根组件不超过 150 行，顶层 controller 与 view router 不超过 300 行，领域 controller 与任何 React component 不超过 500 行；同时检查动态加载、无循环依赖、旧 `stats` 映射和 `review_workspace` v16 不变。
+- 本次重构不改变可见 UI、业务语义、HTTP API、IndexedDB schema、首次消息持久化、导入确认、复盘计时、Obsidian 句柄或恢复导航边界。
+
+## 根级恢复与本机运行诊断（2026-07-23）
+
+- `app/error.tsx` 与 `app/global-error.tsx` 复用 `WorkspaceViewState`，提供重试、返回工作台和复制脱敏诊断；诊断只包含稳定错误类别、时间和 Next digest，不输出堆栈、用户正文或厂商原始响应。
+- 浏览器内同源 API 调用统一经过 `fetchLocalApi`。该边界仅在内存保存最近 50 条路由类别、阶段、耗时、状态码和错误类别，既不写 IndexedDB，也不记录请求体、响应体、Cookie、Token、音频或 Vault 正文。
+- 异步初始化 Hook 使用零延时任务与 `active` 卸载保护，避免 Effect 同步写状态并防止组件卸载后的错误通知；业务源码不再需要 `react-hooks/set-state-in-effect` 豁免。
+
+## 包体与无障碍门禁（2026-07-23）
+
+- 以 Next 16.2.11 `experimental-analyze --output` 和生产构建清单建立 `docs/performance-budget.json`。CI 校验首屏客户端 JavaScript、CSS、最大 JavaScript chunk 均不得超过基线 5%，报告写入 `.next/diagnostics/bundle-budget.json`。
+- 首屏基线为 JavaScript 1,183,694 bytes、CSS 131,222 bytes、最大异步 chunk 568,117 bytes。Turbopack import trace 显示 PDF 与字体映射仍位于低频异步块；结构契约继续阻止 PDF、DOCX、Obsidian、实时媒体、已安排和设置回到静态首屏链路。
+- 已安排、设置、导入、面试、辅导与对话入口只在用户 hover/focus 时预取代码，不触发 repository 或外部请求。桌面 1536×1024 与移动 390×844 使用 axe WCAG A/AA 规则阻断 serious/critical 问题。
+
+## 领域类型与核心服务收口（2026-07-23）
+
+- 业务源码已从 `types/review.ts` 的 191 个引用降为 0。`types/review.ts` 缩为 5 行历史兼容出口，interview、tutoring、obsidian、personalization、appearance、association、import、workspace、MCP、voice 与 provider catalog 均有独立领域入口。
+- `types/domains/legacy-review.ts` 冻结保存历史 schema 类型清单，领域入口作为新代码唯一公共边界；架构契约禁止业务重新导入兼容出口。该整理不改表结构、字段、索引或 `review_workspace` v16。
+- Provider 公共 adapter 保持原导出并缩至 405 行，语音请求/音频解析进入 177 行内部 mapper。Obsidian repository facade 保持原对象 API 并缩至 490 行，纯转换与图谱派生进入 104 行 helper。
+- 拆分保持 Google 双协议、MiniMax 鉴权、SSE、语音、MCP、自动记忆、Obsidian 冲突与 proposal 语义；对应 209 个契约测试继续作为回滚判据。

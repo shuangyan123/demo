@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { Button, Chip, ConfirmDialog, EmptyState, Panel, SoftBlock, TextField } from "../shared/ui-primitives";
-import type { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge";
+import type { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge.ts";
+import { ObsidianProposalReview } from "./obsidian-proposal-review";
 
 type ObsidianController = ReturnType<typeof useObsidianKnowledgeBridge>;
 type PendingAction =
@@ -32,7 +34,7 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
   };
 
   return (
-    <Panel title="Obsidian 知识图谱" eyebrow="Vault Bridge">
+    <Panel title={<span className="inline-flex items-center gap-2"><Image alt="" aria-hidden="true" height={20} src="/plugin-icons/obsidian.svg" width={20} />Obsidian 知识图谱</span>} eyebrow="Vault Bridge">
       <div className="grid gap-4">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 max-lg:grid-cols-1">
           <TextField label="Vault 托管目录" value={snapshot.connected ? snapshot.managedRoot : managedRoot} onChange={snapshot.connected ? () => undefined : setManagedRoot} placeholder="AI知识库" />
@@ -61,6 +63,35 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
           <Chip tone={snapshot.conflictCount ? "red" : "green"}>冲突 {snapshot.conflictCount}</Chip>
           <Chip tone={snapshot.pendingProposalCount ? "yellow" : "blue"}>待确认 {snapshot.pendingProposalCount}</Chip>
           {snapshot.lastSyncedAt ? <Chip>上次同步 {new Date(snapshot.lastSyncedAt).toLocaleString("zh-CN")}</Chip> : null}
+        </div>
+
+        <div className="grid gap-3 rounded-lg border border-line bg-surface-muted p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h4 className="font-semibold">关系图谱</h4>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Chip tone="green">已同步 {controller.graph.syncedCount}</Chip>
+              <Chip tone={controller.graph.issueCount ? "red" : "blue"}>待处理 {controller.graph.issueCount}</Chip>
+              <Chip tone="yellow">外部链接 {controller.graph.externalCount}</Chip>
+              <Chip>关系 {controller.graph.edges.length}</Chip>
+            </div>
+          </div>
+          {controller.graph.edges.length ? (
+            <div className="grid max-h-44 gap-2 overflow-y-auto pr-1">
+              {controller.graph.edges.slice(0, 12).map((edge) => {
+                const source = controller.graph.nodes.find((node) => node.id === edge.sourceId);
+                const target = controller.graph.nodes.find((node) => node.id === edge.targetId);
+                return (
+                  <p key={edge.id} className="truncate text-sm text-muted">
+                    <span className="font-medium text-foreground">{source?.title ?? edge.sourceId}</span>
+                    <span aria-hidden="true"> → </span>
+                    <span>{target?.title ?? edge.label}</span>
+                  </p>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">同步后会从 Markdown Wikilink 派生知识关系，并作为 AI 提案上下文。</p>
+          )}
         </div>
 
         {snapshot.permission === "unsupported" || !snapshot.connected ? (
@@ -107,16 +138,24 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
 
         <div className="grid gap-3">
           <h4 className="font-semibold">知识演进提案</h4>
-          {controller.pendingProposals.length ? controller.pendingProposals.map((proposal) => (
-            <article key={proposal.id} className="ui-card ui-card-muted p-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><div className="flex flex-wrap gap-2"><Chip tone="blue">{proposal.mode}</Chip><Chip>{proposal.category}</Chip><Chip>置信度 {Math.round(proposal.confidence * 100)}%</Chip></div><strong className="mt-2 block">{proposal.title}</strong><p className="mt-1 text-sm leading-6 text-muted">{proposal.reason}</p></div>
-                <div className="flex gap-2"><Button disabled={controller.busy} size="sm" type="button" variant="primary" onClick={() => void controller.acceptProposal(proposal.id)}>确认写入</Button><Button disabled={controller.busy} size="sm" type="button" variant="ghost" onClick={() => void controller.rejectProposal(proposal.id)}>忽略</Button></div>
+          {controller.lastGenerationResult ? (
+            <div className="rounded-lg border border-line bg-surface-muted p-3 text-sm">
+              <div className="flex flex-wrap gap-2">
+                <Chip tone={controller.lastGenerationResult.proposals.length ? "green" : "yellow"}>可用 {controller.lastGenerationResult.proposals.length}</Chip>
+                <Chip>来源 {controller.lastGenerationResult.sourceCount}</Chip>
+                <Chip>解析 {controller.lastGenerationResult.parsedCount}</Chip>
+                <Chip tone={controller.lastGenerationResult.filteredCount ? "yellow" : "blue"}>过滤 {controller.lastGenerationResult.filteredCount}</Chip>
               </div>
-              {proposal.content ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{proposal.content}</p> : null}
-              {proposal.proposedLinks.length ? <p className="mt-2 text-xs text-muted">建议双链：{proposal.proposedLinks.join("、")}</p> : null}
-            </article>
-          )) : <EmptyState>AI 只会生成待确认提案，不会后台改写 Vault。</EmptyState>}
+              {controller.lastGenerationResult.emptyReason ? <p className="mt-2 text-muted">{controller.lastGenerationResult.emptyReason}</p> : null}
+              {controller.lastGenerationResult.requestId ? <p className="mt-1 text-xs text-muted">请求 ID：{controller.lastGenerationResult.requestId}</p> : null}
+              {controller.lastGenerationResult.diagnostics.length ? (
+                <ul className="mt-2 grid gap-1 text-xs text-muted">
+                  {controller.lastGenerationResult.diagnostics.slice(0, 4).map((item) => <li key={item.id}>{item.message}</li>)}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          {controller.pendingProposals.length ? <ObsidianProposalReview controller={controller} /> : <EmptyState>AI 只会生成待确认提案，不会后台改写 Vault。</EmptyState>}
         </div>
       </div>
       <ConfirmDialog

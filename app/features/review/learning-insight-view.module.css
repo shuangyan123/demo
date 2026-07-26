@@ -1,0 +1,292 @@
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+  gap: 16px;
+}
+
+.header,
+.summary,
+.tablePanel {
+  grid-column: 1 / -1;
+}
+
+.header { grid-row: 1; }
+.summary { grid-row: 2; }
+.trendPanel { grid-row: 3; }
+.priorityPanel { grid-column: 2; grid-row: 3; }
+.tablePanel { grid-row: 4; }
+
+.header,
+.summary,
+.sectionHeader,
+.priorityRow,
+.actions {
+  display: flex;
+  align-items: center;
+}
+
+.header,
+.sectionHeader,
+.priorityRow {
+  justify-content: space-between;
+}
+
+.header {
+  gap: 20px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+}
+
+.description {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.ranges {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.ranges button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ranges button[aria-pressed="true"] {
+  background: var(--color-surface);
+  color: var(--color-foreground);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.metric {
+  min-width: 0;
+  padding: 16px 18px;
+  border-right: 1px solid var(--color-line);
+}
+
+.metric:last-child {
+  border-right: 0;
+}
+
+.metric span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.metric strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 22px;
+  font-weight: 760;
+}
+
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.sectionHeader {
+  min-height: 52px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.sectionHeader h3 {
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.sectionHeader p {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.trend {
+  display: flex;
+  min-height: 170px;
+  align-items: end;
+  gap: 8px;
+  padding: 24px 18px 18px;
+}
+
+.trendBar {
+  position: relative;
+  flex: 1;
+  min-width: 8px;
+  max-width: 42px;
+  border-radius: 5px 5px 2px 2px;
+  background: color-mix(in srgb, var(--color-blue) 70%, var(--color-surface));
+}
+
+.trendBar span {
+  position: absolute;
+  right: 50%;
+  bottom: -17px;
+  translate: 50% 0;
+  color: var(--color-muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.emptyChart {
+  display: grid;
+  min-height: 170px;
+  place-items: center;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  height: 44px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+}
+
+.table th {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.insufficient {
+  color: var(--color-muted);
+}
+
+.priorityList {
+  display: grid;
+}
+
+.trendPanel,
+.priorityPanel {
+  min-height: 260px;
+}
+
+.priorityRow {
+  min-height: 58px;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.priorityRow:last-child {
+  border-bottom: 0;
+}
+
+.priorityRow strong,
+.priorityRow small {
+  display: block;
+}
+
+.priorityRow strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priorityRow small {
+  margin-top: 3px;
+  color: var(--color-muted);
+}
+
+.actions {
+  flex: none;
+  gap: 8px;
+}
+
+@media (max-width: 700px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .header,
+  .summary,
+  .tablePanel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .trendPanel,
+  .priorityPanel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ranges {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .ranges button,
+  .actions button {
+    min-height: 44px;
+  }
+
+  .summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .metric:nth-child(2) {
+    border-right: 0;
+  }
+
+  .metric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .table {
+    min-width: 620px;
+  }
+
+  .tableScroller {
+    overflow-x: auto;
+  }
+
+  .priorityRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}

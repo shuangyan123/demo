@@ -1,10 +1,16 @@
-import type { ApiProvider } from "../types/review";
+import type { AiGenerationProtocol, AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
+import type { AiCapability, AiConnectionPurpose } from "../types/domains/ai-connection.ts";
+import { emitAiActivity } from "./ai-activity-events.ts";
+import { readApiErrorMessage } from "./api-error.ts";
+import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 
 export type ChatMessageContent =
   | string
   | Array<
       | { type: "text"; text: string }
       | { type: "image_url"; image_url: { url: string } }
+      | { type: "video_url"; video_url: { url: string } }
     >;
 
 export type ChatMessage = {
@@ -18,16 +24,45 @@ export type AiGenerateRequest = {
   baseUrl: string;
   maxOutputTokens?: number;
   model: string;
+  /** 由模型目录解析的 Google 协议；非 Google 请求不得设置。 */
+  generationProtocol?: AiGenerationProtocol;
+  /** 仅连接测试允许在 Google 明确报告协议不匹配时安全重试一次。 */
+  allowProtocolFallback?: boolean;
   messages: ChatMessage[];
+  stream?: boolean;
   temperature?: number;
+  structuredOutput?: { name: string; schema: Record<string, unknown>; strict?: boolean };
+  /** 归一化运行值由服务端厂商 mapper 转换，浏览器不发送厂商字段名。 */
+  runtime?: AiSelectedRuntimeValues;
   providerOptions?: Record<string, string>;
+  activity?: {
+    runId?: string;
+    conversationId?: string;
+    projectId?: string;
+    studyDomainId?: string;
+    module?: string;
+    purpose?: string;
+    connectionLabel?: string;
+    presentation?: "conversation" | "compact-test" | "background";
+  };
 };
 
 export type AiGenerateResult = {
   content: string;
   requestId?: string;
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  /** 厂商响应确认的实际服务档位或速度，可能与请求档位不同。 */
+  actualSpeed?: string;
+  /** 连接测试发现的实际协议，用于更新本地模型目录缓存。 */
+  generationProtocol?: AiGenerationProtocol;
 };
+
+export type AiGenerateStreamEvent =
+  | { type: "status"; message: string }
+  | { type: "delta"; text: string }
+  | { type: "usage"; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
+  | { type: "done"; content: string; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
+  | { type: "error"; message: string; code?: string; requestId?: string; retryable?: boolean };
 
 export type AiSpeechRequest = {
   provider: ApiProvider;
@@ -38,33 +73,187 @@ export type AiSpeechRequest = {
   text: string;
   style?: string;
   speed?: number;
+  volume?: number;
+  pitch?: number;
+  emotion?: string;
+  languageBoost?: string;
   providerOptions?: Record<string, string>;
+};
+
+/** 转写请求只在本次网络调用中携带音频 base64，调用完成后不得持久化音频。 */
+export type AiTranscriptionRequest = {
+  provider: ApiProvider;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  mimeType: string;
+  audioBase64: string;
+  providerOptions?: Record<string, string>;
+};
+
+export type AiTranscriptionResult = {
+  text: string;
+  requestId?: string;
+};
+
+export type AiModelDirectoryEntry = {
+  id: string;
+  label: string;
+  purposes: AiConnectionPurpose[];
+  capabilities: AiCapability[];
+  status: "active" | "preview" | "deprecated" | "unknown";
+  source: "official_api" | "static_catalog";
+  /** 能力来源用于区分静态核验、厂商元数据与未知模型，避免 UI 猜测。 */
+  capabilitySource: "verified" | "provider" | "unknown";
+  supportedGenerationMethods?: string[];
+  generationProtocol?: AiGenerationProtocol;
+  family?: string;
+  generation?: string;
+  modalityGroup?: "text" | "multimodal" | "speech" | "transcription" | "realtime";
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  supportsStreaming: boolean;
+  supportsStructuredOutput: boolean;
+  updatedAt: string;
+};
+
+export type AiModelsRequest = {
+  provider: ApiProvider;
+  apiKey: string;
+  baseUrl: string;
+  providerOptions?: Record<string, string>;
+};
+
+export type AiModelsResult = {
+  models: AiModelDirectoryEntry[];
+  fetchedAt: string;
+  /** 服务端是否已经遍历完厂商目录分页。 */
+  complete?: boolean;
 };
 
 // 调用统一生成路由，客户端不再拼接各厂商 endpoint 或解析厂商响应。
 export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenerateResult> {
-  const response = await fetch("/api/ai/generate", {
+  const runId = input.activity?.runId ?? crypto.randomUUID();
+  const activityBase = {
+    runId,
+    conversationId: input.activity?.conversationId,
+    projectId: input.activity?.projectId,
+    studyDomainId: input.activity?.studyDomainId,
+    module: input.activity?.module,
+    purpose: input.activity?.purpose,
+    connectionLabel: input.activity?.connectionLabel,
+    presentation: input.activity?.presentation,
+    provider: input.provider,
+    model: input.model,
+    generationProtocol: input.generationProtocol,
+  };
+  emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在准备 AI 请求" });
+  emitAiActivity({ ...activityBase, phase: "waiting", label: `${input.provider} · ${input.model}`, stepId: "request", text: "正在调用模型" });
+  const response = await fetchLocalApi("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const text = await response.text();
+    const text = await readApiErrorMessage(response, `API 请求失败：${response.status}`);
+    emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
     throw new Error(text || `API 请求失败：${response.status}`);
   }
-  return (await response.json()) as AiGenerateResult;
+  const result = (await response.json()) as AiGenerateResult;
+  emitAiActivity({ ...activityBase, phase: "usage", label: `${input.provider} · ${input.model}`, stepId: "usage", text: result.usage?.totalTokens ? `${result.usage.totalTokens} tokens` : "厂商未返回用量", usage: result.usage });
+  emitAiActivity({ ...activityBase, phase: "done", label: `${input.provider} · ${input.model}`, stepId: "done", text: "完成", usage: result.usage });
+  return result;
+}
+
+/** 读取统一 SSE 流；每行只承载归一化事件，不暴露厂商原始响应。 */
+export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGenerator<AiGenerateStreamEvent> {
+  const runId = input.activity?.runId ?? crypto.randomUUID();
+  const activityBase = {
+    runId,
+    conversationId: input.activity?.conversationId,
+    projectId: input.activity?.projectId,
+    studyDomainId: input.activity?.studyDomainId,
+    module: input.activity?.module,
+    purpose: input.activity?.purpose,
+    connectionLabel: input.activity?.connectionLabel,
+    presentation: input.activity?.presentation,
+    provider: input.provider,
+    model: input.model,
+    generationProtocol: input.generationProtocol,
+  };
+  emitAiActivity({ ...activityBase, phase: "started", label: `${input.provider} · ${input.model}`, stepId: "prepare", text: "正在建立流式连接" });
+  const response = await fetchLocalApi("/api/ai/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...input, stream: true }),
+  });
+  if (!response.ok || !response.body) {
+    const text = await readApiErrorMessage(response, `API 请求失败：${response.status}`);
+    emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
+    throw new Error(text || `API 请求失败：${response.status}`);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const data = part.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
+      if (!data) continue;
+      const event = JSON.parse(data) as AiGenerateStreamEvent;
+      emitAiActivity({ ...activityBase, phase: event.type === "delta" ? "delta" : event.type === "error" ? "error" : event.type === "done" ? "done" : event.type === "usage" ? "usage" : "waiting", label: `${input.provider} · ${input.model}`, stepId: event.type === "delta" ? "stream" : event.type, text: "text" in event ? event.text : "message" in event ? event.message : event.type, usage: "usage" in event ? event.usage : undefined });
+      yield event;
+    }
+  }
+  if (buffer.trim()) {
+    const data = buffer.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
+    if (data) {
+      const event = JSON.parse(data) as AiGenerateStreamEvent;
+      emitAiActivity({ ...activityBase, phase: event.type === "delta" ? "delta" : event.type === "error" ? "error" : event.type === "done" ? "done" : event.type === "usage" ? "usage" : "waiting", label: `${input.provider} · ${input.model}`, stepId: event.type === "delta" ? "stream" : event.type, text: "text" in event ? event.text : "message" in event ? event.message : event.type, usage: "usage" in event ? event.usage : undefined });
+      yield event;
+    }
+  }
 }
 
 // 调用云端语音路由并返回临时音频 Blob；调用方负责撤销对应 object URL。
 export async function callAiSpeech(input: AiSpeechRequest): Promise<Blob> {
-  const response = await fetch("/api/ai/speech", {
+  const response = await fetchLocalApi("/api/ai/speech", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const text = await response.text();
+    const text = await readApiErrorMessage(response, `语音 API 请求失败：${response.status}`);
     throw new Error(text || `语音 API 请求失败：${response.status}`);
   }
   return response.blob();
+}
+
+/** 调用统一转写路由；浏览器录音在请求结束后由调用方立即释放。 */
+export async function callAiTranscription(input: AiTranscriptionRequest): Promise<AiTranscriptionResult> {
+  const response = await fetchLocalApi("/api/ai/transcribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const text = await readApiErrorMessage(response, `转写 API 请求失败：${response.status}`);
+    throw new Error(text || `转写 API 请求失败：${response.status}`);
+  }
+  return response.json() as Promise<AiTranscriptionResult>;
+}
+
+/** 读取归一化厂商模型目录；调用方只能缓存公开模型元数据。 */
+export async function callAiModels(input: AiModelsRequest): Promise<AiModelsResult> {
+  const response = await fetchLocalApi("/api/ai/models", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await readApiErrorMessage(response, `模型目录读取失败：${response.status}`));
+  return response.json() as Promise<AiModelsResult>;
 }

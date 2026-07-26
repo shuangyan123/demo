@@ -2,7 +2,7 @@
 
 import { Button, MetricCard, Panel, ScoreBar, StatGrid, Timeline } from "../shared/ui-primitives";
 import { interviewTypeLabels } from "../../services/interview-rubric";
-import type { InterviewEvaluation, InterviewPracticePlan, InterviewQuestion, InterviewSession, InterviewType } from "../../types/review";
+import type { InterviewEvaluation, InterviewPracticePlan, InterviewQuestion, InterviewSession, InterviewType } from "../../types/domains/interview.ts";
 
 // 面试总览把题库、计划和最近复盘压缩成一屏，帮助用户决定下一步训练动作。
 export function InterviewOverview({

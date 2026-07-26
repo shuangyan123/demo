@@ -1,17 +1,18 @@
-import { reviewDb } from "../db/review-db";
-import type {
-  TutoringLink,
-  TutoringLinkSourceType,
-  TutoringPlan,
-  TutoringSession,
-  TutoringSnapshot,
-  TutoringTurn,
-} from "../types/review";
+import { reviewDb } from "../db/review-db.ts";
+import type { TutoringLink, TutoringLinkSourceType, TutoringPlan, TutoringSession, TutoringSnapshot, TutoringTurn } from "../types/domains/tutoring.ts";
 
 type NewTutoringSessionInput = Pick<TutoringSession, "goal" | "mode" | "topic">;
 type NewTutoringTurnInput = Omit<TutoringTurn, "id" | "createdAt">;
 type NewTutoringPlanInput = Omit<TutoringPlan, "id" | "createdAt" | "updatedAt">;
 type NewTutoringLinkInput = Omit<TutoringLink, "id" | "createdAt" | "updatedAt">;
+
+/** 仓储边界拒绝任何原始媒体引用，避免未来调用方误把帧写进现有表。 */
+function assertNoMediaPayload(value: unknown): void {
+  const serialized = JSON.stringify(value);
+  if (/data:(?:image|audio|video)\//i.test(serialized) || /blob:/i.test(serialized)) {
+    throw new Error("辅导仓储禁止持久化原始音视频或关键帧");
+  }
+}
 
 // 生成统一 ISO 时间戳，辅导会话、计划和关联都用它保持排序一致。
 function nowISO() {
@@ -64,6 +65,43 @@ export const tutoringRepository = {
     return session;
   },
 
+  /**
+   * 为辅导对话建立唯一会话。使用确定性 ID 避免模型失败重试或刷新恢复时生成重复记录。
+   */
+  async ensureConversationSession(input: NewTutoringSessionInput & { conversationId: string }): Promise<TutoringSession> {
+    const id = `conversation:${input.conversationId}`;
+    return reviewDb.transaction("rw", reviewDb.tutoringSessions, async () => {
+      const existing = await reviewDb.tutoringSessions.get(id);
+      if (existing) return existing;
+      const now = nowISO();
+      const session: TutoringSession = {
+        ...input,
+        completedAt: undefined,
+        createdAt: now,
+        estimatedCostNote: "对话内按需采样，不保存原始音视频",
+        frameCount: 0,
+        id,
+        nextActions: [],
+        startedAt: now,
+        status: "active",
+        summary: "",
+        transcriptText: "",
+        turnCount: 0,
+        updatedAt: now,
+      };
+      await reviewDb.tutoringSessions.add(session);
+      return session;
+    });
+  },
+
+  /** 按对话读取辅导会话及轮次，供按需加载的对话侧栏恢复状态。 */
+  async loadConversationSession(conversationId: string): Promise<{ session: TutoringSession | null; turns: TutoringTurn[] }> {
+    const session = await reviewDb.tutoringSessions.get(`conversation:${conversationId}`);
+    if (!session) return { session: null, turns: [] };
+    const turns = await reviewDb.tutoringTurns.where("sessionId").equals(session.id).sortBy("createdAt");
+    return { session, turns };
+  },
+
   // 更新会话状态、摘要或目标；调用方不能通过这里写入媒体 Blob。
   async updateSession(id: string, patch: Partial<Omit<TutoringSession, "id" | "createdAt">>): Promise<void> {
     await reviewDb.tutoringSessions.update(id, { ...patch, updatedAt: nowISO() });
@@ -71,6 +109,7 @@ export const tutoringRepository = {
 
   // 写入一轮辅导文本；如果包含画面描述，只计入 frameCount，不保存原始帧。
   async addTurn(input: NewTutoringTurnInput): Promise<TutoringTurn> {
+    assertNoMediaPayload(input);
     const turn: TutoringTurn = {
       ...input,
       id: crypto.randomUUID(),
@@ -90,6 +129,93 @@ export const tutoringRepository = {
       }
     });
     return turn;
+  },
+
+  /**
+   * 写入与可见对话消息关联的辅导轮次。conversationMessageId 同时作为稳定 ID，确保重试幂等。
+   */
+  async putConversationTurn(input: NewTutoringTurnInput & { conversationMessageId: string }): Promise<TutoringTurn> {
+    assertNoMediaPayload(input);
+    const id = `conversation-message:${input.conversationMessageId}`;
+    return reviewDb.transaction("rw", reviewDb.tutoringSessions, reviewDb.tutoringTurns, async () => {
+      const existing = await reviewDb.tutoringTurns.get(id);
+      if (existing) return existing;
+      const turn: TutoringTurn = { ...input, id, createdAt: nowISO() };
+      const session = await reviewDb.tutoringSessions.get(input.sessionId);
+      await reviewDb.tutoringTurns.add(turn);
+      if (session) {
+        await reviewDb.tutoringSessions.update(input.sessionId, {
+          frameCount: session.frameCount + (input.frameDescription ? 1 : 0),
+          transcriptText: [session.transcriptText, formatTranscriptLine(input)].filter(Boolean).join("\n"),
+          turnCount: session.turnCount + 1,
+          updatedAt: nowISO(),
+        });
+      }
+      return turn;
+    });
+  },
+
+  /** 更新反馈、微测或观察摘要；仍通过同一媒体保护边界。 */
+  async updateTurn(id: string, patch: Partial<Omit<TutoringTurn, "id" | "sessionId" | "createdAt">>): Promise<void> {
+    assertNoMediaPayload(patch);
+    await reviewDb.tutoringTurns.update(id, patch);
+  },
+
+  /** 保存单轮帮助反馈，供本地试点指标计算。 */
+  async setTurnHelpful(id: string, helpful: boolean): Promise<void> {
+    await reviewDb.tutoringTurns.update(id, { helpful });
+  },
+
+  /** 保存整场帮助反馈；不触发外部请求。 */
+  async setSessionHelpful(id: string, helpful: boolean): Promise<void> {
+    await reviewDb.tutoringSessions.update(id, { helpful, updatedAt: nowISO() });
+  },
+
+  /**
+   * 提交确定性单选微测并创建间隔复习任务。
+   * 掌握状态只来自用户选择与正确答案比较，不读取模型置信度。
+   */
+  async completeMicroAssessment(turnId: string, selections: number[], today = new Date()): Promise<{ correctCount: number; total: number; nextPracticeAt: string }> {
+    const turn = await reviewDb.tutoringTurns.get(turnId);
+    const assessment = turn?.microAssessment;
+    if (!turn || !assessment?.questions.length) throw new Error("未找到可提交的本轮微测");
+    if (selections.length !== assessment.questions.length) throw new Error("请完成全部微测题目后再提交");
+    const normalized = selections.map((value, index) => {
+      const optionCount = assessment.questions[index]?.options.length ?? 0;
+      if (!Number.isInteger(value) || value < 0 || value >= optionCount) throw new Error("微测选项无效，请重新选择");
+      return value;
+    });
+    const correctCount = assessment.questions.reduce((count, question, index) => count + (normalized[index] === question.correctOptionIndex ? 1 : 0), 0);
+    const ratio = correctCount / assessment.questions.length;
+    const nextPractice = new Date(today);
+    nextPractice.setDate(nextPractice.getDate() + (ratio === 1 ? 7 : ratio >= 0.5 ? 3 : 1));
+    const nextPracticeAt = nextPractice.toISOString();
+    const session = await reviewDb.tutoringSessions.get(turn.sessionId);
+    const existingPlan = await reviewDb.tutoringPlans.get(`auto:${turn.sessionId}`);
+    const incorrect = assessment.questions.filter((question, index) => normalized[index] !== question.correctOptionIndex);
+    const nextTask = incorrect.length
+      ? `复习并重新回答：${incorrect.map((item) => item.prompt).join("；").slice(0, 220)}`
+      : "使用一道新题再次检验本轮知识，确认不是短期记忆。";
+    const completedAt = today.toISOString();
+    await reviewDb.transaction("rw", reviewDb.tutoringTurns, reviewDb.tutoringPlans, async () => {
+      await reviewDb.tutoringTurns.update(turnId, {
+        microAssessment: { ...assessment, selections: normalized, correctCount, completedAt },
+      });
+      const plan: TutoringPlan = {
+        id: `auto:${turn.sessionId}`,
+        title: session?.topic ? `${session.topic} · 间隔复练` : "辅导微测间隔复练",
+        objective: session?.goal || "通过可观察微测巩固本轮辅导内容。",
+        linkedKnowledgeIds: existingPlan?.linkedKnowledgeIds ?? [],
+        linkedMistakeIds: existingPlan?.linkedMistakeIds ?? [],
+        nextTask,
+        nextPracticeAt,
+        status: "active",
+        createdAt: existingPlan?.createdAt ?? completedAt,
+        updatedAt: completedAt,
+      };
+      await reviewDb.tutoringPlans.put(plan);
+    });
+    return { correctCount, total: assessment.questions.length, nextPracticeAt };
   },
 
   // 完成会话时只保存摘要和下一步行动，不保存本次辅导的连续画面。

@@ -1,6 +1,8 @@
 import { findRelatedKnowledgeEntries, findRelatedMistakesForKnowledge } from "../services/association-matcher";
-import { BOARD_OPTIONS, type AssociationSuggestion, type Board, type Filters, type KnowledgeEntry, type KnowledgeFilters, type KnowledgeMistakeLink, type Mistake } from "../types/review";
-import { countBy, isDue, toISODate } from "./review-utils";
+import { BOARD_OPTIONS, type Board, type Filters, type Mistake } from "../types/domains/review.ts";
+import type { AssociationSuggestion, KnowledgeMistakeLink } from "../types/domains/association.ts";
+import type { KnowledgeEntry, KnowledgeFilters } from "../types/domains/knowledge.ts";
+import { countBy, isDue, toISODate } from "./review-utils.ts";
 
 export type BoardStat = {
   board: Board;

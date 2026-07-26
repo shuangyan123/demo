@@ -4,7 +4,11 @@ import { useCallback, useMemo } from "react";
 import packageJson from "../../../package.json";
 import { useConfigurationHealth } from "../onboarding/use-configuration-health";
 import type { LocalDiagnosticsHookInput } from "../diagnostics/use-local-diagnostics";
-import type { AiConnectionSnapshot, AutomationSnapshot, ImportJob, KnowledgeEntry, Mistake } from "../../types/review";
+import type { AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
+import type { AutomationSnapshot } from "../../types/domains/automation.ts";
+import type { ImportJob } from "../../types/domains/import.ts";
+import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { Mistake } from "../../types/domains/review.ts";
 
 type ReviewWorkspaceHealthInput = {
   aiReadError?: string;
@@ -45,7 +49,7 @@ export function useReviewWorkspaceHealth(input: ReviewWorkspaceHealthInput) {
     }),
     [aiSnapshot, automationSnapshot, dueKnowledgeCount, dueMistakeCount, importJobs, knowledgeEntries, mistakes],
   );
-  const { health: configurationHealth, refreshObsidianHealth } = useConfigurationHealth(configurationHealthInput);
+  const { health: configurationHealth, obsidianSnapshot, refreshObsidianHealth } = useConfigurationHealth(configurationHealthInput);
 
   const diagnosticsInput = useMemo<LocalDiagnosticsHookInput>(
     () => ({
@@ -66,5 +70,5 @@ export function useReviewWorkspaceHealth(input: ReviewWorkspaceHealthInput) {
     await refreshObsidianHealth();
   }, [refreshData, refreshObsidianHealth]);
 
-  return { configurationHealth, diagnosticsInput, refreshWorkspaceAndObsidianHealth };
+  return { configurationHealth, diagnosticsInput, obsidianSnapshot, refreshWorkspaceAndObsidianHealth };
 }

@@ -1,4 +1,5 @@
-import { BOARD_OPTIONS, type Attempt, type Board, type ImportDraft, type Mistake, type ReviewResult } from "../types/review.ts";
+import { BOARD_OPTIONS, type Attempt, type Board, type Mistake, type ReviewResult } from "../types/domains/review.ts";
+import type { ImportDraft } from "../types/domains/import.ts";
 
 // 生成应用内统一使用的“今天”，固定到上午 8 点避免时区边界抖动。
 export function makeToday(): Date {
@@ -81,6 +82,7 @@ export function normalizeBoard(value: unknown): { board: Board; needsReview: boo
 // 将导入草稿转换为 repository 可写入的错题输入结构。
 export function draftToMistakeInput(draft: ImportDraft): Omit<Mistake, "id" | "createdAt" | "updatedAt"> {
   return {
+    sourceId: draft.sourceId,
     board: draft.board,
     source: draft.source || "导入",
     stem: draft.stem,

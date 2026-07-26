@@ -1,4 +1,4 @@
-import type { AutomationDefinition, AutomationSchedule } from "../types/review.ts";
+import type { AutomationDefinition, AutomationSchedule } from "../types/domains/automation.ts";
 
 const MIN_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_MISSED_SCAN = 1000;

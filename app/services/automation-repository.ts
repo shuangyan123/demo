@@ -1,12 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
-import type {
-  ApiConnectionProfile,
-  AutomationDefinition,
-  AutomationRun,
-  AutomationRunTrigger,
-  AutomationSnapshot,
-  PersonalizationSettings,
-} from "../types/review.ts";
+import type { ApiConnectionProfile, AiConnectionSnapshot } from "../types/domains/ai-connection.ts";
+import type { AutomationDefinition, AutomationRun, AutomationRunTrigger, AutomationSnapshot } from "../types/domains/automation.ts";
+import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import { calculateDueAutomation, nextAutomationRun, validateAutomationSchedule } from "./automation-schedule.ts";
 import { executeAutomation, previewAutomationDefinition } from "./automation-executor.ts";
 import { classifyAutomationError } from "./automation-failure.ts";
@@ -67,7 +62,7 @@ async function releaseLease(id: string, owner: string): Promise<void> {
   if (definition?.leaseOwner === owner) await reviewDb.automationDefinitions.update(id, { leaseOwner: undefined, leaseExpiresAt: undefined });
 }
 
-/** 自动化仓储统一管理定义、运行收件箱、租约和调度推进。 */
+/** 已安排仓储统一管理定义、运行收件箱、租约和调度推进。 */
 export const automationRepository = {
   async loadSnapshot(): Promise<AutomationSnapshot> {
     const [definitions, runs, unreadCount] = await Promise.all([
@@ -94,7 +89,7 @@ export const automationRepository = {
 
   async update(id: string, input: AutomationDefinitionInput, now = new Date()): Promise<void> {
     const current = await reviewDb.automationDefinitions.get(id);
-    if (!current) throw new Error("自动化任务不存在");
+    if (!current) throw new Error("已安排任务不存在");
     await validateAutomationSchedule(input.schedule, input.timeZone, now);
     await reviewDb.automationDefinitions.put({
       ...current,
@@ -108,16 +103,17 @@ export const automationRepository = {
 
   async duplicate(id: string, now = new Date()): Promise<AutomationDefinition> {
     const current = await reviewDb.automationDefinitions.get(id);
-    if (!current) throw new Error("自动化任务不存在");
+    if (!current) throw new Error("已安排任务不存在");
     return this.create({
       name: `${current.name} 副本`, templateId: current.templateId, prompt: current.prompt,
-      sourceScopes: [...current.sourceScopes], enabled: false, timeZone: current.timeZone, schedule: { ...current.schedule },
+      sourceScopes: [...current.sourceScopes], collectionConfig: current.collectionConfig ? structuredClone(current.collectionConfig) : undefined,
+      enabled: false, timeZone: current.timeZone, schedule: { ...current.schedule },
     }, now);
   },
 
   async toggle(id: string, enabled: boolean, now = new Date()): Promise<void> {
     const definition = await reviewDb.automationDefinitions.get(id);
-    if (!definition) throw new Error("自动化任务不存在");
+    if (!definition) throw new Error("已安排任务不存在");
     await reviewDb.automationDefinitions.update(id, {
       enabled,
       nextRunAt: enabled ? (await nextAutomationRun(definition.schedule, definition.timeZone, now)).toISOString() : definition.nextRunAt,
@@ -147,6 +143,7 @@ export const automationRepository = {
   async run(input: {
     definition: AutomationDefinition;
     connection?: ApiConnectionProfile;
+    aiSnapshot?: AiConnectionSnapshot;
     personalization: PersonalizationSettings;
     trigger: AutomationRunTrigger;
     scheduledAt?: string;
@@ -181,7 +178,7 @@ export const automationRepository = {
       void renewAutomationLease(definition.id, owner).catch(() => undefined);
     }, LEASE_RENEW_INTERVAL_MS);
     try {
-      const output = await executeAutomation({ definition, connection: input.connection, personalization: input.personalization });
+      const output = await executeAutomation({ definition, connection: input.connection, aiSnapshot: input.aiSnapshot, personalization: input.personalization });
       const finishedAt = nowIso();
       const completed: AutomationRun = {
         ...run,
@@ -190,6 +187,7 @@ export const automationRepository = {
         proposalIds: output.proposalIds,
         contextSummary: output.contextSummary,
         contextCharCount: output.contextCharCount,
+        collectionSummary: output.collectionSummary,
         unread: true,
         finishedAt,
       };

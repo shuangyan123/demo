@@ -1,16 +1,11 @@
 import { reviewDb } from "../db/review-db.ts";
 import { toISODate } from "../lib/review-utils.ts";
-import type {
-  AiConnectionDefaults,
-  AiConnectionPurpose,
-  AiConnectionSnapshot,
-  AiCapability,
-  ApiConnectionProfile,
-  ApiProvider,
-} from "../types/review";
+import type { AiConnectionDefaults, AiConnectionPurpose, AiConnectionSnapshot, AiCapability, ApiConnectionProfile } from "../types/domains/ai-connection.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
-import { getProviderContract } from "./provider-contracts.ts";
+import { getProviderContract, getProviderModelCatalog } from "./provider-contracts.ts";
 import { createProfileFromLegacySetting } from "./legacy-ai-settings-migration.ts";
+import { inferMiniMaxRegion, normalizeMiniMaxAnthropicBaseUrl } from "./minimax-connection.ts";
 
 export type SaveConnectionInput = {
   id?: string;
@@ -18,7 +13,6 @@ export type SaveConnectionInput = {
   provider: ApiProvider;
   capabilities?: AiCapability[];
   baseUrl: string;
-  model: string;
   apiKey?: string;
   providerOptions?: Record<string, string>;
   today: Date;
@@ -27,6 +21,37 @@ export type SaveConnectionInput = {
 // 创建尚未分配任何连接的默认能力映射。
 function emptyDefaults(today: Date): AiConnectionDefaults {
   return { id: "default", updatedAt: toISODate(today) };
+}
+
+function recommendedModelId(profile: ApiConnectionProfile, purpose: AiConnectionPurpose): string | undefined {
+  return getProviderModelCatalog(profile.provider, purpose).find((model) => model.status === "recommended")?.id
+    ?? getProviderModelCatalog(profile.provider, purpose)[0]?.id
+    ?? profile.model;
+}
+
+/** 官方厂商始终使用当前 contract 能力；只有自定义连接允许用户裁剪能力。 */
+export function normalizeConnectionProfileCapabilities(profile: ApiConnectionProfile): ApiConnectionProfile {
+  const contract = getProviderContract(profile.provider);
+  const capabilities = profile.provider === "custom"
+    ? profile.capabilities.filter((capability) => contract.capabilities.includes(capability))
+    : [...contract.capabilities];
+  const minimaxRegion = profile.provider === "minimax"
+    ? profile.providerOptions.region === "global" ? "global" : profile.providerOptions.region === "cn" ? "cn" : inferMiniMaxRegion(profile.baseUrl)
+    : undefined;
+  const baseUrl = minimaxRegion ? normalizeMiniMaxAnthropicBaseUrl(profile.baseUrl, minimaxRegion) : profile.baseUrl;
+  const providerOptions = minimaxRegion
+    ? { ...profile.providerOptions, region: minimaxRegion, credentialPlan: profile.providerOptions.credentialPlan === "token_plan" ? "token_plan" : "pay_as_you_go" }
+    : profile.providerOptions;
+  const providerOptionsUnchanged = !minimaxRegion || (
+    profile.providerOptions.region === providerOptions.region
+    && profile.providerOptions.credentialPlan === providerOptions.credentialPlan
+  );
+  return capabilities.length === profile.capabilities.length
+    && capabilities.every((capability) => profile.capabilities.includes(capability))
+    && baseUrl === profile.baseUrl
+    && providerOptionsUnchanged
+    ? profile
+    : { ...profile, capabilities, baseUrl, providerOptions };
 }
 
 // 清理不存在或能力不匹配的默认连接，避免编辑连接能力后继续把错误档案注入业务模块。
@@ -38,11 +63,17 @@ function normalizeDefaults(
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const defaults = { ...input };
   let changed = false;
-  for (const purpose of ["text", "vision", "speech"] as const) {
+  for (const purpose of ["text", "vision", "speech", "transcription", "realtime"] as const) {
     const key = `${purpose}ConnectionId` as const;
+    const modelKey = `${purpose}ModelId` as const;
     const connectionId = defaults[key];
-    if (connectionId && !profilesById.get(connectionId)?.capabilities.includes(purpose)) {
+    const profile = connectionId ? profilesById.get(connectionId) : undefined;
+    if (connectionId && !profile?.capabilities.includes(purpose)) {
       defaults[key] = undefined;
+      defaults[modelKey] = undefined;
+      changed = true;
+    } else if (profile && !defaults[modelKey]) {
+      defaults[modelKey] = recommendedModelId(profile, purpose);
       changed = true;
     }
   }
@@ -51,7 +82,7 @@ function normalizeDefaults(
 }
 
 // 把文本默认连接同步到旧表，供旧版本回退读取；新业务流程不得直接访问该表。
-async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, updatedAt: string): Promise<void> {
+async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, modelId: string | undefined, updatedAt: string): Promise<void> {
   if (!profile) {
     // 用户主动清空默认文本连接时同步删除旧记录，防止下一次启动把它重新迁回。
     await reviewDb.apiSettings.delete("default");
@@ -61,7 +92,7 @@ async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, 
     id: "default",
     provider: profile.provider,
     baseUrl: profile.baseUrl,
-    model: profile.model,
+    model: modelId ?? profile.model ?? "",
     encryptedKey: profile.encryptedKey,
     iv: profile.iv,
     maskedKey: profile.maskedKey,
@@ -80,7 +111,9 @@ export const aiConnectionsRepository = {
       reviewDb.apiSettings.get("default"),
       reviewDb.personalizationSettings.get("default"),
     ]);
-    let profiles = savedProfiles;
+    let profiles = savedProfiles.map(normalizeConnectionProfileCapabilities);
+    const normalizedProfiles = profiles.filter((profile, index) => profile !== savedProfiles[index]);
+    if (normalizedProfiles.length) await reviewDb.apiConnectionProfiles.bulkPut(normalizedProfiles);
     let defaults = savedDefaults;
     if (!profiles.length && legacySetting) {
       const profile = createProfileFromLegacySetting(legacySetting);
@@ -89,6 +122,9 @@ export const aiConnectionsRepository = {
         textConnectionId: profile.capabilities.includes("text") ? profile.id : undefined,
         visionConnectionId: profile.capabilities.includes("vision") ? profile.id : undefined,
         speechConnectionId: profile.capabilities.includes("speech") ? profile.id : undefined,
+        textModelId: profile.capabilities.includes("text") ? profile.model : undefined,
+        visionModelId: profile.capabilities.includes("vision") ? profile.model : undefined,
+        speechModelId: profile.capabilities.includes("speech") ? profile.model : undefined,
         updatedAt: legacySetting.updatedAt,
       };
       await reviewDb.transaction("rw", [reviewDb.apiConnectionProfiles, reviewDb.apiConnectionDefaults], async () => {
@@ -119,7 +155,7 @@ export const aiConnectionsRepository = {
       await reviewDb.apiConnectionDefaults.put(normalized.defaults);
       if (previousTextConnectionId !== normalized.defaults.textConnectionId) {
         const textProfile = profiles.find((profile) => profile.id === normalized.defaults.textConnectionId);
-        await syncLegacyTextSetting(textProfile, normalized.defaults.updatedAt);
+        await syncLegacyTextSetting(textProfile, normalized.defaults.textModelId, normalized.defaults.updatedAt);
       }
     }
     // 这里只读取旧连接 ID；全局音色复制和旧字段清理统一由个性化 repository 一次性完成，避免并发加载时丢失迁移源。
@@ -135,16 +171,19 @@ export const aiConnectionsRepository = {
     // 自定义连接允许无鉴权，但仍加密空字符串以保持连接档案结构稳定，避免引入第二套密钥存储形态。
     const encrypted = providedSecret ? await encryptSecret(providedSecret) : existing ?? await encryptSecret("");
     const contract = getProviderContract(input.provider);
-    const capabilities = (input.capabilities ?? existing?.capabilities ?? contract.capabilities).filter((capability) => contract.capabilities.includes(capability));
+    const capabilities = (input.provider === "custom" ? input.capabilities ?? existing?.capabilities ?? contract.capabilities : contract.capabilities)
+      .filter((capability) => contract.capabilities.includes(capability));
     if (!capabilities.length) throw new Error("请至少选择一项连接能力");
     const timestamp = toISODate(input.today);
+    const minimaxRegion = input.provider === "minimax"
+      ? input.providerOptions?.region === "global" ? "global" : "cn"
+      : undefined;
     const profile: ApiConnectionProfile = {
       id: input.id ?? crypto.randomUUID(),
       label: input.label.trim() || contract.label,
       provider: input.provider,
       apiFormat: contract.apiFormat,
-      baseUrl: input.baseUrl.replace(/\/$/, ""),
-      model: input.model.trim(),
+      baseUrl: minimaxRegion ? normalizeMiniMaxAnthropicBaseUrl(input.baseUrl, minimaxRegion) : input.baseUrl.replace(/\/$/, ""),
       capabilities,
       encryptedKey: encrypted.encryptedKey,
       iv: encrypted.iv,
@@ -160,7 +199,7 @@ export const aiConnectionsRepository = {
       await this.setDefault("text", profile.id, input.today);
     } else if (snapshot.defaults.textConnectionId === profile.id) {
       // 默认文本连接的地址、模型或密钥变化时同步刷新旧表，保证旧版本回退读取的是最新配置。
-      await syncLegacyTextSetting(profile, timestamp);
+      await syncLegacyTextSetting(profile, snapshot.defaults.textModelId, timestamp);
     }
     return profile;
   },
@@ -173,6 +212,13 @@ export const aiConnectionsRepository = {
       textConnectionId: defaults.textConnectionId === id ? undefined : defaults.textConnectionId,
       visionConnectionId: defaults.visionConnectionId === id ? undefined : defaults.visionConnectionId,
       speechConnectionId: defaults.speechConnectionId === id ? undefined : defaults.speechConnectionId,
+      transcriptionConnectionId: defaults.transcriptionConnectionId === id ? undefined : defaults.transcriptionConnectionId,
+      realtimeConnectionId: defaults.realtimeConnectionId === id ? undefined : defaults.realtimeConnectionId,
+      textModelId: defaults.textConnectionId === id ? undefined : defaults.textModelId,
+      visionModelId: defaults.visionConnectionId === id ? undefined : defaults.visionModelId,
+      speechModelId: defaults.speechConnectionId === id ? undefined : defaults.speechModelId,
+      transcriptionModelId: defaults.transcriptionConnectionId === id ? undefined : defaults.transcriptionModelId,
+      realtimeModelId: defaults.realtimeConnectionId === id ? undefined : defaults.realtimeModelId,
       updatedAt: toISODate(today),
     };
     const clearsLegacyText = defaults.textConnectionId === id;
@@ -189,10 +235,38 @@ export const aiConnectionsRepository = {
     if (connectionId && !profile?.capabilities.includes(purpose)) throw new Error(`该连接不支持${purpose}能力`);
     const current = (await reviewDb.apiConnectionDefaults.get("default")) ?? emptyDefaults(today);
     const key = `${purpose}ConnectionId` as const;
-    const next = { ...current, [key]: connectionId, updatedAt: toISODate(today) };
+    const modelKey = `${purpose}ModelId` as const;
+    const modelId = profile ? recommendedModelId(profile, purpose) : undefined;
+    const next = { ...current, [key]: connectionId, [modelKey]: modelId, updatedAt: toISODate(today) };
     await reviewDb.apiConnectionDefaults.put(next);
-    if (purpose === "text") await syncLegacyTextSetting(profile, next.updatedAt);
+    if (purpose === "text") await syncLegacyTextSetting(profile, modelId, next.updatedAt);
     return next;
+  },
+
+  /** 默认能力同时保存连接和模型；对话不会读取这里的模型。 */
+  async setDefaultSelection(purpose: AiConnectionPurpose, connectionId: string | undefined, modelId: string | undefined, today = new Date()): Promise<AiConnectionDefaults> {
+    const profile = connectionId ? await reviewDb.apiConnectionProfiles.get(connectionId) : undefined;
+    if (connectionId && !profile?.capabilities.includes(purpose)) throw new Error(`该连接不支持${purpose}能力`);
+    if (connectionId && !modelId?.trim()) throw new Error("请选择默认模型");
+    const current = (await reviewDb.apiConnectionDefaults.get("default")) ?? emptyDefaults(today);
+    const key = `${purpose}ConnectionId` as const;
+    const modelKey = `${purpose}ModelId` as const;
+    const next = { ...current, [key]: connectionId, [modelKey]: connectionId ? modelId?.trim() : undefined, updatedAt: toISODate(today) };
+    await reviewDb.apiConnectionDefaults.put(next);
+    if (purpose === "text") await syncLegacyTextSetting(profile, next.textModelId, next.updatedAt);
+    return next;
+  },
+
+  /** 解析后台能力的默认模型；显式模型始终优先，供对话保持独立。 */
+  async resolveRuntimeModel(profile: ApiConnectionProfile, purpose: AiConnectionPurpose, explicitModelId?: string): Promise<string> {
+    if (explicitModelId?.trim()) return explicitModelId.trim();
+    const defaults = (await this.loadSnapshot()).defaults;
+    const connectionKey = `${purpose}ConnectionId` as const;
+    const modelKey = `${purpose}ModelId` as const;
+    if (defaults[connectionKey] === profile.id && defaults[modelKey]) return defaults[modelKey]!;
+    const fallback = recommendedModelId(profile, purpose);
+    if (!fallback) throw new Error("当前连接没有可用模型，请配置默认模型");
+    return fallback;
   },
 
   // 仅在发起请求前解密指定连接的 Key，不把明文写回 React 状态或 IndexedDB。

@@ -1,6 +1,9 @@
-import type { AiCapability, AiConnectionPurpose, ApiFormat, ApiProvider } from "../types/review";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
+import type { AiCapability, AiConnectionPurpose, ApiFormat } from "../types/domains/ai-connection.ts";
+import type { AiModelCatalogEntry } from "../types/domains/provider-catalog.ts";
 
 export type ProviderGroup = "commercial" | "open_source" | "speech" | "custom" | "legacy";
+export type ProviderSupportLevel = "native" | "compatible" | "custom" | "legacy";
 
 export type ProviderContract = {
   provider: ApiProvider;
@@ -11,50 +14,159 @@ export type ProviderContract = {
   apiFormat: ApiFormat;
   capabilities: AiCapability[];
   models: Partial<Record<AiConnectionPurpose, string[]>>;
+  modelCatalog: AiModelCatalogEntry[];
+  modelListStrategy: "official_api" | "static_catalog" | "manual";
   documentationUrl: string;
   verifiedAt: string;
   creatable: boolean;
+  availability: "active" | "legacy" | "custom";
+  supportLevel: ProviderSupportLevel;
   speechVoices?: Array<{ id: string; label: string }>;
 };
 
-const openAiVoices = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"];
+const verifiedAt = "2026-07-15";
+const openAiVoices = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse", "marin", "cedar"];
 const googleVoices = ["Kore", "Puck", "Charon", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"];
 
-// 只把官方文档可确认的模型写入默认列表；无法实时核验的厂商保留空模型，要求用户手动填写。
+function model(
+  provider: ApiProvider,
+  id: string,
+  purposes: AiConnectionPurpose[],
+  capabilities: AiCapability[],
+  status: AiModelCatalogEntry["status"],
+  documentationUrl?: string,
+  limits?: Pick<AiModelCatalogEntry, "contextWindow" | "maxOutputTokens" | "generationProtocol">,
+): AiModelCatalogEntry {
+  const generation = id.match(/(?:gpt-|gemini-|claude-[a-z]+-|grok-|deepseek-v|minimax-m|speech-|glm-)(\d+(?:[.-]\d+)?)/i)?.[1]?.replace("-", ".");
+  const modalityGroup = purposes.includes("realtime") ? "realtime" : purposes.includes("speech") ? "speech" : purposes.includes("transcription") && !purposes.includes("text")
+    ? "transcription" : purposes.includes("vision") ? "multimodal" : "text";
+  return {
+    id,
+    label: id,
+    provider,
+    purposes,
+    capabilities,
+    status,
+    source: documentationUrl ? "official_fallback" : "manual",
+    family: id.replace(/(?:[-_.](?:pro|mini|nano|flash|lite|turbo|hd|highspeed|reasoning|non-reasoning|preview|latest))+$/gi, ""),
+    generation,
+    modalityGroup,
+    lifecycle: status === "deprecated" ? "deprecated" : status === "preview" ? "preview" : "active",
+    documentationUrl,
+    verifiedAt: documentationUrl ? verifiedAt : undefined,
+    ...limits,
+  };
+}
+
+function modelsByPurpose(catalog: AiModelCatalogEntry[]): Partial<Record<AiConnectionPurpose, string[]>> {
+  return catalog.reduce<Partial<Record<AiConnectionPurpose, string[]>>>((groups, entry) => {
+    if (entry.lifecycle === "deprecated" || entry.status === "deprecated") return groups;
+    for (const purpose of entry.purposes) {
+      groups[purpose] = [...(groups[purpose] ?? []), entry.id];
+    }
+    return groups;
+  }, {});
+}
+
+const activeProviders = new Set<ApiProvider>(["openai", "google", "anthropic", "xai", "deepseek", "minimax", "zhipu"]);
+const compatibleProviders = new Set<ApiProvider>(["qwen", "openrouter", "groq", "mistral", "siliconflow", "kimi"]);
+
+function contract(input: Omit<ProviderContract, "availability" | "supportLevel" | "models"> & { models?: Partial<Record<AiConnectionPurpose, string[]>> }): ProviderContract {
+  const supportLevel: ProviderSupportLevel = input.provider === "custom"
+    ? "custom"
+    : activeProviders.has(input.provider)
+      ? "native"
+      : compatibleProviders.has(input.provider)
+        ? "compatible"
+        : "legacy";
+  const availability = supportLevel === "custom" ? "custom" : supportLevel === "legacy" ? "legacy" : "active";
+  return { ...input, availability, supportLevel, creatable: availability !== "legacy", models: input.models ?? modelsByPurpose(input.modelCatalog) };
+}
+
+const openAiCatalog = [
+  model("openai", "gpt-5.6-sol", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-5.6-terra", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-5.6-luna", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-5.5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "tts-1-hd", ["speech"], ["speech"], "recommended", "https://developers.openai.com/api/docs/models/tts-1-hd"),
+  model("openai", "tts-1", ["speech"], ["speech"], "stable", "https://developers.openai.com/api/docs/models/tts-1"),
+  model("openai", "gpt-realtime-2.1", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "recommended", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-realtime-2", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "stable", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-realtime-whisper", ["transcription"], ["transcription"], "recommended", "https://developers.openai.com/api/docs/models/all"),
+  model("openai", "gpt-4o-transcribe", ["transcription"], ["transcription"], "stable", "https://developers.openai.com/api/docs/models/all"),
+];
+
+const googleCatalog = [
+  model("google", "gemini-3.5-flash", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "recommended", "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash", { generationProtocol: "google_interactions" }),
+  model("google", "gemini-3.1-pro-preview", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-3.1-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-2.5-flash", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-2.5-flash-lite", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-2.5-pro", ["text", "vision", "transcription"], ["text", "vision", "transcription", "structured_output", "streaming"], "stable", "https://ai.google.dev/gemini-api/docs/models", { generationProtocol: "google_generate_content" }),
+  model("google", "gemini-3.1-flash-tts-preview", ["speech"], ["speech"], "preview", "https://ai.google.dev/gemini-api/docs/models"),
+  model("google", "gemini-2.5-flash-preview-tts", ["speech"], ["speech"], "preview", "https://ai.google.dev/gemini-api/docs/speech-generation"),
+  model("google", "gemini-3.1-flash-live-preview", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/live-api"),
+  model("google", "gemini-2.5-flash-native-audio-preview", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "preview", "https://ai.google.dev/gemini-api/docs/live-api"),
+];
+
+const anthropicCatalog = [
+  model("anthropic", "claude-fable-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.claude.com/docs/en/about-claude/models/overview"),
+  model("anthropic", "claude-sonnet-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://platform.claude.com/docs/en/about-claude/models/overview"),
+  model("anthropic", "claude-opus-4-8", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://platform.claude.com/docs/en/about-claude/models/overview"),
+  model("anthropic", "claude-haiku-4-5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://platform.claude.com/docs/en/about-claude/models/overview"),
+];
+
+const deepSeekCatalog = [
+  model("deepseek", "deepseek-v4-flash", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://api-docs.deepseek.com/api/list-models"),
+  model("deepseek", "deepseek-v4-pro", ["text"], ["text", "structured_output", "streaming"], "stable", "https://api-docs.deepseek.com/quick_start/pricing"),
+];
+
 export const providerContracts: ProviderContract[] = [
-  {
+  contract({
     provider: "openai",
     label: "OpenAI",
     group: "commercial",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-5.5",
     apiFormat: "responses",
-    capabilities: ["text", "vision", "structured_output", "speech", "streaming"],
-    models: { text: ["gpt-5.5"], vision: ["gpt-5.5"], speech: ["gpt-4o-mini-tts"] },
-    documentationUrl: "https://developers.openai.com/api/docs/guides/latest-model",
-    verifiedAt: "2026-06-18",
+    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "realtime", "streaming"],
+    modelCatalog: openAiCatalog,
+    modelListStrategy: "official_api",
+    documentationUrl: "https://developers.openai.com/api/docs/models",
+    verifiedAt,
     creatable: true,
     speechVoices: openAiVoices.map((id) => ({ id, label: id })),
-  },
-  {
+  }),
+  contract({
+    provider: "azure_openai",
+    label: "Azure OpenAI",
+    group: "commercial",
+    baseUrl: "",
+    model: "",
+    apiFormat: "responses",
+    capabilities: ["text", "vision", "structured_output", "streaming"],
+    modelCatalog: [],
+    modelListStrategy: "manual",
+    documentationUrl: "https://learn.microsoft.com/en-us/azure/ai-services/openai/",
+    verifiedAt: "",
+    creatable: true,
+  }),
+  contract({
     provider: "google",
     label: "Google Gemini",
     group: "commercial",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     model: "gemini-3.5-flash",
     apiFormat: "google_generate_content",
-    capabilities: ["text", "vision", "structured_output", "speech", "streaming"],
-    models: {
-      text: ["gemini-3.5-flash"],
-      vision: ["gemini-3.5-flash"],
-      speech: ["gemini-3.1-flash-tts-preview"],
-    },
+    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "realtime", "streaming"],
+    modelCatalog: googleCatalog,
+    modelListStrategy: "official_api",
     documentationUrl: "https://ai.google.dev/gemini-api/docs/models",
-    verifiedAt: "2026-06-18",
+    verifiedAt,
     creatable: true,
     speechVoices: googleVoices.map((id) => ({ id, label: id })),
-  },
-  {
+  }),
+  contract({
     provider: "anthropic",
     label: "Anthropic Claude",
     group: "commercial",
@@ -62,64 +174,124 @@ export const providerContracts: ProviderContract[] = [
     model: "claude-opus-4-8",
     apiFormat: "anthropic_messages",
     capabilities: ["text", "vision", "structured_output", "streaming"],
-    models: { text: ["claude-opus-4-8", "claude-sonnet-4-6"], vision: ["claude-opus-4-8", "claude-sonnet-4-6"] },
-    documentationUrl: "https://docs.anthropic.com/en/docs/about-claude/models/overview",
-    verifiedAt: "2026-06-18",
+    modelCatalog: anthropicCatalog,
+    modelListStrategy: "official_api",
+    documentationUrl: "https://platform.claude.com/docs/en/about-claude/models/overview",
+    verifiedAt,
     creatable: true,
-  },
-  {
+  }),
+  contract({
     provider: "xai",
     label: "xAI Grok",
     group: "commercial",
     baseUrl: "https://api.x.ai/v1",
-    model: "",
-    apiFormat: "chat_completions",
+    model: "grok-4.5",
+    apiFormat: "responses",
     capabilities: ["text", "vision", "structured_output", "streaming"],
-    models: {},
-    documentationUrl: "https://docs.x.ai/docs/models",
-    verifiedAt: "",
+    modelCatalog: [
+      model("xai", "grok-4.5", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://docs.x.ai/developers/models"),
+      model("xai", "grok-4.3", ["text", "vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://docs.x.ai/developers/models"),
+    ],
+    modelListStrategy: "official_api",
+    documentationUrl: "https://docs.x.ai/developers/models",
+    verifiedAt,
     creatable: true,
-  },
-  {
+  }),
+  contract({
     provider: "deepseek",
     label: "DeepSeek",
     group: "open_source",
     baseUrl: "https://api.deepseek.com",
-    model: "deepseek-v4-pro",
+    model: "deepseek-v4-flash",
     apiFormat: "chat_completions",
     capabilities: ["text", "structured_output", "streaming"],
-    models: { text: ["deepseek-v4-pro", "deepseek-v4-flash"] },
-    documentationUrl: "https://api-docs.deepseek.com/api/create-chat-completion",
-    verifiedAt: "2026-06-18",
+    modelCatalog: deepSeekCatalog,
+    modelListStrategy: "official_api",
+    documentationUrl: "https://api-docs.deepseek.com/api/list-models",
+    verifiedAt,
     creatable: true,
-  },
-  {
+  }),
+  contract({
     provider: "qwen",
-    label: "Qwen",
+    label: "Qwen / DashScope",
     group: "open_source",
     baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model: "",
+    model: "qwen3-max",
     apiFormat: "chat_completions",
-    capabilities: ["text", "vision", "structured_output", "streaming"],
-    models: {},
-    documentationUrl: "https://www.alibabacloud.com/help/en/model-studio/qwen-api-reference",
-    verifiedAt: "",
+    capabilities: ["text", "vision", "structured_output", "streaming", "speech"],
+    modelCatalog: [
+      model("qwen", "qwen3-max", ["text"], ["text", "structured_output", "streaming"], "manual"),
+      model("qwen", "qwen3-plus", ["text"], ["text", "structured_output", "streaming"], "manual"),
+      model("qwen", "qwen-tts", ["speech"], ["speech"], "manual"),
+    ],
+    modelListStrategy: "official_api",
+    documentationUrl: "https://help.aliyun.com/en/model-studio/list-deployable-models-api",
+    verifiedAt,
     creatable: true,
-  },
-  {
+  }),
+  ...[
+    ["openrouter", "OpenRouter", "https://openrouter.ai/api/v1", "openai/gpt-5.5", "https://openrouter.ai/docs/api/api-reference/models/get-models"],
+    ["groq", "Groq", "https://api.groq.com/openai/v1", "openai/gpt-oss-120b", "https://console.groq.com/docs/models"],
+    ["mistral", "Mistral", "https://api.mistral.ai/v1", "mistral-large-latest", "https://docs.mistral.ai/api/endpoint/models"],
+    ["siliconflow", "SiliconFlow", "https://api.siliconflow.cn/v1", "deepseek-ai/DeepSeek-V4-Flash", "https://docs.siliconflow.cn/cn/api-reference/models/get-model-list"],
+    ["kimi", "Moonshot Kimi", "https://api.moonshot.cn/v1", "kimi-k2.7-code", "https://platform.kimi.com/docs/api/list-models"],
+    ["doubao", "Volcengine Ark / Doubao", "https://ark.cn-beijing.volces.com/api/v3", "doubao-seed-1.6", ""],
+    ["baidu", "Baidu Qianfan", "https://qianfan.baidubce.com/v2", "ernie-4.5-turbo", ""],
+    ["tencent", "Tencent Hunyuan", "https://api.hunyuan.cloud.tencent.com/v1", "hunyuan-turbos-latest", ""],
+  ].map(([provider, label, baseUrl, defaultModel, documentationUrl]) => contract({
+    provider: provider as ApiProvider,
+    label,
+    group: provider === "mistral" || provider === "siliconflow" ? "open_source" : "commercial",
+    baseUrl,
+    model: defaultModel,
+    apiFormat: "chat_completions" as const,
+    capabilities: ["text", "structured_output", "streaming"] as AiCapability[],
+    modelCatalog: [
+      model(provider as ApiProvider, defaultModel, ["text"], ["text", "structured_output", "streaming"], "manual"),
+    ],
+    modelListStrategy: compatibleProviders.has(provider as ApiProvider) ? "official_api" as const : "manual" as const,
+    documentationUrl,
+    verifiedAt: documentationUrl ? verifiedAt : "",
+    creatable: true,
+  })),
+  contract({
+    provider: "zhipu",
+    label: "GLM / 智谱",
+    group: "commercial",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    model: "glm-5.1",
+    apiFormat: "chat_completions",
+    capabilities: ["text", "vision", "structured_output", "speech", "transcription", "realtime", "streaming"],
+    modelCatalog: [
+      model("zhipu", "glm-5.2", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-5.1", ["text"], ["text", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-5", ["text"], ["text", "structured_output", "streaming"], "stable", "https://docs.bigmodel.cn/cn/guide/models/text/glm-5"),
+      model("zhipu", "glm-5v-turbo", ["vision"], ["text", "vision", "structured_output", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-4.6v", ["vision"], ["text", "vision", "structured_output", "streaming"], "stable", "https://docs.bigmodel.cn/cn/guide/start/quick-start"),
+      model("zhipu", "glm-tts", ["speech"], ["speech"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-asr-2512", ["transcription"], ["transcription"], "recommended", "https://docs.bigmodel.cn/cn/guide/start/model-overview"),
+      model("zhipu", "glm-realtime", ["realtime"], ["realtime", "speech", "transcription", "streaming"], "recommended", "https://docs.bigmodel.cn/cn/guide/models/sound-and-video/glm-realtime"),
+    ],
+    modelListStrategy: "static_catalog",
+    documentationUrl: "https://docs.bigmodel.cn/cn/guide/start/model-overview",
+    verifiedAt,
+    creatable: true,
+  }),
+  contract({
     provider: "elevenlabs",
     label: "ElevenLabs",
-    group: "speech",
+    group: "commercial",
     baseUrl: "https://api.elevenlabs.io/v1",
     model: "eleven_multilingual_v2",
     apiFormat: "chat_completions",
     capabilities: ["speech"],
-    models: { speech: ["eleven_multilingual_v2"] },
+    modelCatalog: [model("elevenlabs", "eleven_multilingual_v2", ["speech"], ["speech"], "stable", "https://elevenlabs.io/docs/api-reference/text-to-speech/convert")],
+    modelListStrategy: "static_catalog",
     documentationUrl: "https://elevenlabs.io/docs/api-reference/text-to-speech/convert",
-    verifiedAt: "2026-06-18",
+    verifiedAt,
     creatable: true,
-  },
-  {
+  }),
+  contract({
     provider: "azure",
     label: "Azure AI Speech",
     group: "speech",
@@ -127,65 +299,62 @@ export const providerContracts: ProviderContract[] = [
     model: "",
     apiFormat: "azure_speech",
     capabilities: ["speech"],
-    models: {},
+    modelCatalog: [],
+    modelListStrategy: "manual",
     documentationUrl: "https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech",
-    verifiedAt: "2026-06-18",
+    verifiedAt,
     creatable: true,
-  },
-  {
+  }),
+  contract({
     provider: "minimax",
     label: "MiniMax",
     group: "speech",
-    baseUrl: "https://api.minimax.io/v1",
+    baseUrl: "https://api.minimaxi.com/anthropic",
     model: "speech-2.8-hd",
-    apiFormat: "chat_completions",
-    capabilities: ["speech"],
-    models: { speech: ["speech-2.8-hd", "speech-2.8-turbo"] },
+    apiFormat: "anthropic_messages",
+    capabilities: ["text", "vision", "video", "tools", "structured_output", "speech", "streaming"],
+    modelCatalog: [
+      model("minimax", "MiniMax-M3", ["text", "vision"], ["text", "vision", "video", "tools", "structured_output", "streaming"], "recommended", "https://platform.minimaxi.com/docs/guides/models-intro", { contextWindow: 1_000_000, maxOutputTokens: 524_288 }),
+      model("minimax", "MiniMax-M2.7", ["text"], ["text", "tools", "structured_output", "streaming"], "recommended", "https://platform.minimaxi.com/docs/guides/models-intro"),
+      model("minimax", "MiniMax-M2.7-highspeed", ["text"], ["text", "tools", "structured_output", "streaming"], "stable", "https://platform.minimaxi.com/docs/guides/models-intro"),
+      model("minimax", "MiniMax-M2.5", ["text"], ["text", "tools", "structured_output", "streaming"], "deprecated", "https://platform.minimaxi.com/docs/guides/models-intro"),
+      model("minimax", "speech-2.8-hd", ["speech"], ["speech"], "recommended", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "speech-2.8-turbo", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
+      model("minimax", "speech-2.6-hd", ["speech"], ["speech"], "stable", "https://platform.minimax.io/docs/guides/models-intro"),
+    ],
+    modelListStrategy: "official_api",
     documentationUrl: "https://platform.minimax.io/docs/api-reference/speech-t2a-http",
-    verifiedAt: "2026-06-18",
+    verifiedAt,
     creatable: true,
-  },
-  // 历史厂商不再出现在新建列表，但仍保留契约以读取旧连接和密文 Key。
-  ...[
-    ["zhipu", "智谱", "https://open.bigmodel.cn/api/paas/v4"],
-    ["kimi", "Kimi", "https://api.moonshot.cn/v1"],
-    ["doubao", "豆包 / 火山方舟", "https://ark.cn-beijing.volces.com/api/v3"],
-  ].map(([provider, label, baseUrl]) => ({
-    provider: provider as ApiProvider,
-    label,
-    group: "legacy" as const,
-    baseUrl,
-    model: "",
-    apiFormat: provider === "doubao" ? ("responses" as const) : ("chat_completions" as const),
-    capabilities: provider === "doubao" ? (["text", "vision", "structured_output", "speech", "streaming"] as AiCapability[]) : (["text", "vision", "structured_output", "streaming"] as AiCapability[]),
-    models: {},
-    documentationUrl: "",
-    verifiedAt: "",
-    creatable: false,
-  })),
-  {
+  }),
+  contract({
     provider: "custom",
-    label: "本地部署 / 自定义连接",
+    label: "Local / Custom OpenAI compatible",
     group: "custom",
     baseUrl: "",
     model: "",
     apiFormat: "chat_completions",
-    capabilities: ["text", "vision", "structured_output", "speech"],
-    models: {},
+    capabilities: ["text", "vision", "structured_output", "speech", "streaming"],
+    modelCatalog: [],
+    modelListStrategy: "manual",
     documentationUrl: "",
     verifiedAt: "",
     creatable: true,
-  },
+  }),
 ];
 
 export const creatableProviderContracts = providerContracts.filter((contract) => contract.creatable);
 
-// 根据厂商标识读取稳定契约，未知值统一回退到自定义连接。
 export function getProviderContract(provider: ApiProvider): ProviderContract {
   return providerContracts.find((item) => item.provider === provider) ?? providerContracts.find((item) => item.provider === "custom")!;
 }
 
-// 返回某项能力已经由官方文档核验的模型；空数组表示需要用户自行填写。
 export function getProviderModels(provider: ApiProvider, purpose: AiConnectionPurpose): string[] {
   return getProviderContract(provider).models[purpose] ?? [];
+}
+
+export function getProviderModelCatalog(provider: ApiProvider, purpose?: AiConnectionPurpose, includeDeprecated = false): AiModelCatalogEntry[] {
+  const catalog = getProviderContract(provider).modelCatalog;
+  const scoped = purpose ? catalog.filter((entry) => entry.purposes.includes(purpose)) : catalog;
+  return includeDeprecated ? scoped : scoped.filter((entry) => entry.lifecycle !== "deprecated");
 }

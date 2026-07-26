@@ -3,12 +3,14 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { createDefaultAppearanceSettings } from "../../services/appearance-settings-repository";
-import type { AppearanceSettings, ThemeConfig } from "../../types/review";
+import type { AppearanceSettings, ThemeConfig } from "../../types/domains/appearance.ts";
 import { ColorPickerField, isValidHexColor } from "./color-picker-field";
-import { cloneTheme, darkThemePresets, lightThemePresets, type ThemePreset } from "./theme-presets";
+import { cloneTheme, darkThemePresets, lightThemePresets, type ThemePreset } from "./theme-presets.ts";
 import { ThemePresetSelect } from "./theme-preset-select";
+import { AppIcon } from "../shared/app-icon";
+import { SettingsSectionHeader } from "./settings-section-header";
 
-export type SettingsIconName = "appearance" | "back" | "configuration" | "diagnostics" | "personalization" | "dark" | "light" | "motion" | "none" | "system";
+export type SettingsIconName = "appearance" | "back" | "configuration" | "diagnostics" | "mcp" | "personalization" | "plugins" | "dark" | "light" | "motion" | "none" | "system";
 
 // 把数字限制在控件允许范围内，防止字号和对比度写入异常值。
 function clampNumber(value: number, min: number, max: number): number {
@@ -57,9 +59,9 @@ export function AppearanceSettingsView({ settings, onChange, onNotify }: Appeara
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold tracking-tight">外观</h1>
+      <SettingsSectionHeader title="外观" description="统一管理主题、字体、弥散效果和动态偏好。" />
 
-      <div className="mt-8 overflow-hidden rounded-lg border border-line bg-surface">
+      <div className="mt-6 overflow-hidden rounded-lg border border-line bg-surface">
         <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-4 max-md:flex-col max-md:items-stretch">
           <div>
             <h2 className="text-base font-semibold">主题</h2>
@@ -75,8 +77,6 @@ export function AppearanceSettingsView({ settings, onChange, onNotify }: Appeara
             onChange={(value) => updateSettings({ mode: value as AppearanceSettings["mode"] })}
           />
         </div>
-
-        <DiffPreview />
 
         <ThemeEditor
           label="浅色主题"
@@ -172,7 +172,8 @@ function ThemeEditor({ label, presets, theme, themeKey, onChange, onNotify, onRe
   // 选择内置主题时写入完整主题配置，而不是只改主题名称。
   function selectPreset(name: string) {
     const preset = presets.find((item) => item.theme.name === name);
-    onChange(themeKey, preset ? cloneTheme(preset.theme) : { name });
+    // 切换配色预设不改变用户当前的弥散偏好；只有显式重置主题才恢复关闭。
+    onChange(themeKey, preset ? { ...cloneTheme(preset.theme), diffuseGradient: theme.diffuseGradient } : { name });
   }
 
   return (
@@ -221,54 +222,6 @@ function ThemeEditor({ label, presets, theme, themeKey, onChange, onNotify, onRe
         control={<SliderControl value={theme.contrast} min={0} max={100} onChange={(value) => onChange(themeKey, { contrast: value })} />}
       />
     </section>
-  );
-}
-
-// 渲染主题代码预览，让颜色、字体和代码字号变化有直接参照。
-function DiffPreview() {
-  return (
-    <div className="settings-code-preview grid grid-cols-2 overflow-hidden border-b border-line font-mono max-md:grid-cols-1">
-      <pre className="m-0 overflow-x-auto border-r border-line bg-surface-muted p-0 max-md:border-r-0 max-md:border-b">
-        {[
-          ["1", "const themePreview: ThemeConfig = {"],
-          ["2", '  surface: "sidebar",'],
-          ["3", '  accent: "#2563eb",'],
-          ["4", "  contrast: 42,"],
-          ["5", "};"],
-        ].map(([line, code], index) => (
-          <DiffLine key={line} code={code} line={line} tone={index > 0 && index < 4 ? "removed" : "neutral"} />
-        ))}
-      </pre>
-      <pre className="m-0 overflow-x-auto bg-surface-muted p-0">
-        {[
-          ["1", "const themePreview: ThemeConfig = {"],
-          ["2", '  surface: "sidebar-elevated",'],
-          ["3", '  accent: "#0ea5e9",'],
-          ["4", "  contrast: 68,"],
-          ["5", "};"],
-        ].map(([line, code], index) => (
-          <DiffLine key={line} code={code} line={line} tone={index > 0 && index < 4 ? "added" : "neutral"} />
-        ))}
-      </pre>
-    </div>
-  );
-}
-
-// 渲染差异预览中的单行代码，按颜色或符号模式展示变更。
-function DiffLine({ code, line, tone }: { code: string; line: string; tone: "added" | "removed" | "neutral" }) {
-  const toneStyle =
-    tone === "added"
-      ? { background: "var(--diff-added-bg)", color: "var(--diff-added-text)" }
-      : tone === "removed"
-        ? { background: "var(--diff-removed-bg)", color: "var(--diff-removed-text)" }
-        : undefined;
-  const stripeColor = tone === "added" ? "var(--diff-added-line)" : tone === "removed" ? "var(--diff-removed-line)" : "transparent";
-  return (
-    <span className="grid grid-cols-[4px_44px_minmax(420px,1fr)] px-0 py-1" style={toneStyle}>
-      <span aria-hidden="true" style={{ background: stripeColor }} />
-      <span className="text-right text-muted">{line}</span>
-      <code>{code}</code>
-    </span>
   );
 }
 
@@ -326,7 +279,7 @@ function ToggleSwitch({ ariaLabel, checked, disabled = false, onChange }: { aria
       type="button"
       onClick={() => onChange(!checked)}
     >
-      <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition ${checked ? "left-7" : "left-1"}`} />
+      <span className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${checked ? "left-7" : "left-1"}`} />
     </button>
   );
 }
@@ -422,6 +375,7 @@ function InlineTextControl({ onChange, value }: { onChange: (value: string) => v
 
 // 渲染设置导航图标，保持截图里的细线图标气质且不额外引入依赖。
 export function SettingsNavIcon({ name, small = false }: { name: SettingsIconName; small?: boolean }) {
+  if (name) return <AppIcon name={name} size={small ? 16 : 22} />;
   const size = small ? 16 : 22;
   const common = {
     fill: "none",
@@ -438,7 +392,9 @@ export function SettingsNavIcon({ name, small = false }: { name: SettingsIconNam
     appearance: <path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4-1.4 1.4M7 17l-1.4 1.4m0-12.8L7 7m10 10 1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />,
     configuration: <path d="M4 7h16M7 12h10M10 17h4M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />,
     diagnostics: <path d="M4 19h16M6 17l3-7 4 4 3-8 2 5M5 5h14M5 5v14M19 5v14" />,
+    mcp: <path d="M7 7h4v4H7zM13 13h4v4h-4zM13 7h4v4h-4zM7 13h4v4H7zM11 9h2M9 11v2M15 11v2M11 15h2" />,
     personalization: <path d="M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM5 21a7 7 0 0 1 14 0M19 8v4m-2-2h4" />,
+    plugins: <path d="M9 3h6v5h5v6h-5v7H9v-7H4V8h5V3Z" />,
     dark: <path d="M21 14.5A7.5 7.5 0 0 1 9.5 3a8 8 0 1 0 11.5 11.5Z" />,
     light: <path d="M12 4V2m0 20v-2m8-8h2M2 12h2m14.4-6.4 1.4-1.4M4.2 19.8l1.4-1.4m0-12.8L4.2 4.2m15.6 15.6-1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />,
     motion: <path d="M4 12h6m-3-3 3 3-3 3m5-8h4a4 4 0 0 1 0 8h-4" />,

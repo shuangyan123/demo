@@ -1,14 +1,9 @@
 import { AUTOMATION_TEMPLATES } from "../../services/automation-executor";
 import type { AutomationDefinitionInput } from "../../services/automation-repository";
-import type {
-  AutomationDefinition,
-  AutomationRun,
-  AutomationSchedule,
-  AutomationSourceScope,
-  AutomationTemplateId,
-} from "../../types/review";
+import type { AutomationDefinition, AutomationRun, AutomationSchedule, AutomationSourceScope, AutomationTemplateId } from "../../types/domains/automation.ts";
+import type { AutomationCollectionConfig } from "../../types/domains/acquisition.ts";
 
-/** 自动化编辑器可选择的只读数据范围。 */
+/** 已安排编辑器可选择的只读数据范围。 */
 export const AUTOMATION_SOURCE_OPTIONS: Array<{ id: AutomationSourceScope; label: string }> = [
   { id: "mistakes", label: "错题" },
   { id: "knowledge", label: "知识库" },
@@ -22,10 +17,18 @@ function localTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
 }
 
+/** 三个采集模板默认不启用任何外部来源。 */
+function createCollectionConfig(domain: AutomationCollectionConfig["domain"]): AutomationCollectionConfig {
+  const queries = domain === "xingce"
+    ? ["行测 题型方法 答案依据"]
+    : domain === "shenlun" ? ["申论 政策原文 主题素材"] : ["结构化面试 热点 事实 作答框架"];
+  return { domain, queries, sources: [], allowedOrigins: [], freshnessDays: 30, maxDocuments: 10 };
+}
+
 /** 根据内置模板创建一份互不共享引用的表单草稿。 */
 export function createAutomationDraft(templateId: AutomationTemplateId = "daily_review"): AutomationDefinitionInput {
   const template = AUTOMATION_TEMPLATES.find((item) => item.id === templateId);
-  if (!template) throw new Error("自动化模板不存在");
+  if (!template) throw new Error("已安排模板不存在");
   return {
     name: template.name,
     templateId,
@@ -36,6 +39,7 @@ export function createAutomationDraft(templateId: AutomationTemplateId = "daily_
     schedule: templateId === "weekly_progress"
       ? { kind: "weekly", weekday: 1, time: "09:00" }
       : { kind: "daily", time: "08:00" },
+    collectionConfig: template.collectionDomain ? createCollectionConfig(template.collectionDomain) : undefined,
   };
 }
 
@@ -49,6 +53,7 @@ export function createEditDraft(definition: AutomationDefinition): AutomationDef
     enabled: definition.enabled,
     timeZone: definition.timeZone,
     schedule: { ...definition.schedule },
+    collectionConfig: definition.collectionConfig ? structuredClone(definition.collectionConfig) : undefined,
   };
 }
 
