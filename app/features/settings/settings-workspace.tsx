@@ -29,6 +29,7 @@ type SettingsWorkspaceProps = {
   activeSection: SettingsSectionKey;
   appearanceSettings: AppearanceSettings;
   diagnosticsInput: LocalDiagnosticsHookInput;
+  developmentExample?: string;
   sidebarCollapsed: boolean;
   onAppearanceChange: (settings: AppearanceSettings) => void;
   onBack: () => void;
@@ -45,6 +46,7 @@ export function SettingsWorkspace({
   activeSection,
   appearanceSettings,
   diagnosticsInput,
+  developmentExample,
   sidebarCollapsed,
   onAppearanceChange,
   onBack,
@@ -69,16 +71,16 @@ export function SettingsWorkspace({
       return <AppearanceSettingsView settings={appearanceSettings} onChange={onAppearanceChange} onNotify={setToast} />;
     }
     if (activeSection === "configuration") {
-      return <ApiConnectionsSettingsView onChanged={onConfigurationChanged} />;
+      return <ApiConnectionsSettingsView developmentExample={developmentExample} onChanged={onConfigurationChanged} />;
     }
     if (activeSection === "personalization") {
       return <PersonalizationSettingsView onChanged={onPersonalizationChange} onOpenConnections={() => onSectionChange("configuration")} />;
     }
     if (activeSection === "quota") {
-      return <AiQuotaSettingsPanel />;
+      return <AiQuotaSettingsPanel developmentExample={developmentExample} />;
     }
     if (activeSection === "mcp") {
-      return <McpSettingsView onNotice={setToast} />;
+      return <McpSettingsView developmentExample={developmentExample} onNotice={setToast} />;
     }
     return (
       <LocalDiagnosticsPanel
@@ -101,6 +103,7 @@ export function SettingsWorkspace({
     <WorkspaceShell
       key={activeSection}
       contentClassName="settings-content settings-main-scroll px-8 py-8 max-lg:px-4 max-lg:py-6"
+      integrationMode="settings"
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName="flex flex-col overflow-y-auto px-3 py-4 text-settings-sidebar-text"
       title="设置"

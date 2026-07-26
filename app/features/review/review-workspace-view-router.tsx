@@ -8,7 +8,7 @@ import { ReviewWorkspaceShell } from "./review-workspace-shell";
 import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 
 /** 装配设置、工作台壳层和当前视图；不读取 repository 或持有业务状态。 */
-export function ReviewWorkspaceViewRouter({ controller }: { controller: ReviewWorkspaceController }) {
+export function ReviewWorkspaceViewRouter({ controller, developmentExample }: { controller: ReviewWorkspaceController; developmentExample?: string }) {
   const { automation, conversation, workspace } = controller;
 
   if (workspace.loading) {
@@ -25,6 +25,7 @@ export function ReviewWorkspaceViewRouter({ controller }: { controller: ReviewWo
         activeSection={workspace.settingsSection}
         appearanceSettings={workspace.appearanceSettings}
         diagnosticsInput={workspace.health.diagnosticsInput}
+        developmentExample={developmentExample}
         sidebarCollapsed={workspace.sidebarCollapsed}
         onAppearanceChange={workspace.updateAppearanceSettings}
         onBack={() => {
@@ -66,7 +67,7 @@ export function ReviewWorkspaceViewRouter({ controller }: { controller: ReviewWo
       onToggleSidebar={workspace.toggleSidebar}
     >
       <ReviewWorkspaceCoreViews controller={controller} />
-      <ReviewWorkspaceSecondaryViews controller={controller} />
+      <ReviewWorkspaceSecondaryViews controller={controller} developmentExample={developmentExample} />
       <CommandSearchPalette
         open={conversation.searchOpen}
         results={conversation.results}

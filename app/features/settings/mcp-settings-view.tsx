@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { mcpSettingsRepository, type McpSettingsSnapshot } from "../../services/mcp-settings-repository.ts";
 import type { McpServerProfile, McpToolPermission } from "../../types/domains/mcp.ts";
 import { AppIcon } from "../shared/app-icon";
+import { DevelopmentExampleSwitcher, useDevelopmentExample, type DevelopmentExampleOption } from "../shared/development-example-switcher";
 import { Button, Chip, EmptyState, cx } from "../shared/ui-primitives";
 
 type McpForm = {
@@ -24,9 +25,32 @@ const emptyForm: McpForm = {
   token: "",
   allowPrivateNetwork: false,
 };
+const mcpExampleOptions: DevelopmentExampleOption[] = [
+  { id: "mcp-connected", label: "已连接与工具权限" },
+  { id: "server-error", label: "连接错误" },
+];
+
+/** MCP 入口在开发环境可切换纯内存示例，示例态不会读取服务器仓储。 */
+export function McpSettingsView({ developmentExample, onNotice }: { developmentExample?: string; onNotice: (message: string) => void }) {
+  const example = useDevelopmentExample(developmentExample, mcpExampleOptions);
+  if (example.value) {
+    return (
+      <>
+        <DevelopmentExampleSwitcher options={mcpExampleOptions} value={example.value} onChange={example.select} />
+        <McpDevelopmentExample scenario={example.value} />
+      </>
+    );
+  }
+  return (
+    <>
+      {example.enabled ? <DevelopmentExampleSwitcher options={mcpExampleOptions} value={example.value} onChange={example.select} /> : null}
+      <McpSettingsLiveView onNotice={onNotice} />
+    </>
+  );
+}
 
 /** MCP 设置采用服务器列表与详情检查器，发现结果只保存脱敏描述。 */
-export function McpSettingsView({ onNotice }: { onNotice: (message: string) => void }) {
+function McpSettingsLiveView({ onNotice }: { onNotice: (message: string) => void }) {
   const [snapshot, setSnapshot] = useState<McpSettingsSnapshot>(() => mcpSettingsRepository.load());
   const [form, setForm] = useState<McpForm>(emptyForm);
   const [selectedId, setSelectedId] = useState<string>();
@@ -172,6 +196,45 @@ export function McpSettingsView({ onNotice }: { onNotice: (message: string) => v
           <label className="inline-flex items-center gap-2 text-sm"><input checked={form.enabled} className="ui-checkbox" type="checkbox" onChange={(event) => setForm({ ...form, enabled: event.currentTarget.checked })} />启用</label>
           <Button type="submit" variant="primary">保存 Server</Button>
         </form>
+      </div>
+    </section>
+  );
+}
+
+/** 展示发现完成和连接失败后的 MCP 检查器，不创建真实 Server。 */
+function McpDevelopmentExample({ scenario }: { scenario: string }) {
+  const failed = scenario === "server-error";
+  return (
+    <section className="mcp-settings-view" aria-label="MCP 开发示例">
+      <header className="settings-page-heading">
+        <p className="settings-eyebrow">开发示例</p>
+        <h1>MCP</h1>
+        <p>示例用于批注 Server、工具权限、资源和错误恢复状态。</p>
+      </header>
+      <div className="mcp-settings-layout">
+        <aside className="mcp-server-list">
+          <div className="mcp-server-list-heading"><strong>Servers</strong><span>1</span></div>
+          <button className="mcp-server-row is-selected" type="button">
+            <span className="mcp-server-icon"><AppIcon name="system" size={18} /></span>
+            <span className="min-w-0"><strong>本地学习工具</strong><small>http://127.0.0.1:8765/mcp</small></span>
+            <span className={cx("mcp-status-dot", failed ? "is-error" : "is-ready")} />
+          </button>
+        </aside>
+        <main className="mcp-inspector">
+          <header className="mcp-inspector-heading"><div><h2>本地学习工具</h2><p>{failed ? "连接被拒绝，请检查 Server 是否运行" : "已发现真实能力描述的示例形态"}</p></div><Chip tone={failed ? "red" : "green"}>{failed ? "错误" : "ready"}</Chip></header>
+          <div className="mcp-inspector-meta"><span>认证 <strong>Bearer Token</strong></span><span>能力 <strong>{failed ? "0 tools" : "2 tools · 1 resource"}</strong></span></div>
+          <section className="mcp-tools-section">
+            <div><h3>Tools</h3><p>权限示例不会保存，也不会执行工具。</p></div>
+            {failed ? <EmptyState>重新启动 Server 后点击“发现能力”。</EmptyState> : (
+              <div className="mcp-tool-table">
+                {["search_knowledge", "read_resource"].map((name, index) => (
+                  <div className="mcp-tool-row" key={name}><span><strong>{name}</strong><small>{index ? "读取选定资源" : "搜索本地知识摘要"}</small></span><select aria-label={`${name} 示例权限`} defaultValue={index ? "ask" : "allow_session"}><option value="ask">每次询问</option><option value="allow_session">本次会话允许</option><option value="deny">禁止</option></select></div>
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+        <aside className="mcp-server-form"><h2>资源</h2><p className="text-sm text-muted">{failed ? "连接恢复后显示资源。" : "review://knowledge/index"}</p></aside>
       </div>
     </section>
   );

@@ -6,10 +6,11 @@ import { createPortal } from "react-dom";
 import { aiQuotaRepository } from "../../../../services/ai-quota-repository";
 import { aiQuotaRuntime, type AiQuotaRuntimeStatus } from "../../../../services/ai-quota-runtime";
 import { aiConnectionsRepository } from "../../../../services/ai-connections-repository";
-import type { AiQuotaCredentialKey, AiQuotaPluginConfig } from "../../../../types/domains/ai-quota.ts";
+import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaSnapshot } from "../../../../types/domains/ai-quota.ts";
 import type { ApiConnectionProfile } from "../../../../types/domains/ai-connection.ts";
 import type { ApiProvider } from "../../../../types/domains/ai-provider.ts";
 import { AppIcon } from "../../../shared/app-icon";
+import { DevelopmentExampleSwitcher, useDevelopmentExample, type DevelopmentExampleOption } from "../../../shared/development-example-switcher";
 import { ProviderIcon } from "../../../shared/provider-icon";
 import { Button, EmptyState } from "../../../shared/ui-primitives";
 import styles from "../../settings-compact.module.css";
@@ -40,9 +41,89 @@ const statusLabels: Record<AiQuotaRuntimeStatus, string> = {
   stale: "数据可能已过期",
   error: "失败",
 };
+const quotaExampleOptions: DevelopmentExampleOption[] = [
+  { id: "quota-ready", label: "成功与手动额度" },
+  { id: "quota-refreshing", label: "刷新中" },
+  { id: "quota-stale", label: "过期与失败" },
+  { id: "quota-needs-credentials", label: "待配置" },
+];
+
+/** 额度入口在开发环境可使用纯内存示例，示例态不初始化运行时或仓储。 */
+export function AiQuotaSettingsPanel({ developmentExample }: { developmentExample?: string }) {
+  const example = useDevelopmentExample(developmentExample, quotaExampleOptions);
+  if (example.value) {
+    return (
+      <>
+        <DevelopmentExampleSwitcher options={quotaExampleOptions} value={example.value} onChange={example.select} />
+        <AiQuotaDevelopmentExample scenario={example.value} />
+      </>
+    );
+  }
+  return (
+    <>
+      {example.enabled ? <DevelopmentExampleSwitcher options={quotaExampleOptions} value={example.value} onChange={example.select} /> : null}
+      <AiQuotaSettingsLivePanel />
+    </>
+  );
+}
+
+/** 展示额度表需要用户配置后才会出现的状态，所有数值均为明确示例。 */
+function AiQuotaDevelopmentExample({ scenario }: { scenario: string }) {
+  const status: AiQuotaRuntimeStatus = scenario === "quota-refreshing"
+    ? "refreshing"
+    : scenario === "quota-stale"
+      ? "stale"
+      : scenario === "quota-needs-credentials"
+        ? "needs-credentials"
+        : "ready";
+  const snapshot: AiQuotaSnapshot | undefined = status === "needs-credentials" ? undefined : {
+    id: "openai",
+    provider: "openai",
+    label: "OpenAI",
+    status: "ready",
+    source: "official",
+    metrics: [{ id: "used_cost", label: "已用费用", value: 18.6, unit: "USD", source: "official" }],
+    usedAmount: 18.6,
+    remainingAmount: 31.4,
+    currency: "USD",
+    periodLabel: "本月",
+    sourceLabel: "官方只读接口",
+    usageRatio: 0.372,
+    officialRemainingAvailable: true,
+    message: status === "stale" ? "上次刷新失败，保留最近成功快照" : "额度快照已刷新",
+    refreshedAt: "2026-07-26T02:24:00.000Z",
+    stale: status === "stale",
+  };
+  const rows = [
+    { id: "openai" as const, label: "OpenAI", enabled: true, status, snapshot, source: "官方（自动同步）" },
+    { id: "manual" as const, label: "手动额度", enabled: scenario !== "quota-needs-credentials", status: scenario === "quota-needs-credentials" ? "disabled" as const : "ready" as const, snapshot: undefined, source: "手动配置" },
+  ];
+  return (
+    <section className={styles.tableSection} aria-label="AI 额度开发示例">
+      <div className={styles.header}>
+        <div><h2>额度与用量</h2><p>示例用于批注启停、刷新、失败和待配置状态。</p></div>
+        <span className={styles.muted} role="status">{status === "stale" ? "刷新失败但启用状态保持" : "开发示例"}</span>
+      </div>
+      <div className={styles.table}>
+        <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span>启用</span><span>连接状态</span><span>额度/用量</span><span>最后刷新</span><span>数据来源</span><span>操作</span></div>
+        {rows.map((row) => (
+          <div key={row.id} className={`${styles.tableRow} ${styles.quotaColumns}`}>
+            <button className={styles.providerCell} type="button"><ProviderIcon provider={row.id === "manual" ? "custom" : row.id} size={24} /><strong>{row.label}</strong><AppIcon name="configure" size={16} /></button>
+            <input aria-label={`启用${row.label}额度刷新示例`} checked={row.enabled} className="ui-checkbox" readOnly role="switch" type="checkbox" />
+            <span className={styles.providerCell}><i className={styles.statusDot} data-tone={row.status === "stale" ? "yellow" : row.status === "refreshing" ? "blue" : undefined} /><span className={styles.truncate}>{statusLabels[row.status]}</span></span>
+            <QuotaMetricRing snapshot={row.snapshot} />
+            <span className={styles.muted}>{row.snapshot ? "今天 10:24" : "未刷新"}</span>
+            <span className={`${styles.muted} ${styles.truncate}`}>{row.source}</span>
+            <button aria-label={`刷新${row.label}额度示例`} className={styles.iconButton} disabled={!row.enabled} type="button"><span className={row.status === "refreshing" ? styles.spin : undefined}><AppIcon name={row.status === "stale" ? "warning" : "refresh"} size={16} /></span></button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 /** 额度面板只调用官方只读接口或手动来源，启用后立即进入运行时生命周期。 */
-export function AiQuotaSettingsPanel() {
+function AiQuotaSettingsLivePanel() {
   const initialState = useMemo(() => aiQuotaRepository.loadSync(), []);
   const runtime = useSyncExternalStore(aiQuotaRuntime.subscribe, aiQuotaRuntime.getSnapshot, aiQuotaRuntime.getServerSnapshot);
   const configs = runtime.configs.length ? runtime.configs : initialState.configs;
