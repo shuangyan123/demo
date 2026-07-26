@@ -23,5 +23,12 @@ test("对话树使用可访问的 dnd-kit 传感器并保留根目录目标", as
   assert.match(source, /onContextMenu=/);
   assert.match(source, /conversation-tree-inline-rename/);
   assert.match(source, /conversation-tree-disclosure-slot/);
+  assert.match(source, /AppIcon name="edit"/);
+  assert.match(source, /AppIcon name="folderPlus"/);
+  assert.match(source, /actionLevel === "move"/);
+  assert.match(source, /conversation-tree-move-menu/);
+  assert.match(source, /event\.key === "ArrowRight"/);
+  assert.match(source, /event\.key === "ArrowLeft"/);
+  assert.doesNotMatch(source, /<select[\s\S]*?move/);
   assert.doesNotMatch(source, /depth \* 10/);
 });

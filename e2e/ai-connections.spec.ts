@@ -20,3 +20,55 @@ test("AI 连接可保存本地自定义文本连接并设为默认", async ({ pa
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
+
+test("本机密钥库缺失时连接进入可恢复状态且重输只替换当前凭据", async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  const originalSecret = "e2e-original-secret-never-render";
+  const replacementSecret = "e2e-replacement-secret-never-render";
+
+  const openConnections = async () => {
+    await page.getByRole("button", { name: "设置" }).first().click();
+    await page.getByRole("button", { name: "AI 连接" }).click();
+  };
+
+  await page.goto("/");
+  await openConnections();
+  await page.getByRole("combobox", { name: "厂商" }).click();
+  await page.getByRole("option", { name: /Local \/ Custom/ }).click();
+  await page.getByText("高级设置", { exact: true }).click();
+  await page.getByLabel("连接名称").fill("E2E 凭据恢复");
+  await page.getByLabel("Base URL").fill("http://127.0.0.1:9999/v1");
+  await page.getByLabel("API Key").fill(originalSecret);
+  await page.getByRole("button", { name: "保存连接" }).click();
+  await expect(page.getByText("配置已保存")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(originalSecret);
+
+  await page.evaluate(async () => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace_secure_keys");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const transaction = request.result.transaction("keys", "readwrite");
+      transaction.objectStore("keys").clear();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => {
+        request.result.close();
+        resolve();
+      };
+    };
+  }));
+  await page.reload();
+  await openConnections();
+
+  const savedRow = page.getByRole("button", { name: /E2E 凭据恢复/ }).locator("..");
+  await expect(savedRow).toContainText("需要重新输入");
+  await page.getByRole("button", { name: "重新输入密钥" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "凭据需要重新输入" })).toBeVisible();
+  await expect(page.getByLabel("API Key")).toHaveValue("");
+  await page.getByLabel("API Key").fill(replacementSecret);
+  await page.getByRole("button", { name: "保存连接" }).click();
+  await expect(page.getByText("配置已保存")).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新输入密钥" })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(replacementSecret);
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});

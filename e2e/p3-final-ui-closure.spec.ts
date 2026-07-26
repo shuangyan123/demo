@@ -3,6 +3,7 @@ import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors }
 
 /** 仅在原生详情未展开时打开侧栏分组。 */
 async function ensureDetailsOpen(summary: Locator) {
+  await summary.waitFor({ state: "visible" });
   if (!await summary.evaluate((element) => (element.parentElement as HTMLDetailsElement).open)) await summary.click();
 }
 

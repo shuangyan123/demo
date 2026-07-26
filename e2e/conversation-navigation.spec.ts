@@ -119,12 +119,17 @@ test("对话文件夹可通过右键菜单行内重命名、移动和删除", as
   const drawer = page.getByRole("menu", { name: "对话树操作" });
   const contextMenuBox = await drawer.boundingBox();
   await page.locator(".conversation-tree-drawer-backdrop").click({ position: { x: 2, y: 2 } });
-  await page.getByRole("button", { name: "临时分类 操作" }).click();
+  const actionButton = page.getByRole("button", { name: "临时分类 操作" });
+  const actionButtonBox = await actionButton.boundingBox();
+  await actionButton.click();
   const buttonMenuBox = await drawer.boundingBox();
   expect(contextMenuBox).not.toBeNull();
   expect(buttonMenuBox).not.toBeNull();
   expect(Math.abs((contextMenuBox?.x ?? 0) - (buttonMenuBox?.x ?? 0))).toBeLessThanOrEqual(1);
   expect(Math.abs((contextMenuBox?.y ?? 0) - (buttonMenuBox?.y ?? 0))).toBeLessThanOrEqual(1);
+  expect((buttonMenuBox?.x ?? 0) >= (actionButtonBox?.x ?? 0) + (actionButtonBox?.width ?? 0)).toBe(true);
+  await expect(drawer.getByRole("menuitem", { name: "重命名" }).locator("svg")).toHaveCount(1);
+  await expect(drawer.getByRole("menuitem", { name: "移动到" }).locator("svg")).toHaveCount(2);
   await drawer.getByRole("menuitem", { name: "重命名" }).click();
   const renameInput = page.getByLabel("重命名临时分类");
   await renameInput.fill("待移动分类");
@@ -132,13 +137,16 @@ test("对话文件夹可通过右键菜单行内重命名、移动和删除", as
   await expect(page.getByRole("button", { name: "待移动分类 操作" })).toBeVisible();
 
   await page.getByRole("button", { name: "待移动分类 操作" }).click();
-  await drawer.getByLabel("移动到").selectOption({ label: "目标分类" });
+  await drawer.getByRole("menuitem", { name: "移动到" }).click();
+  const moveMenu = page.getByRole("menu", { name: "移动到文件夹" });
+  await expect(moveMenu).toBeVisible();
+  await moveMenu.getByRole("menuitem", { name: "目标分类" }).click();
   const targetFolder = page.locator(".conversation-tree-folder").filter({ has: page.getByRole("button", { name: "目标分类 操作" }) }).first();
   await expect(targetFolder.getByRole("button", { name: "待移动分类 操作" })).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "待移动分类 操作" }).click();
-  await drawer.getByRole("button", { name: "删除", exact: true }).click();
+  await drawer.getByRole("menuitem", { name: "删除", exact: true }).click();
   await expect(page.getByRole("button", { name: "待移动分类 操作" })).toHaveCount(0);
 });
 

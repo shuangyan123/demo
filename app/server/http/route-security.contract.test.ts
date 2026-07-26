@@ -7,6 +7,8 @@ import {
   sanitizeRouteMessage,
   validateOutboundHttpUrl,
 } from "./route-security.ts";
+import { validateOutboundNetworkTarget } from "./outbound-network-policy.ts";
+import nextConfig from "../../../next.config.ts";
 
 test("Route JSON 拒绝跨来源和超过预算的请求体", async () => {
   await assert.rejects(
@@ -46,6 +48,41 @@ test("外联地址只允许 HTTP(S) 且不接受内嵌凭据", () => {
   assert.throws(() => validateOutboundHttpUrl("https://user:secret@example.com"), /用户名或密码/);
 });
 
+test("外联网络策略默认拒绝局域网并始终阻止元数据和链路本地地址", async () => {
+  const lookupPrivate = async () => [{ address: "192.168.1.9", family: 4 }];
+  const lookupPublic = async () => [{ address: "203.0.113.8", family: 4 }];
+  await assert.rejects(
+    validateOutboundNetworkTarget("https://lan.example.invalid", {}, lookupPrivate),
+    (error) => error instanceof RouteSecurityError && error.code === "private_network_confirmation_required",
+  );
+  assert.equal(
+    (await validateOutboundNetworkTarget("https://lan.example.invalid", { allowPrivateNetwork: true }, lookupPrivate)).hostname,
+    "lan.example.invalid",
+  );
+  assert.equal(
+    (await validateOutboundNetworkTarget("https://public.example.invalid", {}, lookupPublic)).hostname,
+    "public.example.invalid",
+  );
+  await assert.rejects(
+    validateOutboundNetworkTarget("http://169.254.169.254/latest/meta-data", { allowPrivateNetwork: true }),
+    (error) => error instanceof RouteSecurityError && error.code === "blocked_outbound_target",
+  );
+  await assert.rejects(
+    validateOutboundNetworkTarget("http://metadata.google.internal", { allowPrivateNetwork: true }),
+    (error) => error instanceof RouteSecurityError && error.code === "blocked_metadata_target",
+  );
+});
+
+test("外联网络策略拒绝包含任一私网结果的 DNS rebinding 响应", async () => {
+  await assert.rejects(
+    validateOutboundNetworkTarget("https://rebind.example.invalid", {}, async () => [
+      { address: "203.0.113.8", family: 4 },
+      { address: "10.0.0.7", family: 4 },
+    ]),
+    (error) => error instanceof RouteSecurityError && error.code === "private_network_confirmation_required",
+  );
+});
+
 test("统一错误响应隐藏凭据并提供稳定关联字段", async () => {
   assert.equal(sanitizeRouteMessage("Authorization: Bearer secret-value"), "Authorization: ***");
   const response = apiErrorResponse(new Error("Bearer abc123"), {
@@ -62,4 +99,14 @@ test("统一错误响应隐藏凭据并提供稳定关联字段", async () => {
     requestId: "request-test",
     retryable: true,
   });
+});
+
+test("全局安全响应头禁止脚本属性、嵌套页面和跨来源资源复用", async () => {
+  const groups = await nextConfig.headers?.();
+  const headers = new Map(groups?.[0]?.headers.map((item) => [item.key, item.value]));
+  const csp = headers.get("Content-Security-Policy") ?? "";
+  assert.match(csp, /script-src-attr 'none'/);
+  assert.match(csp, /frame-src 'none'/);
+  assert.match(csp, /manifest-src 'self'/);
+  assert.equal(headers.get("Cross-Origin-Resource-Policy"), "same-origin");
 });
