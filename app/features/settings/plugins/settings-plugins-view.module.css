@@ -46,6 +46,11 @@
   border-radius: 7px;
 }
 
+.toolbar label:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .toolbar input {
   width: 100%;
   min-height: 34px;
@@ -92,7 +97,7 @@
 }
 
 .activeRow {
-  box-shadow: inset 3px 0 var(--color-blue);
+  box-shadow: inset 3px 0 var(--color-foreground);
 }
 
 .glyph {
@@ -218,7 +223,7 @@
 .recovery {
   justify-content: flex-start;
   padding: 10px 16px;
-  background: color-mix(in srgb, var(--color-blue) 8%, var(--color-surface));
+  background: var(--interactive-selected-bg);
   font-size: 12px;
 }
 

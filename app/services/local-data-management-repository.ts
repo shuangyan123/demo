@@ -3,6 +3,7 @@
  */
 import { reviewDb } from "../db/review-db.ts";
 import { extensionDb } from "../db/extension-db.ts";
+import { deleteSecureKeyStore } from "./secure-key-store.ts";
 
 export type LocalDataSummary = {
   importRecords: number;
@@ -11,6 +12,72 @@ export type LocalDataSummary = {
   extensionRecords: number;
   totalIndexedDbRecords: number;
 };
+
+export type LocalDataExportV2 = {
+  schemaVersion: 2;
+  exportedAt: string;
+  credentialsExcluded: true;
+  databases: {
+    review_workspace: Record<string, unknown[]>;
+    review_extensions: { extensions: unknown[] };
+  };
+};
+
+// 安全导出采用默认拒绝：只有这里逐项审阅过的业务表可以进入版本化导出包。
+const EXPORT_TABLE_ALLOWLIST = new Set([
+  "mistakes",
+  "attempts",
+  "importJobs",
+  "apiConnectionProfiles",
+  "apiConnectionDefaults",
+  "appearanceSettings",
+  "personalizationSettings",
+  "knowledgeEntries",
+  "knowledgeAttempts",
+  "knowledgeMistakeLinks",
+  "knowledgeInternalizationDrafts",
+  "importBatches",
+  "importDrafts",
+  "interviewQuestions",
+  "interviewQuestionSets",
+  "interviewPracticePlans",
+  "interviewSessions",
+  "interviewTurns",
+  "interviewEvaluations",
+  "interviewLinks",
+  "tutoringSessions",
+  "tutoringTurns",
+  "tutoringPlans",
+  "tutoringLinks",
+  "obsidianNoteMappings",
+  "knowledgeEvolutionProposals",
+  "automationDefinitions",
+  "automationRuns",
+  "aiProjects",
+  "aiConversationFolders",
+  "aiConversations",
+  "aiConversationAttachments",
+  "aiConversationMessages",
+  "aiConversationRunSteps",
+]);
+
+/** 导出值只保留可序列化且非敏感字段，新增表不会绕过统一清理边界。 */
+function sanitizeExportValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeExportValue);
+  if (!value || typeof value !== "object") return value;
+  const source = value as Record<string, unknown>;
+  const isConnectionMetadata = "provider" in source
+    && "baseUrl" in source
+    && ("encryptedKey" in source || "maskedKey" in source);
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(source)) {
+    if (/^(encryptedKey|iv|encryptedToken|encryptedTokenIv|encryptedCookie|encryptedCredentials|maskedKey|directoryHandle)$/i.test(key)) continue;
+    if (/^(apiKey|token|cookie|authorization|providerRawResponse)$/i.test(key)) continue;
+    result[key] = sanitizeExportValue(item);
+  }
+  if (isConnectionMetadata) result.credentialStatus = "reconfigure_required";
+  return result;
+}
 
 /** 读取危险操作前的真实数量，界面不使用估算值。 */
 export async function loadLocalDataSummary(): Promise<LocalDataSummary> {
@@ -40,16 +107,23 @@ export async function loadLocalDataSummary(): Promise<LocalDataSummary> {
 export const localDataManagementRepository = {
   loadSummary: loadLocalDataSummary,
 
-  /** 完整导出同时覆盖核心库与独立扩展库，目录句柄等不可序列化对象只保留其可序列化元数据。 */
+  /** 安全导出使用显式版本和字段清理，凭据与目录句柄永不进入导出包。 */
   async exportAll(): Promise<string> {
-    const coreEntries = await Promise.all(reviewDb.tables.map(async (table) => [table.name, await table.toArray()] as const));
-    return JSON.stringify({
+    const coreEntries = await Promise.all(
+      reviewDb.tables
+        .filter((table) => EXPORT_TABLE_ALLOWLIST.has(table.name))
+        .map(async (table) => [table.name, sanitizeExportValue(await table.toArray())] as const),
+    );
+    const payload: LocalDataExportV2 = {
+      schemaVersion: 2,
       exportedAt: new Date().toISOString(),
+      credentialsExcluded: true,
       databases: {
-        review_workspace: Object.fromEntries(coreEntries),
-        review_extensions: { extensions: await extensionDb.extensions.toArray() },
+        review_workspace: Object.fromEntries(coreEntries) as Record<string, unknown[]>,
+        review_extensions: { extensions: sanitizeExportValue(await extensionDb.extensions.toArray()) as unknown[] },
       },
-    }, null, 2);
+    };
+    return JSON.stringify(payload, null, 2);
   },
 
   /** 只清理导入任务、批次与未确认草稿。 */
@@ -85,15 +159,15 @@ export const localDataManagementRepository = {
     });
   },
 
-  /** 完整重置删除 IndexedDB 和本应用 localStorage；调用方完成后刷新页面。 */
+  /** 完整重置删除业务库、扩展库、安全密钥库和本应用 localStorage。 */
   async resetAll(): Promise<void> {
     reviewDb.close();
     extensionDb.close();
-    await Promise.all([reviewDb.delete(), extensionDb.delete()]);
+    await Promise.all([reviewDb.delete(), extensionDb.delete(), deleteSecureKeyStore()]);
     if (typeof window !== "undefined") {
       const keys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index)).filter((key): key is string => Boolean(key));
       for (const key of keys) {
-        if (/^(review-workspace:|review_workspace_|review_provider_models_)/.test(key)) window.localStorage.removeItem(key);
+        if (/^review(?:[-_:]|$)/.test(key)) window.localStorage.removeItem(key);
       }
     }
   },

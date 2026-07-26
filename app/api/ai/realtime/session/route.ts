@@ -18,8 +18,9 @@ export async function POST(request: Request) {
         ? { session: { type: "realtime", model: input.model, audio: { output: { voice: input.voiceId } } } }
         : { uses: 1, expireTime: new Date(Date.now() + 60_000).toISOString(), newSessionExpireTime: new Date(Date.now() + 60_000).toISOString(), liveConnectConstraints: { model: `models/${input.model}` } }),
       cache: "no-store",
+      redirect: "error",
     });
-    if (!response.ok) return aiRouteError((await response.text()).slice(0, 300) || "临时凭据创建失败", response.status);
+    if (!response.ok) return aiRouteError(`临时凭据创建失败（${response.status}）`, response.status);
     const payload = await response.json() as Record<string, unknown>;
     const token = input.provider === "openai" ? (payload.value ?? (payload.client_secret as Record<string, unknown> | undefined)?.value) : payload.name;
     if (typeof token !== "string") return aiRouteError("厂商未返回临时凭据", 502);

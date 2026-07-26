@@ -49,7 +49,7 @@ export function ObsidianProposalReview({ controller }: { controller: Controller 
               const blocked = !isAcquisitionProposalConfirmable(proposal);
               const trust = proposal.provenance?.trust;
               return (
-                <article key={proposal.id} className={`rounded-xl border p-3 ${active?.id === proposal.id ? "border-blue bg-blue/5" : "border-line bg-background"}`}>
+                <article key={proposal.id} className={`rounded-xl border p-3 ${active?.id === proposal.id ? "border-foreground bg-[var(--interactive-selected-bg)]" : "border-line bg-background"}`}>
                   <div className="flex items-start gap-3">
                     <input aria-label={`选择 ${proposal.title}`} className="mt-1" type="checkbox" disabled={blocked} checked={selectedIds.includes(proposal.id)} onChange={(event) => toggleSelected(proposal.id, event.currentTarget.checked)} />
                     <button className="min-w-0 flex-1 text-left" type="button" onClick={() => setActiveId(proposal.id)}>
@@ -121,7 +121,7 @@ function ProposalDetail({ controller, proposal }: { controller: Controller; prop
             {provenance.evidence.map((evidence) => (
               <article key={evidence.id} className="rounded-lg border border-line bg-background p-3">
                 <p className="text-sm leading-6">{evidence.quote}</p>
-                <a className="mt-2 block break-all text-xs text-blue hover:underline" href={evidence.url} rel="noreferrer" target="_blank">{evidence.publisher || new URL(evidence.url).hostname} · {evidence.publishedAt || "采集时可访问"}</a>
+                <a className="mt-2 block break-all text-xs text-foreground underline-offset-2 hover:underline" href={evidence.url} rel="noreferrer" target="_blank">{evidence.publisher || new URL(evidence.url).hostname} · {evidence.publishedAt || "采集时可访问"}</a>
                 <p className="mt-1 break-all font-mono text-[11px] text-muted">SHA-256 {evidence.contentHash}</p>
               </article>
             ))}

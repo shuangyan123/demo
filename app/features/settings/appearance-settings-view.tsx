@@ -273,7 +273,7 @@ function ToggleSwitch({ ariaLabel, checked, disabled = false, onChange }: { aria
     <button
       aria-checked={checked}
       aria-label={ariaLabel}
-      className={`relative h-8 w-14 rounded-full transition ${checked ? "bg-blue" : "bg-slate-200"} ${disabled ? "opacity-45" : ""}`}
+      className={`relative h-8 w-14 rounded-full transition ${checked ? "bg-[var(--interactive-primary-bg)]" : "bg-slate-200"} ${disabled ? "opacity-45" : ""}`}
       disabled={disabled}
       role="switch"
       type="button"

@@ -74,7 +74,7 @@ export function InterviewLinkPanel({
             return (
               <article key={link.id} className="ui-list-row">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-blue">{link.targetType === "knowledge" ? "知识资料" : "错题"}</p>
+                  <p className="text-sm font-bold text-foreground">{link.targetType === "knowledge" ? "知识资料" : "错题"}</p>
                   <p className="mt-1 truncate text-sm text-foreground">{target ?? "目标已不存在"}</p>
                   <p className="mt-1 text-xs text-muted">{link.reason}</p>
                 </div>

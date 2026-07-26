@@ -1,7 +1,28 @@
-import { getOrCreateSecurePrimaryKey } from "./secure-key-store.ts";
+import { getOrCreateSecurePrimaryKey, readSecurePrimaryKey } from "./secure-key-store.ts";
 
 export const LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME = "review_workspace_crypto_key_v1";
 const VERSIONED_CIPHERTEXT_PREFIX = "v2:";
+
+export type CredentialSecurityErrorCode =
+  | "legacy_key_missing"
+  | "legacy_key_invalid"
+  | "secure_key_missing"
+  | "secure_key_invalid"
+  | "ciphertext_invalid";
+
+/** 凭据错误使用稳定代码驱动恢复界面，消息不得包含密文或内部异常。 */
+export class CredentialSecurityError extends Error {
+  readonly code: CredentialSecurityErrorCode;
+
+  constructor(
+    code: CredentialSecurityErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "CredentialSecurityError";
+    this.code = code;
+  }
+}
 
 // 将字节数组编码为浏览器可存储的 base64 字符串。
 function bytesToBase64(bytes: Uint8Array): string {
@@ -21,7 +42,7 @@ function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 /** 只读取旧版可导出 JWK；新加密流程绝不再创建或导出此类主密钥。 */
 async function getLegacyLocalCryptoKey(): Promise<CryptoKey> {
   const saved = window.localStorage.getItem(LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME);
-  if (!saved) throw new Error("旧版本机主密钥已丢失，请重新输入已保存的凭据");
+  if (!saved) throw new CredentialSecurityError("legacy_key_missing", "旧版本机主密钥已丢失，请重新输入已保存的凭据");
   try {
     return await crypto.subtle.importKey(
       "jwk",
@@ -31,7 +52,7 @@ async function getLegacyLocalCryptoKey(): Promise<CryptoKey> {
       ["encrypt", "decrypt"],
     );
   } catch {
-    throw new Error("旧版本机主密钥已损坏，请重新输入已保存的凭据");
+    throw new CredentialSecurityError("legacy_key_invalid", "旧版本机主密钥已损坏，请重新输入已保存的凭据");
   }
 }
 
@@ -61,7 +82,13 @@ export async function encryptSecret(plainText: string, context: string): Promise
 export async function decryptSecret(encryptedKey: string, iv: string, context: string): Promise<string> {
   try {
     const legacy = isLegacyEncryptedSecret(encryptedKey);
-    const key = legacy ? await getLegacyLocalCryptoKey() : await getOrCreateSecurePrimaryKey();
+    const key = legacy ? await getLegacyLocalCryptoKey() : await readSecurePrimaryKey();
+    if (!key) {
+      throw new CredentialSecurityError(
+        "secure_key_missing",
+        "当前访问来源没有保存此凭据所需的本机密钥，请重新输入后保存",
+      );
+    }
     const cipherText = legacy ? encryptedKey : encryptedKey.slice(VERSIONED_CIPHERTEXT_PREFIX.length);
     const additionalData = legacy ? undefined : new TextEncoder().encode(context);
     const decrypted = await crypto.subtle.decrypt({
@@ -71,8 +98,11 @@ export async function decryptSecret(encryptedKey: string, iv: string, context: s
     }, key, bytesToArrayBuffer(base64ToBytes(cipherText)));
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    if (error instanceof Error && /旧版本机主密钥/.test(error.message)) throw error;
-    throw new Error("本机凭据无法解密，请重新输入后保存");
+    if (error instanceof CredentialSecurityError) throw error;
+    if (error instanceof Error && /密钥库已损坏/.test(error.message)) {
+      throw new CredentialSecurityError("secure_key_invalid", "本机密钥库已损坏，请重新输入已保存的凭据");
+    }
+    throw new CredentialSecurityError("ciphertext_invalid", "本机凭据校验失败，请重新输入后保存");
   }
 }
 

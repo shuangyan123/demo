@@ -5,8 +5,8 @@ import {
   apiErrorResponse,
   apiJsonResponse,
   readRouteJson,
-  validateOutboundHttpUrl,
 } from "../../../server/http/route-security.ts";
+import { networkPolicyFromProviderOptions, validateOutboundNetworkTarget } from "../../../server/http/outbound-network-policy.ts";
 
 const MAX_TRANSCRIPTION_REQUEST_BYTES = 17 * 1024 * 1024;
 
@@ -33,13 +33,14 @@ export async function POST(request: Request) {
         { code: "invalid_transcription_request", message: "转写请求无效", status: 400 },
       );
     }
-    validateOutboundHttpUrl(body.baseUrl);
+    await validateOutboundNetworkTarget(body.baseUrl, networkPolicyFromProviderOptions(body.providerOptions));
     const providerRequest = buildTranscriptionProviderRequest(body);
     const response = await fetch(providerRequest.url, {
       method: "POST",
       headers: providerRequest.headers,
       body: JSON.stringify(providerRequest.body),
       cache: "no-store",
+      redirect: "error",
     });
     if (!response.ok) {
       return apiErrorResponse(

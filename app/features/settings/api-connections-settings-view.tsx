@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { testConnectionDraft } from "../../services/ai-connection-client";
-import { aiConnectionsRepository } from "../../services/ai-connections-repository";
+import { aiConnectionsRepository, type ConnectionCredentialHealth } from "../../services/ai-connections-repository";
 import { inspectConnectionModelCatalog, loadDraftModelCatalog, rememberConnectionModelDirectory } from "../../services/model-directory-service";
 import { getProviderContract, getProviderModelCatalog, providerContracts } from "../../services/provider-contracts";
 import { inferMiniMaxRegion, MINIMAX_ANTHROPIC_BASE_URLS, type MiniMaxCredentialPlan, type MiniMaxRegion } from "../../services/minimax-connection";
@@ -30,6 +30,7 @@ type ConnectionForm = {
   language: string;
   minimaxRegion: MiniMaxRegion;
   minimaxCredentialPlan: MiniMaxCredentialPlan;
+  allowPrivateNetwork: boolean;
 };
 
 const capabilityLabels: Partial<Record<AiCapability, string>> = { text: "文本", vision: "多模态", structured_output: "结构化输出", speech: "语音", transcription: "录音转写" };
@@ -47,6 +48,7 @@ function createForm(provider: ApiProvider = "openai"): ConnectionForm {
     language: "zh-CN",
     minimaxRegion: "cn",
     minimaxCredentialPlan: "pay_as_you_go",
+    allowPrivateNetwork: false,
   };
 }
 
@@ -67,6 +69,14 @@ function InlineStatus({ feedback }: { feedback: Feedback }) {
   );
 }
 
+/** 草稿网络意图与厂商选项共用同一映射，避免测试和保存采用不同安全策略。 */
+function providerOptionsForForm(form: ConnectionForm): Record<string, string> {
+  if (form.provider === "azure") return { language: form.language };
+  if (form.provider === "minimax") return { region: form.minimaxRegion, credentialPlan: form.minimaxCredentialPlan };
+  if (form.provider === "custom") return { allowPrivateNetwork: String(form.allowPrivateNetwork) };
+  return {};
+}
+
 // 配置多厂商连接、能力默认值和连接测试；厂商协议细节只存在于服务端适配器。
 export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => void }) {
   const [snapshot, setSnapshot] = useState<AiConnectionSnapshot>({ profiles: [], defaults: { id: "default", updatedAt: "" } });
@@ -77,17 +87,34 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
   const [discoveredDirectory, setDiscoveredDirectory] = useState<AiModelsResult>();
   const [selectedTestModelId, setSelectedTestModelId] = useState("");
   const [testSucceeded, setTestSucceeded] = useState(false);
+  const [credentialHealth, setCredentialHealth] = useState<Record<string, ConnectionCredentialHealth>>({});
   const formRef = useRef<HTMLFormElement>(null);
+  const advancedSettingsRef = useRef<HTMLDetailsElement>(null);
   const contract = useMemo(() => getProviderContract(form.provider), [form.provider]);
 
-  const refresh = useCallback(async () => setSnapshot(await aiConnectionsRepository.loadSnapshot()), []);
+  const refresh = useCallback(async () => {
+    const nextSnapshot = await aiConnectionsRepository.loadSnapshot();
+    const healthEntries = await Promise.all(nextSnapshot.profiles.map(async (profile) => [
+      profile.id,
+      await aiConnectionsRepository.inspectCredentialHealth(profile),
+    ] as const));
+    setSnapshot(nextSnapshot);
+    setCredentialHealth(Object.fromEntries(healthEntries));
+  }, []);
 
   useEffect(() => {
     let active = true;
     void aiConnectionsRepository
       .loadSnapshot()
-      .then((nextSnapshot) => {
-        if (active) setSnapshot(nextSnapshot);
+      .then(async (nextSnapshot) => {
+        const healthEntries = await Promise.all(nextSnapshot.profiles.map(async (profile) => [
+          profile.id,
+          await aiConnectionsRepository.inspectCredentialHealth(profile),
+        ] as const));
+        if (active) {
+          setSnapshot(nextSnapshot);
+          setCredentialHealth(Object.fromEntries(healthEntries));
+        }
       })
       .catch((error) => {
         if (active) setFeedback({ tone: "error", text: error instanceof Error ? error.message : "连接配置读取失败" });
@@ -124,6 +151,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
       language: profile.providerOptions.language ?? "zh-CN",
       minimaxRegion: profile.providerOptions.region === "global" ? "global" : inferMiniMaxRegion(profile.baseUrl),
       minimaxCredentialPlan: profile.providerOptions.credentialPlan === "token_plan" ? "token_plan" : "pay_as_you_go",
+      allowPrivateNetwork: profile.providerOptions.allowPrivateNetwork === "true",
     });
     setFeedback(null);
     const remembered = typeof window === "undefined" ? "" : window.localStorage.getItem(`review_connection_test_model_v1:${profile.id}`) ?? "";
@@ -133,8 +161,9 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     setSelectedTestModelId(models.some((model) => model.id === remembered) ? remembered : models[0]?.id ?? remembered);
     setTestSucceeded(profile.testStatus === "success");
     window.requestAnimationFrame(() => {
+      if (advancedSettingsRef.current) advancedSettingsRef.current.open = true;
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      formRef.current?.querySelector<HTMLElement>("button, input, select")?.focus();
+      formRef.current?.querySelector<HTMLInputElement>("input")?.focus();
     });
   }
 
@@ -157,11 +186,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     setFeedback({ tone: "neutral", text: "正在保存…" });
     try {
       const isNewConnection = !form.id;
-      const providerOptions: Record<string, string> = form.provider === "azure"
-        ? { language: form.language }
-        : form.provider === "minimax"
-          ? { region: form.minimaxRegion, credentialPlan: form.minimaxCredentialPlan }
-          : {};
+      const providerOptions = providerOptionsForForm(form);
       const saved = await aiConnectionsRepository.saveProfile({
         id: form.id || undefined,
         label: form.label,
@@ -209,7 +234,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
         provider: form.provider,
         apiKey: form.apiKey,
         baseUrl: form.baseUrl,
-        providerOptions: form.provider === "minimax" ? { region: form.minimaxRegion, credentialPlan: form.minimaxCredentialPlan } : undefined,
+        providerOptions: providerOptionsForForm(form),
         existingConnection: snapshot.profiles.find((profile) => profile.id === form.id),
       });
       const models = result.models;
@@ -245,7 +270,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
         baseUrl: form.baseUrl,
         modelId: selectedTestModelId,
         label: form.label,
-        providerOptions: form.provider === "minimax" ? { region: form.minimaxRegion, credentialPlan: form.minimaxCredentialPlan } : undefined,
+        providerOptions: providerOptionsForForm(form),
         existingConnection: profile,
       });
       if (profile) await aiConnectionsRepository.updateTestStatus(profile.id, "success", "连接成功");
@@ -317,6 +342,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
   const editableContracts = providerContracts;
   const formCapabilities = contract.capabilities.filter((capability) => capabilityLabels[capability]);
   const selectedProfile = snapshot.profiles.find((profile) => profile.id === form.id);
+  const selectedCredentialHealth = selectedProfile ? credentialHealth[selectedProfile.id] : undefined;
 
   return (
     <section className={`ai-connections-compact ${compactStyles.connectionSection} ${compactStyles.connectionLayout}`}>
@@ -341,7 +367,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
           <label>厂商<ProviderSelect value={form.provider} providers={editableContracts.map((item) => item.provider)} onChange={selectProvider} /></label>
         </div>
 
-        <details className="ai-connection-advanced">
+        <details ref={advancedSettingsRef} className="ai-connection-advanced">
           <summary>高级设置</summary>
           <div className="mt-4 grid gap-4">
             <label className="ui-field">连接名称<input className="ui-input" value={form.label} onChange={(event) => setForm({ ...form, label: event.currentTarget.value })} /></label>
@@ -352,7 +378,9 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
             </div> : null}
             {form.provider === "azure" ? <label className="ui-field">语音语言<input className="ui-input" value={form.language} onChange={(event) => setForm({ ...form, language: event.currentTarget.value })} /></label> : null}
             {form.provider === "custom" ? <fieldset><legend className="text-sm font-semibold">连接能力</legend><div className="mt-2 flex flex-wrap gap-4">{formCapabilities.map((capability) => <label key={capability} className="inline-flex items-center gap-2 text-sm text-muted"><input checked={form.capabilities.includes(capability)} className="ui-checkbox" type="checkbox" onChange={() => toggleCapability(capability)} />{capabilityLabels[capability]}</label>)}</div></fieldset> : null}
-            <label className="ui-field">API Key<input className="ui-input" type="password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={form.id ? "留空保留原 Key" : form.provider === "custom" ? "无鉴权服务可留空" : "填写 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.currentTarget.value })} /></label>
+            {form.provider === "custom" ? <label className="inline-flex items-start gap-2 text-sm text-muted"><input checked={form.allowPrivateNetwork} className="ui-checkbox mt-0.5" type="checkbox" onChange={(event) => setForm({ ...form, allowPrivateNetwork: event.currentTarget.checked })} /><span>允许访问局域网地址<small className="block">仅用于你信任的本地模型服务；云元数据和链路本地地址仍会被阻止。</small></span></label> : null}
+            <label className="ui-field">API Key<input className="ui-input" type="password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={form.id && selectedCredentialHealth?.status === "reentry_required" ? "请重新输入 API Key" : form.id ? "留空保留原 Key" : form.provider === "custom" ? "无鉴权服务可留空" : "填写 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.currentTarget.value })} /></label>
+            {selectedCredentialHealth?.status === "reentry_required" ? <div className={compactStyles.credentialRecovery} role="alert"><strong>凭据需要重新输入</strong><span>{selectedCredentialHealth.message}</span></div> : null}
           </div>
         </details>
 
@@ -396,11 +424,11 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
                     <span><strong>{getProviderContract(profile.provider).label}</strong><small>{profile.label}</small></span>
                   </button>
                   <code className={compactStyles.connectionUrl}>{profile.baseUrl}</code>
-                  <span className={compactStyles.connectionStatus} data-status={profile.testStatus ?? "saved"}>{statusLabel(profile)}</span>
+                  <span className={compactStyles.connectionStatus} data-status={credentialHealth[profile.id]?.status === "reentry_required" ? "failed" : profile.testStatus ?? "saved"}>{credentialHealth[profile.id]?.status === "reentry_required" ? "需要重新输入" : statusLabel(profile)}</span>
                   <span className="text-xs text-muted">{profile.testStatus && profile.testStatus !== "idle" ? formatConnectionDate(profile.updatedAt) : "尚未测试"}</span>
                   <div className={compactStyles.connectionActions}>
-                    <Button size="sm" variant="ghost" onClick={() => editProfile(profile)}>编辑</Button>
-                    <Button size="sm" variant="ghost" disabled={Boolean(busyAction)} onClick={() => void testSavedProfile(profile)}>{busyAction === `test:${profile.id}` ? "测试中" : "测试"}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => editProfile(profile)}>{credentialHealth[profile.id]?.status === "reentry_required" ? "重新输入密钥" : "编辑"}</Button>
+                    <Button size="sm" variant="ghost" disabled={Boolean(busyAction) || credentialHealth[profile.id]?.status === "reentry_required"} onClick={() => void testSavedProfile(profile)}>{busyAction === `test:${profile.id}` ? "测试中" : "测试"}</Button>
                     <Button size="sm" variant="danger" onClick={() => void removeProfile(profile)}>删除</Button>
                   </div>
               </article>
@@ -409,10 +437,10 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
           {selectedProfile ? (
             <div className={compactStyles.connectionDetails} aria-label={`${selectedProfile.label}连接详情`}>
               <div><span>连接名称</span><strong>{selectedProfile.label}</strong></div>
-              <div><span>鉴权状态</span><strong>{statusLabel(selectedProfile)}</strong></div>
+              <div><span>鉴权状态</span><strong>{selectedCredentialHealth?.status === "reentry_required" ? "凭据需要重新输入" : statusLabel(selectedProfile)}</strong></div>
               <div><span>Base URL</span><code>{selectedProfile.baseUrl}</code></div>
               <div><span>最近测试</span><strong>{selectedProfile.testStatus && selectedProfile.testStatus !== "idle" ? formatConnectionDate(selectedProfile.updatedAt) : "尚未测试"}</strong></div>
-              <p>密钥仅保存在本机加密仓储，此处不会显示或复制。</p>
+              <p>{selectedCredentialHealth?.status === "reentry_required" ? selectedCredentialHealth.message : "密钥仅保存在本机加密仓储，此处不会显示或复制。"}</p>
             </div>
           ) : null}
       </section>

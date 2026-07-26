@@ -9,8 +9,8 @@ import {
   apiJsonResponse,
   createRequestId,
   readRouteJson,
-  validateOutboundHttpUrl,
 } from "../../../server/http/route-security.ts";
+import { networkPolicyFromProviderOptions, validateOutboundNetworkTarget } from "../../../server/http/outbound-network-policy.ts";
 
 const MAX_GENERATE_REQUEST_BYTES = 20 * 1024 * 1024;
 
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
         requestId,
       );
     }
-    validateOutboundHttpUrl(body.baseUrl);
+    await validateOutboundNetworkTarget(body.baseUrl, networkPolicyFromProviderOptions(body.providerOptions));
     const adapter = getProviderAdapter(body.provider);
     const executed = await executeProviderGenerate(body, { signal: request.signal });
     const effectiveBody = executed.body;

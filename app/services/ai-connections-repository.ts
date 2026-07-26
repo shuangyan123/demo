@@ -2,7 +2,7 @@ import { reviewDb } from "../db/review-db.ts";
 import { toISODate } from "../lib/review-utils.ts";
 import type { AiConnectionDefaults, AiConnectionPurpose, AiConnectionSnapshot, AiCapability, ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 import type { ApiProvider } from "../types/domains/ai-provider.ts";
-import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
+import { CredentialSecurityError, decryptSecret, encryptSecret, maskSecret, type CredentialSecurityErrorCode } from "./crypto-service.ts";
 import { getProviderContract, getProviderModelCatalog } from "./provider-contracts.ts";
 import { createProfileFromLegacySetting } from "./legacy-ai-settings-migration.ts";
 import { inferMiniMaxRegion, normalizeMiniMaxAnthropicBaseUrl } from "./minimax-connection.ts";
@@ -19,6 +19,10 @@ export type SaveConnectionInput = {
   providerOptions?: Record<string, string>;
   today: Date;
 };
+
+export type ConnectionCredentialHealth =
+  | { status: "ready" }
+  | { status: "reentry_required"; code: CredentialSecurityErrorCode; message: string };
 
 // 创建尚未分配任何连接的默认能力映射。
 function emptyDefaults(today: Date): AiConnectionDefaults {
@@ -107,6 +111,24 @@ async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, 
 }
 
 export const aiConnectionsRepository = {
+  /** 只验证凭据可解密性并立即丢弃明文，供设置页展示可恢复状态。 */
+  async inspectCredentialHealth(profile: ApiConnectionProfile): Promise<ConnectionCredentialHealth> {
+    try {
+      await ensureStoredSecretsMigrated();
+      await decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
+      return { status: "ready" };
+    } catch (error) {
+      if (error instanceof CredentialSecurityError) {
+        return { status: "reentry_required", code: error.code, message: error.message };
+      }
+      return {
+        status: "reentry_required",
+        code: "ciphertext_invalid",
+        message: "本机凭据校验失败，请重新输入后保存",
+      };
+    }
+  },
+
   // 读取全部连接和能力默认值；若升级过程只留下旧表，则补做一次运行时兼容迁移。
   async loadSnapshot(today = new Date()): Promise<AiConnectionSnapshot> {
     await ensureStoredSecretsMigrated();

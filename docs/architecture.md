@@ -354,3 +354,12 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `AssistantMarkdown` 是历史消息与流式草稿的唯一 AI 正文展示边界；`react-markdown` 与 `remark-gfm` 只处理受限语法，不使用 `dangerouslySetInnerHTML`。
 - `ConversationReasoningControl` 位于模型选择旁，局部预览滑杆值，仅在指针释放、键盘操作结束或失焦时复用会话级串行乐观保存。速度设置仍留在模型菜单，持久化结构保持 `selectedRuntimeValues`。
 - 对话树右键和省略号都锚定当前行操作按钮；桌面执行同一视口碰撞修正，移动端继续复用同一底部操作层和行内重命名输入。
+
+## 全应用单色交互与安全收口（2026-07-26）
+
+- 共享样式新增 `interactive-primary`、`interactive-selected`、`interactive-hover`、`interactive-pressed` 与 `focus-ring` 中性令牌。主操作使用前景/表面反色，选择依赖中性底色、字重和勾选，键盘焦点仅通过 `:focus-visible` 高对比外轮廓表达；品牌资产、学习链路和数值图表继续使用各自的数据色。
+- 对话树操作状态仍归 `ConversationFolderTree` 所有。右键与省略号解析同一行操作按钮矩形；桌面一级菜单固定 208px 并优先位于锚点右侧 8px，移动二级菜单固定 224px 并独立碰撞翻转；移动端将相同状态投影为带返回按钮的两级底部层。
+- 安全密钥库把“读取”与“创建”拆开。解密只调用 `readSecurePrimaryKey()`，缺失、损坏、旧 JWK 异常和密文/AAD 校验失败分别映射为稳定的 `CredentialSecurityError`，不会为不可解密记录生成新钥匙。
+- 安全导出升级为 `LocalDataExportV2`，采用显式表允许清单和递归敏感字段清理。旧 AI 设置、Vault 目录配置、密文、IV、掩码 Key、Token、Cookie 与厂商原始响应不进入导出；连接只保留非敏感元数据并标为 `reconfigure_required`。新增表默认不导出。
+- 出站策略默认允许公网 HTTPS 与 loopback，RFC1918/ULA 必须由自定义连接或 MCP 的 `allowPrivateNetwork` 明确授权；云元数据、链路本地、未指定、多播和 URL 内嵌凭据始终拒绝。服务端检查全部 DNS 结果，并以 `redirect: "error"` 拒绝未复核跳转。
+- 完整重置关闭并删除 `review_workspace`、扩展数据库和独立安全密钥库，同时清理本应用 `review*` localStorage 键；数据库占用会返回可恢复提示。业务库继续保持 Dexie v16，低频动态加载边界不变。

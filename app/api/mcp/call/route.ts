@@ -1,7 +1,7 @@
 import { toMcpError, withMcpClient } from "../../../server/mcp/client";
 import { apiErrorResponse, apiJsonResponse, readRouteJson } from "../../../server/http/route-security.ts";
 
-type CallRequest = { endpoint?: string; token?: string; tool?: string; arguments?: Record<string, unknown> };
+type CallRequest = { endpoint?: string; token?: string; allowPrivateNetwork?: boolean; tool?: string; arguments?: Record<string, unknown> };
 const MAX_RESPONSE_CHARS = 32_000;
 
 /** 调用单个 MCP 工具；响应体设定预算，原始结果只在当前请求内存在。 */
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     if (!body.endpoint || !body.tool) {
       return apiErrorResponse(undefined, { code: "invalid_mcp_call", message: "缺少 MCP endpoint 或工具名称", status: 400 });
     }
-    const result = await withMcpClient({ endpoint: body.endpoint, token: body.token }, (client) => client.callTool({
+    const result = await withMcpClient({ endpoint: body.endpoint, token: body.token, allowPrivateNetwork: body.allowPrivateNetwork }, (client) => client.callTool({
       name: body.tool!,
       arguments: body.arguments ?? {},
     }));

@@ -93,9 +93,11 @@ input[type="range"] {
   min-width: 0;
 }
 
-input:not(.settings-input):not(.contrast-slider):not(.ui-input):focus,
-select:not(.settings-select):not(.ui-select):focus,
-textarea:not(.ui-textarea):focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.14);
+input:not(.settings-input):not(.contrast-slider):not(.ui-input):focus-visible,
+select:not(.settings-select):not(.ui-select):focus-visible,
+textarea:not(.ui-textarea):focus-visible {
+  border-color: var(--line);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: none;
 }

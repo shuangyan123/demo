@@ -44,6 +44,7 @@ export class HttpProviderTransport implements ProviderTransport {
       headers: request.headers,
       body: JSON.stringify(request.body),
       cache: "no-store",
+      redirect: "error",
       signal: timeoutSignal(context?.signal),
     });
   }
@@ -60,6 +61,7 @@ export class HttpProviderTransport implements ProviderTransport {
     return this.fetcher(input.url, {
       headers: input.headers,
       cache: "no-store",
+      redirect: "error",
       signal: timeoutSignal(input.signal),
     });
   }

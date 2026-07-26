@@ -91,7 +91,7 @@
 
 .learning-list-row:hover,
 .learning-list-row[data-active="true"] {
-  background: color-mix(in srgb, var(--blue) 6%, var(--surface));
+  background: var(--interactive-selected-bg);
 }
 
 .learning-list-row button {
@@ -337,7 +337,7 @@
   gap: 0.4rem;
   border-radius: 0.55rem;
   padding: 0 0.7rem;
-  color: var(--blue);
+  color: var(--foreground);
   font-size: 0.82rem;
   white-space: nowrap;
 }
@@ -348,7 +348,7 @@
 
 .dashboard-configuration-health > summary:hover,
 .dashboard-configuration-health[open] > summary {
-  background: color-mix(in srgb, var(--blue) 7%, transparent);
+  background: var(--interactive-hover-bg);
 }
 
 .dashboard-configuration-health > summary svg {
@@ -415,9 +415,9 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 1rem;
-  border: 1px solid color-mix(in srgb, var(--blue) 25%, var(--line));
+  border: 1px solid var(--line);
   border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--blue) 2.5%, var(--surface));
+  background: var(--surface);
   padding: 1.15rem 1.3rem;
 }
 
@@ -427,8 +427,8 @@
   height: 2.75rem;
   place-items: center;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--blue) 12%, var(--surface));
-  color: var(--blue);
+  background: var(--interactive-selected-bg);
+  color: var(--foreground);
 }
 
 .dashboard-next-action h2 {
@@ -696,7 +696,7 @@ body[data-theme="dark"] {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+  background: var(--interactive-selected-bg);
   padding: 0 1.75rem;
   color: var(--foreground);
 }
@@ -784,11 +784,11 @@ body[data-theme="dark"] .ui-detail-content {
   padding: 0.625rem 0.75rem;
 }
 
-.ui-input:focus,
-.ui-select:focus,
-.ui-textarea:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+.ui-input:focus-visible,
+.ui-select:focus-visible,
+.ui-textarea:focus-visible {
+  border-color: var(--line);
+  box-shadow: none;
 }
 
 .ui-button {
@@ -822,22 +822,22 @@ body[data-theme="dark"] .ui-detail-content {
 }
 
 .ui-button-primary {
-  background: var(--blue);
-  color: #ffffff;
+  background: var(--interactive-primary-bg);
+  color: var(--interactive-primary-fg);
 }
 
 .ui-button-primary:hover {
-  background: color-mix(in srgb, var(--blue) 88%, #000 12%);
+  background: color-mix(in srgb, var(--interactive-primary-bg) 86%, var(--surface) 14%);
 }
 
 .ui-button-soft {
-  border-color: color-mix(in srgb, var(--blue) 22%, transparent);
-  background: color-mix(in srgb, var(--blue) 10%, transparent);
-  color: var(--blue);
+  border-color: var(--line);
+  background: var(--interactive-selected-bg);
+  color: var(--foreground);
 }
 
 .ui-button-soft:hover {
-  background: color-mix(in srgb, var(--blue) 15%, transparent);
+  background: var(--interactive-pressed-bg);
 }
 
 .ui-button-outline {
@@ -848,9 +848,9 @@ body[data-theme="dark"] .ui-detail-content {
 
 .ui-button-outline:hover,
 .ui-button-ghost:hover {
-  border-color: color-mix(in srgb, var(--blue) 28%, var(--line));
-  background: color-mix(in srgb, var(--blue) 6%, var(--surface));
-  color: var(--blue);
+  border-color: var(--line);
+  background: var(--interactive-hover-bg);
+  color: var(--foreground);
 }
 
 .ui-button-danger {
@@ -881,7 +881,7 @@ body[data-theme="dark"] .ui-detail-content {
 .ui-input:focus-visible,
 .ui-select:focus-visible,
 .ui-textarea:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--blue) 38%, transparent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -895,13 +895,13 @@ body[data-theme="dark"] .ui-detail-content {
 }
 
 .ui-list-row:hover {
-  border-color: color-mix(in srgb, var(--blue) 28%, rgba(226, 232, 240, 0.9));
-  background: color-mix(in srgb, var(--blue) 5%, var(--surface));
+  border-color: var(--line);
+  background: var(--interactive-hover-bg);
 }
 
 .ui-list-row-active {
-  border-color: color-mix(in srgb, var(--blue) 30%, transparent);
-  background: color-mix(in srgb, var(--blue) 10%, transparent);
+  border-color: var(--line);
+  background: var(--interactive-selected-bg);
 }
 
 .ui-toolbar {
@@ -940,8 +940,8 @@ body[data-theme="dark"] .ui-detail-content {
 }
 
 .ui-segmented-tab-active {
-  border-bottom-color: var(--blue);
-  color: var(--blue);
+  border-bottom-color: var(--foreground);
+  color: var(--foreground);
 }
 
 .settings-section-enter {
@@ -1152,8 +1152,8 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 }
 
 .conversation-message.is-user .conversation-message-bubble {
-  border-color: color-mix(in srgb, var(--blue) 20%, var(--line));
-  background: color-mix(in srgb, var(--blue) 7%, var(--surface));
+  border-color: var(--line);
+  background: var(--interactive-selected-bg);
 }
 
 .conversation-message.is-assistant .conversation-message-bubble {
@@ -1320,7 +1320,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 }
 
 .conversation-tool-summary.is-running summary {
-  color: var(--blue);
+  color: var(--foreground);
 }
 
 .conversation-tool-summary-icon {
@@ -1560,9 +1560,9 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   gap: 12px;
   margin: 12px 18px 0;
   padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--color-blue) 28%, var(--color-line));
+  border: 1px solid var(--color-line);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--color-blue) 5%, var(--color-surface));
+  background: var(--interactive-selected-bg);
 }
 
 .conversation-context-bar span,
@@ -1588,7 +1588,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .learning-explorer-header > div:last-child { display: flex; gap: 8px; }
 .learning-explorer-tabs { display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid var(--color-line); }
 .learning-explorer-tabs button { min-height: 40px; padding: 0 14px; border-bottom: 2px solid transparent; color: var(--color-muted); font-size: 13px; font-weight: 600; }
-.learning-explorer-tabs button.is-active { border-color: var(--color-blue); color: var(--color-blue); }
+.learning-explorer-tabs button.is-active { border-color: var(--color-foreground); color: var(--color-foreground); }
 .learning-explorer-tabs span { margin-left: 5px; font-size: 11px; }
 .learning-explorer-scope { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 10px 24px; border-bottom: 1px solid var(--color-line); background: color-mix(in srgb, var(--color-background) 55%, white); }
 .learning-explorer-scope > label { display: flex; flex: 1; align-items: center; gap: 8px; max-width: 360px; padding: 0 10px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); }
@@ -1596,7 +1596,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .learning-filters { display: flex; align-items: center; gap: 8px; }
 .learning-filters label { display: flex; align-items: center; gap: 6px; color: var(--color-muted); font-size: 12px; }
 .learning-filters select { min-height: 34px; padding: 0 28px 0 9px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); color: var(--color-foreground); font-size: 12px; }
-.learning-filters button, .learning-filter-trigger { min-height: 34px; padding: 0 10px; color: var(--color-blue); font-size: 12px; }
+.learning-filters button, .learning-filter-trigger { min-height: 34px; padding: 0 10px; color: var(--color-foreground); font-size: 12px; }
 .learning-filter-trigger { display: none; align-items: center; gap: 6px; border: 1px solid var(--color-line); border-radius: 6px; }
 .learning-explorer-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 36%); min-height: 560px; }
 .learning-record-list { min-width: 0; border-right: 1px solid var(--color-line); }
@@ -1604,7 +1604,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .learning-record-head { min-height: 38px; border-bottom: 1px solid var(--color-line); color: var(--color-muted); font-size: 11px; }
 .learning-record-row { min-height: 60px; border-bottom: 1px solid color-mix(in srgb, var(--color-line) 72%, transparent); font-size: 12px; }
 .learning-record-row:hover { background: var(--color-chrome-hover); }
-.learning-record-row.is-selected { background: color-mix(in srgb, var(--color-blue) 7%, var(--color-surface)); box-shadow: inset 3px 0 var(--color-blue); }
+.learning-record-row.is-selected { background: var(--interactive-selected-bg); box-shadow: inset 3px 0 var(--color-foreground); }
 .learning-record-row strong, .learning-record-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .learning-record-row small, .learning-record-row time { margin-top: 3px; color: var(--color-muted); font-size: 11px; }
 .learning-record-detail { position: relative; padding: 22px; overflow-y: auto; }
@@ -1755,9 +1755,9 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 .conversation-folder-tree-create button {
   border-radius: 0.4rem;
-  background: var(--blue);
+  background: var(--interactive-primary-bg);
   padding: 0.25rem 0.5rem;
-  color: white;
+  color: var(--interactive-primary-fg);
   font-size: 0.75rem;
 }
 
@@ -1910,7 +1910,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   width: 1rem;
   height: 1rem;
   border-radius: 0.25rem;
-  accent-color: var(--blue);
+  accent-color: var(--foreground);
 }
 
 .ui-checkbox-row {
@@ -2217,7 +2217,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 .ui-timer-segment button:hover,
 .ui-timer-chip:hover {
-  background: color-mix(in srgb, var(--blue) 8%, transparent);
+  background: var(--interactive-hover-bg);
   color: var(--foreground);
 }
 

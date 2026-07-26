@@ -1132,6 +1132,8 @@ export type McpServerProfile = {
   endpoint: string;
   enabled: boolean;
   authMode: "none" | "bearer";
+  /** 局域网服务必须由用户显式允许；链路本地和云元数据地址始终禁止。 */
+  allowPrivateNetwork?: boolean;
   /** Bearer Token 仅在设置仓储中加密保存，普通快照永不返回明文。 */
   encryptedToken?: string;
   encryptedTokenIv?: string;

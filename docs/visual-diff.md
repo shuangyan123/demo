@@ -45,3 +45,23 @@
 - `automation-center-desktop.png`
 - `automation-center-mobile.png`
 - `persona-blank-card-no-text.png`
+
+## 2026-07-26 单色 UI 与安全收口
+
+已确认 P0–P3 信息架构继续作为基线，本轮仅统一交互语言并补齐对话树两级菜单：
+
+- 桌面一级菜单锚定当前树行右侧，使用 208px 图标+文字列表；“移动到”在右侧打开 224px 文件夹列表，当前目录使用中性勾选。
+- 移动端沿用单一底部层，二级目标列表提供返回和关闭；不在窄屏复用桌面绝对坐标。
+- 主按钮、选择、焦点、页签、Toggle 与 Slider 不再使用蓝色；学习链路、数值图表、品牌和红绿黄语义状态保持原编码。
+- 插件主从结构、设置密度、总览链路和工作区共边与已确认稿一致；未引入阴影高光、蓝紫渐变、Glow 或背景光晕。
+
+本轮归档截图：
+
+- `docs/design/security-ui-unification/dashboard-desktop-light-1536x1024.png`
+- `docs/design/security-ui-unification/conversation-menu-desktop-light-1536x1024.png`
+- `docs/design/security-ui-unification/conversation-move-submenu-desktop-light-1536x1024.png`
+- `docs/design/security-ui-unification/conversation-menu-mobile-light-390x844.png`
+- `docs/design/security-ui-unification/conversation-move-mobile-light-390x844.png`
+- `docs/design/security-ui-unification/plugins-focus-desktop-light-1536x1024.png`
+- `docs/design/security-ui-unification/settings-appearance-desktop-dark-1536x1024.png`
+- `docs/design/security-ui-unification/settings-appearance-mobile-dark-390x844.png`

@@ -11,7 +11,7 @@ import {
   encryptSecret,
   LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME,
 } from "./crypto-service.ts";
-import { getOrCreateSecurePrimaryKey, resetSecureKeyStoreForTests } from "./secure-key-store.ts";
+import { getOrCreateSecurePrimaryKey, readSecurePrimaryKey, resetSecureKeyStoreForTests } from "./secure-key-store.ts";
 import { secretContext } from "./secret-context.ts";
 import { ensureStoredSecretsMigrated, resetSecretMigrationForTests } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
@@ -72,6 +72,20 @@ test("v2 主密钥不可导出且 AAD 不允许跨记录解密", async () => {
     decryptSecret(encrypted.encryptedKey, encrypted.iv, secretContext.aiConnection("two")),
     /重新输入/,
   );
+});
+
+test("v2 主密钥丢失时解密不会静默创建不匹配的新密钥", async () => {
+  const encrypted = await encryptSecret("secret-value", secretContext.aiConnection("one"));
+  await resetSecureKeyStoreForTests();
+
+  await assert.rejects(
+    decryptSecret(encrypted.encryptedKey, encrypted.iv, secretContext.aiConnection("one")),
+    (error: unknown) => error instanceof Error
+      && error.name === "CredentialSecurityError"
+      && "code" in error
+      && error.code === "secure_key_missing",
+  );
+  assert.equal(await readSecurePrimaryKey(), undefined);
 });
 
 test("共享旧 JWK 的全部凭据可恢复迁移，完成后才删除旧主密钥", async () => {

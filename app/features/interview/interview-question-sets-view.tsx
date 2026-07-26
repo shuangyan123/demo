@@ -80,7 +80,7 @@ export function InterviewQuestionSetsView({
                 <article key={set.id} className="ui-card ui-card-muted">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-blue">{set.type === "mixed" ? "混合训练" : interviewTypeLabels[set.type]}</p>
+                      <p className="text-sm font-bold text-foreground">{set.type === "mixed" ? "混合训练" : interviewTypeLabels[set.type]}</p>
                       <h3 className="mt-1 text-lg font-extrabold">{set.title}</h3>
                       <p className="mt-2 text-sm leading-6 text-muted">{set.description || "暂无说明"}</p>
                       <p className="mt-2 text-xs font-bold text-muted">包含 {set.questionIds.length} 道题</p>

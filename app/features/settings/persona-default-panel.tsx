@@ -53,7 +53,7 @@ export function PersonaDefaultPanel({
           return (
             <article
               key={persona.id}
-              className={`persona-default-persona grid min-h-16 grid-cols-[1fr_auto] items-center gap-1 rounded-xl border p-1.5 ${selected ? "border-blue bg-surface-muted" : "border-line"}`}
+              className={`persona-default-persona grid min-h-16 grid-cols-[1fr_auto] items-center gap-1 rounded-xl border p-1.5 ${selected ? "border-foreground bg-[var(--interactive-selected-bg)]" : "border-line"}`}
             >
               <button className="grid min-w-0 grid-cols-[42px_1fr] items-center gap-2 rounded-lg p-1 text-left hover:bg-surface" type="button" onClick={() => onEdit(persona.id)}>
                 <span className="relative h-[42px] w-[42px] overflow-hidden rounded-full border border-line bg-surface-muted">
@@ -61,7 +61,7 @@ export function PersonaDefaultPanel({
                 </span>
                 <span className="min-w-0"><strong className="block truncate text-sm">{persona.name}</strong><span className="mt-1 block truncate text-xs text-muted">{persona.role}</span></span>
               </button>
-              <button className={`persona-default-select rounded-lg px-2.5 py-2 text-xs ${selected ? "text-blue" : "text-muted"}`} type="button" onClick={() => onDefaultChange(persona.id)}>
+              <button className={`persona-default-select rounded-lg px-2.5 py-2 text-xs ${selected ? "font-semibold text-foreground" : "text-muted"}`} type="button" onClick={() => onDefaultChange(persona.id)}>
                 {selected ? "当前" : "设为默认"}
               </button>
             </article>

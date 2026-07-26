@@ -37,10 +37,10 @@ export function InterviewOverview({
     <div className="grid gap-5">
       <Panel eyebrow="OVERVIEW" title="面试训练总览">
         <StatGrid>
-          <MetricCard label="题库总量" value={questions.length} hint="本地面试题" tone="text-blue" />
+          <MetricCard label="题库总量" value={questions.length} hint="本地面试题" tone="text-foreground" />
           <MetricCard label="收藏题目" value={favoriteCount} hint="可优先加入计划" tone="text-yellow" />
           <MetricCard label="训练计划" value={activePlans.length} hint="正在推进" tone="text-green" />
-          <MetricCard label="模拟记录" value={sessions.length} hint="只保存文字稿" tone="text-blue" />
+          <MetricCard label="模拟记录" value={sessions.length} hint="只保存文字稿" tone="text-foreground" />
           <MetricCard label="平均评分" value={averageScore || "-"} hint="已评分会话" tone="text-red" />
         </StatGrid>
         <div className="mt-5 flex flex-wrap gap-2">

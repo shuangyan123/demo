@@ -41,7 +41,7 @@
 }
 
 .timer strong {
-  color: var(--blue);
+  color: var(--foreground);
   font-size: 1.75rem;
 }
 
@@ -98,7 +98,7 @@
 }
 
 .transcript article[data-candidate="true"] strong {
-  color: var(--blue);
+  color: var(--foreground);
 }
 
 .transcript article small {
@@ -185,8 +185,8 @@
 }
 
 .review {
-  border-left: 3px solid var(--blue);
-  background: color-mix(in srgb, var(--blue) 5%, var(--surface));
+  border-left: 3px solid var(--foreground);
+  background: var(--interactive-selected-bg);
   padding: 1rem;
 }
 
