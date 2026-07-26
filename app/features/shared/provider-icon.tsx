@@ -6,6 +6,24 @@ import { getProviderBranding } from "../../services/provider-branding";
 export function ProviderIcon({ provider, size = 24 }: { provider: ApiProvider; size?: number }) {
   const branding = getProviderBranding(provider);
   if (branding.iconPath) {
+    if (branding.renderMode === "mask") {
+      return (
+        <span
+          aria-hidden="true"
+          className="provider-icon shrink-0"
+          data-render-mode="mask"
+          data-theme-variant={branding.themeVariant}
+          style={{
+            width: size,
+            height: size,
+            backgroundColor: branding.color,
+            WebkitMask: `url("${branding.iconPath}") center / contain no-repeat`,
+            mask: `url("${branding.iconPath}") center / contain no-repeat`,
+          }}
+          title={branding.label}
+        />
+      );
+    }
     return (
       <span
         aria-hidden="true"

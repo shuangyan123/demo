@@ -155,6 +155,29 @@ body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame
 
 /* 桌面抬升面已自行绘制左侧边缘，移除侧栏直线边框，避免它从两个圆角旁露出。 */
 @media (min-width: 1025px) {
+  /* 设置页展开态采用 Codex 式融合：左侧 chrome 覆盖全高，主区直接抬升到窗口顶边。 */
+  .chrome-shell[data-integration-mode="settings"] > .chrome-topbar {
+    position: absolute;
+    z-index: 40;
+    top: 0;
+    left: 0;
+    width: var(--chrome-sidebar-width);
+    background-color: var(--chrome-sidebar-bg);
+  }
+
+  .chrome-shell[data-integration-mode="settings"] > .chrome-layout {
+    height: 100dvh;
+  }
+
+  .chrome-shell[data-integration-mode="settings"] .chrome-layout.is-sidebar-expanded .chrome-sidebar {
+    padding-top: calc(var(--chrome-topbar-height) + 1rem) !important;
+  }
+
+  .chrome-shell[data-integration-mode="settings"] .chrome-layout.is-sidebar-collapsed .chrome-content-frame,
+  .chrome-shell[data-integration-mode="settings"] .chrome-layout.is-sidebar-collapsed .chrome-content {
+    border-radius: 0;
+  }
+
   .chrome-layout.is-sidebar-expanded .chrome-sidebar {
     border-inline-end-width: 0;
     border-right-width: 0;

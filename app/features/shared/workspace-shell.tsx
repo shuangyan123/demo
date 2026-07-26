@@ -62,6 +62,7 @@ export function WorkspaceShell({
   sidebar,
   sidebarClassName = "",
   sidebarCollapsed,
+  integrationMode = "standard",
   title,
   onBack,
   onToggleSidebar,
@@ -72,6 +73,7 @@ export function WorkspaceShell({
   sidebar: ReactNode;
   sidebarClassName?: string;
   sidebarCollapsed: boolean;
+  integrationMode?: "standard" | "settings";
   title: string;
   onBack?: () => void;
   onToggleSidebar: () => void;
@@ -145,7 +147,7 @@ export function WorkspaceShell({
   }, [isMobile]);
 
   return (
-    <div className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+    <div className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground" data-integration-mode={integrationMode}>
       <WindowMenuBar
         sidebarButtonRef={sidebarButtonRef}
         sidebarCollapsed={effectiveCollapsed}
@@ -155,6 +157,7 @@ export function WorkspaceShell({
       />
       <div
         className={`chrome-layout ${sidebarStateClass} min-h-0 flex-1`}
+        data-integration-mode={integrationMode}
         data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
         data-mobile-sidebar={mobileSidebarOpen ? "open" : "closed"}
       >

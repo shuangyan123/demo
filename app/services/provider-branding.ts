@@ -17,6 +17,7 @@ export type ProviderBranding = {
   themeVariant?: "single" | "adaptive";
   verifiedAt: string;
   licenseNote: string;
+  renderMode?: "image" | "mask";
 };
 
 const VERIFIED_AT = "2026-07-15";
@@ -32,6 +33,7 @@ type LobeBrandInput = {
   mark: string;
   color: string;
   adaptive?: boolean;
+  renderMode?: "image" | "mask";
 };
 
 /** 创建固定版本的本地 Lobe Icons 登记，禁止运行时访问 CDN。 */
@@ -49,6 +51,7 @@ function lobeBrand(input: LobeBrandInput): ProviderBranding {
     themeVariant: input.adaptive ? "adaptive" : "single",
     verifiedAt: VERIFIED_AT,
     licenseNote: LOBE_LICENSE,
+    renderMode: input.renderMode ?? "image",
   };
 }
 
@@ -70,7 +73,7 @@ export const providerBranding: Record<ApiProvider, ProviderBranding> = {
   openai: lobeBrand({ label: "OpenAI", slug: "openai", checksum: "a595df6b423920c67a7f8f73c063e4bfb72d415948097b6cac063a2366bb5186", mark: "OA", color: "#111111", adaptive: true }),
   azure_openai: lobeBrand({ label: "Azure OpenAI", slug: "azureai-color", checksum: "89bef85d67f45984dba85f8d7e6a8ed91585f706c43f7236a89590d8f4940fde", mark: "Az", color: "#0078d4" }),
   google: lobeBrand({ label: "Google Gemini", slug: "gemini-color", checksum: "8ab0a9bafec11f7e69bcb9fc4ffd8f1bc927d1ddcbbb6ff36dee5ae8b5a9d602", mark: "G", color: "#8e75b2" }),
-  anthropic: lobeBrand({ label: "Anthropic Claude", slug: "claude", checksum: "365a70a7eb3956d9b9a96086058ebe04e1dbd8e291a756ad964e8a283fbd6d38", mark: "A", color: "#d97757", adaptive: true }),
+  anthropic: lobeBrand({ label: "Anthropic Claude", slug: "claude", checksum: "365a70a7eb3956d9b9a96086058ebe04e1dbd8e291a756ad964e8a283fbd6d38", mark: "A", color: "#d97757", adaptive: true, renderMode: "mask" }),
   xai: lobeBrand({ label: "xAI Grok", slug: "xai", checksum: "89eb7de9f0d02a41cfecd9109e253d7fd3529e27467dee4254faa67f3ac21451", mark: "x", color: "#111111", adaptive: true }),
   deepseek: lobeBrand({ label: "DeepSeek", slug: "deepseek-color", checksum: "deba5f98a5c1796e20fcac3149bcd7eb8a32f0bdd04d048819400b1f28bd1439", mark: "D", color: "#5786fe" }),
   qwen: lobeBrand({ label: "Qwen", slug: "qwen-color", checksum: "77f5768c66d08ce1d3d14e73373975c1bc0454be88c81523ddd0ffd7e2974029", mark: "Q", color: "#615ced" }),
