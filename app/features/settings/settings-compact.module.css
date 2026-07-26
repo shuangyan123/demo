@@ -55,8 +55,8 @@
 }
 
 .connectionRow[data-selected="true"] {
-  background: color-mix(in srgb, var(--blue) 6%, var(--surface));
-  box-shadow: inset 3px 0 var(--blue);
+  background: var(--interactive-selected-bg);
+  box-shadow: inset 3px 0 var(--foreground);
 }
 
 .connectionIdentity {
@@ -79,6 +79,20 @@
 .connectionStatus { color: var(--muted); font-size: .75rem; }
 .connectionStatus[data-status="success"] { color: var(--green); }
 .connectionStatus[data-status="failed"] { color: var(--red); }
+
+.credentialRecovery {
+  display: grid;
+  gap: .2rem;
+  border-radius: .55rem;
+  background: color-mix(in srgb, var(--red) 8%, var(--surface));
+  padding: .65rem .75rem;
+  color: var(--red);
+  font-size: .78rem;
+}
+
+.credentialRecovery span {
+  color: var(--muted);
+}
 .connectionActions { display: flex; justify-content: flex-end; gap: .15rem; }
 
 .connectionDetails {
@@ -169,7 +183,7 @@
 .select:focus-visible,
 .input:focus-visible,
 .iconButton:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--blue) 55%, transparent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 
@@ -218,7 +232,7 @@
 .providerCell:focus-visible svg:last-child { opacity: 1; }
 .providerCell strong, .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .statusDot { width: 0.45rem; height: 0.45rem; border-radius: 999px; background: var(--green); }
-.statusDot[data-tone="blue"] { background: var(--blue); }
+.statusDot[data-tone="blue"] { background: var(--foreground); }
 .statusDot[data-tone="yellow"] { background: var(--yellow); }
 .statusDot[data-tone="red"] { background: var(--red); }
 .muted { color: var(--muted); font-size: 0.75rem; }
