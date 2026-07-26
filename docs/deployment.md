@@ -57,3 +57,11 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 - 发布不新增环境变量，不允许把 `.env`、API Key、Token、浏览器配置或视觉验收临时目录提交到 Git。
 - 门禁固定执行 `typecheck`、`lint`、`test:contracts`、`build`、`check:bundle`、`audit:prod` 与桌面/移动 E2E。
 - 在 1536×1024 和 390×844、浅色与深色验证：Markdown 段落节奏、原始 HTML 静默跳过、模型旁推理滑杆、键盘与粗指针目标、操作菜单锚点、行内重命名、控制台、横向溢出和焦点恢复。
+
+# 单色 UI 与外联安全发布检查（2026-07-26）
+
+- 部署层不得放宽 CSP：`script-src-attr 'none'`、`frame-src 'none'`、`manifest-src 'self'` 和同源 `Cross-Origin-Resource-Policy` 必须保留；静态渲染、PDF 与 WASM 只保留当前构建实际需要的来源。
+- 公网 Provider 使用 HTTPS；loopback 可使用 HTTP(S)。局域网服务必须由连接或 MCP 逐项开启“允许本地网络”，反向代理和容器网络仍需额外阻止云元数据与内部管理网段。
+- 应用对 Provider/MCP 跳转采用失败关闭，不自动跟随重定向。DNS 全结果校验属于应用层防线；生产环境仍应以防火墙或 egress policy 限制元数据和管理网络，降低运行时解析与请求之间的基础设施风险。
+- 完整重置前关闭同源其他标签页；若密钥库或业务库被占用，界面会保留数据并提示关闭占用页面后重试。localhost、127.0.0.1 和不同端口继续是不同浏览器来源，凭据不会跨来源恢复。
+- 发布视觉证据保存在 `docs/design/security-ui-unification/`；不得将 `.playwright-results`、浏览器 profile、密钥、Token、Cookie 或 `.env*` 纳入提交。

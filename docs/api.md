@@ -288,3 +288,10 @@ P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controll
 - `encryptSecret` / `decryptSecret` 的内部调用必须提供稳定凭据上下文。`v2:` 密文用 AES-GCM AAD 绑定记录和字段，不能复制到另一连接、额度字段或凭据类型后继续解密。
 - 环境变量只允许显式 live test 使用；应用不得写 `.env` 或 `.env.local`，服务端日志、诊断、页面和 AI 活动不得输出明文、密文、IV 或主密钥。
 - AI 回复允许 GFM 粗体、段落、列表、引用和代码，但禁止原始 HTML 与可执行节点。链接在新窗口打开并使用 `noopener noreferrer`。
+
+## 安全导出与私网意图（2026-07-26）
+
+- 本轮不新增公开 HTTP 路由，也不改变 Provider 成功响应、SSE 事件或模型请求字段。`ApiConnectionProfile.providerOptions.allowPrivateNetwork` 与 `McpServerProfile.allowPrivateNetwork` 只表达服务端网络意图，不复制凭据到会话或响应。
+- 自定义 AI 连接和 MCP 可以显式允许 RFC1918/ULA 地址；loopback 维持默认可用。元数据、链路本地、未指定、多播、内嵌凭据和重定向继续被统一边界拒绝。
+- `LocalDataExportV2` 是新的受支持本地导出格式：`schemaVersion` 固定为 `2`，`credentialsExcluded` 固定为 `true`。连接元数据包含 `credentialStatus: "reconfigure_required"`，导入后必须重新配置凭据。
+- `CredentialSecurityError.code` 的内部稳定值为 `legacy_key_missing`、`legacy_key_invalid`、`secure_key_missing`、`secure_key_invalid` 和 `ciphertext_invalid`；公开 API 不透传浏览器密钥库对象、密文或底层异常。
