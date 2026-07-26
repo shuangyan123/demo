@@ -24,6 +24,14 @@
   padding-top: 1.25rem;
 }
 
+.connectionSaveRow {
+  display: flex;
+  min-height: 2.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+
 .connectionTable {
   margin-top: .75rem;
   overflow: hidden;

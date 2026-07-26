@@ -41,3 +41,12 @@ test("AI connection page excludes quota details and exposes transcription purpos
   assert.doesNotMatch(source, /额度与用量/);
   assert.doesNotMatch(source, /清空错题和导入记录/);
 });
+
+test("AI 连接保存反馈靠近提交按钮且切换厂商保留编辑记录", async () => {
+  const source = await readSource();
+  assert.match(source, /connectionSaveRow/);
+  assert.match(source, /role=\{feedback\.tone === "error" \? "alert" : "status"\}/);
+  assert.match(source, /id:\s*current\.id/);
+  assert.match(source, /切换厂商后必须重新输入 API Key/);
+  assert.match(source, /apiKeyInputRef\.current\?\.focus\(\)/);
+});

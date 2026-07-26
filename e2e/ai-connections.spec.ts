@@ -72,3 +72,43 @@ test("本机密钥库缺失时连接进入可恢复状态且重输只替换当�
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
+
+test("官方厂商保存反馈就近显示且切换厂商原地更新", async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "设置" }).first().click();
+  await page.getByRole("button", { name: "AI 连接" }).click();
+
+  const form = page.locator("form").filter({ has: page.getByRole("combobox", { name: "厂商" }) });
+  await form.getByRole("combobox", { name: "厂商" }).click();
+  await page.getByRole("option", { name: "Google Gemini" }).click();
+  await form.getByText("高级设置", { exact: true }).click();
+  await form.getByLabel("API Key").fill("e2e-google-secret-never-render");
+  await form.getByRole("button", { name: "保存连接" }).click();
+  await expect(form.getByRole("status")).toContainText("配置已保存");
+
+  await form.getByRole("combobox", { name: "厂商" }).click();
+  await page.getByRole("option", { name: "DeepSeek" }).click();
+  await form.getByRole("button", { name: "保存连接" }).click();
+  await expect(form.getByRole("alert")).toContainText("切换厂商后必须重新输入 API Key");
+  await expect(form.getByLabel("API Key")).toBeFocused();
+
+  await form.getByLabel("API Key").fill("e2e-deepseek-secret-never-render");
+  await form.getByRole("button", { name: "保存连接" }).click();
+  await expect(form.getByRole("status")).toContainText("配置已保存");
+  const profiles = await page.evaluate(async () => new Promise<Array<{ id: string; provider: string }>>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const all = request.result.transaction("apiConnectionProfiles", "readonly").objectStore("apiConnectionProfiles").getAll();
+      all.onerror = () => reject(all.error);
+      all.onsuccess = () => resolve(all.result.map(({ id, provider }) => ({ id, provider })));
+    };
+  }));
+  expect(profiles).toHaveLength(1);
+  expect(profiles[0].provider).toBe("deepseek");
+  await expect(page.locator("body")).not.toContainText("e2e-google-secret-never-render");
+  await expect(page.locator("body")).not.toContainText("e2e-deepseek-secret-never-render");
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});

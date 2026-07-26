@@ -62,7 +62,11 @@ function statusLabel(profile: ApiConnectionProfile | undefined): string {
 function InlineStatus({ feedback }: { feedback: Feedback }) {
   if (!feedback) return null;
   return (
-    <span className={cx("inline-flex items-center gap-2 text-sm", feedback.tone === "success" && "text-green", feedback.tone === "error" && "text-red", feedback.tone === "neutral" && "text-muted")} role="status">
+    <span
+      aria-live={feedback.tone === "error" ? "assertive" : "polite"}
+      className={cx("inline-flex items-center gap-2 text-sm", feedback.tone === "success" && "text-green", feedback.tone === "error" && "text-red", feedback.tone === "neutral" && "text-muted")}
+      role={feedback.tone === "error" ? "alert" : "status"}
+    >
       <span aria-hidden="true">{feedback.tone === "success" ? "✓" : feedback.tone === "error" ? "!" : "·"}</span>
       {feedback.text}
     </span>
@@ -90,6 +94,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
   const [credentialHealth, setCredentialHealth] = useState<Record<string, ConnectionCredentialHealth>>({});
   const formRef = useRef<HTMLFormElement>(null);
   const advancedSettingsRef = useRef<HTMLDetailsElement>(null);
+  const apiKeyInputRef = useRef<HTMLInputElement>(null);
   const contract = useMemo(() => getProviderContract(form.provider), [form.provider]);
 
   const refresh = useCallback(async () => {
@@ -124,20 +129,32 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
     };
   }, []);
 
-  useEffect(() => {
-    if (feedback?.tone !== "success") return;
-    const timer = window.setTimeout(() => setFeedback(null), 1800);
-    return () => window.clearTimeout(timer);
-  }, [feedback]);
-
   function selectProvider(provider: ApiProvider) {
-    const next = createForm(provider);
-    setForm(next);
+    setForm((current) => {
+      if (current.provider === provider) return current;
+      const next = createForm(provider);
+      const currentContract = getProviderContract(current.provider);
+      const hasCustomLabel = Boolean(current.label.trim() && current.label !== currentContract.label);
+      return {
+        ...next,
+        id: current.id,
+        label: hasCustomLabel ? current.label : next.label,
+      };
+    });
     setFeedback(null);
     setAvailableModels([]);
     setDiscoveredDirectory(undefined);
     setSelectedTestModelId("");
     setTestSucceeded(false);
+  }
+
+  /** 将凭据错误带回真实输入位置，避免用户在保存按钮处看不到页面顶部反馈。 */
+  function focusApiKeyInput() {
+    if (advancedSettingsRef.current) advancedSettingsRef.current.open = true;
+    window.requestAnimationFrame(() => {
+      apiKeyInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      apiKeyInputRef.current?.focus();
+    });
   }
 
   function editProfile(profile: ApiConnectionProfile) {
@@ -182,6 +199,17 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
       setFeedback({ tone: "error", text: form.provider === "azure" ? "请填写 Azure Speech 完整区域 endpoint" : "请填写 Base URL" });
       return;
     }
+    const selectedProfile = snapshot.profiles.find((profile) => profile.id === form.id);
+    const providerChanged = Boolean(selectedProfile && selectedProfile.provider !== form.provider);
+    const requiresNewKey = providerChanged || (!form.id && form.provider !== "custom");
+    if (requiresNewKey && !form.apiKey.trim()) {
+      setFeedback({
+        tone: "error",
+        text: providerChanged ? "切换厂商后必须重新输入 API Key" : "该厂商连接必须填写 API Key",
+      });
+      focusApiKeyInput();
+      return;
+    }
     setBusyAction("save");
     setFeedback({ tone: "neutral", text: "正在保存…" });
     try {
@@ -219,7 +247,9 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
       editProfile(testSucceeded ? { ...saved, testStatus: "success", testMessage: "连接成功" } : saved);
       setFeedback({ tone: "success", text: "配置已保存" });
     } catch (error) {
-      setFeedback({ tone: "error", text: error instanceof Error ? error.message : "连接保存失败" });
+      const message = error instanceof Error ? error.message : "连接保存失败";
+      setFeedback({ tone: "error", text: message });
+      if (/API Key|凭据|密钥/.test(message)) focusApiKeyInput();
     } finally {
       setBusyAction("");
     }
@@ -359,7 +389,6 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
             window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
           }}>添加连接</Button>}
         />
-        <InlineStatus feedback={feedback} />
       </div>
 
       <form ref={formRef} className={`${compactStyles.connectionForm} grid gap-5`} onSubmit={saveConnection}>
@@ -379,7 +408,7 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
             {form.provider === "azure" ? <label className="ui-field">语音语言<input className="ui-input" value={form.language} onChange={(event) => setForm({ ...form, language: event.currentTarget.value })} /></label> : null}
             {form.provider === "custom" ? <fieldset><legend className="text-sm font-semibold">连接能力</legend><div className="mt-2 flex flex-wrap gap-4">{formCapabilities.map((capability) => <label key={capability} className="inline-flex items-center gap-2 text-sm text-muted"><input checked={form.capabilities.includes(capability)} className="ui-checkbox" type="checkbox" onChange={() => toggleCapability(capability)} />{capabilityLabels[capability]}</label>)}</div></fieldset> : null}
             {form.provider === "custom" ? <label className="inline-flex items-start gap-2 text-sm text-muted"><input checked={form.allowPrivateNetwork} className="ui-checkbox mt-0.5" type="checkbox" onChange={(event) => setForm({ ...form, allowPrivateNetwork: event.currentTarget.checked })} /><span>允许访问局域网地址<small className="block">仅用于你信任的本地模型服务；云元数据和链路本地地址仍会被阻止。</small></span></label> : null}
-            <label className="ui-field">API Key<input className="ui-input" type="password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={form.id && selectedCredentialHealth?.status === "reentry_required" ? "请重新输入 API Key" : form.id ? "留空保留原 Key" : form.provider === "custom" ? "无鉴权服务可留空" : "填写 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.currentTarget.value })} /></label>
+            <label className="ui-field">API Key<input ref={apiKeyInputRef} className="ui-input" type="password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={form.id && selectedCredentialHealth?.status === "reentry_required" ? "请重新输入 API Key" : form.id ? "留空保留原 Key" : form.provider === "custom" ? "无鉴权服务可留空" : "填写 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.currentTarget.value })} /></label>
             {selectedCredentialHealth?.status === "reentry_required" ? <div className={compactStyles.credentialRecovery} role="alert"><strong>凭据需要重新输入</strong><span>{selectedCredentialHealth.message}</span></div> : null}
           </div>
         </details>
@@ -402,7 +431,11 @@ export function ApiConnectionsSettingsView({ onChanged }: { onChanged?: () => vo
           <p>测试会使用所选模型发送一次极小真实请求，可能产生少量用量。</p>
         </section>
 
-        <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button>{form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setAvailableModels([]); setDiscoveredDirectory(undefined); setSelectedTestModelId(""); setTestSucceeded(false); }}>新建</Button> : null}</div>
+        <div className={compactStyles.connectionSaveRow}>
+          <Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button>
+          {form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setFeedback(null); setAvailableModels([]); setDiscoveredDirectory(undefined); setSelectedTestModelId(""); setTestSucceeded(false); }}>新建</Button> : null}
+          <InlineStatus feedback={feedback} />
+        </div>
       </form>
 
       <div className={compactStyles.connectionDefaults}>

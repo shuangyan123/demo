@@ -4,10 +4,12 @@ import type { ApiConnectionProfile, ApiSetting } from "../types/domains/ai-conne
 import type { FenbiImportCredential } from "../types/domains/fenbi-import.ts";
 import type { McpServerProfile } from "../types/domains/mcp.ts";
 import {
+  CredentialSecurityError,
   decryptSecret,
   encryptSecret,
   isLegacyEncryptedSecret,
   LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME,
+  type CredentialSecurityErrorCode,
 } from "./crypto-service.ts";
 import { secretContext } from "./secret-context.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
@@ -18,6 +20,14 @@ type McpStoredSnapshot = {
 };
 
 let migrationPromise: Promise<void> | undefined;
+
+export type StoredSecretMigrationAttempt =
+  | { status: "complete" }
+  | {
+      status: "partial";
+      code: CredentialSecurityErrorCode | "migration_failed";
+      message: string;
+    };
 
 function readLocalJson<T>(key: string): T | undefined {
   const raw = window.localStorage.getItem(key);
@@ -184,6 +194,23 @@ export function ensureStoredSecretsMigrated(): Promise<void> {
     throw error;
   });
   return migrationPromise;
+}
+
+/** 尽力迁移共享旧凭据；单条旧记录损坏时允许新凭据继续使用 v2 密钥库保存。 */
+export async function attemptStoredSecretsMigration(): Promise<StoredSecretMigrationAttempt> {
+  try {
+    await ensureStoredSecretsMigrated();
+    return { status: "complete" };
+  } catch (error) {
+    if (error instanceof CredentialSecurityError) {
+      return { status: "partial", code: error.code, message: error.message };
+    }
+    return {
+      status: "partial",
+      code: "migration_failed",
+      message: "部分旧凭据暂时无法迁移，请在对应设置中重新输入后保存",
+    };
+  }
 }
 
 /** 测试隔离使用；不会修改任何持久化凭据。 */
