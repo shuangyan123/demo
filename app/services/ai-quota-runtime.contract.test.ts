@@ -27,6 +27,15 @@ Object.defineProperty(globalThis, "navigator", { configurable: true, value: { on
 
 const originalFetch = globalThis.fetch;
 
+/** 在并行契约负载下等待异步条件，避免固定延时造成偶发失败和资源泄漏。 */
+async function waitForCondition(predicate: () => boolean, timeoutMs = 1_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("等待额度运行时状态超时");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 test.beforeEach(() => {
   values.clear();
   documentTarget.visibilityState = "visible";
@@ -56,17 +65,20 @@ test("额度启用立即落库，并在凭据完整时后台验证和刷新", as
   };
 
   const runtime = new QuotaRuntimeStore();
-  await runtime.saveAndActivate({ id: "openai", enabled: true, credentials: { adminKey: "admin-fixture" }, today: new Date() });
-  assert.equal(aiQuotaRepository.loadSync().configs.find((config) => config.id === "openai")?.enabled, true);
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.deepEqual(actions, ["validate", "refresh"]);
-  assert.equal(runtime.getSnapshot().entries.openai?.status, "ready");
-  assert.equal(runtime.getSnapshot().snapshots[0]?.id, "openai");
+  try {
+    await runtime.saveAndActivate({ id: "openai", enabled: true, credentials: { adminKey: "admin-fixture" }, today: new Date() });
+    assert.equal(aiQuotaRepository.loadSync().configs.find((config) => config.id === "openai")?.enabled, true);
+    await waitForCondition(() => actions.length === 2 && runtime.getSnapshot().entries.openai?.status === "ready");
+    assert.deepEqual(actions, ["validate", "refresh"]);
+    assert.equal(runtime.getSnapshot().snapshots[0]?.id, "openai");
 
-  globalThis.fetch = async () => Response.json({ message: "临时不可用" }, { status: 503 });
-  await assert.rejects(runtime.manualRefresh("openai"), /临时不可用/);
-  assert.equal(runtime.getSnapshot().entries.openai?.status, "stale");
-  assert.equal(runtime.getSnapshot().snapshots[0]?.stale, true);
+    globalThis.fetch = async () => Response.json({ message: "临时不可用" }, { status: 503 });
+    await assert.rejects(runtime.manualRefresh("openai"), /临时不可用/);
+    assert.equal(runtime.getSnapshot().entries.openai?.status, "stale");
+    assert.equal(runtime.getSnapshot().snapshots[0]?.stale, true);
+  } finally {
+    runtime.dispose();
+  }
 });
 
 test("独立启停短事务不读取凭据，并允许其他厂商继续操作", async () => {
@@ -108,17 +120,20 @@ test("额度运行时在页面隐藏或离线时暂停，到期恢复才刷新",
   await aiQuotaRepository.saveConfig({ id: "deepseek", enabled: true, credentials: { apiKey: "deepseek-fixture" }, today: new Date() });
   documentTarget.visibilityState = "hidden";
   const runtime = new QuotaRuntimeStore();
-  await runtime.initialize();
-  assert.equal(requests, 0);
-  documentTarget.visibilityState = "visible";
-  documentTarget.dispatchEvent(new Event("visibilitychange"));
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.equal(requests, 2);
-  (navigator as unknown as { onLine: boolean }).onLine = false;
-  await assert.rejects(runtime.manualRefresh("deepseek"), /离线或页面不可见/);
-  assert.equal(requests, 2);
-  (navigator as unknown as { onLine: boolean }).onLine = true;
-  runtime.dispose();
+  try {
+    await runtime.initialize();
+    assert.equal(requests, 0);
+    documentTarget.visibilityState = "visible";
+    documentTarget.dispatchEvent(new Event("visibilitychange"));
+    await waitForCondition(() => requests === 2);
+    assert.equal(requests, 2);
+    (navigator as unknown as { onLine: boolean }).onLine = false;
+    await assert.rejects(runtime.manualRefresh("deepseek"), /离线或页面不可见/);
+    assert.equal(requests, 2);
+  } finally {
+    (navigator as unknown as { onLine: boolean }).onLine = true;
+    runtime.dispose();
+  }
 });
 
 test.after(() => {

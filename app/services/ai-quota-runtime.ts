@@ -71,13 +71,16 @@ export class QuotaRuntimeStore {
 
   /** 测试可显式释放监听器；产品运行时保持单例直到页面关闭。 */
   dispose(): void {
-    if (typeof window === "undefined" || !this.initialized) return;
-    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
-    window.removeEventListener("online", this.handleOnline);
-    window.removeEventListener("offline", this.handleOffline);
-    if (this.intervalId) window.clearInterval(this.intervalId);
+    if (typeof window === "undefined") return;
+    if (this.initialized) {
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+      window.removeEventListener("online", this.handleOnline);
+      window.removeEventListener("offline", this.handleOffline);
+      if (this.intervalId) window.clearInterval(this.intervalId);
+    }
     for (const controller of this.inFlight.values()) controller.abort();
     this.inFlight.clear();
+    while (this.queue.length) this.queue.shift()?.resolve();
     this.initialized = false;
   }
 

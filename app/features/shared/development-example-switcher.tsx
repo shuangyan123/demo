@@ -38,7 +38,7 @@ export function DevelopmentExampleSwitcher({
 }) {
   if (process.env.NODE_ENV !== "development") return null;
   return (
-    <label className="mb-4 flex min-h-9 items-center gap-3 rounded-lg bg-surface-muted px-3 py-2 text-xs text-muted">
+    <label className="mb-4 flex min-h-9 items-center gap-3 rounded-lg bg-surface-muted px-3 py-2 text-xs text-muted max-sm:grid max-sm:grid-cols-[auto_minmax(0,1fr)]">
       <strong className="text-foreground">开发示例</strong>
       <select
         aria-label="开发示例状态"
@@ -49,7 +49,7 @@ export function DevelopmentExampleSwitcher({
         <option value="">真实数据</option>
         {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
       </select>
-      <span>仅内存展示，不保存、不请求外部服务</span>
+      <span className="max-sm:col-span-2">仅内存展示，不保存、不请求外部服务</span>
     </label>
   );
 }

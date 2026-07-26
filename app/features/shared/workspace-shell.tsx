@@ -33,8 +33,7 @@ export function WindowMenuBar({
 }: {
   sidebarButtonRef?: Ref<HTMLButtonElement>;
   sidebarCollapsed: boolean;
-  title?: string;
-  onBack?: () => void;
+  title?: string; onBack?: () => void;
   onToggleSidebar: () => void;
 }) {
   return (
@@ -72,10 +71,8 @@ export function WorkspaceShell({
   contentSurface?: "plain" | "raised-surface";
   sidebar: ReactNode;
   sidebarClassName?: string;
-  sidebarCollapsed: boolean;
-  integrationMode?: "standard" | "settings";
-  title: string;
-  onBack?: () => void;
+  sidebarCollapsed: boolean; integrationMode?: "standard" | "settings";
+  title: string; onBack?: () => void;
   onToggleSidebar: () => void;
 }) {
   const [isMobile, setIsMobile] = useState(false);

@@ -172,6 +172,8 @@ test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符�
   await page.reload();
   await page.getByRole("button", { name: "设置" }).first().click();
 
+  await expect(page.locator('[aria-label="开发示例状态"]')).toHaveCount(0);
+
   const shellGeometry = await page.locator(".chrome-shell").evaluate((shell) => {
     const main = shell.querySelector<HTMLElement>(".chrome-content")!;
     const topbar = shell.querySelector<HTMLElement>(".chrome-topbar")!;

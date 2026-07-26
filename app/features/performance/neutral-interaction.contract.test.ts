@@ -35,7 +35,9 @@ test("关键选择态与插件搜索框不再依赖蓝色交互色", async () =>
   for (const value of [conversation, settings, plugins, automation]) {
     assert.doesNotMatch(value, /(?:focus|selected|active|drop-target)[\s\S]{0,180}(?:var\(--(?:color-)?blue\)|#2563eb)/i);
   }
-  assert.match(plugins, /\.toolbar label:focus-within[\s\S]*?var\(--focus-ring\)/);
+  assert.match(plugins, /\.toolbar label:focus-within[\s\S]*?background:\s*color-mix/);
+  assert.match(plugins, /\.toolbar label:focus-within[\s\S]*?outline:\s*0/);
+  assert.match(plugins, /\.toolbar label:focus-within[\s\S]*?box-shadow:\s*none/);
   assert.match(appearance, /interactive-primary-bg/);
   assert.doesNotMatch(appearance, /checked \? "bg-blue"/);
 });
