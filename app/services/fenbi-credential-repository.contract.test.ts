@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import "fake-indexeddb/auto";
 
 class MemoryStorage {
   private readonly values = new Map<string, string>();

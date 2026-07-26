@@ -114,8 +114,17 @@ test("对话文件夹可通过右键菜单行内重命名、移动和删除", as
 
   await createFolder("目标分类");
   await createFolder("临时分类");
-  await page.locator('[data-folder-id]').filter({ hasText: "临时分类" }).first().click({ button: "right" });
+  const temporaryFolder = page.locator('[data-folder-id]').filter({ hasText: "临时分类" }).first();
+  await temporaryFolder.click({ button: "right" });
   const drawer = page.getByRole("menu", { name: "对话树操作" });
+  const contextMenuBox = await drawer.boundingBox();
+  await page.locator(".conversation-tree-drawer-backdrop").click({ position: { x: 2, y: 2 } });
+  await page.getByRole("button", { name: "临时分类 操作" }).click();
+  const buttonMenuBox = await drawer.boundingBox();
+  expect(contextMenuBox).not.toBeNull();
+  expect(buttonMenuBox).not.toBeNull();
+  expect(Math.abs((contextMenuBox?.x ?? 0) - (buttonMenuBox?.x ?? 0))).toBeLessThanOrEqual(1);
+  expect(Math.abs((contextMenuBox?.y ?? 0) - (buttonMenuBox?.y ?? 0))).toBeLessThanOrEqual(1);
   await drawer.getByRole("menuitem", { name: "重命名" }).click();
   const renameInput = page.getByLabel("重命名临时分类");
   await renameInput.fill("待移动分类");

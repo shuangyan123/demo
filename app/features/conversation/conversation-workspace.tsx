@@ -467,7 +467,7 @@ export function ConversationWorkspace({
           connections={connections}
           draft={draft}
           purpose={requiresVision ? "vision" : "text"}
-          recording={recording.recording}
+          recording={recording.recording} runtimeDescriptor={runtimeDescriptor}
           selectedConnection={effectiveConnection}
           selectedModelId={selectedModelId}
           selectedRuntimeValues={selectedRuntimeValues}

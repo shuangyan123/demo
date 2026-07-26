@@ -6,6 +6,8 @@ import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { getProviderContract, getProviderModelCatalog } from "./provider-contracts.ts";
 import { createProfileFromLegacySetting } from "./legacy-ai-settings-migration.ts";
 import { inferMiniMaxRegion, normalizeMiniMaxAnthropicBaseUrl } from "./minimax-connection.ts";
+import { secretContext } from "./secret-context.ts";
+import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
 
 export type SaveConnectionInput = {
   id?: string;
@@ -88,13 +90,15 @@ async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, 
     await reviewDb.apiSettings.delete("default");
     return;
   }
+  const plainText = await decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
+  const encrypted = await encryptSecret(plainText, secretContext.legacyAiSetting());
   await reviewDb.apiSettings.put({
     id: "default",
     provider: profile.provider,
     baseUrl: profile.baseUrl,
     model: modelId ?? profile.model ?? "",
-    encryptedKey: profile.encryptedKey,
-    iv: profile.iv,
+    encryptedKey: encrypted.encryptedKey,
+    iv: encrypted.iv,
     maskedKey: profile.maskedKey,
     testStatus: profile.testStatus,
     testMessage: profile.testMessage,
@@ -105,6 +109,7 @@ async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, 
 export const aiConnectionsRepository = {
   // 读取全部连接和能力默认值；若升级过程只留下旧表，则补做一次运行时兼容迁移。
   async loadSnapshot(today = new Date()): Promise<AiConnectionSnapshot> {
+    await ensureStoredSecretsMigrated();
     const [savedProfiles, savedDefaults, legacySetting, personalizationSettings] = await Promise.all([
       reviewDb.apiConnectionProfiles.orderBy("updatedAt").reverse().toArray(),
       reviewDb.apiConnectionDefaults.get("default"),
@@ -164,12 +169,18 @@ export const aiConnectionsRepository = {
 
   // 新增或更新连接；未输入新 Key 时沿用原有密文，避免设置页回填明文。
   async saveProfile(input: SaveConnectionInput): Promise<ApiConnectionProfile> {
+    await ensureStoredSecretsMigrated();
     const existing = input.id ? await reviewDb.apiConnectionProfiles.get(input.id) : undefined;
+    const profileId = input.id ?? crypto.randomUUID();
     const providedSecret = input.apiKey?.trim() ?? "";
-    const existingSecret = existing && !providedSecret ? await decryptSecret(existing.encryptedKey, existing.iv) : "";
+    const existingSecret = existing && !providedSecret
+      ? await decryptSecret(existing.encryptedKey, existing.iv, secretContext.aiConnection(existing.id))
+      : "";
     if (input.provider !== "custom" && !providedSecret && !existingSecret) throw new Error("该厂商连接必须填写 API Key");
     // 自定义连接允许无鉴权，但仍加密空字符串以保持连接档案结构稳定，避免引入第二套密钥存储形态。
-    const encrypted = providedSecret ? await encryptSecret(providedSecret) : existing ?? await encryptSecret("");
+    const encrypted = providedSecret
+      ? await encryptSecret(providedSecret, secretContext.aiConnection(profileId))
+      : existing ?? await encryptSecret("", secretContext.aiConnection(profileId));
     const contract = getProviderContract(input.provider);
     const capabilities = (input.provider === "custom" ? input.capabilities ?? existing?.capabilities ?? contract.capabilities : contract.capabilities)
       .filter((capability) => contract.capabilities.includes(capability));
@@ -179,7 +190,7 @@ export const aiConnectionsRepository = {
       ? input.providerOptions?.region === "global" ? "global" : "cn"
       : undefined;
     const profile: ApiConnectionProfile = {
-      id: input.id ?? crypto.randomUUID(),
+      id: profileId,
       label: input.label.trim() || contract.label,
       provider: input.provider,
       apiFormat: contract.apiFormat,
@@ -271,7 +282,8 @@ export const aiConnectionsRepository = {
 
   // 仅在发起请求前解密指定连接的 Key，不把明文写回 React 状态或 IndexedDB。
   async resolveSecret(profile: ApiConnectionProfile): Promise<string> {
-    return decryptSecret(profile.encryptedKey, profile.iv);
+    await ensureStoredSecretsMigrated();
+    return decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
   },
 
   // 保存最近一次连接测试状态，供配置页展示。

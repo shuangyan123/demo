@@ -1183,6 +1183,66 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   line-height: 1.75;
 }
 
+.conversation-assistant-markdown {
+  overflow-wrap: anywhere;
+  line-height: 1.72;
+}
+
+.conversation-assistant-markdown > :first-child {
+  margin-top: 0;
+}
+
+.conversation-assistant-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.conversation-assistant-markdown p {
+  margin: 0 0 0.78rem;
+  white-space: normal;
+}
+
+.conversation-assistant-markdown ul,
+.conversation-assistant-markdown ol {
+  margin: 0.45rem 0 0.85rem;
+  padding-inline-start: 1.4rem;
+}
+
+.conversation-assistant-markdown li + li {
+  margin-top: 0.28rem;
+}
+
+.conversation-assistant-markdown blockquote {
+  margin: 0.75rem 0;
+  padding-inline-start: 0.85rem;
+  border-inline-start: 3px solid var(--line);
+  color: var(--muted);
+}
+
+.conversation-assistant-markdown pre {
+  max-width: 100%;
+  margin: 0.75rem 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  padding: 0.75rem;
+  background: var(--surface-muted);
+  font-family: var(--app-code-font);
+  line-height: 1.55;
+}
+
+.conversation-assistant-markdown :not(pre) > code {
+  border-radius: 0.3rem;
+  padding: 0.08rem 0.3rem;
+  background: var(--surface-muted);
+  font-family: var(--app-code-font);
+}
+
+.conversation-assistant-markdown a {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 .conversation-tool-summary {
   width: min(100%, 50rem);
   margin: -0.15rem auto 0.7rem;
@@ -1312,6 +1372,12 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   color: var(--foreground);
   font-size: 1.35rem;
   font-weight: 700;
+}
+
+.conversation-empty-prompt p {
+  max-width: 30rem;
+  margin: 0.55rem auto 0;
+  line-height: 1.65;
 }
 
 .conversation-composer {

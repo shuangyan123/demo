@@ -345,3 +345,12 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `types/domains/legacy-review.ts` 冻结保存历史 schema 类型清单，领域入口作为新代码唯一公共边界；架构契约禁止业务重新导入兼容出口。该整理不改表结构、字段、索引或 `review_workspace` v16。
 - Provider 公共 adapter 保持原导出并缩至 405 行，语音请求/音频解析进入 177 行内部 mapper。Obsidian repository facade 保持原对象 API 并缩至 490 行，纯转换与图谱派生进入 104 行 helper。
 - 拆分保持 Google 双协议、MiniMax 鉴权、SSE、语音、MCP、自动记忆、Obsidian 冲突与 proposal 语义；对应 209 个契约测试继续作为回滚判据。
+
+## API 密钥与对话体验收口（2026-07-26）
+
+- `secure-key-store` 使用独立 IndexedDB `review_workspace_secure_keys` 保存不可导出的 AES-256-GCM `CryptoKey`；业务数据库继续保持 `review_workspace` v16。
+- 密文升级为 `v2:`，AAD 由连接 ID、凭据类型和字段组成。AI 连接、旧 AI 设置、额度凭据、MCP Token 与粉笔 Cookie 通过同一幂等迁移门迁移；复核仍有旧密文时绝不删除旧 JWK。
+- 密钥库与密文损坏会返回重新输入凭据的稳定错误，不新增密钥 HTTP API，也不读写 `.env.local`。该边界增强本机静态数据和导出防护，但不能抵御已执行的恶意脚本，因此继续依赖严格 CSP、输入边界和禁用原始 HTML 的 AI Markdown 渲染。
+- `AssistantMarkdown` 是历史消息与流式草稿的唯一 AI 正文展示边界；`react-markdown` 与 `remark-gfm` 只处理受限语法，不使用 `dangerouslySetInnerHTML`。
+- `ConversationReasoningControl` 位于模型选择旁，局部预览滑杆值，仅在指针释放、键盘操作结束或失焦时复用会话级串行乐观保存。速度设置仍留在模型菜单，持久化结构保持 `selectedRuntimeValues`。
+- 对话树右键和省略号都锚定当前行操作按钮；桌面执行同一视口碰撞修正，移动端继续复用同一底部操作层和行内重命名输入。

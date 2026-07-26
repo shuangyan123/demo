@@ -281,3 +281,10 @@ P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controll
 
 - HTTP Route、请求体、成功响应、SSE 事件和结构化错误格式均无新增变更。Provider adapter 的语音实现迁入内部模块，但 `buildSpeechProviderRequest`、`parseSpeechJsonResponse` 与 `SpeechParseMode` 仍从原 facade 导出。
 - Obsidian repository 的方法名、参数、返回类型、冲突校验与 proposal 状态机保持不变。图谱派生 helper 不持有目录句柄，目录句柄仍只存在 repository/IndexedDB 边界。
+
+## 本机凭据与 AI Markdown 边界（2026-07-26）
+
+- 本轮不新增或修改 HTTP Route、Provider 请求协议、SSE 事件或公开响应字段；密钥仍只通过现有客户端设置流程保存和立即使用。
+- `encryptSecret` / `decryptSecret` 的内部调用必须提供稳定凭据上下文。`v2:` 密文用 AES-GCM AAD 绑定记录和字段，不能复制到另一连接、额度字段或凭据类型后继续解密。
+- 环境变量只允许显式 live test 使用；应用不得写 `.env` 或 `.env.local`，服务端日志、诊断、页面和 AI 活动不得输出明文、密文、IV 或主密钥。
+- AI 回复允许 GFM 粗体、段落、列表、引用和代码，但禁止原始 HTML 与可执行节点。链接在新窗口打开并使用 `noopener noreferrer`。

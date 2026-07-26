@@ -15,6 +15,7 @@ import styles from "./conversation-model-picker.module.css";
 type ConversationModelRuntimeControlsProps = {
   descriptor: AiModelRuntimeDescriptor;
   dimension?: ConversationModelRuntimeDimension;
+  entries?: ConversationModelRuntimeDimension[];
   values: AiSelectedRuntimeValues;
   onBack?: () => void;
   onChange: (values: AiSelectedRuntimeValues) => void;
@@ -68,6 +69,7 @@ function RuntimeOptionRow({ checked, name, option, onChange }: RuntimeOptionRowP
 export function ConversationModelRuntimeControls({
   descriptor,
   dimension,
+  entries = ["reasoning", "speed"],
   values,
   onBack,
   onChange,
@@ -83,7 +85,7 @@ export function ConversationModelRuntimeControls({
     if (!selectableReasoning && !selectableSpeed) return null;
     return (
       <div className={styles.runtimeEntries} aria-label="模型运行选项">
-        {selectableReasoning ? (
+        {selectableReasoning && entries.includes("reasoning") ? (
           <button
             data-picker-focus-key="runtime-entry:reasoning"
             type="button"
@@ -93,7 +95,7 @@ export function ConversationModelRuntimeControls({
             <span>{selectedLabel(reasoning.options, values.reasoning)}<AppIcon name="chevronRight" size={16} /></span>
           </button>
         ) : null}
-        {selectableSpeed ? (
+        {selectableSpeed && entries.includes("speed") ? (
           <button
             data-picker-focus-key="runtime-entry:speed"
             type="button"

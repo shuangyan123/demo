@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import "fake-indexeddb/auto";
 import { aiQuotaRepository } from "./ai-quota-repository.ts";
 import { QuotaRuntimeStore } from "./ai-quota-runtime.ts";
 

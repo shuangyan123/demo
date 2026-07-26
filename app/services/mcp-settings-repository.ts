@@ -2,9 +2,12 @@ import type { McpDiscoveryResult, McpServerProfile, McpToolDescriptor, McpToolPe
 import { decryptSecret, encryptSecret } from "./crypto-service.ts";
 import type { ClientApiErrorPayload } from "./api-error.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
+import { secretContext } from "./secret-context.ts";
+import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
+import { secretStorageLocations } from "./secret-storage-locations.ts";
 
-const STORAGE_KEY = "review-workspace:mcp-settings:v2";
-const LEGACY_STORAGE_KEY = "review-workspace:mcp-settings:v1";
+const STORAGE_KEY = secretStorageLocations.mcpSettings;
+const LEGACY_STORAGE_KEY = secretStorageLocations.legacyMcpSettings;
 
 export type McpSettingsSnapshot = {
   profiles: McpServerProfile[];
@@ -63,7 +66,8 @@ function writeSnapshot(snapshot: McpSettingsSnapshot): void {
 
 async function tokenFor(profile: McpServerProfile): Promise<string> {
   if (profile.authMode !== "bearer" || !profile.encryptedToken || !profile.encryptedTokenIv) return "";
-  return decryptSecret(profile.encryptedToken, profile.encryptedTokenIv);
+  await ensureStoredSecretsMigrated();
+  return decryptSecret(profile.encryptedToken, profile.encryptedTokenIv, secretContext.mcpToken(profile.id));
 }
 
 async function requestJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
@@ -79,16 +83,18 @@ export const mcpSettingsRepository = {
   },
 
   async saveProfile(input: { id?: string; label: string; endpoint: string; enabled: boolean; authMode: "none" | "bearer"; token?: string }): Promise<McpServerProfile> {
+    await ensureStoredSecretsMigrated();
     const snapshot = readSnapshot();
     const timestamp = now();
     const existing = input.id ? snapshot.profiles.find((profile) => profile.id === input.id) : undefined;
+    const profileId = existing?.id ?? crypto.randomUUID();
     const encrypted = input.authMode === "bearer" && input.token?.trim()
-      ? await encryptSecret(input.token.trim())
+      ? await encryptSecret(input.token.trim(), secretContext.mcpToken(profileId))
       : existing?.encryptedToken && existing.encryptedTokenIv
         ? { encryptedKey: existing.encryptedToken, iv: existing.encryptedTokenIv }
         : undefined;
     const profile: McpServerProfile = {
-      id: existing?.id ?? crypto.randomUUID(),
+      id: profileId,
       label: input.label.trim() || "MCP Server",
       endpoint: input.endpoint.trim().replace(/[?#].*$/, ""),
       enabled: input.enabled,
