@@ -74,3 +74,12 @@
 - `docs/design/ai-connection-save-ui-closure/conversation-menu-2560x1440.png`
 - `docs/design/ai-connection-save-ui-closure/scheduled-top-spacing-2560x1440.png`
 - `docs/design/ai-connection-save-ui-closure/scheduled-mobile-390x844.png`
+
+## 额度生命周期与组件示例归档（2026-07-26）
+
+- 视觉基线覆盖设置融合壳层、非空连接表、Claude 品牌色、额度状态、插件搜索焦点和粉笔窄详情。
+- 截图归档目录为 `docs/design/quota-ui-preview-closure/`；示例只在开发服务器中启用，生产截图继续使用真实数据或空状态。
+- `connections-example-1536x1024.png`：设置融合壳层、连接列中心与 Claude 品牌色。
+- `quota-stale-dark-1115x792.png`：深色额度过期状态与单厂商操作。
+- `fenbi-drafts-1468x674.png`：矮屏粉笔详情、内部滚动与草稿确认布局。
+- `mcp-example-mobile-390x844.png`：移动设置抽屉后的 MCP 示例与双行开发标识。

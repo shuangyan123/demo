@@ -301,3 +301,9 @@ P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controll
 - `attemptStoredSecretsMigration()` 是客户端内部恢复入口，只返回 `complete | partial` 和稳定错误码；不返回密文、Key、主密钥或原始异常。
 - 保存连接仍使用现有 repository 接口。提供新 Key 时只加密并写入目标记录；厂商变更缺少新 Key 时返回可恢复校验错误，记录 ID 和旧数据保持不变。
 - 本轮没有新增 HTTP Route、请求字段或响应字段，也没有改变 Provider adapter、SSE 或模型目录协议。
+
+## 额度启停内部接口（2026-07-26）
+
+- 新增客户端内部 `aiQuotaRepository.setEnabled(id, enabled, today)` 和 `QuotaRuntimeStore.setEnabled(...)`；二者不属于公开 HTTP API。
+- 启停请求不携带、不解密额度凭据。启用后的只读验证与刷新继续使用现有 `/api/ai/quota` 协议，失败只更新运行状态，不修改公开响应格式。
+- 组件内开发示例只消费固定脱敏内存对象，不新增路由、请求字段、环境密钥或持久化结构。

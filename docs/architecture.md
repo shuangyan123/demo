@@ -369,3 +369,10 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 严格迁移入口继续承担全量复核与旧 JWK 删除；设置快照和连接保存改用非阻断迁移结果 `complete | partial`，只暴露稳定脱敏错误码。
 - 新 Key 直接由 v2 本机密钥加密，其他 AI、MCP、额度或粉笔旧凭据异常不会阻断当前连接。未提供新 Key 时只校验当前连接，失败后要求重输且不覆盖旧密文。
 - 编辑连接切换厂商继续保留连接 ID 与用户名称，更新厂商默认端点、能力和选项，并强制输入新 Key；数据库仍为 Dexie v16，Provider 协议与公开 API 不变。
+
+## 额度生命周期与组件内示例（2026-07-26）
+
+- 额度启停由 `aiQuotaRepository.setEnabled` 执行单记录短事务，不解密凭据或启动共享迁移。`QuotaRuntimeStore` 立即发布启停状态，停用取消同厂商任务，启用后的验证和刷新进入后台队列且失败不回滚配置。
+- 额度保存使用尽力迁移并直接以 v2 密钥加密当前新凭据；无关 AI、MCP、粉笔或其他额度旧记录损坏不会阻断目标写入。读取额度只解密当前记录。
+- AI 连接、额度、粉笔和 MCP 的展示组件支持开发环境纯内存示例。示例分流发生在真实 repository/runtime 容器挂载前，不写 IndexedDB/localStorage、不调用外部服务；生产构建不渲染入口。
+- 设置壳层新增桌面集成模式：展开侧栏时主区抬升到窗口顶边并独占共边；折叠侧栏和移动端保持既有结构。数据库继续为 `review_workspace` v16。
