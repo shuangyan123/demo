@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-26 · 0.2.0 发布依赖补丁
+
+- 将 Next.js 与 `eslint-config-next` 升至 16.2.12、ESLint 升至 9.39.5、`js-yaml` 升至 5.2.2，并定向覆盖 Next 子树为 `postcss@8.5.23`。
+- 关闭旧 PostCSS moderate 例外，修复新披露的 js-yaml/PostCSS high 公告；生产依赖继续要求 0 high/critical。
+- 生产审计在 npm audit 端点异常时回退官方 Bulk Advisory API；报告无效、依赖树为空或两个端点均不可用时失败关闭。
+- 保持 Node.js 22、TypeScript 5、React 19.2.8、Dexie v16、Provider/Obsidian/自动记忆协议不变；Lucide、Playwright 与 major 升级留在独立批次。
+
 ## 2026-07-23 · 0.2.0 企业级升级闭环
 
 - 版本升级至 `0.2.0`，发布分支汇总治理、安全、可靠性、性能、无障碍与架构收口阶段。

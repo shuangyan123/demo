@@ -9,7 +9,7 @@
 | P1 可靠性 | 全局恢复、统一错误、脱敏诊断、零 Hook 豁免 | 根错误边界、208 contracts、typecheck/lint/build | 可靠性提交 | 已完成 |
 | P2 性能/无障碍 | 包体回归不超过 5%，axe 严重问题清零 | Turbopack baseline JSON、bundle check、双端 axe E2E | 性能门禁提交 | 已完成 |
 | P3 架构 | 领域类型直引、超预算服务拆分、Dexie v16 不变 | 0 个业务兼容引用、209 contracts、build/bundle | 各领域拆分提交 | 已完成 |
-| 发布 | `develop` 到 `main` 的 0.2.0 发布 | 210 contracts、51 E2E、浏览器 0 error；真实 Vault/凭据待人工 | release PR revert | 自动验收通过 |
+| 发布 | `develop` 到 `main` 的 0.2.0 发布 | 218 contracts、51 E2E、生产 high/critical 为 0、bundle 低于 5% 阈值；真实 Vault/凭据待人工 | release PR revert | 自动验收通过 |
 
 ## 证据登记规则
 

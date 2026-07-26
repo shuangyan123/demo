@@ -13,18 +13,19 @@
 3. 安全补丁先合入 `develop`；等待 CI 通过后再继续普通补丁，major 预研必须恢复依赖树且不得混入发布提交。
 4. 发布 PR 记录合并提交、CI 链接、回滚提交和未解决公告的负责人、复查日期。
 
-## 当前基线（2026-07-23）
+## 当前基线（2026-07-26）
 
 - 运行时固定 Node.js `>=22 <23`，TypeScript 5、ESLint 9、Next.js 16.2。
 - 2026-07-04 的补丁基线为 `ea8c56d`；历史 major 预研确认 ESLint 10 与当前 Next lint 插件不兼容，不进入本轮。
-- 2026-07-23 审计发现 Next.js 16.2.10 与其 PostCSS/Sharp 依赖存在可由 16.2.11 修复的公告；MCP SDK 的 Hono server 依赖需通过客户端路径验证或限时风险例外闭环。
+- 0.2.0 发布候选使用 Next.js/`eslint-config-next` 16.2.12、ESLint 9.39.5、`js-yaml` 5.2.2，并定向覆盖 Next 子树为 `postcss` 8.5.23。
+- `npm run audit:prod` 优先读取 npm audit 的有效 JSON；只有端点异常时才回退官方 Bulk Advisory API。两条路径都不可用、报告无效或生产依赖树为空时必须失败关闭。
 - `docs/upgrade-roadmap.md` 是本轮升级状态、验收证据和回滚点的唯一追踪表。
 
-## 限时风险例外
+## 已关闭风险例外
 
-- `GHSA-qx2v-qp2m-jg93`：Next.js 16.2.11 内置 `postcss@8.4.31`。本项目只在构建阶段处理仓库内受控 CSS，不在生产请求中解析或 stringify 用户 CSS，因此不存在公告描述的运行时 XSS 输入路径。
-- 负责人：本仓库维护者；复查日期：2026-08-23 或 Next 16.2 稳定线发布兼容修复时，以较早者为准。
-- 该例外只允许 moderate；`npm run audit:prod` 继续以 high 为硬阻断，禁止降级到 npm 建议的 Next 9。
+- Next 内置 `postcss@8.4.31` 的 moderate 例外已于 2026-07-26 关闭：新披露的 high 公告使旧例外失效，改由 Next 子树 `postcss@8.5.23` 定向 override 消除。
+- `GHSA-pm4m-ph32-ghv5` 通过 `js-yaml@5.2.2` 修复；PostCSS 的 `GHSA-6g55-p6wh-862q` 与 `GHSA-r28c-9q8g-f849` 通过 `postcss@8.5.23` 修复。
+- 禁止恢复旧版本、降级 Next 或使用 `npm audit fix --force` 绕过门禁。
 
 ## 风险例外规则
 

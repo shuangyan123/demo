@@ -366,3 +366,10 @@
 - 新业务必须直接从 `types/domains/*` 引用；`types/review.ts` 只保留历史兼容出口，架构契约阻止业务依赖回流。Node 契约测试使用领域入口时保留显式 `.ts` 扩展。
 - Provider 与 Obsidian 拆分必须保持原 facade 导出、错误语义和持久化顺序。纯 helper 不持有 Vault 句柄，语音 mapper 不改变厂商鉴权或请求字段。
 - 每个实现模块继续限制在 500 行以内；类型和 facade 整理不是升级 Dexie 的理由，`review_workspace` 维持 v16。
+
+# 2026-07-26 · 生产依赖审计门禁经验
+
+- npm audit 返回端点错误 JSON、非法 gzip 或无漏洞计数时不能视为“零漏洞”；只有包含 `metadata.vulnerabilities` 的报告才是有效审计结果。
+- npm audit 基础设施异常时可使用官方 Bulk Advisory API，并从 lockfile v3 只收集实际生产依赖及嵌套版本；两条路径都失败时必须失败关闭。
+- 新 high 公告会立即使既有 moderate 例外失效。`js-yaml@5.2.2` 与 Next 子树 `postcss@8.5.23` 是本轮修复边界，禁止通过降级 Next 或 `audit fix --force` 绕过。
+- Next 与 `eslint-config-next` 必须同补丁更新；ESLint 保持 9、TypeScript 保持 5、Node 类型保持 22。Playwright 浏览器基线与 Lucide 视觉资产应使用独立变更验证。
