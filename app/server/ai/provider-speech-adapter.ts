@@ -171,7 +171,9 @@ export async function parseSpeechJsonResponse(parseMode: Exclude<SpeechParseMode
   }
   const audioUrl = asRecord(asRecord(root.output).audio).url;
   if (typeof audioUrl !== "string") throw new Error("通义语音未返回可下载音频");
-  const response = await fetch(audioUrl, { cache: "no-store" });
+  await validateOutboundNetworkTarget(audioUrl, { allowLoopback: false, allowPrivateNetwork: false });
+  const response = await fetch(audioUrl, { cache: "no-store", redirect: "error" });
   if (!response.ok) throw new Error("通义语音音频下载失败");
   return new Uint8Array(await response.arrayBuffer());
 }
+import { validateOutboundNetworkTarget } from "../http/outbound-network-policy.ts";

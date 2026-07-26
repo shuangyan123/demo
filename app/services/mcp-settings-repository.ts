@@ -33,6 +33,7 @@ function normalizeProfile(profile: Partial<McpServerProfile>): McpServerProfile 
     endpoint: profile.endpoint.trim().replace(/[?#].*$/, ""),
     enabled: profile.enabled !== false,
     authMode: profile.authMode === "bearer" ? "bearer" : "none",
+    allowPrivateNetwork: profile.allowPrivateNetwork === true,
     encryptedToken: profile.encryptedToken,
     encryptedTokenIv: profile.encryptedTokenIv,
     createdAt: profile.createdAt ?? timestamp,
@@ -82,7 +83,7 @@ export const mcpSettingsRepository = {
     return readSnapshot();
   },
 
-  async saveProfile(input: { id?: string; label: string; endpoint: string; enabled: boolean; authMode: "none" | "bearer"; token?: string }): Promise<McpServerProfile> {
+  async saveProfile(input: { id?: string; label: string; endpoint: string; enabled: boolean; authMode: "none" | "bearer"; token?: string; allowPrivateNetwork?: boolean }): Promise<McpServerProfile> {
     await ensureStoredSecretsMigrated();
     const snapshot = readSnapshot();
     const timestamp = now();
@@ -99,6 +100,7 @@ export const mcpSettingsRepository = {
       endpoint: input.endpoint.trim().replace(/[?#].*$/, ""),
       enabled: input.enabled,
       authMode: input.authMode,
+      allowPrivateNetwork: input.allowPrivateNetwork === true,
       encryptedToken: input.authMode === "bearer" ? encrypted?.encryptedKey : undefined,
       encryptedTokenIv: input.authMode === "bearer" ? encrypted?.iv : undefined,
       createdAt: existing?.createdAt ?? timestamp,
@@ -121,6 +123,7 @@ export const mcpSettingsRepository = {
       const remote = await requestJson<{ tools: McpRemoteTool[]; resources: Array<{ name: string }>; prompts: Array<{ name: string }> }>("/api/mcp/discover", {
         endpoint: profile.endpoint,
         token: await tokenFor(profile),
+        allowPrivateNetwork: profile.allowPrivateNetwork === true,
       });
       const existingPermissions = new Map((snapshot.discovery[profile.id]?.toolDescriptors ?? []).map((tool) => [tool.name, tool.permission]));
       const toolDescriptors: McpToolDescriptor[] = remote.tools.map((tool) => ({
@@ -153,6 +156,7 @@ export const mcpSettingsRepository = {
     const response = await requestJson<{ result: unknown }>("/api/mcp/call", {
       endpoint: profile.endpoint,
       token: await tokenFor(profile),
+      allowPrivateNetwork: profile.allowPrivateNetwork === true,
       tool,
       arguments: args,
     });

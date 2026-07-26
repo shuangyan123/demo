@@ -13,6 +13,7 @@ type McpForm = {
   enabled: boolean;
   authMode: "none" | "bearer";
   token: string;
+  allowPrivateNetwork: boolean;
 };
 
 const emptyForm: McpForm = {
@@ -21,6 +22,7 @@ const emptyForm: McpForm = {
   enabled: true,
   authMode: "none",
   token: "",
+  allowPrivateNetwork: false,
 };
 
 /** MCP 设置采用服务器列表与详情检查器，发现结果只保存脱敏描述。 */
@@ -62,6 +64,7 @@ export function McpSettingsView({ onNotice }: { onNotice: (message: string) => v
       enabled: profile.enabled,
       authMode: profile.authMode,
       token: "",
+      allowPrivateNetwork: profile.allowPrivateNetwork === true,
     });
   }
 
@@ -165,6 +168,7 @@ export function McpSettingsView({ onNotice }: { onNotice: (message: string) => v
           <label className="ui-field">Endpoint<input className="ui-input" required placeholder="https://example.com/mcp" value={form.endpoint} onChange={(event) => setForm({ ...form, endpoint: event.currentTarget.value })} /></label>
           <label className="ui-field">认证<select className="ui-select" value={form.authMode} onChange={(event) => setForm({ ...form, authMode: event.currentTarget.value as McpForm["authMode"] })}><option value="none">无认证</option><option value="bearer">Bearer Token</option></select></label>
           {form.authMode === "bearer" ? <label className="ui-field">Token<input className="ui-input" type="password" autoComplete="off" placeholder={form.id ? "留空则保留现有 Token" : "输入 Token"} value={form.token} onChange={(event) => setForm({ ...form, token: event.currentTarget.value })} /></label> : null}
+          <label className="inline-flex items-start gap-2 text-sm text-muted"><input checked={form.allowPrivateNetwork} className="ui-checkbox mt-0.5" type="checkbox" onChange={(event) => setForm({ ...form, allowPrivateNetwork: event.currentTarget.checked })} /><span>允许访问局域网地址<small className="block">本机 loopback 无需开启；云元数据和链路本地地址始终禁止。</small></span></label>
           <label className="inline-flex items-center gap-2 text-sm"><input checked={form.enabled} className="ui-checkbox" type="checkbox" onChange={(event) => setForm({ ...form, enabled: event.currentTarget.checked })} />启用</label>
           <Button type="submit" variant="primary">保存 Server</Button>
         </form>
