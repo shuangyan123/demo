@@ -51,7 +51,7 @@ export function AiQuotaSettingsPanel() {
     plugin.id,
     formFromConfig(initialState.configs.find((config) => config.id === plugin.id)),
   ])));
-  const [busy, setBusy] = useState("");
+  const [busyActions, setBusyActions] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState("");
   const [editingId, setEditingId] = useState<ApiProvider | "manual">();
   const [successId, setSuccessId] = useState<ApiProvider | "manual">();
@@ -62,6 +62,18 @@ export function AiQuotaSettingsPanel() {
   const configById = useMemo(() => new Map(configs.map((config) => [config.id, config])), [configs]);
   const snapshotById = useMemo(() => new Map(snapshots.map((snapshot) => [snapshot.id, snapshot])), [snapshots]);
   const editingPlugin = aiQuotaRepository.plugins.find((plugin) => plugin.id === editingId);
+  const isBusy = (action: string) => busyActions.has(action);
+  const isProviderBusy = (id: ApiProvider | "manual") => [...busyActions].some((action) => action.endsWith(`:${id}`));
+
+  /** Busy 状态按动作和厂商隔离，避免一个长请求锁住整张额度表。 */
+  function setActionBusy(action: string, active: boolean): void {
+    setBusyActions((current) => {
+      const next = new Set(current);
+      if (active) next.add(action);
+      else next.delete(action);
+      return next;
+    });
+  }
 
   useEffect(() => {
     void aiQuotaRuntime.initialize();
@@ -102,7 +114,8 @@ export function AiQuotaSettingsPanel() {
 
   async function save(id: ApiProvider | "manual") {
     const form = forms[id] ?? formFromConfig(configById.get(id));
-    setBusy(`save:${id}`);
+    const action = `save:${id}`;
+    setActionBusy(action, true);
     try {
       await aiQuotaRuntime.saveAndActivate({ id, enabled: form.enabled, credentials: form.credentials, monthlyBudget: Number(form.monthlyBudget) || undefined, manualRemaining: Number(form.manualRemaining) || undefined, today: new Date() });
       setNotice(form.enabled ? "额度配置已保存并启动刷新" : "额度配置已保存");
@@ -110,19 +123,21 @@ export function AiQuotaSettingsPanel() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "额度配置保存失败");
     } finally {
-      setBusy("");
+      setActionBusy(action, false);
     }
   }
 
   async function validateQuota(id: ApiProvider | "manual") {
-    setBusy(`validate:${id}`);
+    const action = `validate:${id}`;
+    setActionBusy(action, true);
     try { setNotice(await aiQuotaRuntime.validate(id)); }
     catch (error) { setNotice(error instanceof Error ? error.message : "额度凭据验证失败"); }
-    finally { setBusy(""); }
+    finally { setActionBusy(action, false); }
   }
 
   async function refreshQuota(id: ApiProvider | "manual") {
-    setBusy(`refresh:${id}`);
+    const action = `refresh:${id}`;
+    setActionBusy(action, true);
     try {
       await aiQuotaRuntime.manualRefresh(id);
       setSuccessId(id);
@@ -130,14 +145,15 @@ export function AiQuotaSettingsPanel() {
       setNotice("额度快照已刷新");
     }
     catch (error) { setNotice(error instanceof Error ? error.message : "额度刷新失败"); }
-    finally { setBusy(""); }
+    finally { setActionBusy(action, false); }
   }
 
   /** 仅在用户显式点击后引用同厂商模型连接 Key，不自动扩大凭据用途。 */
   async function reuseDeepSeekConnectionKey(): Promise<void> {
     const profile = connectionProfiles.find((item) => item.id === selectedDeepSeekConnectionId && item.provider === "deepseek");
     if (!profile) return;
-    setBusy("reuse:deepseek");
+    const action = "reuse:deepseek";
+    setActionBusy(action, true);
     try {
       const apiKey = await aiConnectionsRepository.resolveSecret(profile);
       const form = forms.deepseek ?? formFromConfig(configById.get("deepseek"));
@@ -146,23 +162,23 @@ export function AiQuotaSettingsPanel() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "连接 Key 引用失败");
     } finally {
-      setBusy("");
+      setActionBusy(action, false);
     }
   }
 
   /** 启用开关立即落库并启动或停止刷新，不要求用户再点一次保存。 */
   async function toggleEnabled(id: ApiProvider | "manual", enabled: boolean): Promise<void> {
-    const form = forms[id] ?? formFromConfig(configById.get(id));
     patchForm(id, { enabled });
-    setBusy(`toggle:${id}`);
+    const action = `toggle:${id}`;
+    setActionBusy(action, true);
     try {
-      await aiQuotaRuntime.saveAndActivate({ id, enabled, credentials: form.credentials, monthlyBudget: Number(form.monthlyBudget) || undefined, manualRemaining: Number(form.manualRemaining) || undefined, today: new Date() });
-      setNotice(enabled ? (aiQuotaRepository.isConfigured(id) ? "已启用并刷新额度" : "已启用，等待配置凭据") : "已停用额度刷新");
+      await aiQuotaRuntime.setEnabled(id, enabled, new Date());
+      setNotice(enabled ? (aiQuotaRepository.isConfigured(id) ? "已启用，正在后台刷新额度" : "已启用，等待配置凭据") : "已停用额度刷新");
     } catch (error) {
       patchForm(id, { enabled: !enabled });
       setNotice(error instanceof Error ? error.message : "额度启用状态保存失败");
     } finally {
-      setBusy("");
+      setActionBusy(action, false);
     }
   }
 
@@ -184,12 +200,12 @@ export function AiQuotaSettingsPanel() {
             return (
               <div key={plugin.id} className={`${styles.tableRow} ${styles.quotaColumns}`}>
                 <button ref={(node) => { if (editingId === plugin.id && node) returnFocusRef.current = node; }} aria-label={`配置${plugin.label}额度`} className={styles.providerCell} type="button" onClick={(event) => { returnFocusRef.current = event.currentTarget; setEditingId(plugin.id); }}><ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={24} /><strong>{plugin.label}</strong><AppIcon name="configure" size={16} /></button>
-                <input aria-label={`启用${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={Boolean(busy)} role="switch" type="checkbox" onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} />
+                <input aria-label={`启用${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={isBusy(`toggle:${plugin.id}`)} role="switch" type="checkbox" onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} />
                 <span className={styles.providerCell}><i className={styles.statusDot} data-tone={tone} /><span className={styles.truncate}>{statusLabels[runtimeStatus]}</span></span>
                 <QuotaMetricRing snapshot={snapshot} />
                 <span className={styles.muted}>{snapshot ? new Date(snapshot.refreshedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "未刷新"}</span>
                 <span className={`${styles.muted} ${styles.truncate}`}>{snapshot?.sourceLabel ?? (plugin.supportsOfficialRefresh ? "官方（自动同步）" : "手动配置")}</span>
-                <button aria-label={`刷新${plugin.label}额度`} className={styles.iconButton} disabled={Boolean(busy) || !form.enabled} type="button" onClick={() => void refreshQuota(plugin.id)}><span className={runtimeStatus === "refreshing" ? styles.spin : undefined}><AppIcon name={runtimeStatus === "error" || runtimeStatus === "stale" ? "warning" : successId === plugin.id ? "check" : "refresh"} size={16} /></span></button>
+                <button aria-label={`刷新${plugin.label}额度`} className={styles.iconButton} disabled={isProviderBusy(plugin.id) || !form.enabled} type="button" onClick={() => void refreshQuota(plugin.id)}><span className={runtimeStatus === "refreshing" ? styles.spin : undefined}><AppIcon name={runtimeStatus === "error" || runtimeStatus === "stale" ? "warning" : successId === plugin.id ? "check" : "refresh"} size={16} /></span></button>
               </div>
             );
           })}
@@ -204,7 +220,7 @@ export function AiQuotaSettingsPanel() {
               <p className={styles.muted}>{runtime.entries[editingId]?.message ?? "启用后仅在页面可见且在线时刷新。"}</p>
               {editingId === "deepseek" && connectionProfiles.some((profile) => profile.provider === "deepseek") ? <div className={styles.credentialReuse}>
                 <label className="ui-field">引用已保存连接<select className={styles.select} value={selectedDeepSeekConnectionId} onChange={(event) => setSelectedDeepSeekConnectionId(event.currentTarget.value)}>{connectionProfiles.filter((profile) => profile.provider === "deepseek").map((profile) => <option key={profile.id} value={profile.id}>{profile.label} · {profile.maskedKey}</option>)}</select></label>
-                <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void reuseDeepSeekConnectionKey()}>{busy === "reuse:deepseek" ? "引用中" : "引用连接 Key"}</Button>
+                <Button size="sm" variant="outline" disabled={isProviderBusy("deepseek")} onClick={() => void reuseDeepSeekConnectionKey()}>{isBusy("reuse:deepseek") ? "引用中" : "引用连接 Key"}</Button>
               </div> : null}
               {editingPlugin.credentialFields.map((field) => {
                 const form = forms[editingId] ?? formFromConfig(configById.get(editingId));
@@ -215,9 +231,9 @@ export function AiQuotaSettingsPanel() {
             </div>
             <div className={styles.modalActions}>
               {editingPlugin.dashboardUrl ? <a className="ui-button ui-button-sm ui-button-outline" href={editingPlugin.dashboardUrl} rel="noreferrer" target="_blank">官网账单</a> : null}
-              {editingPlugin.supportsOfficialRefresh ? <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void validateQuota(editingId)}>{busy === `validate:${editingId}` ? "验证中" : "测试凭据"}</Button> : null}
-              <Button size="sm" variant="outline" disabled={Boolean(busy) || !(forms[editingId]?.enabled)} onClick={() => void refreshQuota(editingId)}>{busy === `refresh:${editingId}` ? "刷新中" : "刷新"}</Button>
-              <Button size="sm" variant="primary" disabled={Boolean(busy)} onClick={() => void save(editingId)}>{busy === `save:${editingId}` ? "保存中" : "保存"}</Button>
+              {editingPlugin.supportsOfficialRefresh ? <Button size="sm" variant="outline" disabled={isProviderBusy(editingId)} onClick={() => void validateQuota(editingId)}>{isBusy(`validate:${editingId}`) ? "验证中" : "测试凭据"}</Button> : null}
+              <Button size="sm" variant="outline" disabled={isProviderBusy(editingId) || !(forms[editingId]?.enabled)} onClick={() => void refreshQuota(editingId)}>{isBusy(`refresh:${editingId}`) ? "刷新中" : "刷新"}</Button>
+              <Button size="sm" variant="primary" disabled={isProviderBusy(editingId)} onClick={() => void save(editingId)}>{isBusy(`save:${editingId}`) ? "保存中" : "保存"}</Button>
             </div>
           </section>
         </div>

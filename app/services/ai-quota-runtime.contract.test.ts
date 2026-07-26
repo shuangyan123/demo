@@ -36,7 +36,7 @@ test.afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-test("额度启用立即落库，并在凭据完整时验证和刷新", async () => {
+test("额度启用立即落库，并在凭据完整时后台验证和刷新", async () => {
   const actions: string[] = [];
   globalThis.fetch = async (_input, init) => {
     const body = JSON.parse(String(init?.body)) as { action: string; provider: string };
@@ -58,6 +58,7 @@ test("额度启用立即落库，并在凭据完整时验证和刷新", async ()
   const runtime = new QuotaRuntimeStore();
   await runtime.saveAndActivate({ id: "openai", enabled: true, credentials: { adminKey: "admin-fixture" }, today: new Date() });
   assert.equal(aiQuotaRepository.loadSync().configs.find((config) => config.id === "openai")?.enabled, true);
+  await new Promise((resolve) => setTimeout(resolve, 30));
   assert.deepEqual(actions, ["validate", "refresh"]);
   assert.equal(runtime.getSnapshot().entries.openai?.status, "ready");
   assert.equal(runtime.getSnapshot().snapshots[0]?.id, "openai");
@@ -66,6 +67,34 @@ test("额度启用立即落库，并在凭据完整时验证和刷新", async ()
   await assert.rejects(runtime.manualRefresh("openai"), /临时不可用/);
   assert.equal(runtime.getSnapshot().entries.openai?.status, "stale");
   assert.equal(runtime.getSnapshot().snapshots[0]?.stale, true);
+});
+
+test("独立启停短事务不读取凭据，并允许其他厂商继续操作", async () => {
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    return Response.json({ message: "不应请求" }, { status: 500 });
+  };
+  await aiQuotaRepository.saveConfig({ id: "manual", enabled: false, manualRemaining: 12, today: new Date() });
+  const runtime = new QuotaRuntimeStore();
+  await runtime.setEnabled("manual", true);
+  assert.equal(aiQuotaRepository.loadSync().configs.find((config) => config.id === "manual")?.enabled, true);
+  assert.equal(requests, 0);
+  await runtime.setEnabled("manual", false);
+  assert.equal(aiQuotaRepository.loadSync().configs.find((config) => config.id === "manual")?.enabled, false);
+  assert.equal(runtime.getSnapshot().entries.manual?.status, "disabled");
+});
+
+test("启用缺少必填凭据时进入待配置且不发送请求", async () => {
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    return Response.json({});
+  };
+  const runtime = new QuotaRuntimeStore();
+  await runtime.setEnabled("anthropic", true);
+  assert.equal(runtime.getSnapshot().entries.anthropic?.status, "needs-credentials");
+  assert.equal(requests, 0);
 });
 
 test("额度运行时在页面隐藏或离线时暂停，到期恢复才刷新", async () => {
