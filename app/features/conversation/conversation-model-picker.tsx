@@ -250,6 +250,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           {activeSelectedModelId && selectedDescriptor ? (
             <ConversationModelRuntimeControls
               descriptor={selectedDescriptor}
+              entries={["speed"]}
               values={runtimeValues}
               onChange={chooseRuntime}
               onOpen={(dimension) => showRuntime(activeProvider, activeConnection.id, dimension)}

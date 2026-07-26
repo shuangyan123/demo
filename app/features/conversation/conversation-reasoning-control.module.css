@@ -1,0 +1,138 @@
+.root {
+  position: relative;
+}
+
+.trigger {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 9.5rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.62rem;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.78rem;
+}
+
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  color: var(--foreground);
+  background: var(--surface-muted);
+}
+
+.trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popover {
+  position: absolute;
+  z-index: 55;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  width: min(19rem, calc(100vw - 1.5rem));
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--surface);
+  box-shadow: 0 18px 42px rgb(15 23 42 / 16%);
+}
+
+.header,
+.valueRow,
+.budgetInput {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.header {
+  margin-bottom: 0.7rem;
+}
+
+.header strong,
+.valueRow strong {
+  font-size: 0.82rem;
+}
+
+.header button {
+  display: inline-grid;
+  width: 2rem;
+  min-height: 2rem;
+  place-items: center;
+  border-radius: 0.5rem;
+}
+
+.range {
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0.45rem 0 0.2rem;
+  accent-color: var(--foreground);
+}
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.budgetInput {
+  margin-top: 0.65rem;
+}
+
+.budgetInput input {
+  width: 7rem;
+  min-height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.45rem;
+  background: var(--surface);
+  color: var(--foreground);
+  font-family: var(--app-code-font);
+}
+
+.sentinels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.sentinels button {
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.sentinels button[aria-pressed="true"] {
+  color: var(--foreground);
+  border-color: var(--foreground);
+}
+
+@media (pointer: coarse) {
+  .trigger,
+  .header button,
+  .range,
+  .sentinels button,
+  .budgetInput input {
+    min-height: 2.75rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .popover {
+    position: fixed;
+    right: 0.75rem;
+    bottom: var(--model-picker-mobile-bottom, 7.75rem);
+    left: 0.75rem;
+    width: auto;
+  }
+}

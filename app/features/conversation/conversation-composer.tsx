@@ -1,13 +1,14 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useRef, useState, type FormEvent } from "react";
-import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import type { AiModelRuntimeDescriptor, AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
 import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import { AppIcon } from "../shared/app-icon";
 import { cx } from "../shared/ui-primitives";
 import type { DraftAttachment } from "./conversation-attachment-utils.ts";
 import { ConversationModelSelector, type ConversationModelSelectorHandle } from "./conversation-model-selector";
 import type { ConversationModelSelection } from "./conversation-model-picker";
+import { ConversationReasoningControl } from "./conversation-reasoning-control";
 
 /** 工作台只需要通过句柄请求打开模型菜单，不接管菜单内部状态。 */
 export type ConversationComposerHandle = {
@@ -23,6 +24,7 @@ type ConversationComposerProps = {
   modelSelectionError?: string;
   purpose: AiConnectionPurpose;
   recording: boolean;
+  runtimeDescriptor?: AiModelRuntimeDescriptor;
   selectedConnection?: ApiConnectionProfile;
   selectedModelId?: string;
   selectedRuntimeValues?: AiSelectedRuntimeValues;
@@ -81,6 +83,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   modelSelectionError,
   purpose,
   recording,
+  runtimeDescriptor,
   selectedConnection,
   selectedModelId,
   selectedRuntimeValues,
@@ -195,6 +198,19 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
             onSelect={onSelectModel}
           />
         </div>
+        <ConversationReasoningControl
+          disabled={busy}
+          reasoning={runtimeDescriptor?.reasoning}
+          values={selectedRuntimeValues ?? {}}
+          onChange={(runtimeValues) => {
+            if (!selectedConnection || !selectedModelId) return;
+            onSelectModel({
+              connection: selectedConnection,
+              modelId: selectedModelId,
+              selectedRuntimeValues: runtimeValues,
+            });
+          }}
+        />
         <button className="conversation-send" disabled={busy || (!draft.trim() && !attachments.length)} type="submit" aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>
       </div>
     </form>
