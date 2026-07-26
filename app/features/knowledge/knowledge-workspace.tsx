@@ -212,7 +212,7 @@ export function KnowledgeTrainingView({
         <Panel title="训练概况" eyebrow="Session">
           <div className="grid gap-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg bg-blue/10 p-3 text-blue">
+              <div className="rounded-lg bg-[var(--interactive-selected-bg)] p-3 text-foreground">
                 <span className="text-xs font-bold">今日到期</span>
                 <strong className="mt-1 block text-2xl">{dueEntries.length}</strong>
               </div>
@@ -234,12 +234,12 @@ export function KnowledgeTrainingView({
                 <button
                   key={entry.id}
                   className={`grid grid-cols-[28px_minmax(0,1fr)] gap-3 rounded-lg border p-3 text-left transition ${
-                    currentEntry?.id === entry.id ? "border-blue/30 bg-blue/10" : "border-line hover:bg-surface-muted"
+                    currentEntry?.id === entry.id ? "border-foreground/30 bg-[var(--interactive-selected-bg)]" : "border-line hover:bg-surface-muted"
                   }`}
                   type="button"
                   onClick={() => onSelectEntry(entry.id)}
                 >
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-surface text-sm font-extrabold text-blue">{index + 1}</span>
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-surface text-sm font-extrabold text-foreground">{index + 1}</span>
                   <span className="min-w-0">
                     <strong className="block truncate">{entry.title}</strong>
                     <small className="mt-1 block text-muted">
@@ -420,7 +420,7 @@ export function KnowledgeView({
           {summaries.map((item) => (
             <article
               key={item.category}
-              className="ui-card ui-card-muted grid gap-4 text-left transition hover:border-blue/40 hover:bg-blue/5"
+              className="ui-card ui-card-muted grid gap-4 text-left transition hover:border-foreground/40 hover:bg-[var(--interactive-hover-bg)]"
             >
               <button className="text-left" type="button" onClick={() => onChangeFilters({ ...filters, category: item.category })}>
                 <strong className="text-lg">{item.category}</strong>

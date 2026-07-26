@@ -240,7 +240,7 @@ export function DeclarativeExtensionMarketplace({
           />
         </div>
         {importPreview ? (
-          <div className="mt-4 grid gap-3 rounded-xl border border-blue/40 bg-blue/5 p-4">
+          <div className="mt-4 grid gap-3 rounded-xl border border-foreground/40 bg-[var(--interactive-selected-bg)] p-4">
             <PackageSummary extensionPackage={importPreview} source="本地文件" />
             <div className="flex gap-2">
               <Button size="sm" disabled={busyId === importPreview.manifest.id} onClick={() => void install(importPreview, "local")}>确认安装</Button>

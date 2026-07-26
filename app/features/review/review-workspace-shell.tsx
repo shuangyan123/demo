@@ -141,7 +141,7 @@ export function ReviewWorkspaceShell({
               >
                 <ReviewNavIcon name={item.icon} />
                 <span className="truncate">{item.label}</span>
-                {item.badge ? <span className="inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-blue px-1 text-[11px] text-white">{item.badge}</span> : null}
+                {item.badge ? <span className="inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-foreground px-1 text-[11px] text-[var(--surface)]">{item.badge}</span> : null}
               </button>
             ))}
           </nav>

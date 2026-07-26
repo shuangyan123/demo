@@ -193,7 +193,7 @@ export function ColorPickerField({ label, value, onChange }: { label: string; va
                 <button
                   key={color}
                   aria-label={`选择颜色 ${color}`}
-                  className={`h-7 w-7 rounded-full border ${color === normalizedValue ? "ring-2 ring-blue ring-offset-2 ring-offset-[var(--surface)]" : "border-line"}`}
+                  className={`h-7 w-7 rounded-full border ${color === normalizedValue ? "ring-2 ring-foreground ring-offset-2 ring-offset-[var(--surface)]" : "border-line"}`}
                   style={{ background: color }}
                   type="button"
                   onClick={() => commitColor(color)}

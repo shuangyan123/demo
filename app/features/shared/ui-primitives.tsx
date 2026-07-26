@@ -34,7 +34,7 @@ export function MetricCard({ label, value, hint, tone }: { label: string; value:
 export function Chip({ children, tone = "neutral" }: { children: ReactNode; tone?: ChipTone }) {
   const className = {
     neutral: "bg-slate-100 text-slate-600",
-    blue: "bg-blue/10 text-blue",
+    blue: "bg-slate-100 text-foreground",
     green: "bg-emerald-50 text-green",
     yellow: "bg-amber-50 text-yellow",
     red: "bg-red/10 text-red",
@@ -117,7 +117,7 @@ export function CardButton({
   active?: boolean;
 }) {
   return (
-    <button className={cx("ui-card ui-card-muted text-left transition hover:border-blue/40 hover:bg-blue/5", active && "ui-list-row-active", className)} type="button" {...props}>
+    <button className={cx("ui-card ui-card-muted text-left transition hover:border-line hover:bg-chrome-hover", active && "ui-list-row-active", className)} type="button" {...props}>
       {children}
     </button>
   );

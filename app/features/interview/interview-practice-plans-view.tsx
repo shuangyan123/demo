@@ -125,7 +125,7 @@ export function InterviewPracticePlansView({
                 <article key={plan.id} className="ui-card ui-card-muted">
                   <Toolbar>
                     <div>
-                      <p className="text-sm font-bold text-blue">{plan.type === "mixed" ? "混合训练" : interviewTypeLabels[plan.type]}</p>
+                      <p className="text-sm font-bold text-foreground">{plan.type === "mixed" ? "混合训练" : interviewTypeLabels[plan.type]}</p>
                       <h3 className="mt-1 text-lg font-extrabold">{plan.title}</h3>
                     </div>
                     <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-muted">{plan.status}</span>

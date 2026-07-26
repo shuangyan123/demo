@@ -109,7 +109,7 @@ export function ReviewView({
         <details className="border-t border-line pt-4">
           <summary className="cursor-pointer font-bold">查看本轮队列（{dueMistakes.length}）</summary>
           <ol className="mt-3 grid gap-2 text-sm">
-            {dueMistakes.map((item, index) => <li key={item.id} className={index === reviewIndex ? "font-bold text-blue" : "text-muted"}>{index + 1}. {item.board} · {item.reasons.join(" / ")}</li>)}
+            {dueMistakes.map((item, index) => <li key={item.id} className={index === reviewIndex ? "font-bold text-foreground" : "text-muted"}>{index + 1}. {item.board} · {item.reasons.join(" / ")}</li>)}
           </ol>
         </details>
 

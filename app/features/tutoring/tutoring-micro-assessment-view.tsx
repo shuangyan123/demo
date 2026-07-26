@@ -22,14 +22,14 @@ export function TutoringConversationList({
   return (
     <DataList className="mt-4 max-h-[24rem] overflow-y-auto pr-1">
       {turns.map((turn) => (
-        <article key={turn.id} className={`rounded-2xl border border-line p-3 ${turn.speaker === "ai_tutor" ? "bg-blue/5" : "bg-surface"}`}>
+        <article key={turn.id} className={`rounded-2xl border border-line p-3 ${turn.speaker === "ai_tutor" ? "bg-[var(--interactive-selected-bg)]" : "bg-surface"}`}>
           <div className="flex items-center justify-between gap-3">
             <strong>{turn.speaker === "student" ? "学生" : turn.speaker === "ai_tutor" ? "AI 老师" : "系统"}</strong>
             <span className="text-xs text-muted">{formatDateTime(turn.createdAt)}</span>
           </div>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.content}</p>
           {turn.detectedProblem ? <p className="mt-2 text-sm text-yellow">发现：{turn.detectedProblem}</p> : null}
-          {turn.nextQuestion ? <p className="mt-2 text-sm text-blue">追问：{turn.nextQuestion}</p> : null}
+          {turn.nextQuestion ? <p className="mt-2 text-sm text-foreground">追问：{turn.nextQuestion}</p> : null}
           {turn.responseLatencyMs !== undefined ? <p className="mt-2 text-xs text-muted">本轮反馈 {(turn.responseLatencyMs / 1000).toFixed(1)} 秒</p> : null}
           {turn.speaker === "ai_tutor" ? (
             <Toolbar className="mt-3">

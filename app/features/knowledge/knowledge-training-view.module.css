@@ -80,8 +80,8 @@
 }
 
 .queue button[aria-current="true"] {
-  border-color: color-mix(in srgb, var(--color-blue) 36%, var(--color-line));
-  background: color-mix(in srgb, var(--color-blue) 9%, var(--color-surface));
+  border-color: var(--color-foreground);
+  background: var(--interactive-selected-bg);
 }
 
 .queueIndex {
@@ -91,7 +91,7 @@
   place-items: center;
   border-radius: 50%;
   background: var(--color-surface-muted);
-  color: var(--color-blue);
+  color: var(--color-foreground);
   font-size: 12px;
   font-weight: 760;
 }

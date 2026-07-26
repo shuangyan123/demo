@@ -70,8 +70,8 @@
 }
 
 .tab[aria-selected="true"] {
-  border-bottom-color: var(--blue);
-  color: var(--blue);
+  border-bottom-color: var(--foreground);
+  color: var(--foreground);
 }
 
 .columns {
@@ -164,11 +164,11 @@
 
 .taskRow:hover,
 .taskRow[data-selected="true"] {
-  background: color-mix(in srgb, var(--blue) 7%, var(--surface));
+  background: var(--interactive-selected-bg);
 }
 
 .taskRow[data-selected="true"] {
-  box-shadow: inset 3px 0 var(--blue);
+  box-shadow: inset 3px 0 var(--foreground);
 }
 
 .taskName,
@@ -248,7 +248,7 @@
 
 .runCard[data-status="failed"] { border-left-color: var(--red); }
 .runCard[data-status="running"] { border-left-color: var(--yellow); }
-.runCard[data-unread="true"] { background: color-mix(in srgb, var(--blue) 4%, var(--surface)); }
+.runCard[data-unread="true"] { background: var(--interactive-selected-bg); }
 
 .runSummary {
   display: flex;
@@ -267,7 +267,7 @@
 .runSummary strong,
 .runSummary small { display: block; }
 .runSummary small { margin-top: .2rem; color: var(--muted); font-size: .72rem; }
-.runSummary > span:last-child { color: var(--blue); font-size: .72rem; white-space: nowrap; }
+.runSummary > span:last-child { color: var(--foreground); font-size: .72rem; white-space: nowrap; }
 .runExcerpt {
   display: -webkit-box;
   margin: 0 .75rem .65rem;
@@ -364,7 +364,7 @@
 }
 
 .stepRail span + span { border-left: 1px solid var(--line); }
-.stepRail span:first-child { color: var(--blue); background: color-mix(in srgb, var(--blue) 7%, transparent); }
+.stepRail span:first-child { color: var(--foreground); background: var(--interactive-selected-bg); }
 
 .drawerPanel {
   position: absolute;

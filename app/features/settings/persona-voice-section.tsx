@@ -32,7 +32,7 @@ export function PersonaVoiceSection({
         <span>角色音色</span>
         <input
           checked={Boolean(dedicatedVoice)}
-          className="h-4 w-4 accent-[var(--blue)]"
+          className="h-4 w-4 accent-[var(--foreground)]"
           type="checkbox"
           onChange={(event) => onUpdate({ voice: event.target.checked ? emptyVoice : undefined })}
         />

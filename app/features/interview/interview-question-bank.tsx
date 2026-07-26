@@ -149,10 +149,10 @@ export function InterviewQuestionBank({
         <DataList className="mt-4">
           {visibleQuestions.length ? (
             visibleQuestions.map((question) => (
-              <article key={question.id} className={`ui-card ui-card-muted text-left transition hover:border-blue/40 hover:bg-blue/5 ${selectedQuestionId === question.id ? "border-blue/50 bg-blue/5" : ""}`}>
+              <article key={question.id} className={`ui-card ui-card-muted text-left transition hover:border-foreground/40 hover:bg-[var(--interactive-hover-bg)] ${selectedQuestionId === question.id ? "border-foreground/50 bg-[var(--interactive-selected-bg)]" : ""}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <button className="min-w-0 text-left" type="button" onClick={() => onSelectQuestion(question.id)}>
-                    <p className="text-sm font-bold text-blue">{interviewTypeLabels[question.type]}</p>
+                    <p className="text-sm font-bold text-foreground">{interviewTypeLabels[question.type]}</p>
                     <h3 className="mt-1 text-lg font-extrabold text-foreground">{question.title}</h3>
                     <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{question.prompt}</p>
                     <div className="mt-3 flex flex-wrap gap-2">

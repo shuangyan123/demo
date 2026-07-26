@@ -262,12 +262,12 @@ export function DashboardView({
             <CardButton className="grid gap-3" onClick={onOpenInterview}>
               <strong className="text-lg">线上模拟与复盘</strong>
               <span className="text-sm text-muted">结构化、小组和无领导面试训练</span>
-              <span className="text-sm font-semibold text-blue">进入面试训练</span>
+              <span className="text-sm font-semibold text-foreground">进入面试训练</span>
             </CardButton>
             <CardButton className="grid gap-3" onClick={onOpenTutoring}>
               <strong className="text-lg">对话辅导</strong>
               <span className="text-sm text-muted">按需使用截图、摄像头、屏幕和知识检索</span>
-              <span className="text-sm font-semibold text-blue">开始对话辅导</span>
+              <span className="text-sm font-semibold text-foreground">开始对话辅导</span>
             </CardButton>
           </div>
         </DashboardDisclosure>
