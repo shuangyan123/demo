@@ -123,8 +123,17 @@ test("对话文件夹可通过右键菜单行内重命名、移动和删除", as
   const actionButtonBox = await actionButton.boundingBox();
   await actionButton.click();
   const buttonMenuBox = await drawer.boundingBox();
+  const menuMetrics = await drawer.evaluate((element) => {
+    const rows = Array.from(element.querySelectorAll<HTMLElement>(":scope > button")).map((item) => item.getBoundingClientRect());
+    return {
+      heights: rows.map((row) => row.height),
+      gaps: rows.slice(1).map((row, index) => row.top - rows[index].bottom),
+    };
+  });
   expect(contextMenuBox).not.toBeNull();
   expect(buttonMenuBox).not.toBeNull();
+  expect(menuMetrics.heights.every((height) => height <= 33)).toBe(true);
+  expect(menuMetrics.gaps.every((gap) => gap <= 3)).toBe(true);
   expect(Math.abs((contextMenuBox?.x ?? 0) - (buttonMenuBox?.x ?? 0))).toBeLessThanOrEqual(1);
   expect(Math.abs((contextMenuBox?.y ?? 0) - (buttonMenuBox?.y ?? 0))).toBeLessThanOrEqual(1);
   expect((buttonMenuBox?.x ?? 0) >= (actionButtonBox?.x ?? 0) + (actionButtonBox?.width ?? 0)).toBe(true);

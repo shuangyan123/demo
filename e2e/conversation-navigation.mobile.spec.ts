@@ -21,7 +21,11 @@ test("移动端对话树使用同一底部操作层完成两级移动", async ({
 
   const rootMenu = page.getByRole("menu", { name: "对话树操作" });
   const rootBox = await rootMenu.boundingBox();
+  const mobileRowHeights = await rootMenu.evaluate((element) => (
+    Array.from(element.querySelectorAll<HTMLElement>(":scope > button")).map((item) => item.getBoundingClientRect().height)
+  ));
   expect(rootBox).not.toBeNull();
+  expect(mobileRowHeights.every((height) => height >= 44)).toBe(true);
   expect((rootBox?.y ?? 0) + (rootBox?.height ?? 0)).toBeGreaterThanOrEqual(840);
   await rootMenu.getByRole("menuitem", { name: "移动到" }).click();
 

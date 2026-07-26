@@ -8,6 +8,12 @@ test("P2 桌面已安排与设置在浅色和深色模式下保持主从布局",
 
   await page.getByRole("button", { name: "已安排" }).first().click();
   await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
+  const scheduledTopOffset = await page.getByRole("heading", { name: "已安排", exact: true }).evaluate((heading) => {
+    const main = heading.closest("main");
+    return main ? heading.getBoundingClientRect().top - main.getBoundingClientRect().top : -1;
+  });
+  expect(scheduledTopOffset).toBeGreaterThanOrEqual(15);
+  expect(scheduledTopOffset).toBeLessThanOrEqual(17);
   await expect(page.getByText("运行收件箱", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "新建任务", exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("p2-scheduled-desktop-1536x1024.png"), fullPage: false });

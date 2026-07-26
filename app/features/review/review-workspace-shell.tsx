@@ -119,7 +119,11 @@ export function ReviewWorkspaceShell({
   return (
     <WorkspaceShell
       key={`${view}:${activeConversationId ?? "none"}`}
-      contentClassName={view === "conversation" ? "conversation-shell-content" : `review-view-${view} px-7 py-7 max-sm:px-4`}
+      contentClassName={view === "conversation"
+        ? "conversation-shell-content"
+        : view === "automation"
+          ? "review-view-automation px-7 pt-4 pb-7 max-sm:px-4"
+          : `review-view-${view} px-7 py-7 max-sm:px-4`}
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName="review-workspace-sidebar flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:px-3 max-lg:py-2"
       title={view === "dashboard" || view === "conversation" ? "错题复盘" : viewTitles[view]}

@@ -107,6 +107,7 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
           <AppIcon name="search" size={18} />
           <input
             ref={inputRef}
+            className={cx("command-search-input", styles.searchInput)}
             aria-label="搜索聊天或运行命令"
             placeholder="搜索聊天、学习资料或设置"
             value={query}
