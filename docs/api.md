@@ -295,3 +295,9 @@ P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controll
 - 自定义 AI 连接和 MCP 可以显式允许 RFC1918/ULA 地址；loopback 维持默认可用。元数据、链路本地、未指定、多播、内嵌凭据和重定向继续被统一边界拒绝。
 - `LocalDataExportV2` 是新的受支持本地导出格式：`schemaVersion` 固定为 `2`，`credentialsExcluded` 固定为 `true`。连接元数据包含 `credentialStatus: "reconfigure_required"`，导入后必须重新配置凭据。
 - `CredentialSecurityError.code` 的内部稳定值为 `legacy_key_missing`、`legacy_key_invalid`、`secure_key_missing`、`secure_key_invalid` 和 `ciphertext_invalid`；公开 API 不透传浏览器密钥库对象、密文或底层异常。
+
+## AI 连接保存兼容性（2026-07-26）
+
+- `attemptStoredSecretsMigration()` 是客户端内部恢复入口，只返回 `complete | partial` 和稳定错误码；不返回密文、Key、主密钥或原始异常。
+- 保存连接仍使用现有 repository 接口。提供新 Key 时只加密并写入目标记录；厂商变更缺少新 Key 时返回可恢复校验错误，记录 ID 和旧数据保持不变。
+- 本轮没有新增 HTTP Route、请求字段或响应字段，也没有改变 Provider adapter、SSE 或模型目录协议。
