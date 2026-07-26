@@ -4,9 +4,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
 import type { ApiConnectionProfile, ApiSetting } from "../types/domains/ai-connection.ts";
+import type { McpServerProfile } from "../types/domains/mcp.ts";
 import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
+import { LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME } from "./crypto-service.ts";
 import { createDefaultPersonalizationSettings, personalizationSettingsRepository } from "./personalization-settings-repository.ts";
+import { resetSecretMigrationForTests } from "./secret-migration-service.ts";
+import { secretStorageLocations } from "./secret-storage-locations.ts";
 
 const today = new Date("2026-06-19T08:00:00.000Z");
 const localStorageValues = new Map<string, string>();
@@ -28,6 +32,15 @@ async function resetDatabase() {
   reviewDb.close();
   await reviewDb.delete();
   await reviewDb.open();
+  resetSecretMigrationForTests();
+}
+
+async function createLegacyKey(): Promise<void> {
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  localStorageMock.setItem(
+    LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME,
+    JSON.stringify(await crypto.subtle.exportKey("jwk", key)),
+  );
 }
 
 test("旧 apiSettings 设置迁移后只作为兼容桥且不会在删除后复活", async () => {
@@ -186,6 +199,75 @@ test("官方 Google 连接在读写边界补齐多模态能力，自定义连接
     today,
   });
   assert.deepEqual(custom.capabilities, ["text"]);
+});
+
+test("无关旧 MCP 凭据损坏时新 Google 连接仍保存厂商且保留旧 JWK", async () => {
+  await resetDatabase();
+  localStorageValues.clear();
+  await createLegacyKey();
+  const brokenMcp: McpServerProfile = {
+    id: "broken-mcp",
+    label: "损坏 MCP",
+    endpoint: "https://mcp.example",
+    enabled: true,
+    authMode: "bearer",
+    encryptedToken: "broken-cipher",
+    encryptedTokenIv: "broken-iv",
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  };
+  localStorageMock.setItem(secretStorageLocations.mcpSettings, JSON.stringify({ profiles: [brokenMcp], discovery: {} }));
+
+  const profile = await aiConnectionsRepository.saveProfile({
+    label: "Google Gemini",
+    provider: "google",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    apiKey: "new-google-secret",
+    today,
+  });
+
+  assert.equal(profile.provider, "google");
+  assert.match(profile.encryptedKey, /^v2:/);
+  assert.notEqual(localStorageMock.getItem(LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME), null);
+  assert.equal((await aiConnectionsRepository.loadSnapshot(today)).profiles.some((item) => item.id === profile.id), true);
+});
+
+test("切换已有连接厂商必须提供新 Key 并原地更新同一记录", async () => {
+  await resetDatabase();
+  localStorageValues.clear();
+  const original = await aiConnectionsRepository.saveProfile({
+    label: "主连接",
+    provider: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    apiKey: "openai-secret",
+    today,
+  });
+
+  await assert.rejects(
+    aiConnectionsRepository.saveProfile({
+      id: original.id,
+      label: original.label,
+      provider: "google",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      apiKey: "",
+      today,
+    }),
+    /切换厂商后必须重新输入 API Key/,
+  );
+  assert.equal((await reviewDb.apiConnectionProfiles.get(original.id))?.provider, "openai");
+
+  const updated = await aiConnectionsRepository.saveProfile({
+    id: original.id,
+    label: original.label,
+    provider: "google",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    apiKey: "google-secret",
+    today,
+  });
+  assert.equal(updated.id, original.id);
+  assert.equal(updated.provider, "google");
+  assert.equal(await reviewDb.apiConnectionProfiles.count(), 1);
+  assert.equal(await aiConnectionsRepository.resolveSecret(updated), "google-secret");
 });
 
 test("编辑默认文本连接会同步旧表，移除文本能力时会清理默认值和旧记录", async () => {

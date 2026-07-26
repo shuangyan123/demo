@@ -363,3 +363,9 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 安全导出升级为 `LocalDataExportV2`，采用显式表允许清单和递归敏感字段清理。旧 AI 设置、Vault 目录配置、密文、IV、掩码 Key、Token、Cookie 与厂商原始响应不进入导出；连接只保留非敏感元数据并标为 `reconfigure_required`。新增表默认不导出。
 - 出站策略默认允许公网 HTTPS 与 loopback，RFC1918/ULA 必须由自定义连接或 MCP 的 `allowPrivateNetwork` 明确授权；云元数据、链路本地、未指定、多播和 URL 内嵌凭据始终拒绝。服务端检查全部 DNS 结果，并以 `redirect: "error"` 拒绝未复核跳转。
 - 完整重置关闭并删除 `review_workspace`、扩展数据库和独立安全密钥库，同时清理本应用 `review*` localStorage 键；数据库占用会返回可恢复提示。业务库继续保持 Dexie v16，低频动态加载边界不变。
+
+## AI 连接保存恢复（2026-07-26）
+
+- 严格迁移入口继续承担全量复核与旧 JWK 删除；设置快照和连接保存改用非阻断迁移结果 `complete | partial`，只暴露稳定脱敏错误码。
+- 新 Key 直接由 v2 本机密钥加密，其他 AI、MCP、额度或粉笔旧凭据异常不会阻断当前连接。未提供新 Key 时只校验当前连接，失败后要求重输且不覆盖旧密文。
+- 编辑连接切换厂商继续保留连接 ID 与用户名称，更新厂商默认端点、能力和选项，并强制输入新 Key；数据库仍为 Dexie v16，Provider 协议与公开 API 不变。

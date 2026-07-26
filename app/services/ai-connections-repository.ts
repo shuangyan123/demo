@@ -7,7 +7,7 @@ import { getProviderContract, getProviderModelCatalog } from "./provider-contrac
 import { createProfileFromLegacySetting } from "./legacy-ai-settings-migration.ts";
 import { inferMiniMaxRegion, normalizeMiniMaxAnthropicBaseUrl } from "./minimax-connection.ts";
 import { secretContext } from "./secret-context.ts";
-import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
+import { attemptStoredSecretsMigration } from "./secret-migration-service.ts";
 
 export type SaveConnectionInput = {
   id?: string;
@@ -114,7 +114,7 @@ export const aiConnectionsRepository = {
   /** 只验证凭据可解密性并立即丢弃明文，供设置页展示可恢复状态。 */
   async inspectCredentialHealth(profile: ApiConnectionProfile): Promise<ConnectionCredentialHealth> {
     try {
-      await ensureStoredSecretsMigrated();
+      await attemptStoredSecretsMigration();
       await decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
       return { status: "ready" };
     } catch (error) {
@@ -131,7 +131,8 @@ export const aiConnectionsRepository = {
 
   // 读取全部连接和能力默认值；若升级过程只留下旧表，则补做一次运行时兼容迁移。
   async loadSnapshot(today = new Date()): Promise<AiConnectionSnapshot> {
-    await ensureStoredSecretsMigrated();
+    // 旧 MCP、额度或导入凭据损坏时仍加载连接元数据，避免设置页退化为空快照。
+    await attemptStoredSecretsMigration();
     const [savedProfiles, savedDefaults, legacySetting, personalizationSettings] = await Promise.all([
       reviewDb.apiConnectionProfiles.orderBy("updatedAt").reverse().toArray(),
       reviewDb.apiConnectionDefaults.get("default"),
@@ -191,10 +192,15 @@ export const aiConnectionsRepository = {
 
   // 新增或更新连接；未输入新 Key 时沿用原有密文，避免设置页回填明文。
   async saveProfile(input: SaveConnectionInput): Promise<ApiConnectionProfile> {
-    await ensureStoredSecretsMigrated();
+    // 新 Key 直接写入 v2 密钥库；无关旧凭据迁移失败不得阻断当前连接保存。
+    await attemptStoredSecretsMigration();
     const existing = input.id ? await reviewDb.apiConnectionProfiles.get(input.id) : undefined;
     const profileId = input.id ?? crypto.randomUUID();
     const providedSecret = input.apiKey?.trim() ?? "";
+    const providerChanged = Boolean(existing && existing.provider !== input.provider);
+    if (providerChanged && !providedSecret) {
+      throw new Error("切换厂商后必须重新输入 API Key");
+    }
     const existingSecret = existing && !providedSecret
       ? await decryptSecret(existing.encryptedKey, existing.iv, secretContext.aiConnection(existing.id))
       : "";
@@ -304,7 +310,7 @@ export const aiConnectionsRepository = {
 
   // 仅在发起请求前解密指定连接的 Key，不把明文写回 React 状态或 IndexedDB。
   async resolveSecret(profile: ApiConnectionProfile): Promise<string> {
-    await ensureStoredSecretsMigrated();
+    await attemptStoredSecretsMigration();
     return decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
   },
 

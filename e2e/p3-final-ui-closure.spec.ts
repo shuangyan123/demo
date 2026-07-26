@@ -44,7 +44,30 @@ test("P3 桌面薄弱分析、插件检查器与命令搜索保持真实状态",
   await searchTrigger.click();
   const palette = page.getByRole("dialog", { name: "搜索聊天或运行命令" });
   await expect(palette).toBeVisible();
-  await palette.getByRole("textbox").fill("插件");
+  const commandInput = palette.getByRole("textbox");
+  await commandInput.fill("插件");
+  const commandFocus = await commandInput.evaluate((element) => {
+    const inputStyle = getComputedStyle(element);
+    const rowStyle = getComputedStyle(element.parentElement!);
+    return {
+      borderBottomWidth: inputStyle.borderBottomWidth,
+      borderLeftWidth: inputStyle.borderLeftWidth,
+      borderRightWidth: inputStyle.borderRightWidth,
+      borderTopWidth: inputStyle.borderTopWidth,
+      boxShadow: inputStyle.boxShadow,
+      outlineStyle: inputStyle.outlineStyle,
+      rowBackground: rowStyle.backgroundColor,
+    };
+  });
+  expect(commandFocus).toMatchObject({
+    borderBottomWidth: "0px",
+    borderLeftWidth: "0px",
+    borderRightWidth: "0px",
+    borderTopWidth: "0px",
+    boxShadow: "none",
+    outlineStyle: "none",
+  });
+  expect(commandFocus.rowBackground).not.toBe("rgba(0, 0, 0, 0)");
   await expect(palette.getByRole("button", { name: /插件/ })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(palette).toBeHidden();

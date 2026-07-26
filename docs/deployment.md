@@ -65,3 +65,9 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 - 应用对 Provider/MCP 跳转采用失败关闭，不自动跟随重定向。DNS 全结果校验属于应用层防线；生产环境仍应以防火墙或 egress policy 限制元数据和管理网络，降低运行时解析与请求之间的基础设施风险。
 - 完整重置前关闭同源其他标签页；若密钥库或业务库被占用，界面会保留数据并提示关闭占用页面后重试。localhost、127.0.0.1 和不同端口继续是不同浏览器来源，凭据不会跨来源恢复。
 - 发布视觉证据保存在 `docs/design/security-ui-unification/`；不得将 `.playwright-results`、浏览器 profile、密钥、Token、Cookie 或 `.env*` 纳入提交。
+
+## AI 连接保存与 UI 发布检查（2026-07-26）
+
+- 发布门禁已覆盖 `typecheck`、`lint`、239 项契约、生产构建、包体、生产依赖审计和 54 项 E2E；生产依赖漏洞为 0。
+- 视觉证据保存在 `docs/design/ai-connection-save-ui-closure/`。应用内浏览器仅出现严格 CSP 阻止 React 开发调试 `eval` 的提示，生产构建不依赖该能力。
+- 真实厂商调用仍需在本机显式提供测试凭据；自动化只使用隔离的 mock provider，不提交或记录真实 Key。

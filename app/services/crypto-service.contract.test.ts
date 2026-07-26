@@ -13,7 +13,11 @@ import {
 } from "./crypto-service.ts";
 import { getOrCreateSecurePrimaryKey, readSecurePrimaryKey, resetSecureKeyStoreForTests } from "./secure-key-store.ts";
 import { secretContext } from "./secret-context.ts";
-import { ensureStoredSecretsMigrated, resetSecretMigrationForTests } from "./secret-migration-service.ts";
+import {
+  attemptStoredSecretsMigration,
+  ensureStoredSecretsMigrated,
+  resetSecretMigrationForTests,
+} from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
 
 class MemoryStorage {
@@ -199,6 +203,9 @@ test("迁移中任一密文损坏时保留旧 JWK，并允许修复后幂等继�
   localStorage.setItem(secretStorageLocations.mcpSettings, JSON.stringify({ profiles: [brokenProfile], discovery: {} }));
 
   await assert.rejects(ensureStoredSecretsMigrated(), /重新输入/);
+  const attempt = await attemptStoredSecretsMigration();
+  assert.equal(attempt.status, "partial");
+  assert.equal(attempt.status === "partial" ? attempt.code : undefined, "ciphertext_invalid");
   assert.notEqual(localStorage.getItem(LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME), null);
   assert.match((await reviewDb.apiConnectionProfiles.get("profile-one"))?.encryptedKey ?? "", /^v2:/);
 

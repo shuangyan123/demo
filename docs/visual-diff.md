@@ -65,3 +65,12 @@
 - `docs/design/security-ui-unification/plugins-focus-desktop-light-1536x1024.png`
 - `docs/design/security-ui-unification/settings-appearance-desktop-dark-1536x1024.png`
 - `docs/design/security-ui-unification/settings-appearance-mobile-dark-390x844.png`
+
+## AI 连接保存与 UI 批注归档（2026-07-26）
+
+- `docs/design/ai-connection-save-ui-closure/ai-connection-save-feedback-1536x1024.png`
+- `docs/design/ai-connection-save-ui-closure/command-search-focus-1536x1024.png`
+- `docs/design/ai-connection-save-ui-closure/conversation-menu-1115x792.png`
+- `docs/design/ai-connection-save-ui-closure/conversation-menu-2560x1440.png`
+- `docs/design/ai-connection-save-ui-closure/scheduled-top-spacing-2560x1440.png`
+- `docs/design/ai-connection-save-ui-closure/scheduled-mobile-390x844.png`
