@@ -1,7 +1,10 @@
 import type { FenbiImportCredential } from "../types/domains/fenbi-import.ts";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
+import { secretContext } from "./secret-context.ts";
+import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
+import { secretStorageLocations } from "./secret-storage-locations.ts";
 
-export const FENBI_CREDENTIAL_STORAGE_KEY = "review-workspace:fenbi-import-credential";
+export const FENBI_CREDENTIAL_STORAGE_KEY = secretStorageLocations.fenbiCredential;
 
 function readCredential(): FenbiImportCredential | undefined {
   if (typeof window === "undefined") return undefined;
@@ -24,9 +27,10 @@ export const fenbiCredentialRepository = {
   },
 
   async save(cookie: string): Promise<FenbiImportCredential> {
+    await ensureStoredSecretsMigrated();
     const normalized = cookie.trim();
     if (!normalized) throw new Error("请输入粉笔 Cookie");
-    const encrypted = await encryptSecret(normalized);
+    const encrypted = await encryptSecret(normalized, secretContext.fenbiCookie());
     const credential: FenbiImportCredential = {
       encryptedCookie: encrypted.encryptedKey,
       iv: encrypted.iv,
@@ -37,9 +41,10 @@ export const fenbiCredentialRepository = {
   },
 
   async reveal(): Promise<string> {
+    await ensureStoredSecretsMigrated();
     const credential = readCredential();
     if (!credential) throw new Error("请先配置粉笔 Cookie");
-    return decryptSecret(credential.encryptedCookie, credential.iv);
+    return decryptSecret(credential.encryptedCookie, credential.iv, secretContext.fenbiCookie());
   },
 
   markVerified(verifiedAt: string): FenbiImportCredential | undefined {

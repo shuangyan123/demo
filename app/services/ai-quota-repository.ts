@@ -4,6 +4,9 @@ import type { ApiProvider } from "../types/domains/ai-provider.ts";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { aiQuotaProviderPlugins, getAiQuotaPlugin } from "./ai-quota-plugins.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
+import { secretContext } from "./secret-context.ts";
+import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
+import { secretStorageLocations } from "./secret-storage-locations.ts";
 
 export type SaveQuotaPluginInput = {
   id: ApiProvider | "manual";
@@ -15,7 +18,7 @@ export type SaveQuotaPluginInput = {
   today: Date;
 };
 
-export const AI_QUOTA_CONFIG_STORAGE_KEY = "review-workspace:ai-quota-plugin-configs";
+export const AI_QUOTA_CONFIG_STORAGE_KEY = secretStorageLocations.quotaConfigs;
 export const AI_QUOTA_SNAPSHOT_STORAGE_KEY = "review-workspace:ai-quota-snapshots";
 const activeQuotaIds = new Set(aiQuotaProviderPlugins.map((plugin) => plugin.id));
 
@@ -47,14 +50,23 @@ async function getConfig(id: ApiProvider | "manual"): Promise<AiQuotaPluginConfi
 }
 
 async function decryptCredentials(config: AiQuotaPluginConfig): Promise<Partial<Record<AiQuotaCredentialKey, string>>> {
+  await ensureStoredSecretsMigrated();
   const credentials: Partial<Record<AiQuotaCredentialKey, string>> = { teamId: config.parameters?.teamId };
   for (const [key, encrypted] of Object.entries(config.encryptedCredentials ?? {})) {
     if (!encrypted) continue;
-    credentials[key as AiQuotaCredentialKey] = await decryptSecret(encrypted.encryptedKey, encrypted.iv);
+    credentials[key as AiQuotaCredentialKey] = await decryptSecret(
+      encrypted.encryptedKey,
+      encrypted.iv,
+      secretContext.quotaCredential(config.id, key),
+    );
   }
   // 旧单密钥配置只在读取边界转换，不回写 Dexie 或复制到连接密钥。
   if (config.encryptedKey && config.iv && !Object.keys(config.encryptedCredentials ?? {}).length) {
-    const legacy = await decryptSecret(config.encryptedKey, config.iv);
+    const legacy = await decryptSecret(
+      config.encryptedKey,
+      config.iv,
+      secretContext.quotaLegacyCredential(config.id),
+    );
     credentials[config.id === "openai" || config.id === "anthropic" ? "adminKey" : "apiKey"] = legacy;
   }
   return credentials;
@@ -129,6 +141,7 @@ export const aiQuotaRepository = {
   },
 
   async saveConfig(input: SaveQuotaPluginInput): Promise<AiQuotaPluginConfig> {
+    await ensureStoredSecretsMigrated();
     const configs = readActiveQuotaRecords<AiQuotaPluginConfig>(AI_QUOTA_CONFIG_STORAGE_KEY);
     const existing = configs.find((config) => config.id === input.id);
     const plugin = getAiQuotaPlugin(input.id);
@@ -138,7 +151,7 @@ export const aiQuotaRepository = {
     for (const key of ["apiKey", "adminKey", "managementKey"] as const) {
       const value = submitted[key]?.trim();
       if (!value) continue;
-      const encrypted = await encryptSecret(value);
+      const encrypted = await encryptSecret(value, secretContext.quotaCredential(input.id, key));
       encryptedCredentials[key] = { ...encrypted, maskedKey: maskSecret(value) };
     }
     const config: AiQuotaPluginConfig = {

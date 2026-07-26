@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import "fake-indexeddb/auto";
 import { mcpSettingsRepository } from "./mcp-settings-repository.ts";
 
 const values = new Map<string, string>();
