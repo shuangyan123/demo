@@ -50,3 +50,10 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 - CI 的生产构建后必须执行 `npm run check:bundle`，并上传 `.next/diagnostics/bundle-budget.json`。需要更新基线时必须提交新的 Turbopack analyzer 证据和理由，不能通过单纯放宽 5% 阈值绕过回归。
 - 桌面与移动 Playwright 项目分别运行 axe 严重级门禁；失败时上传 trace 与附件报告。真实模型凭据和真实 Vault 仍只允许本机人工 smoke。
 - 架构发布门禁还要确认业务源码没有 `types/review.ts` import，Provider/Obsidian facade 与内部实现模块均不超过 500 行；本轮没有 Dexie 升级或新增部署变量。
+
+# API 密钥与对话体验发布检查（2026-07-26）
+
+- 升级后首次读取凭据会迁移 v1 密文。迁移失败时保留旧密文和旧 JWK；不得通过清空站点数据“修复”，密钥库确实丢失时由用户重新输入凭据。
+- 发布不新增环境变量，不允许把 `.env`、API Key、Token、浏览器配置或视觉验收临时目录提交到 Git。
+- 门禁固定执行 `typecheck`、`lint`、`test:contracts`、`build`、`check:bundle`、`audit:prod` 与桌面/移动 E2E。
+- 在 1536×1024 和 390×844、浅色与深色验证：Markdown 段落节奏、原始 HTML 静默跳过、模型旁推理滑杆、键盘与粗指针目标、操作菜单锚点、行内重命名、控制台、横向溢出和焦点恢复。

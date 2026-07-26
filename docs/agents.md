@@ -373,3 +373,11 @@
 - npm audit 基础设施异常时可使用官方 Bulk Advisory API，并从 lockfile v3 只收集实际生产依赖及嵌套版本；两条路径都失败时必须失败关闭。
 - 新 high 公告会立即使既有 moderate 例外失效。`js-yaml@5.2.2` 与 Next 子树 `postcss@8.5.23` 是本轮修复边界，禁止通过降级 Next 或 `audit fix --force` 绕过。
 - Next 与 `eslint-config-next` 必须同补丁更新；ESLint 保持 9、TypeScript 保持 5、Node 类型保持 22。Playwright 浏览器基线与 Lucide 视觉资产应使用独立变更验证。
+
+# 2026-07-26 · 本机密钥与对话控制经验
+
+- 浏览器本机密钥保护应保存不可导出的 `CryptoKey`，密文再用 AAD 绑定记录与字段；仅把 JWK 从一个 localStorage 键换到另一个位置不构成安全升级。
+- 多存储位置共享旧主密钥时，迁移必须可重复执行，并在全量复核前保留旧 JWK。部分记录已迁移到 v2 是安全的恢复点，不应为了追求事务外观回写旧密文。
+- 模型运行参数中，高频调整的推理强度适合独立滑杆；拖动过程属于瞬时 UI 状态，持久化只发生在交互结束，并继续进入会话级串行回滚链路。
+- 右键菜单不应以指针坐标形成第二套定位规则。右键和显式按钮都解析同一个行操作锚点，移动端则忽略桌面坐标统一进入底部层。
+- 模型输出 Markdown 必须把排版能力与 HTML 执行能力分开：GFM 可用，原始 HTML、`dangerouslySetInnerHTML` 和页面权限继承不可用。

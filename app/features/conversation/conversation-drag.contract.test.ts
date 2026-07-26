@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import "./assistant-markdown.contract.test.ts";
 
 test("对话树使用可访问的 dnd-kit 传感器并保留根目录目标", async () => {
   const source = await readFile(new URL("./conversation-folder-tree.tsx", import.meta.url), "utf8");

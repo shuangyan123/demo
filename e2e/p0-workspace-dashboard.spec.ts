@@ -143,7 +143,7 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
   await page.getByRole("button", { name: "新对话", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "从一个问题开始" })).toBeVisible();
-  await expect(page.getByText("发送首条消息后才会创建对话")).toHaveCount(0);
+  await expect(page.getByText("发送首条消息后才会创建对话")).toBeVisible();
   const boundary = await page.locator(".chrome-content-frame").evaluate((frame) => {
     const main = frame.querySelector<HTMLElement>(".chrome-content")!;
     const frameStyle = getComputedStyle(frame);

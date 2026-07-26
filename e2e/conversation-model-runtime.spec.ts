@@ -27,7 +27,7 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     protocol: "openai_responses",
     models: ["gpt-5.5", "gpt-5.6-sol"],
     actualSpeed: "priority",
-    response: "运行选项已应用",
+    response: "运行选项已应用\n\n**重点**\n\n<script>window.__aiInjected = true</script>",
     streamCompletionDelayMs: 2000,
   });
   const runtimeErrors = collectRuntimeErrors(page);
@@ -57,6 +57,10 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     await page.getByRole("textbox", { name: "对话输入" }).fill("先建立持久化会话");
     await page.getByRole("button", { name: "发送" }).click();
     await expect(page.getByText("运行选项已应用").last()).toBeVisible();
+    await expect(page.locator(".conversation-assistant-markdown strong").last()).toHaveText("重点");
+    await expect(page.getByText("**重点**", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".conversation-assistant-markdown script")).toHaveCount(0);
+    expect(await page.evaluate(() => (window as typeof window & { __aiInjected?: boolean }).__aiInjected)).toBeUndefined();
     await expect(page.getByRole("button", { name: "发送" })).toBeDisabled();
     await expect(page.locator("[data-conversation-composer]")).toHaveCount(1);
     await expect(page.getByRole("textbox", { name: "对话输入" })).toHaveValue("先建立持久化会话");
@@ -68,16 +72,20 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     await dialog.getByRole("button", { name: "OpenAI" }).click();
     await dialog.getByRole("radio", { name: /gpt-5\.6-sol/ }).locator("xpath=..").click();
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: /推理/ }).click();
-    await dialog.getByRole("radio", { name: /^max/ }).locator("xpath=..").click();
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "返回模型" }).click();
-
+    await expect(dialog.getByRole("button", { name: /推理/ })).toHaveCount(0);
     await dialog.getByRole("radio", { name: /gpt-5\.5/ }).locator("xpath=..").click();
-    await expect(dialog.getByRole("button", { name: /推理/ })).toContainText("medium");
-    await dialog.getByRole("button", { name: /推理/ }).click();
-    await dialog.getByRole("radio", { name: /^high$/ }).locator("xpath=..").click();
-    await dialog.getByRole("button", { name: "返回模型" }).click();
+    const reasoningTrigger = page.getByRole("button", { name: /调整推理强度，当前 medium/ });
+    await expect(reasoningTrigger).toBeVisible();
+    await reasoningTrigger.click();
+    await expect(dialog).toBeHidden();
+    const reasoningSlider = page.getByRole("slider", { name: "推理档位" });
+    await reasoningSlider.fill("3");
+    await reasoningSlider.dispatchEvent("pointerup");
+    await expect(page.getByRole("button", { name: /调整推理强度，当前 high/ })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await trigger.click();
+    await dialog.getByRole("button", { name: "OpenAI" }).click();
     await dialog.getByRole("button", { name: /速度/ }).click();
     await dialog.getByRole("radio", { name: /^优先/ }).locator("xpath=..").click();
     await expect(dialog).toBeVisible();
