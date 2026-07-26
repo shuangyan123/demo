@@ -52,6 +52,14 @@ test("额度厂商使用本地图形资产或经许可审计的文字标记", as
   }
 });
 
+test("Claude 固定资产通过品牌色 mask 渲染", async () => {
+  const { getProviderBranding } = await import("./provider-branding.ts");
+  const claude = getProviderBranding("anthropic");
+  assert.equal(claude.renderMode, "mask");
+  assert.equal(claude.color, "#d97757");
+  assert.equal(claude.iconPath, "/provider-icons/lobe/claude.svg");
+});
+
 test("额度插件声明 CodexBar 风格 descriptor 与刷新策略", () => {
   const openai = aiQuotaProviderPlugins.find((plugin) => plugin.id === "openai");
   assert.equal(openai?.descriptor.dashboardUrl, "https://platform.openai.com/usage");

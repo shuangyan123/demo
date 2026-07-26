@@ -65,3 +65,17 @@ test("AI 连接使用紧凑主从表格且详情不展示密钥", async () => {
   assert.match(source, />添加连接</);
   assert.doesNotMatch(source, /selectedProfile\.apiKey/);
 });
+
+test("设置壳层抬升主区且组件示例仅在开发环境透传", async () => {
+  const [shell, workspace, reviewWorkspace, example] = await Promise.all([
+    readFile(new URL("../../styles/shell.css", import.meta.url), "utf8"),
+    readFile(new URL("./settings-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../review/review-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../shared/development-example-switcher.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(workspace, /integrationMode="settings"/);
+  assert.match(shell, /data-integration-mode="settings"[\s\S]*height:\s*100dvh/);
+  assert.match(reviewWorkspace, /process\.env\.NODE_ENV === "development"/);
+  assert.match(example, /不保存、不请求外部服务/);
+  assert.doesNotMatch(reviewWorkspace, /ui-preview/);
+});

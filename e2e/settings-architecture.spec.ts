@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
+import { seedConversationModelFixtures } from "./helpers/conversation-model-fixtures";
 
 test("设置导航、厂商选择与弥散状态保持独立且可持久化", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
@@ -153,6 +154,90 @@ test("额度页面通过归一化接口验证并刷新，不暴露原始响应",
   const metricRing = quotaPanel.getByRole("button", { name: /官方可用余额/ });
   await metricRing.hover();
   await expect(page.getByRole("tooltip")).toContainText("官方可用余额");
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});
+
+test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符合批注", async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.setViewportSize({ width: 1468, height: 674 });
+  await page.goto("/");
+  await seedConversationModelFixtures(page, [{
+    id: "claude-layout-fixture",
+    label: "Claude 示例连接",
+    provider: "anthropic",
+    apiFormat: "chat_completions",
+    baseUrl: "https://api.anthropic.com",
+  }], []);
+  await page.reload();
+  await page.getByRole("button", { name: "设置" }).first().click();
+
+  const shellGeometry = await page.locator(".chrome-shell").evaluate((shell) => {
+    const main = shell.querySelector<HTMLElement>(".chrome-content")!;
+    const topbar = shell.querySelector<HTMLElement>(".chrome-topbar")!;
+    const sidebar = shell.querySelector<HTMLElement>(".chrome-sidebar")!;
+    return {
+      mainTop: main.getBoundingClientRect().top,
+      topbarColor: getComputedStyle(topbar).backgroundColor,
+      sidebarColor: getComputedStyle(sidebar).backgroundColor,
+    };
+  });
+  expect(shellGeometry.mainTop).toBe(0);
+  expect(shellGeometry.topbarColor).toBe(shellGeometry.sidebarColor);
+
+  await page.getByRole("button", { name: "AI 连接" }).click();
+  const table = page.locator('[class*="connectionTable"]').first();
+  const centers = await table.evaluate((element) => {
+    const header = element.firstElementChild as HTMLElement;
+    const row = header.nextElementSibling as HTMLElement;
+    return [...header.children].map((cell, index) => {
+      const headerRect = (cell as HTMLElement).getBoundingClientRect();
+      const rowRect = (row.children[index] as HTMLElement).getBoundingClientRect();
+      return Math.abs((headerRect.left + headerRect.width / 2) - (rowRect.left + rowRect.width / 2));
+    });
+  });
+  expect(Math.max(...centers)).toBeLessThanOrEqual(1);
+  const claudeColor = await page.locator('[data-render-mode="mask"]').first().evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(claudeColor).toBe("rgb(217, 119, 87)");
+
+  await page.getByRole("button", { name: "返回应用" }).click();
+  await page.getByRole("button", { name: "插件" }).click();
+  const search = page.getByRole("textbox", { name: "搜索插件" });
+  await search.focus();
+  const searchStyles = await search.evaluate((input) => {
+    const inputStyle = getComputedStyle(input);
+    const rowStyle = getComputedStyle(input.parentElement!);
+    return {
+      inputBorder: inputStyle.borderTopWidth,
+      inputOutline: inputStyle.outlineStyle,
+      inputShadow: inputStyle.boxShadow,
+      rowBorder: rowStyle.borderTopWidth,
+      rowOutline: rowStyle.outlineStyle,
+      rowShadow: rowStyle.boxShadow,
+    };
+  });
+  expect(searchStyles).toEqual({
+    inputBorder: "0px",
+    inputOutline: "none",
+    inputShadow: "none",
+    rowBorder: "0px",
+    rowOutline: "none",
+    rowShadow: "none",
+  });
+  await page.getByRole("button", { name: /粉笔导入/ }).click();
+  const detailBounds = await page.getByRole("complementary", { name: "粉笔导入 详情" }).evaluate((detail) => {
+    const rect = detail.getBoundingClientRect();
+    return {
+      bottom: rect.bottom,
+      viewportHeight: window.innerHeight,
+      clientWidth: detail.clientWidth,
+      scrollWidth: detail.scrollWidth,
+      overflowY: getComputedStyle(detail).overflowY,
+    };
+  });
+  expect(detailBounds.bottom).toBeLessThanOrEqual(detailBounds.viewportHeight + 1);
+  expect(detailBounds.scrollWidth).toBe(detailBounds.clientWidth);
+  expect(detailBounds.overflowY).toBe("auto");
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
