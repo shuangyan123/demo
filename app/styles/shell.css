@@ -24,6 +24,8 @@
 
 /* 工作台只占一个 100dvh 视口，顶部栏保持纯色，侧栏可独立启用弥散色场。 */
 .chrome-shell {
+  --chrome-workspace-top-inset: 12px;
+  position: relative;
   background: var(--chrome-window-bg);
 }
 
@@ -155,26 +157,71 @@ body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame
 
 /* 桌面抬升面已自行绘制左侧边缘，移除侧栏直线边框，避免它从两个圆角旁露出。 */
 @media (min-width: 1025px) {
-  /* 设置页展开态采用 Codex 式融合：左侧 chrome 覆盖全高，主区直接抬升到窗口顶边。 */
-  .chrome-shell[data-integration-mode="settings"] > .chrome-topbar {
+  /* 单一底层承载左侧 Chrome 的实色与弥散，避免顶栏和侧栏各绘一层形成接缝。 */
+  .chrome-shell::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    inset: 0 auto 0 0;
+    width: var(--chrome-sidebar-width);
+    pointer-events: none;
+    background-color: var(--chrome-sidebar-bg);
+    background-image: var(--chrome-sidebar-diffuse);
+  }
+
+  /* 桌面端顶部区与侧栏共用同一块 Chrome，工作区只保留 12px 呼吸间距。 */
+  .chrome-shell > .chrome-topbar {
     position: absolute;
     z-index: 40;
     top: 0;
     left: 0;
     width: var(--chrome-sidebar-width);
-    background-color: var(--chrome-sidebar-bg);
+    background-color: transparent;
+    background-image: none;
   }
 
-  .chrome-shell[data-integration-mode="settings"] > .chrome-layout {
+  body[data-diffuse-gradient="true"] .chrome-shell > .chrome-topbar {
+    background-image: none;
+  }
+
+  .chrome-shell > .chrome-layout {
     height: 100dvh;
+    flex: none;
   }
 
-  .chrome-shell[data-integration-mode="settings"] .chrome-layout.is-sidebar-expanded .chrome-sidebar {
+  .chrome-shell .chrome-layout.is-sidebar-expanded .chrome-sidebar {
     padding-top: calc(var(--chrome-topbar-height) + 1rem) !important;
+    background: transparent;
   }
 
-  .chrome-shell[data-integration-mode="settings"] .chrome-layout.is-sidebar-collapsed .chrome-content-frame,
-  .chrome-shell[data-integration-mode="settings"] .chrome-layout.is-sidebar-collapsed .chrome-content {
+  .chrome-shell .chrome-layout.is-sidebar-expanded .chrome-sidebar::before {
+    display: none;
+  }
+
+  .chrome-shell .chrome-content-frame {
+    align-self: start;
+    height: calc(100% - var(--chrome-workspace-top-inset));
+    margin-top: var(--chrome-workspace-top-inset);
+  }
+
+  /* 折叠后只保留紧凑切换按钮，避免完整标题栏遮挡扩展后的工作区。 */
+  .chrome-shell[data-sidebar="collapsed"] > .chrome-topbar {
+    width: var(--chrome-topbar-height);
+    background-color: transparent;
+    background-image: none;
+  }
+
+  .chrome-shell[data-sidebar="collapsed"]::before {
+    width: var(--chrome-topbar-height);
+  }
+
+  .chrome-shell[data-sidebar="collapsed"] > .chrome-topbar > strong,
+  .chrome-shell[data-sidebar="collapsed"] > .chrome-topbar > button:not(.sidebar-toggle-button) {
+    display: none;
+  }
+
+  .chrome-shell .chrome-layout.is-sidebar-collapsed .chrome-content-frame,
+  .chrome-shell .chrome-layout.is-sidebar-collapsed .chrome-content {
     border-radius: 0;
   }
 

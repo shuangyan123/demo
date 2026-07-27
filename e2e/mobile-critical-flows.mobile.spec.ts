@@ -56,6 +56,11 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   await expect(page.getByRole("heading", { name: "AI 连接" })).toBeVisible();
   await configureCustomTextConnection(page, { label: "E2E 移动本地连接", baseUrl: "http://127.0.0.1:9999/v1", model: "mobile-e2e-model" });
   await expect(page.getByLabel("连接名称")).toHaveValue("E2E 移动本地连接");
+  const connectionActions = page.locator('[class*="connectionActions"]').first().getByRole("button");
+  await expect(connectionActions).toHaveCount(3);
+  for (const button of await connectionActions.all()) await expect(button).toBeVisible();
+  await page.locator('[class*="connectionTable"]').first().scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("ai-connections-mobile.png"), fullPage: false });
   await selectMobileSettingsSection(page, "诊断");
   await expect(page.getByRole("heading", { name: "诊断", exact: true })).toBeVisible();
   await expect(page.getByLabel("诊断报告")).toContainText("本地诊断报告");

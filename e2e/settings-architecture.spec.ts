@@ -56,8 +56,14 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   });
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.getByRole("button", { name: "设置" }).first().click();
-  const topbarDiffuse = await page.locator(".chrome-topbar").evaluate((element) => getComputedStyle(element).backgroundImage);
-  expect(topbarDiffuse).toContain("radial-gradient");
+  const sharedChromeDiffuse = await page.locator(".chrome-shell").evaluate((element) => ({
+    shell: getComputedStyle(element, "::before").backgroundImage,
+    topbar: getComputedStyle(element.querySelector<HTMLElement>(".chrome-topbar")!).backgroundImage,
+    sidebar: getComputedStyle(element.querySelector<HTMLElement>(".chrome-sidebar")!).backgroundImage,
+  }));
+  expect(sharedChromeDiffuse.shell).toContain("radial-gradient");
+  expect(sharedChromeDiffuse.topbar).toBe("none");
+  expect(sharedChromeDiffuse.sidebar).toBe("none");
   const codeFontFamily = await page.locator("body").evaluate((element) => getComputedStyle(element).getPropertyValue("--app-code-font"));
   expect(codeFontFamily).toContain("GeistMono");
   await page.reload();
@@ -158,9 +164,9 @@ test("额度页面通过归一化接口验证并刷新，不暴露原始响应",
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符合批注", async ({ page }) => {
+test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符合批注", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
-  await page.setViewportSize({ width: 1468, height: 674 });
+  await page.setViewportSize({ width: 1115, height: 792 });
   await page.goto("/");
   await seedConversationModelFixtures(page, [{
     id: "claude-layout-fixture",
@@ -176,15 +182,21 @@ test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符�
 
   const shellGeometry = await page.locator(".chrome-shell").evaluate((shell) => {
     const main = shell.querySelector<HTMLElement>(".chrome-content")!;
+    const frame = shell.querySelector<HTMLElement>(".chrome-content-frame")!;
     const topbar = shell.querySelector<HTMLElement>(".chrome-topbar")!;
     const sidebar = shell.querySelector<HTMLElement>(".chrome-sidebar")!;
     return {
       mainTop: main.getBoundingClientRect().top,
+      frameTop: frame.getBoundingClientRect().top,
+      frameBottom: frame.getBoundingClientRect().bottom,
+      viewportHeight: window.innerHeight,
       topbarColor: getComputedStyle(topbar).backgroundColor,
       sidebarColor: getComputedStyle(sidebar).backgroundColor,
     };
   });
-  expect(shellGeometry.mainTop).toBe(0);
+  expect(shellGeometry.mainTop).toBe(12);
+  expect(shellGeometry.frameTop).toBe(12);
+  expect(shellGeometry.frameBottom).toBe(shellGeometry.viewportHeight);
   expect(shellGeometry.topbarColor).toBe(shellGeometry.sidebarColor);
 
   await page.getByRole("button", { name: "AI 连接" }).click();
@@ -199,6 +211,13 @@ test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符�
     });
   });
   expect(Math.max(...centers)).toBeLessThanOrEqual(1);
+  const actionButtons = table.locator('[class*="connectionActions"]').first().getByRole("button");
+  await expect(actionButtons).toHaveCount(3);
+  for (const button of await actionButtons.all()) {
+    await expect(button).toBeVisible();
+    await expect(button).toHaveCSS("white-space", "nowrap");
+  }
+  await page.screenshot({ path: testInfo.outputPath("settings-ai-connections-1115x792.png"), fullPage: false });
   const claudeColor = await page.locator('[data-render-mode="mask"]').first().evaluate((element) => getComputedStyle(element).backgroundColor);
   expect(claudeColor).toBe("rgb(217, 119, 87)");
 

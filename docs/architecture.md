@@ -376,3 +376,12 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 额度保存使用尽力迁移并直接以 v2 密钥加密当前新凭据；无关 AI、MCP、粉笔或其他额度旧记录损坏不会阻断目标写入。读取额度只解密当前记录。
 - AI 连接、额度、粉笔和 MCP 的展示组件支持开发环境纯内存示例。示例分流发生在真实 repository/runtime 容器挂载前，不写 IndexedDB/localStorage、不调用外部服务；生产构建不渲染入口。
 - 设置壳层新增桌面集成模式：展开侧栏时主区抬升到窗口顶边并独占共边；折叠侧栏和移动端保持既有结构。数据库继续为 `review_workspace` v16。
+
+## Codex 风格统一工作台（2026-07-27）
+
+- `ReviewWorkspaceViewRouter` 始终装配同一个 `ReviewWorkspaceShell`；总览、对话与设置只替换侧栏和内容插槽，不再按视图或设置分区重建外壳。
+- `SettingsWorkspace` 是纯内容宿主，设置导航由 `SettingsWorkspaceSidebar` 提供；`settingsSection`、返回目标与侧栏状态继续由 `useReviewWorkspaceController` 单向受控。
+- 桌面端统一使用 `--chrome-workspace-top-inset: 12px`。左侧 Chrome 的实色与弥散由 `.chrome-shell::before` 单层承载，顶部区和侧栏自身保持透明；工作区 frame 从 `y=12` 延伸至视口底部。
+- `<main>` 继续独占顶部、左侧 1px 共边与 18px 左上圆角，不使用阴影、高光、模糊或边缘渐隐。移动端保留横跨顶栏、无抬升圆角的内容区和焦点锁定抽屉。
+- 对话标题、消息流和输入框统一为 50rem 中心轴；消息区独立滚动，输入框保持底部。AI 连接表使用稳定五列和三槽动作列，中等宽度切换列表布局但不隐藏删除。
+- 本次迁移不修改 HTTP API、Provider 协议、持久化结构或 `review_workspace` v16，并保留现有 `next/dynamic` 低频边界。

@@ -69,21 +69,23 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   await expect(dashboardMain).toHaveCSS("border-top-width", "1px");
   await expect(dashboardMain).toHaveCSS("border-left-width", "1px");
   await expect(dashboardMain).toHaveCSS("border-bottom-width", "0px");
-  const chromeTransition = await page.locator(".chrome-topbar").evaluate((topbar) => {
-    const sidebar = document.querySelector<HTMLElement>(".chrome-sidebar")!;
-    const sidebarDiffuse = getComputedStyle(sidebar, "::before");
+  const chromeTransition = await page.locator(".chrome-shell").evaluate((shell) => {
+    const topbar = shell.querySelector<HTMLElement>(".chrome-topbar")!;
+    const sidebar = shell.querySelector<HTMLElement>(".chrome-sidebar")!;
     return {
       diffuseEnabled: document.body.dataset.diffuseGradient === "true",
-      sidebarMask: sidebarDiffuse.maskImage || sidebarDiffuse.webkitMaskImage,
+      sharedBackground: getComputedStyle(shell, "::before").backgroundImage,
       topbarBackground: getComputedStyle(topbar).backgroundImage,
+      sidebarBackground: getComputedStyle(sidebar).backgroundImage,
     };
   });
   if (chromeTransition.diffuseEnabled) {
-    expect(chromeTransition.topbarBackground).toContain("calc(100% - 12px)");
+    expect(chromeTransition.sharedBackground).toContain("radial-gradient");
   } else {
-    expect(chromeTransition.topbarBackground).toBe("none");
+    expect(chromeTransition.sharedBackground).toBe("none");
   }
-  expect(chromeTransition.sidebarMask).toContain("12px");
+  expect(chromeTransition.topbarBackground).toBe("none");
+  expect(chromeTransition.sidebarBackground).toBe("none");
   const sharedEdge = await dashboardMain.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
@@ -105,21 +107,20 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
     const layoutBounds = layout.getBoundingClientRect();
     const mainBounds = main.getBoundingClientRect();
     const sidebarBounds = sidebar.getBoundingClientRect();
-    const topbarBounds = document.querySelector<HTMLElement>(".chrome-topbar")!.getBoundingClientRect();
+    const frameBounds = layout.querySelector<HTMLElement>(".chrome-content-frame")!.getBoundingClientRect();
     return {
       bottomGap: Math.abs(layoutBounds.bottom - mainBounds.bottom),
+      frameTop: frameBounds.top,
       leftGap: Math.abs(sidebarBounds.right - mainBounds.left),
+      mainTop: mainBounds.top,
       rightGap: Math.abs(layoutBounds.right - mainBounds.right),
-      surface: getComputedStyle(main).backgroundColor,
-      sidebarSurface: getComputedStyle(sidebar).backgroundColor,
-      topGap: Math.abs(topbarBounds.bottom - mainBounds.top),
     };
   });
-  expect(desktopGeometry.topGap).toBeLessThanOrEqual(1);
+  expect(desktopGeometry.frameTop).toBe(12);
+  expect(desktopGeometry.mainTop).toBe(12);
   expect(desktopGeometry.leftGap).toBeLessThanOrEqual(1);
   expect(desktopGeometry.rightGap).toBeLessThanOrEqual(1);
   expect(desktopGeometry.bottomGap).toBeLessThanOrEqual(1);
-  expect(desktopGeometry.surface).toBe(desktopGeometry.sidebarSurface);
 
   for (const label of ["六大板块", "知识中枢", "面试与辅导"]) {
     const disclosure = page.locator(".dashboard-disclosure").filter({ hasText: label });
@@ -212,8 +213,11 @@ test("普通模块与独立设置工作台共享同一外层边界", async ({ pa
   await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-surface");
   await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "0px");
   await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "18px");
+  await page.locator(".chrome-shell").evaluate((shell) => { shell.dataset.shellIdentity = "persistent"; });
 
   await page.getByRole("button", { name: "设置" }).first().click();
+  await expect(page.locator(".chrome-shell")).toHaveCount(1);
+  await expect(page.locator(".chrome-shell")).toHaveAttribute("data-shell-identity", "persistent");
   await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-surface");
   await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "0px");
   await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "18px");

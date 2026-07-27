@@ -41,7 +41,7 @@ export function WindowMenuBar({
       <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
       {onBack && (
         <button
-          className="inline-grid h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground"
+          className="hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
           type="button"
           aria-label="返回"
           onClick={onBack}
@@ -61,7 +61,6 @@ export function WorkspaceShell({
   sidebar,
   sidebarClassName = "",
   sidebarCollapsed,
-  integrationMode = "standard",
   title,
   onBack,
   onToggleSidebar,
@@ -71,7 +70,7 @@ export function WorkspaceShell({
   contentSurface?: "plain" | "raised-surface";
   sidebar: ReactNode;
   sidebarClassName?: string;
-  sidebarCollapsed: boolean; integrationMode?: "standard" | "settings";
+  sidebarCollapsed: boolean;
   title: string; onBack?: () => void;
   onToggleSidebar: () => void;
 }) {
@@ -128,7 +127,6 @@ export function WorkspaceShell({
       window.requestAnimationFrame(() => restoreTarget?.focus());
     };
   }, [isMobile, mobileSidebarOpen]);
-
   const toggleSidebar = useCallback(() => {
     if (isMobile) {
       setMobileSidebarOpen((current) => !current);
@@ -144,7 +142,10 @@ export function WorkspaceShell({
   }, [isMobile]);
 
   return (
-    <div className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground" data-integration-mode={integrationMode}>
+    <div
+      className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground"
+      data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
+    >
       <WindowMenuBar
         sidebarButtonRef={sidebarButtonRef}
         sidebarCollapsed={effectiveCollapsed}
@@ -154,7 +155,6 @@ export function WorkspaceShell({
       />
       <div
         className={`chrome-layout ${sidebarStateClass} min-h-0 flex-1`}
-        data-integration-mode={integrationMode}
         data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
         data-mobile-sidebar={mobileSidebarOpen ? "open" : "closed"}
       >

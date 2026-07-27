@@ -26,9 +26,8 @@ import { useConversationAutoMemory } from "./use-conversation-auto-memory.ts";
 import { useConversationRecording } from "./use-conversation-recording.ts";
 import { useConversationTutoringFinish } from "./use-conversation-tutoring-finish.ts";
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
-const ConversationTutoringExperience = dynamic(() => import("./conversation-tutoring-experience").then((module) => module.ConversationTutoringExperience), {
-  loading: () => <div className="conversation-message-list"><span className="ui-spinner" /></div>,
-});
+const ConversationTutoringExperience = dynamic(() => import("./conversation-tutoring-experience").then((module) => module.ConversationTutoringExperience),
+  { loading: () => <div className="conversation-message-list"><span className="ui-spinner" /></div> });
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({
   activeConversationId,

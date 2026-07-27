@@ -1105,12 +1105,14 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 .conversation-thread-header {
   display: flex;
+  width: min(calc(100% - 2rem), 50rem);
   min-height: 3.25rem;
+  margin: 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid var(--line);
-  padding: 0.55rem 1rem;
+  border-bottom: 0;
+  padding: 0.55rem 0;
 }
 
 .conversation-message-list {
@@ -1382,7 +1384,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 .conversation-composer {
   display: grid;
-  width: min(calc(100% - 2rem), 64rem);
+  width: min(calc(100% - 2rem), 50rem);
   grid-template-columns: minmax(0, 1fr);
   gap: 0.35rem;
   margin: 0 auto 1rem;
@@ -1556,9 +1558,10 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 .conversation-context-bar {
   display: grid;
+  width: min(calc(100% - 2rem), 50rem);
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  margin: 12px 18px 0;
+  margin: 12px auto 0;
   padding: 12px 14px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
@@ -2304,7 +2307,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   .learning-record-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 14px 16px; }
   .learning-record-row > :nth-child(3), .learning-record-row > :nth-child(4) { display: none; }
   .learning-record-detail { position: fixed; z-index: 60; right: 0; bottom: 0; left: 0; max-height: 72vh; border-top: 1px solid var(--color-line); border-radius: 16px 16px 0 0; background: var(--color-surface); box-shadow: 0 -18px 50px rgb(15 23 42 / 18%); }
-  .conversation-context-bar { margin: 8px 10px 0; }
+  .conversation-context-bar { width: calc(100% - 20px); margin: 8px auto 0; }
   .conversation-vision-card { margin: 0 10px 8px; }
   .conversation-vision-card video { max-height: 170px; }
 
