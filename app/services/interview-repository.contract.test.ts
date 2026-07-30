@@ -76,6 +76,31 @@ test("v16 使用现有单字段索引删除三类示例题并清理题组、计�
   await reviewDb.delete();
 });
 
+test("批量载入题目在 updatedAt 倒序读取时保持输入顺序", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const orderedQuestions = [
+    question("structured", "structured"),
+    question("structured-group", "structured_group"),
+    question("leaderless", "leaderless_group"),
+  ];
+  await interviewRepository.bulkAddQuestions(orderedQuestions.map((item) => ({
+    difficulty: item.difficulty,
+    expectedDurationSec: item.expectedDurationSec,
+    favorite: item.favorite,
+    material: item.material,
+    practiceCount: item.practiceCount,
+    prompt: item.prompt,
+    source: item.source,
+    tags: item.tags,
+    title: item.title,
+    type: item.type,
+  })));
+  const snapshot = await interviewRepository.loadSnapshot();
+  assert.deepEqual(snapshot.questions.map((item) => item.type), ["structured", "structured_group", "leaderless_group"]);
+  await reviewDb.delete();
+});
+
 test("面试会话与辅导会话、计划删除不查询 v16 中不存在的复合索引", async () => {
   await reviewDb.delete();
   await reviewDb.open();
