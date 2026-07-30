@@ -208,7 +208,7 @@ export function ImportView({
               </article>
             ))
           ) : (
-            <EmptyState>暂无导入任务</EmptyState>
+            <EmptyState reviewPack="import" stateId="import.jobs.empty">暂无导入任务</EmptyState>
           )}
         </div>
       </Panel>
@@ -273,7 +273,7 @@ function KnowledgeImportDrafts({
           ))}
         </div>
       ) : (
-        <EmptyState>资料导入后会先显示预览，可编辑确认后再入库。</EmptyState>
+        <EmptyState reviewPack="import" stateId="import.preview.empty">资料导入后会先显示预览，可编辑确认后再入库。</EmptyState>
       )}
     </Panel>
   );
@@ -312,7 +312,7 @@ function ImportBatchList({ batches }: { batches: ImportBatch[] }) {
           ))}
         </div>
       ) : (
-        <EmptyState>批量上传或粘贴解析后，会在这里显示导入批次。</EmptyState>
+        <EmptyState reviewPack="import" stateId="import.batches.empty">批量上传或粘贴解析后，会在这里显示导入批次。</EmptyState>
       )}
     </Panel>
   );
@@ -445,7 +445,7 @@ function ImportDrafts({
           )}
         </div>
       ) : (
-        <EmptyState>{drafts.length ? "正常草稿已折叠，可点击“显示全部”统一确认。" : "导入后会先生成可编辑草稿"}</EmptyState>
+        <EmptyState reviewPack="import" stateId="import.drafts.empty">{drafts.length ? "正常草稿已折叠，可点击“显示全部”统一确认。" : "导入后会先生成可编辑草稿"}</EmptyState>
       )}
       <ConfirmDialog
         confirmLabel="删除草稿"

@@ -3,6 +3,7 @@ import { relativeDate, toISODate } from "../lib/review-utils";
 import type { KnowledgeAttempt, KnowledgeCategory, KnowledgeEntry, KnowledgeImportDraft, KnowledgeStarterTemplate, KnowledgeTrainingSnapshot } from "../types/domains/knowledge.ts";
 import type { Mistake, ReviewResult } from "../types/domains/review.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
+import { notifyObsidianSyncNeeded } from "./obsidian-sync-runtime.ts";
 
 type KnowledgeInput = Omit<KnowledgeEntry, "id" | "createdAt" | "updatedAt" | "mastery" | "nextReviewAt" | "lastReviewedAt" | "reviewCount"> &
   Partial<Pick<KnowledgeEntry, "mastery" | "nextReviewAt" | "lastReviewedAt" | "reviewCount">>;
@@ -243,6 +244,7 @@ export const knowledgeRepository = {
 
     if (patches.length) {
       await reviewDb.knowledgeEntries.bulkPut(patches);
+      notifyObsidianSyncNeeded();
     }
   },
 
@@ -282,6 +284,7 @@ export const knowledgeRepository = {
       updatedAt: now,
     };
     await reviewDb.knowledgeEntries.add(entry);
+    notifyObsidianSyncNeeded();
     return entry;
   },
 
@@ -292,6 +295,7 @@ export const knowledgeRepository = {
       updatedAt: todayStamp(today),
     });
     await obsidianKnowledgeRepository.markLocalChanged(id, today);
+    notifyObsidianSyncNeeded();
   },
 
   // 切换收藏状态；收藏用于筛选高频资料和常看知识点。
@@ -300,6 +304,7 @@ export const knowledgeRepository = {
       favorite: !entry.favorite,
       updatedAt: todayStamp(today),
     });
+    notifyObsidianSyncNeeded();
   },
 
   // 记录一轮知识训练，原子更新资料掌握度、下次训练日期和训练历史。
@@ -317,6 +322,7 @@ export const knowledgeRepository = {
       await reviewDb.knowledgeEntries.update(entry.id, nextState);
       await reviewDb.knowledgeAttempts.add(attempt);
     });
+    notifyObsidianSyncNeeded();
   },
 
   // 删除单条知识库资料，并清理错题关联、面试关联和辅导关联；不会影响错题、复盘记录或导入任务。
@@ -328,6 +334,7 @@ export const knowledgeRepository = {
       await reviewDb.interviewLinks.where("[targetType+targetId]").equals(["knowledge", id]).delete();
       await reviewDb.tutoringLinks.where("[targetType+targetId]").equals(["knowledge", id]).delete();
     });
+    notifyObsidianSyncNeeded();
   },
 
   // 批量删除知识资料，并同步清理训练记录、错题关联、面试关联和辅导关联，保持知识库没有悬空链接。
@@ -340,6 +347,7 @@ export const knowledgeRepository = {
       await reviewDb.interviewLinks.where("[targetType+targetId]").anyOf(ids.map((id) => ["knowledge", id] as const)).delete();
       await reviewDb.tutoringLinks.where("[targetType+targetId]").anyOf(ids.map((id) => ["knowledge", id] as const)).delete();
     });
+    notifyObsidianSyncNeeded();
   },
 
   // 把粘贴文本按空行切成多个知识条目，作为导入页的轻量本地整理入口。
@@ -348,6 +356,7 @@ export const knowledgeRepository = {
     const entries = drafts.map((draft) => entryFromDraft(draft, today));
     if (entries.length) {
       await reviewDb.knowledgeEntries.bulkAdd(entries);
+      notifyObsidianSyncNeeded();
     }
     return entries;
   },
@@ -379,6 +388,7 @@ export const knowledgeRepository = {
     const entries = drafts.map((draft) => entryFromDraft(draft, today));
     if (entries.length) {
       await reviewDb.knowledgeEntries.bulkAdd(entries);
+      notifyObsidianSyncNeeded();
     }
     return entries;
   },

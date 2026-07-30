@@ -85,7 +85,7 @@ export function InterviewLinkPanel({
             );
           })
         ) : (
-          <EmptyState>还没有确认关联，可把面试题或复盘记录连接到知识库与错题。</EmptyState>
+          <EmptyState reviewPack="interview" stateId="interview.links.empty">还没有确认关联，可把面试题或复盘记录连接到知识库与错题。</EmptyState>
         )}
       </DataList>
     </Panel>

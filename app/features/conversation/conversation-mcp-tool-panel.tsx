@@ -57,7 +57,7 @@ export function ConversationMcpToolPanel({ onClose, onExecuted, onNotice }: Conv
         <p className="conversation-tool-confirmation">将调用 <strong>{server?.label ?? "-"}</strong> 的 <strong>{tool?.name ?? "-"}</strong>；参数键与脱敏状态会写入运行摘要，原始结果不会持久化。</p>
         <Button variant="primary" disabled={busy || !tool || tool.permission === "deny"} onClick={() => void execute()}>{busy ? "调用中…" : "确认并调用"}</Button>
         {resultPreview ? <details className="conversation-mcp-result"><summary>查看本次内存结果</summary><pre>{resultPreview}</pre></details> : null}
-      </> : <EmptyState>没有已启用且发现成功的 MCP Server。请先到“设置 → MCP”连接并发现能力。</EmptyState>}
+      </> : <EmptyState stateId="conversation.mcp-tools.empty">没有已启用且发现成功的 MCP Server。请先到“设置 → MCP”连接并发现能力。</EmptyState>}
     </section>
   );
 }

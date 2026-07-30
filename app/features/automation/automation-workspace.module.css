@@ -2,6 +2,7 @@
   display: grid;
   min-height: 0;
   gap: 1rem;
+  container-type: inline-size;
 }
 
 .header {
@@ -394,7 +395,7 @@
   font-size: .8125rem;
 }
 
-@media (max-width: 900px) {
+@container (max-width: 60rem) {
   .root { gap: .75rem; }
   .header h2 { font-size: 1.35rem; }
   .summaryItem { padding: .7rem .55rem; }
@@ -429,7 +430,7 @@
   }
 }
 
-@media (min-width: 901px) {
+@container (min-width: 60.001rem) {
   .drawerBackdrop { display: none; }
 }
 

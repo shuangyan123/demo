@@ -126,7 +126,7 @@ function TutoringRecords({
   onOpenConversation: (conversationId: string) => void;
   onSelect: (id: string) => void;
 }) {
-  if (!sessions.length) return <EmptyState>暂无辅导记录。请从公考首页进入“对话辅导”开始第一轮。</EmptyState>;
+  if (!sessions.length) return <EmptyState reviewPack="tutoring" stateId="tutoring.sessions.empty">暂无辅导记录。请从公考首页进入“对话辅导”开始第一轮。</EmptyState>;
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)]">
       <Panel eyebrow="HISTORY" title="历史轮次">
@@ -150,7 +150,7 @@ function TutoringRecords({
             <section><strong>下一步</strong><p className="mt-2 text-sm leading-6 text-muted">{selectedSession.nextActions.join("；") || "完成随堂微测后安排复练。"}</p></section>
             <Button size="sm" variant="danger" onClick={() => onDelete(selectedSession.id)}>删除记录</Button>
           </div>
-        ) : <EmptyState>请选择一条记录</EmptyState>}
+        ) : <EmptyState stateId="tutoring.record.selection.empty">请选择一条记录</EmptyState>}
       </Panel>
     </div>
   );
@@ -169,7 +169,7 @@ function TutoringPlans({ plans, onAdd, onDelete }: { plans: TutoringPlan[]; onAd
         </form>
       </Panel>
       <Panel eyebrow="SCHEDULE" title="辅导计划">
-        {plans.length ? <DataList>{plans.map((plan) => <DataRow key={plan.id}><div><strong>{plan.title}</strong><p className="mt-1 text-sm text-muted">{plan.nextTask}</p></div><Button size="sm" variant="ghost" onClick={() => onDelete(plan.id)}>删除</Button></DataRow>)}</DataList> : <EmptyState>暂无辅导计划</EmptyState>}
+        {plans.length ? <DataList>{plans.map((plan) => <DataRow key={plan.id}><div><strong>{plan.title}</strong><p className="mt-1 text-sm text-muted">{plan.nextTask}</p></div><Button size="sm" variant="ghost" onClick={() => onDelete(plan.id)}>删除</Button></DataRow>)}</DataList> : <EmptyState reviewPack="tutoring" stateId="tutoring.plans.empty">暂无辅导计划</EmptyState>}
       </Panel>
     </div>
   );
@@ -200,7 +200,7 @@ function TutoringLinks({
     await onAdd({ evidence: [], reason: formText(formData, "reason") || "本轮辅导需要继续参考", score: 1, sourceId: session.id, sourceType: "session", targetId, targetType });
     event.currentTarget.reset();
   }
-  if (!session) return <EmptyState>请先选择一条辅导记录</EmptyState>;
+  if (!session) return <EmptyState stateId="tutoring.session.selection.empty">请先选择一条辅导记录</EmptyState>;
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(20rem,0.8fr)_minmax(0,1.2fr)]">
       <Panel eyebrow="LINK" title="添加关联">
@@ -222,7 +222,7 @@ function TutoringLinks({
         </form>
       </Panel>
       <Panel eyebrow="CURRENT" title="当前关联">
-        {activeLinks.length ? <DataList>{activeLinks.map((link) => <DataRow key={link.id}><span>{link.reason}</span><Button size="sm" variant="ghost" onClick={() => onDelete(link.id)}>移除</Button></DataRow>)}</DataList> : <EmptyState>当前记录暂无资料关联</EmptyState>}
+        {activeLinks.length ? <DataList>{activeLinks.map((link) => <DataRow key={link.id}><span>{link.reason}</span><Button size="sm" variant="ghost" onClick={() => onDelete(link.id)}>移除</Button></DataRow>)}</DataList> : <EmptyState reviewPack="tutoring" stateId="tutoring.links.empty">当前记录暂无资料关联</EmptyState>}
       </Panel>
     </div>
   );

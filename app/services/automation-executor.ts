@@ -12,6 +12,8 @@ import { reviewDb } from "../db/review-db.ts";
 import { acquireCollectionDocuments, previewCollectionConfig } from "./acquisition-source-service.ts";
 import { requestAcquisitionProposals } from "./acquisition-proposal-service.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
+import { isUiReviewRecordId } from "./workspace-data-scope.ts";
+import { isUiReviewRuntimeActive } from "./ui-review-runtime-guard.ts";
 
 export const AUTOMATION_TEMPLATES: Array<{ id: AutomationTemplateId; name: string; description: string; prompt: string; scopes: AutomationSourceScope[]; collectionDomain?: "xingce" | "shenlun" | "interview" }> = [
   { id: "daily_review", name: "每日复盘简报", description: "汇总到期错题、薄弱知识和今天最值得处理的三件事。", prompt: "生成今天的复盘简报：先列优先级，再给出不超过三项可执行任务，最后提醒一个最容易重复犯错的模式。", scopes: ["mistakes", "knowledge"] },
@@ -58,6 +60,9 @@ export async function executeAutomation(input: {
   personalization: PersonalizationSettings;
   persistProposals?: boolean;
 }): Promise<AutomationExecutionResult> {
+  if (isUiReviewRuntimeActive() || isUiReviewRecordId(input.definition.id)) {
+    throw new Error("UI 审查任务只用于检查界面，不会执行外部调用");
+  }
   if (input.definition.collectionConfig) {
     const config = input.definition.collectionConfig;
     const snapshot = input.aiSnapshot;

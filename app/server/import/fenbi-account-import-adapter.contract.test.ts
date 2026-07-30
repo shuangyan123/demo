@@ -47,6 +47,12 @@ test("粉笔会话失效和限流返回稳定错误分类，不暴露上游正�
 
 test("Cookie 前缀和换行会被规范化，控制字符与登录重定向会被拒绝", async () => {
   assert.equal(normalizeFenbiCookie("Cookie: session=abc;\r\n token=def"), "session=abc;token=def");
+  assert.equal(
+    normalizeFenbiCookie("curl 'https://tiku.fenbi.com/api/xingce/errors' -H 'Accept: application/json' -H 'Cookie: session=abc; token=def'"),
+    "session=abc; token=def",
+  );
+  assert.equal(normalizeFenbiCookie('curl "https://tiku.fenbi.com" --cookie "session=abc; token=def"'), "session=abc; token=def");
+  assert.throws(() => normalizeFenbiCookie("curl 'https://tiku.fenbi.com' -H 'Accept: application/json'"), /找到 Cookie/);
   assert.throws(() => normalizeFenbiCookie("session=abc\u0000token=def"), /控制字符/);
 
   let receivedCookie = "";
@@ -66,6 +72,25 @@ test("Cookie 前缀和换行会被规范化，控制字符与登录重定向会�
     assert.equal((error as FenbiAccountImportError).code, "invalid_cookie");
     return true;
   });
+});
+
+test("分页重复题按稳定 ID 去重并进入非秘密诊断", async () => {
+  const firstPage = Array.from({ length: 100 }, (_, index) => ({ id: index + 1, question: { id: index + 1, content: `题干 ${index + 1}` } }));
+  const adapter = new FenbiAccountImportAdapter({
+    sleep: async () => undefined,
+    fetchImpl: async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("keypoint-tree")) return json({ data: [] });
+      if (url.pathname.endsWith("/errors")) {
+        return json({ data: { list: url.searchParams.get("offset") === "0" ? firstPage : [firstPage[99]], total: 101 } });
+      }
+      if (url.pathname.endsWith("/solutions")) return json({ data: [] });
+      return json({}, 404);
+    },
+  });
+  const drafts = await adapter.sync("session=masked", { wrongOnly: true }, () => undefined);
+  assert.equal(drafts.length, 100);
+  assert.equal(adapter.diagnostics().duplicates, 1);
 });
 
 test("粉笔请求使用有界超时并返回稳定 timeout 分类", async () => {

@@ -204,7 +204,7 @@ export function DashboardView({
                     </div>
                     <Button size="sm" variant="soft" onClick={() => onOpenReview(item.id)}>复盘</Button>
                   </DataRow>
-                )) : <EmptyState>今天没有到期错题</EmptyState>}
+                )) : <EmptyState reviewPack="learning" stateId="dashboard.due-mistakes.empty">今天没有到期错题</EmptyState>}
               </DataList>
             </section>
             <section>
@@ -219,7 +219,7 @@ export function DashboardView({
                       <span>{item.weak}</span>
                     </div>
                   );
-                }) : <EmptyState>暂无薄弱板块</EmptyState>}
+                }) : <EmptyState reviewPack="learning" stateId="dashboard.weak-boards.empty">暂无薄弱板块</EmptyState>}
               </DataList>
             </section>
           </div>
@@ -252,7 +252,7 @@ export function DashboardView({
                   </div>
                   <Button size="sm" variant="soft" onClick={() => onOpenKnowledgeTraining(entry.id)}>训练</Button>
                 </DataRow>
-              )) : <EmptyState>今天没有到期知识资料</EmptyState>}
+              )) : <EmptyState reviewPack="learning" stateId="dashboard.due-knowledge.empty">今天没有到期知识资料</EmptyState>}
             </DataList>
           </section>
         </DashboardDisclosure>

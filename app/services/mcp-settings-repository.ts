@@ -5,6 +5,8 @@ import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 import { secretContext } from "./secret-context.ts";
 import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
+import { isUiReviewRecordId } from "./workspace-data-scope.ts";
+import { isUiReviewRuntimeActive } from "./ui-review-runtime-guard.ts";
 
 const STORAGE_KEY = secretStorageLocations.mcpSettings;
 const LEGACY_STORAGE_KEY = secretStorageLocations.legacyMcpSettings;
@@ -36,6 +38,8 @@ function normalizeProfile(profile: Partial<McpServerProfile>): McpServerProfile 
     allowPrivateNetwork: profile.allowPrivateNetwork === true,
     encryptedToken: profile.encryptedToken,
     encryptedTokenIv: profile.encryptedTokenIv,
+    toolAllowlist: Array.isArray(profile.toolAllowlist) ? profile.toolAllowlist.filter((item) => typeof item === "string") : undefined,
+    catalogSource: profile.catalogSource === "recommended" || profile.catalogSource === "registry" ? profile.catalogSource : "custom",
     createdAt: profile.createdAt ?? timestamp,
     updatedAt: profile.updatedAt ?? timestamp,
   };
@@ -83,12 +87,15 @@ export const mcpSettingsRepository = {
     return readSnapshot();
   },
 
-  async saveProfile(input: { id?: string; label: string; endpoint: string; enabled: boolean; authMode: "none" | "bearer"; token?: string; allowPrivateNetwork?: boolean }): Promise<McpServerProfile> {
+  async saveProfile(input: { id?: string; label: string; endpoint: string; enabled: boolean; authMode: "none" | "bearer"; token?: string; allowPrivateNetwork?: boolean; toolAllowlist?: string[]; catalogSource?: McpServerProfile["catalogSource"] }): Promise<McpServerProfile> {
     await ensureStoredSecretsMigrated();
     const snapshot = readSnapshot();
     const timestamp = now();
     const existing = input.id ? snapshot.profiles.find((profile) => profile.id === input.id) : undefined;
-    const profileId = existing?.id ?? crypto.randomUUID();
+    const profileId = existing?.id ?? input.id ?? crypto.randomUUID();
+    const endpoint = input.endpoint.trim().replace(/[?#].*$/, "");
+    const connectionChanged = Boolean(existing && (existing.endpoint !== endpoint || existing.authMode !== input.authMode || existing.allowPrivateNetwork !== (input.allowPrivateNetwork === true)));
+    const canEnable = Boolean(existing && !connectionChanged && snapshot.discovery[profileId]?.status === "ready");
     const encrypted = input.authMode === "bearer" && input.token?.trim()
       ? await encryptSecret(input.token.trim(), secretContext.mcpToken(profileId))
       : existing?.encryptedToken && existing.encryptedTokenIv
@@ -97,16 +104,20 @@ export const mcpSettingsRepository = {
     const profile: McpServerProfile = {
       id: profileId,
       label: input.label.trim() || "MCP Server",
-      endpoint: input.endpoint.trim().replace(/[?#].*$/, ""),
-      enabled: input.enabled,
+      endpoint,
+      enabled: input.enabled && canEnable,
       authMode: input.authMode,
       allowPrivateNetwork: input.allowPrivateNetwork === true,
       encryptedToken: input.authMode === "bearer" ? encrypted?.encryptedKey : undefined,
       encryptedTokenIv: input.authMode === "bearer" ? encrypted?.iv : undefined,
+      toolAllowlist: input.toolAllowlist ?? existing?.toolAllowlist,
+      catalogSource: input.catalogSource ?? existing?.catalogSource ?? "custom",
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
-    writeSnapshot({ ...snapshot, profiles: [profile, ...snapshot.profiles.filter((item) => item.id !== profile.id)] });
+    const discovery = { ...snapshot.discovery };
+    if (connectionChanged) delete discovery[profileId];
+    writeSnapshot({ profiles: [profile, ...snapshot.profiles.filter((item) => item.id !== profile.id)], discovery });
     return profile;
   },
 
@@ -118,6 +129,7 @@ export const mcpSettingsRepository = {
   },
 
   async discover(profile: McpServerProfile): Promise<McpDiscoveryResult> {
+    if (isUiReviewRuntimeActive() || isUiReviewRecordId(profile.id)) throw new Error("UI 审查 MCP 只用于检查界面，不会连接外部 Server。");
     const snapshot = readSnapshot();
     try {
       const remote = await requestJson<{ tools: McpRemoteTool[]; resources: Array<{ name: string }>; prompts: Array<{ name: string }> }>("/api/mcp/discover", {
@@ -126,7 +138,10 @@ export const mcpSettingsRepository = {
         allowPrivateNetwork: profile.allowPrivateNetwork === true,
       });
       const existingPermissions = new Map((snapshot.discovery[profile.id]?.toolDescriptors ?? []).map((tool) => [tool.name, tool.permission]));
-      const toolDescriptors: McpToolDescriptor[] = remote.tools.map((tool) => ({
+      const allowedTools = profile.toolAllowlist?.length
+        ? remote.tools.filter((tool) => profile.toolAllowlist?.includes(tool.name))
+        : remote.tools;
+      const toolDescriptors: McpToolDescriptor[] = allowedTools.map((tool) => ({
         ...tool,
         permission: existingPermissions.get(tool.name) ?? "ask",
       }));
@@ -153,6 +168,7 @@ export const mcpSettingsRepository = {
   },
 
   async callTool(profile: McpServerProfile, tool: string, args: Record<string, unknown>): Promise<unknown> {
+    if (isUiReviewRuntimeActive() || isUiReviewRecordId(profile.id)) throw new Error("UI 审查 MCP 只用于检查界面，不会调用外部工具。");
     const response = await requestJson<{ result: unknown }>("/api/mcp/call", {
       endpoint: profile.endpoint,
       token: await tokenFor(profile),
@@ -167,6 +183,7 @@ export const mcpSettingsRepository = {
   async callScheduledTool(serverId: string, toolName: string, args: Record<string, unknown>): Promise<unknown> {
     const snapshot = readSnapshot();
     const profile = snapshot.profiles.find((item) => item.id === serverId);
+    if (isUiReviewRuntimeActive() || isUiReviewRecordId(serverId)) throw new Error("UI 审查 MCP 不允许已安排调用");
     if (!profile?.enabled) throw new Error("MCP Server 未启用，已阻止定时调用");
     const discovery = snapshot.discovery[serverId];
     if (discovery?.status !== "ready") throw new Error("MCP Server 尚未通过连接发现");

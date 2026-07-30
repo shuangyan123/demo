@@ -149,7 +149,7 @@ function SuggestionRow({
 
 // 渲染本地推荐资料，作为 AI 关联前的候选兜底，点击只负责打开详情。
 function LocalKnowledgeMatches({ matches, onOpenKnowledgeEntry }: { matches: KnowledgeMatch[]; onOpenKnowledgeEntry: (entry: KnowledgeEntry) => void }) {
-  if (!matches.length) return <EmptyState>暂无本地推荐</EmptyState>;
+  if (!matches.length) return <EmptyState stateId="association.local-mistakes.empty">暂无本地推荐</EmptyState>;
   return (
     <DataList>
       {matches.map((match) => (
@@ -172,7 +172,7 @@ function LocalKnowledgeMatches({ matches, onOpenKnowledgeEntry }: { matches: Kno
 
 // 渲染本地推荐错题，作为知识资料侧 AI 分析前的候选兜底。
 function LocalMistakeMatches({ matches, onOpenMistake }: { matches: RelatedMistakeMatch[]; onOpenMistake: (mistake: Mistake) => void }) {
-  if (!matches.length) return <EmptyState>暂无本地推荐</EmptyState>;
+  if (!matches.length) return <EmptyState stateId="association.local-knowledge.empty">暂无本地推荐</EmptyState>;
   return (
     <DataList>
       {matches.map((match) => (
@@ -275,7 +275,7 @@ export function AssociationPanel({
             ))}
           </DataList>
         ) : (
-          <EmptyState>暂无已确认关联</EmptyState>
+          <EmptyState reviewPack="learning" stateId="association.confirmed.empty">暂无已确认关联</EmptyState>
         )}
       </div>
 

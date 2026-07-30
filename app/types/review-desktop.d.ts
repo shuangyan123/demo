@@ -1,5 +1,6 @@
 type ReviewDesktopVaultState = { configured: boolean; vaultName: string };
 type ReviewDesktopVaultSelection = { cancelled: boolean; vaultName?: string };
+type ReviewDesktopVaultChange = { revision: number; occurredAt: string };
 
 interface ReviewDesktopVaultBridge {
   getState(): Promise<ReviewDesktopVaultState>;
@@ -9,6 +10,9 @@ interface ReviewDesktopVaultBridge {
   readMarkdown(managedRoot: string, relativePath: string): Promise<string>;
   writeMarkdown(managedRoot: string, relativePath: string, markdown: string): Promise<void>;
   removeMarkdown(managedRoot: string, relativePath: string): Promise<void>;
+  startWatching(managedRoot: string): Promise<void>;
+  stopWatching(): Promise<void>;
+  onVaultChanged(listener: (change: ReviewDesktopVaultChange) => void): () => void;
 }
 
 interface Window {

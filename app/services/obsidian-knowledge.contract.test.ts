@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { reviewDb } from "../db/review-db.ts";
 import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
 import type { KnowledgeEvolutionProposal, ObsidianVaultConfig } from "../types/domains/obsidian.ts";
@@ -12,6 +13,21 @@ import {
   serializeObsidianEntry,
 } from "./obsidian-markdown.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
+
+test("Obsidian 应用级运行时串行防抖、合并补跑且不泄露路径", () => {
+  const runtime = readFileSync(new URL("./obsidian-sync-runtime.ts", import.meta.url), "utf8");
+  const desktopVault = readFileSync(new URL("../../desktop/vault.ts", import.meta.url), "utf8");
+  const preload = readFileSync(new URL("../../desktop/preload.ts", import.meta.url), "utf8");
+  assert.match(runtime, /CHANGE_DEBOUNCE_MS = 1_000/);
+  assert.match(runtime, /POLL_INTERVAL_MS = 30_000/);
+  assert.match(runtime, /rerunRequested = true/);
+  assert.match(runtime, /visibilityState === "visible" && navigator\.onLine/);
+  assert.match(runtime, /"needs-permission"/);
+  assert.match(desktopVault, /review-vault:changed/);
+  assert.match(desktopVault, /revision: watcherRevision/);
+  assert.match(preload, /onVaultChanged/);
+  assert.doesNotMatch(preload.split("\n").find((line) => line.includes("onVaultChanged")) ?? "", /relativePath|markdown/);
+});
 import { normalizeObsidianPath, ObsidianVaultError, obsidianVaultAdapter } from "./obsidian-vault-adapter.ts";
 
 const today = new Date("2026-06-21T08:00:00.000Z");

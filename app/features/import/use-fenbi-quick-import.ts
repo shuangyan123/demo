@@ -6,6 +6,7 @@ import { fetchLocalApi } from "../../services/local-runtime-diagnostics";
 import type { FenbiImportCredential, FenbiSyncEvent, FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
 import type { ImportDraft } from "../../types/domains/import.ts";
 import { normalizeFenbiCookie } from "../../services/fenbi-cookie";
+import { useUiReviewData } from "../shared/ui-review-data-context.tsx";
 
 type FenbiQuickImportStatus = "unconfigured" | "ready" | "validating" | "syncing" | "error";
 
@@ -23,6 +24,8 @@ function parseSseBlock(block: string): FenbiSyncEvent<ImportDraft> | undefined {
 
 /** 管理粉笔实验直连的验证、SSE 同步和取消；明文 Cookie 仅在单次请求栈中存在。 */
 export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }: UseFenbiQuickImportInput) {
+  const uiReview = useUiReviewData();
+  const safeMode = sampleMode || Boolean(uiReview?.active);
   const [credential, setCredential] = useState<FenbiImportCredential | undefined>(() => fenbiCredentialRepository.load());
   const [status, setStatus] = useState<FenbiQuickImportStatus>(() => fenbiCredentialRepository.load() ? "ready" : "unconfigured");
   const [stage, setStage] = useState<"" | "validate" | "catalog" | "questions" | "normalize">("");
@@ -37,8 +40,8 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
     return () => abortRef.current?.abort();
   }, []);
 
-  async function validateSavedCookie(cookie?: string, candidate = false): Promise<boolean> {
-    if (sampleMode) {
+  async function validateSavedCookie(cookie?: string, candidate = false, quiet = false): Promise<boolean> {
+    if (safeMode) {
       setError("示例模式禁止验证真实粉笔账户。");
       setErrorCode("sample_mode_blocked");
       setStatus("error");
@@ -66,7 +69,7 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
       const verified = fenbiCredentialRepository.markVerified(new Date().toISOString());
       setCredential(verified);
       setStatus("ready");
-      setNotice("粉笔账户已连接");
+      if (!quiet) setNotice("粉笔账户已连接");
       return true;
     } catch (caught) {
       const timedOut = controller.signal.aborted;
@@ -88,12 +91,13 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
   }
 
   async function sync(scope: FenbiSyncScope = { wrongOnly: true, sinceDays: 30 }) {
-    if (sampleMode) {
+    if (safeMode) {
       setStatus("error");
       setError("示例模式禁止同步真实粉笔账户。");
       setErrorCode("sample_mode_blocked");
       return;
     }
+    if (!await validateSavedCookie(undefined, false, true)) return;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -137,9 +141,14 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
           if (event.type === "error") throw Object.assign(new Error(event.message), { code: event.code });
           if (event.type === "done") {
             const savedCount = await onDrafts(receivedDrafts);
+            const scopeLabel = scope.keypointIds?.length
+              ? `${scope.keypointIds.length} 个板块`
+              : scope.sinceDays ? `最近 ${scope.sinceDays} 天` : "全部错题";
+            setCredential(fenbiCredentialRepository.markSynced(new Date().toISOString(), scopeLabel));
             setStatus("ready");
             setStage("");
-            setNotice(`已同步 ${savedCount} 条错题，确认前不会写入错题库`);
+            const duplicateNote = event.duplicates ? `，跳过 ${event.duplicates} 条分页重复项` : "";
+            setNotice(`已同步 ${savedCount} 条错题${duplicateNote}，确认前不会写入错题库`);
           }
         }
         if (done) break;

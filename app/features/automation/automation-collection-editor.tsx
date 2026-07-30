@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { mcpSettingsRepository } from "../../services/mcp-settings-repository";
 import type { AcquisitionModelRef, AcquisitionSourceConfig, AutomationCollectionConfig } from "../../types/domains/acquisition.ts";
 import { Button, Chip } from "../shared/ui-primitives";
+import { UiReviewEmptyAction } from "../shared/ui-review-data-context.tsx";
 import type { AutomationCenter } from "./use-automation-center.ts";
 
 type Props = {
@@ -127,7 +128,7 @@ export function AutomationCollectionEditor({ config, center, onChange }: Props) 
               }}><option value="summary_only">仅摘要（默认）</option><option value="licensed_full_text">自有 / 允许全文</option></select></label>
             </div>
           </div>
-        )) : <p className="rounded-lg border border-dashed border-line p-4 text-sm text-muted">尚未添加来源；模板不会访问网络。</p>}
+        )) : <div data-review-state="automation.collection.sources.empty"><p className="rounded-lg border border-dashed border-line p-4 text-sm text-muted">尚未添加来源；模板不会访问网络。</p><UiReviewEmptyAction packId="automation" /></div>}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">

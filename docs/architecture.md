@@ -427,3 +427,25 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `SampleScenarioDefinition` 只描述场景、真实视图和种子事务。业务子记录继承 `sample:<scenarioId>:` 命名空间，所有真实 AI、粉笔、Vault、文件与网络动作在示例作用域内关闭。
 - `VaultStorageAdapter` 在浏览器使用 File System Access API，在 Electron 使用 context-isolated preload。renderer 不接收桌面绝对路径，主进程负责全部根目录与符号链接校验。
 - 桌面运行时把完整性校验与 spawn 分类分离；只有完整性成功后才允许有限重试，失败诊断保持脱敏且有界。
+
+# UI 审查、同步与采集架构（2026-07-30）
+
+## UI 审查数据边界
+
+- `UiReviewScenarioRegistry` 是状态覆盖的唯一清单，状态类型固定为 `first-use-empty`、`filtered-empty`、`selection-empty`、`populated`、`dense`、`long-content`、`loading`、`error`、`permission` 和 `conflict`。所有显式 `EmptyState.stateId` 与已标记的非通用空态必须登记且全局唯一。
+- 审查数据直接写入现有 repository、Dexie v16 与既有设置存储，稳定 ID 以 `ui-review:<pack>:` 开头。安装采用幂等 upsert；清理只删除该命名空间及审查配置，不删除个人数据、真实凭据、Vault 句柄或连接缓存。
+- 旧 `sample:` 仅作为兼容清理输入，不再作为新数据写入方案。此前“React 生命周期内存示例”和“个人作用域排除示例”的说明由本节取代：审查记录与个人记录在真实列表中共同可编辑，来源统一标为“内置 UI 审查数据”。
+- `UiReviewDataProvider` 与 `ui-review-runtime-guard` 共同形成展示和执行边界。只要存在审查记录，AI、MCP、粉笔、已安排执行和 Obsidian 监听都拒绝外部调用；页面初始化完成前也不启动 Registry 或 Vault 监听。
+
+## Obsidian 同步运行时
+
+- `ObsidianSyncRuntime` 是工作台根部应用级单例。目录或应用知识变化先经过 1 秒防抖，再进入串行同步；同步期间的新事件只合并为一次补跑。
+- Electron 主进程通过受限 IPC 递归监听已授权托管根目录，只向 renderer 发送 `{revision, occurredAt}`。浏览器优先使用 `FileSystemObserver`；不支持时仅在页面可见、联网且权限有效期间每 30 秒进行一次有界检查。
+- 同步继续调用现有三方哈希、过期校验和冲突流程，不自动覆盖冲突或确认 AI 提案。关闭应用、权限丢失或启用 UI 审查数据时停止监听，“立即同步”始终保留。
+
+## 粉笔与 MCP
+
+- 粉笔输入归一化只提取纯 Cookie、`Cookie:` 请求头或 cURL 的 cookie 参数，URL、命令和其他请求头均丢弃；候选会话验证成功后才替换 AES-GCM 密文。题目使用来源 ID 或规范化内容 SHA-256 去重，重复项只进入诊断。
+- MCP 目录由“推荐、官方 Registry、自定义”三层组成。服务端代理固定请求官方 Registry，执行超时、响应上限、缓存和 active/latest/Streamable HTTP 过滤，不接受调用方提供的 Registry URL。
+- 目录条目一键添加只创建停用 profile；地址、鉴权和 discovery 成功后才允许启用。stdio/npm/PyPI/Docker 只展示“不兼容：需要本地进程”，应用不下载或执行社区代码。
+- 生产包体先通过拆分完整审查注册表、复用既有交互样式和保持重 repository 动态加载压缩，再以本次已核验构建重录 `docs/performance-budget.json`。新基线包含应用级同步调度和审查执行守卫，但继续禁止 Obsidian repository、文件解析、实时语音、已安排视图和设置工作区进入首屏。

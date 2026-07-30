@@ -177,7 +177,7 @@ export function ModelCatalogSelect({
               使用手动模型 ID：{query.trim()}
             </button>
           ) : null}
-          {!flat.length && !(allowManual && query.trim()) ? <p className={styles.emptyMessage}>没有匹配模型</p> : null}
+          {!flat.length && !(allowManual && query.trim()) ? <p className={styles.emptyMessage} data-review-state="settings.model-catalog.filtered-empty">没有匹配模型</p> : null}
         </div>
       ) : null}
     </div>

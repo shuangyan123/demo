@@ -18,7 +18,7 @@ export function TutoringConversationList({
   onCompleteMicroAssessment: (turnId: string, selections: number[]) => void;
   onSetTurnHelpful: (turnId: string, helpful: boolean) => void;
 }) {
-  if (!turns.length) return <EmptyState>暂无对话。创建会话后，可以发送文字、语音转写或当前关键帧。</EmptyState>;
+  if (!turns.length) return <EmptyState reviewPack="tutoring" stateId="tutoring.assessment.empty">暂无对话。创建会话后，可以发送文字、语音转写或当前关键帧。</EmptyState>;
   return (
     <DataList className="mt-4 max-h-[24rem] overflow-y-auto pr-1">
       {turns.map((turn) => (

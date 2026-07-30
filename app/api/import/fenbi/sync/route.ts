@@ -23,7 +23,8 @@ export async function POST(request: Request) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        const drafts = await new FenbiAccountImportAdapter().sync(
+        const adapter = new FenbiAccountImportAdapter();
+        const drafts = await adapter.sync(
           input.cookie ?? "",
           input.scope ?? { wrongOnly: true, sinceDays: 30 },
           (progress) => {
@@ -32,8 +33,9 @@ export async function POST(request: Request) {
           },
           request.signal,
         );
+        const diagnostics = adapter.diagnostics();
         controller.enqueue(encodeEvent({ type: "drafts", drafts }));
-        controller.enqueue(encodeEvent({ type: "done", parsed: drafts.length, duplicates: 0, pending: drafts.length }));
+        controller.enqueue(encodeEvent({ type: "done", parsed: drafts.length, duplicates: diagnostics.duplicates, pending: drafts.length }));
       } catch (error) {
         const known = error instanceof FenbiAccountImportError ? error : new FenbiAccountImportError("upstream_unavailable", "粉笔同步失败，请稍后重试。", 502);
         controller.enqueue(encodeEvent({ type: "error", code: known.code, message: known.message }));

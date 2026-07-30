@@ -2,6 +2,7 @@ import { normalizeFenbiDraft, type FenbiDraftInput } from "../../services/fenbi-
 import type { FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
 import type { ImportDraft } from "../../types/domains/import.ts";
 import { normalizeFenbiCookie } from "../../services/fenbi-cookie.ts";
+import { createHash } from "node:crypto";
 
 const FENBI_ORIGIN = "https://tiku.fenbi.com";
 const PAGE_SIZE = 100;
@@ -84,10 +85,19 @@ function sourceIdOf(value: unknown): string {
     || stringAt(value.question, ["id", "questionId"]);
 }
 
+function contentFingerprint(value: unknown): string {
+  const questionRecord = isRecord(value) && isRecord(value.question) ? value.question : value;
+  const canonical = [
+    stripHtml(stringAt(questionRecord, ["stem", "content", "text", "question", "title"])).toLowerCase(),
+    ...optionTexts(questionRecord).map((item) => item.toLowerCase()),
+  ].join("\n").replace(/\s+/g, " ").trim();
+  return `content:${createHash("sha256").update(canonical).digest("hex")}`;
+}
+
 function toDraftInput(question: unknown, solution: unknown): FenbiDraftInput {
   const questionRecord = isRecord(question) && isRecord(question.question) ? question.question : question;
   const solutionRecord = isRecord(solution) && isRecord(solution.solution) ? solution.solution : solution;
-  const sourceId = sourceIdOf(question) || sourceIdOf(solution);
+  const sourceId = sourceIdOf(question) || sourceIdOf(solution) || contentFingerprint(question);
   return {
     sourceId,
     board: stringAt(question, ["keypointName", "categoryName", "subjectName", "board"])
@@ -115,11 +125,16 @@ export class FenbiAccountImportAdapter {
   private readonly fetchImpl: typeof fetch;
   private readonly sleep: (milliseconds: number) => Promise<void>;
   private readonly requestTimeoutMs: number;
+  private duplicateCount = 0;
 
   constructor(options: AdapterOptions = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.requestTimeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
+  }
+
+  diagnostics(): { duplicates: number } {
+    return { duplicates: this.duplicateCount };
   }
 
   private async getJson(path: string, cookie: string, signal?: AbortSignal): Promise<unknown> {
@@ -186,6 +201,9 @@ export class FenbiAccountImportAdapter {
     await this.getJson("/api/xingce/errors/keypoint-tree", normalizedCookie, signal);
 
     const questions: unknown[] = [];
+    const seenQuestionKeys = new Set<string>();
+    let receivedCount = 0;
+    this.duplicateCount = 0;
     let total: number | undefined;
     onEvent({ stage: "questions" });
     for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -198,9 +216,18 @@ export class FenbiAccountImportAdapter {
         throw new FenbiAccountImportError("malformed_response", "粉笔错题列表格式已变化，请改用导出文件。", 502);
       }
       total = numericAt(payload, ["total", "count"]) ?? total;
-      questions.push(...pageItems);
-      onEvent({ completed: questions.length, total });
-      if (pageItems.length < PAGE_SIZE || (total !== undefined && questions.length >= total)) break;
+      receivedCount += pageItems.length;
+      for (const item of pageItems) {
+        const key = sourceIdOf(item) || contentFingerprint(item);
+        if (seenQuestionKeys.has(key)) {
+          this.duplicateCount += 1;
+          continue;
+        }
+        seenQuestionKeys.add(key);
+        questions.push(item);
+      }
+      onEvent({ completed: receivedCount, total });
+      if (pageItems.length < PAGE_SIZE || (total !== undefined && receivedCount >= total)) break;
       await this.sleep(300);
     }
 

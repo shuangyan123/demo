@@ -42,7 +42,7 @@ export function ReviewView({
   if (!currentReview) {
     return (
       <Panel title="今日队列已清空" eyebrow="复盘完成">
-        <EmptyState>可以去错题库按板块挑选，或录入新的错题。</EmptyState>
+        <EmptyState reviewPack="learning" stateId="review.queue.empty">可以去错题库按板块挑选，或录入新的错题。</EmptyState>
       </Panel>
     );
   }

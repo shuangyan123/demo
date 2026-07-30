@@ -291,7 +291,7 @@ function AutomationTrialResultView({
 
 /** 用一致的短列表呈现各数据源读取数量和样本标题。 */
 export function AutomationSummaryList({ summary }: { summary: AutomationContextSummary[] }) {
-  if (!summary.length) return <p className="mt-2 text-sm text-muted">尚未选择可读取的数据范围。</p>;
+  if (!summary.length) return <p className="mt-2 text-sm text-muted" data-review-state="automation.editor.scope.empty">尚未选择可读取的数据范围。</p>;
   return (
     <div className="mt-3 grid gap-2">
       {summary.map((item) => (

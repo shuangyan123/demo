@@ -1,15 +1,34 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
-test("真实对话示例提供主题目录、阅读保护和跳到最新消息", async ({ page }, testInfo) => {
+async function readReviewConversations(page: import("@playwright/test").Page) {
+  return page.evaluate(() => new Promise<Array<{ id: string; projectId: string; title: string }>>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const transaction = request.result.transaction("aiConversations", "readonly");
+      const records = transaction.objectStore("aiConversations").getAll();
+      records.onsuccess = () => resolve(records.result.map(({ id, projectId, title }) => ({ id, projectId, title })));
+      records.onerror = () => reject(records.error);
+    };
+  }));
+}
+
+test("UI 审查对话数据提供主题目录、阅读保护和跳到最新消息", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
   await page.getByRole("button", { name: "新对话" }).first().click();
 
-  await page.getByLabel("选择示例场景").selectOption("conversation-normal");
-  await page.getByRole("button", { name: "载入示例" }).click();
-  await expect(page.getByText("示例模式", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await page.getByLabel("选择当前页面审查场景").selectOption("conversation-normal");
+  await page.getByRole("button", { name: "载入本页" }).click();
+  await expect(page.getByText(/已安装 \d+ 条/)).toBeVisible({ timeout: 15_000 });
+  await page.reload();
+  await expect.poll(() => readReviewConversations(page)).toContainEqual(expect.objectContaining({
+    id: "ui-review:conversation-normal:conversation",
+    projectId: "civil-service",
+  }));
+  await page.getByRole("button", { name: "必要条件与充分条件", exact: true }).click();
 
   const topics = page.getByRole("navigation", { name: "对话主题目录" });
   await expect(topics).toBeVisible();
@@ -28,14 +47,17 @@ test("真实对话示例提供主题目录、阅读保护和跳到最新消息",
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("示例模式退出后回到个人数据且清理操作保持可用", async ({ page }) => {
+test("完整 UI 审查数据刷新后保留且可以精准清理", async ({ page }) => {
   await page.goto("/");
-  await page.getByLabel("选择示例场景").selectOption("dashboard-normal");
-  await page.getByRole("button", { name: "载入示例" }).click();
-  await expect(page.getByText("示例模式", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "载入完整数据" }).click();
+  await expect(page.getByText(/已安装 \d+ 条/)).toBeVisible({ timeout: 15_000 });
   await page.locator("details.dashboard-disclosure").filter({ hasText: "六大板块" }).locator("summary").click();
   await expect(page.getByText("今日队列", { exact: true })).toBeVisible();
   await expect(page.getByText("薄弱板块", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "退出示例" }).click();
-  await expect(page.getByText("示例模式", { exact: true })).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByText(/已安装 \d+ 条/)).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "删除审查数据" }).click();
+  await expect(page.getByText("按需载入真实本地数据，不调用外部服务")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "删除审查数据" })).toBeHidden();
 });

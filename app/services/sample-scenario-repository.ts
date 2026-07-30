@@ -6,7 +6,11 @@ import type { InterviewEvaluation, InterviewQuestion, InterviewSession, Intervie
 import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
 import type { Attempt, Mistake } from "../types/domains/review.ts";
 import type { TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
-import { getSampleScenario, type SampleScenarioId } from "../features/shared/sample-scenario-registry.ts";
+import {
+  getSampleScenario,
+  sampleScenarioDefinitions,
+  type SampleScenarioId,
+} from "../features/shared/sample-scenario-registry.ts";
 import { isSampleRecordId, sampleRecordId } from "./workspace-data-scope.ts";
 
 const SAMPLE_TABLES = [
@@ -41,7 +45,13 @@ const SAMPLE_TABLES = [
   reviewDb.aiConversationRunSteps,
 ] as const;
 
-const timestamp = "2026-07-30T08:30:00.000Z";
+const seedEpoch = new Date();
+const timestamp = seedEpoch.toISOString();
+const reviewDay = timestamp.slice(0, 10);
+
+function relativeTimestamp({ days = 0, minutes = 0 }: { days?: number; minutes?: number } = {}): string {
+  return new Date(seedEpoch.getTime() + days * 86_400_000 + minutes * 60_000).toISOString();
+}
 
 function id(scenarioId: SampleScenarioId, localId: string): string {
   return sampleRecordId(scenarioId, localId);
@@ -54,35 +64,35 @@ function coreFixtures(scenarioId: SampleScenarioId) {
     {
       id: mistakeId,
       board: "判断推理",
-      source: "内置示例",
+      source: "内置 UI 审查数据",
       stem: "若完成调研是制定方案的必要条件，可推出什么？",
       answer: "未完成调研则不能制定方案",
       explanation: "必要条件应使用逆否命题判断。",
       reasons: ["条件关系混淆"],
       tags: ["必要条件"],
       mastery: 1,
-      nextReviewAt: timestamp,
+      nextReviewAt: reviewDay,
       createdAt: timestamp,
       updatedAt: timestamp,
     },
     {
       id: id(scenarioId, "mistake-growth-rate"),
       board: "资料分析",
-      source: "内置示例",
+      source: "内置 UI 审查数据",
       stem: "已知现期量与增长率，如何计算增长量？",
       answer: "现期量 × 增长率 ÷（1 + 增长率）",
       explanation: "先识别基期与现期，再选择公式。",
       reasons: ["公式选择错误"],
       tags: ["增长量"],
       mastery: 2,
-      nextReviewAt: timestamp,
+      nextReviewAt: reviewDay,
       createdAt: timestamp,
       updatedAt: timestamp,
     },
   ];
   const attempts: Attempt[] = [
-    { id: id(scenarioId, "attempt-1"), mistakeId, result: "wrong", confidence: 2, durationSec: 78, reviewedAt: "2026-07-28T08:30:00.000Z" },
-    { id: id(scenarioId, "attempt-2"), mistakeId, result: "correct", confidence: 4, durationSec: 52, reviewedAt: "2026-07-29T08:30:00.000Z" },
+    { id: id(scenarioId, "attempt-1"), mistakeId, result: "wrong", confidence: 2, durationSec: 78, reviewedAt: relativeTimestamp({ days: -2 }) },
+    { id: id(scenarioId, "attempt-2"), mistakeId, result: "correct", confidence: 4, durationSec: 52, reviewedAt: relativeTimestamp({ days: -1 }) },
   ];
   const knowledgeEntries: KnowledgeEntry[] = [{
     id: knowledgeId,
@@ -91,27 +101,35 @@ function coreFixtures(scenarioId: SampleScenarioId) {
     summary: "闭卷回忆核心定义、制度载体与实践要求。",
     content: "全过程人民民主贯穿民主选举、民主协商、民主决策、民主管理、民主监督各环节。",
     tags: ["政治理论", "民主"],
-    source: "内置示例",
+    source: "内置 UI 审查数据",
     favorite: true,
     mastery: 2,
-    nextReviewAt: timestamp,
+    nextReviewAt: reviewDay,
     reviewCount: 2,
     createdAt: timestamp,
     updatedAt: timestamp,
   }];
   const knowledgeAttempts: KnowledgeAttempt[] = [
-    { id: id(scenarioId, "knowledge-attempt-1"), knowledgeId, result: "wrong", confidence: 2, reviewedAt: "2026-07-29T09:00:00.000Z" },
+    { id: id(scenarioId, "knowledge-attempt-1"), knowledgeId, result: "wrong", confidence: 2, reviewedAt: relativeTimestamp({ days: -1, minutes: 30 }) },
   ];
   return { attempts, knowledgeAttempts, knowledgeEntries, mistakes };
 }
 
 function conversationFixtures(scenarioId: SampleScenarioId) {
-  const projectId = id(scenarioId, "project");
+  const reviewProjectId = id(scenarioId, "project");
   const conversationId = id(scenarioId, "conversation");
-  const projects: AiProject[] = [{ id: projectId, label: "公考", description: "内置示例项目", studyDomainId: "civil-service", createdAt: timestamp, updatedAt: timestamp }];
+  const projects: AiProject[] = [{
+    id: reviewProjectId,
+    label: "公考 UI 审查数据",
+    description: "内置 UI 审查数据",
+    studyDomainId: "civil-service",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }];
   const conversations: AiConversation[] = [{
     id: conversationId,
-    projectId,
+    // 公考是领域注册表中的真实项目入口；审查记录本身仍以稳定前缀隔离和清理。
+    projectId: "civil-service",
     studyDomainId: "civil-service",
     title: "必要条件与充分条件",
     kind: "general",
@@ -124,17 +142,17 @@ function conversationFixtures(scenarioId: SampleScenarioId) {
   }];
   const messages: AiConversationMessage[] = [
     { id: id(scenarioId, "message-1"), conversationId, turnId: id(scenarioId, "turn-1"), sequence: 0, role: "user", content: "如何区分必要条件和充分条件？", attachmentIds: [], createdAt: timestamp },
-    { id: id(scenarioId, "message-2"), conversationId, turnId: id(scenarioId, "turn-1"), sequence: 2, role: "assistant", content: "先记住：有它未必行、没它一定不行的是必要条件。", attachmentIds: [], createdAt: "2026-07-30T08:31:00.000Z" },
-    { id: id(scenarioId, "message-3"), conversationId, turnId: id(scenarioId, "turn-2"), sequence: 0, role: "user", content: "给我一道可以练习逆否命题的题。", attachmentIds: [], createdAt: "2026-07-30T08:32:00.000Z" },
-    { id: id(scenarioId, "message-4"), conversationId, turnId: id(scenarioId, "turn-2"), sequence: 2, role: "assistant", content: "若通过资格审查是进入面试的必要条件，未通过资格审查可以推出什么？", attachmentIds: [], createdAt: "2026-07-30T08:33:00.000Z" },
-    { id: id(scenarioId, "message-5"), conversationId, turnId: id(scenarioId, "turn-3"), sequence: 0, role: "user", content: "必要条件的常见题型陷阱有哪些？", attachmentIds: [], createdAt: "2026-07-30T08:34:00.000Z" },
-    { id: id(scenarioId, "message-6"), conversationId, turnId: id(scenarioId, "turn-3"), sequence: 2, role: "assistant", content: "重点警惕把“只有 A 才 B”误写成 A 推出 B。它表达的是 B 推出 A，再结合逆否命题判断选项。练习时先圈出条件词，再统一改写为箭头关系。", attachmentIds: [], createdAt: "2026-07-30T08:35:00.000Z" },
-    { id: id(scenarioId, "message-7"), conversationId, turnId: id(scenarioId, "turn-4"), sequence: 0, role: "user", content: "怎样快速识别“除非”句式？", attachmentIds: [], createdAt: "2026-07-30T08:36:00.000Z" },
-    { id: id(scenarioId, "message-8"), conversationId, turnId: id(scenarioId, "turn-4"), sequence: 2, role: "assistant", content: "“除非 A，否则不 B”可以先还原为“只有 A 才 B”，即 B 推出 A。不要直接按日常语序判断，先做标准化改写会更稳定。", attachmentIds: [], createdAt: "2026-07-30T08:37:00.000Z" },
-    { id: id(scenarioId, "message-9"), conversationId, turnId: id(scenarioId, "turn-5"), sequence: 0, role: "user", content: "请给出一套考场上的三步判断法。", attachmentIds: [], createdAt: "2026-07-30T08:38:00.000Z" },
-    { id: id(scenarioId, "message-10"), conversationId, turnId: id(scenarioId, "turn-5"), sequence: 2, role: "assistant", content: "第一步识别充分或必要条件词；第二步把自然语言统一写成 A→B；第三步只使用原命题和逆否命题验证选项。遇到否定词时先标记范围，避免否错对象。", attachmentIds: [], createdAt: "2026-07-30T08:39:00.000Z" },
-    { id: id(scenarioId, "message-11"), conversationId, turnId: id(scenarioId, "turn-6"), sequence: 0, role: "user", content: "最后帮我总结今天的薄弱点。", attachmentIds: [], createdAt: "2026-07-30T08:40:00.000Z" },
-    { id: id(scenarioId, "message-12"), conversationId, turnId: id(scenarioId, "turn-6"), sequence: 2, role: "assistant", content: "今天主要需要巩固两个薄弱点：一是“只有”引导必要条件时箭头方向容易写反；二是含“除非”的句式没有先标准化。下一次先做 5 道条件词改写，再进入选项判断。", attachmentIds: [], createdAt: "2026-07-30T08:41:00.000Z" },
+    { id: id(scenarioId, "message-2"), conversationId, turnId: id(scenarioId, "turn-1"), sequence: 2, role: "assistant", content: "先记住：有它未必行、没它一定不行的是必要条件。", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 1 }) },
+    { id: id(scenarioId, "message-3"), conversationId, turnId: id(scenarioId, "turn-2"), sequence: 0, role: "user", content: "给我一道可以练习逆否命题的题。", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 2 }) },
+    { id: id(scenarioId, "message-4"), conversationId, turnId: id(scenarioId, "turn-2"), sequence: 2, role: "assistant", content: "若通过资格审查是进入面试的必要条件，未通过资格审查可以推出什么？", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 3 }) },
+    { id: id(scenarioId, "message-5"), conversationId, turnId: id(scenarioId, "turn-3"), sequence: 0, role: "user", content: "必要条件的常见题型陷阱有哪些？", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 4 }) },
+    { id: id(scenarioId, "message-6"), conversationId, turnId: id(scenarioId, "turn-3"), sequence: 2, role: "assistant", content: "重点警惕把“只有 A 才 B”误写成 A 推出 B。它表达的是 B 推出 A，再结合逆否命题判断选项。练习时先圈出条件词，再统一改写为箭头关系。", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 5 }) },
+    { id: id(scenarioId, "message-7"), conversationId, turnId: id(scenarioId, "turn-4"), sequence: 0, role: "user", content: "怎样快速识别“除非”句式？", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 6 }) },
+    { id: id(scenarioId, "message-8"), conversationId, turnId: id(scenarioId, "turn-4"), sequence: 2, role: "assistant", content: "“除非 A，否则不 B”可以先还原为“只有 A 才 B”，即 B 推出 A。不要直接按日常语序判断，先做标准化改写会更稳定。", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 7 }) },
+    { id: id(scenarioId, "message-9"), conversationId, turnId: id(scenarioId, "turn-5"), sequence: 0, role: "user", content: "请给出一套考场上的三步判断法。", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 8 }) },
+    { id: id(scenarioId, "message-10"), conversationId, turnId: id(scenarioId, "turn-5"), sequence: 2, role: "assistant", content: "第一步识别充分或必要条件词；第二步把自然语言统一写成 A→B；第三步只使用原命题和逆否命题验证选项。遇到否定词时先标记范围，避免否错对象。", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 9 }) },
+    { id: id(scenarioId, "message-11"), conversationId, turnId: id(scenarioId, "turn-6"), sequence: 0, role: "user", content: "最后帮我总结今天的薄弱点。", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 10 }) },
+    { id: id(scenarioId, "message-12"), conversationId, turnId: id(scenarioId, "turn-6"), sequence: 2, role: "assistant", content: "今天主要需要巩固两个薄弱点：一是“只有”引导必要条件时箭头方向容易写反；二是含“除非”的句式没有先标准化。下一次先做 5 道条件词改写，再进入选项判断。", attachmentIds: [], createdAt: relativeTimestamp({ minutes: 11 }) },
   ];
   const runSteps: AiConversationRunStep[] = [{
     id: id(scenarioId, "run-step"),
@@ -175,7 +193,7 @@ function importFixtures(scenarioId: SampleScenarioId, needsReview: boolean) {
     needsReview,
     issues: needsReview ? ["missing_answer"] : [],
     board: "判断推理",
-    source: "内置示例",
+    source: "内置 UI 审查数据",
     stem: needsReview ? "某题目的答案字段未被识别" : "若 A 是 B 的必要条件，下列推理正确的是？",
     options: ["A. 有 A 必有 B", "B. 无 A 则无 B", "C. 有 B 必有 A", "D. 无 B 则无 A"],
     answer: needsReview ? "" : "B",
@@ -203,7 +221,7 @@ function automationFixtures(scenarioId: SampleScenarioId, failed: boolean) {
     enabled: true,
     timeZone: "Asia/Shanghai",
     schedule: { kind: "daily", time: "08:30" },
-    nextRunAt: "2026-07-31T00:30:00.000Z",
+    nextRunAt: relativeTimestamp({ days: 1 }),
     lastRunAt: timestamp,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -241,7 +259,7 @@ function interviewFixtures(scenarioId: SampleScenarioId, state: "active" | "comp
     prompt: "基层窗口遇到群众因材料不全情绪激动，你会如何处理？",
     material: "",
     tags: ["应急应变"],
-    source: "内置示例",
+    source: "内置 UI 审查数据",
     difficulty: "medium",
     expectedDurationSec: 180,
     practiceCount: state === "completed" ? 1 : 0,
@@ -258,7 +276,7 @@ function interviewFixtures(scenarioId: SampleScenarioId, state: "active" | "comp
     status: state === "completed" ? "evaluated" : state === "cancelled" ? "cancelled" : "active",
     stage: state === "completed" ? "evaluated" : "answering",
     startedAt: timestamp,
-    completedAt: state === "active" ? undefined : "2026-07-30T08:33:00.000Z",
+    completedAt: state === "active" ? undefined : relativeTimestamp({ minutes: 3 }),
     totalDurationSec: 96,
     timerStatus: state === "active" ? "paused" : "finished",
     currentTurnElapsedSec: 42,
@@ -305,7 +323,7 @@ function tutoringFixtures(scenarioId: SampleScenarioId) {
     nextActions: ["完成逆否命题练习"],
     frameCount: 1,
     turnCount: 2,
-    estimatedCostNote: "示例模式不调用真实 AI",
+    estimatedCostNote: "UI 审查数据不调用真实 AI",
     createdAt: timestamp,
     updatedAt: timestamp,
   }];
@@ -335,11 +353,22 @@ export const sampleScenarioRepository = {
     await reviewDb.transaction("rw", [...SAMPLE_TABLES], clearSamplesInCurrentTransaction);
   },
 
+  async countAll(): Promise<number> {
+    const counts = await Promise.all(SAMPLE_TABLES.map((table) => table.filter((record: unknown) => {
+      const candidate = record as { id?: string };
+      return isSampleRecordId(candidate.id);
+    }).count()));
+    return counts.reduce((total, count) => total + count, 0);
+  },
+
+  async seedAll(): Promise<void> {
+    for (const scenario of sampleScenarioDefinitions) await this.seed(scenario.id);
+  },
+
   async seed(scenarioId: SampleScenarioId): Promise<void> {
     const scenario = getSampleScenario(scenarioId);
     if (!scenario) throw new Error("未知示例场景");
     await reviewDb.transaction("rw", [...SAMPLE_TABLES], async () => {
-      await clearSamplesInCurrentTransaction();
       const core = coreFixtures(scenarioId);
       await reviewDb.mistakes.bulkPut(core.mistakes);
       await reviewDb.attempts.bulkPut(core.attempts);

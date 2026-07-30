@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import "./registry-client.contract.test.ts";
 // 复用已纳入门禁的服务端安全测试入口，确保路由与外联策略不会被遗漏。
 import "../http/route-security.contract.test.ts";
 import { toMcpError, validateMcpEndpoint } from "./client.ts";

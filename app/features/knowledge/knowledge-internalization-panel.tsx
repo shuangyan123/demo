@@ -43,7 +43,7 @@ export function KnowledgeInternalizationPanel({
                   {duplicate ? <Chip tone="yellow">已有内化</Chip> : null}
                 </label>
               );
-            }) : <EmptyState>暂无可内化错题</EmptyState>}
+            }) : <EmptyState reviewPack="learning" stateId="knowledge.internalization.sources.empty">暂无可内化错题</EmptyState>}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="primary" disabled={controller.busy} onClick={() => void controller.generateDraft()}>{controller.busy ? "正在生成草稿" : `生成内化草稿（${controller.selectedMistakeIds.size}）`}</Button>
@@ -70,7 +70,7 @@ export function KnowledgeInternalizationPanel({
             <div className="grid gap-2 text-sm text-muted"><p><strong className="text-foreground">核心原理：</strong>{draft.principle || "待补充"}</p><p><strong className="text-foreground">易错陷阱：</strong>{draft.pitfalls.join("；") || "待补充"}</p><p><strong className="text-foreground">迁移练习：</strong>{draft.transferPractice || "待补充"}</p><p><strong className="text-foreground">AI 判断：</strong>{draft.reason}</p></div>
             <div className="flex flex-wrap gap-2"><Button type="button" variant="primary" disabled={!draft.title.trim() || !draft.content.trim() || (draft.mode === "merge" && !draft.targetKnowledgeId)} onClick={() => void controller.confirmDraft(draft.id)}>确认写入知识库</Button><Button type="button" variant="danger" onClick={() => void controller.removeDraft(draft.id)}>忽略草稿</Button></div>
           </SoftBlock>
-        )) : <EmptyState>暂无待确认的内化草稿；生成后即使刷新页面也会保留在这里。</EmptyState>}
+        )) : <EmptyState reviewPack="learning" stateId="knowledge.internalization.drafts.empty">暂无待确认的内化草稿；生成后即使刷新页面也会保留在这里。</EmptyState>}
       </div>
     </Panel>
   );

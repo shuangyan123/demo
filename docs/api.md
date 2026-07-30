@@ -316,3 +316,17 @@ P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controll
 - 新增客户端内部 `aiQuotaRepository.setEnabled(id, enabled, today)` 和 `QuotaRuntimeStore.setEnabled(...)`；二者不属于公开 HTTP API。
 - 启停请求不携带、不解密额度凭据。启用后的只读验证与刷新继续使用现有 `/api/ai/quota` 协议，失败只更新运行状态，不修改公开响应格式。
 - 组件内开发示例只消费固定脱敏内存对象，不新增路由、请求字段、环境密钥或持久化结构。
+
+## MCP 官方 Registry 目录
+
+### `GET /api/mcp/registry?query=&cursor=`
+
+- 上游固定为官方 MCP Registry，客户端不能传入 Registry URL。`query` 和 `cursor` 会进行长度与字符边界校验。
+- 成功响应为 `{ entries: McpCatalogEntry[], nextCursor?: string }`；只包含最新、active 且声明 Streamable HTTP remote 的条目，并提供名称、说明、版本、远程地址、仓库、更新时间和社区风险标签。
+- 服务端设置 8 秒超时、1 MiB 响应上限和 5 分钟内存缓存；不回传上游原始正文。失败使用现有结构化错误响应。
+
+## 粉笔导入与桌面 Vault 增量
+
+- `/api/import/fenbi/validate` 与 `/api/import/fenbi/sync` 的 cookie 字段可接收纯 Cookie、完整 `Cookie:` 请求头或 Copy as cURL；服务端只保留 Cookie 值，丢弃 URL、命令和其他请求头。
+- Fenbi SSE 完成事件的诊断可包含脱敏的重复项数量，不包含 Cookie、题目正文或上游原始响应。
+- Electron preload 新增 Vault watch 启停与变更订阅；变更事件固定为 `{revision, occurredAt}`，不暴露正文、文件名或绝对路径。浏览器端没有新增公开 HTTP Route。

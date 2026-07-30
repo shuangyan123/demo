@@ -490,7 +490,7 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
                     <Button size="sm" variant="danger" onClick={() => void removeProfile(profile)}>删除</Button>
                   </div>
               </article>
-            )) : <div className="py-4"><EmptyState>尚未保存连接。</EmptyState></div>}
+            )) : <div className="py-4"><EmptyState stateId="settings.connections.empty">尚未保存连接。</EmptyState></div>}
           </div>
           {selectedProfile ? (
             <div className={compactStyles.connectionDetails} aria-label={`${selectedProfile.label}连接详情`}>

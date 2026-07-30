@@ -342,7 +342,7 @@ function LibraryBoardList({
             ))
           ) : (
             <div className="m-4">
-              <EmptyState>没有匹配的错题</EmptyState>
+              <EmptyState stateId="library.results.empty">没有匹配的错题</EmptyState>
             </div>
           )}
           {hasMoreMistakes && (
@@ -459,7 +459,7 @@ function MistakeDetail({
           </div>
         </>
       ) : (
-        <EmptyState>选择一道错题查看详情</EmptyState>
+        <EmptyState stateId="library.selection.empty">选择一道错题查看详情</EmptyState>
       )}
     </DetailCard>
   );

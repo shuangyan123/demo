@@ -23,13 +23,13 @@ const fenbiExampleOptions: DevelopmentExampleOption[] = [
 ];
 
 const ObsidianPluginPanel = dynamic(() => import("./obsidian/obsidian-plugin-panel").then((module) => module.ObsidianPluginPanel), {
-  loading: () => <EmptyState>正在加载 Obsidian Vault…</EmptyState>,
+  loading: () => <EmptyState stateId="settings.plugins.loading-obsidian">正在加载 Obsidian Vault…</EmptyState>,
 });
 const ImportWorkspace = dynamic(() => import("../../import/import-workspace").then((module) => module.ImportWorkspace), {
-  loading: () => <EmptyState>正在加载粉笔导入…</EmptyState>,
+  loading: () => <EmptyState stateId="settings.plugins.loading-fenbi">正在加载粉笔导入…</EmptyState>,
 });
 const DeclarativeExtensionMarketplace = dynamic(() => import("./declarative-extension-marketplace").then((module) => module.DeclarativeExtensionMarketplace), {
-  loading: () => <EmptyState>正在加载声明式扩展市场…</EmptyState>,
+  loading: () => <EmptyState stateId="settings.plugins.loading-marketplace">正在加载声明式扩展市场…</EmptyState>,
 });
 
 type SettingsPluginsViewProps = {
@@ -189,7 +189,7 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
               </button>
             );
           })}
-          {!plugins.length ? <EmptyState>没有匹配的已登记扩展。</EmptyState> : null}
+          {!plugins.length ? <EmptyState stateId="settings.plugins.filtered-empty">没有匹配的已登记扩展。</EmptyState> : null}
         </div>
 
         {activePlugin ? (
@@ -243,7 +243,7 @@ function FenbiDevelopmentExample({ scenario }: { scenario: string }) {
         </section>
         <section className="ui-card min-w-0 overflow-hidden">
           <header className="border-b border-line p-4"><h2 className="font-semibold">知识资料草稿</h2><p className="text-xs text-muted">确认前可以编辑、删除或调整分类。</p></header>
-          {drafts ? <div className="divide-y divide-line">{["判断推理：加强论证", "资料分析：增长率", "申论：基层治理"].map((title, index) => <article className="grid gap-2 p-4" key={title}><div className="flex justify-between gap-3"><strong>{title}</strong><span className="text-xs text-muted">草稿 {index + 1}</span></div><textarea aria-label={`${title} 示例内容`} className="ui-input min-h-20" defaultValue="这是用于界面批注的脱敏示例摘要，可在确认前编辑。" /></article>)}</div> : <EmptyState>{syncing ? "同步完成后草稿会显示在这里。" : "账户已就绪，尚无待确认草稿。"}</EmptyState>}
+          {drafts ? <div className="divide-y divide-line">{["判断推理：加强论证", "资料分析：增长率", "申论：基层治理"].map((title, index) => <article className="grid gap-2 p-4" key={title}><div className="flex justify-between gap-3"><strong>{title}</strong><span className="text-xs text-muted">草稿 {index + 1}</span></div><textarea aria-label={`${title} 示例内容`} className="ui-input min-h-20" defaultValue="这是用于界面批注的脱敏示例摘要，可在确认前编辑。" /></article>)}</div> : <EmptyState stateId="settings.plugins.fenbi-drafts.empty">{syncing ? "同步完成后草稿会显示在这里。" : "账户已就绪，尚无待确认草稿。"}</EmptyState>}
         </section>
       </div>
     </section>

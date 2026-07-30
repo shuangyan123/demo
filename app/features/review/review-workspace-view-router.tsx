@@ -14,16 +14,22 @@ const SampleScenarioControls = dynamic(() => import("../shared/sample-scenario-c
 
 /** 装配设置、工作台壳层和当前视图；不读取 repository 或持有业务状态。 */
 export function ReviewWorkspaceViewRouter({
+  busy,
   controller,
+  installedCount,
   scope,
   onClearSamples,
   onExitSample,
+  onInstallAllSamples,
   onLoadSample,
 }: {
+  busy: boolean;
   controller: ReviewWorkspaceController;
+  installedCount: number;
   scope: ReviewWorkspaceController["workspace"]["scope"];
   onClearSamples: () => Promise<void>;
   onExitSample: () => void;
+  onInstallAllSamples: () => Promise<void>;
   onLoadSample: (scenarioId: SampleScenarioId) => Promise<void>;
 }) {
   const { automation, conversation, workspace } = controller;
@@ -74,10 +80,13 @@ export function ReviewWorkspaceViewRouter({
       onToggleSidebar={workspace.toggleSidebar}
       sidebarFooter={scope.kind === "personal" ? (
         <SampleScenarioControls
+          busy={busy}
+          installedCount={installedCount}
           scope={scope}
           view={workspace.view}
           onClear={onClearSamples}
           onExit={onExitSample}
+          onInstallAll={onInstallAllSamples}
           onLoad={onLoadSample}
         />
       ) : undefined}
@@ -100,8 +109,8 @@ export function ReviewWorkspaceViewRouter({
       ) : (
         <>
           {scope.kind === "sample" ? <SampleScenarioControls
-            scope={scope} view={workspace.view}
-            onClear={onClearSamples} onExit={onExitSample} onLoad={onLoadSample}
+            busy={busy} installedCount={installedCount} scope={scope} view={workspace.view}
+            onClear={onClearSamples} onExit={onExitSample} onInstallAll={onInstallAllSamples} onLoad={onLoadSample}
           /> : null}
           <ReviewWorkspaceCoreViews controller={controller} />
           <ReviewWorkspaceSecondaryViews controller={controller} />

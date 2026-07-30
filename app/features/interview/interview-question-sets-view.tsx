@@ -99,7 +99,7 @@ export function InterviewQuestionSetsView({
               );
             })
           ) : (
-            <EmptyState>还没有题组。先在右侧选择题目，创建一个专题训练包。</EmptyState>
+            <EmptyState reviewPack="interview" stateId="interview.question-sets.empty">还没有题组。先在右侧选择题目，创建一个专题训练包。</EmptyState>
           )}
         </DataList>
       </Panel>
@@ -127,7 +127,7 @@ export function InterviewQuestionSetsView({
                   </CheckboxRow>
                 ))
               ) : (
-                <EmptyState>当前筛选下没有题目。</EmptyState>
+                <EmptyState stateId="interview.question-set-filter.empty">当前筛选下没有题目。</EmptyState>
               )}
             </div>
           </div>

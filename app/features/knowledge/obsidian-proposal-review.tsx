@@ -68,7 +68,7 @@ export function ObsidianProposalReview({ controller }: { controller: Controller 
           </div>
           {active ? <ProposalDetail key={`${active.id}:${active.updatedAt}`} controller={controller} proposal={active} /> : null}
         </div>
-      ) : <EmptyState>当前筛选下没有待确认提案。</EmptyState>}
+      ) : <EmptyState stateId="knowledge.obsidian.proposal-filter.empty">当前筛选下没有待确认提案。</EmptyState>}
     </div>
   );
 }
