@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -15,21 +15,27 @@ test("桌面 Vault 拒绝绝对路径、父级穿越和非 Markdown 扩展名", 
 
 test("桌面 Vault 解析逐段拒绝符号链接逃逸", async (context) => {
   const temporary = await mkdtemp(path.join(tmpdir(), "review-vault-contract-"));
+  context.after(() => rm(temporary, { recursive: true, force: true }));
   const root = path.join(temporary, "vault");
   const outside = path.join(temporary, "outside");
   await mkdir(path.join(root, "AI知识库"), { recursive: true });
   await mkdir(outside, { recursive: true });
   await writeFile(path.join(root, "AI知识库", "safe.md"), "safe", "utf8");
-  assert.equal(await resolveDesktopVaultPath(root, "AI知识库/safe.md", false), path.join(root, "AI知识库", "safe.md"));
+  assert.equal(
+    await resolveDesktopVaultPath(root, "AI知识库/safe.md", false),
+    await realpath(path.join(root, "AI知识库", "safe.md")),
+  );
   try {
     await symlink(outside, path.join(root, "AI知识库", "escape"), "junction");
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-    if (code === "EPERM") context.skip("当前 Windows 环境不允许创建测试 junction");
+    if (code === "EPERM") {
+      context.skip("当前 Windows 环境不允许创建测试 junction");
+      return;
+    }
     else throw error;
   }
   await assert.rejects(() => resolveDesktopVaultPath(root, "AI知识库/escape/note.md", true), /VAULT_SYMLINK_REJECTED/);
-  await rm(temporary, { recursive: true, force: true });
 });
 
 test("Vault IPC 校验调用来源、正文上限且 preload 不暴露绝对路径", () => {
