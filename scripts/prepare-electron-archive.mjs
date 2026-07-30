@@ -11,11 +11,14 @@ import {
   stat,
 } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const require = createRequire(import.meta.url);
+const { downloadArtifact } = require("@electron/get");
 const electronRoot = path.join(projectRoot, "node_modules", "electron");
 const electronPackage = JSON.parse(
   await readFile(path.join(electronRoot, "package.json"), "utf8"),
@@ -87,9 +90,14 @@ if (!await isVerifiedArchive(archivePath)) {
     if (cachedArchive) break;
   }
   if (!cachedArchive) {
-    throw new Error(
-      `未找到已校验的 ${archiveName}；请先完成 npm install 以填充 Electron 安装缓存。`,
-    );
+    // GitHub runner 的 npm 缓存可能只恢复已解压 dist，不保留原始 ZIP；官方下载器会按 checksums.json 校验。
+    cachedArchive = await downloadArtifact({
+      version: electronPackage.version,
+      artifactName: "electron",
+      platform: "win32",
+      arch: "x64",
+      checksums,
+    });
   }
   await copyFile(cachedArchive, archivePath);
 }

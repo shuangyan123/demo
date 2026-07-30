@@ -432,3 +432,4 @@
 - v16 的 `interviewLinks`、`tutoringLinks` 只有单字段 `sourceType/sourceId` 和 `[sourceType+targetId]`；按来源删除应使用 `sourceType` 索引后过滤 `sourceId`，不得查询旧 `[sourceType+sourceId]`。
 - 面试计时只在暂停、继续、换轮和结束时持久化；每秒显示值留在组件内存。完成评分前先冻结计时并停止语音输入/朗读。
 - 内容型开发示例统一经类型化注册表进入，并在业务 controller 挂载前分流；fixture 禁止触达持久化和外部能力。
+- GitHub runner 可能只保留已解压 Electron dist 而不保留官方 ZIP；归档准备应先复用已校验缓存，缺失时使用 `@electron/get` 携带官方 `checksums.json` 下载，随后再次计算 SHA-256。
