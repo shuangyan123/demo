@@ -65,15 +65,19 @@ export const interviewRepository = {
   // 批量写入 AI 生成或草稿确认后的面试题，所有题目默认不创建会话。
   async bulkAddQuestions(inputs: NewQuestionInput[]): Promise<InterviewQuestion[]> {
     if (!inputs.length) return [];
-    const now = nowISO();
-    const questions = inputs.map((input) => ({
-      ...input,
-      favorite: input.favorite ?? false,
-      practiceCount: input.practiceCount ?? 0,
-      id: crypto.randomUUID(),
-      createdAt: now,
-      updatedAt: now,
-    }));
+    const baseTime = Date.now();
+    // Dexie 对相同索引键不保证跨平台顺序；微小时间差使批量输入顺序在 updatedAt 倒序读取时保持稳定。
+    const questions = inputs.map((input, index) => {
+      const timestamp = new Date(baseTime - index).toISOString();
+      return {
+        ...input,
+        favorite: input.favorite ?? false,
+        practiceCount: input.practiceCount ?? 0,
+        id: crypto.randomUUID(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+    });
     await reviewDb.interviewQuestions.bulkAdd(questions);
     return questions;
   },
