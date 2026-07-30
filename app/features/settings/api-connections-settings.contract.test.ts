@@ -59,6 +59,23 @@ test("AI 连接开发示例复用五列表格且真实仓储容器按示例状�
   assert.match(source, /ApiConnectionsDevelopmentExample/);
   assert.match(source, /ApiConnectionsSettingsLiveView/);
   assert.match(source, /if \(example\.value\)/);
-  assert.match(styles, /\.connectionTableHeader[\s\S]*text-align:\s*center/);
+  assert.doesNotMatch(styles, /\.connectionTableHeader\s*\{[^}]*text-align:\s*center/);
+  assert.match(styles, /\.cellStart\s*\{[^}]*text-align:\s*left/);
+  assert.match(styles, /\.cellCenter\s*\{[^}]*text-align:\s*center/);
+  assert.match(source, /cellStart[^]*厂商 \/ 连接名称[^]*cellStart[^]*Base URL/);
   assert.match(styles, /\.connectionActions[\s\S]*justify-content:\s*center/);
+});
+
+test("AI 连接操作列始终保留编辑、测试和删除三个稳定动作位", async () => {
+  const [source, styles] = await Promise.all([
+    readSource(),
+    readFile(new URL("./settings-compact.module.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(source, /重新输入密钥/);
+  assert.match(source, /testSavedProfile\(profile\)/);
+  assert.match(source, /removeProfile\(profile\)/);
+  assert.match(styles, /\.connectionActions\s*\{[\s\S]*grid-template-columns:\s*minmax\(6\.5rem, auto\)[\s\S]*minmax\(3\.25rem, auto\)[\s\S]*minmax\(3\.25rem, auto\)/);
+  assert.match(styles, /\.connectionActions > button\s*\{[\s\S]*white-space:\s*nowrap/);
+  assert.doesNotMatch(styles, /\.connectionActions > :last-child\s*\{[\s\S]*display:\s*none/);
 });

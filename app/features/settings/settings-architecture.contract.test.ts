@@ -66,15 +66,20 @@ test("AI 连接使用紧凑主从表格且详情不展示密钥", async () => {
   assert.doesNotMatch(source, /selectedProfile\.apiKey/);
 });
 
-test("设置壳层抬升主区且组件示例仅在开发环境透传", async () => {
-  const [shell, workspace, reviewWorkspace, example] = await Promise.all([
+test("设置内容复用全站唯一外壳且组件示例仅在开发环境透传", async () => {
+  const [shell, workspace, router, reviewWorkspace, example] = await Promise.all([
     readFile(new URL("../../styles/shell.css", import.meta.url), "utf8"),
     readFile(new URL("./settings-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../review/review-workspace-view-router.tsx", import.meta.url), "utf8"),
     readFile(new URL("../review/review-workspace.tsx", import.meta.url), "utf8"),
     readFile(new URL("../shared/development-example-switcher.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(workspace, /integrationMode="settings"/);
-  assert.match(shell, /data-integration-mode="settings"[\s\S]*height:\s*100dvh/);
+  assert.doesNotMatch(workspace, /WorkspaceShell/);
+  assert.match(router, /const settingsMode = workspace\.view === "settings"/);
+  assert.match(router, /SettingsWorkspaceSidebar/);
+  assert.match(router, /<ReviewWorkspaceShell[\s\S]*\{settingsMode \? \(/);
+  assert.match(shell, /--chrome-workspace-top-inset:\s*12px/);
+  assert.match(shell, /height:\s*calc\(100% - var\(--chrome-workspace-top-inset\)\)/);
   assert.match(reviewWorkspace, /process\.env\.NODE_ENV === "development"/);
   assert.match(example, /不保存、不请求外部服务/);
   assert.doesNotMatch(reviewWorkspace, /ui-preview/);

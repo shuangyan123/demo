@@ -146,13 +146,23 @@ export function InterviewWorkspace({
             selectedType={typeFilter}
             onAddQuestion={interviewData.addQuestion}
             onAddStarterQuestions={async () => {
-              await Promise.all(starterQuestions.map((question) => interviewData.addQuestion(question)));
-              onNotice("已载入三类面试示例题");
+              const existingKeys = new Set(interviewData.snapshot.questions.map((question) => `${question.source}\u0000${question.title}`));
+              const missing = starterQuestions.filter((question) => !existingKeys.has(`${question.source}\u0000${question.title}`));
+              if (!missing.length) {
+                onNotice("三类面试示例题已全部载入，无需重复添加");
+                return;
+              }
+              await interviewData.addQuestions(missing);
+              onNotice(`已载入 ${missing.length} 道面试示例题`);
             }}
             onChangeType={setTypeFilter}
             onClearQuestionDrafts={interviewData.clearQuestionDrafts}
             onConfirmQuestionDrafts={interviewData.confirmQuestionDrafts}
-            onDeleteQuestion={interviewData.deleteQuestion}
+            onDeleteQuestion={async (id) => {
+              const remaining = filteredQuestions.filter((question) => question.id !== id);
+              await interviewData.deleteQuestion(id);
+              if (selectedQuestionId === id) setSelectedQuestionId(remaining[0]?.id ?? null);
+            }}
             onGenerateQuestionDrafts={interviewData.generateQuestionDrafts}
             onSelectQuestion={setSelectedQuestionId}
             onStartSession={(question) => void startSession(question)}
@@ -213,6 +223,8 @@ export function InterviewWorkspace({
             speech={speech}
             turns={activeTurns}
             onFinishSession={(sessionId) => void interviewData.finishSession(sessionId)}
+            onPauseTimer={interviewData.pauseTimer}
+            onResumeTimer={interviewData.resumeTimer}
             onSubmitAnswer={interviewData.submitCandidateTurn}
           />
           {activeSession && (

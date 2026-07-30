@@ -105,16 +105,16 @@ function AiQuotaDevelopmentExample({ scenario }: { scenario: string }) {
         <span className={styles.muted} role="status">{status === "stale" ? "刷新失败但启用状态保持" : "开发示例"}</span>
       </div>
       <div className={styles.table}>
-        <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span>启用</span><span>连接状态</span><span>额度/用量</span><span>最后刷新</span><span>数据来源</span><span>操作</span></div>
+        <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span className={styles.cellCenter}>启用</span><span>连接状态</span><span className={styles.cellCenter}>额度/用量</span><span>最后刷新</span><span>数据来源</span><span className={styles.cellCenter}>操作</span></div>
         {rows.map((row) => (
           <div key={row.id} className={`${styles.tableRow} ${styles.quotaColumns}`}>
             <button className={styles.providerCell} type="button"><ProviderIcon provider={row.id === "manual" ? "custom" : row.id} size={24} /><strong>{row.label}</strong><AppIcon name="configure" size={16} /></button>
-            <input aria-label={`启用${row.label}额度刷新示例`} checked={row.enabled} className="ui-checkbox" readOnly role="switch" type="checkbox" />
+            <span className={styles.cellCenter}><input aria-label={`启用${row.label}额度刷新示例`} checked={row.enabled} className="ui-checkbox" readOnly role="switch" type="checkbox" /></span>
             <span className={styles.providerCell}><i className={styles.statusDot} data-tone={row.status === "stale" ? "yellow" : row.status === "refreshing" ? "blue" : undefined} /><span className={styles.truncate}>{statusLabels[row.status]}</span></span>
-            <QuotaMetricRing snapshot={row.snapshot} />
+            <span className={styles.cellCenter}><QuotaMetricRing snapshot={row.snapshot} /></span>
             <span className={styles.muted}>{row.snapshot ? "今天 10:24" : "未刷新"}</span>
             <span className={`${styles.muted} ${styles.truncate}`}>{row.source}</span>
-            <button aria-label={`刷新${row.label}额度示例`} className={styles.iconButton} disabled={!row.enabled} type="button"><span className={row.status === "refreshing" ? styles.spin : undefined}><AppIcon name={row.status === "stale" ? "warning" : "refresh"} size={16} /></span></button>
+            <span className={styles.cellCenter}><button aria-label={`刷新${row.label}额度示例`} className={styles.iconButton} disabled={!row.enabled} type="button"><span className={row.status === "refreshing" ? styles.spin : undefined}><AppIcon name={row.status === "stale" ? "warning" : "refresh"} size={16} /></span></button></span>
           </div>
         ))}
       </div>
@@ -271,7 +271,7 @@ function AiQuotaSettingsLivePanel() {
       </div>
       {aiQuotaRepository.plugins.length ? (
         <div className={styles.table}>
-          <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span>启用</span><span>连接状态</span><span>额度/用量</span><span>最后刷新</span><span>数据来源</span><span>操作</span></div>
+          <div className={`${styles.tableHeader} ${styles.quotaColumns}`}><span>提供商</span><span className={styles.cellCenter}>启用</span><span>连接状态</span><span className={styles.cellCenter}>额度/用量</span><span>最后刷新</span><span>数据来源</span><span className={styles.cellCenter}>操作</span></div>
           {aiQuotaRepository.plugins.map((plugin) => {
             const form = forms[plugin.id] ?? formFromConfig(configById.get(plugin.id));
             const snapshot = snapshotById.get(plugin.id);
@@ -281,12 +281,12 @@ function AiQuotaSettingsLivePanel() {
             return (
               <div key={plugin.id} className={`${styles.tableRow} ${styles.quotaColumns}`}>
                 <button ref={(node) => { if (editingId === plugin.id && node) returnFocusRef.current = node; }} aria-label={`配置${plugin.label}额度`} className={styles.providerCell} type="button" onClick={(event) => { returnFocusRef.current = event.currentTarget; setEditingId(plugin.id); }}><ProviderIcon provider={plugin.id === "manual" ? "custom" : plugin.id} size={24} /><strong>{plugin.label}</strong><AppIcon name="configure" size={16} /></button>
-                <input aria-label={`启用${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={isBusy(`toggle:${plugin.id}`)} role="switch" type="checkbox" onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} />
+                <span className={styles.cellCenter}><input aria-label={`启用${plugin.label}额度刷新`} checked={form.enabled} className="ui-checkbox" disabled={isBusy(`toggle:${plugin.id}`)} role="switch" type="checkbox" onChange={(event) => void toggleEnabled(plugin.id, event.currentTarget.checked)} /></span>
                 <span className={styles.providerCell}><i className={styles.statusDot} data-tone={tone} /><span className={styles.truncate}>{statusLabels[runtimeStatus]}</span></span>
-                <QuotaMetricRing snapshot={snapshot} />
+                <span className={styles.cellCenter}><QuotaMetricRing snapshot={snapshot} /></span>
                 <span className={styles.muted}>{snapshot ? new Date(snapshot.refreshedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "未刷新"}</span>
                 <span className={`${styles.muted} ${styles.truncate}`}>{snapshot?.sourceLabel ?? (plugin.supportsOfficialRefresh ? "官方（自动同步）" : "手动配置")}</span>
-                <button aria-label={`刷新${plugin.label}额度`} className={styles.iconButton} disabled={isProviderBusy(plugin.id) || !form.enabled} type="button" onClick={() => void refreshQuota(plugin.id)}><span className={runtimeStatus === "refreshing" ? styles.spin : undefined}><AppIcon name={runtimeStatus === "error" || runtimeStatus === "stale" ? "warning" : successId === plugin.id ? "check" : "refresh"} size={16} /></span></button>
+                <span className={styles.cellCenter}><button aria-label={`刷新${plugin.label}额度`} className={styles.iconButton} disabled={isProviderBusy(plugin.id) || !form.enabled} type="button" onClick={() => void refreshQuota(plugin.id)}><span className={runtimeStatus === "refreshing" ? styles.spin : undefined}><AppIcon name={runtimeStatus === "error" || runtimeStatus === "stale" ? "warning" : successId === plugin.id ? "check" : "refresh"} size={16} /></span></button></span>
               </div>
             );
           })}

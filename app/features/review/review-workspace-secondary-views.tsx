@@ -1,6 +1,7 @@
 "use client";
 
 import { KnowledgeView } from "../knowledge/knowledge-workspace";
+import { CivilServiceDevelopmentExampleSwitcher } from "../shared/civil-service-development-example-switcher";
 import { EntryView } from "./review-entry-view";
 import {
   AutomationView,
@@ -20,7 +21,9 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
   return (
     <>
       {view === "knowledgeTraining" ? (
-        <KnowledgeTrainingView
+        <>
+          <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view="knowledgeTraining" />
+          <KnowledgeTrainingView
           answerOpen={knowledge.snapshot.answerOpen}
           attemptsCount={data.knowledgeAttemptsCount}
           correctRate={knowledge.snapshot.correctRate}
@@ -37,7 +40,8 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
           onSkip={knowledge.actions.skipTraining}
           onSelectEntry={knowledge.actions.openTraining}
           onToggleAnswer={() => knowledge.actions.setAnswerOpen((value) => !value)}
-        />
+          />
+        </>
       ) : null}
 
       {view === "automation" ? (
@@ -92,7 +96,9 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
       ) : null}
 
       {view === "interview" ? (
-        <InterviewWorkspace
+        <>
+          <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view="interview" />
+          <InterviewWorkspace
           textConnection={aiConnections.textConnection}
           knowledgeEntries={data.knowledgeEntries}
           mistakes={data.mistakes}
@@ -100,7 +106,8 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
           speechConnection={aiConnections.speechConnection}
           onNotice={workspace.setNotice}
           onOpenSettings={() => workspace.openApiSettings("请先配置默认文本连接，再使用 AI 模拟面试")}
-        />
+          />
+        </>
       ) : null}
 
       {view === "tutoring" ? (

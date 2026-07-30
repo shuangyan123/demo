@@ -78,6 +78,16 @@ test("数据管理按导入、错题复盘和对话范围独立统计与清理",
   assert.match(exportSource, /reconfigure_required/);
   assert.doesNotMatch(exportSource, /never-export-this|never-export-handle|encryptedKey|maskedKey|neve\.\.\.this|directoryHandle/);
 
+  const restorePreview = await localDataManagementRepository.inspectRestore(exportSource);
+  assert.equal(restorePreview.incomingRecords > 0, true);
+  assert.match(restorePreview.reminders.join(" "), /凭据|Vault/);
+  await reviewDb.mistakes.clear();
+  await localDataManagementRepository.restore(restorePreview);
+  assert.equal(await reviewDb.mistakes.count(), 1);
+  const restoredProfile = await reviewDb.apiConnectionProfiles.get("connection");
+  assert.equal((restoredProfile as unknown as Record<string, unknown>).credentialStatus, "reconfigure_required");
+  assert.equal("encryptedKey" in (restoredProfile as unknown as Record<string, unknown>), false);
+
   await localDataManagementRepository.clearImports();
   assert.equal(await reviewDb.importJobs.count(), 0);
   assert.equal(await reviewDb.mistakes.count(), 1);
@@ -87,6 +97,26 @@ test("数据管理按导入、错题复盘和对话范围独立统计与清理",
   await localDataManagementRepository.clearConversations();
   assert.equal(await reviewDb.aiConversations.count(), 0);
   assert.equal(await reviewDb.aiConversationFolders.count(), 0);
+});
+
+test("备份恢复拒绝错误版本、重复 ID 与悬空关联", async () => {
+  await resetDatabase();
+  const emptySource = await localDataManagementRepository.exportAll();
+  const wrongVersion = JSON.parse(emptySource) as Record<string, unknown>;
+  wrongVersion.schemaVersion = 99;
+  await assert.rejects(() => localDataManagementRepository.inspectRestore(JSON.stringify(wrongVersion)), /不支持的备份版本/);
+
+  const duplicate = JSON.parse(emptySource) as {
+    databases: { review_workspace: Record<string, unknown[]> };
+  };
+  duplicate.databases.review_workspace.mistakes = [{ id: "same" }, { id: "same" }];
+  await assert.rejects(() => localDataManagementRepository.inspectRestore(JSON.stringify(duplicate)), /重复 ID/);
+
+  const dangling = JSON.parse(emptySource) as {
+    databases: { review_workspace: Record<string, unknown[]> };
+  };
+  dangling.databases.review_workspace.attempts = [{ id: "attempt", mistakeId: "missing" }];
+  await assert.rejects(() => localDataManagementRepository.inspectRestore(JSON.stringify(dangling)), /悬空关联/);
 });
 
 test("完整重置同时删除业务数据和不可导出主密钥", async () => {

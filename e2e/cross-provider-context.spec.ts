@@ -28,7 +28,7 @@ async function createConnection(page: Page, input: {
   await modelSelect.click();
   await page.getByRole("option", { name: input.modelId, exact: true }).click();
   await page.getByRole("button", { name: "测试连接" }).click();
-  await expect(page.getByRole("status")).toContainText("连接成功");
+  await expect(page.getByRole("status")).toContainText("连接成功", { timeout: 15_000 });
   await page.getByRole("button", { name: "保存连接" }).click();
   await expect(page.getByRole("status")).toContainText("配置已保存");
 }

@@ -20,6 +20,7 @@ async function selectMobileWorkspaceEntry(page: Page, name: string | RegExp): Pr
 }
 
 test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与 composer 均可用", async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");

@@ -1,8 +1,12 @@
 {
-  "name": "le",
-  "version": "0.2.0",
+  "name": "review-workspace",
+  "productName": "错题复盘",
+  "description": "本地优先的错题复盘与 AI 学习工作台",
+  "author": "Private",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
+  "main": ".desktop/main.js",
   "engines": {
     "node": ">=22 <23"
   },
@@ -22,17 +26,26 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "desktop:compile": "tsc -p desktop/tsconfig.json",
+    "desktop:host": "node scripts/prepare-desktop-host.mjs",
+    "desktop:dev": "concurrently -k -s first \"npm:dev\" \"npm:desktop:dev:electron\"",
+    "desktop:dev:electron": "wait-on http://127.0.0.1:3000 && npm run desktop:compile && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:3000 electron-forge start",
+    "desktop:prepare": "npm run build && npm run desktop:compile && npm run desktop:host && node scripts/prepare-desktop-runtime.mjs && node scripts/prepare-electron-archive.mjs",
+    "desktop:package": "npm run desktop:prepare && .\\.desktop-runtime\\node\\node.exe --require ./scripts/electron-packager-windows-resource-preload.cjs node_modules/@electron-forge/cli/dist/electron-forge-package.js --arch=x64 .desktop-app",
+    "desktop:make": "npm run desktop:prepare && .\\.desktop-runtime\\node\\node.exe --require ./scripts/electron-packager-windows-resource-preload.cjs node_modules/@electron-forge/cli/dist/electron-forge-make.js --arch=x64 .desktop-app",
     "typecheck": "tsc --noEmit",
     "audit:prod": "node scripts/audit-production.mjs",
     "analyze:bundle": "next experimental-analyze --output",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
-    "test:contracts": "node --test --experimental-strip-types scripts/audit-production.contract.test.mjs app/features/conversation/conversation-drag.contract.test.ts app/features/performance/architecture-boundary.contract.test.ts app/features/review/dashboard-next-action.contract.test.ts app/server/ai/provider-adapter.contract.test.ts app/server/ai/model-directory.contract.test.ts app/server/ai/quota-adapters.contract.test.ts app/server/import/fenbi-account-import-adapter.contract.test.ts app/server/mcp/client.contract.test.ts app/features/diagnostics/local-diagnostics.contract.test.ts app/features/onboarding/configuration-health.contract.test.ts app/features/performance/bundle-boundary.contract.test.ts app/features/settings/api-connections-settings.contract.test.ts app/features/settings/persona-flash-card.contract.test.ts app/features/settings/settings-architecture.contract.test.ts app/features/settings/settings-plugins.contract.test.ts app/features/study/study-registry.contract.test.ts app/services/ai-activity-events.contract.test.ts app/services/ai-json.contract.test.ts app/services/ai-connection-client.contract.test.ts app/services/ai-connections-repository.contract.test.ts app/services/ai-quota-plugins.contract.test.ts app/services/ai-quota-presentation.contract.test.ts app/services/ai-quota-runtime.contract.test.ts app/services/appearance-settings-repository.contract.test.ts app/services/automatic-memory-service.contract.test.ts app/services/automation.contract.test.ts app/services/canonical-conversation-context.contract.test.ts app/services/command-search.contract.test.ts app/services/conversation-repository.contract.test.ts app/services/conversation-tool-summary.contract.test.ts app/services/crypto-service.contract.test.ts app/services/declarative-extension.contract.test.ts app/services/fenbi-credential-repository.contract.test.ts app/services/import-provider-plugins.contract.test.ts app/services/knowledge-evolution-service.contract.test.ts app/services/learning-context.contract.test.ts app/services/local-data-management.contract.test.ts app/services/mcp-settings-repository.contract.test.ts app/services/minimax-connection.contract.test.ts app/services/model-directory.contract.test.ts app/services/obsidian-knowledge.contract.test.ts app/services/personalization-settings-repository.contract.test.ts app/services/provider-contracts.contract.test.ts",
+    "test:contracts": "node --test --experimental-strip-types scripts/audit-production.contract.test.mjs app/features/conversation/conversation-composer.contract.test.ts app/features/conversation/conversation-drag.contract.test.ts app/features/performance/architecture-boundary.contract.test.ts app/features/review/dashboard-next-action.contract.test.ts app/features/shared/development-example-workspace.contract.test.ts app/server/ai/provider-adapter.contract.test.ts app/server/ai/model-directory.contract.test.ts app/server/ai/quota-adapters.contract.test.ts app/server/import/fenbi-account-import-adapter.contract.test.ts app/server/mcp/client.contract.test.ts app/features/diagnostics/local-diagnostics.contract.test.ts app/features/onboarding/configuration-health.contract.test.ts app/features/performance/bundle-boundary.contract.test.ts app/features/settings/api-connections-settings.contract.test.ts app/features/settings/persona-flash-card.contract.test.ts app/features/settings/settings-architecture.contract.test.ts app/features/settings/settings-plugins.contract.test.ts app/features/study/study-registry.contract.test.ts app/services/ai-activity-events.contract.test.ts app/services/ai-json.contract.test.ts app/services/ai-connection-client.contract.test.ts app/services/ai-connections-repository.contract.test.ts app/services/ai-quota-plugins.contract.test.ts app/services/ai-quota-presentation.contract.test.ts app/services/ai-quota-runtime.contract.test.ts app/services/appearance-settings-repository.contract.test.ts app/services/automatic-memory-service.contract.test.ts app/services/automation.contract.test.ts app/services/canonical-conversation-context.contract.test.ts app/services/command-search.contract.test.ts app/services/conversation-repository.contract.test.ts app/services/conversation-tool-summary.contract.test.ts app/services/crypto-service.contract.test.ts app/services/declarative-extension.contract.test.ts app/services/fenbi-credential-repository.contract.test.ts app/services/import-provider-plugins.contract.test.ts app/services/knowledge-evolution-service.contract.test.ts app/services/learning-context.contract.test.ts app/services/local-data-management.contract.test.ts app/services/mcp-settings-repository.contract.test.ts app/services/minimax-connection.contract.test.ts app/services/model-directory.contract.test.ts app/services/obsidian-knowledge.contract.test.ts app/services/personalization-settings-repository.contract.test.ts app/services/provider-contracts.contract.test.ts",
     "test:quota-live": "node --test --experimental-strip-types app/server/ai/quota-live.test.ts",
     "test:gemini-live": "node --test --experimental-strip-types app/server/ai/gemini-live.test.ts",
     "test:fenbi-live": "node --test --experimental-strip-types app/server/import/fenbi-live.test.ts",
     "test:minimax-live": "node --test --experimental-strip-types app/server/ai/minimax-live.test.ts",
     "test:model-catalog-live": "node --test --experimental-strip-types app/server/ai/model-directory-live.test.ts",
     "test:e2e": "playwright test",
+    "test:desktop": "npm run desktop:compile && node --test --experimental-strip-types desktop/desktop.contract.test.ts desktop/desktop-release.contract.test.ts",
+    "start:standalone": "node scripts/start-next-standalone.mjs",
     "start": "next start",
     "lint": "eslint"
   },
@@ -57,6 +70,10 @@
     "ws": "^8.21.1"
   },
   "devDependencies": {
+    "@electron-forge/cli": "7.11.2",
+    "@electron-forge/maker-squirrel": "7.11.2",
+    "@electron/asar": "3.4.1",
+    "@electron/fuses": "2.1.3",
     "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.3",
@@ -65,10 +82,14 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "43.2.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.12",
     "fake-indexeddb": "^6.2.5",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.0.3"
   }
 }

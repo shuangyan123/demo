@@ -1,4 +1,5 @@
-import { reviewDb } from "../db/review-db";
+import { reviewDb } from "../db/review-db.ts";
+import { normalizeInterviewTimer } from "./interview-timer.ts";
 import type { InterviewEvaluation, InterviewLink, InterviewLinkSourceType, InterviewPracticePlan, InterviewQuestion, InterviewQuestionSet, InterviewSession, InterviewSnapshot, InterviewStage, InterviewTurn, InterviewType } from "../types/domains/interview.ts";
 
 type NewQuestionInput = Omit<InterviewQuestion, "id" | "createdAt" | "updatedAt">;
@@ -43,7 +44,7 @@ export const interviewRepository = {
       reviewDb.interviewEvaluations.orderBy("updatedAt").reverse().toArray(),
       reviewDb.interviewLinks.orderBy("updatedAt").reverse().toArray(),
     ]);
-    return { questions, questionSets, practicePlans, sessions, turns, evaluations, links };
+    return { questions, questionSets, practicePlans, sessions: sessions.map((session) => normalizeInterviewTimer(session)), turns, evaluations, links };
   },
 
   // 新增一道面试题，只保存题目、材料和标签，不自动创建练习记录。
@@ -98,7 +99,7 @@ export const interviewRepository = {
         reviewDb.interviewPracticePlans.filter((plan) => plan.questionIds.includes(id)).toArray(),
       ]);
       await reviewDb.interviewQuestions.delete(id);
-      await reviewDb.interviewLinks.where("[sourceType+sourceId]").equals(["question", id]).delete();
+      await reviewDb.interviewLinks.where("sourceType").equals("question").and((link) => link.sourceId === id).delete();
       if (sets.length) {
         await reviewDb.interviewQuestionSets.bulkPut(sets.map((set) => ({ ...set, questionIds: set.questionIds.filter((questionId) => questionId !== id), updatedAt: nowISO() })));
       }
@@ -192,6 +193,9 @@ export const interviewRepository = {
       stage: initialStageForType(question.type),
       startedAt: now,
       totalDurationSec: 0,
+      timerStatus: "running",
+      currentTurnElapsedSec: 0,
+      currentTurnStartedAt: now,
       transcriptText: "",
       createdAt: now,
       updatedAt: now,
@@ -240,6 +244,8 @@ export const interviewRepository = {
         status: "evaluated",
         stage: "evaluated",
         completedAt: now,
+        timerStatus: "finished",
+        currentTurnStartedAt: undefined,
         updatedAt: now,
       });
       if (session?.planId) {
@@ -264,7 +270,7 @@ export const interviewRepository = {
       await reviewDb.interviewSessions.delete(id);
       await reviewDb.interviewTurns.where("sessionId").equals(id).delete();
       await reviewDb.interviewEvaluations.where("sessionId").equals(id).delete();
-      await reviewDb.interviewLinks.where("[sourceType+sourceId]").equals(["session", id]).delete();
+      await reviewDb.interviewLinks.where("sourceType").equals("session").and((link) => link.sourceId === id).delete();
     });
   },
 

@@ -43,7 +43,7 @@
 .connectionTableHeader,
 .connectionRow {
   display: grid;
-  grid-template-columns: minmax(10rem, 1.15fr) minmax(12rem, 1.2fr) 5rem 6.5rem 9rem;
+  grid-template-columns: minmax(9rem, 1fr) minmax(9rem, 1.15fr) 4.75rem 5.75rem 13.75rem;
   align-items: center;
   gap: .75rem;
   padding-inline: .75rem;
@@ -55,6 +55,21 @@
   background: var(--surface-muted);
   font-size: .6875rem;
   font-weight: 650;
+}
+
+/* 表格对齐由单元格语义决定，避免通过列序号推断内容密度。 */
+.cellStart {
+  min-width: 0;
+  justify-self: stretch;
+  text-align: left;
+}
+
+.cellCenter {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
   text-align: center;
 }
 
@@ -78,14 +93,14 @@
   color: inherit;
   background: transparent;
   text-align: left;
-  justify-self: center;
+  justify-self: stretch;
 }
 
 .connectionIdentity strong,
 .connectionIdentity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connectionIdentity strong { font-size: .8125rem; }
 .connectionIdentity small { margin-top: .15rem; color: var(--muted); font-size: .7rem; }
-.connectionUrl { overflow: hidden; color: var(--muted); font-size: .7rem; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.connectionUrl { overflow: hidden; color: var(--muted); font-size: .7rem; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .connectionStatus { color: var(--muted); font-size: .75rem; text-align: center; }
 .connectionStatus[data-status="success"] { color: var(--green); }
 .connectionStatus[data-status="failed"] { color: var(--red); }
@@ -103,10 +118,16 @@
 .credentialRecovery span {
   color: var(--muted);
 }
-.connectionActions { display: flex; justify-content: center; gap: .15rem; }
+.connectionActions {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, auto) minmax(3.25rem, auto) minmax(3.25rem, auto);
+  justify-content: center;
+  gap: .15rem;
+}
 
-.connectionRow > :nth-child(4) {
-  text-align: center;
+.connectionActions > button {
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .connectionDetails {
@@ -355,6 +376,29 @@
 .modalActions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
 .credentialReuse { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 0.5rem; }
 
+@media (max-width: 820px) {
+  .connectionLayout { width: 100%; }
+  .connectionTable { border-radius: .65rem; }
+  .connectionTableHeader { display: none; }
+  .connectionRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .4rem;
+    padding-block: .7rem;
+  }
+  .connectionIdentity { grid-column: 1; }
+  .connectionUrl { grid-column: 1 / -1; text-align: left; }
+  .connectionStatus { grid-column: 2; grid-row: 1; }
+  .connectionRow > :nth-child(4) { grid-column: 1 / -1; text-align: left; }
+  .connectionActions {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    grid-template-columns: repeat(3, max-content);
+    justify-content: start;
+  }
+  .connectionDetails { grid-template-columns: 1fr; }
+  .connectionDetails p { grid-column: 1; }
+}
+
 @media (max-width: 640px) {
   .section,
   .connectionSection,
@@ -396,22 +440,6 @@
   .quotaColumns > :nth-child(6) { grid-column: 1; }
   .credentialReuse { grid-template-columns: 1fr; }
 
-  .connectionLayout { width: 100%; }
-  .connectionTable { border-radius: .65rem; }
-  .connectionTableHeader { display: none; }
-  .connectionRow {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: .4rem;
-    padding-block: .7rem;
-  }
-  .connectionIdentity { grid-column: 1; }
-  .connectionUrl { grid-column: 1 / -1; }
-  .connectionStatus { grid-column: 2; grid-row: 1; }
-  .connectionRow > :nth-child(4) { grid-column: 1; }
-  .connectionActions { grid-column: 2; grid-row: 2 / span 2; }
-  .connectionActions > :last-child { display: none; }
-  .connectionDetails { grid-template-columns: 1fr; }
-  .connectionDetails p { grid-column: 1; }
 }
 
 @media (pointer: coarse) {

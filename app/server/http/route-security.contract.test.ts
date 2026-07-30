@@ -108,5 +108,8 @@ test("全局安全响应头禁止脚本属性、嵌套页面和跨来源资源�
   assert.match(csp, /script-src-attr 'none'/);
   assert.match(csp, /frame-src 'none'/);
   assert.match(csp, /manifest-src 'self'/);
+  if (process.env.NODE_ENV !== "development") {
+    assert.doesNotMatch(csp, /'unsafe-eval'/);
+  }
   assert.equal(headers.get("Cross-Origin-Resource-Policy"), "same-origin");
 });

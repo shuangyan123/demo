@@ -162,11 +162,16 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.match(shellSource, /contentSurface\?: "plain" \| "raised-surface"/);
   assert.match(shellSource, /className="chrome-content-frame"/);
   assert.match(shellSource, /data-content-surface=\{contentSurface\}/);
+  assert.match(shellSource, /data-sidebar=\{sidebarCollapsed \? "collapsed" : "expanded"\}/);
+  assert.doesNotMatch(shellSource, /integrationMode|data-integration-mode/);
   assert.doesNotMatch(shellSource, /chrome-topbar[^"]*border-b/);
   assert.doesNotMatch(shellSource, /chrome-sidebar[^"]*border-r/);
   assert.doesNotMatch(reviewShellSource, /contentSurface=\{view === "conversation"/);
   assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
   assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
+  assert.match(shellStyles, /--chrome-workspace-top-inset:\s*12px/);
+  assert.match(shellStyles, /\.chrome-shell \.chrome-content-frame\s*\{[\s\S]*?height: calc\(100% - var\(--chrome-workspace-top-inset\)\);[\s\S]*?margin-top: var\(--chrome-workspace-top-inset\);/);
+  assert.match(shellStyles, /\.chrome-shell::before\s*\{[\s\S]*?background-color: var\(--chrome-sidebar-bg\);[\s\S]*?background-image: var\(--chrome-sidebar-diffuse\);/);
   assert.match(shellStyles, /padding-left: 0;\s+overflow: visible;/);
   assert.doesNotMatch(shellStyles, /content-frame\[data-content-surface="raised-surface"\]::after/);
   assert.match(shellStyles, /\.chrome-topbar\s*\{[\s\S]*?background-image: var\(--chrome-topbar-diffuse\);/);
@@ -198,6 +203,12 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.match(uiStyles, /\.conversation-workspace\s*\{[\s\S]*?height: 100%;/);
   assert.doesNotMatch(uiStyles, /\.conversation-workspace\s*\{[\s\S]*?height: calc\(100dvh - var\(--chrome-topbar-height\)\)/);
   assert.doesNotMatch(shellStyles, /\.conversation-shell-content\s*\{[\s\S]*?(?:margin-left|border-top-left-radius|box-shadow)/);
+});
+
+test("新对话导航不会把 React 点击事件误传为启动上下文", async () => {
+  const source = await readFile(path.join(APP_ROOT, "features/review/review-workspace-app-sidebar.tsx"), "utf8");
+  assert.match(source, /onClick:\s*\(\)\s*=>\s*onStartNewConversation\(\)/);
+  assert.doesNotMatch(source, /onClick:\s*onStartNewConversation/);
 });
 
 test("公考学习链路拆分为经过节点中心的四段桌面路径", async () => {

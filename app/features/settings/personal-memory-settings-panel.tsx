@@ -149,14 +149,14 @@ export function PersonalMemorySettingsPanel({ settings, onSettingsChange, onNoti
       </div>
       {filteredEntries.length ? (
         <div className={styles.table}>
-          <div className={`${styles.tableHeader} ${styles.memoryColumns}`}><span>类型</span><span>范围</span><span>内容</span><span>待确认建议</span><span>操作</span></div>
+          <div className={`${styles.tableHeader} ${styles.memoryColumns}`}><span>类型</span><span>范围</span><span>内容</span><span className={styles.cellCenter}>待确认建议</span><span className={styles.cellCenter}>操作</span></div>
           {filteredEntries.map((entry) => (
             <div key={entry.id} className={`${styles.tableRow} ${styles.memoryColumns}`}>
               <span>{kindLabels[entry.kind]}</span>
               <span>{scopeLabels[entry.scope]}</span>
               <span className={styles.truncate} title={`${entry.title}：${entry.content}`}><strong>{entry.title}</strong>　<span className={styles.muted}>{entry.content}</span></span>
-              <span className={styles.muted}>{entry.source === "manual" ? "手动" : entry.source === "auto" ? "自动" : "建议"}{entry.confidence !== undefined ? ` · ${Math.round(entry.confidence * 100)}%` : ""}</span>
-              <span className="flex justify-end gap-1">
+              <span className={`${styles.muted} ${styles.cellCenter}`}>{entry.source === "manual" ? "手动" : entry.source === "auto" ? "自动" : "建议"}{entry.confidence !== undefined ? ` · ${Math.round(entry.confidence * 100)}%` : ""}</span>
+              <span className={`${styles.cellCenter} gap-1`}>
                 {entry.status === "pending" ? <><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "confirm")}>确认</Button><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "remove")}>忽略</Button></> : entry.status === "archived" ? <Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "restore")}>恢复</Button> : <><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={(event) => openEdit(entry, event.currentTarget)}>编辑</Button><Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => void mutate(entry.id, "archive")}>归档</Button></>}
               </span>
             </div>

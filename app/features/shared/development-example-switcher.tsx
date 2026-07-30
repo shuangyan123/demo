@@ -5,7 +5,10 @@ import { useState } from "react";
 export type DevelopmentExampleOption = {
   id: string;
   label: string;
+  group?: string;
 };
+
+export const DEVELOPMENT_EXAMPLE_CHANGE_EVENT = "review-workspace:development-example-change";
 
 /** 管理组件内部的纯内存开发示例；生产构建不会渲染入口。 */
 export function useDevelopmentExample(initialValue: string | undefined, options: DevelopmentExampleOption[]) {
@@ -21,6 +24,7 @@ export function useDevelopmentExample(initialValue: string | undefined, options:
     if (nextValue) url.searchParams.set("example", nextValue);
     else url.searchParams.delete("example");
     window.history.replaceState(window.history.state, "", url);
+    window.dispatchEvent(new Event(DEVELOPMENT_EXAMPLE_CHANGE_EVENT));
   }
 
   return { enabled: allowed, value, select };
@@ -47,9 +51,25 @@ export function DevelopmentExampleSwitcher({
         onChange={(event) => onChange(event.currentTarget.value || undefined)}
       >
         <option value="">真实数据</option>
-        {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+        {groupDevelopmentOptions(options).map(([group, groupOptions]) => (
+          group ? (
+            <optgroup key={group} label={group}>
+              {groupOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+            </optgroup>
+          ) : groupOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)
+        ))}
       </select>
       <span className="max-sm:col-span-2">仅内存展示，不保存、不请求外部服务</span>
     </label>
   );
+}
+
+/** 保留声明顺序生成分组，未分组选项继续作为一级选项展示。 */
+function groupDevelopmentOptions(options: DevelopmentExampleOption[]): Array<[string, DevelopmentExampleOption[]]> {
+  const groups = new Map<string, DevelopmentExampleOption[]>();
+  for (const option of options) {
+    const group = option.group ?? "";
+    groups.set(group, [...(groups.get(group) ?? []), option]);
+  }
+  return [...groups.entries()];
 }

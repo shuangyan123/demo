@@ -159,19 +159,21 @@ export function DefaultCapabilitySelector({ snapshot, onSnapshotChange, onChange
           models={models}
           onChange={(value) => void selectModel(purpose, value)}
         />
-        <button
-          aria-expanded={editing}
-          aria-label={`编辑${defaultPurposeLabels[purpose]}手动模型 ID`}
-          className={styles.iconButton}
-          disabled={!selectedProfile}
-          type="button"
-          onClick={() => {
-            setManualOpen((current) => ({ ...current, [purpose]: !current[purpose] }));
-            if (!editing && !manualValues[purpose]) setManualValues((current) => ({ ...current, [purpose]: selectedModelId }));
-          }}
-        >
-          <AppIcon name="edit" size={16} />
-        </button>
+        <span className={styles.cellCenter}>
+          <button
+            aria-expanded={editing}
+            aria-label={`编辑${defaultPurposeLabels[purpose]}手动模型 ID`}
+            className={styles.iconButton}
+            disabled={!selectedProfile}
+            type="button"
+            onClick={() => {
+              setManualOpen((current) => ({ ...current, [purpose]: !current[purpose] }));
+              if (!editing && !manualValues[purpose]) setManualValues((current) => ({ ...current, [purpose]: selectedModelId }));
+            }}
+          >
+            <AppIcon name="edit" size={16} />
+          </button>
+        </span>
         {editing ? (
           <div className={styles.manualEditor}>
             <input

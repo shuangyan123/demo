@@ -11,7 +11,7 @@ async function openConnections(page: import("@playwright/test").Page): Promise<v
 }
 
 test("编辑草稿测试使用新地址，紧凑结果卡不渲染对话栏", async ({ page }, testInfo) => {
-  const oldProvider = await startMockAiProvider({ protocol: "openai_responses", models: ["gpt-5.5"], response: "OK", responseDelayMs: 250 });
+  const oldProvider = await startMockAiProvider({ protocol: "openai_responses", models: ["gpt-5.5"], response: "OK", responseDelayMs: 1_000 });
   const newProvider = await startMockAiProvider({ protocol: "openai_responses", models: ["gpt-5.5"], response: "OK" });
   const runtimeErrors = collectRuntimeErrors(page);
   try {

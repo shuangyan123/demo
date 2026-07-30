@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type {
   AiModelReasoningDescriptor,
   AiModelRuntimeOption,
@@ -15,6 +15,10 @@ type ConversationReasoningControlProps = {
   reasoning?: AiModelReasoningDescriptor;
   values: AiSelectedRuntimeValues;
   onChange: (values: AiSelectedRuntimeValues) => void;
+};
+
+export type ConversationReasoningControlHandle = {
+  open: () => void;
 };
 
 const effortOrder = new Map<string, number>([
@@ -49,15 +53,16 @@ function optionLabel(options: AiModelRuntimeOption[], value: AiModelRuntimeValue
  * 模型旁的独立推理控制。
  * 拖动只更新本地预览，指针释放、键盘操作结束或失焦时才提交持久化。
  */
-export function ConversationReasoningControl({
+export const ConversationReasoningControl = forwardRef<ConversationReasoningControlHandle, ConversationReasoningControlProps>(function ConversationReasoningControl({
   disabled = false,
   reasoning,
   values,
   onChange,
-}: ConversationReasoningControlProps) {
+}, ref) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [mobileBottom, setMobileBottom] = useState(124);
   const options = useMemo(() => orderedOptions(reasoning?.options ?? []), [reasoning]);
   const selected = values.reasoning ?? reasoning?.defaultValue;
@@ -73,6 +78,14 @@ export function ConversationReasoningControl({
     valuesRef.current = values;
     onChangeRef.current = onChange;
   }, [draft, onChange, selected, values]);
+
+  useImperativeHandle(ref, () => ({
+    open: () => {
+      if (disabled || !reasoning) return;
+      preview(selected);
+      setOpen(true);
+    },
+  }), [disabled, reasoning, selected]);
 
   useEffect(() => {
     if (!open) return;
@@ -132,6 +145,9 @@ export function ConversationReasoningControl({
   const budgetDraft = typeof visibleDraft === "number" && customRange
     ? Math.max(customRange.min, Math.min(customRange.max, visibleDraft))
     : (rangeOptions[0]?.value as number | undefined) ?? customRange?.min ?? 0;
+  const rangeProgress = customRange
+    ? (budgetDraft - customRange.min) / Math.max(1, customRange.max - customRange.min)
+    : enumIndex / Math.max(1, options.length - 1);
 
   function commit(nextValue: AiModelRuntimeValue | undefined = draft) {
     if (nextValue === undefined || nextValue === selected) return;
@@ -182,23 +198,33 @@ export function ConversationReasoningControl({
           </div>
           <div className={styles.valueRow}>
             <span>{reasoning.kind === "budget" ? "思考预算" : "档位"}</span>
-            <strong>{currentLabel}</strong>
+            <strong className={styles.currentValue} key={currentLabel}>{currentLabel}</strong>
           </div>
           {customRange ? (
             <>
-              <input
-                aria-label="推理预算"
-                className={styles.range}
-                max={customRange.max}
-                min={customRange.min}
-                step={1}
-                type="range"
-                value={budgetDraft}
-                onChange={(event) => preview(event.currentTarget.valueAsNumber)}
-                onPointerUp={() => commit()}
-                onKeyUp={() => commit()}
-                onBlur={() => commit()}
-              />
+              <div
+                className={styles.rangeControl}
+                data-dragging={dragging}
+                style={{ "--reasoning-progress": rangeProgress } as CSSProperties}
+              >
+                <span className={styles.rangeProgress} />
+                <span className={styles.rangeIndicator} />
+                <input
+                  aria-label="推理预算"
+                  className={styles.range}
+                  max={customRange.max}
+                  min={customRange.min}
+                  step={1}
+                  type="range"
+                  value={budgetDraft}
+                  onChange={(event) => preview(event.currentTarget.valueAsNumber)}
+                  onPointerDown={() => setDragging(true)}
+                  onPointerUp={() => { setDragging(false); commit(); }}
+                  onPointerCancel={() => setDragging(false)}
+                  onKeyUp={() => commit()}
+                  onBlur={() => { setDragging(false); commit(); }}
+                />
+              </div>
               <div className={styles.scale}><span>{customRange.min}</span><span>{customRange.max}</span></div>
               <label className={styles.budgetInput}>
                 <span>精确值</span>
@@ -235,19 +261,29 @@ export function ConversationReasoningControl({
             </>
           ) : (
             <>
-              <input
-                aria-label="推理档位"
-                className={styles.range}
-                max={Math.max(0, options.length - 1)}
-                min={0}
-                step={1}
-                type="range"
-                value={enumIndex}
-                onChange={(event) => preview(options[event.currentTarget.valueAsNumber]?.value)}
-                onPointerUp={() => commit()}
-                onKeyUp={() => commit()}
-                onBlur={() => commit()}
-              />
+              <div
+                className={styles.rangeControl}
+                data-dragging={dragging}
+                style={{ "--reasoning-progress": rangeProgress } as CSSProperties}
+              >
+                <span className={styles.rangeProgress} />
+                <span className={styles.rangeIndicator} />
+                <input
+                  aria-label="推理档位"
+                  className={styles.range}
+                  max={Math.max(0, options.length - 1)}
+                  min={0}
+                  step={1}
+                  type="range"
+                  value={enumIndex}
+                  onChange={(event) => preview(options[event.currentTarget.valueAsNumber]?.value)}
+                  onPointerDown={() => setDragging(true)}
+                  onPointerUp={() => { setDragging(false); commit(); }}
+                  onPointerCancel={() => setDragging(false)}
+                  onKeyUp={() => commit()}
+                  onBlur={() => { setDragging(false); commit(); }}
+                />
+              </div>
               <div className={styles.scale}>
                 <span>{options[0]?.label}</span>
                 <span>{options.at(-1)?.label}</span>
@@ -258,4 +294,4 @@ export function ConversationReasoningControl({
       ) : null}
     </div>
   );
-}
+});

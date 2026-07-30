@@ -41,7 +41,7 @@ export function WindowMenuBar({
       <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
       {onBack && (
         <button
-          className="inline-grid h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground"
+          className="hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
           type="button"
           aria-label="返回"
           onClick={onBack}
@@ -61,7 +61,6 @@ export function WorkspaceShell({
   sidebar,
   sidebarClassName = "",
   sidebarCollapsed,
-  integrationMode = "standard",
   title,
   onBack,
   onToggleSidebar,
@@ -71,7 +70,7 @@ export function WorkspaceShell({
   contentSurface?: "plain" | "raised-surface";
   sidebar: ReactNode;
   sidebarClassName?: string;
-  sidebarCollapsed: boolean; integrationMode?: "standard" | "settings";
+  sidebarCollapsed: boolean;
   title: string; onBack?: () => void;
   onToggleSidebar: () => void;
 }) {
@@ -128,7 +127,6 @@ export function WorkspaceShell({
       window.requestAnimationFrame(() => restoreTarget?.focus());
     };
   }, [isMobile, mobileSidebarOpen]);
-
   const toggleSidebar = useCallback(() => {
     if (isMobile) {
       setMobileSidebarOpen((current) => !current);
@@ -144,7 +142,10 @@ export function WorkspaceShell({
   }, [isMobile]);
 
   return (
-    <div className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground" data-integration-mode={integrationMode}>
+    <div
+      className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground"
+      data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
+    >
       <WindowMenuBar
         sidebarButtonRef={sidebarButtonRef}
         sidebarCollapsed={effectiveCollapsed}
@@ -154,7 +155,6 @@ export function WorkspaceShell({
       />
       <div
         className={`chrome-layout ${sidebarStateClass} min-h-0 flex-1`}
-        data-integration-mode={integrationMode}
         data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
         data-mobile-sidebar={mobileSidebarOpen ? "open" : "closed"}
       >
@@ -204,13 +204,13 @@ export function SidebarNav<T extends string>({
   }, [activeKey]);
 
   return (
-    <nav className="scrollbar-none grid gap-1" aria-label="侧栏导航">
+    <nav className="scrollbar-none grid gap-px" aria-label="侧栏导航">
       {items.map((item) => (
         <button
           key={item.key}
           data-mobile-sidebar-close="true"
           ref={activeKey === item.key ? activeItemRef : undefined}
-          className={`grid min-h-9 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:min-h-11 ${
+          className={`grid min-h-8 grid-cols-[18px_1fr_auto] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 max-lg:px-3 ${
             activeKey === item.key ? "bg-chrome-selected" : "hover:bg-chrome-hover"
           }`}
           type="button"
