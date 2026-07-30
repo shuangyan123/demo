@@ -732,6 +732,10 @@ body[data-theme="dark"] {
   color: var(--muted);
 }
 
+.ui-empty-review-action {
+  margin: 0.9rem auto 0;
+}
+
 .ui-detail-block {
   margin-top: 1rem;
   border-top: 1px solid rgba(226, 232, 240, 0.9);
@@ -1447,6 +1451,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   outline-offset: 1px;
 }
 
+.mcp-settings-view { container-type: inline-size; }
 .mcp-settings-layout { margin-top: 2rem; display: grid; grid-template-columns: 15rem minmax(0,1fr) 19rem; min-height: 34rem; border-block: 1px solid var(--line); }
 .mcp-server-list { border-right: 1px solid var(--line); padding: 0.75rem 0.75rem 0.75rem 0; }
 .mcp-server-list-heading { display: flex; justify-content: space-between; padding: 0.5rem; color: var(--muted); font-size: 0.75rem; }
@@ -1467,9 +1472,13 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .mcp-server-form { display: grid; align-content: start; gap: 0.85rem; border-left: 1px solid var(--line); padding: 1.25rem 0 1.25rem 1.25rem; }.mcp-server-form h2 { font-weight: 700; }
 .ui-timer-countdown-options { color: var(--muted); font-size: 0.78rem; text-align: right; }.ui-timer-countdown-options summary { cursor: pointer; }.ui-timer-countdown-options[open] { display: grid; justify-items: end; gap: 0.6rem; }
 
-@media (max-width: 900px) {
+@container (max-width: 70rem) {
   .mcp-settings-layout { grid-template-columns: 1fr; }
   .mcp-server-list, .mcp-server-form { border: 0; border-bottom: 1px solid var(--line); padding: 0.75rem 0; }
+  .mcp-server-inspector { padding-inline: 0; }
+}
+
+@media (max-width: 900px) {
   .conversation-inline-fields { grid-template-columns: 1fr; }
 }
 

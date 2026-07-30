@@ -76,7 +76,7 @@ export function AutomationInbox({
           ))}
         </div>
       ) : (
-        <EmptyState>
+        <EmptyState reviewPack={center.snapshot.runs.length ? undefined : "automation"} stateId={center.snapshot.runs.length ? "automation.inbox.filtered-empty" : "automation.inbox.empty"}>
           <div className={styles.empty}>
             <strong>{center.snapshot.runs.length ? "没有匹配的运行记录" : "收件箱为空"}</strong>
             <p className="mt-2">任务完成或失败后都会在这里留下可追溯摘要。</p>

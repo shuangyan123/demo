@@ -85,7 +85,7 @@ export function InterviewSessionPanel({
   if (!session) {
     return (
       <section className={styles.empty}>
-        <EmptyState>请先在题库中选择一道题开始模拟。完成作答后会直接进入复盘。</EmptyState>
+        <EmptyState stateId="interview.session.selection.empty">请先在题库中选择一道题开始模拟。完成作答后会直接进入复盘。</EmptyState>
       </section>
     );
   }

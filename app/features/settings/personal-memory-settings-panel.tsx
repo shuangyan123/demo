@@ -162,7 +162,7 @@ export function PersonalMemorySettingsPanel({ settings, onSettingsChange, onNoti
             </div>
           ))}
         </div>
-      ) : <div className="mt-4"><EmptyState>当前筛选下没有记忆。</EmptyState></div>}
+      ) : <div className="mt-4"><EmptyState stateId="settings.memory.empty">当前筛选下没有记忆。</EmptyState></div>}
       <p className="mt-3 text-xs text-muted">{entries.length}/100 条 · 每次请求最多注入 {settings.memorySettings?.contextCharacterLimit ?? 1500} 字符</p>
       <div className="mt-3 border-t border-line pt-3">
         <Button size="sm" variant="ghost" onClick={() => setRevisionsOpen((open) => !open)}>{revisionsOpen ? "收起修订" : `查看修订（${settings.memoryRevisions?.length ?? 0}）`}</Button>

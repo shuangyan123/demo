@@ -77,7 +77,7 @@ export function LearningInsightView({
               </div>
             ))}
           </div>
-        ) : <div className={styles.emptyChart}>当前时间范围内还没有有效复盘。</div>}
+        ) : <div className={styles.emptyChart} data-review-state="stats.timeline.empty">当前时间范围内还没有有效复盘。</div>}
       </section>
 
       <section className={`${styles.panel} ${styles.tablePanel}`}>
@@ -118,7 +118,7 @@ export function LearningInsightView({
               <div className={styles.actions}><Button size="sm" variant="soft" onClick={() => onOpenKnowledgeTraining(entry.id)}>知识训练</Button></div>
             </article>
           ))}
-          {!snapshot.priorityMistakes.length && !snapshot.priorityKnowledge.length ? <EmptyState>暂无可排序的薄弱项</EmptyState> : null}
+          {!snapshot.priorityMistakes.length && !snapshot.priorityKnowledge.length ? <EmptyState reviewPack="learning" stateId="stats.priorities.empty">暂无可排序的薄弱项</EmptyState> : null}
         </div>
       </section>
     </section>

@@ -291,7 +291,7 @@ function AiQuotaSettingsLivePanel() {
             );
           })}
         </div>
-      ) : <EmptyState>暂无额度配置。</EmptyState>}
+      ) : <EmptyState stateId="settings.quota.empty">暂无额度配置。</EmptyState>}
 
       {editingPlugin && editingId && typeof document !== "undefined" ? createPortal((
         <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingId(undefined); }}>

@@ -280,7 +280,7 @@ export function DeclarativeExtensionMarketplace({
                 <Button size="sm" variant="ghost" disabled={busyId === record.id} onClick={() => void uninstall(record)}>卸载</Button>
               </div>
             </article>
-          )) : <EmptyState>还没有安装声明式扩展。</EmptyState>}
+          )) : <EmptyState reviewPack="integrations" stateId="settings.extensions.empty">还没有安装声明式扩展。</EmptyState>}
         </div>
       </section>
     </div>

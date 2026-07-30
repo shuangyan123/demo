@@ -112,3 +112,11 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 - 安装验收从 Squirrel 根启动器执行，覆盖首次启动宽限、loopback/token、进程树退出、覆盖安装和 Electron userData 保留。
 - 必须运行安装器；`review-workspace.exe` 依赖同安装目录的 `resources`，不能脱离目录单独分发。
 - 覆盖安装保留 Electron `persist:review-workspace` 用户数据。当前私人 Windows x64 版本未签名，SmartScreen 可能显示未知发布者。
+
+# UI 审查与同步部署检查（2026-07-30）
+
+- 生产环境允许访问固定的 `https://registry.modelcontextprotocol.io`；反向代理必须继续限制 `/api/mcp/registry` 的响应体、超时和请求速率，不得开放可配置上游。
+- Electron Vault 监听只在窗口运行且已有授权时启动，退出时必须关闭 watcher。浏览器轮询只在页面可见、联网且权限有效时运行，后台标签和 UI 审查数据模式不得产生 Vault I/O。
+- UI 审查数据保存在用户现有本地数据库和设置存储中，不需要新 schema 或环境变量。卸载审查数据只删除 `ui-review:` 前缀记录；完整应用重置仍按原有危险操作流程处理。
+- 发布门禁新增 UI 状态注册契约、审查包幂等/精准清理、外部调用隔离、MCP Registry mock、粉笔三种输入与分页去重、Obsidian 防抖/补跑/权限/冲突测试。
+- 固定视觉视口为 1536×1024、1115×792 和 390×844；已安排布局必须按工作区容器宽度切换，禁止用整个窗口宽度推断双栏。

@@ -1,5 +1,7 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import type { ExportFormat } from "../../types/domains/review.ts";
+import type { UiReviewPackId, UiReviewStateId } from "./ui-review-scenario-registry.ts";
+import { UiReviewEmptyAction } from "./ui-review-data-context.tsx";
 
 type ChipTone = "neutral" | "blue" | "green" | "yellow" | "red";
 type ButtonVariant = "primary" | "soft" | "ghost" | "danger" | "outline";
@@ -65,8 +67,13 @@ export function Panel({ children, className, title }: { children: ReactNode; cla
 }
 
 // 渲染空状态提示，用于列表、队列和详情未选中场景。
-export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="ui-empty">{children}</div>;
+export function EmptyState({ children, reviewPack, stateId }: { children: ReactNode; reviewPack?: UiReviewPackId; stateId: UiReviewStateId }) {
+  return (
+    <div className="ui-empty" data-review-state={stateId}>
+      {children}
+      <UiReviewEmptyAction packId={reviewPack} />
+    </div>
+  );
 }
 
 // 渲染详情页中的分段内容，避免答案、解析、计划等区块样式分叉。

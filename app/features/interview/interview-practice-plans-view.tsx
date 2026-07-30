@@ -154,7 +154,7 @@ export function InterviewPracticePlansView({
               );
             })
           ) : (
-            <EmptyState>还没有训练计划。可以从题组或勾选题目创建。</EmptyState>
+            <EmptyState reviewPack="interview" stateId="interview.practice-plans.empty">还没有训练计划。可以从题组或勾选题目创建。</EmptyState>
           )}
         </DataList>
       </Panel>
@@ -187,7 +187,7 @@ export function InterviewPracticePlansView({
                   </CheckboxRow>
                 ))
               ) : (
-                <EmptyState>当前筛选下没有题目。</EmptyState>
+                <EmptyState stateId="interview.practice-plan-filter.empty">当前筛选下没有题目。</EmptyState>
               )}
             </div>
           </div>

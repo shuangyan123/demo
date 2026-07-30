@@ -1,11 +1,11 @@
 {
-  "capturedAt": "2026-07-23",
-  "nextVersion": "16.2.11",
+  "capturedAt": "2026-07-30",
+  "nextVersion": "16.2.12",
   "maxGrowthPercent": 5,
   "metrics": {
-    "initialJavaScriptBytes": 1183694,
-    "initialCssBytes": 131222,
-    "largestJavaScriptChunkBytes": 568117
+    "initialJavaScriptBytes": 1246166,
+    "initialCssBytes": 137746,
+    "largestJavaScriptChunkBytes": 589206
   },
   "forbiddenInitialClientModules": [
     "pdfjs-dist",

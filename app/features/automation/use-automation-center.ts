@@ -9,7 +9,7 @@ import type { ApiConnectionProfile, AiConnectionSnapshot } from "../../types/dom
 import type { AutomationContextSummary, AutomationDefinition, AutomationFailureCategory, AutomationRecoveryAction, AutomationRun, AutomationSnapshot } from "../../types/domains/automation.ts";
 import type { AcquisitionRunSummary } from "../../types/domains/acquisition.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
-import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
+import { filterWorkspaceRecords, isUiReviewRecordId, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
 const EMPTY_SNAPSHOT: AutomationSnapshot = { definitions: [], runs: [], unreadCount: 0 };
 
@@ -92,8 +92,8 @@ export function useAutomationCenter({
   }, [scope]);
 
   const runDefinition = useCallback(async (definitionId: string, scheduled?: { scheduledAt: string; nextRunAt: string; missedCount: number; expectedUpdatedAt: string }) => {
-    if (scope.kind === "sample") {
-      onNotice("示例模式不会调用真实 AI 或执行已安排任务。");
+    if (scope.kind === "sample" || isUiReviewRecordId(definitionId)) {
+      onNotice("UI 审查任务只用于检查界面，不会调用真实 AI、MCP 或外部来源。");
       return undefined;
     }
     const definition = (await automationRepository.loadSnapshot()).definitions.find((item) => item.id === definitionId);
@@ -130,6 +130,7 @@ export function useAutomationCenter({
     try {
       const due = await automationRepository.listDue();
       for (const item of due) {
+        if (isUiReviewRecordId(item.definition.id)) continue;
         await runDefinition(item.definition.id, item);
       }
     } catch (error) {

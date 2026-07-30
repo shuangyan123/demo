@@ -11,6 +11,12 @@ type IterableDirectoryHandle = FileSystemDirectoryHandle & {
 };
 type DirectoryPickerWindow = Window & {
   showDirectoryPicker?: (options?: { id?: string; mode?: PermissionMode }) => Promise<FileSystemDirectoryHandle>;
+  FileSystemObserver?: new (
+    callback: (records: Array<{ type?: string }>) => void,
+  ) => {
+    observe(handle: FileSystemDirectoryHandle, options?: { recursive?: boolean }): Promise<void>;
+    disconnect(): void;
+  };
 };
 
 export type ObsidianVaultErrorCode =
@@ -44,6 +50,11 @@ export type VaultSelection = {
   backend: VaultBackend;
   vaultName: string;
   directoryHandle?: FileSystemDirectoryHandle;
+};
+
+export type VaultWatchSession = {
+  mode: "observer" | "polling";
+  stop: () => void | Promise<void>;
 };
 
 const CATEGORIES: KnowledgeCategory[] = ["政治理论", "常识判断", "申论"];
@@ -255,5 +266,39 @@ export const obsidianVaultAdapter = {
       if (error instanceof DOMException && error.name === "NotFoundError") return;
       throw toObsidianVaultError(error, "删除 Obsidian 笔记");
     }
+  },
+
+  /** 监听器只报告发生变化，绝不向 React 或 renderer 传递路径与正文。 */
+  async watchChanges(
+    handle: FileSystemDirectoryHandle | undefined,
+    managedRoot: string,
+    backend: VaultBackend,
+    listener: (change: { revision: number; occurredAt: string }) => void,
+  ): Promise<VaultWatchSession> {
+    if (backend === "desktop") {
+      const desktop = desktopBridge();
+      if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
+      const unsubscribe = desktop.onVaultChanged(listener);
+      await desktop.startWatching(normalizeObsidianPath(managedRoot, "托管目录"));
+      return {
+        mode: "observer",
+        stop: async () => {
+          unsubscribe();
+          await desktop.stopWatching();
+        },
+      };
+    }
+
+    const Observer = typeof window === "undefined" ? undefined : (window as DirectoryPickerWindow).FileSystemObserver;
+    if (!Observer || !handle) return { mode: "polling", stop: () => undefined };
+    const managedDirectory = await resolveDirectory(handle, managedRoot);
+    let revision = 0;
+    const observer = new Observer((records) => {
+      if (!records.length) return;
+      revision += 1;
+      listener({ revision, occurredAt: new Date().toISOString() });
+    });
+    await observer.observe(managedDirectory, { recursive: true });
+    return { mode: "observer", stop: () => observer.disconnect() };
   },
 };

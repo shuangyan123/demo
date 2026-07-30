@@ -2,10 +2,11 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { mcpSettingsRepository, type McpSettingsSnapshot } from "../../services/mcp-settings-repository.ts";
-import type { McpServerProfile, McpToolPermission } from "../../types/domains/mcp.ts";
+import type { McpCatalogEntry, McpServerProfile, McpToolPermission } from "../../types/domains/mcp.ts";
 import { AppIcon } from "../shared/app-icon";
 import { DevelopmentExampleSwitcher, useDevelopmentExample, type DevelopmentExampleOption } from "../shared/development-example-switcher";
 import { Button, Chip, EmptyState, cx } from "../shared/ui-primitives";
+import { McpCatalog } from "./mcp-catalog.tsx";
 
 type McpForm = {
   id?: string;
@@ -20,7 +21,7 @@ type McpForm = {
 const emptyForm: McpForm = {
   label: "本地 MCP Server",
   endpoint: "http://127.0.0.1:8765/mcp",
-  enabled: true,
+  enabled: false,
   authMode: "none",
   token: "",
   allowPrivateNetwork: false,
@@ -119,6 +120,35 @@ function McpSettingsLiveView({ onNotice }: { onNotice: (message: string) => void
     refresh(selected.id);
   }
 
+  async function addCatalogEntry(entry: McpCatalogEntry) {
+    if (!entry.endpoint) {
+      onNotice("该条目没有可用的 Streamable HTTP 地址，不能添加。");
+      return;
+    }
+    const profile = await mcpSettingsRepository.saveProfile({
+      label: entry.title,
+      endpoint: entry.endpoint,
+      enabled: false,
+      authMode: entry.authMode,
+      allowPrivateNetwork: false,
+      toolAllowlist: entry.toolAllowlist,
+      catalogSource: entry.source,
+    });
+    refresh(profile.id);
+    setForm({
+      id: profile.id,
+      label: profile.label,
+      endpoint: profile.endpoint,
+      enabled: false,
+      authMode: profile.authMode,
+      token: "",
+      allowPrivateNetwork: false,
+    });
+    onNotice(entry.compatibility === "local-process-required"
+      ? "已添加停用模板；请自行启动官方 HTTP Server，本应用不会安装或执行社区代码。"
+      : "已添加停用 Server；填写鉴权并成功发现能力后才能启用。");
+  }
+
   return (
     <section className="mcp-settings-view">
       <header className="settings-page-heading">
@@ -126,6 +156,8 @@ function McpSettingsLiveView({ onNotice }: { onNotice: (message: string) => void
         <h1>MCP</h1>
         <p>仅支持 Streamable HTTP。远程地址必须使用 HTTPS，本机 HTTP 仅允许 loopback；Token 会在本地加密。</p>
       </header>
+
+      <McpCatalog onAdd={addCatalogEntry} />
 
       <div className="mcp-settings-layout">
         <aside className="mcp-server-list" aria-label="MCP Server 列表">
@@ -144,7 +176,7 @@ function McpSettingsLiveView({ onNotice }: { onNotice: (message: string) => void
                 <span className={cx("mcp-status-dot", itemDiscovery?.status === "ready" && "is-ready", itemDiscovery?.status === "error" && "is-error")} />
               </button>
             );
-          }) : <EmptyState>还没有 MCP Server。</EmptyState>}
+          }) : <EmptyState stateId="settings.mcp.servers.empty">还没有 MCP Server。</EmptyState>}
           <button className="mcp-add-server" type="button" onClick={() => setForm(emptyForm)}><AppIcon name="newChat" size={16} />添加 Server</button>
         </aside>
 
@@ -180,10 +212,10 @@ function McpSettingsLiveView({ onNotice }: { onNotice: (message: string) => void
                       </div>
                     ))}
                   </div>
-                ) : <EmptyState>{discovery?.message ?? "点击“发现能力”读取真实 tools、resources 与 prompts。"}</EmptyState>}
+                ) : <EmptyState stateId="settings.mcp.discovery.empty">{discovery?.message ?? "点击“发现能力”读取真实 tools、resources 与 prompts。"}</EmptyState>}
               </section>
             </>
-          ) : <EmptyState>添加一个 MCP Server 后，在这里检查连接与工具权限。</EmptyState>}
+          ) : <EmptyState stateId="settings.mcp.selection.empty">添加一个 MCP Server 后，在这里检查连接与工具权限。</EmptyState>}
         </main>
 
         <form className="mcp-server-form" onSubmit={save}>
@@ -225,7 +257,7 @@ function McpDevelopmentExample({ scenario }: { scenario: string }) {
           <div className="mcp-inspector-meta"><span>认证 <strong>Bearer Token</strong></span><span>能力 <strong>{failed ? "0 tools" : "2 tools · 1 resource"}</strong></span></div>
           <section className="mcp-tools-section">
             <div><h3>Tools</h3><p>权限示例不会保存，也不会执行工具。</p></div>
-            {failed ? <EmptyState>重新启动 Server 后点击“发现能力”。</EmptyState> : (
+            {failed ? <EmptyState stateId="settings.mcp.failed">重新启动 Server 后点击“发现能力”。</EmptyState> : (
               <div className="mcp-tool-table">
                 {["search_knowledge", "read_resource"].map((name, index) => (
                   <div className="mcp-tool-row" key={name}><span><strong>{name}</strong><small>{index ? "读取选定资源" : "搜索本地知识摘要"}</small></span><select aria-label={`${name} 示例权限`} defaultValue={index ? "ask" : "allow_session"}><option value="ask">每次询问</option><option value="allow_session">本次会话允许</option><option value="deny">禁止</option></select></div>

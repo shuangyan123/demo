@@ -85,7 +85,7 @@ export function KnowledgeTrainingView({
               </div>
             ) : null}
           </>
-        ) : <div className="mt-4"><EmptyState>当前筛选下没有知识资料。切换队列，或先在知识库新增资料。</EmptyState></div>}
+        ) : <div className="mt-4"><EmptyState stateId="knowledge.training.results.empty">当前筛选下没有知识资料。切换队列，或先在知识库新增资料。</EmptyState></div>}
       </DetailCard>
 
       <aside className={styles.aside}>
@@ -103,7 +103,7 @@ export function KnowledgeTrainingView({
                 <span className={styles.queueIndex}>{index + 1}</span>
                 <span className="min-w-0"><strong>{entry.title}</strong><small>{entry.category} · {formatShortDate(entry.nextReviewAt)}</small></span>
               </button>
-            )) : <EmptyState>当前队列为空</EmptyState>}
+            )) : <EmptyState reviewPack="learning" stateId="knowledge.training.queue.empty">当前队列为空</EmptyState>}
           </div>
         </Panel>
       </aside>

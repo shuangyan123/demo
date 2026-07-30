@@ -1144,6 +1144,8 @@ export type McpServerProfile = {
   /** Bearer Token 仅在设置仓储中加密保存，普通快照永不返回明文。 */
   encryptedToken?: string;
   encryptedTokenIv?: string;
+  toolAllowlist?: string[];
+  catalogSource?: "recommended" | "registry" | "custom";
   createdAt: string;
   updatedAt: string;
 };

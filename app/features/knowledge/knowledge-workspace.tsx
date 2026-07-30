@@ -68,7 +68,7 @@ export function RelatedKnowledgeList({
   onOpenKnowledgeEntry: (entry: KnowledgeEntry) => void;
 }) {
   if (!matches.length) {
-    return <p className="text-sm leading-6 text-muted">暂无匹配资料，可先在知识库补充同类知识点或标签。</p>;
+    return <p className="text-sm leading-6 text-muted" data-review-state="knowledge.suggestions.filtered-empty">暂无匹配资料，可先在知识库补充同类知识点或标签。</p>;
   }
 
   return (
@@ -203,7 +203,7 @@ export function KnowledgeTrainingView({
           </>
         ) : (
           <div className="mt-4">
-            <EmptyState>当前筛选下没有知识资料。可以切换队列筛选，或先在知识库新增资料。</EmptyState>
+            <EmptyState stateId="knowledge.workspace.results.empty">当前筛选下没有知识资料。可以切换队列筛选，或先在知识库新增资料。</EmptyState>
           </div>
         )}
       </DetailCard>
@@ -249,7 +249,7 @@ export function KnowledgeTrainingView({
                 </button>
               ))
             ) : (
-              <EmptyState>当前队列为空</EmptyState>
+              <EmptyState reviewPack="learning" stateId="knowledge.workspace.queue.empty">当前队列为空</EmptyState>
             )}
           </div>
         </Panel>

@@ -157,7 +157,7 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
                 })}
               </div>
             </div>
-          )) : <p className={styles.empty}>没有匹配结果，换一个关键词试试。</p>}
+          )) : <p className={styles.empty} data-review-state="conversation.command-search.filtered-empty">没有匹配结果，换一个关键词试试。</p>}
         </div>
       </section>
     </div>,

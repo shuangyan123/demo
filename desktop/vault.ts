@@ -1,10 +1,13 @@
 import { app, dialog, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { watch, type FSWatcher } from "node:fs";
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { normalizeDesktopVaultRelativePath, resolveDesktopVaultPath } from "./vault-path-security.js";
 
 const VAULT_STATE_FILE = "review-desktop-vault.json";
 const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
+let activeWatcher: FSWatcher | undefined;
+let watcherRevision = 0;
 const CATEGORIES = ["政治理论", "常识判断", "申论"];
 
 type StoredVaultState = {
@@ -52,6 +55,28 @@ async function requireState(): Promise<StoredVaultState> {
   return state;
 }
 
+function stopWatcher(): void {
+  activeWatcher?.close();
+  activeWatcher = undefined;
+}
+
+async function startWatcher(event: IpcMainInvokeEvent, managedRoot: string): Promise<void> {
+  const state = await requireState();
+  const root = await resolveDesktopVaultPath(state.rootPath, normalizeDesktopVaultRelativePath(managedRoot), false);
+  stopWatcher();
+  activeWatcher = watch(root, { recursive: true }, (_eventType, filename) => {
+    if (filename && !filename.toString().toLowerCase().endsWith(".md")) return;
+    watcherRevision += 1;
+    if (!event.sender.isDestroyed()) {
+      event.sender.send("review-vault:changed", {
+        revision: watcherRevision,
+        occurredAt: new Date().toISOString(),
+      });
+    }
+  });
+  event.sender.once("destroyed", stopWatcher);
+}
+
 async function walkMarkdown(root: string, directory: string, prefix = ""): Promise<Array<{ path: string; markdown: string }>> {
   const result: Array<{ path: string; markdown: string }> = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -70,7 +95,8 @@ async function walkMarkdown(root: string, directory: string, prefix = ""): Promi
 
 /** 安装最小 Vault IPC；绝对路径只存在于主进程 userData 配置。 */
 export function installDesktopVaultIpc(developmentUrl?: string): void {
-  for (const channel of ["review-vault:get-state", "review-vault:choose", "review-vault:ensure-tree", "review-vault:list", "review-vault:read", "review-vault:write", "review-vault:remove"]) {
+  stopWatcher();
+  for (const channel of ["review-vault:get-state", "review-vault:choose", "review-vault:ensure-tree", "review-vault:list", "review-vault:read", "review-vault:write", "review-vault:remove", "review-vault:watch-start", "review-vault:watch-stop"]) {
     ipcMain.removeHandler(channel);
   }
   ipcMain.handle("review-vault:get-state", async (event) => {
@@ -80,6 +106,7 @@ export function installDesktopVaultIpc(developmentUrl?: string): void {
   });
   ipcMain.handle("review-vault:choose", async (event) => {
     assertTrustedSender(event, developmentUrl);
+    stopWatcher();
     const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"], title: "选择 Obsidian Vault" });
     if (result.canceled || !result.filePaths[0]) return { cancelled: true };
     const rootPath = await realpath(result.filePaths[0]);
@@ -121,5 +148,13 @@ export function installDesktopVaultIpc(developmentUrl?: string): void {
     const state = await requireState();
     const target = await resolveDesktopVaultPath(state.rootPath, path.join(normalizeDesktopVaultRelativePath(managedRoot), normalizeDesktopVaultRelativePath(relativePath, true)), true);
     await rm(target, { force: true });
+  });
+  ipcMain.handle("review-vault:watch-start", async (event, managedRoot: string) => {
+    assertTrustedSender(event, developmentUrl);
+    await startWatcher(event, managedRoot);
+  });
+  ipcMain.handle("review-vault:watch-stop", async (event) => {
+    assertTrustedSender(event, developmentUrl);
+    stopWatcher();
   });
 }

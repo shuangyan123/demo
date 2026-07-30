@@ -79,7 +79,7 @@ export function KnowledgeLibraryList({
           <span>{formatShortDate(entry.nextReviewAt)}</span>
           <MasteryDots value={entry.mastery} />
         </article>
-      )) : <div className="m-4"><EmptyState>暂无匹配资料</EmptyState></div>}
+      )) : <div className="m-4"><EmptyState stateId="knowledge.library.results.empty">暂无匹配资料</EmptyState></div>}
       {hasMoreEntries ? (
         <div className="border-t border-line p-4 text-center">
           <Button type="button" variant="soft" onClick={onLoadMore}>显示更多（{entries.length}/{totalCount}）</Button>

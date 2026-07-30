@@ -176,7 +176,7 @@ export function InterviewQuestionBank({
               </article>
             ))
           ) : (
-            <EmptyState>当前筛选下没有面试题，可以手动新增、载入示例题或使用 AI 生成草稿。</EmptyState>
+            <EmptyState reviewPack="interview" stateId="interview.question-bank.empty">当前筛选下没有面试题，可以手动新增、载入示例题或使用 AI 生成草稿。</EmptyState>
           )}
         </DataList>
       </Panel>

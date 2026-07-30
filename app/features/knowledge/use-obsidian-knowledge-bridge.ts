@@ -6,6 +6,9 @@ import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { KnowledgeEvolutionGenerationResult, KnowledgeEvolutionProposal, ObsidianGraphSnapshot, ObsidianNoteMapping, ObsidianVaultSnapshot } from "../../types/domains/obsidian.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { emitAiActivity } from "../../services/ai-activity-events";
+import { obsidianSyncRuntime } from "../../services/obsidian-sync-runtime.ts";
+import { useObsidianSyncRuntimeSnapshot } from "./obsidian-sync-runtime-host.tsx";
+import { useUiReviewData } from "../shared/ui-review-data-context.tsx";
 
 const EMPTY_SNAPSHOT: ObsidianVaultSnapshot = {
   id: "default", vaultName: "", managedRoot: "AI知识库", connected: false, permission: "denied",
@@ -46,9 +49,12 @@ export function useObsidianKnowledgeBridge({
   const [proposals, setProposals] = useState<KnowledgeEvolutionProposal[]>([]);
   const [lastGenerationResult, setLastGenerationResult] = useState<KnowledgeEvolutionGenerationResult>();
   const [busy, setBusy] = useState(false);
+  const syncRuntime = useObsidianSyncRuntimeSnapshot();
+  const uiReview = useUiReviewData();
+  const safeMode = sampleMode || Boolean(uiReview?.active);
 
   const refresh = useCallback(async () => {
-    if (sampleMode) {
+    if (safeMode) {
       setSnapshot(EMPTY_SNAPSHOT);
       setMappings([]);
       setGraph(EMPTY_GRAPH);
@@ -66,7 +72,7 @@ export function useObsidianKnowledgeBridge({
     setMappings(nextMappings);
     setGraph(nextGraph);
     setProposals(nextProposals);
-  }, [sampleMode]);
+  }, [safeMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -76,13 +82,14 @@ export function useObsidianKnowledgeBridge({
   }, [onNotice, refresh]);
 
   const run = useCallback(async (task: () => Promise<string | void>, fallback: string) => {
-    if (sampleMode) {
+    if (safeMode) {
       onNotice("示例模式禁止访问真实 Vault 或调用 AI。");
       return;
     }
     setBusy(true);
     try {
       const message = await task();
+      await obsidianSyncRuntime.restart();
       const refreshResults = await Promise.allSettled([refresh(), onChanged()]);
       if (refreshResults.some((result) => result.status === "rejected")) {
         onNotice("操作已完成，但界面状态刷新失败；请手动刷新页面确认最新结果");
@@ -95,7 +102,7 @@ export function useObsidianKnowledgeBridge({
     } finally {
       setBusy(false);
     }
-  }, [onChanged, onNotice, refresh, sampleMode]);
+  }, [onChanged, onNotice, refresh, safeMode]);
 
   const connect = useCallback((managedRoot: string) => run(async () => {
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
@@ -110,8 +117,8 @@ export function useObsidianKnowledgeBridge({
   }, "Obsidian Vault 授权失败"), [run]);
 
   const sync = useCallback(() => run(async () => {
-    const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
-    const report = await obsidianKnowledgeRepository.sync();
+    const report = await obsidianSyncRuntime.syncNow();
+    if (!report) return "Obsidian 同步已并入正在执行的任务";
     const warning = report.warnings.length ? `；提示：${report.warnings.join("、")}` : "";
     return `同步完成：导入 ${report.imported}、写回 ${report.exported}、冲突 ${report.conflicts}、断开 ${report.disconnected}${warning}`;
   }, "Obsidian 同步失败"), [run]);
@@ -205,6 +212,6 @@ export function useObsidianKnowledgeBridge({
 
   return useMemo(() => ({
     acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals,
-    recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, updateProposal, uriForKnowledge,
-  }), [acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals, recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, updateProposal, uriForKnowledge]);
+    recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, syncRuntime, updateProposal, uriForKnowledge,
+  }), [acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals, recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, syncRuntime, updateProposal, uriForKnowledge]);
 }

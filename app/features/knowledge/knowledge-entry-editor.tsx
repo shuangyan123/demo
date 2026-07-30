@@ -59,7 +59,7 @@ export function KnowledgeEntryEditor({
   onUpdateEntry,
   obsidianUri,
 }: KnowledgeEntryEditorProps) {
-  if (!entry) return <EmptyState>选择一条资料后在这里编辑；也可以直接新增资料。</EmptyState>;
+  if (!entry) return <EmptyState stateId="knowledge.editor.selection.empty">选择一条资料后在这里编辑；也可以直接新增资料。</EmptyState>;
 
   return (
     <section aria-label="知识详情编辑">

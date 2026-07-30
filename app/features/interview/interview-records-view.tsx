@@ -43,7 +43,7 @@ export function InterviewRecordsView({
             );
           })
         ) : (
-          <EmptyState>完成一次模拟后，复盘记录会显示在这里。</EmptyState>
+          <EmptyState reviewPack="interview" stateId="interview.records.empty">完成一次模拟后，复盘记录会显示在这里。</EmptyState>
         )}
       </DataList>
     </Panel>

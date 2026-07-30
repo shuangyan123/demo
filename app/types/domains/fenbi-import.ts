@@ -4,6 +4,8 @@ export type FenbiImportCredential = {
   iv: string;
   maskedCookie: string;
   verifiedAt?: string;
+  lastSyncAt?: string;
+  lastSyncScope?: string;
 };
 
 /** 粉笔错题同步范围；第一阶段始终只读取错题。 */

@@ -12,6 +12,14 @@ type PendingAction =
   | { kind: "reselect" };
 
 const PERMISSION_LABELS = { granted: "已授权", prompt: "待授权", denied: "未授权", unsupported: "不支持" } as const;
+const RUNTIME_LABELS = {
+  watching: "监听中",
+  syncing: "同步中",
+  "needs-permission": "需授权",
+  conflict: "有冲突",
+  paused: "已暂停",
+  error: "同步失败",
+} as const;
 
 /** Obsidian 面板只呈现连接、同步、冲突和提案；所有文件操作由 controller 委托给仓储。 */
 export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianController }) {
@@ -58,12 +66,17 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
 
         <div className="flex flex-wrap gap-2 text-xs">
           <Chip tone={snapshot.connected ? "green" : "yellow"}>{snapshot.connected ? `已连接 ${snapshot.vaultName}` : "未连接 Vault"}</Chip>
+          <Chip tone={controller.syncRuntime.status === "error" || controller.syncRuntime.status === "conflict" ? "red" : controller.syncRuntime.status === "watching" ? "green" : "yellow"}>
+            {RUNTIME_LABELS[controller.syncRuntime.status]}
+            {controller.syncRuntime.mode === "polling" ? " · 30 秒检查" : ""}
+          </Chip>
           <Chip>权限 {PERMISSION_LABELS[snapshot.permission]}</Chip>
           <Chip>映射 {snapshot.mappedCount}</Chip>
           <Chip tone={snapshot.conflictCount ? "red" : "green"}>冲突 {snapshot.conflictCount}</Chip>
           <Chip tone={snapshot.pendingProposalCount ? "yellow" : "blue"}>待确认 {snapshot.pendingProposalCount}</Chip>
           {snapshot.lastSyncedAt ? <Chip>上次同步 {new Date(snapshot.lastSyncedAt).toLocaleString("zh-CN")}</Chip> : null}
         </div>
+        {controller.syncRuntime.errorMessage ? <p className="text-sm text-danger">{controller.syncRuntime.errorMessage}</p> : null}
 
         <div className="grid gap-3 rounded-lg border border-line bg-surface-muted p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -155,7 +168,7 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
               ) : null}
             </div>
           ) : null}
-          {controller.pendingProposals.length ? <ObsidianProposalReview controller={controller} /> : <EmptyState>AI 只会生成待确认提案，不会后台改写 Vault。</EmptyState>}
+          {controller.pendingProposals.length ? <ObsidianProposalReview controller={controller} /> : <EmptyState stateId="knowledge.obsidian.proposals.empty">AI 只会生成待确认提案，不会后台改写 Vault。</EmptyState>}
         </div>
       </div>
       <ConfirmDialog

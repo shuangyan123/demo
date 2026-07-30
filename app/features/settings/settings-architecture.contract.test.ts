@@ -84,7 +84,7 @@ test("设置内容复用全站唯一外壳且真实示例由当前会话作用�
   assert.match(reviewWorkspace, /useReviewWorkspaceSampleScope/);
   assert.match(sampleScope, /PERSONAL_WORKSPACE_DATA_SCOPE/);
   assert.match(sampleScope, /sampleScenarioRepository\.seed/);
-  assert.match(example, /示例模式/);
-  assert.match(example, /一键清理/);
+  assert.match(example, /UI 审查数据/);
+  assert.match(example, /删除审查数据/);
   assert.doesNotMatch(reviewWorkspace, /ui-preview/);
 });

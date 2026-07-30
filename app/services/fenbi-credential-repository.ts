@@ -63,6 +63,14 @@ export const fenbiCredentialRepository = {
     return updated;
   },
 
+  markSynced(syncedAt: string, scope: string): FenbiImportCredential | undefined {
+    const credential = readCredential();
+    if (!credential) return undefined;
+    const updated = { ...credential, lastSyncAt: syncedAt, lastSyncScope: scope };
+    writeCredential(updated);
+    return updated;
+  },
+
   clear(): void {
     if (typeof window !== "undefined") window.localStorage.removeItem(FENBI_CREDENTIAL_STORAGE_KEY);
   },

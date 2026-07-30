@@ -101,7 +101,7 @@ export function AutomationTaskList({
           </article>
         );
       }) : (
-        <EmptyState>
+        <EmptyState reviewPack={center.snapshot.definitions.length ? undefined : "automation"} stateId={center.snapshot.definitions.length ? "automation.tasks.filtered-empty" : "automation.tasks.empty"}>
           <div className={styles.empty}>
             <strong>{center.snapshot.definitions.length ? "没有匹配的任务" : "还没有已安排任务"}</strong>
             <p className="mt-2">{center.snapshot.definitions.length ? "调整搜索或状态筛选后重试。" : "创建任务后，它会在应用打开且联网时按计划执行。"}</p>

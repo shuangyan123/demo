@@ -73,10 +73,11 @@ test("任务搜索、启停和最近失败筛选共享同一最近运行索引",
 });
 
 test("已安排编排状态、移动抽屉和独立编辑层保持专用边界", async () => {
-  const [view, controller, overlays] = await Promise.all([
+  const [view, controller, overlays, styles] = await Promise.all([
     readFile(new URL("./automation-view.tsx", import.meta.url), "utf8"),
     readFile(new URL("./use-automation-view-controller.ts", import.meta.url), "utf8"),
     readFile(new URL("./automation-overlays.tsx", import.meta.url), "utf8"),
+    readFile(new URL("./automation-workspace.module.css", import.meta.url), "utf8"),
   ]);
   assert.match(view, /useAutomationViewController/);
   assert.match(view, /role="tablist"/);
@@ -84,4 +85,7 @@ test("已安排编排状态、移动抽屉和独立编辑层保持专用边界",
   assert.match(overlays, /aria-modal="true"/);
   assert.match(overlays, /document\.body\.style\.overflow = "hidden"/);
   assert.match(overlays, /event\.key === "Escape"/);
+  assert.match(styles, /container-type:\s*inline-size/);
+  assert.match(styles, /@container \(max-width:\s*60rem\)/);
+  assert.doesNotMatch(styles, /@media \(max-width:\s*900px\)/);
 });

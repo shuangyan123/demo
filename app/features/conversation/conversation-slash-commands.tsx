@@ -80,7 +80,7 @@ export function ConversationSlashCommandMenu({
           <AppIcon name={command.icon} size={16} />
           <span><strong>{command.label}</strong><small>{command.description}</small></span>
         </button>
-      )) : <p>没有匹配的指令</p>}
+      )) : <p data-review-state="conversation.slash-command.filtered-empty">没有匹配的指令</p>}
     </div>
   );
 }

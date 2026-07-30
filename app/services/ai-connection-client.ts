@@ -17,12 +17,20 @@ import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues, resolveRuntimeModelId } from "./model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "./provider-contracts.ts";
 import { providerModelCache } from "./provider-model-cache.ts";
+import { isUiReviewRecordId } from "./workspace-data-scope.ts";
+import { isUiReviewRuntimeActive } from "./ui-review-runtime-guard.ts";
 
 export type GenerateConnectionPurpose = "text" | "vision";
 type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions" | "runtime"> & { modelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues };
 type ConnectionSpeechInput = Omit<AiSpeechRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & {
   model?: string;
 };
+
+function assertExternalCallsAllowed(connection?: ApiConnectionProfile): void {
+  if (isUiReviewRuntimeActive() || (connection && isUiReviewRecordId(connection.id))) {
+    throw new Error("UI 审查 AI 连接只用于检查界面，不会请求外部模型。");
+  }
+}
 
 /** 按精确 descriptor、连接目录缓存顺序解析 Google 模型协议。 */
 function resolveConnectionGenerationProtocol(connection: ApiConnectionProfile, modelId: string) {
@@ -40,6 +48,7 @@ export async function generateWithConnection(
   purpose: GenerateConnectionPurpose,
   input: ConnectionGenerateInput,
 ): Promise<AiGenerateResult> {
+  assertExternalCallsAllowed(connection);
   if (!connection.capabilities.includes(purpose)) {
     throw new Error(`当前连接不支持${purpose === "vision" ? "多模态" : "文本"}能力`);
   }
@@ -70,6 +79,7 @@ export async function* generateWithConnectionStream(
   purpose: GenerateConnectionPurpose,
   input: ConnectionGenerateInput,
 ): AsyncGenerator<AiGenerateStreamEvent> {
+  assertExternalCallsAllowed(connection);
   if (!connection.capabilities.includes(purpose)) {
     throw new Error(`当前连接不支持${purpose === "vision" ? "多模态" : "文本"}能力`);
   }
@@ -102,6 +112,7 @@ export async function synthesizeWithConnection(
   connection: ApiConnectionProfile,
   input: ConnectionSpeechInput,
 ): Promise<Blob> {
+  assertExternalCallsAllowed(connection);
   if (!connection.capabilities.includes("speech")) {
     throw new Error("当前连接不支持语音能力");
   }
@@ -121,6 +132,7 @@ export async function transcribeWithConnection(
   connection: ApiConnectionProfile,
   input: { audioBase64: string; mimeType: string },
 ): Promise<AiTranscriptionResult> {
+  assertExternalCallsAllowed(connection);
   if (!connection.capabilities.includes("transcription")) throw new Error("当前连接未启用录音转写能力");
   if (connection.provider !== "google") throw new Error("当前仅支持 Google Gemini 录音转写连接");
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
@@ -137,6 +149,7 @@ export async function transcribeWithConnection(
 
 /** 使用已保存连接读取官方模型目录，密钥仍只在连接客户端内解密。 */
 export async function listModelsWithConnection(connection: ApiConnectionProfile): Promise<AiModelsResult> {
+  assertExternalCallsAllowed(connection);
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
   return callAiModels({ provider: connection.provider, apiKey, baseUrl: connection.baseUrl, providerOptions: connection.providerOptions });
 }
@@ -148,6 +161,7 @@ export async function listModelsWithDraft(input: { provider: ApiConnectionProfil
 
 /** 编辑草稿可复用已保存密钥，但厂商、地址和模型必须始终来自当前草稿。 */
 export async function resolveConnectionDraftSecret(input: { apiKey: string; existingConnection?: ApiConnectionProfile }): Promise<string> {
+  assertExternalCallsAllowed(input.existingConnection);
   if (input.apiKey.trim()) return input.apiKey.trim();
   if (input.existingConnection) return aiConnectionsRepository.resolveSecret(input.existingConnection);
   return "";
