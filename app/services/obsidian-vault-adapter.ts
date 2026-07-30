@@ -39,7 +39,18 @@ export type VaultMarkdownFile = {
   markdown: string;
 };
 
+export type VaultBackend = "browser" | "desktop";
+export type VaultSelection = {
+  backend: VaultBackend;
+  vaultName: string;
+  directoryHandle?: FileSystemDirectoryHandle;
+};
+
 const CATEGORIES: KnowledgeCategory[] = ["政治理论", "常识判断", "申论"];
+
+function desktopBridge(): ReviewDesktopVaultBridge | undefined {
+  return typeof window === "undefined" ? undefined : window.reviewDesktopVault;
+}
 
 /** 规范化 Vault 内部路径，禁止绝对路径和父级跳转逃逸托管目录。 */
 export function normalizeObsidianPath(path: string, label = "Vault 路径"): string {
@@ -104,21 +115,37 @@ async function walkMarkdown(directory: FileSystemDirectoryHandle, prefix = ""): 
 
 /** 浏览器 Vault 适配器集中管理目录权限和文件读写，业务组件不持有目录句柄。 */
 export const obsidianVaultAdapter = {
-  isSupported(): boolean {
-    return typeof window !== "undefined" && typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function";
+  preferredBackend(): VaultBackend {
+    return desktopBridge() ? "desktop" : "browser";
   },
 
-  async chooseVault(): Promise<FileSystemDirectoryHandle> {
+  isSupported(): boolean {
+    return Boolean(desktopBridge()) || (typeof window !== "undefined" && typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function");
+  },
+
+  async chooseVault(): Promise<VaultSelection> {
+    const desktop = desktopBridge();
+    if (desktop) {
+      const selection = await desktop.chooseVault();
+      if (selection.cancelled || !selection.vaultName) throw new ObsidianVaultError("cancelled", "已取消选择 Vault，现有知识库没有发生变化。");
+      return { backend: "desktop", vaultName: selection.vaultName };
+    }
     const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
     if (!picker) throw new Error("当前浏览器不支持选择 Vault 文件夹，请改用 Chrome 或 Edge，或使用一次性 Markdown 导入。");
     try {
-      return await picker({ id: "review-workspace-obsidian", mode: "readwrite" });
+      const directoryHandle = await picker({ id: "review-workspace-obsidian", mode: "readwrite" });
+      return { backend: "browser", vaultName: directoryHandle.name, directoryHandle };
     } catch (error) {
       throw toObsidianVaultError(error, "选择 Vault");
     }
   },
 
-  async permission(handle?: FileSystemDirectoryHandle, request = false): Promise<ObsidianPermissionState> {
+  async permission(handle?: FileSystemDirectoryHandle, request = false, backend: VaultBackend = "browser"): Promise<ObsidianPermissionState> {
+    if (backend === "desktop") {
+      const desktop = desktopBridge();
+      if (!desktop) return "unsupported";
+      return (await desktop.getState()).configured ? "granted" : "denied";
+    }
     if (!this.isSupported()) return "unsupported";
     if (!handle) return "denied";
     const permissionHandle = handle as PermissionHandle;
@@ -132,7 +159,13 @@ export const obsidianVaultAdapter = {
     }
   },
 
-  async ensureManagedTree(handle: FileSystemDirectoryHandle, managedRoot: string): Promise<void> {
+  async ensureManagedTree(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, backend: VaultBackend = "browser"): Promise<void> {
+    if (backend === "desktop") {
+      const desktop = desktopBridge();
+      if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
+      return desktop.ensureManagedTree(normalizeObsidianPath(managedRoot, "托管目录"));
+    }
+    if (!handle) throw new ObsidianVaultError("handle_invalid", "已保存的 Vault 句柄失效，请重新选择 Vault。");
     try {
       const root = await ensureDirectory(handle, managedRoot);
       await Promise.all(CATEGORIES.map((category) => root.getDirectoryHandle(category, { create: true })));
@@ -141,7 +174,13 @@ export const obsidianVaultAdapter = {
     }
   },
 
-  async listMarkdown(handle: FileSystemDirectoryHandle, managedRoot: string): Promise<VaultMarkdownFile[]> {
+  async listMarkdown(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, backend: VaultBackend = "browser"): Promise<VaultMarkdownFile[]> {
+    if (backend === "desktop") {
+      const desktop = desktopBridge();
+      if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
+      return desktop.listMarkdown(normalizeObsidianPath(managedRoot, "托管目录"));
+    }
+    if (!handle) throw new ObsidianVaultError("handle_invalid", "已保存的 Vault 句柄失效，请重新选择 Vault。");
     try {
       return walkMarkdown(await resolveDirectory(handle, managedRoot));
     } catch (error) {
@@ -152,7 +191,13 @@ export const obsidianVaultAdapter = {
     }
   },
 
-  async readMarkdown(handle: FileSystemDirectoryHandle, managedRoot: string, relativePath: string): Promise<string> {
+  async readMarkdown(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, relativePath: string, backend: VaultBackend = "browser"): Promise<string> {
+    if (backend === "desktop") {
+      const desktop = desktopBridge();
+      if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
+      return desktop.readMarkdown(normalizeObsidianPath(managedRoot, "托管目录"), normalizeObsidianPath(relativePath, "Obsidian 笔记路径"));
+    }
+    if (!handle) throw new ObsidianVaultError("handle_invalid", "已保存的 Vault 句柄失效，请重新选择 Vault。");
     const segments = normalizeObsidianPath(relativePath, "Obsidian 笔记路径").split("/");
     const fileName = segments.pop()!;
     try {
@@ -167,7 +212,13 @@ export const obsidianVaultAdapter = {
     }
   },
 
-  async writeMarkdown(handle: FileSystemDirectoryHandle, managedRoot: string, relativePath: string, markdown: string): Promise<void> {
+  async writeMarkdown(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, relativePath: string, markdown: string, backend: VaultBackend = "browser"): Promise<void> {
+    if (backend === "desktop") {
+      const desktop = desktopBridge();
+      if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
+      return desktop.writeMarkdown(normalizeObsidianPath(managedRoot, "托管目录"), normalizeObsidianPath(relativePath, "Obsidian 笔记路径"), markdown);
+    }
+    if (!handle) throw new ObsidianVaultError("handle_invalid", "已保存的 Vault 句柄失效，请重新选择 Vault。");
     const segments = normalizeObsidianPath(relativePath, "Obsidian 笔记路径").split("/");
     const fileName = segments.pop();
     if (!fileName || !/\.md$/i.test(fileName)) throw new Error("Obsidian 笔记路径必须以 .md 结尾");
@@ -187,7 +238,13 @@ export const obsidianVaultAdapter = {
     }
   },
 
-  async removeMarkdown(handle: FileSystemDirectoryHandle, managedRoot: string, relativePath: string): Promise<void> {
+  async removeMarkdown(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, relativePath: string, backend: VaultBackend = "browser"): Promise<void> {
+    if (backend === "desktop") {
+      const desktop = desktopBridge();
+      if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
+      return desktop.removeMarkdown(normalizeObsidianPath(managedRoot, "托管目录"), normalizeObsidianPath(relativePath, "Obsidian 笔记路径"));
+    }
+    if (!handle) throw new ObsidianVaultError("handle_invalid", "已保存的 Vault 句柄失效，请重新选择 Vault。");
     const segments = normalizeObsidianPath(relativePath, "Obsidian 笔记路径").split("/");
     const fileName = segments.pop();
     if (!fileName) return;

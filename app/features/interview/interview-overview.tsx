@@ -77,7 +77,7 @@ export function InterviewOverview({
               {
                 id: "session",
                 title: sessions[0]?.title ?? "暂无模拟记录",
-                description: sessions[0] ? `最近状态：${sessions[0].status === "evaluated" ? "已评分" : "进行中"}` : "完成一次模拟后会在这里出现。",
+                description: sessions[0] ? `最近状态：${sessions[0].status === "evaluated" ? "已评分" : sessions[0].status === "cancelled" ? "已中止" : "进行中"}` : "完成一次模拟后会在这里出现。",
                 done: Boolean(sessions[0]?.status === "evaluated"),
               },
               {

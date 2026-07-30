@@ -1,7 +1,6 @@
 "use client";
 
 import { KnowledgeView } from "../knowledge/knowledge-workspace";
-import { CivilServiceDevelopmentExampleSwitcher } from "../shared/civil-service-development-example-switcher";
 import { EntryView } from "./review-entry-view";
 import {
   AutomationView,
@@ -14,7 +13,7 @@ import {
 import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 
 /** 渲染训练、知识和低频专项视图，保持业务依赖由 controller 注入。 */
-export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }: { controller: ReviewWorkspaceController; developmentExample?: string }) {
+export function ReviewWorkspaceSecondaryViews({ controller }: { controller: ReviewWorkspaceController }) {
   const { aiConnections, automation, conversation, data, knowledge, learning, personalization, workspace } = controller;
   const view = workspace.view;
 
@@ -22,7 +21,6 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
     <>
       {view === "knowledgeTraining" ? (
         <>
-          <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view="knowledgeTraining" />
           <KnowledgeTrainingView
           answerOpen={knowledge.snapshot.answerOpen}
           attemptsCount={data.knowledgeAttemptsCount}
@@ -92,12 +90,12 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
           onNotice={workspace.setNotice}
           personalizationSettings={personalization.settings}
           textConnection={aiConnections.textConnection}
+          sampleMode={workspace.scope.kind === "sample"}
         />
       ) : null}
 
       {view === "interview" ? (
         <>
-          <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view="interview" />
           <InterviewWorkspace
           textConnection={aiConnections.textConnection}
           knowledgeEntries={data.knowledgeEntries}
@@ -106,6 +104,7 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
           speechConnection={aiConnections.speechConnection}
           onNotice={workspace.setNotice}
           onOpenSettings={() => workspace.openApiSettings("请先配置默认文本连接，再使用 AI 模拟面试")}
+          scope={workspace.scope}
           />
         </>
       ) : null}
@@ -119,6 +118,7 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
           personalizationSettings={personalization.settings}
           onNotice={workspace.setNotice}
           onOpenConversation={conversation.openConversation}
+          scope={workspace.scope}
         />
       ) : null}
 
@@ -138,6 +138,7 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
           onUpdateKnowledgeDraft={knowledge.actions.updateDraft}
           onUpdateKnowledgeDraftList={knowledge.actions.updateDraftList}
           setNotice={workspace.setNotice}
+          scope={workspace.scope}
         />
       ) : null}
 
@@ -152,7 +153,6 @@ export function ReviewWorkspaceSecondaryViews({ controller, developmentExample }
           textConnection={aiConnections.textConnection}
           visionConnection={aiConnections.visionConnection}
           today={workspace.today}
-          developmentExample={developmentExample}
           onChanged={data.refreshData}
           onAppearanceChange={workspace.updateAppearanceSettings}
           onConfirmKnowledgeDrafts={knowledge.actions.confirmDrafts}

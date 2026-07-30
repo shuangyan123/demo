@@ -5,12 +5,14 @@ import { fenbiCredentialRepository } from "../../services/fenbi-credential-repos
 import { fetchLocalApi } from "../../services/local-runtime-diagnostics";
 import type { FenbiImportCredential, FenbiSyncEvent, FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
 import type { ImportDraft } from "../../types/domains/import.ts";
+import { normalizeFenbiCookie } from "../../services/fenbi-cookie";
 
 type FenbiQuickImportStatus = "unconfigured" | "ready" | "validating" | "syncing" | "error";
 
 type UseFenbiQuickImportInput = {
   onDrafts: (drafts: ImportDraft[]) => Promise<number>;
   setNotice: (message: string) => void;
+  sampleMode?: boolean;
 };
 
 function parseSseBlock(block: string): FenbiSyncEvent<ImportDraft> | undefined {
@@ -20,12 +22,14 @@ function parseSseBlock(block: string): FenbiSyncEvent<ImportDraft> | undefined {
 }
 
 /** 管理粉笔实验直连的验证、SSE 同步和取消；明文 Cookie 仅在单次请求栈中存在。 */
-export function useFenbiQuickImport({ onDrafts, setNotice }: UseFenbiQuickImportInput) {
+export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }: UseFenbiQuickImportInput) {
   const [credential, setCredential] = useState<FenbiImportCredential | undefined>(() => fenbiCredentialRepository.load());
   const [status, setStatus] = useState<FenbiQuickImportStatus>(() => fenbiCredentialRepository.load() ? "ready" : "unconfigured");
   const [stage, setStage] = useState<"" | "validate" | "catalog" | "questions" | "normalize">("");
   const [progress, setProgress] = useState<{ completed: number; total?: number }>({ completed: 0 });
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
+  const [requestId, setRequestId] = useState("");
   const [fallbackRecommended, setFallbackRecommended] = useState(false);
   const abortRef = useRef<AbortController | undefined>(undefined);
 
@@ -33,47 +37,77 @@ export function useFenbiQuickImport({ onDrafts, setNotice }: UseFenbiQuickImport
     return () => abortRef.current?.abort();
   }, []);
 
-  async function validateSavedCookie(cookie?: string): Promise<boolean> {
+  async function validateSavedCookie(cookie?: string, candidate = false): Promise<boolean> {
+    if (sampleMode) {
+      setError("示例模式禁止验证真实粉笔账户。");
+      setErrorCode("sample_mode_blocked");
+      setStatus("error");
+      return false;
+    }
     setStatus("validating");
     setError("");
+    setErrorCode("");
+    setRequestId("");
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 20_000);
     try {
-      const plainCookie = cookie ?? await fenbiCredentialRepository.reveal();
+      const plainCookie = normalizeFenbiCookie(cookie ?? await fenbiCredentialRepository.reveal());
       const response = await fetchLocalApi("/api/import/fenbi/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cookie: plainCookie }),
+        signal: controller.signal,
       });
-      const result = await response.json() as { valid?: boolean; code?: string; message?: string };
+      const result = await response.json() as { valid?: boolean; code?: string; message?: string; requestId?: string };
+      const nextRequestId = result.requestId || response.headers.get("x-request-id") || "";
+      setRequestId(nextRequestId);
       if (!response.ok || !result.valid) throw Object.assign(new Error(result.message || "粉笔会话验证失败"), { code: result.code });
+      if (candidate) await fenbiCredentialRepository.save(plainCookie);
       const verified = fenbiCredentialRepository.markVerified(new Date().toISOString());
       setCredential(verified);
       setStatus("ready");
       setNotice("粉笔账户已连接");
       return true;
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "粉笔会话验证失败";
-      setCredential(fenbiCredentialRepository.markUnverified());
+      const timedOut = controller.signal.aborted;
+      const message = timedOut ? "粉笔验证超时，请稍后重试或使用 PDF/Word 导出。" : caught instanceof Error ? caught.message : "粉笔会话验证失败";
+      const code = timedOut ? "timeout" : typeof caught === "object" && caught && "code" in caught ? String(caught.code) : "validation_failed";
+      if (!candidate) setCredential(fenbiCredentialRepository.markUnverified());
       setStatus("error");
       setError(message);
+      setErrorCode(code);
       setFallbackRecommended(true);
       return false;
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
 
   async function saveCookie(cookie: string): Promise<boolean> {
-    const saved = await fenbiCredentialRepository.save(cookie);
-    setCredential(saved);
-    return validateSavedCookie(cookie.trim());
+    return validateSavedCookie(cookie, true);
   }
 
   async function sync(scope: FenbiSyncScope = { wrongOnly: true, sinceDays: 30 }) {
+    if (sampleMode) {
+      setStatus("error");
+      setError("示例模式禁止同步真实粉笔账户。");
+      setErrorCode("sample_mode_blocked");
+      return;
+    }
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 90_000);
     setStatus("syncing");
     setStage("validate");
     setProgress({ completed: 0 });
     setError("");
+    setErrorCode("");
+    setRequestId("");
     setFallbackRecommended(false);
     try {
       const cookie = await fenbiCredentialRepository.reveal();
@@ -83,6 +117,7 @@ export function useFenbiQuickImport({ onDrafts, setNotice }: UseFenbiQuickImport
         body: JSON.stringify({ cookie, scope }),
         signal: controller.signal,
       });
+      setRequestId(response.headers.get("x-request-id") || "");
       if (!response.ok || !response.body) throw new Error("粉笔同步通道建立失败");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -110,18 +145,20 @@ export function useFenbiQuickImport({ onDrafts, setNotice }: UseFenbiQuickImport
         if (done) break;
       }
     } catch (caught) {
-      if (controller.signal.aborted) {
+      if (controller.signal.aborted && !timedOut) {
         setStatus(credential ? "ready" : "unconfigured");
         setNotice("已取消粉笔同步");
         return;
       }
-      const message = caught instanceof Error ? caught.message : "粉笔同步失败";
-      const code = typeof caught === "object" && caught && "code" in caught ? String(caught.code) : "";
+      const message = timedOut ? "粉笔同步超时，请缩小范围或使用 PDF/Word 导出。" : caught instanceof Error ? caught.message : "粉笔同步失败";
+      const code = timedOut ? "timeout" : typeof caught === "object" && caught && "code" in caught ? String(caught.code) : "";
       if (code === "invalid_cookie") setCredential(fenbiCredentialRepository.markUnverified());
       setStatus("error");
       setError(message);
+      setErrorCode(code || (caught instanceof DOMException && caught.name === "AbortError" ? "timeout" : "sync_failed"));
       setFallbackRecommended(code === "invalid_cookie" || code === "malformed_response");
     } finally {
+      window.clearTimeout(timeoutId);
       if (abortRef.current === controller) abortRef.current = undefined;
     }
   }
@@ -134,8 +171,10 @@ export function useFenbiQuickImport({ onDrafts, setNotice }: UseFenbiQuickImport
     cancel,
     credential,
     error,
+    errorCode,
     fallbackRecommended,
     progress,
+    requestId,
     saveCookie,
     stage,
     status,

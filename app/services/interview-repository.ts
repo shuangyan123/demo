@@ -1,5 +1,5 @@
 import { reviewDb } from "../db/review-db.ts";
-import { normalizeInterviewTimer } from "./interview-timer.ts";
+import { interviewTurnElapsedSec, normalizeInterviewTimer } from "./interview-timer.ts";
 import type { InterviewEvaluation, InterviewLink, InterviewLinkSourceType, InterviewPracticePlan, InterviewQuestion, InterviewQuestionSet, InterviewSession, InterviewSnapshot, InterviewStage, InterviewTurn, InterviewType } from "../types/domains/interview.ts";
 
 type NewQuestionInput = Omit<InterviewQuestion, "id" | "createdAt" | "updatedAt">;
@@ -266,6 +266,21 @@ export const interviewRepository = {
       }
     });
     return evaluation;
+  },
+
+  /** 中止只冻结并保留现有轮次，不创建评分，也不推进训练计划。 */
+  async cancelSession(id: string): Promise<void> {
+    const session = await reviewDb.interviewSessions.get(id);
+    if (!session) return;
+    const now = nowISO();
+    await reviewDb.interviewSessions.update(id, {
+      status: "cancelled",
+      completedAt: now,
+      timerStatus: "finished",
+      currentTurnElapsedSec: interviewTurnElapsedSec(session),
+      currentTurnStartedAt: undefined,
+      updatedAt: now,
+    });
   },
 
   // 删除一场会话，同时清理对话轮次、评分结果和以会话为来源的关联。

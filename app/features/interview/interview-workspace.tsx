@@ -9,6 +9,7 @@ import type { InterviewQuestion, InterviewType } from "../../types/domains/inter
 import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { Mistake } from "../../types/domains/review.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import type { WorkspaceDataScope } from "../../services/workspace-data-scope";
 import { InterviewLinkPanel } from "./interview-link-panel";
 import { InterviewPracticePlansView } from "./interview-practice-plans-view";
 import { InterviewQuestionBank } from "./interview-question-bank";
@@ -70,6 +71,7 @@ export function InterviewWorkspace({
   speechConnection,
   onNotice,
   onOpenSettings,
+  scope,
 }: {
   textConnection?: ApiConnectionProfile;
   knowledgeEntries: KnowledgeEntry[];
@@ -78,12 +80,13 @@ export function InterviewWorkspace({
   speechConnection?: ApiConnectionProfile;
   onNotice: (message: string) => void;
   onOpenSettings: () => void;
+  scope: WorkspaceDataScope;
 }) {
   const [tab, setTab] = useState<InterviewTab>("session");
   const [typeFilter, setTypeFilter] = useState<InterviewType | "all">("all");
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const interviewData = useInterviewFlow({ textConnection, onNotice, personalizationSettings });
+  const interviewData = useInterviewFlow({ textConnection, onNotice, personalizationSettings, scope });
   const speech = useInterviewSpeech(resolvePersonaVoice(personalizationSettings, "interview"), speechConnection);
 
   const filteredQuestions = useMemo(
@@ -222,7 +225,9 @@ export function InterviewWorkspace({
             session={activeSession}
             speech={speech}
             turns={activeTurns}
+            onCancelSession={interviewData.cancelSession}
             onFinishSession={(sessionId) => void interviewData.finishSession(sessionId)}
+            onFinishWithCurrentAnswer={interviewData.finishWithCurrentAnswer}
             onPauseTimer={interviewData.pauseTimer}
             onResumeTimer={interviewData.resumeTimer}
             onSubmitAnswer={interviewData.submitCandidateTurn}

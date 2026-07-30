@@ -104,5 +104,11 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 # Windows v0.2.1 发布
 
 - 正式 Release 只包含 `ReviewWorkspace-0.2.1-Windows-x64-Setup.exe` 和 `SHA256SUMS.txt`。
+
+# Windows v0.2.2 发布
+
+- 正式 Release 只包含 `ReviewWorkspace-0.2.2-Windows-x64-Setup.exe` 和 `SHA256SUMS.txt`，必须运行安装器，不分发裸主程序。
+- 标签必须指向 `main` 已验证合并提交且与 `package.json` 的 `0.2.2` 一致；发布后重新下载两项远端资产并复核大小与 SHA-256。
+- 安装验收从 Squirrel 根启动器执行，覆盖首次启动宽限、loopback/token、进程树退出、覆盖安装和 Electron userData 保留。
 - 必须运行安装器；`review-workspace.exe` 依赖同安装目录的 `resources`，不能脱离目录单独分发。
 - 覆盖安装保留 Electron `persist:review-workspace` 用户数据。当前私人 Windows x64 版本未签名，SmartScreen 可能显示未知发布者。

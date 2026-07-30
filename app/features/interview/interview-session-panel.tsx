@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { interviewRubrics, interviewTypeLabels } from "../../services/interview-rubric";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { interviewTypeLabels } from "../../services/interview-rubric";
 import { interviewTurnElapsedSec, normalizeInterviewTimer } from "../../services/interview-timer";
 import type { InterviewEvaluation, InterviewSession, InterviewSpeaker, InterviewStage, InterviewTurn } from "../../types/domains/interview.ts";
-import { LearningSessionInsightSection, LearningSessionLayout } from "../shared/learning-session-layout";
-import { Button, EmptyState, ScoreBar, SessionStageRail } from "../shared/ui-primitives";
+import { LearningSessionLayout } from "../shared/learning-session-layout";
+import { Button, EmptyState, SessionStageRail } from "../shared/ui-primitives";
+import { InterviewFinishDialog } from "./interview-finish-dialog";
+import { InterviewSessionInsights } from "./interview-session-insights";
 import type { useInterviewSpeech } from "./use-interview-speech.ts";
+import { useInterviewFinishDialog } from "./use-interview-finish-dialog";
 import styles from "./interview-session-panel.module.css";
 
 const stageLabels: Record<InterviewStage, string> = {
@@ -41,16 +44,9 @@ function formatDuration(seconds: number) {
 
 /** 面试模拟现场以当前阶段为主轴，评分只读取完成后的真实 evaluation。 */
 export function InterviewSessionPanel({
-  busy,
-  evaluation,
-  expectedDurationSec,
-  session,
-  speech,
-  turns,
-  onFinishSession,
-  onPauseTimer,
-  onResumeTimer,
-  onSubmitAnswer,
+  busy, evaluation, expectedDurationSec, session, speech, turns,
+  onFinishSession, onFinishWithCurrentAnswer, onCancelSession,
+  onPauseTimer, onResumeTimer, onSubmitAnswer,
 }: {
   busy: boolean;
   evaluation?: InterviewEvaluation;
@@ -59,26 +55,33 @@ export function InterviewSessionPanel({
   speech: ReturnType<typeof useInterviewSpeech>;
   turns: InterviewTurn[];
   onFinishSession: (sessionId: string) => void;
+  onFinishWithCurrentAnswer: (session: InterviewSession, content: string, durationSec: number) => Promise<unknown>;
+  onCancelSession: (sessionId: string) => Promise<void>;
   onPauseTimer: (session: InterviewSession) => Promise<void>;
   onResumeTimer: (session: InterviewSession) => Promise<void>;
   onSubmitAnswer: (session: InterviewSession, content: string, durationSec: number) => Promise<void>;
 }) {
   const normalizedSession = useMemo(() => session ? normalizeInterviewTimer(session) : null, [session]);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
+  const closeFinishConfirm = useCallback(() => setFinishConfirmOpen(false), []);
+  const finishDialogRef = useInterviewFinishDialog(finishConfirmOpen, closeFinishConfirm);
   const elapsedSec = normalizedSession ? interviewTurnElapsedSec(normalizedSession, nowMs) : 0;
-  const { error, listening, reset, setTranscript, speak, start, stop, supported, transcript } = speech;
+  const { error, listening, reset, setTranscript, speak, start, stop, stopSpeaking, supported, transcript } = speech;
   const latestAiTurn = useMemo(() => [...turns].reverse().find((turn) => turn.speaker !== "candidate"), [turns]);
-
   useEffect(() => {
     if (!normalizedSession || normalizedSession.timerStatus !== "running") return;
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [normalizedSession]);
-
   useEffect(() => {
     if (latestAiTurn?.content) speak(latestAiTurn.content);
   }, [latestAiTurn?.content, latestAiTurn?.id, speak]);
-
+  useEffect(() => {
+    if (normalizedSession?.timerStatus !== "finished") return;
+    stop();
+    stopSpeaking();
+  }, [normalizedSession?.timerStatus, stop, stopSpeaking]);
   if (!session) {
     return (
       <section className={styles.empty}>
@@ -86,40 +89,32 @@ export function InterviewSessionPanel({
       </section>
     );
   }
-
   const stages = stageOrderByType[session.type].map((stage) => ({ id: stage, label: stageLabels[stage] }));
-  const rubric = interviewRubrics[session.type];
-  const insights = (
-    <>
-      <LearningSessionInsightSection title="本题要点">
-        <ol className={styles.focusList}>
-          {rubric.dimensions.slice(0, 3).map((dimension) => <li key={dimension.name}><strong>{dimension.name}</strong><span>{dimension.focus}</span></li>)}
-        </ol>
-      </LearningSessionInsightSection>
-      <LearningSessionInsightSection title="当前表现">
-        {evaluation ? (
-          <div className={styles.scoreList}>
-            {evaluation.dimensions.slice(0, 3).map((dimension) => <ScoreBar key={dimension.name} label={dimension.name} max={dimension.maxScore} value={dimension.score} />)}
-          </div>
-        ) : <p>评分将在结束作答后生成，不展示伪实时分数。</p>}
-      </LearningSessionInsightSection>
-      <LearningSessionInsightSection title="下一步">
-        <p>{evaluation ? evaluation.suggestions[0] || "根据复盘结果进入下一题。" : "结束本题后自动生成评分、证据和改进建议。"}</p>
-        <details className={styles.privacy}><summary>语音与隐私</summary>语音识别只持久化最终文字稿，原始录音和浏览器事件不会保存。</details>
-      </LearningSessionInsightSection>
-    </>
-  );
-
+  const insights = <InterviewSessionInsights evaluation={evaluation} session={session} />;
   async function submitAnswer() {
     const durationSec = Math.max(1, interviewTurnElapsedSec(normalizedSession!));
     await onSubmitAnswer(session!, transcript, durationSec);
     setNowMs((current) => current + 1);
     reset();
   }
-
-  function finishSession() {
+  function stopAllSpeech() {
     stop();
+    stopSpeaking();
     reset();
+  }
+  async function cancelSession() {
+    stopAllSpeech();
+    setFinishConfirmOpen(false);
+    await onCancelSession(session!.id);
+  }
+
+  async function finishPartialReview() {
+    stopAllSpeech();
+    setFinishConfirmOpen(false);
+    if (transcript.trim()) {
+      await onFinishWithCurrentAnswer(session!, transcript, Math.max(1, interviewTurnElapsedSec(normalizedSession!)));
+      return;
+    }
     onFinishSession(session!.id);
   }
 
@@ -144,8 +139,8 @@ export function InterviewSessionPanel({
               </Button>
             ) : <span>已冻结</span>}
           </div>
-          <Button disabled={busy || normalizedSession?.timerStatus === "finished" || !turns.some((turn) => turn.speaker === "candidate")} variant="danger" onClick={finishSession}>
-            结束并复盘
+          <Button disabled={busy || normalizedSession?.timerStatus === "finished"} variant="danger" onClick={() => setFinishConfirmOpen(true)}>
+            结束
           </Button>
         </header>
         <SessionStageRail activeId={session.stage} stages={stages} />
@@ -175,11 +170,11 @@ export function InterviewSessionPanel({
             <Button disabled={busy} variant="ghost" onClick={reset}>清空</Button>
             <Button
               className={styles.mobileFinish}
-              disabled={busy || normalizedSession?.timerStatus === "finished" || !turns.some((turn) => turn.speaker === "candidate")}
+              disabled={busy || normalizedSession?.timerStatus === "finished"}
               variant="danger"
-              onClick={finishSession}
+              onClick={() => setFinishConfirmOpen(true)}
             >
-              结束并复盘
+              结束
             </Button>
           </div>
         </section>
@@ -189,6 +184,15 @@ export function InterviewSessionPanel({
             <p>{evaluation.suggestions.join("；")}</p>
           </section>
         ) : null}
+        {finishConfirmOpen ? <InterviewFinishDialog
+          busy={busy}
+          dialogRef={finishDialogRef}
+          hasAnswers={turns.some((turn) => turn.speaker === "candidate")}
+          hasTranscript={Boolean(transcript.trim())}
+          onCancel={() => void cancelSession()}
+          onClose={closeFinishConfirm}
+          onPartialReview={() => void finishPartialReview()}
+        /> : null}
       </section>
     </LearningSessionLayout>
   );

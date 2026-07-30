@@ -5,7 +5,7 @@ export type InterviewTimerPatch = Pick<InterviewSession, "timerStatus" | "curren
 /** 旧会话没有计时字段时，未完成会话继续运行，已完成或已评分会话永久冻结。 */
 export function normalizeInterviewTimer(session: InterviewSession, nowMs = Date.now()): InterviewSession {
   if (session.timerStatus) return session;
-  const finished = Boolean(session.completedAt) || session.status === "evaluated" || session.stage === "evaluated";
+  const finished = Boolean(session.completedAt) || session.status === "evaluated" || session.status === "cancelled" || session.stage === "evaluated";
   return {
     ...session,
     timerStatus: finished ? "finished" : "running",

@@ -8,6 +8,7 @@ import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts"
 import type { ImportJob } from "../../types/domains/import.ts";
 import type { KnowledgeImportDraft } from "../../types/domains/knowledge.ts";
 import type { Mistake } from "../../types/domains/review.ts";
+import { PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
@@ -26,6 +27,7 @@ type ImportWorkspaceProps = {
   onUpdateKnowledgeDraft: (id: string, patch: Partial<KnowledgeImportDraft>) => void;
   onUpdateKnowledgeDraftList: (id: string, value: string) => void;
   setNotice: (message: string) => void;
+  scope?: WorkspaceDataScope;
 };
 
 // 导入页控制器只在用户进入导入视图时加载，避免文件解析服务进入工作台首屏链路。
@@ -44,6 +46,7 @@ export function ImportWorkspace({
   onUpdateKnowledgeDraft,
   onUpdateKnowledgeDraftList,
   setNotice,
+  scope = PERSONAL_WORKSPACE_DATA_SCOPE,
 }: ImportWorkspaceProps) {
   const importDraftFlow = useImportDrafts({
     textConnection,
@@ -52,9 +55,14 @@ export function ImportWorkspace({
     mistakes,
     onRefreshWorkspace,
     setNotice,
+    scope,
     today,
   });
-  const fenbiQuickImport = useFenbiQuickImport({ onDrafts: importDraftFlow.importAccountDrafts, setNotice });
+  const fenbiQuickImport = useFenbiQuickImport({
+    onDrafts: importDraftFlow.importAccountDrafts,
+    setNotice,
+    sampleMode: scope.kind === "sample",
+  });
 
   return (
     <ImportView

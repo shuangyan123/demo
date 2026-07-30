@@ -7,6 +7,7 @@ import { tutoringRepository } from "../../services/tutoring-repository";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import type { TutoringLink, TutoringMode, TutoringPlan, TutoringSession, TutoringSnapshot, TutoringTurn } from "../../types/domains/tutoring.ts";
+import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
 const emptySnapshot: TutoringSnapshot = {
   links: [],
@@ -17,26 +18,37 @@ const emptySnapshot: TutoringSnapshot = {
 
 type NewTutoringPlanInput = Omit<TutoringPlan, "id" | "createdAt" | "updatedAt">;
 
+function scopeTutoringSnapshot(snapshot: TutoringSnapshot, scope: WorkspaceDataScope): TutoringSnapshot {
+  return {
+    links: filterWorkspaceRecords(snapshot.links, scope),
+    plans: filterWorkspaceRecords(snapshot.plans, scope),
+    sessions: filterWorkspaceRecords(snapshot.sessions, scope),
+    turns: filterWorkspaceRecords(snapshot.turns, scope),
+  };
+}
+
 // 管理 AI 辅导模块的数据刷新、AI 调用和确认式保存边界，组件只消费状态和动作。
 export function useTutoringFlow({
   textConnection,
   visionConnection,
   onNotice,
   personalizationSettings,
+  scope,
 }: {
   textConnection?: ApiConnectionProfile;
   visionConnection?: ApiConnectionProfile;
   onNotice: (message: string) => void;
   personalizationSettings: PersonalizationSettings;
+  scope: WorkspaceDataScope;
 }) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [snapshot, setSnapshot] = useState<TutoringSnapshot>(emptySnapshot);
 
   const refresh = useCallback(async () => {
-    const nextSnapshot = await tutoringRepository.loadSnapshot();
+    const nextSnapshot = scopeTutoringSnapshot(await tutoringRepository.loadSnapshot(), scope);
     setSnapshot(nextSnapshot);
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     let active = true;
@@ -44,7 +56,7 @@ export function useTutoringFlow({
     // 首次进入辅导模块时读取本地快照，避免 UI 直接依赖 Dexie 表。
     async function loadInitialSnapshot() {
       try {
-        const nextSnapshot = await tutoringRepository.loadSnapshot();
+        const nextSnapshot = scopeTutoringSnapshot(await tutoringRepository.loadSnapshot(), scope);
         if (active) {
           setSnapshot(nextSnapshot);
           setActiveSessionId((current) => current ?? nextSnapshot.sessions[0]?.id ?? null);
@@ -58,7 +70,7 @@ export function useTutoringFlow({
     return () => {
       active = false;
     };
-  }, [onNotice]);
+  }, [onNotice, scope]);
 
   const turnsBySessionId = useMemo(() => {
     const groups = new Map<string, TutoringTurn[]>();
@@ -73,6 +85,10 @@ export function useTutoringFlow({
 
   // 创建一场辅导会话；没有 API 时仍可记录文字，但 AI 老师按钮会提示配置。
   async function startSession(input: { goal: string; mode: TutoringMode; topic: string }) {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会创建真实辅导会话。");
+      return null;
+    }
     const session = await tutoringRepository.createSession(input);
     setActiveSessionId(session.id);
     await refresh();
@@ -93,6 +109,10 @@ export function useTutoringFlow({
     session: TutoringSession;
     studentText: string;
   }) {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会调用真实 AI。");
+      return;
+    }
     const text = input.studentText.trim();
     if (!text && !input.frameDataUrl) {
       onNotice("请先输入问题、语音转写，或截取当前画面");
@@ -184,6 +204,10 @@ export function useTutoringFlow({
 
   // 结束会话时生成摘要；缺少默认文本连接时明确保存本地摘要，不跨能力调用其他连接。
   async function finishSession(session: TutoringSession) {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会调用真实 AI 生成总结。");
+      return;
+    }
     setBusy(true);
     try {
       const turns = turnsBySessionId.get(session.id) ?? [];

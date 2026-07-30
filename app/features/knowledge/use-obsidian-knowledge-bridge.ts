@@ -31,12 +31,14 @@ export function useObsidianKnowledgeBridge({
   textConnection,
   onChanged,
   onNotice,
+  sampleMode = false,
 }: {
   entries: KnowledgeEntry[];
   personalization: PersonalizationSettings;
   textConnection?: ApiConnectionProfile;
   onChanged: () => Promise<void>;
   onNotice: (message: string) => void;
+  sampleMode?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<ObsidianVaultSnapshot>(EMPTY_SNAPSHOT);
   const [mappings, setMappings] = useState<ObsidianNoteMapping[]>([]);
@@ -46,6 +48,13 @@ export function useObsidianKnowledgeBridge({
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (sampleMode) {
+      setSnapshot(EMPTY_SNAPSHOT);
+      setMappings([]);
+      setGraph(EMPTY_GRAPH);
+      setProposals([]);
+      return;
+    }
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
     const [nextSnapshot, nextMappings, nextGraph, nextProposals] = await Promise.all([
       obsidianKnowledgeRepository.loadSnapshot(),
@@ -57,7 +66,7 @@ export function useObsidianKnowledgeBridge({
     setMappings(nextMappings);
     setGraph(nextGraph);
     setProposals(nextProposals);
-  }, []);
+  }, [sampleMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -67,6 +76,10 @@ export function useObsidianKnowledgeBridge({
   }, [onNotice, refresh]);
 
   const run = useCallback(async (task: () => Promise<string | void>, fallback: string) => {
+    if (sampleMode) {
+      onNotice("示例模式禁止访问真实 Vault 或调用 AI。");
+      return;
+    }
     setBusy(true);
     try {
       const message = await task();
@@ -82,7 +95,7 @@ export function useObsidianKnowledgeBridge({
     } finally {
       setBusy(false);
     }
-  }, [onChanged, onNotice, refresh]);
+  }, [onChanged, onNotice, refresh, sampleMode]);
 
   const connect = useCallback((managedRoot: string) => run(async () => {
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();

@@ -9,6 +9,7 @@ import type { ApiConnectionProfile, AiConnectionSnapshot } from "../../types/dom
 import type { AutomationContextSummary, AutomationDefinition, AutomationFailureCategory, AutomationRecoveryAction, AutomationRun, AutomationSnapshot } from "../../types/domains/automation.ts";
 import type { AcquisitionRunSummary } from "../../types/domains/acquisition.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
 const EMPTY_SNAPSHOT: AutomationSnapshot = { definitions: [], runs: [], unreadCount: 0 };
 
@@ -70,20 +71,31 @@ export function useAutomationCenter({
   personalization,
   onChanged,
   onNotice,
+  scope,
 }: {
   connection?: ApiConnectionProfile;
   aiSnapshot: AiConnectionSnapshot;
   personalization: PersonalizationSettings;
   onChanged: () => Promise<void>;
   onNotice: (message: string) => void;
+  scope: WorkspaceDataScope;
 }) {
   const [snapshot, setSnapshot] = useState<AutomationSnapshot>(EMPTY_SNAPSHOT);
   const [busyIds, setBusyIds] = useState<string[]>([]);
   const schedulerRunning = useRef(false);
 
-  const refresh = useCallback(async () => setSnapshot(await automationRepository.loadSnapshot()), []);
+  const refresh = useCallback(async () => {
+    const loaded = await automationRepository.loadSnapshot();
+    const definitions = filterWorkspaceRecords(loaded.definitions, scope);
+    const runs = filterWorkspaceRecords(loaded.runs, scope);
+    setSnapshot({ definitions, runs, unreadCount: runs.filter((run) => run.unread).length });
+  }, [scope]);
 
   const runDefinition = useCallback(async (definitionId: string, scheduled?: { scheduledAt: string; nextRunAt: string; missedCount: number; expectedUpdatedAt: string }) => {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会调用真实 AI 或执行已安排任务。");
+      return undefined;
+    }
     const definition = (await automationRepository.loadSnapshot()).definitions.find((item) => item.id === definitionId);
     if (!definition) throw new Error("已安排任务不存在");
     setBusyIds((current) => current.includes(definitionId) ? current : [...current, definitionId]);
@@ -109,9 +121,10 @@ export function useAutomationCenter({
     } finally {
       setBusyIds((current) => current.filter((id) => id !== definitionId));
     }
-  }, [aiSnapshot, connection, onChanged, onNotice, personalization, refresh]);
+  }, [aiSnapshot, connection, onChanged, onNotice, personalization, refresh, scope.kind]);
 
   const processDue = useCallback(async () => {
+    if (scope.kind === "sample") return;
     if (schedulerRunning.current || document.visibilityState === "hidden" || !navigator.onLine) return;
     schedulerRunning.current = true;
     try {
@@ -124,7 +137,7 @@ export function useAutomationCenter({
     } finally {
       schedulerRunning.current = false;
     }
-  }, [onNotice, runDefinition]);
+  }, [onNotice, runDefinition, scope.kind]);
 
   useEffect(() => {
     const initialTimer = window.setTimeout(() => {
@@ -150,11 +163,15 @@ export function useAutomationCenter({
   }, [onNotice, refresh]);
 
   const preview = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationPreviewResult> => {
+    if (scope.kind === "sample") return { summary: [], contextCharCount: 0 };
     const result = await previewAutomationDefinition(input);
     return { ...result, collection: input.collectionConfig ? previewCollectionConfig(input.collectionConfig) : undefined };
-  }, []);
+  }, [scope.kind]);
 
   const trialRun = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationTrialResult> => {
+    if (scope.kind === "sample") {
+      return { status: "failed", error: "示例模式不会调用真实 AI", proposalCount: 0, contextSummary: [], contextCharCount: 0 };
+    }
     const previewResult = await previewAutomationDefinition(input);
     try {
       const output = await trialAutomationDefinition({
@@ -183,7 +200,7 @@ export function useAutomationCenter({
         failureRecoveryAction: diagnosis.recoveryAction,
       };
     }
-  }, [aiSnapshot, connection, personalization]);
+  }, [aiSnapshot, connection, personalization, scope.kind]);
 
   const remove = useCallback(async (id: string) => {
     await automationRepository.remove(id);

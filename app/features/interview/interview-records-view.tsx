@@ -28,7 +28,7 @@ export function InterviewRecordsView({
                   <p className="text-sm font-bold text-foreground">{interviewTypeLabels[session.type]}</p>
                   <h3 className="mt-1 truncate text-lg font-extrabold">{session.title}</h3>
                   <p className="mt-1 text-sm text-muted">
-                    {session.status === "evaluated" ? `得分 ${evaluation?.totalScore ?? 0}/100` : "未完成评分"} · {session.startedAt.slice(0, 10)}
+                    {session.status === "evaluated" ? `得分 ${evaluation?.totalScore ?? 0}/100` : session.status === "cancelled" ? "已中止 · 未评分" : "进行中"} · {session.startedAt.slice(0, 10)}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">

@@ -10,6 +10,7 @@ import { reviewRepository } from "../../services/review-repository";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { ImportBatch, ImportDraft, ImportJob, PersistedImportDraft } from "../../types/domains/import.ts";
 import type { Mistake } from "../../types/domains/review.ts";
+import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
@@ -21,6 +22,7 @@ type UseImportDraftsInput = {
   today: Date;
   onRefreshWorkspace: () => Promise<void>;
   setNotice: (message: string) => void;
+  scope: WorkspaceDataScope;
 };
 
 // AI 文本解析和图片 OCR 使用不同能力默认值，缺失时不做隐式跨能力回退。
@@ -40,7 +42,7 @@ function filesFromForm(form: HTMLFormElement): File[] {
 }
 
 // 导入模块的状态和持久化编排 hook；UI 不直接操作 Dexie，便于后续接入更多来源。
-export function useImportDrafts({ textConnection, visionConnection, importJobs, mistakes, onRefreshWorkspace, setNotice, today }: UseImportDraftsInput) {
+export function useImportDrafts({ textConnection, visionConnection, importJobs, mistakes, onRefreshWorkspace, setNotice, scope, today }: UseImportDraftsInput) {
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [drafts, setDrafts] = useState<PersistedImportDraft[]>([]);
   const [importBusy, setImportBusy] = useState(false);
@@ -50,8 +52,8 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
   // 刷新导入批次和持久草稿，和主工作台快照分离，避免每次编辑草稿都重读错题库。
   async function refreshImportDrafts() {
     const snapshot = await importDraftRepository.load();
-    setBatches(snapshot.batches);
-    setDrafts(snapshot.drafts);
+    setBatches(filterWorkspaceRecords(snapshot.batches, scope));
+    setDrafts(filterWorkspaceRecords(snapshot.drafts, scope));
   }
 
   useEffect(() => {
@@ -60,8 +62,8 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
       .load()
       .then((snapshot) => {
         if (!active) return;
-        setBatches(snapshot.batches);
-        setDrafts(snapshot.drafts);
+        setBatches(filterWorkspaceRecords(snapshot.batches, scope));
+        setDrafts(filterWorkspaceRecords(snapshot.drafts, scope));
       })
       .catch((error) => {
         setNotice(error instanceof Error ? error.message : "导入草稿读取失败");
@@ -69,7 +71,7 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     return () => {
       active = false;
     };
-  }, [setNotice]);
+  }, [scope, setNotice]);
 
   useEffect(() => {
     if (!undoReceipt) return;
@@ -135,6 +137,10 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
   // 处理粘贴文本导入：本地解析或 AI 结构化解析都会进入持久草稿。
   async function parseTextImport(event: SubmitReactEvent, mode: "local" | "ai") {
     event.preventDefault();
+    if (scope.kind === "sample") {
+      setNotice("示例模式禁止解析真实输入或调用 AI。");
+      return;
+    }
     const form = event.currentTarget;
     const rawText = textValue(new FormData(form).get("rawText"));
     if (!rawText) {
@@ -189,6 +195,10 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
   // 处理批量文件导入，逐个文件解析并累积到同一个批次中。
   async function parseFileImport(event: SubmitReactEvent) {
     event.preventDefault();
+    if (scope.kind === "sample") {
+      setNotice("示例模式禁止访问真实文件。");
+      return;
+    }
     const form = event.currentTarget;
     const files = filesFromForm(form);
     if (!files.length) {
@@ -296,6 +306,10 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
 
   // 将选中的导入草稿批量确认入库，并同步刷新错题库快照。
   async function confirmDrafts(ids?: string[]) {
+    if (scope.kind === "sample") {
+      setNotice("示例模式不会把草稿写入个人错题库。");
+      return;
+    }
     const selectedIds = ids ?? drafts.filter((draft) => draft.selected && draft.stem.trim()).map((draft) => draft.id);
     if (!selectedIds.length) {
       setNotice("请选择至少一条有效草稿");

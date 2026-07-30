@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { FenbiAccountImportAdapter, FenbiAccountImportError } from "./fenbi-account-import-adapter.ts";
 import { markDuplicateDrafts } from "../../services/dedupe-service.ts";
 import { normalizeFenbiDraft } from "../../services/fenbi-parser.ts";
+import { normalizeFenbiCookie } from "../../services/fenbi-cookie.ts";
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, { status });
@@ -43,10 +45,57 @@ test("粉笔会话失效和限流返回稳定错误分类，不暴露上游正�
   }
 });
 
+test("Cookie 前缀和换行会被规范化，控制字符与登录重定向会被拒绝", async () => {
+  assert.equal(normalizeFenbiCookie("Cookie: session=abc;\r\n token=def"), "session=abc;token=def");
+  assert.throws(() => normalizeFenbiCookie("session=abc\u0000token=def"), /控制字符/);
+
+  let receivedCookie = "";
+  const validAdapter = new FenbiAccountImportAdapter({
+    fetchImpl: async (_input, init) => {
+      receivedCookie = new Headers(init?.headers).get("cookie") ?? "";
+      return json({ data: [] });
+    },
+  });
+  await validAdapter.validate("Cookie: session=abc;\r\n token=def");
+  assert.equal(receivedCookie, "session=abc;token=def");
+
+  const redirectAdapter = new FenbiAccountImportAdapter({
+    fetchImpl: async () => new Response(null, { status: 302, headers: { location: "/login" } }),
+  });
+  await assert.rejects(() => redirectAdapter.validate("session=abc"), (error: unknown) => {
+    assert.equal((error as FenbiAccountImportError).code, "invalid_cookie");
+    return true;
+  });
+});
+
+test("粉笔请求使用有界超时并返回稳定 timeout 分类", async () => {
+  const adapter = new FenbiAccountImportAdapter({
+    requestTimeoutMs: 1,
+    fetchImpl: async (_input, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+    }),
+  });
+  await assert.rejects(() => adapter.validate("session=abc"), (error: unknown) => {
+    assert.equal((error as FenbiAccountImportError).code, "timeout");
+    return true;
+  });
+});
+
 test("粉笔稳定题目 ID 优先于题干指纹去重", () => {
   const draft = normalizeFenbiDraft({ id: "fenbi-1", stem: "不同写法题干", answer: "A", board: "常识判断" });
   const [marked] = markDuplicateDrafts([draft], [{ id: "m1", sourceId: "fenbi-1", board: "常识判断", source: "粉笔", stem: "旧题干", answer: "A", explanation: "", reasons: [], tags: [], mastery: 2, nextReviewAt: "", createdAt: "", updatedAt: "" }]);
   assert.equal(marked.issues?.includes("duplicate"), true);
   assert.equal(marked.needsReview, true);
+});
+
+test("候选 Cookie 先验证后替换旧密文，错误留在配置弹层并显示请求 ID", () => {
+  const hook = readFileSync(new URL("../../features/import/use-fenbi-quick-import.ts", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../../features/import/fenbi-quick-import-panel.tsx", import.meta.url), "utf8");
+  const validationStart = hook.indexOf('fetchLocalApi("/api/import/fenbi/validate"');
+  const candidateSave = hook.indexOf("if (candidate) await fenbiCredentialRepository.save");
+  assert.ok(validationStart >= 0 && candidateSave > validationStart);
+  assert.match(panel, /正在验证粉笔会话/);
+  assert.match(panel, /role="alert"/);
+  assert.match(panel, /请求 ID/);
 });
 

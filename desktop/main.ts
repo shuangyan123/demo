@@ -1,7 +1,9 @@
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, session, shell } from "electron";
+import path from "node:path";
 import { installPermissionBoundary } from "./permissions.js";
 import { DESKTOP_ENTRY_URL, installDesktopProtocol, registerDesktopScheme } from "./protocol.js";
 import { isPackagedDesktop, showRuntimeFailure, startDesktopRuntime, type DesktopRuntime } from "./runtime.js";
+import { installDesktopVaultIpc } from "./vault.js";
 
 registerDesktopScheme();
 
@@ -23,11 +25,13 @@ function isAllowedExternalUrl(value: string): boolean {
 
 async function createMainWindow(): Promise<void> {
   const developmentUrl = process.env.ELECTRON_RENDERER_URL;
+  const partition = "persist:review-workspace";
+  const workspaceSession = session.fromPartition(partition);
+  installDesktopVaultIpc(developmentUrl);
   if (isPackagedDesktop()) {
     runtime = await startDesktopRuntime();
-    installDesktopProtocol(runtime.baseUrl, runtime.token);
+    installDesktopProtocol(runtime.baseUrl, runtime.token, workspaceSession.protocol);
   }
-  const partition = "persist:review-workspace";
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -37,6 +41,7 @@ async function createMainWindow(): Promise<void> {
     backgroundColor: "#f7f7f5",
     title: "错题复盘",
     webPreferences: {
+      preload: path.join(import.meta.dirname, "preload.js"),
       partition,
       nodeIntegration: false,
       contextIsolation: true,
@@ -46,7 +51,7 @@ async function createMainWindow(): Promise<void> {
       devTools: Boolean(developmentUrl),
     },
   });
-  installPermissionBoundary(mainWindow.webContents.session, developmentUrl);
+  installPermissionBoundary(workspaceSession, developmentUrl);
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedExternalUrl(url)) void shell.openExternal(url);
     return { action: "deny" };
@@ -58,6 +63,30 @@ async function createMainWindow(): Promise<void> {
   });
   mainWindow.once("ready-to-show", () => mainWindow?.show());
   await mainWindow.loadURL(developmentUrl ?? DESKTOP_ENTRY_URL);
+}
+
+async function cleanupFailedLaunch(): Promise<void> {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
+  mainWindow = undefined;
+  if (!runtime) return;
+  const failedRuntime = runtime;
+  runtime = undefined;
+  await failedRuntime.stop();
+}
+
+async function launchMainWindowWithRecovery(): Promise<void> {
+  while (true) {
+    try {
+      await createMainWindow();
+      return;
+    } catch (error) {
+      await cleanupFailedLaunch();
+      const response = await showRuntimeFailure(error);
+      if (response === 0) continue;
+      app.quit();
+      return;
+    }
+  }
 }
 
 if (isSquirrelLifecycleInvocation()) {
@@ -73,11 +102,8 @@ if (isSquirrelLifecycleInvocation()) {
       mainWindow.focus();
     });
     app.whenReady()
-      .then(createMainWindow)
-      .catch(async (error: unknown) => {
-        await showRuntimeFailure(error);
-        app.quit();
-      });
+      .then(launchMainWindowWithRecovery)
+      .catch(() => app.quit());
     app.on("window-all-closed", () => app.quit());
     app.on("before-quit", (event) => {
       if (!runtime) return;

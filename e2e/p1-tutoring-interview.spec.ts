@@ -79,7 +79,10 @@ test("P1 辅导对话完成讲解与微测，面试按真实阶段进入复盘",
     await expect(page.getByText("请开始作答，注意先回应情绪")).toBeVisible();
     await page.getByRole("textbox", { name: "本轮文字稿" }).fill("我会先安抚群众情绪，再核验材料并提供补正清单。");
     await page.getByRole("button", { name: "提交并继续" }).click();
-    await page.getByRole("button", { name: "结束并复盘" }).click();
+    await page.getByRole("button", { name: "结束", exact: true }).first().click();
+    const finishDialog = page.getByRole("dialog", { name: "结束本次面试？" });
+    await expect(finishDialog).toBeVisible();
+    await finishDialog.getByRole("button", { name: "生成部分复盘" }).click();
     await expect(page.getByRole("heading", { name: /复盘结果 · 82\/100/ })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("p1-interview-desktop.png"), fullPage: false });
     await page.evaluate(() => { document.body.dataset.theme = "dark"; });

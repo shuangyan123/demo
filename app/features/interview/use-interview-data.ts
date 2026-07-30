@@ -7,6 +7,7 @@ import { finishInterviewTimer, pauseInterviewTimer, resetInterviewTurnTimer, res
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { InterviewEvaluation, InterviewLink, InterviewPracticePlan, InterviewQuestion, InterviewQuestionDraft, InterviewQuestionSet, InterviewSession, InterviewSnapshot, InterviewSpeaker, InterviewStage, InterviewTurn, InterviewType } from "../../types/domains/interview.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
 const emptySnapshot: InterviewSnapshot = {
   evaluations: [],
@@ -22,6 +23,18 @@ type NewQuestionInput = Omit<InterviewQuestion, "id" | "createdAt" | "updatedAt"
 type NewQuestionSetInput = Omit<InterviewQuestionSet, "id" | "createdAt" | "updatedAt">;
 type NewPracticePlanInput = Omit<InterviewPracticePlan, "id" | "createdAt" | "updatedAt">;
 
+function scopeInterviewSnapshot(snapshot: InterviewSnapshot, scope: WorkspaceDataScope): InterviewSnapshot {
+  return {
+    evaluations: filterWorkspaceRecords(snapshot.evaluations, scope),
+    links: filterWorkspaceRecords(snapshot.links, scope),
+    practicePlans: filterWorkspaceRecords(snapshot.practicePlans, scope),
+    questionSets: filterWorkspaceRecords(snapshot.questionSets, scope),
+    questions: filterWorkspaceRecords(snapshot.questions, scope),
+    sessions: filterWorkspaceRecords(snapshot.sessions, scope),
+    turns: filterWorkspaceRecords(snapshot.turns, scope),
+  };
+}
+
 // 根据当前阶段推断 AI 轮次角色；结构化小组和无领导会出现同组考生发言。
 function resolveAiSpeaker(type: InterviewType, stage: InterviewStage): InterviewSpeaker {
   if (type === "structured_group" && (stage === "peer_review" || stage === "response")) return "ai_peer";
@@ -34,19 +47,21 @@ export function useInterviewData({
   textConnection,
   onNotice,
   personalizationSettings,
+  scope,
 }: {
   textConnection?: ApiConnectionProfile;
   onNotice: (message: string) => void;
   personalizationSettings: PersonalizationSettings;
+  scope: WorkspaceDataScope;
 }) {
   const [snapshot, setSnapshot] = useState<InterviewSnapshot>(emptySnapshot);
   const [busy, setBusy] = useState(false);
   const [questionDrafts, setQuestionDrafts] = useState<InterviewQuestionDraft[]>([]);
 
   const refresh = useCallback(async () => {
-    const nextSnapshot = await interviewRepository.loadSnapshot();
+    const nextSnapshot = scopeInterviewSnapshot(await interviewRepository.loadSnapshot(), scope);
     setSnapshot(nextSnapshot);
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     let active = true;
@@ -54,7 +69,7 @@ export function useInterviewData({
     // 首次进入面试模块时异步读取 Dexie，避免在 effect 同步阶段触发状态级联更新。
     async function loadInitialSnapshot() {
       try {
-        const nextSnapshot = await interviewRepository.loadSnapshot();
+        const nextSnapshot = scopeInterviewSnapshot(await interviewRepository.loadSnapshot(), scope);
         if (active) {
           setSnapshot(nextSnapshot);
         }
@@ -69,7 +84,7 @@ export function useInterviewData({
     return () => {
       active = false;
     };
-  }, [onNotice]);
+  }, [onNotice, scope]);
 
   const evaluationBySessionId = useMemo(() => new Map(snapshot.evaluations.map((item) => [item.sessionId, item])), [snapshot.evaluations]);
   const turnsBySessionId = useMemo(() => {
@@ -170,6 +185,10 @@ export function useInterviewData({
 
   // 手动触发 AI 出题，结果只进入草稿区，用户确认后才写入题库。
   async function generateQuestionDrafts(input: { type: InterviewType; topic: string; count: number; context: string }) {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会调用真实 AI。");
+      return;
+    }
     if (!textConnection) {
       onNotice("请先在 AI 连接中配置默认文本连接，再使用 AI 生成面试题");
       return;
@@ -198,6 +217,10 @@ export function useInterviewData({
 
   // 基于本地题目让 AI 生成计划草稿，并在校验通过后保存为本地训练计划。
   async function generatePracticePlan(input: { type: InterviewType | "mixed"; questions: InterviewQuestion[]; targetSessionCount: number; title?: string }) {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会调用真实 AI。");
+      return;
+    }
     if (!textConnection) {
       onNotice("请先在 AI 连接中配置默认文本连接，再使用 AI 生成训练计划");
       return;
@@ -217,6 +240,10 @@ export function useInterviewData({
 
   // 创建会话后立即请求 AI 面试官开场，保证进入模拟时就是可作答状态。
   async function startSession(question: InterviewQuestion, planId?: string): Promise<InterviewSession | null> {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会调用真实 AI；请载入进行中场景查看现场界面。");
+      return null;
+    }
     if (!textConnection) {
       onNotice("请先在 AI 连接中配置默认文本连接，再开始 AI 模拟面试");
       return null;
@@ -249,6 +276,10 @@ export function useInterviewData({
 
   // 保存用户作答后让 AI 继续追问或推进到下一阶段。
   async function submitCandidateTurn(session: InterviewSession, content: string, durationSec: number) {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会调用真实 AI。");
+      return;
+    }
     if (!textConnection) {
       onNotice("请先在 AI 连接中配置默认文本连接，再继续 AI 模拟面试");
       return;
@@ -298,11 +329,15 @@ export function useInterviewData({
 
   // 对会话文字稿进行最终评分；AI 返回非法 JSON 时不会写入评分表。
   async function finishSession(sessionId: string): Promise<InterviewEvaluation | null> {
+    if (scope.kind === "sample") {
+      onNotice("示例模式不会调用真实 AI；可直接中止，或载入“已完成”场景查看复盘。");
+      return null;
+    }
     if (!textConnection) {
       onNotice("请先在 AI 连接中配置默认文本连接，再生成面试评分");
       return null;
     }
-    const freshSnapshot = await interviewRepository.loadSnapshot();
+    const freshSnapshot = scopeInterviewSnapshot(await interviewRepository.loadSnapshot(), scope);
     const session = freshSnapshot.sessions.find((item) => item.id === sessionId);
     if (!session) {
       onNotice("未找到要评分的面试会话");
@@ -324,6 +359,31 @@ export function useInterviewData({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function cancelSession(sessionId: string) {
+    await interviewRepository.cancelSession(sessionId);
+    await refresh();
+    onNotice("本次面试已中止；已有轮次已保留，未评分且未计入训练计划。");
+  }
+
+  /** 未提交文字在用户确认后只落为候选人轮次，再进入一次部分复盘请求。 */
+  async function finishWithCurrentAnswer(session: InterviewSession, content: string, durationSec: number) {
+    const trimmed = content.trim();
+    if (!trimmed) return finishSession(session.id);
+    await interviewRepository.addTurn({
+      content: trimmed,
+      sessionId: session.id,
+      speaker: "candidate",
+      stage: session.stage,
+      durationSec,
+    });
+    await interviewRepository.updateSession(session.id, {
+      totalDurationSec: session.totalDurationSec + durationSec,
+      transcriptText: [session.transcriptText, trimmed].filter(Boolean).join("\n"),
+      ...finishInterviewTimer(session),
+    });
+    return finishSession(session.id);
   }
 
   // 删除历史会话并清理文字稿、评分和会话关联。
@@ -370,6 +430,7 @@ export function useInterviewData({
     addQuestions,
     addQuestionSet,
     busy,
+    cancelSession,
     clearQuestionDrafts,
     deleteLink,
     deletePracticePlan,
@@ -378,6 +439,7 @@ export function useInterviewData({
     deleteSession,
     evaluationBySessionId,
     finishSession,
+    finishWithCurrentAnswer,
     generatePracticePlan,
     generateQuestionDrafts,
     questionDrafts,

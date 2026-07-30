@@ -1,10 +1,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { app } from "electron";
+import { classifyRuntimeSpawnFailure, isRetryableRuntimeSpawnFailure, type RuntimeSpawnFailureCode } from "./runtime-spawn.js";
 
 type IntegrityManifest = {
   algorithm: "sha256";
@@ -18,7 +19,7 @@ export type DesktopRuntimeErrorCode =
   | "INTEGRITY_HASH_MISMATCH"
   | "INTEGRITY_READ_FAILED"
   | "RUNTIME_PORT_FAILED"
-  | "RUNTIME_SPAWN_FAILED"
+  | RuntimeSpawnFailureCode
   | "RUNTIME_EXITED"
   | "RUNTIME_START_TIMEOUT";
 
@@ -26,6 +27,9 @@ type DesktopRuntimeErrorDetails = {
   relativePath?: string;
   exitCode?: number | null;
   stderr?: string;
+  nodeCode?: string;
+  syscall?: string;
+  attempts?: number;
 };
 
 /** 桌面启动错误只暴露稳定错误码和脱敏后的有限诊断信息。 */
@@ -51,11 +55,33 @@ const TRANSIENT_FILE_CODES = new Set(["EBUSY", "EPERM", "EACCES"]);
 const HASH_CONCURRENCY = 12;
 const RETRY_DELAY_MS = 120;
 const STDERR_LIMIT = 2_000;
+const FIRSTRUN_GRACE_MS = 750;
+const DIAGNOSTIC_FILE_LIMIT = 64 * 1024;
 
 /** 启动前验证 Node 与 standalone 资源，随后只监听随机 loopback 端口。 */
 export async function startDesktopRuntime(): Promise<DesktopRuntime> {
   const root = path.join(process.resourcesPath, ".desktop-runtime");
+  if (process.argv.includes("--squirrel-firstrun")) await delay(FIRSTRUN_GRACE_MS);
   await verifyRuntimeIntegrity(root);
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      return await startDesktopRuntimeAttempt(root, attempt);
+    } catch (error) {
+      if (
+        error instanceof DesktopRuntimeError
+        && attempt === 1
+        && isRetryableRuntimeSpawnFailure(error.code as RuntimeSpawnFailureCode)
+      ) {
+        await delay(450);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new DesktopRuntimeError("RUNTIME_SPAWN_UNKNOWN", "桌面运行进程启动失败", { attempts: 2 });
+}
+
+async function startDesktopRuntimeAttempt(root: string, attempt: number): Promise<DesktopRuntime> {
   const port = await reserveLoopbackPort();
   const token = randomBytes(32).toString("base64url");
   const executable = path.join(root, "node", "node.exe");
@@ -75,15 +101,25 @@ export async function startDesktopRuntime(): Promise<DesktopRuntime> {
       },
     });
   } catch (error) {
-    throw new DesktopRuntimeError("RUNTIME_SPAWN_FAILED", "无法启动桌面运行进程", {}, error);
+    throw desktopSpawnError(error, attempt);
   }
   const baseUrl = `http://127.0.0.1:${port}`;
-  await waitForRuntime(child, baseUrl, token);
-  return {
-    baseUrl,
-    token,
-    stop: () => stopChild(child),
-  };
+  try {
+    await waitForRuntime(child, baseUrl, token, attempt);
+  } catch (error) {
+    await stopChild(child);
+    throw error;
+  }
+  return { baseUrl, token, stop: () => stopChild(child) };
+}
+
+function desktopSpawnError(error: unknown, attempt: number): DesktopRuntimeError {
+  const details = classifyRuntimeSpawnFailure(error);
+  return new DesktopRuntimeError(details.code, "桌面运行进程启动失败", {
+    attempts: attempt,
+    nodeCode: details.nodeCode,
+    syscall: details.syscall,
+  }, error);
 }
 
 async function reserveLoopbackPort(): Promise<number> {
@@ -104,7 +140,7 @@ async function reserveLoopbackPort(): Promise<number> {
   });
 }
 
-async function waitForRuntime(child: ChildProcess, baseUrl: string, token: string): Promise<void> {
+async function waitForRuntime(child: ChildProcess, baseUrl: string, token: string, attempt: number): Promise<void> {
   const deadline = Date.now() + 30_000;
   let lastError = "";
   let stderr = "";
@@ -113,7 +149,7 @@ async function waitForRuntime(child: ChildProcess, baseUrl: string, token: strin
     stderr = `${stderr}${chunk}`.slice(-STDERR_LIMIT);
   });
   const spawnError = new Promise<never>((_, reject) => {
-    child.once("error", (error) => reject(new DesktopRuntimeError("RUNTIME_SPAWN_FAILED", "桌面运行进程启动失败", {}, error)));
+    child.once("error", (error) => reject(desktopSpawnError(error, attempt)));
   });
 
   while (Date.now() < deadline) {
@@ -239,6 +275,9 @@ async function stopChild(child: ChildProcess): Promise<void> {
 function runtimeFailureCopy(error: DesktopRuntimeError): { message: string; detail: string } {
   const detailParts = [`错误码：${error.code}`];
   if (error.details.relativePath) detailParts.push(`文件：${error.details.relativePath}`);
+  if (error.details.nodeCode) detailParts.push(`Node/Windows：${error.details.nodeCode}`);
+  if (error.details.syscall) detailParts.push(`系统调用：${error.details.syscall}`);
+  if (error.details.attempts) detailParts.push(`尝试次数：${error.details.attempts}`);
   if (error.details.exitCode !== undefined) detailParts.push(`退出码：${error.details.exitCode ?? "unknown"}`);
   if (error.details.stderr) detailParts.push(`日志：${error.details.stderr}`);
   if (error.code.startsWith("INTEGRITY_")) {
@@ -247,18 +286,54 @@ function runtimeFailureCopy(error: DesktopRuntimeError): { message: string; deta
   return { message: "桌面服务未能启动。", detail: detailParts.join("\n") };
 }
 
-export function showRuntimeFailure(error: unknown): Promise<number> {
+async function persistRuntimeDiagnostic(error: DesktopRuntimeError): Promise<void> {
+  try {
+    const directory = app.getPath("logs");
+    await mkdir(directory, { recursive: true });
+    const filePath = path.join(directory, "desktop-runtime.log");
+    const entry = `${JSON.stringify({
+      at: new Date().toISOString(),
+      code: error.code,
+      relativePath: error.details.relativePath,
+      nodeCode: error.details.nodeCode,
+      syscall: error.details.syscall,
+      attempts: error.details.attempts,
+      exitCode: error.details.exitCode,
+      stderr: error.details.stderr ? sanitizeDiagnostic(error.details.stderr) : undefined,
+    })}\n`;
+    let existing = "";
+    try {
+      existing = await readFile(filePath, "utf8");
+    } catch {
+      // 首次启动尚无日志文件。
+    }
+    await writeFile(filePath, `${existing}${entry}`.slice(-DIAGNOSTIC_FILE_LIMIT), "utf8");
+  } catch {
+    // 诊断落盘失败不能覆盖原始启动错误。
+  }
+}
+
+export async function showRuntimeFailure(error: unknown): Promise<number> {
   const runtimeError = error instanceof DesktopRuntimeError
     ? error
-    : new DesktopRuntimeError("RUNTIME_SPAWN_FAILED", "桌面运行发生未知错误", {}, error);
+    : new DesktopRuntimeError("RUNTIME_SPAWN_UNKNOWN", "桌面运行发生未知错误", {}, error);
   const copy = runtimeFailureCopy(runtimeError);
-  return import("electron").then(({ dialog }) => dialog.showMessageBox({
-    type: "error",
-    title: "错题复盘无法启动",
-    message: copy.message,
-    detail: `${copy.detail}\n\n请重新运行完整安装器进行覆盖安装；现有用户数据不会被删除。`,
-    buttons: ["退出"],
-  }).then((result) => result.response));
+  await persistRuntimeDiagnostic(runtimeError);
+  const { clipboard, dialog } = await import("electron");
+  while (true) {
+    const result = await dialog.showMessageBox({
+      type: "error",
+      title: "错题复盘无法启动",
+      message: copy.message,
+      detail: `${copy.detail}\n\n可以重试完整校验和启动；若仍失败，请复制诊断后运行安装器覆盖安装，现有用户数据不会被删除。`,
+      buttons: ["重试", "复制诊断", "退出"],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    });
+    if (result.response !== 1) return result.response;
+    clipboard.writeText(`${copy.message}\n${copy.detail}`);
+  }
 }
 
 export function isPackagedDesktop(): boolean {
