@@ -4,6 +4,7 @@ import test from "node:test";
 
 const workflow = readFileSync(new URL("../.github/workflows/desktop-release.yml", import.meta.url), "utf8");
 const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archive.mjs", import.meta.url), "utf8");
 
 test("PR 共享门禁包含桌面编译与契约", () => {
   assert.match(ci, /npm run desktop:compile/);
@@ -26,4 +27,11 @@ test("标签创建正式 Release 且只发布安装器与校验清单", () => {
   assert.doesNotMatch(workflow, /gh release create[\s\S]*--draft/);
   assert.match(workflow, /不分发脱离 resources 目录无法独立运行的裸主程序/);
   assert.doesNotMatch(workflow, /autoUpdater|update-electron-app/);
+});
+
+test("Electron 官方归档在 runner 缓存缺失时下载并继续校验 checksum", () => {
+  assert.match(electronArchive, /downloadArtifact/);
+  assert.match(electronArchive, /checksums/);
+  assert.match(electronArchive, /isVerifiedArchive\(archivePath\)/);
+  assert.doesNotMatch(electronArchive, /请先完成 npm install/);
 });
