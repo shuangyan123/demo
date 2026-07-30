@@ -1,7 +1,6 @@
 "use client";
 
 import { LearningDataExplorer } from "./learning-data-explorer";
-import { CivilServiceDevelopmentExampleSwitcher } from "../shared/civil-service-development-example-switcher";
 import { DashboardView } from "./review-dashboard-view";
 import { LibraryView } from "./review-library-view";
 import { ReviewView } from "./review-session-view";
@@ -11,13 +10,7 @@ import type { ReviewWorkspaceController } from "./use-review-workspace-controlle
 import { toISODate } from "../../lib/review-utils";
 
 /** 渲染总览、错题、复盘和历史统计等首屏核心路径。 */
-export function ReviewWorkspaceCoreViews({
-  controller,
-  developmentExample,
-}: {
-  controller: ReviewWorkspaceController;
-  developmentExample?: string;
-}) {
+export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWorkspaceController }) {
   const { aiConnections, automation, conversation, data, knowledge, learning, personalization, workspace } = controller;
   const view = workspace.view;
 
@@ -38,6 +31,7 @@ export function ReviewWorkspaceCoreViews({
           scheduledCount={automation.snapshot.definitions.filter((definition) => definition.enabled).length}
           snapshot={conversation.snapshot}
           transcriptionConnection={aiConnections.snapshot.profiles.find((connection) => connection.id === aiConnections.snapshot.defaults.transcriptionConnectionId)}
+          sampleMode={workspace.scope.kind === "sample"}
           onConversationSelected={conversation.setActiveConversationId}
           onCreateConversation={conversation.createForFirstMessage}
           onNotice={workspace.setNotice}
@@ -96,7 +90,6 @@ export function ReviewWorkspaceCoreViews({
 
       {view === "library" ? (
         <>
-          <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view="library" />
           <LearningDataExplorer
           attempts={learning.snapshot.attempts}
           knowledgeEntries={data.knowledgeEntries}
@@ -149,7 +142,6 @@ export function ReviewWorkspaceCoreViews({
 
       {view === "review" ? (
         <>
-          <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view="review" />
           <ReviewView
           answerOpen={learning.snapshot.answerOpen}
           associatedKnowledge={knowledge.snapshot.currentReviewLinkedEntries}

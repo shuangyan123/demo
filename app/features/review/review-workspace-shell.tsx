@@ -17,6 +17,7 @@ type ReviewWorkspaceShellProps = {
   folders: AiConversationFolder[];
   activeConversationId?: string | null;
   notice: string;
+  sidebarFooter?: ReactNode;
   sidebarOverride?: ReactNode;
   sidebarCollapsed: boolean;
   today: Date;
@@ -61,6 +62,7 @@ export function ReviewWorkspaceShell({
   folders,
   activeConversationId,
   notice,
+  sidebarFooter,
   sidebarOverride,
   sidebarCollapsed,
   today,
@@ -84,6 +86,7 @@ export function ReviewWorkspaceShell({
       automationUnreadCount={automationUnreadCount}
       conversations={conversations}
       folders={folders}
+      footer={sidebarFooter}
       view={view}
       onNotice={onNotice}
       onOpenConversation={onOpenConversation}

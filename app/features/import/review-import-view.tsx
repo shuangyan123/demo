@@ -85,8 +85,10 @@ export function ImportView({
       <FenbiQuickImportPanel
         credential={fenbiQuickImport.credential}
         error={fenbiQuickImport.error}
+        errorCode={fenbiQuickImport.errorCode}
         fallbackRecommended={fenbiQuickImport.fallbackRecommended}
         progress={fenbiQuickImport.progress}
+        requestId={fenbiQuickImport.requestId}
         stage={fenbiQuickImport.stage}
         status={fenbiQuickImport.status}
         onCancel={fenbiQuickImport.cancel}

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import "./conversation-navigation.contract.test.ts";
 
 const composer = readFileSync(new URL("./conversation-composer.tsx", import.meta.url), "utf8");
 const addMenu = readFileSync(new URL("./conversation-add-menu.tsx", import.meta.url), "utf8");

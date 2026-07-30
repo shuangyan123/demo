@@ -3,6 +3,7 @@ import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
 import { secretContext } from "./secret-context.ts";
 import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
+import { normalizeFenbiCookie } from "./fenbi-cookie.ts";
 
 export const FENBI_CREDENTIAL_STORAGE_KEY = secretStorageLocations.fenbiCredential;
 
@@ -28,8 +29,7 @@ export const fenbiCredentialRepository = {
 
   async save(cookie: string): Promise<FenbiImportCredential> {
     await ensureStoredSecretsMigrated();
-    const normalized = cookie.trim();
-    if (!normalized) throw new Error("请输入粉笔 Cookie");
+    const normalized = normalizeFenbiCookie(cookie);
     const encrypted = await encryptSecret(normalized, secretContext.fenbiCookie());
     const credential: FenbiImportCredential = {
       encryptedCookie: encrypted.encryptedKey,

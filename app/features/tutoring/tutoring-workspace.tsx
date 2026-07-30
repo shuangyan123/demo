@@ -5,11 +5,11 @@ import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { Mistake } from "../../types/domains/review.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import type { TutoringPlan, TutoringSession } from "../../types/domains/tutoring.ts";
+import type { WorkspaceDataScope } from "../../services/workspace-data-scope";
 import { Button, DataList, DataRow, EmptyState, FormGrid, Panel, SegmentedTabs, SelectField, TextAreaField, TextField, Toolbar } from "../shared/ui-primitives";
 import { useTutoringFlow } from "./use-tutoring-flow.ts";
 
 type TutoringHistoryTab = "records" | "plans" | "links";
-
 function formatDateTime(value?: string) {
   if (!value) return "未记录";
   return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
@@ -18,7 +18,6 @@ function formatDateTime(value?: string) {
 function formText(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
 }
-
 function tomorrowISO() {
   const next = new Date();
   next.setDate(next.getDate() + 1);
@@ -34,6 +33,7 @@ export function TutoringWorkspace({
   personalizationSettings,
   onNotice,
   onOpenConversation,
+  scope,
 }: {
   textConnection?: ApiConnectionProfile;
   visionConnection?: ApiConnectionProfile;
@@ -42,17 +42,17 @@ export function TutoringWorkspace({
   personalizationSettings: PersonalizationSettings;
   onNotice: (message: string) => void;
   onOpenConversation: (conversationId: string) => void;
+  scope: WorkspaceDataScope;
 }) {
   const [tab, setTab] = useState<TutoringHistoryTab>("records");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const tutoring = useTutoringFlow({ textConnection, visionConnection, onNotice, personalizationSettings });
+  const tutoring = useTutoringFlow({ textConnection, visionConnection, onNotice, personalizationSettings, scope });
   const selectedSession = tutoring.snapshot.sessions.find((session) => session.id === selectedSessionId)
     ?? tutoring.snapshot.sessions[0]
     ?? null;
-  const activeLinks = useMemo(
-    () => selectedSession ? tutoring.snapshot.links.filter((link) => link.sourceType === "session" && link.sourceId === selectedSession.id) : [],
-    [selectedSession, tutoring.snapshot.links],
-  );
+  const activeLinks = useMemo(() => selectedSession
+    ? tutoring.snapshot.links.filter((link) => link.sourceType === "session" && link.sourceId === selectedSession.id)
+    : [], [selectedSession, tutoring.snapshot.links]);
 
   async function addPlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

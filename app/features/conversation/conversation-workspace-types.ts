@@ -17,6 +17,7 @@ export type ConversationWorkspaceProps = {
   scheduledCount: number;
   snapshot: ConversationSnapshot;
   transcriptionConnection?: ApiConnectionProfile;
+  sampleMode?: boolean;
   onCreateConversation: (input?: { selectedConnectionId?: string; selectedModelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues }) => Promise<AiConversation>;
   onConversationSelected: (id: string) => void;
   onOpenConnections: () => void;

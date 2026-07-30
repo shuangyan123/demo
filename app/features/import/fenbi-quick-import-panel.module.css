@@ -27,6 +27,8 @@
 .track { height: 4px; overflow: hidden; border-radius: 999px; background: var(--color-surface-muted); }
 .fill { height: 100%; border-radius: inherit; background: #2e9d67; transition: width 160ms ease; }
 .error { border-radius: 8px; background: color-mix(in srgb, #dc4c4c 9%, transparent); color: #b53232; padding: 8px 10px; font-size: 12px; }
+.error small { display: block; margin-top: 4px; font-family: var(--app-code-font); font-size: 10px; opacity: 0.82; }
+.modalProgress { border-radius: 8px; background: var(--surface-muted); padding: 8px 10px; color: var(--muted); font-size: 12px; }
 .fallback { min-height: 86px; padding: 12px; border: 1px dashed var(--color-line); border-radius: 9px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .fallbackText strong { display: block; font-size: 13px; }
 .fallbackText span { display: block; margin-top: 2px; color: var(--color-muted); font-size: 12px; }

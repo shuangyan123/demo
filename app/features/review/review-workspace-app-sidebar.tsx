@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
@@ -17,6 +18,7 @@ type ReviewWorkspaceAppSidebarProps = {
   automationUnreadCount: number;
   conversations: AiConversation[];
   folders: AiConversationFolder[];
+  footer?: ReactNode;
   view: ViewKey;
   onNotice: (message: string) => void;
   onOpenConversation: (id: string) => void;
@@ -33,6 +35,7 @@ export function ReviewWorkspaceAppSidebar({
   automationUnreadCount,
   conversations,
   folders,
+  footer,
   view,
   onNotice,
   onOpenConversation,
@@ -147,6 +150,7 @@ export function ReviewWorkspaceAppSidebar({
         />
       </section>
 
+      {footer}
       <button
         data-mobile-sidebar-close="true"
         className="relative z-40 mt-1 grid min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium hover:bg-chrome-hover max-lg:hidden"

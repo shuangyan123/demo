@@ -1,12 +1,14 @@
 import { normalizeFenbiDraft, type FenbiDraftInput } from "../../services/fenbi-parser.ts";
 import type { FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
 import type { ImportDraft } from "../../types/domains/import.ts";
+import { normalizeFenbiCookie } from "../../services/fenbi-cookie.ts";
 
 const FENBI_ORIGIN = "https://tiku.fenbi.com";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
+const REQUEST_TIMEOUT_MS = 15_000;
 
-export type FenbiImportErrorCode = "invalid_cookie" | "rate_limited" | "upstream_unavailable" | "malformed_response";
+export type FenbiImportErrorCode = "invalid_cookie" | "rate_limited" | "timeout" | "upstream_unavailable" | "malformed_response";
 
 /** 粉笔实验接口错误；仅保留稳定分类和脱敏消息。 */
 export class FenbiAccountImportError extends Error {
@@ -24,6 +26,7 @@ export class FenbiAccountImportError extends Error {
 type AdapterOptions = {
   fetchImpl?: typeof fetch;
   sleep?: (milliseconds: number) => Promise<void>;
+  requestTimeoutMs?: number;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -111,21 +114,36 @@ function classifyResponse(status: number): FenbiAccountImportError {
 export class FenbiAccountImportAdapter {
   private readonly fetchImpl: typeof fetch;
   private readonly sleep: (milliseconds: number) => Promise<void>;
+  private readonly requestTimeoutMs: number;
 
   constructor(options: AdapterOptions = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    this.requestTimeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
   }
 
   private async getJson(path: string, cookie: string, signal?: AbortSignal): Promise<unknown> {
     if (!path.startsWith("/api/xingce/")) throw new FenbiAccountImportError("malformed_response", "粉笔接口路径不在允许范围内。", 400);
-    const response = await this.fetchImpl(new URL(path, FENBI_ORIGIN), {
-      method: "GET",
-      headers: { Accept: "application/json", Cookie: cookie },
-      cache: "no-store",
-      redirect: "error",
-      signal,
-    });
+    const timeoutSignal = AbortSignal.timeout(this.requestTimeoutMs);
+    const boundedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+    let response: Response;
+    try {
+      response = await this.fetchImpl(new URL(path, FENBI_ORIGIN), {
+        method: "GET",
+        headers: { Accept: "application/json", Cookie: cookie },
+        cache: "no-store",
+        redirect: "manual",
+        signal: boundedSignal,
+      });
+    } catch {
+      if (boundedSignal.aborted) {
+        throw new FenbiAccountImportError("timeout", "粉笔请求超时，请稍后重试或使用 PDF/Word 导出。", 504);
+      }
+      throw new FenbiAccountImportError("upstream_unavailable", "粉笔服务暂时不可用，请稍后重试或使用导出文件。", 502);
+    }
+    if (response.status >= 300 && response.status < 400) {
+      throw new FenbiAccountImportError("invalid_cookie", "粉笔会话已跳转到登录页，请重新粘贴 Cookie。", 401);
+    }
     if (!response.ok) throw classifyResponse(response.status);
     try {
       return await response.json();
@@ -135,8 +153,13 @@ export class FenbiAccountImportAdapter {
   }
 
   async validate(cookie: string, signal?: AbortSignal): Promise<void> {
-    if (!cookie.trim() || cookie.length > 16_384) throw new FenbiAccountImportError("invalid_cookie", "请输入有效的粉笔 Cookie。", 400);
-    const payload = await this.getJson("/api/xingce/errors/keypoint-tree", cookie, signal);
+    let normalizedCookie: string;
+    try {
+      normalizedCookie = normalizeFenbiCookie(cookie);
+    } catch (error) {
+      throw new FenbiAccountImportError("invalid_cookie", error instanceof Error ? error.message : "请输入有效的粉笔 Cookie。", 400);
+    }
+    const payload = await this.getJson("/api/xingce/errors/keypoint-tree", normalizedCookie, signal);
     if (!Array.isArray(payload) && !isRecord(payload)) throw new FenbiAccountImportError("malformed_response", "粉笔目录格式已变化，请改用导出文件。", 502);
   }
 
@@ -146,10 +169,16 @@ export class FenbiAccountImportAdapter {
     onEvent: (event: { stage?: "validate" | "catalog" | "questions" | "normalize"; completed?: number; total?: number }) => void,
     signal?: AbortSignal,
   ): Promise<ImportDraft[]> {
+    let normalizedCookie: string;
+    try {
+      normalizedCookie = normalizeFenbiCookie(cookie);
+    } catch (error) {
+      throw new FenbiAccountImportError("invalid_cookie", error instanceof Error ? error.message : "请输入有效的粉笔 Cookie。", 400);
+    }
     onEvent({ stage: "validate" });
-    await this.validate(cookie, signal);
+    await this.validate(normalizedCookie, signal);
     onEvent({ stage: "catalog" });
-    await this.getJson("/api/xingce/errors/keypoint-tree", cookie, signal);
+    await this.getJson("/api/xingce/errors/keypoint-tree", normalizedCookie, signal);
 
     const questions: unknown[] = [];
     let total: number | undefined;
@@ -158,7 +187,7 @@ export class FenbiAccountImportAdapter {
       const query = new URLSearchParams({ offset: String(page * PAGE_SIZE), limit: String(PAGE_SIZE) });
       if (scope.keypointIds?.length) query.set("keypointIds", scope.keypointIds.join(","));
       if (scope.sinceDays) query.set("sinceDays", String(scope.sinceDays));
-      const payload = await this.getJson(`/api/xingce/errors?${query}`, cookie, signal);
+      const payload = await this.getJson(`/api/xingce/errors?${query}`, normalizedCookie, signal);
       const pageItems = arrayAt(payload, ["items", "list", "errors", "results"]);
       if (!pageItems.length && page === 0 && numericAt(payload, ["total", "count"]) !== 0) {
         throw new FenbiAccountImportError("malformed_response", "粉笔错题列表格式已变化，请改用导出文件。", 502);
@@ -179,7 +208,7 @@ export class FenbiAccountImportAdapter {
     const worker = async () => {
       while (cursor < chunks.length) {
         const chunk = chunks[cursor++];
-        const payload = await this.getJson(`/api/xingce/solutions?ids=${encodeURIComponent(chunk.join(","))}`, cookie, signal);
+        const payload = await this.getJson(`/api/xingce/solutions?ids=${encodeURIComponent(chunk.join(","))}`, normalizedCookie, signal);
         for (const item of arrayAt(payload, ["items", "list", "solutions", "results"])) {
           const id = sourceIdOf(item);
           if (id) solutions.set(id, item);

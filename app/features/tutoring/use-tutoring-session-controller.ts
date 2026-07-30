@@ -54,7 +54,7 @@ export function useTutoringSessionController({
       mode: media.mode,
       topic: sessionTopic,
     });
-    tutoring.setActiveSessionId(session.id);
+    if (session) tutoring.setActiveSessionId(session.id);
   }
 
   function captureCurrentFrame() {

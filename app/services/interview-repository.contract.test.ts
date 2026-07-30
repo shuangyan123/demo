@@ -48,6 +48,41 @@ test("面试计时支持旧记录自动开始、暂停、继续、换轮和完�
   assert.equal(finished.timerStatus, "finished");
   assert.equal(interviewTurnElapsedSec(finished, start + 500_000), 5);
   assert.equal(normalizeInterviewTimer(session({ status: "evaluated" }), start).timerStatus, "finished");
+  assert.equal(normalizeInterviewTimer(session({ status: "cancelled" }), start).timerStatus, "finished");
+});
+
+test("零回答中止冻结计时且不生成评分、不推进训练计划", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  await reviewDb.interviewQuestions.put(question("question-1", "structured"));
+  await reviewDb.interviewPracticePlans.put({
+    id: "plan-cancel",
+    type: "structured",
+    title: "中止测试计划",
+    questionIds: ["question-1"],
+    targetSessionCount: 2,
+    completedSessionCount: 0,
+    nextPracticeAt: base,
+    status: "active",
+    reason: "",
+    createdAt: base,
+    updatedAt: base,
+  });
+  await reviewDb.interviewSessions.put(session({
+    id: "cancel-session",
+    planId: "plan-cancel",
+    timerStatus: "running",
+    currentTurnStartedAt: base,
+  }));
+
+  await interviewRepository.cancelSession("cancel-session");
+  const cancelled = await reviewDb.interviewSessions.get("cancel-session");
+  assert.equal(cancelled?.status, "cancelled");
+  assert.equal(cancelled?.timerStatus, "finished");
+  assert.equal(cancelled?.currentTurnStartedAt, undefined);
+  assert.equal(await reviewDb.interviewEvaluations.where("sessionId").equals("cancel-session").count(), 0);
+  assert.equal((await reviewDb.interviewPracticePlans.get("plan-cancel"))?.completedSessionCount, 0);
+  await reviewDb.delete();
 });
 
 test("v16 使用现有单字段索引删除三类示例题并清理题组、计划和关联", async () => {

@@ -14,6 +14,7 @@ import {
 import { makeToday } from "../../lib/review-utils";
 import type { AppearanceSettings } from "../../types/domains/appearance.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
+import type { WorkspaceDataScope } from "../../services/workspace-data-scope";
 import { useReviewConversationController } from "./use-review-conversation-controller.ts";
 import { useReviewKnowledgeController } from "./use-review-knowledge-controller.ts";
 import { useReviewLearningController } from "./use-review-learning-controller.ts";
@@ -21,13 +22,14 @@ import { useReviewNotice } from "./use-review-notice.ts";
 import { useReviewWorkspaceData } from "./use-review-workspace-data.ts";
 import { useReviewWorkspaceHealth } from "./use-review-workspace-health.ts";
 import { useReviewWorkspaceRecoveryNavigation } from "./use-review-workspace-recovery-navigation.ts";
+import { getSampleScenario } from "../shared/sample-scenario-registry";
 
 /** 组合领域 controller 与跨模块依赖；展示结构由独立 view router 负责。 */
-export function useReviewWorkspaceController() {
+export function useReviewWorkspaceController(scope: WorkspaceDataScope) {
   const [today] = useState(() => makeToday());
   const { markReadFailed, markSynced, notice, setNotice } = useReviewNotice();
   const dataNotice = useMemo(() => ({ onReadFailed: markReadFailed, onSynced: markSynced }), [markReadFailed, markSynced]);
-  const data = useReviewWorkspaceData(today, dataNotice);
+  const data = useReviewWorkspaceData(today, dataNotice, scope);
   const aiConnections = useAiConnections(setNotice);
   const personalization = usePersonalizationSettings(setNotice);
   const automation = useAutomationCenter({
@@ -36,9 +38,11 @@ export function useReviewWorkspaceController() {
     personalization: personalization.settings,
     onChanged: data.refreshData,
     onNotice: setNotice,
+    scope,
   });
   const [appearanceSettings, setAppearanceSettings] = useState<AppearanceSettings>(() => createDefaultAppearanceSettings());
-  const { lastAppView, switchView: navigateView, view } = useWorkspaceNavigation<ViewKey>("dashboard", "settings");
+  const initialView = scope.kind === "sample" ? getSampleScenario(scope.scenarioId)?.view ?? "dashboard" : "dashboard";
+  const { lastAppView, switchView: navigateView, view } = useWorkspaceNavigation<ViewKey>(initialView, "settings");
   const { sidebarCollapsed, toggleSidebar } = useWorkspaceSidebar();
 
   const {
@@ -88,6 +92,7 @@ export function useReviewWorkspaceController() {
     onOpenMcpSettings: openMcpSettings,
     onSwitchView: switchView,
     today,
+    scope,
   });
 
   const health = useReviewWorkspaceHealth({
@@ -176,6 +181,7 @@ export function useReviewWorkspaceController() {
       setSettingsSection,
       settingsSection,
       sidebarCollapsed,
+      scope,
       switchView,
       today,
       toggleSidebar,

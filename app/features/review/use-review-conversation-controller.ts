@@ -10,6 +10,7 @@ import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { Mistake } from "../../types/domains/review.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import type { ConversationLaunchContext } from "../conversation/conversation-launch-context";
+import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
 type UseReviewConversationControllerInput = {
   automationSnapshot: AutomationSnapshot;
@@ -20,13 +21,25 @@ type UseReviewConversationControllerInput = {
   onOpenMcpSettings: (message: string) => void;
   onSwitchView: (view: ViewKey) => void;
   today: Date;
+  scope: WorkspaceDataScope;
 };
 
 const EMPTY_SNAPSHOT: ConversationSnapshot = { projects: [], folders: [], conversations: [], attachments: [], messages: [], runSteps: [] };
 
+function scopeConversationSnapshot(snapshot: ConversationSnapshot, scope: WorkspaceDataScope): ConversationSnapshot {
+  return {
+    projects: filterWorkspaceRecords(snapshot.projects, scope),
+    folders: filterWorkspaceRecords(snapshot.folders, scope),
+    conversations: filterWorkspaceRecords(snapshot.conversations, scope),
+    attachments: filterWorkspaceRecords(snapshot.attachments, scope),
+    messages: filterWorkspaceRecords(snapshot.messages, scope),
+    runSteps: filterWorkspaceRecords(snapshot.runSteps, scope),
+  };
+}
+
 /** 管理主工作台的对话快照、命令搜索和全局快捷键。 */
 export function useReviewConversationController(input: UseReviewConversationControllerInput) {
-  const { automationSnapshot, knowledgeEntries, mistakes, onNotice, onOpenApiSettings, onOpenMcpSettings, onSwitchView, today } = input;
+  const { automationSnapshot, knowledgeEntries, mistakes, onNotice, onOpenApiSettings, onOpenMcpSettings, onSwitchView, scope, today } = input;
   const [snapshot, setSnapshot] = useState<ConversationSnapshot>(EMPTY_SNAPSHOT);
   const [activeConversationId, setActiveConversationId] = useState<string | null | undefined>();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -34,22 +47,23 @@ export function useReviewConversationController(input: UseReviewConversationCont
   const [launchContext, setLaunchContext] = useState<ConversationLaunchContext | null>(null);
 
   const refresh = useCallback(async () => {
-    const nextSnapshot = await conversationRepository.loadSnapshot(today);
+    const nextSnapshot = scopeConversationSnapshot(await conversationRepository.loadSnapshot(today), scope);
     setSnapshot(nextSnapshot);
     setActiveConversationId((current) => current === null ? null : current ?? nextSnapshot.conversations.find((item) => item.status === "active")?.id);
-  }, [today]);
+  }, [scope, today]);
 
   useEffect(() => {
     let active = true;
-    void conversationRepository.loadSnapshot(today).then((nextSnapshot) => {
+    void conversationRepository.loadSnapshot(today).then((loadedSnapshot) => {
       if (!active) return;
+      const nextSnapshot = scopeConversationSnapshot(loadedSnapshot, scope);
       setSnapshot(nextSnapshot);
       setActiveConversationId((current) => current === null ? null : current ?? nextSnapshot.conversations.find((item) => item.status === "active")?.id);
     }).catch((error: unknown) => {
       if (active) onNotice(error instanceof Error ? error.message : "对话读取失败");
     });
     return () => { active = false; };
-  }, [onNotice, today]);
+  }, [onNotice, scope, today]);
 
   const results = useMemo(() => buildCommandSearchResults({ projects: snapshot.projects, conversations: snapshot.conversations, mistakes, knowledgeEntries, automationSnapshot }, searchQuery), [automationSnapshot, knowledgeEntries, mistakes, searchQuery, snapshot.conversations, snapshot.projects]);
   const openBlank = useCallback((context?: ConversationLaunchContext) => {

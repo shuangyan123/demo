@@ -7,13 +7,15 @@ desktop/
 ├─ main.ts          单实例、窗口、安全导航与生命周期
 ├─ runtime.ts       资源校验、随机端口与 Next standalone 子进程
 ├─ protocol.ts      review-app 自定义协议与令牌代理
+├─ preload.ts       context-isolated 最小桌面桥
+├─ vault.ts         Vault 目录选择、恢复与受限 IPC
 └─ permissions.ts   媒体、文件与屏幕来源权限
 ```
 
 - React controller、Dexie repository 与 Route Handlers 保持 Web/Electron 共用；桌面目录不进入 React 业务依赖图。
 - Electron 主进程只管理应用生命周期、安全边界和本地 Next 子进程，不持有学习状态，不解密业务凭据。
 - `next.config.ts` 使用 `output: "standalone"`。浏览器开发仍由 `npm run dev` 提供，Electron 开发加载同一 `http://127.0.0.1:3000`。
-- 安装版数据流为 `review-app://workspace → protocol.handle → 127.0.0.1:随机端口 → Next standalone`。一次性令牌仅存在于主进程和子进程环境，代理转发到 Next 后由根 `proxy.ts` 校验并移除。
+- 安装版数据流为 `review-app://workspace → persist:review-workspace session.protocol.handle → 127.0.0.1:随机端口 → Next standalone`。协议处理器必须与窗口使用同一个持久化 session；一次性令牌仅存在于主进程和子进程环境，代理转发到 Next 后由根 `proxy.ts` 校验并移除。
 - 正式包启用 ASAR 完整性、仅从 ASAR 加载、Cookie 加密以及 Node/CLI 环境入口限制；Electron 43 包继续使用标准 V8 snapshot，因为官方 Windows 分发不包含 browser-process-specific snapshot 文件。
 - IndexedDB 状态继续由现有 repository 管理。稳定自定义 origin 保证重启后存储位置不变，覆盖安装不删除 Electron `userData`。
 
@@ -418,3 +420,10 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `desktop/runtime.ts` 使用 `DesktopRuntimeError` 统一承载稳定错误码；诊断只显示相对路径、退出码和限长脱敏日志。完整性校验保持 SHA-256 全覆盖并使用有限并发。
 - `DevelopmentExampleDefinition` 将示例 ID、业务视图和 fixture 变体集中注册。开发环境在 live controller 挂载前分流，确保示例不读取 IndexedDB、localStorage、Vault 或网络。
 - `InterviewSession` 的计时字段是普通记录字段，不参与索引；`interview-timer.ts` 提供可测试的归一化与状态转换，Dexie 继续使用 `review_workspace` v16。
+
+# v0.2.2 示例作用域与桌面 Vault 边界
+
+- `WorkspaceDataScope` 是核心、对话、导入、自动化、面试和辅导读取的统一边界；默认值永远是个人数据，示例模式由当前 React 生命周期持有。
+- `SampleScenarioDefinition` 只描述场景、真实视图和种子事务。业务子记录继承 `sample:<scenarioId>:` 命名空间，所有真实 AI、粉笔、Vault、文件与网络动作在示例作用域内关闭。
+- `VaultStorageAdapter` 在浏览器使用 File System Access API，在 Electron 使用 context-isolated preload。renderer 不接收桌面绝对路径，主进程负责全部根目录与符号链接校验。
+- 桌面运行时把完整性校验与 spawn 分类分离；只有完整性成功后才允许有限重试，失败诊断保持脱敏且有界。

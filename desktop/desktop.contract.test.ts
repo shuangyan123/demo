@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import "./vault.contract.test.ts";
+import "./runtime-spawn.contract.test.ts";
 
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const runtime = readFileSync(new URL("./runtime.ts", import.meta.url), "utf8");
@@ -21,6 +23,10 @@ test("安装版通过稳定协议代理随机 loopback 且直连需要令牌", (
   assert.match(runtime, /listen\(0,\s*"127\.0\.0\.1"/);
   assert.match(runtime, /randomBytes\(32\)/);
   assert.match(protocol, /review-app/);
+  assert.match(protocol, /targetProtocol\.isProtocolHandled\(DESKTOP_SCHEME\)/);
+  assert.match(protocol, /targetProtocol\.unhandle\(DESKTOP_SCHEME\)/);
+  assert.match(main, /session\.fromPartition\(partition\)/);
+  assert.match(main, /installDesktopProtocol\(runtime\.baseUrl, runtime\.token, workspaceSession\.protocol\)/);
   assert.match(protocol, /x-review-runtime-token/);
   assert.match(proxy, /Desktop runtime access denied/);
 });

@@ -106,7 +106,7 @@ export type InterviewStage =
   | "discussion"
   | "summary"
   | "evaluated";
-export type InterviewStatus = "draft" | "active" | "evaluated";
+export type InterviewStatus = "draft" | "active" | "evaluated" | "cancelled";
 export type InterviewSpeaker = "ai_interviewer" | "candidate" | "ai_peer" | "system";
 export type InterviewLinkSourceType = "question" | "session";
 export type InterviewLinkTargetType = "knowledge" | "mistake";
@@ -197,6 +197,7 @@ export type KnowledgeEntry = {
 /** Obsidian Vault 连接只在 repository 内保留目录句柄，React 只消费可序列化快照。 */
 export type ObsidianVaultConfig = {
   id: "default";
+  backend?: "browser" | "desktop";
   vaultName: string;
   managedRoot: string;
   directoryHandle?: FileSystemDirectoryHandle;

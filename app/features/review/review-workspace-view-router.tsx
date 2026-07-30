@@ -1,16 +1,31 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { CommandSearchPalette } from "../conversation/command-search-palette";
 import { SettingsWorkspaceSidebar } from "../settings/settings-workspace-navigation";
-import { CivilServiceDevelopmentExampleSwitcher } from "../shared/civil-service-development-example-switcher";
+import type { SampleScenarioId } from "../shared/sample-scenario-registry";
 import { ReviewWorkspaceCoreViews } from "./review-workspace-core-views";
 import { SettingsWorkspace } from "./review-workspace-lazy-views";
 import { ReviewWorkspaceSecondaryViews } from "./review-workspace-secondary-views";
 import { ReviewWorkspaceShell } from "./review-workspace-shell";
 import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 
+const SampleScenarioControls = dynamic(() => import("../shared/sample-scenario-controls").then((module) => module.SampleScenarioControls));
+
 /** 装配设置、工作台壳层和当前视图；不读取 repository 或持有业务状态。 */
-export function ReviewWorkspaceViewRouter({ controller, developmentExample }: { controller: ReviewWorkspaceController; developmentExample?: string }) {
+export function ReviewWorkspaceViewRouter({
+  controller,
+  scope,
+  onClearSamples,
+  onExitSample,
+  onLoadSample,
+}: {
+  controller: ReviewWorkspaceController;
+  scope: ReviewWorkspaceController["workspace"]["scope"];
+  onClearSamples: () => Promise<void>;
+  onExitSample: () => void;
+  onLoadSample: (scenarioId: SampleScenarioId) => Promise<void>;
+}) {
   const { automation, conversation, workspace } = controller;
 
   if (workspace.loading) {
@@ -57,13 +72,21 @@ export function ReviewWorkspaceViewRouter({ controller, developmentExample }: { 
       onRefreshConversations={conversation.refresh}
       onSelectView={workspace.switchView}
       onToggleSidebar={workspace.toggleSidebar}
+      sidebarFooter={scope.kind === "personal" ? (
+        <SampleScenarioControls
+          scope={scope}
+          view={workspace.view}
+          onClear={onClearSamples}
+          onExit={onExitSample}
+          onLoad={onLoadSample}
+        />
+      ) : undefined}
     >
       {settingsMode ? (
         <SettingsWorkspace
           activeSection={workspace.settingsSection}
           appearanceSettings={workspace.appearanceSettings}
           diagnosticsInput={workspace.health.diagnosticsInput}
-          developmentExample={developmentExample}
           onAppearanceChange={workspace.updateAppearanceSettings}
           onDataChanged={workspace.refreshAfterDataManagement}
           onConfigurationChanged={() => {
@@ -76,11 +99,12 @@ export function ReviewWorkspaceViewRouter({ controller, developmentExample }: { 
         />
       ) : (
         <>
-          {!["library", "review", "knowledgeTraining", "interview", "entry"].includes(workspace.view) ? (
-            <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view={workspace.view} />
-          ) : null}
-          <ReviewWorkspaceCoreViews controller={controller} developmentExample={developmentExample} />
-          <ReviewWorkspaceSecondaryViews controller={controller} developmentExample={developmentExample} />
+          {scope.kind === "sample" ? <SampleScenarioControls
+            scope={scope} view={workspace.view}
+            onClear={onClearSamples} onExit={onExitSample} onLoad={onLoadSample}
+          /> : null}
+          <ReviewWorkspaceCoreViews controller={controller} />
+          <ReviewWorkspaceSecondaryViews controller={controller} />
           <CommandSearchPalette
             open={conversation.searchOpen}
             results={conversation.results}

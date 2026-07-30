@@ -1,0 +1,53 @@
+:global(.sample-scenario-bar) {
+  display: flex;
+  flex-shrink: 0;
+  width: min(calc(100% - 2rem), 78rem);
+  min-height: 3.25rem;
+  margin: 0.75rem auto 0;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  padding: 0.55rem 0.7rem;
+}
+
+:global(.sample-scenario-bar.is-active) { background: var(--interactive-selected-bg); }
+:global(.sample-scenario-status) { display: flex; min-width: 0; align-items: center; gap: 0.55rem; }
+:global(.sample-scenario-status > div) { display: grid; min-width: 0; }
+:global(.sample-scenario-status strong) { font-size: 0.78rem; }
+:global(.sample-scenario-status span) { overflow: hidden; color: var(--muted); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
+:global(.sample-scenario-actions),
+:global(.sample-scenario-mode-actions) { display: flex; align-items: center; gap: 0.4rem; }
+:global(.sample-scenario-actions) { margin-left: auto; }
+:global(.sample-scenario-bar select),
+:global(.sample-scenario-bar button) {
+  min-height: 2.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: var(--surface);
+  padding: 0.35rem 0.55rem;
+  color: var(--foreground);
+  font-size: 0.72rem;
+}
+:global(.sample-scenario-bar button:hover) { background: var(--surface-muted); }
+:global(.sample-scenario-bar p[role="alert"]) { color: var(--red); font-size: 0.7rem; }
+
+:global(.review-workspace-sidebar .sample-scenario-bar) {
+  display: grid;
+  width: 100%;
+  min-height: auto;
+  margin: 0.5rem 0 0;
+  gap: 0.45rem;
+  padding: 0.5rem;
+}
+:global(.review-workspace-sidebar .sample-scenario-status span) { white-space: normal; }
+:global(.review-workspace-sidebar .sample-scenario-actions) { width: 100%; margin-left: 0; }
+:global(.review-workspace-sidebar .sample-scenario-actions select) { min-width: 0; flex: 1; }
+
+@media (max-width: 720px) {
+  :global(.sample-scenario-bar) { width: calc(100% - 1.25rem); align-items: stretch; flex-direction: column; }
+  :global(.sample-scenario-actions),
+  :global(.sample-scenario-mode-actions) { width: 100%; margin-left: 0; }
+  :global(.sample-scenario-actions select) { min-width: 0; flex: 1; }
+}

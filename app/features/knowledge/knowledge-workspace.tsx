@@ -295,6 +295,7 @@ export function KnowledgeView({
   onNotice,
   personalizationSettings,
   textConnection,
+  sampleMode = false,
 }: {
   aiAssociationBusy: boolean;
   apiReady: boolean;
@@ -331,12 +332,13 @@ export function KnowledgeView({
   onNotice: (message: string) => void;
   personalizationSettings: PersonalizationSettings;
   textConnection?: ApiConnectionProfile;
+  sampleMode?: boolean;
 }) {
   const total = summaries.reduce((sum, item) => sum + item.total, 0);
   const favorites = summaries.reduce((sum, item) => sum + item.favorites, 0);
   const dueCount = summaries.reduce((sum, item) => sum + item.due, 0);
   const weakCount = summaries.reduce((sum, item) => sum + item.weak, 0);
-  const obsidian = useObsidianKnowledgeBridge({ entries: allKnowledgeEntries, personalization: personalizationSettings, textConnection, onChanged: onKnowledgeChanged, onNotice });
+  const obsidian = useObsidianKnowledgeBridge({ entries: allKnowledgeEntries, personalization: personalizationSettings, textConnection, onChanged: onKnowledgeChanged, onNotice, sampleMode });
   const knowledgeList = useKnowledgeListController({ entries, filters, onBulkDeleteEntries, onExportKnowledgeEntries });
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
