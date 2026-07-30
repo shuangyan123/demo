@@ -204,13 +204,13 @@ export function SidebarNav<T extends string>({
   }, [activeKey]);
 
   return (
-    <nav className="scrollbar-none grid gap-1" aria-label="侧栏导航">
+    <nav className="scrollbar-none grid gap-px" aria-label="侧栏导航">
       {items.map((item) => (
         <button
           key={item.key}
           data-mobile-sidebar-close="true"
           ref={activeKey === item.key ? activeItemRef : undefined}
-          className={`grid min-h-9 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium max-lg:min-h-11 ${
+          className={`grid min-h-8 grid-cols-[18px_1fr_auto] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 max-lg:px-3 ${
             activeKey === item.key ? "bg-chrome-selected" : "hover:bg-chrome-hover"
           }`}
           type="button"

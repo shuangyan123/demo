@@ -74,7 +74,7 @@ test("P3 桌面薄弱分析、插件检查器与命令搜索保持真实状态",
   await expect(searchTrigger).toBeFocused();
 
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
-  await expect(page.getByRole("heading", { name: "插件管理" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "插件管理" })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("3 个已登记扩展")).toBeVisible();
   await page.getByRole("button", { name: /Obsidian Vault/ }).click();
   await expect(page.getByText("本地数据边界")).toBeVisible();

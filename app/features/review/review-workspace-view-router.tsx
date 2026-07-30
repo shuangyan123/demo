@@ -2,6 +2,7 @@
 
 import { CommandSearchPalette } from "../conversation/command-search-palette";
 import { SettingsWorkspaceSidebar } from "../settings/settings-workspace-navigation";
+import { CivilServiceDevelopmentExampleSwitcher } from "../shared/civil-service-development-example-switcher";
 import { ReviewWorkspaceCoreViews } from "./review-workspace-core-views";
 import { SettingsWorkspace } from "./review-workspace-lazy-views";
 import { ReviewWorkspaceSecondaryViews } from "./review-workspace-secondary-views";
@@ -75,7 +76,10 @@ export function ReviewWorkspaceViewRouter({ controller, developmentExample }: { 
         />
       ) : (
         <>
-          <ReviewWorkspaceCoreViews controller={controller} />
+          {!["library", "review", "knowledgeTraining", "interview", "entry"].includes(workspace.view) ? (
+            <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view={workspace.view} />
+          ) : null}
+          <ReviewWorkspaceCoreViews controller={controller} developmentExample={developmentExample} />
           <ReviewWorkspaceSecondaryViews controller={controller} developmentExample={developmentExample} />
           <CommandSearchPalette
             open={conversation.searchOpen}

@@ -471,7 +471,6 @@ export function ConversationWorkspace({
           selectedModelId={selectedModelId}
           selectedRuntimeValues={selectedRuntimeValues}
           modelSelectionError={selectionError}
-          onAppendShortcut={() => setDraft((current) => `${current}${current ? " " : ""}/`)}
           onAttachmentsAdd={(nextAttachments) => setAttachments((current) => [...current, ...nextAttachments])}
           onAttachmentRemove={(attachmentId) => setAttachments((current) => current.filter((item) => item.id !== attachmentId))}
           onCaptureScreen={() => void captureScreenForAnalysis()}

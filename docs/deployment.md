@@ -1,5 +1,28 @@
 # 部署与验证
 
+## Windows x64 私人桌面版
+
+当前阶段只支持 Windows x64 私人安装，不配置自动更新或公开发布仓。
+
+```bash
+npm run desktop:dev       # localhost:3000 与 Electron 开发窗口
+npm run desktop:package   # 未安装目录
+npm run desktop:make      # Squirrel.Windows 安装包
+```
+
+`desktop:prepare` 会先执行 Next 生产构建和桌面 TypeScript 编译，再准备固定的 Node.js 22.23.1 与 Electron Windows x64 归档。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm 安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。缓存位于 `.cache/desktop-runtime` 和 `.cache/electron`，组装结果位于 `.desktop-runtime`，均不提交。
+
+安装包首次与后续覆盖安装共用 Electron `persist:review-workspace` partition。覆盖安装不得清理 Electron 用户数据目录。更新时从私人仓库拉取受信任代码，重新运行 `desktop:make` 并覆盖安装。
+
+Windows 打包会先生成最小 `.desktop-app` host，再把 Next standalone、Node 运行时和哈希清单作为受控资源加入安装包。构建预加载器只修正 Forge 的 Windows glob 并跳过高内存的 PE 图标重写；产品名、fuse 与 ASAR 完整性资源由后置步骤写入。不要手动删除或绕过该链路。
+
+桌面发布前至少执行 `typecheck`、`lint`、`test:contracts`、`test:desktop`、`build`、`check:bundle`、`audit:prod` 和 `desktop:make`，随后在干净 Windows x64 环境人工验证单实例、持久化、覆盖安装、媒体权限、Obsidian、Route Handlers、篡改资源、非法导航和无令牌直连。
+
+`.github/workflows/desktop-release.yml` 只在 `windows-latest` 上制作 x64 安装包。手动触发会保留 14 天 workflow artifact；推送 `v<package.json.version>` 标签会先校验版本一致性，完成 Web、桌面、审计和 E2E 门禁，再创建包含 `SHA256SUMS.txt` 的 Draft Release。发布仍需人工确认，普通 PR 和 Web 部署不会创建安装包或 Release。
+
+Web 与桌面使用同一仓库和同一 commit：`ci.yml` 负责共享应用、浏览器 E2E、桌面 TypeScript 与契约；桌面发布工作流负责目标 Windows 环境的最终打包。安装包、`.desktop-runtime`、Forge `out/`、令牌和签名材料均不得提交。
+
+
 ## GitHub Actions 质量门
 
 Pull Request 和 `main` 推送统一使用 Node.js 22 执行 `npm ci`、ESLint、契约测试和生产构建；全部通过后方可合并。契约测试依赖 Node.js 22 的 TypeScript 运行参数，真实 Vault 与外部 AI 连接只在本地 Chrome/Edge 验收，不向 CI 上传目录内容或 API Key。
@@ -69,7 +92,7 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 ## AI 连接保存与 UI 发布检查（2026-07-26）
 
 - 发布门禁已覆盖 `typecheck`、`lint`、239 项契约、生产构建、包体、生产依赖审计和 54 项 E2E；生产依赖漏洞为 0。
-- 视觉证据保存在 `docs/design/ai-connection-save-ui-closure/`。应用内浏览器仅出现严格 CSP 阻止 React 开发调试 `eval` 的提示，生产构建不依赖该能力。
+- 视觉证据保存在 `docs/design/ai-connection-save-ui-closure/`。开发服务器只在 `NODE_ENV=development` 时为 React 调试加入 `unsafe-eval`；生产 CSP 继续禁用该能力。
 - 真实厂商调用仍需在本机显式提供测试凭据；自动化只使用隔离的 mock provider，不提交或记录真实 Key。
 
 ## 额度与组件示例发布检查（2026-07-26）
@@ -78,3 +101,8 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 - 发布前验证额度停用可在刷新中立即执行，缺凭据启用不外联，刷新失败不回滚启用状态，一个厂商 Busy 不锁定其他厂商。
 - 桌面检查 1115×792、1468×674、1536×1024，移动检查 390×844；确认设置主区顶边、插件详情滚动、连接列中心、Claude 品牌色和搜索框焦点计算样式。
 - 本轮发布门禁通过 `typecheck`、`lint`、245 项契约、生产构建、包体预算、生产依赖审计和 55 项 E2E；另有 1 项截图任务仅在 `CAPTURE_VISUALS=1` 时启用并已单独通过。
+# Windows v0.2.1 发布
+
+- 正式 Release 只包含 `ReviewWorkspace-0.2.1-Windows-x64-Setup.exe` 和 `SHA256SUMS.txt`。
+- 必须运行安装器；`review-workspace.exe` 依赖同安装目录的 `resources`，不能脱离目录单独分发。
+- 覆盖安装保留 Electron `persist:review-workspace` 用户数据。当前私人 Windows x64 版本未签名，SmartScreen 可能显示未知发布者。

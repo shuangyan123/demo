@@ -53,7 +53,9 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
 
     await page.getByRole("button", { name: "返回应用" }).click();
     await page.getByRole("button", { name: "新对话", exact: true }).click();
-    await expect(page.getByRole("button", { name: "选择模型" })).toContainText("gpt-5.5");
+    const trigger = page.getByRole("button", { name: "选择模型" });
+    await expect(trigger).toBeVisible({ timeout: 15_000 });
+    await expect(trigger).toContainText("gpt-5.5", { timeout: 15_000 });
     await page.getByRole("textbox", { name: "对话输入" }).fill("先建立持久化会话");
     await page.getByRole("button", { name: "发送" }).click();
     await expect(page.getByText("运行选项已应用").last()).toBeVisible();
@@ -66,7 +68,6 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     await expect(page.getByRole("textbox", { name: "对话输入" })).toHaveValue("先建立持久化会话");
     await expect(page.getByRole("textbox", { name: "对话输入" })).toHaveValue("");
 
-    const trigger = page.getByRole("button", { name: "选择模型" });
     await trigger.click();
     const dialog = page.getByRole("dialog", { name: "选择对话模型" });
     await dialog.getByRole("button", { name: "OpenAI" }).click();

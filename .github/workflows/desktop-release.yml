@@ -1,0 +1,104 @@
+name: Desktop Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-x64:
+    name: Windows x64 package
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify release version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $package = Get-Content -Raw package.json | ConvertFrom-Json
+          $expected = "v$($package.version)"
+          if ("${{ github.ref_name }}" -ne $expected) {
+            throw "Tag ${{ github.ref_name }} does not match package.json version $expected"
+          }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Contract tests
+        run: npm run test:contracts
+
+      - name: Desktop contracts
+        run: npm run test:desktop
+
+      - name: Production dependency audit
+        run: npm run audit:prod
+
+      - name: Production build
+        run: npm run build
+
+      - name: Bundle budget
+        run: npm run check:bundle
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Desktop and mobile E2E
+        run: npm run test:e2e
+
+      - name: Make Windows installer
+        run: npm run desktop:make
+
+      - name: Generate SHA-256 manifest
+        shell: pwsh
+        run: |
+          $package = Get-Content -Raw package.json | ConvertFrom-Json
+          $installerName = "ReviewWorkspace-$($package.version)-Windows-x64-Setup.exe"
+          $installer = Get-ChildItem -LiteralPath "out\make" -Recurse -File -Filter $installerName | Select-Object -First 1
+          if (-not $installer) { throw "Missing installer $installerName" }
+          $releaseDirectory = New-Item -ItemType Directory -Force "out\release"
+          Copy-Item -LiteralPath $installer.FullName -Destination (Join-Path $releaseDirectory $installerName)
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
+          "$hash  $installerName" | Set-Content -Encoding utf8 (Join-Path $releaseDirectory "SHA256SUMS.txt")
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-workspace-windows-x64-${{ github.sha }}
+          path: out/release/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $package = Get-Content -Raw package.json | ConvertFrom-Json
+          $installerName = "ReviewWorkspace-$($package.version)-Windows-x64-Setup.exe"
+          $notes = @"
+          Windows x64 安装版。请运行 $installerName 完成安装或覆盖升级。
+
+          不分发脱离 resources 目录无法独立运行的裸主程序。Windows SmartScreen 可能因当前版本未签名而提示未知发布者。
+          "@
+          gh release create "${{ github.ref_name }}" "out/release/$installerName" "out/release/SHA256SUMS.txt" --notes $notes --title "错题复盘 ${{ github.ref_name }}"

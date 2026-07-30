@@ -473,7 +473,7 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
           </div>
           <div className={compactStyles.connectionTable}>
             <div className={compactStyles.connectionTableHeader} aria-hidden="true">
-              <span>厂商 / 连接名称</span><span>Base URL</span><span>状态</span><span>最近测试</span><span>操作</span>
+              <span className={compactStyles.cellStart}>厂商 / 连接名称</span><span className={compactStyles.cellStart}>Base URL</span><span className={compactStyles.cellCenter}>状态</span><span className={compactStyles.cellCenter}>最近测试</span><span className={compactStyles.cellCenter}>操作</span>
             </div>
             {snapshot.profiles.length ? snapshot.profiles.map((profile) => (
               <article key={profile.id} className={compactStyles.connectionRow} data-selected={form.id === profile.id}>
@@ -481,10 +481,10 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
                     <ProviderIcon provider={profile.provider} size={26} />
                     <span><strong>{getProviderContract(profile.provider).label}</strong><small>{profile.label}</small></span>
                   </button>
-                  <code className={compactStyles.connectionUrl}>{profile.baseUrl}</code>
-                  <span className={compactStyles.connectionStatus} data-status={credentialHealth[profile.id]?.status === "reentry_required" ? "failed" : profile.testStatus ?? "saved"}>{credentialHealth[profile.id]?.status === "reentry_required" ? "需要重新输入" : statusLabel(profile)}</span>
-                  <span className="text-xs text-muted">{profile.testStatus && profile.testStatus !== "idle" ? formatConnectionDate(profile.updatedAt) : "尚未测试"}</span>
-                  <div className={compactStyles.connectionActions}>
+                  <code className={`${compactStyles.connectionUrl} ${compactStyles.cellStart}`}>{profile.baseUrl}</code>
+                  <span className={`${compactStyles.connectionStatus} ${compactStyles.cellCenter}`} data-status={credentialHealth[profile.id]?.status === "reentry_required" ? "failed" : profile.testStatus ?? "saved"}>{credentialHealth[profile.id]?.status === "reentry_required" ? "需要重新输入" : statusLabel(profile)}</span>
+                  <span className={`${compactStyles.cellCenter} text-xs text-muted`}>{profile.testStatus && profile.testStatus !== "idle" ? formatConnectionDate(profile.updatedAt) : "尚未测试"}</span>
+                  <div className={`${compactStyles.connectionActions} ${compactStyles.cellCenter}`}>
                     <Button size="sm" variant="ghost" onClick={() => editProfile(profile)}>{credentialHealth[profile.id]?.status === "reentry_required" ? "重新输入密钥" : "编辑"}</Button>
                     <Button size="sm" variant="ghost" disabled={Boolean(busyAction) || credentialHealth[profile.id]?.status === "reentry_required"} onClick={() => void testSavedProfile(profile)}>{busyAction === `test:${profile.id}` ? "测试中" : "测试"}</Button>
                     <Button size="sm" variant="danger" onClick={() => void removeProfile(profile)}>删除</Button>
@@ -520,7 +520,7 @@ function ApiConnectionsDevelopmentExample({ scenario }: { scenario: string }) {
       {recovery ? <div className={`${compactStyles.credentialRecovery} mt-4`} role="status"><strong>凭据需要重新输入</strong><span>当前来源无法读取原凭据；重新输入只会替换此连接。</span></div> : null}
       <div className={compactStyles.connectionTable}>
         <div className={compactStyles.connectionTableHeader} aria-hidden="true">
-          <span>厂商 / 连接名称</span><span>Base URL</span><span>状态</span><span>最近测试</span><span>操作</span>
+          <span className={compactStyles.cellStart}>厂商 / 连接名称</span><span className={compactStyles.cellStart}>Base URL</span><span className={compactStyles.cellCenter}>状态</span><span className={compactStyles.cellCenter}>最近测试</span><span className={compactStyles.cellCenter}>操作</span>
         </div>
         {rows.map((row) => (
           <article key={row.id} className={compactStyles.connectionRow}>
@@ -528,10 +528,10 @@ function ApiConnectionsDevelopmentExample({ scenario }: { scenario: string }) {
               <ProviderIcon provider={row.provider} size={26} />
               <span><strong>{row.vendor}</strong><small>{row.label}</small></span>
             </button>
-            <code className={compactStyles.connectionUrl}>{row.url}</code>
-            <span className={compactStyles.connectionStatus} data-status={row.status.includes("失败") || row.status.includes("重新") ? "failed" : "success"}>{row.status}</span>
-            <span className="text-center text-xs text-muted">{row.tested}</span>
-            <div className={compactStyles.connectionActions}><Button size="sm" variant="ghost">{recovery && row.id === "example-openai" ? "重新输入密钥" : "编辑"}</Button><Button size="sm" variant="ghost">测试</Button></div>
+            <code className={`${compactStyles.connectionUrl} ${compactStyles.cellStart}`}>{row.url}</code>
+            <span className={`${compactStyles.connectionStatus} ${compactStyles.cellCenter}`} data-status={row.status.includes("失败") || row.status.includes("重新") ? "failed" : "success"}>{row.status}</span>
+            <span className={`${compactStyles.cellCenter} text-xs text-muted`}>{row.tested}</span>
+            <div className={`${compactStyles.connectionActions} ${compactStyles.cellCenter}`}><Button size="sm" variant="ghost">{recovery && row.id === "example-openai" ? "重新输入密钥" : "编辑"}</Button><Button size="sm" variant="ghost">测试</Button></div>
           </article>
         ))}
       </div>

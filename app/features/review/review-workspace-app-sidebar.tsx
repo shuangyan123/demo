@@ -69,18 +69,18 @@ export function ReviewWorkspaceAppSidebar({
 
   return (
     <>
-      <nav className="grid gap-1" aria-label="工作台快捷入口">
+      <nav className="grid gap-px" aria-label="工作台快捷入口">
         {topActions.map((item) => (
           <button
             key={item.id}
             data-mobile-sidebar-close="true"
-            className={`grid min-h-10 grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium ${item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"}`}
+            className={`grid min-h-8 grid-cols-[18px_1fr_auto] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 max-lg:px-3 ${item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"}`}
             type="button"
             onClick={item.onClick}
             onFocus={() => preloadReviewView(item.preload)}
             onMouseEnter={() => preloadReviewView(item.preload)}
           >
-            <AppIcon name={item.icon} size={20} />
+            <AppIcon name={item.icon} size={18} />
             <span className="truncate">{item.label}</span>
             {item.badge ? <span className="inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-foreground px-1 text-[11px] text-[var(--surface)]">{item.badge}</span> : null}
           </button>
@@ -89,45 +89,45 @@ export function ReviewWorkspaceAppSidebar({
 
       <button
         data-mobile-sidebar-close="true"
-        className="hidden min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:grid"
+        className="hidden min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium hover:bg-chrome-hover max-lg:min-h-11 max-lg:grid max-lg:grid-cols-[20px_1fr] max-lg:gap-2.5 max-lg:px-3"
         type="button"
         onClick={onOpenSettings}
         onFocus={() => preloadReviewView("settings")}
         onMouseEnter={() => preloadReviewView("settings")}
       >
-        <AppIcon name="settings" size={20} />
+        <AppIcon name="settings" size={18} />
         <span>设置</span>
       </button>
 
-      <section className="mt-7 min-h-0 flex-1 overflow-y-auto pr-1" aria-label="项目和对话">
-        <div className="mb-2 flex items-center justify-between gap-2 px-3">
+      <section className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1" aria-label="项目和对话">
+        <div className="mb-1 flex items-center justify-between gap-2 px-2.5">
           <p className="text-xs font-medium text-muted">项目</p>
           <span className="text-[11px] text-muted">专项学习</span>
         </div>
-        <details className="group rounded-lg bg-chrome-selected/60 p-1">
-          <summary className={`grid min-h-10 cursor-pointer list-none grid-cols-[20px_1fr_auto] items-center gap-2.5 rounded-md px-2 text-left text-sm font-semibold [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"}`}>
-            <AppIcon name="project" size={20} />
+        <details className="group rounded-md bg-chrome-selected/60 p-0.5">
+          <summary className={`grid min-h-8 cursor-pointer list-none grid-cols-[18px_1fr_auto] items-center gap-2 rounded-md px-2 text-left text-sm font-semibold max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"}`}>
+            <AppIcon name="project" size={18} />
             <span className="truncate">{civilServiceDomain.label}</span>
             <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
           </summary>
-          <div className="mt-1 grid gap-1 pl-2">
+          <div className="grid gap-px pl-2">
             <details className="group/modules">
-              <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover [&::-webkit-details-marker]:hidden">
+              <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover max-lg:min-h-11 [&::-webkit-details-marker]:hidden">
                 <span>模块</span><span className="transition group-open/modules:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
               </summary>
-              <div className="grid gap-1 pl-1">
+              <div className="grid gap-px pl-1">
                 {civilServiceDomain.modules.map((module) => (
                   <button
                     key={module.id}
                     data-mobile-sidebar-close="true"
-                    className={`grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-md px-2 text-left text-sm ${view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"}`}
+                    className={`grid min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2 text-left text-sm max-lg:min-h-11 max-lg:grid-cols-[20px_1fr] max-lg:gap-2.5 ${view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"}`}
                     type="button"
                     title={module.description}
                     onClick={() => onSelectView(module.id)}
                     onFocus={() => preloadReviewView(module.id)}
                     onMouseEnter={() => preloadReviewView(module.id)}
                   >
-                    <AppIcon name={module.icon as ReviewNavIconName} size={20} />
+                    <AppIcon name={module.icon as ReviewNavIconName} size={18} />
                     <span className="truncate">{module.label}</span>
                   </button>
                 ))}
@@ -149,13 +149,13 @@ export function ReviewWorkspaceAppSidebar({
 
       <button
         data-mobile-sidebar-close="true"
-        className="relative z-40 mt-3 grid min-h-10 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium hover:bg-chrome-hover max-lg:hidden"
+        className="relative z-40 mt-1 grid min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium hover:bg-chrome-hover max-lg:hidden"
         type="button"
         onClick={onOpenSettings}
         onFocus={() => preloadReviewView("settings")}
         onMouseEnter={() => preloadReviewView("settings")}
       >
-        <AppIcon name="settings" size={20} />
+        <AppIcon name="settings" size={18} />
         <span>设置</span>
       </button>
     </>

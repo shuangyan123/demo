@@ -1,6 +1,7 @@
 "use client";
 
 import { LearningDataExplorer } from "./learning-data-explorer";
+import { CivilServiceDevelopmentExampleSwitcher } from "../shared/civil-service-development-example-switcher";
 import { DashboardView } from "./review-dashboard-view";
 import { LibraryView } from "./review-library-view";
 import { ReviewView } from "./review-session-view";
@@ -10,7 +11,13 @@ import type { ReviewWorkspaceController } from "./use-review-workspace-controlle
 import { toISODate } from "../../lib/review-utils";
 
 /** 渲染总览、错题、复盘和历史统计等首屏核心路径。 */
-export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWorkspaceController }) {
+export function ReviewWorkspaceCoreViews({
+  controller,
+  developmentExample,
+}: {
+  controller: ReviewWorkspaceController;
+  developmentExample?: string;
+}) {
   const { aiConnections, automation, conversation, data, knowledge, learning, personalization, workspace } = controller;
   const view = workspace.view;
 
@@ -88,7 +95,9 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
       ) : null}
 
       {view === "library" ? (
-        <LearningDataExplorer
+        <>
+          <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view="library" />
+          <LearningDataExplorer
           attempts={learning.snapshot.attempts}
           knowledgeEntries={data.knowledgeEntries}
           mistakes={data.mistakes}
@@ -134,11 +143,14 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
               onToggleAssociationSuggestion={knowledge.actions.toggleSuggestion}
             />
           )}
-        />
+          />
+        </>
       ) : null}
 
       {view === "review" ? (
-        <ReviewView
+        <>
+          <CivilServiceDevelopmentExampleSwitcher initialValue={developmentExample} view="review" />
+          <ReviewView
           answerOpen={learning.snapshot.answerOpen}
           associatedKnowledge={knowledge.snapshot.currentReviewLinkedEntries}
           currentReview={learning.snapshot.currentReview}
@@ -150,7 +162,8 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           onOpenKnowledgeEntry={knowledge.actions.openEntry}
           onRecordReview={learning.actions.recordReview}
           onToggleAnswer={() => learning.actions.setAnswerOpen((value) => !value)}
-        />
+          />
+        </>
       ) : null}
 
       {view === "stats" ? (

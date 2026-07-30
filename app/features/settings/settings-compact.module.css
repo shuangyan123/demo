@@ -55,6 +55,21 @@
   background: var(--surface-muted);
   font-size: .6875rem;
   font-weight: 650;
+}
+
+/* 表格对齐由单元格语义决定，避免通过列序号推断内容密度。 */
+.cellStart {
+  min-width: 0;
+  justify-self: stretch;
+  text-align: left;
+}
+
+.cellCenter {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
   text-align: center;
 }
 
@@ -85,7 +100,7 @@
 .connectionIdentity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connectionIdentity strong { font-size: .8125rem; }
 .connectionIdentity small { margin-top: .15rem; color: var(--muted); font-size: .7rem; }
-.connectionUrl { overflow: hidden; color: var(--muted); font-size: .7rem; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.connectionUrl { overflow: hidden; color: var(--muted); font-size: .7rem; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .connectionStatus { color: var(--muted); font-size: .75rem; text-align: center; }
 .connectionStatus[data-status="success"] { color: var(--green); }
 .connectionStatus[data-status="failed"] { color: var(--red); }
@@ -113,10 +128,6 @@
 .connectionActions > button {
   min-width: 0;
   white-space: nowrap;
-}
-
-.connectionRow > :nth-child(4) {
-  text-align: center;
 }
 
 .connectionDetails {

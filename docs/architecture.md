@@ -1,5 +1,33 @@
 # 应用架构
 
+## Electron 桌面架构（2026-07-28）
+
+```text
+desktop/
+├─ main.ts          单实例、窗口、安全导航与生命周期
+├─ runtime.ts       资源校验、随机端口与 Next standalone 子进程
+├─ protocol.ts      review-app 自定义协议与令牌代理
+└─ permissions.ts   媒体、文件与屏幕来源权限
+```
+
+- React controller、Dexie repository 与 Route Handlers 保持 Web/Electron 共用；桌面目录不进入 React 业务依赖图。
+- Electron 主进程只管理应用生命周期、安全边界和本地 Next 子进程，不持有学习状态，不解密业务凭据。
+- `next.config.ts` 使用 `output: "standalone"`。浏览器开发仍由 `npm run dev` 提供，Electron 开发加载同一 `http://127.0.0.1:3000`。
+- 安装版数据流为 `review-app://workspace → protocol.handle → 127.0.0.1:随机端口 → Next standalone`。一次性令牌仅存在于主进程和子进程环境，代理转发到 Next 后由根 `proxy.ts` 校验并移除。
+- 正式包启用 ASAR 完整性、仅从 ASAR 加载、Cookie 加密以及 Node/CLI 环境入口限制；Electron 43 包继续使用标准 V8 snapshot，因为官方 Windows 分发不包含 browser-process-specific snapshot 文件。
+- IndexedDB 状态继续由现有 repository 管理。稳定自定义 origin 保证重启后存储位置不变，覆盖安装不删除 Electron `userData`。
+
+当前方案是 Electron + Next standalone。它直接保留现有 AI SSE、语音、Realtime、MCP、采集和粉笔同步 Route Handlers。Tauri 静态导出或 Node sidecar 会引入 Rust、WebView2 与双运行时维护，当前阶段不采用。代价是安装体积较大；只有服务端能力迁出 Next 且体积成为实测问题时再评估 Tauri。
+
+- 业务状态：React controller + Dexie v16 + repository；桌面壳不新增业务状态源。
+- 恢复状态：独立 `review_workspace_transfer` v1 只保存待提交包与旧快照，成功或回滚后删除。
+- API：保留原有同源 Route Handler 契约；桌面令牌是 loopback 内部传输头，不属于公开业务 API。
+- 公考开发示例按学习数据、复盘、知识训练和面试模块分别注册；总览不提供示例。匹配场景时仍先于业务 controller 分流到纯内存 fixture。
+- 表格使用显式 `cellStart` / `cellCenter` 语义类，不依赖列序号猜测内容。
+- GitHub 使用共享 Web CI 与独立 Windows 桌面发布工作流：PR 验证同一份业务代码和桌面壳契约，手动触发只上传短期 artifact，`v*` 标签校验 `package.json` 版本后创建带 SHA-256 清单的 Draft Release。
+- 桌面发布与 Web 部署只通过 Git commit SHA 关联；安装包、`.desktop-runtime`、Forge `out/` 和签名材料不进入仓库，私人仓库阶段不启用自动更新。
+
+
 ## 0.2.0 本机 API 安全边界（2026-07-23）
 
 - `server/http/route-security.ts` 是同源校验、有界 JSON、外联 URL、请求 ID 和结构化错误的共享边界；Route Handler 只负责业务字段校验和调用领域 adapter。
@@ -88,7 +116,7 @@
 
 ## 对话模型菜单分层（2026-07-13）
 
-- `ConversationWorkspace` 只编排会话运行、消息和工具状态；输入器由 `ConversationComposer` 承载，模型触发器与弹层由 `ConversationModelSelector` 装配，目录加载、菜单导航和选择持久化分别进入专用 hook。
+- `ConversationWorkspace` 只编排会话运行、消息和工具状态；输入器由 `ConversationComposer` 承载。语音、实时通话、模型和推理是一级入口，低频附件/媒体/知识工具进入加号菜单，斜杠指令的瞬时状态留在独立输入组件。
 - 模型菜单状态使用 `providers → models → reasoning/speed` 单层判别联合。`ConversationModelPicker` 每次只渲染当前层，不以绝对定位把新面板覆盖在仍可聚焦的旧面板上。
 - 空白对话选择保存在 `draftSelection`；持久化对话使用按 `conversationId` 隔离的乐观选择。写入按用户操作顺序串行化，刷新确认后清理，失败时只回滚当前对话并显示错误，禁止把 A 对话的临时选择带到 B 对话。
 - 选项宽高由内容和当前层决定：桌面厂商、模型、普通运行、预算层分别为 208/240/160/200px；移动端在 390×844 基准下限制为 320/352/288/320px 且不超过视口安全宽度。仅内容超过可用高度时内部滚动。
@@ -385,3 +413,8 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - `<main>` 继续独占顶部、左侧 1px 共边与 18px 左上圆角，不使用阴影、高光、模糊或边缘渐隐。移动端保留横跨顶栏、无抬升圆角的内容区和焦点锁定抽屉。
 - 对话标题、消息流和输入框统一为 50rem 中心轴；消息区独立滚动，输入框保持底部。AI 连接表使用稳定五列和三槽动作列，中等宽度切换列表布局但不隐藏删除。
 - 本次迁移不修改 HTTP API、Provider 协议、持久化结构或 `review_workspace` v16，并保留现有 `next/dynamic` 低频边界。
+# v0.2.1 桌面、fixture 与面试状态边界
+
+- `desktop/runtime.ts` 使用 `DesktopRuntimeError` 统一承载稳定错误码；诊断只显示相对路径、退出码和限长脱敏日志。完整性校验保持 SHA-256 全覆盖并使用有限并发。
+- `DevelopmentExampleDefinition` 将示例 ID、业务视图和 fixture 变体集中注册。开发环境在 live controller 挂载前分流，确保示例不读取 IndexedDB、localStorage、Vault 或网络。
+- `InterviewSession` 的计时字段是普通记录字段，不参与索引；`interview-timer.ts` 提供可测试的归一化与状态转换，Dexie 继续使用 `review_workspace` v16。

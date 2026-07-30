@@ -100,9 +100,9 @@ test("手动录入可保存错题并在错题库中展示", async ({ page }) => 
   await page.getByRole("button", { name: "在新对话中继续" }).click();
   await expect(page.locator(".conversation-context-bar").getByText("错题库", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "对话输入" })).toHaveValue("请分析我的错误思路，并给出一步一步的正确解法。");
-  await page.getByRole("button", { name: "工具" }).click();
-  await expect(page.getByRole("button", { name: "摄像头" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "屏幕共享" })).toBeVisible();
+  await page.getByRole("button", { name: "添加", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: /摄像头/ })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /屏幕共享/ })).toBeVisible();
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

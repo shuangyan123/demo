@@ -1,5 +1,14 @@
 # API 约定
 
+## Electron 内部运行边界（2026-07-28）
+
+- 本轮不新增公开 HTTP Route，也不改变现有 JSON、SSE、音频、模型目录、MCP 或采集响应契约。
+- 安装版 Next standalone 仅监听 `127.0.0.1` 的随机端口。根 `proxy.ts` 仅在 `REVIEW_DESKTOP_RUNTIME_TOKEN` 存在时要求 `x-review-runtime-token`；普通 Web 开发与部署不启用该门禁。
+- `x-review-runtime-token` 由 Electron 主进程在 `review-app` 协议代理时注入，Next 校验后从上游请求头删除。renderer、业务 service 和持久化层不得读取该值。
+- `LocalDataExportV2` 仍是唯一支持的业务备份格式。导入只允许显式表白名单，拒绝未知版本、未知表、非对象记录、重复键和关键悬空关联。
+- 凭据、密文、IV、主密钥、MCP Token、粉笔 Cookie、额度凭据、厂商原始响应和 Vault 目录句柄不属于备份 API。
+
+
 ## 本机 API 安全与结构化错误（2026-07-23）
 
 - 所有本机 Route Handler 拒绝不匹配当前请求 origin 的浏览器请求；缺少 Origin 的本机 CLI/内部 smoke 保持兼容。

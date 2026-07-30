@@ -10,6 +10,13 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".codex/**",
+    ".desktop/**",
+    ".desktop-app/**",
+    ".desktop-runtime/**",
+    ".cache/**",
+    ".playwright-results/**",
+    "playwright-report/**",
+    "test-results/**",
     ".trunk/**",
     "out/**",
     "build/**",

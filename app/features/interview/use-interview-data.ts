@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { requestInterviewEvaluation, requestInterviewPracticePlan, requestInterviewQuestions, requestInterviewReply } from "../../services/interview-ai-service";
 import { interviewRepository } from "../../services/interview-repository";
+import { finishInterviewTimer, pauseInterviewTimer, resetInterviewTurnTimer, resumeInterviewTimer } from "../../services/interview-timer";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { InterviewEvaluation, InterviewLink, InterviewPracticePlan, InterviewQuestion, InterviewQuestionDraft, InterviewQuestionSet, InterviewSession, InterviewSnapshot, InterviewSpeaker, InterviewStage, InterviewTurn, InterviewType } from "../../types/domains/interview.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
@@ -278,6 +279,7 @@ export function useInterviewData({
       await interviewRepository.updateSession(session.id, {
         stage: aiReply.nextStage,
         totalDurationSec: session.totalDurationSec + durationSec,
+        ...resetInterviewTurnTimer(),
         transcriptText: [...nextTurns.map((turn) => turn.content), aiReply.reply].join("\n"),
       });
       if (aiReply.shouldEvaluate) {
@@ -308,6 +310,7 @@ export function useInterviewData({
     }
     setBusy(true);
     try {
+      await interviewRepository.updateSession(session.id, finishInterviewTimer(session));
       const turns = freshSnapshot.turns.filter((turn) => turn.sessionId === sessionId);
       const evaluationInput = await requestInterviewEvaluation({ session, connection: textConnection, turns, personalizationSettings });
       const evaluation = await interviewRepository.saveEvaluation(evaluationInput);
@@ -330,6 +333,22 @@ export function useInterviewData({
     onNotice("面试记录已删除，相关会话关联已清理");
   }
 
+  async function addQuestions(inputs: NewQuestionInput[]) {
+    if (!inputs.length) return;
+    await interviewRepository.bulkAddQuestions(inputs);
+    await refresh();
+  }
+
+  async function pauseTimer(session: InterviewSession) {
+    await interviewRepository.updateSession(session.id, pauseInterviewTimer(session));
+    await refresh();
+  }
+
+  async function resumeTimer(session: InterviewSession) {
+    await interviewRepository.updateSession(session.id, resumeInterviewTimer(session));
+    await refresh();
+  }
+
   // 保存面试题或会话与知识库/错题之间的确认式关联。
   async function addLink(input: Omit<InterviewLink, "id" | "createdAt" | "updatedAt">) {
     await interviewRepository.addLink(input);
@@ -348,6 +367,7 @@ export function useInterviewData({
     addLink,
     addPracticePlan,
     addQuestion,
+    addQuestions,
     addQuestionSet,
     busy,
     clearQuestionDrafts,
@@ -362,6 +382,8 @@ export function useInterviewData({
     generateQuestionDrafts,
     questionDrafts,
     refresh,
+    pauseTimer,
+    resumeTimer,
     snapshot,
     startSession,
     submitCandidateTurn,

@@ -30,17 +30,17 @@ export function SettingsWorkspaceSidebar({
     <>
       <button
         data-mobile-sidebar-close="true"
-        className="mb-3 grid min-h-9 grid-cols-[20px_1fr] items-center gap-2.5 rounded-lg px-3 text-left text-sm text-muted hover:bg-chrome-hover max-lg:min-h-11"
+        className="mb-1 grid min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2.5 text-left text-sm text-muted hover:bg-chrome-hover max-lg:min-h-11 max-lg:grid-cols-[20px_1fr] max-lg:gap-2.5 max-lg:px-3"
         type="button"
         onClick={onBack}
       >
-        <SettingsNavIcon name="back" />
+        <SettingsNavIcon name="back" small />
         <span>返回应用</span>
       </button>
       <SidebarNav
         activeKey={activeSection}
         items={settingsSections}
-        renderIcon={(icon) => <SettingsNavIcon name={icon as SettingsIconName} />}
+        renderIcon={(icon) => <SettingsNavIcon name={icon as SettingsIconName} small />}
         onSelect={onSectionChange}
       />
     </>

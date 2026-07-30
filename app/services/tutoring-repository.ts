@@ -234,7 +234,7 @@ export const tutoringRepository = {
     await reviewDb.transaction("rw", reviewDb.tutoringSessions, reviewDb.tutoringTurns, reviewDb.tutoringLinks, async () => {
       await reviewDb.tutoringSessions.delete(id);
       await reviewDb.tutoringTurns.where("sessionId").equals(id).delete();
-      await reviewDb.tutoringLinks.where("[sourceType+sourceId]").equals(["session", id]).delete();
+      await reviewDb.tutoringLinks.where("sourceType").equals("session").and((link) => link.sourceId === id).delete();
     });
   },
 
@@ -267,7 +267,7 @@ export const tutoringRepository = {
   async removePlan(id: string): Promise<void> {
     await reviewDb.transaction("rw", reviewDb.tutoringPlans, reviewDb.tutoringLinks, async () => {
       await reviewDb.tutoringPlans.delete(id);
-      await reviewDb.tutoringLinks.where("[sourceType+sourceId]").equals(["plan", id]).delete();
+      await reviewDb.tutoringLinks.where("sourceType").equals("plan").and((link) => link.sourceId === id).delete();
     });
   },
 

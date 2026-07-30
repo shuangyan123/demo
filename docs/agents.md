@@ -1,5 +1,19 @@
 # 项目经验沉淀
 
+## 2026-07-28 · Next 桌面壳与恢复事务经验
+
+- 保留 Route Handlers 的 Next 应用桌面化时，Electron + standalone 能复用现有 Node 边界；不要为了安装体积未经实测就拆成 Rust 与 Node 双运行时。
+- 自定义协议提供稳定 IndexedDB origin，但真实服务仍应只监听随机 loopback；主进程代理注入一次性令牌，服务端校验后立即移除。
+- 桌面运行时、standalone 与静态资源必须在启动前核对清单。Electron 43 的 V1 fuse wire 已包含 `WasmTrapHandlers`，应在 Forge `afterComplete` 中使用兼容该 wire 的官方 `@electron/fuses` 逐项显式设置；不要受旧 Forge Fuses 插件的 peer 范围限制而漏配新 fuse。
+- Windows 打包时，Forge 生成的反斜杠 glob 可能让 fast-glob 扫描整个工作区；仅在桌面构建预加载脚本中把 glob 规范化为 `/`。ASAR 完整性资源使用 Win32 Resource API 写入，避免 JavaScript PE 重写带来的峰值内存。
+- Electron 官方 Windows 包未附带 `browser_v8_context_snapshot.bin` 时，必须关闭 browser-process-specific snapshot fuse 并保留标准 `v8_context_snapshot.bin`；开启缺失的专用快照会让安装版在主进程启动前直接失败。
+- 跨 IndexedDB 恢复无法获得原生跨库原子性，应在独立传输库持久化输入和旧快照，按库提交并在失败或下次启动时回滚。
+- 开发 fixture 应在 controller 挂载前分流，表格对齐应使用内容语义类，不得用整表居中或 `nth-child` 推断。
+- 对话 Composer 的“+”只收纳低频附件、媒体与知识工具；语音、实时通话、模型和推理保持一级入口。斜杠指令只管理输入期瞬时状态，模型目录、推理运行值、录音内存边界和首条消息前的工具阻止规则继续复用原 controller 与组件。
+- 同仓维护 Web 与 Electron 时，PR 门禁验证共享业务和桌面契约；安装包只在 Windows 目标 Runner 生成，版本标签必须与 `package.json` 一致并先创建 Draft Release，避免 Web 合并意外发布桌面版本。
+- Electron 与内置 Node 归档应在准备阶段固定版本并校验官方 SHA-256；Forge 显式消费 npm 安装缓存中的 Electron ZIP，避免已缓存依赖仍在打包阶段重复访问外网。
+
+
 ## 2026-07-18 工作台交界经验
 
 - 桌面抬升面不要同时叠加发丝边框、整宽顶部渐变和外阴影；缩放后会形成明显直线与圆角残块。
@@ -402,6 +416,7 @@
 - 启停开关不能复用“保存、迁移、验证、刷新”的长链路。先用单记录短事务落库，再把可取消网络任务交给运行时；网络失败只影响状态，不回滚用户意图。
 - 新凭据保存不应等待共享旧凭据迁移。严格迁移继续负责最终删除旧 JWK，交互写入只对当前字段使用 v2 加密。
 - 开发示例应在真实容器挂载前分流，并用纯内存回调展示输入后状态；只把假数据藏在真实容器内部仍可能触发 repository、解密或外联。
+- 公考总览不承担统一示例目录；只有显式登记 fixture 的具体模块显示自己的“真实数据/模块示例”选择，禁止从一个模块跨选另一个模块的示例。
 - 嵌入式详情响应式应依据 container width，而不是浏览器 viewport；矮屏还需同时限制高度并提供内部滚动。
 
 ## 2026-07-27 · 统一 Chrome 与工作区几何经验
@@ -411,3 +426,9 @@
 - “更高但不贴顶”应成为明确设计令牌和几何契约。本项目桌面固定 `12px`，移动端明确不用该令牌，避免依赖顶栏高度或偶然 margin。
 - AI 表格动作列先按最长恢复文案分配槽位，再让中等宽度提前转为列表；移动端隐藏破坏性动作会造成能力缺失，响应式只能重排，不能删除。
 - 外壳重构的真实浏览器证明至少同时覆盖 DOM 节点身份、展开/折叠几何、1115×792 中间宽度、390×844 焦点抽屉、弥散开关和最长动作文案。
+# 2026-07-30 v0.2.1 实施记录
+
+- 桌面完整性失败与 Next standalone 启动失败必须分别呈现；真实缺失/哈希异常不可降级，瞬时文件占用只重试一次。
+- v16 的 `interviewLinks`、`tutoringLinks` 只有单字段 `sourceType/sourceId` 和 `[sourceType+targetId]`；按来源删除应使用 `sourceType` 索引后过滤 `sourceId`，不得查询旧 `[sourceType+sourceId]`。
+- 面试计时只在暂停、继续、换轮和结束时持久化；每秒显示值留在组件内存。完成评分前先冻结计时并停止语音输入/朗读。
+- 内容型开发示例统一经类型化注册表进入，并在业务 controller 挂载前分流；fixture 禁止触达持久化和外部能力。

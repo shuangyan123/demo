@@ -364,6 +364,15 @@
 }
 
 @media (max-width: 640px) {
+  .selector {
+    flex: 1 1 5.5rem;
+  }
+
+  .trigger {
+    width: 100%;
+    max-width: 7.5rem;
+  }
+
   .picker {
     position: fixed;
     right: auto;
@@ -392,17 +401,21 @@
 }
 
 @media (pointer: coarse) {
+  .trigger {
+    min-height: 44px;
+  }
+
   .providerRow,
   .emptyRow,
   .manageRow,
   .radioRow,
   .runtimeEntries > button,
   .profileRow select {
-    min-height: 2.75rem;
+    min-height: 44px;
   }
 
   .header {
-    min-height: 2.75rem;
+    min-height: 44px;
     grid-template-columns: 2.75rem 1.125rem minmax(0, 1fr);
     padding-left: 0;
   }
@@ -413,21 +426,21 @@
 
   .backButton {
     width: 2.75rem;
-    height: 2.75rem;
+    height: 44px;
   }
 
   .budgetRow {
-    min-height: 2.75rem;
+    min-height: 44px;
   }
 
   .budgetRow input,
   .manualRow input,
   .manualRow button {
-    height: 2.75rem;
+    height: 44px;
   }
 
   .manualRow > div {
-    grid-template-columns: minmax(0, 1fr) 2.75rem;
+    grid-template-columns: minmax(0, 1fr) 44px;
   }
 
   .manualRow button {

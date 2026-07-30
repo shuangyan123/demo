@@ -24,6 +24,8 @@ export async function seedConversationModelFixtures(
   connections: ModelConnectionFixture[],
   conversations: ModelConversationFixture[],
 ): Promise<void> {
+  // 等待应用完成 Dexie v16 打开与迁移，避免测试直开同名数据库时互相阻塞。
+  await page.getByRole("main").getByRole("heading", { name: "总览", exact: true }).waitFor();
   await page.evaluate(async ({ connectionFixtures, conversationFixtures }) => new Promise<void>((resolve, reject) => {
     const request = indexedDB.open("review_workspace");
     request.onerror = () => reject(request.error);

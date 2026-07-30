@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { interviewRubrics, interviewTypeLabels } from "../../services/interview-rubric";
+import { interviewTurnElapsedSec, normalizeInterviewTimer } from "../../services/interview-timer";
 import type { InterviewEvaluation, InterviewSession, InterviewSpeaker, InterviewStage, InterviewTurn } from "../../types/domains/interview.ts";
 import { LearningSessionInsightSection, LearningSessionLayout } from "../shared/learning-session-layout";
 import { Button, EmptyState, ScoreBar, SessionStageRail } from "../shared/ui-primitives";
@@ -47,6 +48,8 @@ export function InterviewSessionPanel({
   speech,
   turns,
   onFinishSession,
+  onPauseTimer,
+  onResumeTimer,
   onSubmitAnswer,
 }: {
   busy: boolean;
@@ -56,18 +59,21 @@ export function InterviewSessionPanel({
   speech: ReturnType<typeof useInterviewSpeech>;
   turns: InterviewTurn[];
   onFinishSession: (sessionId: string) => void;
+  onPauseTimer: (session: InterviewSession) => Promise<void>;
+  onResumeTimer: (session: InterviewSession) => Promise<void>;
   onSubmitAnswer: (session: InterviewSession, content: string, durationSec: number) => Promise<void>;
 }) {
-  const latestTurnAt = turns.at(-1)?.createdAt ?? session?.startedAt;
-  const [answerStartedAt, setAnswerStartedAt] = useState(() => latestTurnAt ? new Date(latestTurnAt).getTime() : Date.now());
-  const [elapsedSec, setElapsedSec] = useState(0);
+  const normalizedSession = useMemo(() => session ? normalizeInterviewTimer(session) : null, [session]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const elapsedSec = normalizedSession ? interviewTurnElapsedSec(normalizedSession, nowMs) : 0;
   const { error, listening, reset, setTranscript, speak, start, stop, supported, transcript } = speech;
   const latestAiTurn = useMemo(() => [...turns].reverse().find((turn) => turn.speaker !== "candidate"), [turns]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setElapsedSec(Math.max(0, Math.floor((Date.now() - answerStartedAt) / 1000))), 1000);
+    if (!normalizedSession || normalizedSession.timerStatus !== "running") return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [answerStartedAt]);
+  }, [normalizedSession]);
 
   useEffect(() => {
     if (latestAiTurn?.content) speak(latestAiTurn.content);
@@ -105,11 +111,16 @@ export function InterviewSessionPanel({
   );
 
   async function submitAnswer() {
-    const durationSec = Math.max(1, Math.floor((Date.now() - answerStartedAt) / 1000));
+    const durationSec = Math.max(1, interviewTurnElapsedSec(normalizedSession!));
     await onSubmitAnswer(session!, transcript, durationSec);
-    setAnswerStartedAt(Date.now());
-    setElapsedSec(0);
+    setNowMs((current) => current + 1);
     reset();
+  }
+
+  function finishSession() {
+    stop();
+    reset();
+    onFinishSession(session!.id);
   }
 
   return (
@@ -123,8 +134,17 @@ export function InterviewSessionPanel({
           <div className={styles.timer} aria-label={`本轮计时 ${formatDuration(elapsedSec)}`}>
             <strong>{formatDuration(elapsedSec)}</strong>
             {expectedDurationSec ? <span>/ {formatDuration(expectedDurationSec)}</span> : null}
+            {normalizedSession?.timerStatus !== "finished" ? (
+              <Button
+                disabled={busy}
+                variant="ghost"
+                onClick={() => void (normalizedSession?.timerStatus === "paused" ? onResumeTimer(session) : onPauseTimer(session))}
+              >
+                {normalizedSession?.timerStatus === "paused" ? "继续" : "暂停"}
+              </Button>
+            ) : <span>已冻结</span>}
           </div>
-          <Button disabled={busy || !turns.some((turn) => turn.speaker === "candidate")} variant="danger" onClick={() => onFinishSession(session.id)}>
+          <Button disabled={busy || normalizedSession?.timerStatus === "finished" || !turns.some((turn) => turn.speaker === "candidate")} variant="danger" onClick={finishSession}>
             结束并复盘
           </Button>
         </header>
@@ -148,16 +168,16 @@ export function InterviewSessionPanel({
           {error ? <p className="text-sm text-red">{error}</p> : null}
           <textarea aria-label="本轮文字稿" placeholder={supported ? "按住作答，或直接使用键盘输入" : "当前浏览器不支持语音识别，请使用键盘输入"} value={transcript} onChange={(event) => setTranscript(event.currentTarget.value)} />
           <div>
-            <Button disabled={!supported || busy} variant={listening ? "primary" : "soft"} onClick={listening ? stop : start}>
+            <Button disabled={!supported || busy || normalizedSession?.timerStatus !== "running"} variant={listening ? "primary" : "soft"} onClick={listening ? stop : start}>
               {listening ? "松开结束" : "按住作答"}
             </Button>
-            <Button disabled={busy || !transcript.trim()} variant="primary" onClick={() => void submitAnswer()}>提交并继续</Button>
+            <Button disabled={busy || normalizedSession?.timerStatus !== "running" || !transcript.trim()} variant="primary" onClick={() => void submitAnswer()}>提交并继续</Button>
             <Button disabled={busy} variant="ghost" onClick={reset}>清空</Button>
             <Button
               className={styles.mobileFinish}
-              disabled={busy || !turns.some((turn) => turn.speaker === "candidate")}
+              disabled={busy || normalizedSession?.timerStatus === "finished" || !turns.some((turn) => turn.speaker === "candidate")}
               variant="danger"
-              onClick={() => onFinishSession(session.id)}
+              onClick={finishSession}
             >
               结束并复盘
             </Button>

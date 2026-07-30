@@ -25,6 +25,11 @@
 
 # production
 /build
+/.cache/
+/.desktop/
+/.desktop-app/
+/.desktop-runtime/
+/out/
 
 # misc
 .DS_Store

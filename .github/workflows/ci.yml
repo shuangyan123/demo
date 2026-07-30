@@ -39,6 +39,12 @@ jobs:
       - name: Contract tests
         run: npm run test:contracts
 
+      - name: Desktop TypeScript
+        run: npm run desktop:compile
+
+      - name: Desktop contracts
+        run: npm run test:desktop
+
   security:
     name: Production Dependency Audit
     runs-on: ubuntu-latest

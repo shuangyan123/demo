@@ -59,7 +59,10 @@ test("AI 连接开发示例复用五列表格且真实仓储容器按示例状�
   assert.match(source, /ApiConnectionsDevelopmentExample/);
   assert.match(source, /ApiConnectionsSettingsLiveView/);
   assert.match(source, /if \(example\.value\)/);
-  assert.match(styles, /\.connectionTableHeader[\s\S]*text-align:\s*center/);
+  assert.doesNotMatch(styles, /\.connectionTableHeader\s*\{[^}]*text-align:\s*center/);
+  assert.match(styles, /\.cellStart\s*\{[^}]*text-align:\s*left/);
+  assert.match(styles, /\.cellCenter\s*\{[^}]*text-align:\s*center/);
+  assert.match(source, /cellStart[^]*厂商 \/ 连接名称[^]*cellStart[^]*Base URL/);
   assert.match(styles, /\.connectionActions[\s\S]*justify-content:\s*center/);
 });
 

@@ -82,14 +82,16 @@ test("辅导模型请求显式传递对话模型与运行参数", async () => {
 test("模块上下文和视觉工具统一进入新对话", async () => {
   const conversationSource = await readSource("../conversation/conversation-workspace.tsx");
   const composerSource = await readSource("../conversation/conversation-composer.tsx");
+  const addMenuSource = await readSource("../conversation/conversation-add-menu.tsx");
   const controllerSource = await readSource("../review/use-review-conversation-controller.ts");
   const shellSource = await readSource("../review/review-workspace-shell.tsx");
   const explorerSource = await readSource("../review/learning-data-explorer.tsx");
 
   assert.match(conversationSource, /useConversationVisionTools/);
   assert.match(conversationSource, /ConversationComposer/);
-  assert.match(composerSource, />摄像头</);
-  assert.match(composerSource, />屏幕共享</);
+  assert.match(composerSource, /ConversationAddMenu/);
+  assert.match(addMenuSource, />摄像头</);
+  assert.match(addMenuSource, />屏幕共享</);
   assert.match(controllerSource, /launchContext/);
   assert.match(controllerSource, /kind:\s*"context"/);
   assert.match(explorerSource, /在新对话中继续/);

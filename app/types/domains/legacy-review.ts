@@ -463,6 +463,12 @@ export type InterviewSession = {
   startedAt: string;
   completedAt?: string;
   totalDurationSec: number;
+  /** 当前作答轮次计时状态；旧记录在读取时按会话完成状态归一化。 */
+  timerStatus?: "running" | "paused" | "finished";
+  /** 当前轮已经累计的秒数，不包含 running 状态下尚未落库的时间。 */
+  currentTurnElapsedSec?: number;
+  /** running 状态的本轮起点；暂停和完成时清除。 */
+  currentTurnStartedAt?: string;
   transcriptText: string;
   createdAt: string;
   updatedAt: string;
