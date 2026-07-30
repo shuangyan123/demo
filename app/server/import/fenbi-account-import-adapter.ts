@@ -124,31 +124,36 @@ export class FenbiAccountImportAdapter {
 
   private async getJson(path: string, cookie: string, signal?: AbortSignal): Promise<unknown> {
     if (!path.startsWith("/api/xingce/")) throw new FenbiAccountImportError("malformed_response", "粉笔接口路径不在允许范围内。", 400);
-    const timeoutSignal = AbortSignal.timeout(this.requestTimeoutMs);
-    const boundedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
-    let response: Response;
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), this.requestTimeoutMs);
+    const boundedSignal = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal;
     try {
-      response = await this.fetchImpl(new URL(path, FENBI_ORIGIN), {
-        method: "GET",
-        headers: { Accept: "application/json", Cookie: cookie },
-        cache: "no-store",
-        redirect: "manual",
-        signal: boundedSignal,
-      });
-    } catch {
-      if (boundedSignal.aborted) {
-        throw new FenbiAccountImportError("timeout", "粉笔请求超时，请稍后重试或使用 PDF/Word 导出。", 504);
+      let response: Response;
+      try {
+        response = await this.fetchImpl(new URL(path, FENBI_ORIGIN), {
+          method: "GET",
+          headers: { Accept: "application/json", Cookie: cookie },
+          cache: "no-store",
+          redirect: "manual",
+          signal: boundedSignal,
+        });
+      } catch {
+        if (boundedSignal.aborted) {
+          throw new FenbiAccountImportError("timeout", "粉笔请求超时，请稍后重试或使用 PDF/Word 导出。", 504);
+        }
+        throw new FenbiAccountImportError("upstream_unavailable", "粉笔服务暂时不可用，请稍后重试或使用导出文件。", 502);
       }
-      throw new FenbiAccountImportError("upstream_unavailable", "粉笔服务暂时不可用，请稍后重试或使用导出文件。", 502);
-    }
-    if (response.status >= 300 && response.status < 400) {
-      throw new FenbiAccountImportError("invalid_cookie", "粉笔会话已跳转到登录页，请重新粘贴 Cookie。", 401);
-    }
-    if (!response.ok) throw classifyResponse(response.status);
-    try {
-      return await response.json();
-    } catch {
-      throw new FenbiAccountImportError("malformed_response", "粉笔返回格式已变化，请改用 PDF/Word 导出。", 502);
+      if (response.status >= 300 && response.status < 400) {
+        throw new FenbiAccountImportError("invalid_cookie", "粉笔会话已跳转到登录页，请重新粘贴 Cookie。", 401);
+      }
+      if (!response.ok) throw classifyResponse(response.status);
+      try {
+        return await response.json();
+      } catch {
+        throw new FenbiAccountImportError("malformed_response", "粉笔返回格式已变化，请改用 PDF/Word 导出。", 502);
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
