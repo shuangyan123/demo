@@ -8,6 +8,7 @@ import { createProfileFromLegacySetting } from "./legacy-ai-settings-migration.t
 import { inferMiniMaxRegion, normalizeMiniMaxAnthropicBaseUrl } from "./minimax-connection.ts";
 import { secretContext } from "./secret-context.ts";
 import { attemptStoredSecretsMigration } from "./secret-migration-service.ts";
+import { isUiReviewRecordId } from "./workspace-data-scope.ts";
 
 export type SaveConnectionInput = {
   id?: string;
@@ -94,6 +95,7 @@ async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, 
     await reviewDb.apiSettings.delete("default");
     return;
   }
+  if (isUiReviewRecordId(profile.id)) return;
   const plainText = await decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
   const encrypted = await encryptSecret(plainText, secretContext.legacyAiSetting());
   await reviewDb.apiSettings.put({
@@ -113,6 +115,11 @@ async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, 
 export const aiConnectionsRepository = {
   /** 只验证凭据可解密性并立即丢弃明文，供设置页展示可恢复状态。 */
   async inspectCredentialHealth(profile: ApiConnectionProfile): Promise<ConnectionCredentialHealth> {
+    if (isUiReviewRecordId(profile.id)) {
+      return profile.providerOptions.uiReviewCredentialState === "reentry_required"
+        ? { status: "reentry_required", code: "ciphertext_invalid", message: "UI 审查凭据需要重新输入；未保存真实密钥" }
+        : { status: "ready" };
+    }
     try {
       await attemptStoredSecretsMigration();
       await decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
@@ -316,6 +323,14 @@ export const aiConnectionsRepository = {
 
   // 保存最近一次连接测试状态，供配置页展示。
   async updateTestStatus(id: string, status: "success" | "failed", message: string): Promise<void> {
-    await reviewDb.apiConnectionProfiles.update(id, { testStatus: status, testMessage: message });
+    const profile = await reviewDb.apiConnectionProfiles.get(id);
+    if (!profile) return;
+    const testedAt = new Date().toISOString();
+    await reviewDb.apiConnectionProfiles.update(id, {
+      testStatus: status,
+      testMessage: message,
+      updatedAt: testedAt,
+      testHistory: [{ id: crypto.randomUUID(), testedAt, status, category: "connection-test", message }, ...(profile.testHistory ?? [])].slice(0, 20),
+    });
   },
 };

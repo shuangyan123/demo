@@ -226,7 +226,7 @@ function McpSettingsLiveView({ onNotice }: { onNotice: (message: string) => void
           {form.authMode === "bearer" ? <label className="ui-field">Token<input className="ui-input" type="password" autoComplete="off" placeholder={form.id ? "留空则保留现有 Token" : "输入 Token"} value={form.token} onChange={(event) => setForm({ ...form, token: event.currentTarget.value })} /></label> : null}
           <label className="inline-flex items-start gap-2 text-sm text-muted"><input checked={form.allowPrivateNetwork} className="ui-checkbox mt-0.5" type="checkbox" onChange={(event) => setForm({ ...form, allowPrivateNetwork: event.currentTarget.checked })} /><span>允许访问局域网地址<small className="block">本机 loopback 无需开启；云元数据和链路本地地址始终禁止。</small></span></label>
           <label className="inline-flex items-center gap-2 text-sm"><input checked={form.enabled} className="ui-checkbox" type="checkbox" onChange={(event) => setForm({ ...form, enabled: event.currentTarget.checked })} />启用</label>
-          <Button type="submit" variant="primary">保存 Server</Button>
+          <Button type="submit" variant="primary"><AppIcon name="save" size={16} />保存 Server</Button>
         </form>
       </div>
     </section>

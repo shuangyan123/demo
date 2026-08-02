@@ -122,7 +122,7 @@ export function ReviewWorkspaceShell({
           actions={(
             <>
               <Button variant="outline" onClick={onOpenImport} onFocus={() => preloadReviewView("import")} onMouseEnter={() => preloadReviewView("import")}>
-                导入资料
+                粉笔导入
               </Button>
               <Button variant="primary" onClick={onOpenEntry}>手动录入</Button>
             </>

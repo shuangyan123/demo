@@ -97,6 +97,7 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           onOpenKnowledgeOperations={() => workspace.switchView("knowledge")}
           onOpenKnowledgeTraining={knowledge.actions.openTraining}
           onOpenReview={learning.actions.openReview}
+          onRefresh={data.refreshData}
           onStartConversation={conversation.openBlank}
           managementContent={(
             <LibraryView
@@ -165,6 +166,7 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           mistakes={data.mistakes}
           onOpenKnowledgeTraining={knowledge.actions.openTraining}
           onOpenReview={learning.actions.openReview}
+          onRefresh={data.refreshData}
         />
       ) : null}
     </>

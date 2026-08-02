@@ -36,7 +36,7 @@ export function resolveDashboardNextAction(input: DashboardNextActionInput): Das
     return { id: "confirm-import", title: "下一步", label: "确认导入草稿", description: `先确认 ${input.importDraftCount} 条导入草稿，再进入学习队列。` };
   }
   if (input.importJobCount === 0 && input.mistakeTotal === 0 && input.knowledgeTotal === 0) {
-    return { id: "import", title: "下一步", label: "导入资料", description: "先导入第一份资料，建立学习队列。" };
+    return { id: "import", title: "下一步", label: "粉笔导入", description: "先导入第一批粉笔错题，建立学习队列。" };
   }
   if (input.dueMistakeCount > 0) {
     return { id: "review", title: "下一步", label: "开始错题复盘", description: `今天有 ${input.dueMistakeCount} 道错题到期。` };

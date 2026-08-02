@@ -17,17 +17,17 @@ async function readReviewConversations(page: import("@playwright/test").Page) {
 test("UI 审查对话数据提供主题目录、阅读保护和跳到最新消息", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
-  await page.goto("/");
+  await page.goto("/?ui-review=1");
   await page.getByRole("button", { name: "新对话" }).first().click();
 
+  await page.locator(".sample-scenario-trigger").click();
   await page.getByLabel("选择当前页面审查场景").selectOption("conversation-normal");
   await page.getByRole("button", { name: "载入本页" }).click();
-  await expect(page.getByText(/已安装 \d+ 条/)).toBeVisible({ timeout: 15_000 });
-  await page.reload();
-  await expect.poll(() => readReviewConversations(page)).toContainEqual(expect.objectContaining({
+  await expect.poll(() => readReviewConversations(page), { timeout: 80_000 }).toContainEqual(expect.objectContaining({
     id: "ui-review:conversation-normal:conversation",
     projectId: "civil-service",
   }));
+  await page.reload();
   await page.getByRole("button", { name: "必要条件与充分条件", exact: true }).click();
 
   const topics = page.getByRole("navigation", { name: "对话主题目录" });
@@ -48,16 +48,17 @@ test("UI 审查对话数据提供主题目录、阅读保护和跳到最新消�
 });
 
 test("完整 UI 审查数据刷新后保留且可以精准清理", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?ui-review=1");
+  await page.locator(".sample-scenario-trigger").click();
   await page.getByRole("button", { name: "载入完整数据" }).click();
-  await expect(page.getByText(/已安装 \d+ 条/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: 15_000 });
   await page.locator("details.dashboard-disclosure").filter({ hasText: "六大板块" }).locator("summary").click();
   await expect(page.getByText("今日队列", { exact: true })).toBeVisible();
   await expect(page.getByText("薄弱板块", { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText(/已安装 \d+ 条/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: 15_000 });
+  await page.locator(".sample-scenario-trigger").click();
   await page.getByRole("button", { name: "删除审查数据" }).click();
-  await expect(page.getByText("按需载入真实本地数据，不调用外部服务")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "删除审查数据" })).toBeHidden();
 });

@@ -7,8 +7,8 @@ import type { PersonalizationSettings } from "../../types/domains/personalizatio
 import type { TutoringPlan, TutoringSession } from "../../types/domains/tutoring.ts";
 import type { WorkspaceDataScope } from "../../services/workspace-data-scope";
 import { Button, DataList, DataRow, EmptyState, FormGrid, Panel, SegmentedTabs, SelectField, TextAreaField, TextField, Toolbar } from "../shared/ui-primitives";
+import { AppIcon } from "../shared/app-icon";
 import { useTutoringFlow } from "./use-tutoring-flow.ts";
-
 type TutoringHistoryTab = "records" | "plans" | "links";
 function formatDateTime(value?: string) {
   if (!value) return "未记录";
@@ -165,7 +165,7 @@ function TutoringPlans({ plans, onAdd, onDelete }: { plans: TutoringPlan[]; onAd
           <TextField label="计划名称" name="title" />
           <TextAreaField label="辅导目标" name="objective" />
           <TextAreaField label="下一步任务" name="nextTask" />
-          <Button type="submit" variant="primary">保存计划</Button>
+          <Button type="submit" variant="primary"><AppIcon name="save" size={16} />保存计划</Button>
         </form>
       </Panel>
       <Panel eyebrow="SCHEDULE" title="辅导计划">
@@ -218,7 +218,7 @@ function TutoringLinks({
             />
           </FormGrid>
           <TextField label="关联原因" name="reason" />
-          <Button type="submit" variant="primary">确认关联</Button>
+          <Button type="submit" variant="primary"><AppIcon name="check" size={16} />确认关联</Button>
         </form>
       </Panel>
       <Panel eyebrow="CURRENT" title="当前关联">

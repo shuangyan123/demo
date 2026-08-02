@@ -1,359 +1,381 @@
-.workspace {
-  width: 100%;
-  max-width: 1180px;
+.workspace,
+.detailPage {
+  width: min(57.5rem, 100%);
   margin: 0 auto;
+  color: var(--color-foreground);
 }
 
 .header,
-.toolbar,
-.detailHeader,
-.recovery {
+.detailHero,
+.row,
+.rowMain,
+.metadata dt,
+.detailActions,
+.disabledNotice,
+.backButton {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
 }
 
-.header h1 {
-  font-size: 24px;
-  font-weight: 760;
-  letter-spacing: -0.02em;
+.header {
+  min-height: 4.5rem;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.header h1,
+.detailHero h1 {
+  font-size: 1.55rem;
+  font-weight: 720;
+  letter-spacing: -0.025em;
 }
 
 .header p,
-.detailHeader p {
-  margin-top: 4px;
+.detailHero p,
+.detailHero span,
+.rowMain small,
+.metadata dt,
+.disabledNotice span {
   color: var(--color-muted);
-  font-size: 13px;
 }
 
-.toolbar {
-  min-height: 56px;
-  margin-top: 20px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-line);
-  border-radius: 10px 10px 0 0;
-  background: var(--color-surface);
-}
-
-.toolbar label {
-  display: flex;
-  width: min(420px, 100%);
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 7px;
-  outline: 0;
-  background: var(--color-surface-muted);
-  box-shadow: none;
-}
-
-.toolbar label:focus-within {
-  outline: 0;
-  background: color-mix(in srgb, var(--color-foreground) 7%, var(--color-surface));
-  box-shadow: none;
-}
-
-.toolbar input {
-  width: 100%;
-  min-height: 34px;
-  border: 0 !important;
-  outline: 0 !important;
-  background: transparent;
-  box-shadow: none !important;
-  font-size: 13px;
-}
-
-.toolbar > span {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.layout {
-  display: grid;
-  height: min(620px, calc(100dvh - 10rem));
-  min-height: 360px;
-  grid-template-columns: minmax(360px, 42%) minmax(0, 1fr);
-  border: 1px solid var(--color-line);
-  border-top: 0;
-  border-radius: 0 0 10px 10px;
-  background: var(--color-surface);
+.header p,
+.detailHero span {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
 }
 
 .list {
-  min-height: 0;
-  overflow-y: auto;
-  border-right: 1px solid var(--color-line);
+  display: grid;
+  gap: 0.35rem;
 }
 
-.row,
-.activeRow {
-  display: grid;
-  width: 100%;
-  min-height: 86px;
-  grid-template-columns: 42px minmax(0, 1fr) auto 18px;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  border-bottom: 1px solid var(--color-line);
-  text-align: left;
+.row {
+  position: relative;
+  min-height: 4.5rem;
+  gap: 0.65rem;
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.65rem;
+  transition: background-color 120ms ease;
 }
 
 .row:hover,
-.activeRow {
+.row:focus-within {
   background: var(--color-surface-muted);
 }
 
-.activeRow {
-  box-shadow: inset 3px 0 var(--color-foreground);
-}
-
-.glyph {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 10px;
-  color: white;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.glyph > span {
-  width: 65%;
-  height: 65%;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-}
-
-.rowBody {
+.rowMain {
   min-width: 0;
+  flex: 1;
+  gap: 0.85rem;
+  padding: 0.25rem;
+  text-align: left;
 }
 
-.rowBody strong,
-.rowBody small,
-.rowBody em {
-  display: block;
+.rowMain > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.rowMain strong,
+.rowMain small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.rowBody strong {
-  font-size: 14px;
+.rowMain strong {
+  font-size: 0.86rem;
+  font-weight: 640;
 }
 
-.rowBody small {
-  margin-top: 3px;
+.rowMain small {
+  font-size: 0.75rem;
+}
+
+.glyph {
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.55rem;
+  background: #525252;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.glyph > span {
+  width: 72%;
+  height: 72%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.toggle {
+  position: relative;
+  width: 2.25rem;
+  height: 1.25rem;
+  flex: none;
+  cursor: pointer;
+}
+
+.toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.toggle span {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--color-foreground) 18%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-foreground) 10%, var(--color-surface));
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.toggle span::after {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  content: "";
+  transition: transform 140ms ease;
+}
+
+.toggle input:checked + span {
+  border-color: var(--color-foreground);
+  background: var(--color-foreground);
+}
+
+.toggle input:checked + span::after {
+  transform: translateX(1rem);
+}
+
+.toggle input:focus-visible + span,
+.rowMain:focus-visible,
+.moreButton:focus-visible,
+.backButton:focus-visible {
+  outline: 1px solid var(--color-foreground);
+  outline-offset: 2px;
+}
+
+.menuHost {
+  position: relative;
+  flex: none;
+}
+
+.moreButton {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.45rem;
   color: var(--color-muted);
-  font-size: 12px;
+  opacity: 0;
 }
 
-.rowBody em {
-  margin-top: 6px;
-  color: var(--color-muted);
-  font-size: 11px;
-  font-style: normal;
+.row:hover .moreButton,
+.row:focus-within .moreButton,
+.moreButton[aria-expanded="true"] {
+  opacity: 1;
 }
 
-.detailBackdrop {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+.moreButton:hover {
+  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  color: var(--color-foreground);
 }
 
-.detail {
-  container-type: inline-size;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+.menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  display: grid;
+  width: 8.5rem;
+  gap: 0.15rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-surface);
+  padding: 0.3rem;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 12%);
+}
+
+.menu button {
+  min-height: 2rem;
+  border-radius: 0.35rem;
+  padding: 0 0.55rem;
+  text-align: left;
+  font-size: 0.75rem;
+}
+
+.menu button:hover,
+.menu button:focus-visible {
+  background: var(--color-surface-muted);
   outline: none;
 }
 
-.detailHeader {
-  position: sticky;
-  z-index: 2;
-  top: 0;
-  min-height: 74px;
-  justify-content: flex-start;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--color-line);
-  background: var(--color-surface);
+.menu .danger {
+  color: var(--color-red);
 }
 
-.detailHeader > div {
+.detailPage {
+  outline: none;
+  padding-bottom: 3rem;
+}
+
+.backButton {
+  min-height: 2.25rem;
+  gap: 0.4rem;
+  border-radius: 0.45rem;
+  padding: 0 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.backButton:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-foreground);
+}
+
+.detailHero {
+  gap: 1rem;
+  padding: 2rem 0 1.75rem;
+}
+
+.detailHero > div {
   min-width: 0;
   flex: 1;
 }
 
-.detailHeader h2 {
-  font-size: 16px;
-  font-weight: 740;
+.detailHero p {
+  margin-bottom: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.detailHeader button {
+.detailHero .glyph {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.8rem;
+  font-size: 0.9rem;
+}
+
+.metadata {
   display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border-radius: 7px;
+  gap: 1.3rem;
+  padding: 0.75rem 0 2rem;
 }
 
-.detailHeader button:hover {
-  background: var(--color-surface-muted);
-}
-
-.auditGrid {
+.metadata div {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  border-bottom: 1px solid var(--color-line);
+  grid-template-columns: 10rem minmax(0, 1fr);
+  gap: 1.25rem;
 }
 
-.auditGrid div {
-  min-width: 0;
-  padding: 12px 16px;
-  border-right: 1px solid var(--color-line);
-  border-bottom: 1px solid var(--color-line);
+.metadata dt {
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.75rem;
 }
 
-.auditGrid div:nth-child(2n) {
-  border-right: 0;
+.metadata dd {
+  font-size: 0.8rem;
+  line-height: 1.65;
 }
 
-.auditGrid span,
-.auditGrid strong {
-  display: block;
-}
-
-.auditGrid span {
-  color: var(--color-muted);
-  font-size: 11px;
-}
-
-.auditGrid strong {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.recovery {
-  justify-content: flex-start;
-  padding: 10px 16px;
-  background: var(--interactive-selected-bg);
-  font-size: 12px;
-}
-
-.recovery span {
-  color: var(--color-muted);
+.detailActions {
+  justify-content: flex-end;
+  padding-top: 0.75rem;
 }
 
 .panel {
-  padding: 16px;
+  padding-top: 1rem;
 }
 
-.placeholder {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 8px;
-  padding: 24px;
-  color: var(--color-muted);
-  text-align: center;
+.disabledNotice {
+  align-items: flex-start;
+  gap: 0.6rem;
+  flex-direction: column;
+  padding: 1.25rem 0;
 }
 
-.placeholder strong {
-  color: var(--color-foreground);
+.disabledNotice strong {
+  font-size: 0.9rem;
 }
 
-.placeholder span {
-  max-width: 280px;
-  font-size: 13px;
-  line-height: 1.6;
+.disabledNotice span {
+  font-size: 0.78rem;
 }
 
-@media (max-width: 720px) {
-  .header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .header button {
-    min-height: 44px;
-  }
-
-  .toolbar {
-    align-items: stretch;
-    flex-direction: column;
-    border-radius: 8px 8px 0 0;
-  }
-
-  .toolbar label {
+@media (max-width: 640px) {
+  .workspace,
+  .detailPage {
     width: 100%;
   }
 
-  .toolbar input {
-    min-height: 44px;
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 1rem;
   }
 
-  .layout {
-    display: block;
-    height: auto;
-    min-height: 0;
+  .header button {
+    min-height: 2.75rem;
   }
 
-  .list {
-    border-right: 0;
+  .row {
+    min-height: 4.75rem;
+    padding-inline: 0.25rem;
   }
 
-  .row,
-  .activeRow {
-    min-height: 92px;
+  .moreButton {
+    width: 2.75rem;
+    height: 2.75rem;
+    opacity: 1;
   }
 
-  .detailBackdrop {
-    position: fixed;
-    z-index: 95;
-    inset: 0;
-    display: grid;
-    align-items: end;
-    background: rgb(15 23 42 / 38%);
+  .detailHero {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding-top: 1.25rem;
   }
 
-  .detail {
-    height: auto;
-    max-height: min(88dvh, 760px);
-    overflow-y: auto;
-    border-radius: 16px 16px 0 0;
-    background: var(--color-surface);
-    padding-bottom: env(safe-area-inset-bottom);
+  .detailHero .toggle {
+    margin-left: auto;
   }
 
-  .detailHeader {
-    position: sticky;
-    z-index: 1;
-    top: 0;
-    background: var(--color-surface);
-  }
-
-  .detailHeader button {
-    width: 44px;
-    height: 44px;
-  }
-
-  .auditGrid {
+  .metadata div {
     grid-template-columns: 1fr;
+    gap: 0.35rem;
   }
+}
 
-  .auditGrid div,
-  .auditGrid div:nth-child(2n) {
-    border-right: 0;
+@media (pointer: coarse) {
+  .moreButton {
+    width: 2.75rem;
+    height: 2.75rem;
+    opacity: 1;
   }
+}
 
-  .placeholder {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .toggle span,
+  .toggle span::after {
+    transition: none;
   }
 }

@@ -1,4 +1,4 @@
-.panel { max-width: 840px; border: 1px solid var(--color-line); border-radius: 14px; background: var(--color-surface); overflow: hidden; }
+.panel { width: 100%; max-width: none; background: var(--color-surface); overflow: hidden; }
 .header { min-height: 58px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .title h2 { font-size: 15px; font-weight: 750; }
@@ -43,7 +43,8 @@
   .header, .fallback { align-items: flex-start; flex-direction: column; }
   .account { align-items: flex-start; }
   .accountActions { flex-direction: column; align-items: flex-end; }
-  .controls { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .controls .label:last-child { grid-column: 1 / -1; }
   .select, .iconButton { min-height: 44px; }
   .fallback .actions { width: 100%; align-items: stretch; flex-direction: column; justify-content: flex-start; }
   .fallback .actions > button { min-height: 44px; align-self: flex-start; }

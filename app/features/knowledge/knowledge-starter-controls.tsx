@@ -5,6 +5,7 @@
 import type { SyntheticEvent } from "react";
 import { useState } from "react";
 import { Button, Panel, SelectField, TextAreaField, TextField } from "../shared/ui-primitives";
+import { AppIcon } from "../shared/app-icon";
 import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeCategorySummary } from "../../types/domains/knowledge.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
@@ -48,7 +49,7 @@ export function KnowledgeCreateForm({ defaultCategory, onAddEntry }: { defaultCa
         <TextField label="标签" name="tags" placeholder={template.tags} />
         <TextField label="来源" name="source" placeholder={template.source} />
         <TextAreaField label="正文" name="content" placeholder={template.content} required />
-        <Button type="submit" variant="primary">保存到知识库</Button>
+        <Button type="submit" variant="primary"><AppIcon name="save" size={16} />保存到知识库</Button>
       </form>
     </Panel>
   );

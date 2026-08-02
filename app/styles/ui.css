@@ -2670,3 +2670,46 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
     padding-inline: 1rem;
   }
 }
+.ui-tooltip-anchor {
+  display: block;
+  min-width: 0;
+}
+
+.ui-tooltip-sr-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ui-tooltip-content {
+  position: fixed;
+  z-index: 90;
+  max-width: min(12.5rem, calc(100vw - 1rem));
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--foreground) 94%, var(--surface));
+  padding: 0.3rem 0.45rem;
+  color: var(--surface);
+  font-size: 0.68rem;
+  line-height: 1.4;
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 16%);
+  animation: ui-tooltip-enter 100ms ease-out;
+}
+
+@keyframes ui-tooltip-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (pointer: coarse) {
+  .ui-tooltip-content { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-tooltip-content { animation: none; }
+}

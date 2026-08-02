@@ -31,8 +31,8 @@ type DefaultCapabilitySelectorProps = {
 };
 
 const purposes = Object.keys(defaultPurposeLabels) as AiConnectionPurpose[];
-const primaryPurposes: AiConnectionPurpose[] = ["text", "vision"];
-const secondaryPurposes: AiConnectionPurpose[] = ["speech", "transcription", "realtime"];
+const primaryPurposes: AiConnectionPurpose[] = ["text", "vision", "speech"];
+const secondaryPurposes: AiConnectionPurpose[] = ["transcription", "realtime"];
 
 /** 从目录中选择保留值或推荐回退，未知手动值不会被名字规则误判。 */
 function selectCompatibleModel(models: AiModelCatalogEntry[], currentModelId?: string): string | undefined {

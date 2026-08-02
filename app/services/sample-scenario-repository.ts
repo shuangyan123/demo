@@ -1,7 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
 import type { AutomationDefinition, AutomationRun } from "../types/domains/automation.ts";
 import type { AiConversation, AiConversationMessage, AiConversationRunStep, AiProject } from "../types/domains/conversation.ts";
-import type { PersistedImportDraft, ImportBatch } from "../types/domains/import.ts";
+import type { PersistedImportDraft, ImportBatch, ImportDraftIssue } from "../types/domains/import.ts";
 import type { InterviewEvaluation, InterviewQuestion, InterviewSession, InterviewTurn } from "../types/domains/interview.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
 import type { Attempt, Mistake } from "../types/domains/review.ts";
@@ -115,6 +115,57 @@ function coreFixtures(scenarioId: SampleScenarioId) {
   return { attempts, knowledgeAttempts, knowledgeEntries, mistakes };
 }
 
+/** 为薄弱分析生成可重复的六板块证据，覆盖四种趋势和两类改进行动。 */
+function denseInsightFixtures(scenarioId: SampleScenarioId) {
+  const boardSpecs = [
+    { board: "资料分析", mastery: 4, earlier: 3, later: 5, count: 12 },
+    { board: "言语理解与表达", mastery: 2, earlier: 5, later: 3, count: 12 },
+    { board: "判断推理", mastery: 2, earlier: 4, later: 4, count: 12 },
+    { board: "数量关系", mastery: 1, earlier: 4, later: 2, count: 12 },
+    { board: "政治理论", mastery: 3, earlier: 2, later: 1, count: 4 },
+    { board: "常识判断", mastery: 2, earlier: 3, later: 3, count: 12 },
+  ] as const;
+  const mistakes: Mistake[] = [];
+  const attempts: Attempt[] = [];
+  boardSpecs.forEach((spec, boardIndex) => {
+    for (let mistakeIndex = 0; mistakeIndex < 3; mistakeIndex += 1) {
+      const mistakeId = id(scenarioId, `insight-mistake-${boardIndex}-${mistakeIndex}`);
+      mistakes.push({
+        id: mistakeId,
+        board: spec.board,
+        source: "内置 UI 审查数据",
+        stem: `${spec.board}审查题 ${mistakeIndex + 1}：定位当前最需要改进的解题环节`,
+        answer: "按题型规则完成分步判断",
+        explanation: "用于验证薄弱分析的板块统计、排序和操作入口。",
+        reasons: [mistakeIndex === 0 ? "方法选择不稳定" : "关键条件遗漏"],
+        tags: ["UI 审查", spec.board],
+        mastery: Math.max(1, spec.mastery - (mistakeIndex === 0 ? 1 : 0)),
+        nextReviewAt: relativeTimestamp({ days: mistakeIndex - 1 }).slice(0, 10),
+        createdAt: relativeTimestamp({ days: -30 + boardIndex }),
+        updatedAt: timestamp,
+      });
+    }
+    const half = Math.floor(spec.count / 2);
+    for (let attemptIndex = 0; attemptIndex < spec.count; attemptIndex += 1) {
+      const correctLimit = attemptIndex < half ? spec.earlier : spec.later;
+      const indexWithinHalf = attemptIndex < half ? attemptIndex : attemptIndex - half;
+      attempts.push({
+        id: id(scenarioId, `insight-attempt-${boardIndex}-${attemptIndex}`),
+        mistakeId: id(scenarioId, `insight-mistake-${boardIndex}-${attemptIndex % 3}`),
+        result: indexWithinHalf < correctLimit ? "correct" : "wrong",
+        confidence: indexWithinHalf < correctLimit ? 4 : 2,
+        durationSec: 42 + boardIndex * 5 + attemptIndex,
+        reviewedAt: relativeTimestamp({ days: -29 + Math.floor((attemptIndex / Math.max(1, spec.count - 1)) * 29), minutes: boardIndex * 3 }),
+      });
+    }
+  });
+  const knowledgeEntries: KnowledgeEntry[] = [
+    { id: id(scenarioId, "insight-knowledge-logic"), category: "常识判断", title: "图形推理规律辨识", summary: "优先检查位置、数量与属性规律。", content: "先按位置、数量、属性三类建立排查顺序。", tags: ["判断推理"], source: "内置 UI 审查数据", favorite: false, mastery: 1, nextReviewAt: reviewDay, reviewCount: 2, createdAt: timestamp, updatedAt: timestamp },
+    { id: id(scenarioId, "insight-knowledge-math"), category: "政治理论", title: "工程问题核心公式", summary: "工作总量、效率和时间的关系。", content: "工作总量等于工作效率乘以工作时间。", tags: ["数量关系"], source: "内置 UI 审查数据", favorite: false, mastery: 1, nextReviewAt: reviewDay, reviewCount: 1, createdAt: timestamp, updatedAt: timestamp },
+  ];
+  return { attempts, knowledgeEntries, mistakes };
+}
+
 function conversationFixtures(scenarioId: SampleScenarioId) {
   const reviewProjectId = id(scenarioId, "project");
   const conversationId = id(scenarioId, "conversation");
@@ -207,6 +258,70 @@ function importFixtures(scenarioId: SampleScenarioId, needsReview: boolean) {
     createdAt: timestamp,
     updatedAt: timestamp,
   }];
+  return { batches, drafts };
+}
+
+/** 导入控制台混合场景同时覆盖待确认、异常、成功与失败批次。 */
+function mixedImportFixtures(scenarioId: SampleScenarioId) {
+  const files = [
+    ["粉笔账户错题同步", "parsed", "fenbi", 45, undefined],
+    ["粉笔官方错题本导出.pdf", "parsed", "fenbi", 18, undefined],
+    ["粉笔错题截图-判断推理.png", "parsing", "fenbi", 12, undefined],
+    ["粉笔错题文本粘贴", "queued", "text", 0, undefined],
+    ["粉笔错题导出-结构异常.docx", "failed", "fenbi", 0, "文件结构发生变化，请使用其他粉笔导出格式"],
+    ["粉笔账户同步-已确认", "saved", "fenbi", 18, undefined],
+  ] as const;
+  const batches: ImportBatch[] = files.map(([fileName, status, source, parsedCount, error], index) => ({
+    id: id(scenarioId, `mixed-batch-${index}`),
+    source,
+    fileNames: [fileName],
+    fileCount: 1,
+    status,
+    parsedCount,
+    savedCount: status === "saved" ? parsedCount : 0,
+    message: status === "failed" ? "解析失败" : status === "saved" ? "已确认入库" : status === "parsing" ? "正在解析粉笔截图" : status === "queued" ? "等待解析粉笔文本" : "解析完成，等待确认",
+    error,
+    documentMetadata: {
+      documentType: "粉笔错题集",
+      category: index === 2 ? "判断推理" : index === 4 ? "常识判断" : "言语理解与表达",
+      exam: "国家公务员考试",
+      year: index === 3 ? "2023" : "2024",
+      paperLevel: index === 0 ? "地市级" : "通用",
+      pageRange: index === 2 ? "1-24" : `1-${Math.max(1, Math.ceil(parsedCount / 2))}`,
+      questionCount: parsedCount,
+      durationSec: 38 + index * 7,
+    },
+    diagnostics: status === "failed"
+      ? [{ field: "文件结构", tone: "error", message: error ?? "解析失败" }]
+      : [{ field: "资料类型", tone: "success", message: "字段识别完成" }, ...(index === 3 ? [{ field: "答案", tone: "warning" as const, message: "3 题缺少答案" }] : [])],
+    confirmationSummary: status === "saved" ? { confirmedCount: parsedCount, confirmedAt: relativeTimestamp({ days: -1 }) } : undefined,
+    createdAt: relativeTimestamp({ days: -index, minutes: -index * 11 }),
+    updatedAt: relativeTimestamp({ days: -index, minutes: -index * 11 }),
+  }));
+  const issueSets: ImportDraftIssue[][] = [[], ["low_confidence"], ["missing_answer"], ["duplicate"], ["unknown_board"], []];
+  const drafts: PersistedImportDraft[] = issueSets.map((issues, index) => ({
+    id: id(scenarioId, `mixed-draft-${index}`),
+    batchId: batches[index % 4].id,
+    fileName: batches[index % 4].fileNames[0],
+    fileType: index === 2 ? "image/png" : index === 1 ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf",
+    selected: index < 3,
+    needsReview: issues.length > 0,
+    issues: [...issues],
+    board: (["言语理解与表达", "政治理论", "判断推理", "数量关系", "常识判断", "资料分析"] as const)[index],
+    source: "内置 UI 审查数据",
+    stem: `导入草稿 ${index + 1}：用于检查字段校验、问题状态与详情布局`,
+    options: ["A. 选项一", "B. 选项二", "C. 选项三", "D. 选项四"],
+    answer: issues.includes("missing_answer") ? "" : "B",
+    myAnswer: index % 2 ? "A" : "",
+    explanation: "解析预览只包含结构化审查文本，不包含真实文件正文。",
+    reasons: issues.length ? ["需要人工复核"] : [],
+    tags: ["UI 审查", "导入"],
+    mastery: index % 3 + 1,
+    confidence: issues.includes("low_confidence") ? 0.46 : 0.92,
+    rawText: "内置 UI 审查短文本",
+    createdAt: relativeTimestamp({ days: -index }),
+    updatedAt: relativeTimestamp({ days: -index }),
+  }));
   return { batches, drafts };
 }
 
@@ -362,18 +477,28 @@ export const sampleScenarioRepository = {
   },
 
   async seedAll(): Promise<void> {
-    for (const scenario of sampleScenarioDefinitions) await this.seed(scenario.id);
+    for (const scenario of sampleScenarioDefinitions) {
+      if (!("fixtureOwner" in scenario) || scenario.fixtureOwner !== "settings") await this.seed(scenario.id);
+    }
   },
 
   async seed(scenarioId: SampleScenarioId): Promise<void> {
     const scenario = getSampleScenario(scenarioId);
     if (!scenario) throw new Error("未知示例场景");
+    if ("fixtureOwner" in scenario && scenario.fixtureOwner === "settings") throw new Error("该场景必须由设置 UI 审查仓储载入");
     await reviewDb.transaction("rw", [...SAMPLE_TABLES], async () => {
       const core = coreFixtures(scenarioId);
       await reviewDb.mistakes.bulkPut(core.mistakes);
       await reviewDb.attempts.bulkPut(core.attempts);
       await reviewDb.knowledgeEntries.bulkPut(core.knowledgeEntries);
       await reviewDb.knowledgeAttempts.bulkPut(core.knowledgeAttempts);
+
+      if (scenario.id === "library-insights-dense") {
+        const fixture = denseInsightFixtures(scenarioId);
+        await reviewDb.mistakes.bulkPut(fixture.mistakes);
+        await reviewDb.attempts.bulkPut(fixture.attempts);
+        await reviewDb.knowledgeEntries.bulkPut(fixture.knowledgeEntries);
+      }
 
       if (scenario.view === "conversation" || scenario.view === "tutoring") {
         const fixture = conversationFixtures(scenarioId);
@@ -383,7 +508,9 @@ export const sampleScenarioRepository = {
         await reviewDb.aiConversationRunSteps.bulkPut(fixture.runSteps);
       }
       if (scenario.view === "import") {
-        const fixture = importFixtures(scenarioId, scenario.variant === "needs-review");
+        const fixture = scenario.id === "import-console-mixed"
+          ? mixedImportFixtures(scenarioId)
+          : importFixtures(scenarioId, scenario.variant === "needs-review");
         await reviewDb.importBatches.bulkPut(fixture.batches);
         await reviewDb.importDrafts.bulkPut(fixture.drafts);
       }

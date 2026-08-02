@@ -2,8 +2,8 @@ import { integrationBranding } from "../../../services/integration-branding.ts";
 
 export type SettingsPluginStatus = "ready" | "warning" | "error" | "disabled";
 export type SettingsPluginCategory = "featured" | "knowledge-sync" | "import-source" | "study-extension";
-export type SettingsPluginPanelKey = "obsidian" | "fenbi-import" | "declarative-marketplace";
-export type SettingsPluginId = "obsidian-vault" | "fenbi-import" | "declarative-marketplace";
+export type SettingsPluginPanelKey = "obsidian" | "fenbi-import";
+export type SettingsPluginId = "obsidian-vault" | "fenbi-import";
 export type SettingsPluginSurface = "plugin" | "skill";
 
 export type SettingsPluginBadge = {
@@ -64,29 +64,6 @@ export type SettingsPluginDefinition = {
 
 /** 设置插件注册表只声明应用内插件，不加载第三方动态代码。 */
 export const settingsPluginDefinitions: SettingsPluginDefinition[] = [
-  {
-    id: "declarative-marketplace",
-    label: "声明式扩展市场",
-    icon: { label: "扩", background: "#315f78" },
-    shortDescription: "主题、人设、学习路径与评分标准",
-    description: "安装经过 SHA-256 与签名校验的数据包，不加载第三方 JavaScript 或 HTML。",
-    category: "study-extension",
-    surface: "plugin",
-    featured: true,
-    providerLabel: "由本地扩展沙箱提供",
-    statusBadge: { label: "无代码", tone: "green" },
-    primaryAction: { label: "打开", kind: "open" },
-    menuActions: [
-      { label: "文档", kind: "docs", href: "docs/architecture.md" },
-      { label: "隐私", kind: "privacy" },
-    ],
-    healthSummaryProvider: () => "扩展数据保存在独立 review_extensions 数据库",
-    privacyNote: "包内不允许 JavaScript、HTML、远程字体、CDN 或 Token；安装前展示来源、权限和摘要。",
-    capabilities: ["签名校验", "启用/停用", "升级回滚", "本地导入导出"],
-    detailPanelLoader: "declarative-marketplace",
-    panelLoader: "declarative-marketplace",
-    docsUrl: "docs/architecture.md",
-  },
   {
     id: "obsidian-vault",
     label: "Obsidian Vault",

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { startMockAiProvider, type MockAiProvider } from "./helpers/mock-ai-provider";
+import { openConnectionEditor } from "./helpers/configure-custom-ai";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
 /** 打开设置中的 AI 连接分区。 */
@@ -16,7 +17,7 @@ async function createConnection(page: Page, input: {
   modelId: string;
   mock: MockAiProvider;
 }): Promise<void> {
-  await page.getByRole("combobox", { name: "厂商" }).click();
+  await (await openConnectionEditor(page)).click();
   await page.getByRole("option", { name: input.providerLabel, exact: true }).click();
   const connectionName = page.getByLabel("连接名称");
   if (!(await connectionName.isVisible())) await page.getByText("高级设置", { exact: true }).click();

@@ -12,7 +12,6 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import styles from "./ui-tooltip.module.css";
 
 type TooltipRenderProps = {
   describedBy: string;
@@ -158,7 +157,7 @@ export function UiTooltip({ children, content }: UiTooltipProps) {
   return (
     <div
       ref={anchorRef}
-      className={styles.anchor}
+      className="ui-tooltip-anchor"
       onPointerEnter={handlePointerEnter}
       onPointerLeave={closeTooltip}
       onPointerDown={(event) => {
@@ -172,13 +171,13 @@ export function UiTooltip({ children, content }: UiTooltipProps) {
       }}
     >
       {children({ describedBy: tooltipId })}
-      {!open ? <span id={tooltipId} className={styles.srDescription} role="tooltip">{content}</span> : null}
+      {!open ? <span id={tooltipId} className="ui-tooltip-sr-description" role="tooltip">{content}</span> : null}
       {open && typeof document !== "undefined"
         ? createPortal(
             <div
               ref={tooltipRef}
               id={tooltipId}
-              className={styles.tooltip}
+              className="ui-tooltip-content"
               role="tooltip"
               style={{ left: position.left, top: position.top, visibility: position.visible ? "visible" : "hidden" }}
             >

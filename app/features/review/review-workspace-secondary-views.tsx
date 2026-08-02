@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "../shared/ui-primitives";
+import { useSettingsPluginPreferences } from "../settings/plugins/use-settings-plugin-preferences.ts";
 import { KnowledgeView } from "../knowledge/knowledge-workspace";
 import { EntryView } from "./review-entry-view";
 import {
@@ -16,6 +18,7 @@ import type { ReviewWorkspaceController } from "./use-review-workspace-controlle
 export function ReviewWorkspaceSecondaryViews({ controller }: { controller: ReviewWorkspaceController }) {
   const { aiConnections, automation, conversation, data, knowledge, learning, personalization, workspace } = controller;
   const view = workspace.view;
+  const pluginPreferences = useSettingsPluginPreferences();
 
   return (
     <>
@@ -62,6 +65,7 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
           allKnowledgeEntries={data.knowledgeEntries}
           allMistakes={data.mistakes}
           entries={knowledge.snapshot.filteredEntries}
+          importDrafts={knowledge.snapshot.drafts}
           filters={knowledge.snapshot.filters}
           internalization={knowledge.snapshot.internalization}
           relatedMistakes={knowledge.snapshot.selectedEntryMistakes}
@@ -79,11 +83,16 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
           onExportKnowledgeEntries={knowledge.actions.exportItems}
           onOpenRelatedMistake={learning.actions.openMistake}
           onOpenSettings={() => workspace.openApiSettings("请先配置默认文本连接，再使用 AI 关联分析")}
+          onOpenPlugins={() => workspace.switchView("plugins")}
           onRemoveAssociationLink={knowledge.actions.removeLink}
           onSelectEntry={knowledge.actions.setSelectedId}
           onStartTraining={knowledge.actions.openTraining}
           onCreateStarterDrafts={knowledge.actions.createStarterDrafts}
+          onConfirmImportDrafts={knowledge.actions.confirmDrafts}
+          onDeleteImportDraft={knowledge.actions.deleteDraft}
           onToggleFavorite={knowledge.actions.toggleFavorite}
+          onUpdateImportDraft={knowledge.actions.updateDraft}
+          onUpdateImportDraftTags={knowledge.actions.updateDraftList}
           onToggleAssociationSuggestion={knowledge.actions.toggleSuggestion}
           onUpdateEntry={knowledge.actions.updateEntry}
           onKnowledgeChanged={workspace.health.refreshWorkspaceAndObsidianHealth}
@@ -123,23 +132,17 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
       ) : null}
 
       {view === "import" ? (
-        <ImportWorkspace
+        pluginPreferences.enabled["fenbi-import"] ? <ImportWorkspace
           textConnection={aiConnections.textConnection}
           visionConnection={aiConnections.visionConnection}
           importJobs={data.importJobs}
-          knowledgeDrafts={knowledge.snapshot.drafts}
           mistakes={data.mistakes}
           today={workspace.today}
-          onConfirmKnowledgeDrafts={knowledge.actions.confirmDrafts}
-          onDeleteKnowledgeDraft={knowledge.actions.deleteDraft}
-          onImportKnowledgeText={knowledge.actions.importText}
           onRefreshWorkspace={data.refreshData}
           onSwitchSettings={() => workspace.switchView("settings")}
-          onUpdateKnowledgeDraft={knowledge.actions.updateDraft}
-          onUpdateKnowledgeDraftList={knowledge.actions.updateDraftList}
           setNotice={workspace.setNotice}
           scope={workspace.scope}
-        />
+        /> : <section className="mx-auto grid min-h-[50vh] max-w-xl place-content-center gap-3 text-center"><strong>粉笔导入插件已停用</strong><p className="text-sm text-muted">现有草稿、凭据和导入记录均已保留。重新启用后才会执行解析或 OCR。</p><Button onClick={() => workspace.switchView("plugins")}>前往插件页启用</Button></section>
       ) : null}
 
       {view === "plugins" ? (

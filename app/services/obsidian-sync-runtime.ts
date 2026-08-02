@@ -2,6 +2,7 @@ import type {
   ObsidianSyncReport,
   ObsidianSyncRuntimeSnapshot,
 } from "../types/domains/obsidian.ts";
+import { isUiReviewRuntimeActive } from "./ui-review-runtime-guard.ts";
 
 type Listener = () => void;
 
@@ -49,7 +50,7 @@ async function stopCurrentWatch(): Promise<void> {
 
 function isRuntimeActive(): boolean {
   if (typeof document === "undefined" || typeof navigator === "undefined") return false;
-  return document.visibilityState === "visible" && navigator.onLine;
+  return !isUiReviewRuntimeActive() && document.visibilityState === "visible" && navigator.onLine;
 }
 
 function scheduleSync(delay = CHANGE_DEBOUNCE_MS): void {
@@ -165,6 +166,10 @@ export const obsidianSyncRuntime = {
 
   async start(): Promise<void> {
     if (started || typeof window === "undefined") return;
+    if (isUiReviewRuntimeActive()) {
+      publish({ status: "paused", mode: "none" });
+      return;
+    }
     started = true;
     document.addEventListener("visibilitychange", handleResume);
     window.addEventListener("online", handleResume);

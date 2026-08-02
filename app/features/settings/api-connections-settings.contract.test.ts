@@ -51,14 +51,16 @@ test("AI 连接保存反馈靠近提交按钮且切换厂商保留编辑记录",
   assert.match(source, /apiKeyInputRef\.current\?\.focus\(\)/);
 });
 
-test("AI 连接开发示例复用五列表格且真实仓储容器按示例状态隔离", async () => {
+test("AI 连接审查数据复用真实五列表格且选中状态与编辑状态分离", async () => {
   const [source, styles] = await Promise.all([
     readSource(),
     readFile(new URL("./settings-compact.module.css", import.meta.url), "utf8"),
   ]);
-  assert.match(source, /ApiConnectionsDevelopmentExample/);
   assert.match(source, /ApiConnectionsSettingsLiveView/);
-  assert.match(source, /if \(example\.value\)/);
+  assert.doesNotMatch(source, /ApiConnectionsDevelopmentExample|if \(example\.value\)/);
+  assert.match(source, /selectedProfileId/);
+  assert.match(source, /editorOpen/);
+  assert.match(source, /onClick=\{\(\) => setSelectedProfileId\(profile\.id\)\}/);
   assert.doesNotMatch(styles, /\.connectionTableHeader\s*\{[^}]*text-align:\s*center/);
   assert.match(styles, /\.cellStart\s*\{[^}]*text-align:\s*left/);
   assert.match(styles, /\.cellCenter\s*\{[^}]*text-align:\s*center/);
@@ -75,6 +77,8 @@ test("AI 连接操作列始终保留编辑、测试和删除三个稳定动作�
   assert.match(source, /重新输入密钥/);
   assert.match(source, /testSavedProfile\(profile\)/);
   assert.match(source, /removeProfile\(profile\)/);
+  assert.match(source, /credentialNeedsReentry/);
+  assert.match(source, /disabled=\{!selectedTestModelId \|\| Boolean\(busyAction\) \|\| credentialNeedsReentry\}/);
   assert.match(styles, /\.connectionActions\s*\{[\s\S]*grid-template-columns:\s*minmax\(6\.5rem, auto\)[\s\S]*minmax\(3\.25rem, auto\)[\s\S]*minmax\(3\.25rem, auto\)/);
   assert.match(styles, /\.connectionActions > button\s*\{[\s\S]*white-space:\s*nowrap/);
   assert.doesNotMatch(styles, /\.connectionActions > :last-child\s*\{[\s\S]*display:\s*none/);

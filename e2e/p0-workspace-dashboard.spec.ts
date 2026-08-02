@@ -116,8 +116,8 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
       rightGap: Math.abs(layoutBounds.right - mainBounds.right),
     };
   });
-  expect(desktopGeometry.frameTop).toBe(12);
-  expect(desktopGeometry.mainTop).toBe(12);
+  expect(desktopGeometry.frameTop).toBe(52);
+  expect(desktopGeometry.mainTop).toBe(52);
   expect(desktopGeometry.leftGap).toBeLessThanOrEqual(1);
   expect(desktopGeometry.rightGap).toBeLessThanOrEqual(1);
   expect(desktopGeometry.bottomGap).toBeLessThanOrEqual(1);

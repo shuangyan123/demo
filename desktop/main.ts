@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
 import path from "node:path";
 import { installPermissionBoundary } from "./permissions.js";
 import { DESKTOP_ENTRY_URL, installDesktopProtocol, registerDesktopScheme } from "./protocol.js";
@@ -9,6 +9,21 @@ registerDesktopScheme();
 
 let mainWindow: BrowserWindow | undefined;
 let runtime: DesktopRuntime | undefined;
+const TITLE_BAR_HEIGHT = 52;
+
+function installTitleBarIpc(): void {
+  ipcMain.removeHandler("review-titlebar:set-theme");
+  ipcMain.handle("review-titlebar:set-theme", (event, mode: unknown) => {
+    if (event.sender !== mainWindow?.webContents || (mode !== "light" && mode !== "dark")) {
+      throw new Error("标题栏主题参数无效");
+    }
+    mainWindow.setTitleBarOverlay({
+      color: "#00000000",
+      symbolColor: mode === "dark" ? "#f5f5f5" : "#171717",
+      height: TITLE_BAR_HEIGHT,
+    });
+  });
+}
 
 function isSquirrelLifecycleInvocation(): boolean {
   return process.argv.some((argument) => /^--squirrel-(install|updated|uninstall|obsolete)$/.test(argument));
@@ -40,6 +55,12 @@ async function createMainWindow(): Promise<void> {
     show: false,
     backgroundColor: "#f7f7f5",
     title: "错题复盘",
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#00000000",
+      symbolColor: "#171717",
+      height: TITLE_BAR_HEIGHT,
+    },
     webPreferences: {
       preload: path.join(import.meta.dirname, "preload.js"),
       partition,
@@ -51,6 +72,7 @@ async function createMainWindow(): Promise<void> {
       devTools: Boolean(developmentUrl),
     },
   });
+  installTitleBarIpc();
   installPermissionBoundary(workspaceSession, developmentUrl);
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedExternalUrl(url)) void shell.openExternal(url);

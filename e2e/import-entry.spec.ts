@@ -29,14 +29,14 @@ test("粉笔实验直连以进度同步异常草稿，确认前不写错题库",
   }));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "导入资料" }).first().click();
+  await page.getByRole("button", { name: "粉笔导入" }).first().click();
   await page.getByRole("button", { name: "配置粉笔 Cookie" }).click();
   await page.getByRole("textbox", { name: "粉笔 Cookie" }).fill("session=e2e-cookie-secret");
   await page.getByRole("button", { name: "保存并验证" }).click();
   await expect(page.getByText(/已连接 · sess\.\.\.cret/)).toBeVisible();
   await page.getByRole("button", { name: "同步错题" }).click();
 
-  await expect(page.getByText("E2E 粉笔同步异常题干")).toBeVisible();
+  await expect(page.locator("strong", { hasText: "E2E 粉笔同步异常题干" }).first()).toBeVisible();
   expect(await countStore(page, "mistakes")).toBe(0);
   expect(await countStore(page, "importDrafts")).toBe(1);
   await page.getByRole("button", { name: "确认入库" }).click();
@@ -49,25 +49,23 @@ test("粉笔实验直连以进度同步异常草稿，确认前不写错题库",
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("导入资料可生成知识资料草稿并确认入库", async ({ page }) => {
+test("知识库可手动新增资料并立即展示", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
   await expect(page).toHaveTitle("错题复盘");
-  await page.getByRole("button", { name: "导入资料" }).first().click();
-  await expect(page.getByRole("heading", { name: "导入资料", exact: true })).toBeVisible();
+  await page.getByRole("region", { name: "公考学习链路" }).getByRole("button", { name: /知识沉淀/ }).click();
+  await expect(page.getByRole("heading", { name: "知识库", exact: true })).toBeVisible();
 
-  const knowledgeImportForm = page.locator("form").filter({ has: page.getByRole("button", { name: "生成资料草稿" }) });
-  await knowledgeImportForm.getByLabel("资料文本").fill("E2E 知识资料标题\n\n这是一段用于端到端测试的知识资料正文。");
-  await knowledgeImportForm.getByLabel("标签").fill("e2e,资料");
-  await knowledgeImportForm.getByLabel("来源").fill("E2E 导入");
-  await knowledgeImportForm.getByRole("button", { name: "生成资料草稿" }).click();
+  const knowledgeForm = page.locator("form").filter({ has: page.getByRole("button", { name: "保存到知识库" }) });
+  await knowledgeForm.getByLabel("标题").fill("E2E 知识资料标题");
+  await knowledgeForm.getByLabel("摘要").fill("用于端到端测试的知识摘要");
+  await knowledgeForm.getByLabel("标签").fill("e2e,资料");
+  await knowledgeForm.getByLabel("来源").fill("E2E 手动新增");
+  await knowledgeForm.getByLabel("正文").fill("这是一段用于端到端测试的知识资料正文。");
+  await knowledgeForm.getByRole("button", { name: "保存到知识库" }).click();
 
-  await expect(page.getByText("已生成 2 条知识资料草稿，请确认后入库")).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "标题" }).first()).toHaveValue("E2E 知识资料标题");
-  await page.getByRole("button", { name: /确认保存 2 条/ }).click();
-
-  await expect(page.getByText("已保存 2 条知识资料")).toBeVisible();
+  await expect(page.getByText("知识条目已保存")).toBeVisible();
   await expect(page.getByRole("button", { name: /E2E 知识资料标题/ }).first()).toBeVisible();
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
 import { AppIcon } from "./app-icon";
+import { useDesktopTitlebarTheme } from "./use-desktop-titlebar-theme.ts";
 // 渲染左上角侧栏切换按钮，使用按钮语义让键盘和屏幕阅读器都能识别当前折叠状态。
 export function SidebarToggleButton({
   buttonRef,
@@ -23,7 +24,6 @@ export function SidebarToggleButton({
     </button>
   );
 }
-// 渲染应用顶部栏；只保留真实可用的侧栏切换、返回和当前区域标题。
 export function WindowMenuBar({
   sidebarButtonRef,
   sidebarCollapsed,
@@ -32,24 +32,25 @@ export function WindowMenuBar({
   onToggleSidebar,
 }: {
   sidebarButtonRef?: Ref<HTMLButtonElement>;
-  sidebarCollapsed: boolean;
-  title?: string; onBack?: () => void;
+  sidebarCollapsed: boolean; title?: string; onBack?: () => void;
   onToggleSidebar: () => void;
 }) {
   return (
-    <header className="chrome-topbar z-40 flex shrink-0 items-center gap-3 px-3 text-sm text-muted">
-      <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
-      {onBack && (
-        <button
-          className="hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
-          type="button"
-          aria-label="返回"
-          onClick={onBack}
-        >
-          <span aria-hidden="true">←</span>
-        </button>
-      )}
-      <strong className="truncate text-foreground">{title}</strong>
+    <header className="chrome-topbar z-40 shrink-0 text-sm text-muted">
+      <div className="chrome-topbar-safe-area flex h-full min-w-0 items-center gap-3 px-3">
+        <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
+        {onBack && (
+          <button
+            className="chrome-titlebar-control hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
+            type="button"
+            aria-label="返回"
+            onClick={onBack}
+          >
+            <AppIcon name="back" size={18} />
+          </button>
+        )}
+        <strong className="truncate text-foreground">{title}</strong>
+      </div>
     </header>
   );
 }
@@ -71,8 +72,7 @@ export function WorkspaceShell({
   sidebar: ReactNode;
   sidebarClassName?: string;
   sidebarCollapsed: boolean;
-  title: string; onBack?: () => void;
-  onToggleSidebar: () => void;
+  title: string; onBack?: () => void; onToggleSidebar: () => void;
 }) {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -80,6 +80,7 @@ export function WorkspaceShell({
   const sidebarButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarStateClass = sidebarCollapsed ? "is-sidebar-collapsed" : "is-sidebar-expanded";
   const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;
+  useDesktopTitlebarTheme();
   // 移动端侧栏是临时抽屉，桌面端继续使用既有持久化折叠状态。
   useEffect(() => {
     const media = window.matchMedia("(max-width: 1024px)");
@@ -140,7 +141,6 @@ export function WorkspaceShell({
     const target = event.target as HTMLElement;
     if (target.closest('[data-mobile-sidebar-close="true"]')) setMobileSidebarOpen(false);
   }, [isMobile]);
-
   return (
     <div
       className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground"

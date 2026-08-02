@@ -8,6 +8,7 @@ const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const runtime = readFileSync(new URL("./runtime.ts", import.meta.url), "utf8");
 const protocol = readFileSync(new URL("./protocol.ts", import.meta.url), "utf8");
 const permissions = readFileSync(new URL("./permissions.ts", import.meta.url), "utf8");
+const preload = readFileSync(new URL("./preload.ts", import.meta.url), "utf8");
 const proxy = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
 
 test("桌面窗口保持隔离、沙箱与单实例边界", () => {
@@ -17,6 +18,16 @@ test("桌面窗口保持隔离、沙箱与单实例边界", () => {
   assert.match(main, /sandbox:\s*true/);
   assert.match(main, /webSecurity:\s*true/);
   assert.match(main, /setWindowOpenHandler/);
+});
+
+test("桌面窗口使用 52px 隐藏标题栏并限制标题栏主题桥接参数", () => {
+  assert.match(main, /titleBarStyle:\s*"hidden"/);
+  assert.match(main, /titleBarOverlay:\s*\{/);
+  assert.match(main, /height:\s*TITLE_BAR_HEIGHT/);
+  assert.match(main, /mode !== "light" && mode !== "dark"/);
+  assert.match(main, /event\.sender !== mainWindow\?\.webContents/);
+  assert.match(preload, /reviewDesktopWindow/);
+  assert.match(preload, /setTitleBarTheme: \(mode: "light" \| "dark"\)/);
 });
 
 test("安装版通过稳定协议代理随机 loopback 且直连需要令牌", () => {

@@ -10,9 +10,9 @@ import type { AiModelsResult } from "../../services/api-client";
 import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { AiModelCatalogEntry } from "../../types/domains/provider-catalog.ts";
-import { Button, EmptyState, cx } from "../shared/ui-primitives";
+import { Button, EmptyState, IconButton, cx } from "../shared/ui-primitives";
+import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
-import { DevelopmentExampleSwitcher, useDevelopmentExample, type DevelopmentExampleOption } from "../shared/development-example-switcher";
 import { ProviderSelect } from "./provider-select";
 import { DefaultCapabilitySelector } from "./default-capability-selector";
 import { ModelCatalogSelect } from "./model-catalog-select";
@@ -35,12 +35,6 @@ type ConnectionForm = {
 };
 
 const capabilityLabels: Partial<Record<AiCapability, string>> = { text: "文本", vision: "多模态", structured_output: "结构化输出", speech: "语音", transcription: "录音转写" };
-const connectionExampleOptions: DevelopmentExampleOption[] = [
-  { id: "connections-ready", label: "非空连接表" },
-  { id: "credential-recovery", label: "凭据需要重输" },
-  { id: "connection-failed", label: "连接测试失败" },
-];
-
 // 连接档案只描述厂商、鉴权与协议能力，模型由会话或默认能力单独持有。
 function createForm(provider: ApiProvider = "openai"): ConnectionForm {
   const contract = getProviderContract(provider);
@@ -87,29 +81,17 @@ function providerOptionsForForm(form: ConnectionForm): Record<string, string> {
   return {};
 }
 
-/** AI 连接入口在开发环境可切换纯内存示例，示例态不会挂载真实仓储容器。 */
-export function ApiConnectionsSettingsView({ developmentExample, onChanged }: { developmentExample?: string; onChanged?: () => void }) {
-  const example = useDevelopmentExample(developmentExample, connectionExampleOptions);
-  if (example.value) {
-    return (
-      <section className={compactStyles.connectionLayout}>
-        <DevelopmentExampleSwitcher options={connectionExampleOptions} value={example.value} onChange={example.select} />
-        <ApiConnectionsDevelopmentExample scenario={example.value} />
-      </section>
-    );
-  }
-  return (
-    <>
-      {example.enabled ? <DevelopmentExampleSwitcher options={connectionExampleOptions} value={example.value} onChange={example.select} /> : null}
-      <ApiConnectionsSettingsLiveView onChanged={onChanged} />
-    </>
-  );
+/** AI 连接始终通过真实仓储渲染；开发审查状态也写入隔离命名空间。 */
+export function ApiConnectionsSettingsView({ onChanged }: { developmentExample?: string; onChanged?: () => void }) {
+  return <ApiConnectionsSettingsLiveView onChanged={onChanged} />;
 }
 
 // 配置多厂商连接、能力默认值和连接测试；厂商协议细节只存在于服务端适配器。
 function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void }) {
   const [snapshot, setSnapshot] = useState<AiConnectionSnapshot>({ profiles: [], defaults: { id: "default", updatedAt: "" } });
   const [form, setForm] = useState<ConnectionForm>(() => createForm());
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
   const [busyAction, setBusyAction] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [availableModels, setAvailableModels] = useState<AiModelCatalogEntry[]>([]);
@@ -130,6 +112,7 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
     ] as const));
     setSnapshot(nextSnapshot);
     setCredentialHealth(Object.fromEntries(healthEntries));
+    setSelectedProfileId((current) => nextSnapshot.profiles.some((profile) => profile.id === current) ? current : nextSnapshot.profiles[0]?.id ?? "");
   }, []);
 
   useEffect(() => {
@@ -144,6 +127,7 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
         if (active) {
           setSnapshot(nextSnapshot);
           setCredentialHealth(Object.fromEntries(healthEntries));
+          setSelectedProfileId(nextSnapshot.profiles[0]?.id ?? "");
         }
       })
       .catch((error) => {
@@ -183,6 +167,8 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
   }
 
   function editProfile(profile: ApiConnectionProfile) {
+    setSelectedProfileId(profile.id);
+    setEditorOpen(true);
     setForm({
       id: profile.id,
       label: profile.label,
@@ -357,6 +343,7 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
     await refresh();
     onChanged?.();
     if (form.id === profile.id) setForm(createForm());
+    if (selectedProfileId === profile.id) setSelectedProfileId(snapshot.profiles.find((item) => item.id !== profile.id)?.id ?? "");
     setFeedback({ tone: "success", text: "连接已删除" });
   }
 
@@ -396,27 +383,32 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
 
   const editableContracts = providerContracts;
   const formCapabilities = contract.capabilities.filter((capability) => capabilityLabels[capability]);
-  const selectedProfile = snapshot.profiles.find((profile) => profile.id === form.id);
+  const editingProfile = snapshot.profiles.find((profile) => profile.id === form.id);
+  const selectedProfile = snapshot.profiles.find((profile) => profile.id === selectedProfileId);
   const selectedCredentialHealth = selectedProfile ? credentialHealth[selectedProfile.id] : undefined;
+  const editingCredentialHealth = editingProfile ? credentialHealth[editingProfile.id] : undefined;
+  const credentialNeedsReentry = editingCredentialHealth?.status === "reentry_required" && !form.apiKey.trim();
 
   return (
     <section className={`ai-connections-compact ${compactStyles.connectionSection} ${compactStyles.connectionLayout}`}>
       <div className={compactStyles.connectionHeader}>
         <SettingsSectionHeader
           title="AI 连接"
-          description="连接档案只保存厂商、鉴权和端点；具体模型由会话或默认能力单独选择。"
+          description="管理第三方 AI 服务连接，用于文本生成、多模态理解与语音处理等能力。"
           action={<Button variant="primary" onClick={() => {
             setForm(createForm());
+            setEditorOpen(true);
             setAvailableModels([]);
             setDiscoveredDirectory(undefined);
             setSelectedTestModelId("");
             setTestSucceeded(false);
             window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-          }}>添加连接</Button>}
+          }}><AppIcon name="newChat" size={16} />添加连接</Button>}
         />
       </div>
 
-      <form ref={formRef} className={`${compactStyles.connectionForm} grid gap-5`} onSubmit={saveConnection}>
+      {editorOpen ? <form ref={formRef} className={`${compactStyles.connectionForm} grid gap-5`} onSubmit={saveConnection}>
+        <header className={compactStyles.formEditorHeader}><div><h2>{form.id ? "编辑连接" : "添加连接"}</h2><p>密钥只写入本机加密仓储，不会在详情中回显。</p></div><IconButton icon="close" label="关闭连接编辑器" onClick={() => setEditorOpen(false)} /></header>
         <div className="ai-connection-picker">
           <label>厂商<ProviderSelect value={form.provider} providers={editableContracts.map((item) => item.provider)} onChange={selectProvider} /></label>
         </div>
@@ -433,35 +425,36 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
             {form.provider === "azure" ? <label className="ui-field">语音语言<input className="ui-input" value={form.language} onChange={(event) => setForm({ ...form, language: event.currentTarget.value })} /></label> : null}
             {form.provider === "custom" ? <fieldset><legend className="text-sm font-semibold">连接能力</legend><div className="mt-2 flex flex-wrap gap-4">{formCapabilities.map((capability) => <label key={capability} className="inline-flex items-center gap-2 text-sm text-muted"><input checked={form.capabilities.includes(capability)} className="ui-checkbox" type="checkbox" onChange={() => toggleCapability(capability)} />{capabilityLabels[capability]}</label>)}</div></fieldset> : null}
             {form.provider === "custom" ? <label className="inline-flex items-start gap-2 text-sm text-muted"><input checked={form.allowPrivateNetwork} className="ui-checkbox mt-0.5" type="checkbox" onChange={(event) => setForm({ ...form, allowPrivateNetwork: event.currentTarget.checked })} /><span>允许访问局域网地址<small className="block">仅用于你信任的本地模型服务；云元数据和链路本地地址仍会被阻止。</small></span></label> : null}
-            <label className="ui-field">API Key<input ref={apiKeyInputRef} className="ui-input" type="password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={form.id && selectedCredentialHealth?.status === "reentry_required" ? "请重新输入 API Key" : form.id ? "留空保留原 Key" : form.provider === "custom" ? "无鉴权服务可留空" : "填写 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.currentTarget.value })} /></label>
-            {selectedCredentialHealth?.status === "reentry_required" ? <div className={compactStyles.credentialRecovery} role="alert"><strong>凭据需要重新输入</strong><span>{selectedCredentialHealth.message}</span></div> : null}
+            <label className="ui-field">API Key<input ref={apiKeyInputRef} className="ui-input" type="password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={form.id && editingCredentialHealth?.status === "reentry_required" ? "请重新输入 API Key" : form.id ? "留空保留原 Key" : form.provider === "custom" ? "无鉴权服务可留空" : "填写 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.currentTarget.value })} /></label>
+            {editingCredentialHealth?.status === "reentry_required" ? <div className={compactStyles.credentialRecovery} role="alert"><strong>凭据需要重新输入</strong><span>{editingCredentialHealth.message}</span></div> : null}
           </div>
         </details>
 
         <section className="ai-connection-test-flow" aria-label="模型发现与连接测试">
           <div className="ai-connection-test-steps" aria-label="连接配置进度"><span>1 配置连接</span><span>2 获取模型</span><span>3 测试连接</span><span>4 完成</span></div>
           <div className="ai-connection-test-controls">
-            <Button type="button" variant="outline" disabled={Boolean(busyAction)} onClick={() => void discoverModels()}>{busyAction === "models" ? "获取中" : "获取模型"}</Button>
+            <Button type="button" variant="outline" disabled={Boolean(busyAction) || credentialNeedsReentry} onClick={() => void discoverModels()}><AppIcon name="refresh" size={16} />{busyAction === "models" ? "获取中" : "获取模型"}</Button>
             <ModelCatalogSelect
               ariaLabel="测试模型 ID"
+              disabled={credentialNeedsReentry}
               models={availableModels}
               placeholder="选择或输入模型 ID"
               provider={form.provider}
               value={selectedTestModelId}
               onChange={(modelId) => { setSelectedTestModelId(modelId); setTestSucceeded(false); }}
             />
-            <Button type="button" variant="outline" disabled={!selectedTestModelId || Boolean(busyAction)} onClick={() => void testSelectedModel()}>{busyAction === "test" ? "测试中" : "测试连接"}</Button>
+            <Button type="button" variant="outline" disabled={!selectedTestModelId || Boolean(busyAction) || credentialNeedsReentry} onClick={() => void testSelectedModel()}><AppIcon name="activity" size={16} />{busyAction === "test" ? "测试中" : "测试连接"}</Button>
             {testSucceeded && form.id ? <Button type="button" variant="ghost" onClick={() => void setTestedAsDefault()}>设为默认</Button> : null}
           </div>
           <p>测试会使用所选模型发送一次极小真实请求，可能产生少量用量。</p>
         </section>
 
         <div className={compactStyles.connectionSaveRow}>
-          <Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button>
-          {form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setFeedback(null); setAvailableModels([]); setDiscoveredDirectory(undefined); setSelectedTestModelId(""); setTestSucceeded(false); }}>新建</Button> : null}
+          <Button type="submit" variant="primary" disabled={Boolean(busyAction)}><AppIcon name="save" size={16} />{busyAction === "save" ? "保存中" : "保存连接"}</Button>
+          {form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setFeedback(null); setAvailableModels([]); setDiscoveredDirectory(undefined); setSelectedTestModelId(""); setTestSucceeded(false); }}><AppIcon name="newChat" size={16} />新建</Button> : null}
           <InlineStatus feedback={feedback} />
         </div>
-      </form>
+      </form> : null}
 
       <div className={compactStyles.connectionDefaults}>
         <DefaultCapabilitySelector snapshot={snapshot} onSnapshotChange={setSnapshot} onChanged={onChanged} onFeedback={(text, tone = "success") => setFeedback({ text, tone })} />
@@ -476,8 +469,8 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
               <span className={compactStyles.cellStart}>厂商 / 连接名称</span><span className={compactStyles.cellStart}>Base URL</span><span className={compactStyles.cellCenter}>状态</span><span className={compactStyles.cellCenter}>最近测试</span><span className={compactStyles.cellCenter}>操作</span>
             </div>
             {snapshot.profiles.length ? snapshot.profiles.map((profile) => (
-              <article key={profile.id} className={compactStyles.connectionRow} data-selected={form.id === profile.id}>
-                  <button className={compactStyles.connectionIdentity} type="button" onClick={() => editProfile(profile)}>
+              <article key={profile.id} className={compactStyles.connectionRow} data-selected={selectedProfileId === profile.id}>
+                  <button className={compactStyles.connectionIdentity} type="button" onClick={() => setSelectedProfileId(profile.id)}>
                     <ProviderIcon provider={profile.provider} size={26} />
                     <span><strong>{getProviderContract(profile.provider).label}</strong><small>{profile.label}</small></span>
                   </button>
@@ -485,9 +478,9 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
                   <span className={`${compactStyles.connectionStatus} ${compactStyles.cellCenter}`} data-status={credentialHealth[profile.id]?.status === "reentry_required" ? "failed" : profile.testStatus ?? "saved"}>{credentialHealth[profile.id]?.status === "reentry_required" ? "需要重新输入" : statusLabel(profile)}</span>
                   <span className={`${compactStyles.cellCenter} text-xs text-muted`}>{profile.testStatus && profile.testStatus !== "idle" ? formatConnectionDate(profile.updatedAt) : "尚未测试"}</span>
                   <div className={`${compactStyles.connectionActions} ${compactStyles.cellCenter}`}>
-                    <Button size="sm" variant="ghost" onClick={() => editProfile(profile)}>{credentialHealth[profile.id]?.status === "reentry_required" ? "重新输入密钥" : "编辑"}</Button>
-                    <Button size="sm" variant="ghost" disabled={Boolean(busyAction) || credentialHealth[profile.id]?.status === "reentry_required"} onClick={() => void testSavedProfile(profile)}>{busyAction === `test:${profile.id}` ? "测试中" : "测试"}</Button>
-                    <Button size="sm" variant="danger" onClick={() => void removeProfile(profile)}>删除</Button>
+                    <Button size="sm" variant="ghost" onClick={() => editProfile(profile)}><AppIcon name="edit" size={14} />{credentialHealth[profile.id]?.status === "reentry_required" ? "重新输入密钥" : "编辑"}</Button>
+                    <Button size="sm" variant="ghost" disabled={Boolean(busyAction) || credentialHealth[profile.id]?.status === "reentry_required"} onClick={() => void testSavedProfile(profile)}><AppIcon name="activity" size={14} />{busyAction === `test:${profile.id}` ? "测试中" : "测试"}</Button>
+                    <Button size="sm" variant="danger" onClick={() => void removeProfile(profile)}><AppIcon name="trash" size={14} />删除</Button>
                   </div>
               </article>
             )) : <div className="py-4"><EmptyState stateId="settings.connections.empty">尚未保存连接。</EmptyState></div>}
@@ -499,42 +492,10 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
               <div><span>Base URL</span><code>{selectedProfile.baseUrl}</code></div>
               <div><span>最近测试</span><strong>{selectedProfile.testStatus && selectedProfile.testStatus !== "idle" ? formatConnectionDate(selectedProfile.updatedAt) : "尚未测试"}</strong></div>
               <p>{selectedCredentialHealth?.status === "reentry_required" ? selectedCredentialHealth.message : "密钥仅保存在本机加密仓储，此处不会显示或复制。"}</p>
+              {selectedProfile.testHistory?.length ? <div className={compactStyles.testHistory}><span>测试记录</span>{selectedProfile.testHistory.slice(0, 3).map((item) => <strong key={item.id} data-status={item.status}>{formatConnectionDate(item.testedAt)} · {item.message}{item.latencyMs ? ` · ${item.latencyMs} ms` : ""}</strong>)}</div> : null}
             </div>
           ) : null}
       </section>
-    </section>
-  );
-}
-
-/** 展示连接表的典型非空和恢复状态，只使用固定脱敏元数据。 */
-function ApiConnectionsDevelopmentExample({ scenario }: { scenario: string }) {
-  const recovery = scenario === "credential-recovery";
-  const failed = scenario === "connection-failed";
-  const rows = [
-    { id: "example-openai", provider: "openai" as const, vendor: "OpenAI", label: "默认文本连接", url: "https://api.openai.com/v1", status: recovery ? "需要重新输入" : "已验证", tested: recovery ? "凭据不可读" : "今天 10:24" },
-    { id: "example-claude", provider: "anthropic" as const, vendor: "Anthropic Claude", label: "长文本分析", url: "https://api.anthropic.com", status: failed ? "验证失败" : "已保存", tested: failed ? "刚刚" : "尚未测试" },
-  ];
-  return (
-    <section className={compactStyles.connectionList} aria-label="AI 连接开发示例">
-      <div className="flex items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">AI 连接</h1><p className="mt-1 text-sm text-muted">示例数据仅用于批注布局和异常状态。</p></div><span className="text-sm text-muted">2 个</span></div>
-      {recovery ? <div className={`${compactStyles.credentialRecovery} mt-4`} role="status"><strong>凭据需要重新输入</strong><span>当前来源无法读取原凭据；重新输入只会替换此连接。</span></div> : null}
-      <div className={compactStyles.connectionTable}>
-        <div className={compactStyles.connectionTableHeader} aria-hidden="true">
-          <span className={compactStyles.cellStart}>厂商 / 连接名称</span><span className={compactStyles.cellStart}>Base URL</span><span className={compactStyles.cellCenter}>状态</span><span className={compactStyles.cellCenter}>最近测试</span><span className={compactStyles.cellCenter}>操作</span>
-        </div>
-        {rows.map((row) => (
-          <article key={row.id} className={compactStyles.connectionRow}>
-            <button className={compactStyles.connectionIdentity} type="button">
-              <ProviderIcon provider={row.provider} size={26} />
-              <span><strong>{row.vendor}</strong><small>{row.label}</small></span>
-            </button>
-            <code className={`${compactStyles.connectionUrl} ${compactStyles.cellStart}`}>{row.url}</code>
-            <span className={`${compactStyles.connectionStatus} ${compactStyles.cellCenter}`} data-status={row.status.includes("失败") || row.status.includes("重新") ? "failed" : "success"}>{row.status}</span>
-            <span className={`${compactStyles.cellCenter} text-xs text-muted`}>{row.tested}</span>
-            <div className={`${compactStyles.connectionActions} ${compactStyles.cellCenter}`}><Button size="sm" variant="ghost">{recovery && row.id === "example-openai" ? "重新输入密钥" : "编辑"}</Button><Button size="sm" variant="ghost">测试</Button></div>
-          </article>
-        ))}
-      </div>
     </section>
   );
 }

@@ -3,7 +3,7 @@
   width: min(100%, 52.5rem);
 }
 
-.connectionSection { width: min(100%, 45rem); }
+.connectionSection { width: min(100%, 74rem); }
 .capabilitySection { width: min(100%, 35rem); margin-top: 1.75rem; }
 .tableSection { width: min(100%, 47.5rem); }
 
@@ -19,10 +19,26 @@
 .connectionDefaults { order: 2; width: min(100%, 52rem); }
 .connectionForm {
   order: 3;
-  width: min(100%, 45rem);
-  border-top: 1px solid var(--line);
-  padding-top: 1.25rem;
+  width: min(100%, 52rem);
+  margin-top: .25rem;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  padding: 1rem;
 }
+
+.formEditorHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: .75rem;
+}
+
+.formEditorHeader h2 { font-size: .95rem; font-weight: 650; }
+.formEditorHeader p { margin-top: .2rem; color: var(--muted); font-size: .72rem; }
+.formEditorHeader button { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border-radius: .4rem; color: var(--muted); font-size: 1.25rem; }
+.formEditorHeader button:hover { background: var(--surface-muted); color: var(--foreground); }
 
 .connectionSaveRow {
   display: flex;
@@ -80,7 +96,7 @@
 
 .connectionRow[data-selected="true"] {
   background: var(--interactive-selected-bg);
-  box-shadow: inset 3px 0 var(--foreground);
+  box-shadow: inset 2px 0 var(--foreground);
 }
 
 .connectionIdentity {
@@ -148,6 +164,18 @@
 .connectionDetails strong,
 .connectionDetails code { margin-top: .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connectionDetails p { grid-column: 1 / -1; color: var(--muted); }
+
+.testHistory {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: .25rem;
+  border-top: 1px solid var(--line);
+  padding-top: .65rem;
+}
+
+.testHistory strong { font-weight: 500; }
+.testHistory strong[data-status="success"] { color: var(--green); }
+.testHistory strong[data-status="failed"] { color: var(--red); }
 
 .header {
   display: flex;

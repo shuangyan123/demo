@@ -12,6 +12,15 @@ const allCivilServiceStudyModules = [
     recommendedActionLabel: "查看今日学习链路",
   },
   {
+    id: "import",
+    label: "粉笔导入",
+    description: "同步粉笔账户错题，或解析粉笔导出文件、截图与文本。",
+    icon: "import",
+    capabilities: ["账户同步", "文件与截图", "文本解析"],
+    healthSignals: ["import", "ai"],
+    recommendedActionLabel: "导入粉笔错题",
+  },
+  {
     id: "library",
     label: "学习数据",
     description: "统一浏览错题、知识和薄弱分析，并把上下文交给新对话。",
@@ -88,7 +97,7 @@ export const studyDomainDefinitions: StudyDomainDefinition[] = [
     dashboard: {
       headline: "把导入、错题、知识、训练、辅导、已安排和 Obsidian 输出连成一条日常学习链路。",
       flow: [
-        { id: "import", label: "导入资料", description: "粉笔文本、文件或截图先进入可确认草稿。", moduleId: "import" },
+        { id: "import", label: "粉笔导入", description: "粉笔账户、导出文件、截图或文本先进入可确认草稿。", moduleId: "import" },
         { id: "mistake", label: "错题复盘", description: "到期错题按薄弱度进入今日队列。", moduleId: "review" },
         { id: "knowledge", label: "知识沉淀", description: "错题和资料沉淀为政治理论、常识判断和申论知识。", moduleId: "library" },
         { id: "training", label: "知识训练", description: "知识条目按掌握度进入间隔训练。", moduleId: "knowledgeTraining" },

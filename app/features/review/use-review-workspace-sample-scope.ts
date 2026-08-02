@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "../../services/workspace-data-scope";
-import type { SampleScenarioId } from "../shared/sample-scenario-registry";
+import { getSampleScenario, type SampleScenarioId } from "../shared/sample-scenario-registry";
 import type { UiReviewPackId } from "../shared/ui-review-scenario-registry.ts";
 import { setUiReviewRuntimeActive } from "../../services/ui-review-runtime-guard.ts";
 
 const PACK_SCENARIOS: Record<UiReviewPackId, readonly SampleScenarioId[]> = {
-  learning: ["dashboard-normal", "library-normal", "review-normal", "knowledge-normal", "knowledge-training-normal", "stats-normal"],
+  learning: ["dashboard-normal", "library-normal", "review-normal", "knowledge-normal", "knowledge-training-normal", "stats-normal", "library-insights-dense"],
   conversation: ["conversation-normal"],
-  import: ["import-normal", "import-needs-review"],
+  import: ["import-normal", "import-needs-review", "import-console-mixed"],
   automation: ["automation-normal", "automation-failed"],
   interview: ["interview-active", "interview-completed", "interview-cancelled"],
   tutoring: ["tutoring-active"],
-  settings: [],
-  integrations: [],
+  settings: ["settings-ai-credential-recovery", "settings-ai-connections-dense"],
+  integrations: ["plugins-directory-dense"],
 };
 
 /** UI 审查数据写入真实本地表；只用稳定命名空间区分和清理，不切换数据作用域。 */
@@ -58,7 +58,12 @@ export function useReviewWorkspaceSampleScope() {
     setBusy(true);
     try {
       const { sampleScenarioRepository } = await import("../../services/sample-scenario-repository");
-      for (const scenarioId of scenarioIds) await sampleScenarioRepository.seed(scenarioId);
+      const { uiReviewSettingsRepository } = await import("../../services/ui-review-settings-repository");
+      for (const scenarioId of scenarioIds) {
+        const scenario = getSampleScenario(scenarioId);
+        if (scenario?.fixtureOwner === "settings") await uiReviewSettingsRepository.seedScenario(scenarioId as Parameters<typeof uiReviewSettingsRepository.seedScenario>[0]);
+        else await sampleScenarioRepository.seed(scenarioId);
+      }
       await refreshCount();
       setControllerKey((value) => value + 1);
     } finally {
@@ -71,20 +76,8 @@ export function useReviewWorkspaceSampleScope() {
   }, [installScenarios]);
 
   const installPack = useCallback(async (packId: UiReviewPackId) => {
-    if (packId === "settings" || packId === "integrations") {
-      setBusy(true);
-      try {
-        const { uiReviewSettingsRepository } = await import("../../services/ui-review-settings-repository");
-        await uiReviewSettingsRepository.seed();
-        await refreshCount();
-        setControllerKey((value) => value + 1);
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
     await installScenarios(PACK_SCENARIOS[packId]);
-  }, [installScenarios, refreshCount]);
+  }, [installScenarios]);
 
   const installAll = useCallback(async () => {
     setBusy(true);
@@ -92,7 +85,9 @@ export function useReviewWorkspaceSampleScope() {
       const { sampleScenarioRepository } = await import("../../services/sample-scenario-repository");
       const { uiReviewSettingsRepository } = await import("../../services/ui-review-settings-repository");
       await sampleScenarioRepository.seedAll();
-      await uiReviewSettingsRepository.seed();
+      await uiReviewSettingsRepository.seedScenario("plugins-directory-dense");
+      await uiReviewSettingsRepository.seedScenario("settings-ai-credential-recovery");
+      await uiReviewSettingsRepository.seedScenario("settings-ai-connections-dense");
       setInstalledCount(await sampleScenarioRepository.countAll() + await uiReviewSettingsRepository.count());
       setControllerKey((value) => value + 1);
     } finally {

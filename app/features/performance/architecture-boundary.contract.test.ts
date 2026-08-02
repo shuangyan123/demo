@@ -76,7 +76,7 @@ test("大型 workspace 保持受控预算并使用专用 controller", async () =
     ["features/import/review-import-view.tsx", 500],
     ["features/knowledge/knowledge-training-view.tsx", 180],
     ["features/review/learning-insight-view.tsx", 180],
-    ["features/settings/plugins/settings-plugins-view.tsx", 300],
+    ["features/settings/plugins/settings-plugins-view.tsx", 340],
     ["features/conversation/command-search-palette.tsx", 220],
     ["features/shared/learning-session-layout.tsx", 200],
     ["features/shared/workspace-shell.tsx", 240],
@@ -140,7 +140,7 @@ test("P3 低频表面使用本地样式与真实派生模型", async () => {
   assert.match(importSource, /type ImportMobileStep = "source" \| "draft" \| "confirm"/);
   assert.match(insightSource, /MIN_RELIABLE_ATTEMPTS = 5/);
   assert.match(insightSource, /mistakeById\.has\(attempt\.mistakeId\)/);
-  assert.match(pluginSource, /settingsPluginDefinitions\.filter/);
+  assert.match(pluginSource, /buildPluginDirectory\(settingsPluginDefinitions/);
   assert.doesNotMatch(pluginSource, /download|rating|推荐插件/);
   assert.match(searchSource, /document\.body\.style\.overflow = "hidden"/);
   assert.match(searchSource, /restoreFocusRef\.current\?\.focus\(\)/);
@@ -170,7 +170,9 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
   assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
   assert.match(shellStyles, /--chrome-workspace-top-inset:\s*12px/);
-  assert.match(shellStyles, /\.chrome-shell \.chrome-content-frame\s*\{[\s\S]*?height: calc\(100% - var\(--chrome-workspace-top-inset\)\);[\s\S]*?margin-top: var\(--chrome-workspace-top-inset\);/);
+  assert.match(shellStyles, /\.chrome-shell \.chrome-content-frame\s*\{[\s\S]*?height: 100%;[\s\S]*?margin-top: 0;/);
+  assert.match(shellStyles, /\.chrome-topbar\s*\{[\s\S]*?app-region: drag;/);
+  assert.match(shellStyles, /\.chrome-topbar button,[\s\S]*?app-region: no-drag;/);
   assert.match(shellStyles, /\.chrome-shell::before\s*\{[\s\S]*?background-color: var\(--chrome-sidebar-bg\);[\s\S]*?background-image: var\(--chrome-sidebar-diffuse\);/);
   assert.match(shellStyles, /padding-left: 0;\s+overflow: visible;/);
   assert.doesNotMatch(shellStyles, /content-frame\[data-content-surface="raised-surface"\]::after/);

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 import { startMockAiProvider } from "./helpers/mock-ai-provider";
+import { openConnectionEditor } from "./helpers/configure-custom-ai";
 
 test.setTimeout(60_000);
 
@@ -18,7 +19,7 @@ test("Google 完整模型目录可在连接测试和默认能力中重复选择"
     await page.goto("/");
     await page.getByRole("button", { name: "设置" }).first().click();
     await page.getByRole("button", { name: "AI 连接" }).click();
-    await page.getByRole("combobox", { name: "厂商" }).click();
+    await (await openConnectionEditor(page)).click();
     await page.getByRole("option", { name: /Google Gemini/ }).click();
 
     await page.getByText("高级设置", { exact: true }).click();

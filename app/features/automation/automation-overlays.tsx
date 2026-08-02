@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import type { AutomationDefinition, AutomationRecoveryAction, AutomationRun } from "../../types/domains/automation.ts";
-import { Button } from "../shared/ui-primitives";
+import { Button, IconButton } from "../shared/ui-primitives";
+import { AppIcon } from "../shared/app-icon";
 import { AutomationEditor } from "./automation-editor";
 import styles from "./automation-workspace.module.css";
 import type { AutomationEditorState } from "./use-automation-view-controller.ts";
@@ -96,7 +97,7 @@ export function AutomationEditorLayer({
       <div className={styles.editorPanel}>
         <header className={styles.layerHeader}>
           <div><strong>{definition ? "编辑任务" : "新建任务"}</strong><p className="text-xs text-muted">结果只进入运行收件箱，不会自动改写学习数据。</p></div>
-          <Button aria-label="关闭任务编辑器" variant="outline" onClick={onClose}>关闭</Button>
+          <IconButton icon="close" label="关闭任务编辑器" onClick={onClose} />
         </header>
         <div className={styles.stepRail} aria-label="任务编辑步骤">
           <span>1 基本信息</span><span>2 来源与执行</span><span>3 检查与保存</span>
@@ -139,7 +140,7 @@ export function AutomationTaskDetailDrawer({
       <div className={styles.drawerPanel}>
         <header className={styles.layerHeader}>
           <div><strong>{definition.name}</strong><p className="text-xs text-muted">{definition.enabled ? "启用中" : "已停用"}</p></div>
-          <Button aria-label="关闭任务详情" variant="outline" onClick={onClose}>关闭</Button>
+          <IconButton icon="close" label="关闭任务详情" onClick={onClose} />
         </header>
         <div className={styles.detailList}>
           <div><span>下一次运行</span><strong>{formatAutomationDate(definition.nextRunAt)}</strong></div>
@@ -148,7 +149,7 @@ export function AutomationTaskDetailDrawer({
         </div>
         <div className="mt-4 grid gap-2 pb-[env(safe-area-inset-bottom)]">
           <Button variant="primary" disabled={center.busyIds.includes(definition.id)} onClick={() => runAction(center.runNow(definition.id), "已安排任务运行失败")}>立即运行</Button>
-          <Button variant="outline" onClick={onEdit}>编辑</Button>
+          <Button variant="outline" onClick={onEdit}><AppIcon name="edit" size={16} />编辑</Button>
           <Button variant="outline" onClick={() => runAction(center.duplicate(definition.id), "已安排任务复制失败")}>复制任务</Button>
         </div>
       </div>

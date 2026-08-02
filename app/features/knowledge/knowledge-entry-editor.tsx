@@ -4,6 +4,7 @@
 
 import { AssociationPanel } from "../shared/association-panel";
 import { Button, Chip, EmptyState, MasteryDots, SelectField, SoftBlock, TextAreaField, TextField } from "../shared/ui-primitives";
+import { AppIcon } from "../shared/app-icon";
 import { splitInput, textValue, toListText } from "../../lib/form-utils";
 import { masteryLabel } from "../../lib/review-utils";
 import type { RelatedMistakeMatch } from "../../services/association-matcher";
@@ -95,7 +96,7 @@ export function KnowledgeEntryEditor({
         <TextField label="标签" name="tags" defaultValue={toListText(entry.tags)} placeholder="用逗号或顿号分隔" />
         <TextField label="来源" name="source" defaultValue={entry.source} placeholder="手动整理 / 课程 / 资料导入" />
         <TextAreaField className="min-h-64" label="正文" name="content" defaultValue={entry.content} required />
-        <Button type="submit" variant="primary">保存修改</Button>
+        <Button type="submit" variant="primary"><AppIcon name="save" size={16} />保存修改</Button>
         <SoftBlock className="grid gap-2 text-sm text-muted">
           <div className="flex flex-wrap items-center gap-3"><span>掌握度：{masteryLabel(entry.mastery)}</span><MasteryDots value={entry.mastery} /></div>
           <span>下次训练：{entry.nextReviewAt} · 已训练 {entry.reviewCount} 次{entry.lastReviewedAt ? ` · 最近训练 ${entry.lastReviewedAt}` : ""}</span>

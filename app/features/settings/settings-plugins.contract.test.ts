@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { settingsPluginDefinitions, type SettingsPluginRuntimeContext } from "./plugins/settings-plugin-registry.ts";
+import { buildPluginDirectory } from "./plugins/settings-plugin-directory.ts";
 import { integrationBranding } from "../../services/integration-branding.ts";
 
 test("settings plugin registry exposes compact directory metadata", () => {
   const ids = settingsPluginDefinitions.map((plugin) => plugin.id);
-  assert.deepEqual(ids, ["declarative-marketplace", "obsidian-vault", "fenbi-import"]);
-  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.detailPanelLoader), ["declarative-marketplace", "obsidian", "fenbi-import"]);
-  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.category), ["study-extension", "knowledge-sync", "import-source"]);
+  assert.deepEqual(ids, ["obsidian-vault", "fenbi-import"]);
+  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.detailPanelLoader), ["obsidian", "fenbi-import"]);
+  assert.deepEqual(settingsPluginDefinitions.map((plugin) => plugin.category), ["knowledge-sync", "import-source"]);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.icon.label.length > 0), true);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.shortDescription.length > 0 && plugin.shortDescription.length <= 18), true);
   assert.equal(settingsPluginDefinitions.every((plugin) => plugin.primaryAction.label.length > 0), true);
@@ -28,14 +29,25 @@ test("settings plugin directory keeps MCP out of plugin categories", () => {
   };
   const obsidian = settingsPluginDefinitions.find((plugin) => plugin.id === "obsidian-vault");
   const fenbi = settingsPluginDefinitions.find((plugin) => plugin.id === "fenbi-import");
-  const marketplace = settingsPluginDefinitions.find((plugin) => plugin.id === "declarative-marketplace");
   assert.equal(obsidian?.statusBadgeProvider?.(context).tone, "yellow");
   assert.equal(fenbi?.statusBadgeProvider?.(context).tone, "yellow");
   assert.equal(settingsPluginDefinitions.some((plugin) => String(plugin.id) === "ai-quota"), false);
   assert.equal(settingsPluginDefinitions.some((plugin) => String(plugin.category) === "mcp"), false);
   assert.match(fenbi?.recentActivityProvider?.(context) ?? "", /2/);
   assert.equal(Boolean(obsidian?.recommendedActionProvider?.(context)), true);
-  assert.match(marketplace?.privacyNote ?? "", /JavaScript/);
+  assert.equal(settingsPluginDefinitions.some((plugin) => String(plugin.id) === "declarative-marketplace"), false);
+});
+
+test("插件联合目录默认启用内置项且只把真实安装包提升为声明式插件", () => {
+  const directory = buildPluginDirectory(
+    settingsPluginDefinitions,
+    { "obsidian-vault": true, "fenbi-import": false },
+    [{ id: "org.example.theme", kind: "theme", enabled: true } as never],
+  );
+  assert.deepEqual(directory.map((item) => item.kind), ["builtin", "builtin", "declarative"]);
+  assert.deepEqual(directory.map((item) => item.enabled), [true, false, true]);
+  assert.equal(directory.find((item) => item.kind === "builtin" && item.id === "obsidian-vault")?.kind, "builtin");
+  assert.equal(directory.find((item) => item.kind === "declarative")?.id, "org.example.theme");
 });
 
 test("Obsidian 使用固定版本 Lobe 品牌资产并登记校验值", () => {
@@ -46,14 +58,15 @@ test("Obsidian 使用固定版本 Lobe 品牌资产并登记校验值", () => {
   assert.match(integrationBranding.obsidian.sha256, /^[a-f0-9]{64}$/);
 });
 
-test("插件搜索无黑色焦点框且详情使用容器级滚动边界", async () => {
+test("插件目录保持无分隔线开放列表并提供键盘焦点与整页详情", async () => {
   const [styles, importStyles] = await Promise.all([
     readFile(new URL("./plugins/settings-plugins-view.module.css", import.meta.url), "utf8"),
     readFile(new URL("../import/review-import-view.module.css", import.meta.url), "utf8"),
   ]);
-  assert.match(styles, /\.toolbar label[\s\S]*border:\s*0/);
-  assert.match(styles, /\.toolbar input[\s\S]*box-shadow:\s*none !important/);
-  assert.match(styles, /\.detail[\s\S]*container-type:\s*inline-size/);
-  assert.match(styles, /\.detail[\s\S]*overflow-x:\s*hidden/);
-  assert.match(importStyles, /@container \(max-width: 720px\)/);
+  assert.match(styles, /\.list\s*\{[\s\S]*gap:\s*0\.35rem/);
+  assert.doesNotMatch(styles, /\.row[^}]*border-bottom/);
+  assert.match(styles, /\.moreButton:focus-visible/);
+  assert.match(styles, /\.detailPage\s*\{[\s\S]*width:\s*min\(57\.5rem, 100%\)/);
+  assert.match(importStyles, /@media \(max-width: 640px\)/);
+  assert.match(importStyles, /data-step="confirm"/);
 });

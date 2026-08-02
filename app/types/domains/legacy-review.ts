@@ -644,6 +644,20 @@ export type ImportBatch = {
   savedCount: number;
   message: string;
   error?: string;
+  /** 导入工作台使用的结构化文档摘要；不保存原始文件正文。 */
+  documentMetadata?: {
+    documentType?: string;
+    category?: string;
+    exam?: string;
+    year?: string;
+    paperLevel?: string;
+    pageRange?: string;
+    questionCount?: number;
+    durationSec?: number;
+  };
+  /** 只保存字段级诊断摘要，供刷新后继续审查。 */
+  diagnostics?: Array<{ field: string; tone: "success" | "warning" | "error"; message: string }>;
+  confirmationSummary?: { confirmedCount: number; confirmedAt: string };
   createdAt: string;
   updatedAt: string;
 };
@@ -726,6 +740,16 @@ export type ApiConnectionProfile = {
   providerOptions: Record<string, string>;
   testStatus?: "idle" | "success" | "failed";
   testMessage?: string;
+  /** 最近的脱敏测试记录；不保存请求、响应或密钥。 */
+  testHistory?: Array<{
+    id: string;
+    testedAt: string;
+    status: "success" | "failed";
+    modelId?: string;
+    latencyMs?: number;
+    category?: string;
+    message: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -989,7 +1013,7 @@ export type StudyDomainId = "civil-service";
 
 /** 专项学习模块声明；视图仍复用现有工作台 key。 */
 export type StudyModuleDefinition = {
-  id: Exclude<ViewKey, "automation" | "import" | "plugins" | "settings">;
+  id: Exclude<ViewKey, "automation" | "plugins" | "settings">;
   label: string;
   description: string;
   icon: string;
