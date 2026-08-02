@@ -32,6 +32,14 @@ export function ObsidianKnowledgePanel({ controller }: { controller: ObsidianCon
       : `将采用应用内版本并覆盖 Vault 中的“${pendingAction.path}”；操作前会再次检查双方版本。`
     : `将重新选择 Vault。现有 ${snapshot.mappedCount} 条映射会保留，并在下一次同步时按新 Vault 内容重新核对。`;
 
+  if (!controller.pluginEnabled) {
+    return (
+      <Panel title={<span className="inline-flex items-center gap-2"><Image alt="" aria-hidden="true" height={20} src="/plugin-icons/obsidian.svg" width={20} />Obsidian 知识图谱</span>} eyebrow="Vault Bridge">
+        <SoftBlock><strong>插件已停用</strong><p className="mt-2 text-sm text-muted">现有 Vault 配置、映射和知识数据均已保留。</p><Button className="mt-3" size="sm" onClick={controller.onOpenPlugins}>前往插件页启用</Button></SoftBlock>
+      </Panel>
+    );
+  }
+
   // 确认后才执行覆盖或换库动作，避免误触直接修改本地文件。
   const confirmPendingAction = () => {
     const action = pendingAction;

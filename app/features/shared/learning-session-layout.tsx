@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { IconButton } from "./ui-primitives.tsx";
 import styles from "./learning-session-layout.module.css";
 
 /** 桌面侧栏与移动底部抽屉共享同一内容，避免两个断点产生不同学习状态。 */
@@ -63,7 +64,7 @@ export function LearningSessionLayout({
           <section className={styles.drawer} role="dialog" aria-modal="true" aria-label={insightLabel}>
             <header className={styles.drawerHeader}>
               <strong>{insightLabel}</strong>
-              <button ref={closeRef} type="button" aria-label="关闭" onClick={() => setOpen(false)}>×</button>
+              <IconButton ref={closeRef} icon="close" label="关闭学习提示" onClick={() => setOpen(false)} />
             </header>
             {insights}
           </section>

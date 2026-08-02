@@ -4,8 +4,8 @@ import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors }
 test("P3 移动导入步骤与全屏搜索没有横向溢出", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.goto("/");
-  await page.getByRole("region", { name: "下一步" }).getByRole("button", { name: "导入资料" }).click();
-  await expect(page.getByRole("heading", { name: "导入资料" })).toBeVisible();
+  await page.getByRole("region", { name: "下一步" }).getByRole("button", { name: "粉笔导入" }).click();
+  await expect(page.getByRole("heading", { name: "粉笔导入" })).toBeVisible();
   await expect(page.getByRole("button", { name: "1 来源" })).toHaveAttribute("aria-current", "step");
   await page.getByRole("button", { name: "2 草稿" }).click();
   await expect(page.getByRole("button", { name: "2 草稿" })).toHaveAttribute("aria-current", "step");

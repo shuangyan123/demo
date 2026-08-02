@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { KnowledgeEvolutionGenerationResult, KnowledgeEvolutionProposal, ObsidianGraphSnapshot, ObsidianNoteMapping, ObsidianVaultSnapshot } from "../../types/domains/obsidian.ts";
@@ -9,6 +9,7 @@ import { emitAiActivity } from "../../services/ai-activity-events";
 import { obsidianSyncRuntime } from "../../services/obsidian-sync-runtime.ts";
 import { useObsidianSyncRuntimeSnapshot } from "./obsidian-sync-runtime-host.tsx";
 import { useUiReviewData } from "../shared/ui-review-data-context.tsx";
+import { settingsPluginPreferencesRepository } from "../../services/settings-plugin-preferences-repository.ts";
 
 const EMPTY_SNAPSHOT: ObsidianVaultSnapshot = {
   id: "default", vaultName: "", managedRoot: "AI知识库", connected: false, permission: "denied",
@@ -34,6 +35,7 @@ export function useObsidianKnowledgeBridge({
   textConnection,
   onChanged,
   onNotice,
+  onOpenPlugins = () => undefined,
   sampleMode = false,
 }: {
   entries: KnowledgeEntry[];
@@ -41,6 +43,7 @@ export function useObsidianKnowledgeBridge({
   textConnection?: ApiConnectionProfile;
   onChanged: () => Promise<void>;
   onNotice: (message: string) => void;
+  onOpenPlugins?: () => void;
   sampleMode?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<ObsidianVaultSnapshot>(EMPTY_SNAPSHOT);
@@ -52,6 +55,12 @@ export function useObsidianKnowledgeBridge({
   const syncRuntime = useObsidianSyncRuntimeSnapshot();
   const uiReview = useUiReviewData();
   const safeMode = sampleMode || Boolean(uiReview?.active);
+  const pluginPreferences = useSyncExternalStore(
+    settingsPluginPreferencesRepository.subscribe,
+    settingsPluginPreferencesRepository.getSnapshot,
+    settingsPluginPreferencesRepository.getServerSnapshot,
+  );
+  const pluginEnabled = pluginPreferences.enabled["obsidian-vault"];
 
   const refresh = useCallback(async () => {
     if (safeMode) {
@@ -82,6 +91,11 @@ export function useObsidianKnowledgeBridge({
   }, [onNotice, refresh]);
 
   const run = useCallback(async (task: () => Promise<string | void>, fallback: string) => {
+    if (!pluginEnabled) {
+      onNotice("Obsidian Vault 插件已停用，请在插件页重新启用。");
+      onOpenPlugins();
+      return;
+    }
     if (safeMode) {
       onNotice("示例模式禁止访问真实 Vault 或调用 AI。");
       return;
@@ -102,7 +116,7 @@ export function useObsidianKnowledgeBridge({
     } finally {
       setBusy(false);
     }
-  }, [onChanged, onNotice, refresh, safeMode]);
+  }, [onChanged, onNotice, onOpenPlugins, pluginEnabled, refresh, safeMode]);
 
   const connect = useCallback((managedRoot: string) => run(async () => {
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
@@ -211,7 +225,7 @@ export function useObsidianKnowledgeBridge({
   }, [mappings, snapshot.managedRoot, snapshot.vaultName]);
 
   return useMemo(() => ({
-    acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals,
+    acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, onOpenPlugins, pendingProposals, pluginEnabled,
     recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, syncRuntime, updateProposal, uriForKnowledge,
-  }), [acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, pendingProposals, recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, syncRuntime, updateProposal, uriForKnowledge]);
+  }), [acceptProposal, acceptProposals, busy, connect, detach, generateProposals, graph, importFiles, issues, lastGenerationResult, mappings, onOpenPlugins, pendingProposals, pluginEnabled, recreate, refresh, rejectProposal, requestPermission, resolveConflict, snapshot, sync, syncRuntime, updateProposal, uriForKnowledge]);
 }

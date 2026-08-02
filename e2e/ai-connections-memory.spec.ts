@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { expect, test } from "@playwright/test";
 import { startMockAiProvider } from "./helpers/mock-ai-provider";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
+import { openConnectionEditor } from "./helpers/configure-custom-ai";
 
 /** 打开设置中的 AI 连接页。 */
 async function openConnections(page: import("@playwright/test").Page): Promise<void> {
@@ -16,7 +17,7 @@ test("编辑草稿测试使用新地址，紧凑结果卡不渲染对话栏", as
   const runtimeErrors = collectRuntimeErrors(page);
   try {
     await openConnections(page);
-    await page.getByRole("combobox", { name: "厂商" }).click();
+    await (await openConnectionEditor(page)).click();
     await page.getByRole("option", { name: "OpenAI", exact: true }).click();
     await page.getByText("高级设置", { exact: true }).click();
     await page.getByLabel("连接名称").fill("E2E 编辑测试");
@@ -58,7 +59,7 @@ test("Gemini 多模态默认模型把图片发送为 inlineData", async ({ page 
   const runtimeErrors = collectRuntimeErrors(page);
   try {
     await openConnections(page);
-    await page.getByRole("combobox", { name: "厂商" }).click();
+    await (await openConnectionEditor(page)).click();
     await page.getByRole("option", { name: "Google Gemini", exact: true }).click();
     await page.getByText("高级设置", { exact: true }).click();
     await page.getByLabel("连接名称").fill("E2E Gemini");

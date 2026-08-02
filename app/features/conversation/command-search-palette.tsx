@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CommandSearchResult } from "../../types/domains/conversation.ts";
 import { AppIcon } from "../shared/app-icon";
-import { cx } from "../shared/ui-primitives";
+import { IconButton, cx } from "../shared/ui-primitives";
 import styles from "./command-search-palette.module.css";
 
 type CommandSearchPaletteProps = {
@@ -130,7 +130,7 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
             }
           }}
           />
-          <button className={styles.close} type="button" onClick={close}>关闭</button>
+          <IconButton className={styles.close} icon="close" label="关闭命令搜索" onClick={close} />
         </div>
         <div className={styles.results}>
           {groupedResults.length ? groupedResults.map(([group, groupItems]) => (

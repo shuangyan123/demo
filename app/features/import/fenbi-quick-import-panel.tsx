@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "../shared/app-icon";
 import { Button } from "../shared/ui-primitives";
 import type { FenbiImportCredential, FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
 import styles from "./fenbi-quick-import-panel.module.css";
-
-type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
 type FenbiQuickImportPanelProps = {
   credential?: FenbiImportCredential;
@@ -19,7 +17,6 @@ type FenbiQuickImportPanelProps = {
   requestId: string;
   fallbackRecommended: boolean;
   onCancel: () => void;
-  onParseFileImport: (event: SubmitReactEvent) => void;
   onSaveCookie: (cookie: string) => Promise<boolean>;
   onSync: (scope: FenbiSyncScope) => Promise<void>;
   onValidate: () => Promise<boolean>;
@@ -100,10 +97,6 @@ export function FenbiQuickImportPanel(props: FenbiQuickImportPanelProps) {
         {busy ? <div className={styles.progress} role="status"><div className={styles.progressMeta}><span>{props.stage ? stageLabels[props.stage] : "正在准备"}</span><span>{props.progress.total ? `${props.progress.completed} / ${props.progress.total}` : props.progress.completed ? `${props.progress.completed} 条` : ""}</span></div><div className={styles.track}><div className={styles.fill} style={{ width: `${progressRatio}%` }} /></div></div> : null}
         {props.error ? <p className={styles.error} role="alert">{props.error}{props.fallbackRecommended ? " 可直接使用下方官方导出文件继续。" : ""}{props.errorCode ? <small>错误码：{props.errorCode}{props.requestId ? ` · 请求 ID：${props.requestId}` : ""}</small> : null}</p> : null}
 
-        <form className={styles.fallback} onSubmit={props.onParseFileImport}>
-          <div className={styles.fallbackText}><strong>PDF / Word 官方导出兜底</strong><span>Cookie 失效或接口变化时，文件仍走现有本地草稿流程。</span></div>
-          <div className={styles.actions}><input className={styles.fileInput} name="files" type="file" accept=".pdf,.doc,.docx,.txt,.csv,.json,image/*" multiple /><Button size="sm" type="submit" variant="outline">导入文件</Button></div>
-        </form>
       </div>
 
       {configOpen && typeof document !== "undefined" ? createPortal(<div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfigOpen(false); }}><section ref={dialogRef} className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="fenbi-cookie-title" tabIndex={-1}><div className={styles.modalHeader}><div><h3 id="fenbi-cookie-title" className="font-semibold">配置实验直连</h3><p className="mt-1 text-xs text-muted">可粘贴纯 Cookie、完整 `Cookie:` 请求头或 Copy as cURL；只提取 Cookie，验证成功后才替换旧凭据。</p></div><button className={styles.iconButton} type="button" aria-label="关闭配置" onClick={() => setConfigOpen(false)}><AppIcon name="close" size={16} /></button></div><ol className="grid list-decimal gap-1 pl-5 text-xs leading-5 text-muted"><li>登录粉笔题库后打开浏览器开发者工具的 Network。</li><li>刷新错题页，选择发往 tiku.fenbi.com 的请求。</li><li>复制 Request Headers 中的 Cookie，或右键请求选择 Copy as cURL。</li></ol><label className="sr-only" htmlFor="fenbi-cookie">粉笔 Cookie</label><textarea id="fenbi-cookie" className={styles.cookieInput} autoComplete="off" value={cookieInput} onChange={(event) => setCookieInput(event.currentTarget.value)} placeholder="Cookie: session=… 或粘贴 Copy as cURL（不要填写账号密码）" />{props.status === "validating" ? <p className={styles.modalProgress} role="status">正在验证粉笔会话，请稍候…</p> : null}{props.error ? <p className={styles.error} role="alert">{props.error}<small>{props.errorCode ? `错误码：${props.errorCode}` : ""}{props.requestId ? ` · 请求 ID：${props.requestId}` : ""}</small></p> : null}<div className={styles.modalActions}><Button size="sm" type="button" variant="outline" onClick={() => setConfigOpen(false)}>取消</Button><Button size="sm" type="button" variant="primary" disabled={!cookieInput.trim() || props.status === "validating"} onClick={() => void submitCookie()}>{props.status === "validating" ? "验证中" : "保存并验证"}</Button></div></section></div>, document.body) : null}

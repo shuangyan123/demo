@@ -5,6 +5,7 @@ import { useState } from "react";
 import { BulkToolbar, Button, CardButton, Chip, ConfirmDialog, DetailBlock, DetailCard, EmptyState, MasteryDots, Panel, SoftBlock } from "../shared/ui-primitives";
 import { KnowledgeInternalizationPanel } from "./knowledge-internalization-panel";
 import { KnowledgeEntryEditor } from "./knowledge-entry-editor";
+import { KnowledgeDraftReviewPanel } from "./knowledge-draft-review-panel";
 import { KnowledgeLibraryFilters, KnowledgeLibraryList } from "./knowledge-library-list";
 import { KnowledgeCreateForm, KnowledgeStarterGuide } from "./knowledge-starter-controls";
 import { ObsidianKnowledgePanel } from "./obsidian-knowledge-panel";
@@ -13,7 +14,7 @@ import { useObsidianKnowledgeBridge } from "./use-obsidian-knowledge-bridge.ts";
 import type { KnowledgeInternalizationController } from "./use-knowledge-internalization.ts";
 import { formatShortDate, masteryLabel } from "../../lib/review-utils";
 import type { KnowledgeMatch, RelatedMistakeMatch } from "../../services/association-matcher";
-import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeCategorySummary, type KnowledgeEntry, type KnowledgeFilters, type KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategory, type KnowledgeCategorySummary, type KnowledgeEntry, type KnowledgeFilters, type KnowledgeImportDraft, type KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
 import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { ExportFormat, ExportScope, Mistake, ReviewResult } from "../../types/domains/review.ts";
@@ -267,6 +268,7 @@ export function KnowledgeView({
   associationLinks,
   associationSuggestions,
   entries,
+  importDrafts,
   filters,
   internalization,
   relatedMistakes,
@@ -279,17 +281,22 @@ export function KnowledgeView({
   onClearAssociationSuggestions,
   onConfirmAssociationSuggestions,
   onCreateStarterDrafts,
+  onConfirmImportDrafts,
+  onDeleteImportDraft,
   onDeleteAssociationSuggestion,
   onBulkDeleteEntries,
   onDeleteEntry,
   onExportKnowledgeEntries,
   onOpenRelatedMistake,
+  onOpenPlugins,
   onOpenSettings,
   onRemoveAssociationLink,
   onSelectEntry,
   onStartTraining,
   onToggleAssociationSuggestion,
   onToggleFavorite,
+  onUpdateImportDraft,
+  onUpdateImportDraftTags,
   onUpdateEntry,
   onKnowledgeChanged,
   onNotice,
@@ -304,6 +311,7 @@ export function KnowledgeView({
   associationLinks: KnowledgeMistakeLink[];
   associationSuggestions: AssociationSuggestion[];
   entries: KnowledgeEntry[];
+  importDrafts: KnowledgeImportDraft[];
   filters: KnowledgeFilters;
   internalization: KnowledgeInternalizationController;
   relatedMistakes: RelatedMistakeMatch[];
@@ -316,17 +324,22 @@ export function KnowledgeView({
   onClearAssociationSuggestions: (targetId: string) => void;
   onConfirmAssociationSuggestions: () => void;
   onCreateStarterDrafts: (category?: KnowledgeCategory) => void;
+  onConfirmImportDrafts: () => void;
+  onDeleteImportDraft: (id: string) => void;
   onDeleteAssociationSuggestion: (id: string) => void;
   onBulkDeleteEntries: (ids: string[]) => void;
   onDeleteEntry: (id: string) => void;
   onExportKnowledgeEntries: (items: KnowledgeEntry[], format: ExportFormat, scope: ExportScope) => void;
   onOpenRelatedMistake: (mistake: Mistake) => void;
+  onOpenPlugins: () => void;
   onOpenSettings: () => void;
   onRemoveAssociationLink: (id: string) => void;
   onSelectEntry: (id: string) => void;
   onStartTraining: (entryId?: string) => void;
   onToggleAssociationSuggestion: (id: string, selected: boolean) => void;
   onToggleFavorite: (entry: KnowledgeEntry) => void;
+  onUpdateImportDraft: (id: string, patch: Partial<KnowledgeImportDraft>) => void;
+  onUpdateImportDraftTags: (id: string, value: string) => void;
   onUpdateEntry: (id: string, patch: Partial<Omit<KnowledgeEntry, "id" | "createdAt" | "updatedAt">>) => void;
   onKnowledgeChanged: () => Promise<void>;
   onNotice: (message: string) => void;
@@ -338,7 +351,7 @@ export function KnowledgeView({
   const favorites = summaries.reduce((sum, item) => sum + item.favorites, 0);
   const dueCount = summaries.reduce((sum, item) => sum + item.due, 0);
   const weakCount = summaries.reduce((sum, item) => sum + item.weak, 0);
-  const obsidian = useObsidianKnowledgeBridge({ entries: allKnowledgeEntries, personalization: personalizationSettings, textConnection, onChanged: onKnowledgeChanged, onNotice, sampleMode });
+  const obsidian = useObsidianKnowledgeBridge({ entries: allKnowledgeEntries, personalization: personalizationSettings, textConnection, onChanged: onKnowledgeChanged, onNotice, onOpenPlugins, sampleMode });
   const knowledgeList = useKnowledgeListController({ entries, filters, onBulkDeleteEntries, onExportKnowledgeEntries });
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
@@ -414,6 +427,8 @@ export function KnowledgeView({
       <KnowledgeInternalizationPanel controller={internalization} entries={allKnowledgeEntries} mistakes={allMistakes} onOpenSettings={onOpenSettings} />
 
       <ObsidianKnowledgePanel controller={obsidian} />
+
+      <KnowledgeDraftReviewPanel drafts={importDrafts} onConfirm={onConfirmImportDrafts} onDelete={onDeleteImportDraft} onUpdate={onUpdateImportDraft} onUpdateTags={onUpdateImportDraftTags} />
 
       <details className="ui-board-panel">
         <summary className="cursor-pointer px-4 py-3 font-bold">分类模板与知识工具</summary>

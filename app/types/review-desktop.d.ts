@@ -15,6 +15,11 @@ interface ReviewDesktopVaultBridge {
   onVaultChanged(listener: (change: ReviewDesktopVaultChange) => void): () => void;
 }
 
+interface ReviewDesktopWindowBridge {
+  setTitleBarTheme(mode: "light" | "dark"): Promise<void>;
+}
+
 interface Window {
   reviewDesktopVault?: ReviewDesktopVaultBridge;
+  reviewDesktopWindow?: ReviewDesktopWindowBridge;
 }

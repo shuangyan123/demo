@@ -47,6 +47,7 @@ export function ReviewWorkspaceViewRouter({
     <SampleScenarioControls
       busy={busy}
       installedCount={installedCount}
+      settingsSection={settingsMode ? workspace.settingsSection : undefined}
       scope={scope}
       view={workspace.view}
       onClear={onClearSamples}
@@ -113,7 +114,7 @@ export function ReviewWorkspaceViewRouter({
       ) : (
         <>
           {scope.kind === "sample" ? <SampleScenarioControls
-            busy={busy} installedCount={installedCount} scope={scope} view={workspace.view}
+            busy={busy} installedCount={installedCount} scope={scope} view={workspace.view} settingsSection={settingsMode ? workspace.settingsSection : undefined}
             onClear={onClearSamples} onExit={onExitSample} onInstallAll={onInstallAllSamples} onLoad={onLoadSample}
           /> : null}
           <ReviewWorkspaceCoreViews controller={controller} />

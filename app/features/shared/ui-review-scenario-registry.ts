@@ -52,6 +52,7 @@ export const uiReviewScenarioDefinitions = [
   { id: "knowledge.training.queue.empty", view: "knowledgeTraining", kind: "first-use-empty", packId: "learning", target: "知识训练队列", safety: "local-data" },
   { id: "knowledge.internalization.sources.empty", view: "knowledge", kind: "first-use-empty", packId: "learning", target: "可内化错题", safety: "local-data" },
   { id: "knowledge.internalization.drafts.empty", view: "knowledge", kind: "first-use-empty", packId: "learning", target: "内化草稿", safety: "local-data" },
+  { id: "knowledge.drafts.empty", view: "knowledge", kind: "first-use-empty", packId: "learning", target: "待确认知识草稿", safety: "local-data" },
   { id: "knowledge.obsidian.proposals.empty", view: "plugins", kind: "first-use-empty", packId: "integrations", target: "Obsidian 待确认提案", safety: "presentation-only" },
   { id: "knowledge.obsidian.proposal-filter.empty", view: "plugins", kind: "filtered-empty", target: "Obsidian 提案筛选", safety: "presentation-only" },
   { id: "association.local-mistakes.empty", view: "knowledge", kind: "filtered-empty", target: "本地错题推荐", safety: "local-data" },

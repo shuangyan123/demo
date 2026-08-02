@@ -27,8 +27,9 @@ function TopicList({
           aria-current={topic.id === activeTopicId ? "location" : undefined}
           onClick={() => onSelect(topic.id)}
         >
-          <span>{topic.ordinal}</span>
-          <strong>{topic.label}</strong>
+          <span className="topic-mark" aria-hidden="true" />
+          <span className="sr-only">主题 {topic.ordinal}：</span>
+          <strong className="topic-label">{topic.label}</strong>
         </button>
       ))}
     </nav>
@@ -81,7 +82,6 @@ export function ConversationTopicNavigation({
   return (
     <>
       <aside className="conversation-topic-rail">
-        <header><AppIcon name="topics" size={16} /><strong>主题</strong><span>{topics.length}</span></header>
         <TopicList activeTopicId={activeTopicId} topics={topics} onSelect={onSelect} />
       </aside>
       {drawerOpen ? (

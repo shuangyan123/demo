@@ -1,4 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import path from "node:path";
+import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
 async function ensureOpen(summary: Locator) {
   if (!await summary.evaluate((element) => (element.parentElement as HTMLDetailsElement).open)) await summary.click();
@@ -13,6 +15,7 @@ async function openLearningInsights(page: Page) {
 }
 
 async function loadCurrentScenario(page: Page, scenarioId: string) {
+  await page.locator(".sample-scenario-trigger").click();
   await page.getByRole("combobox", { name: "选择当前页面审查场景" }).selectOption(scenarioId);
   await page.getByRole("button", { name: "载入本页" }).click();
   await expect(page.getByRole("heading", { name: "总览" })).toBeVisible();
@@ -28,9 +31,10 @@ function collectExternalRequests(page: Page) {
 }
 
 test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联", async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
   const externalRequests = collectExternalRequests(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
-  await page.goto("/");
+  await page.goto("/?ui-review=1");
 
   await openLearningInsights(page);
   await loadCurrentScenario(page, "library-insights-dense");
@@ -41,16 +45,17 @@ test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联"
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
   await loadCurrentScenario(page, "plugins-directory-dense");
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
-  await page.getByRole("button", { name: /声明式扩展市场/ }).click();
+  await page.getByRole("button", { name: "浏览 / 导入扩展" }).click();
   await expect(page.getByText("申论结构教练").first()).toBeVisible();
   await expect(page.getByText("专注纸张").first()).toBeVisible();
 
   await page.reload();
-  await page.getByRole("button", { name: "导入资料" }).first().click();
+  await page.getByRole("button", { name: "粉笔导入" }).first().click();
   await loadCurrentScenario(page, "import-console-mixed");
-  await page.getByRole("button", { name: "导入资料" }).first().click();
+  await page.getByRole("button", { name: "粉笔导入" }).first().click();
   await expect(page.getByRole("button", { name: /有问题 4|有问题 5/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /草稿详情/ })).toBeVisible();
+  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/import-console-1536.png"), fullPage: false });
 
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "设置" }).click();
   await page.getByRole("button", { name: "AI 连接" }).click();
@@ -59,7 +64,12 @@ test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联"
   await page.getByRole("button", { name: "AI 连接" }).click();
   await expect(page.getByRole("region", { name: "已保存连接" }).getByRole("article")).toHaveCount(3);
   await expect(page.getByRole("combobox", { name: "默认语音连接" })).toContainText("openai-prod");
+  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/ai-connections-1536.png"), fullPage: false });
+  await page.locator(".sample-scenario-trigger").click();
+  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/settings-review-launcher-1536.png"), fullPage: false });
+  await page.locator(".sample-scenario-trigger").click();
 
+  await page.locator(".sample-scenario-trigger").click();
   await page.getByRole("combobox", { name: "选择当前页面审查场景" }).selectOption("settings-ai-credential-recovery");
   await page.getByRole("button", { name: "载入本页" }).click();
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "设置" }).click();
@@ -70,6 +80,8 @@ test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联"
   await expect(page.getByRole("button", { name: "测试连接" })).toBeDisabled();
 
   await page.reload();
-  await expect(page.getByText(/已安装 \d+ 条/)).toBeVisible();
+  await expect(page.locator(".sample-scenario-trigger")).toBeVisible();
   expect(externalRequests).toEqual([]);
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
 });

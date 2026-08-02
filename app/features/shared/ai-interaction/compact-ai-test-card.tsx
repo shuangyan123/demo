@@ -85,7 +85,7 @@ export function CompactAiTestCard({ run, onDismiss }: CompactAiTestCardProps) {
       </div>
       <footer className="flex items-center justify-between gap-2 border-t border-line px-3 py-2.5">
         <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(buildSafeDiagnostic(run))}>复制诊断信息</Button>
-        <Button size="sm" variant="outline" onClick={onDismiss}>关闭</Button>
+        <Button size="sm" variant="outline" onClick={onDismiss}><AppIcon name="close" size={14} />关闭</Button>
       </footer>
     </aside>
   );

@@ -1013,7 +1013,7 @@ export type StudyDomainId = "civil-service";
 
 /** 专项学习模块声明；视图仍复用现有工作台 key。 */
 export type StudyModuleDefinition = {
-  id: Exclude<ViewKey, "automation" | "import" | "plugins" | "settings">;
+  id: Exclude<ViewKey, "automation" | "plugins" | "settings">;
   label: string;
   description: string;
   icon: string;

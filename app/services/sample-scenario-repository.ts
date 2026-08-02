@@ -264,12 +264,12 @@ function importFixtures(scenarioId: SampleScenarioId, needsReview: boolean) {
 /** 导入控制台混合场景同时覆盖待确认、异常、成功与失败批次。 */
 function mixedImportFixtures(scenarioId: SampleScenarioId) {
   const files = [
-    ["2024国考《行测》真题（地市级）.pdf", "parsed", "file", 45, undefined],
-    ["申论范文：乡村振兴相关素材.docx", "parsed", "file", 8, undefined],
-    ["图形推理专项练习.png", "parsed", "file", 24, undefined],
-    ["2023省考申论真题（B类）.pdf", "parsed", "file", 32, undefined],
-    ["公考高频成语积累.docx", "failed", "file", 0, "文档结构发生变化，请检查文件"],
-    ["粉笔错题同步", "saved", "fenbi", 18, undefined],
+    ["粉笔账户错题同步", "parsed", "fenbi", 45, undefined],
+    ["粉笔官方错题本导出.pdf", "parsed", "fenbi", 18, undefined],
+    ["粉笔错题截图-判断推理.png", "parsing", "fenbi", 12, undefined],
+    ["粉笔错题文本粘贴", "queued", "text", 0, undefined],
+    ["粉笔错题导出-结构异常.docx", "failed", "fenbi", 0, "文件结构发生变化，请使用其他粉笔导出格式"],
+    ["粉笔账户同步-已确认", "saved", "fenbi", 18, undefined],
   ] as const;
   const batches: ImportBatch[] = files.map(([fileName, status, source, parsedCount, error], index) => ({
     id: id(scenarioId, `mixed-batch-${index}`),
@@ -279,11 +279,11 @@ function mixedImportFixtures(scenarioId: SampleScenarioId) {
     status,
     parsedCount,
     savedCount: status === "saved" ? parsedCount : 0,
-    message: status === "failed" ? "解析失败" : status === "saved" ? "已确认入库" : index < 3 ? "解析完成，等待确认" : "检测到需要复核的字段",
+    message: status === "failed" ? "解析失败" : status === "saved" ? "已确认入库" : status === "parsing" ? "正在解析粉笔截图" : status === "queued" ? "等待解析粉笔文本" : "解析完成，等待确认",
     error,
     documentMetadata: {
-      documentType: index === 1 || index === 4 ? "素材集" : "试题集",
-      category: index === 1 || index === 4 ? "申论" : index === 2 ? "判断推理" : "言语理解与表达",
+      documentType: "粉笔错题集",
+      category: index === 2 ? "判断推理" : index === 4 ? "常识判断" : "言语理解与表达",
       exam: "国家公务员考试",
       year: index === 3 ? "2023" : "2024",
       paperLevel: index === 0 ? "地市级" : "通用",

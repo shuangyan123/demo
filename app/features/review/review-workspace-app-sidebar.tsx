@@ -77,13 +77,13 @@ export function ReviewWorkspaceAppSidebar({
           <button
             key={item.id}
             data-mobile-sidebar-close="true"
-            className={`grid min-h-8 grid-cols-[18px_1fr_auto] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 max-lg:px-3 ${item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"}`}
+            className={`grid min-h-8 grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-md px-2.5 text-left text-[0.8rem] font-medium max-lg:min-h-11 max-lg:px-3 ${item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"}`}
             type="button"
             onClick={item.onClick}
             onFocus={() => preloadReviewView(item.preload)}
             onMouseEnter={() => preloadReviewView(item.preload)}
           >
-            <AppIcon name={item.icon} size={18} />
+            <AppIcon name={item.icon} size={16} />
             <span className="truncate">{item.label}</span>
             {item.badge ? <span className="inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-foreground px-1 text-[11px] text-[var(--surface)]">{item.badge}</span> : null}
           </button>
@@ -92,13 +92,13 @@ export function ReviewWorkspaceAppSidebar({
 
       <button
         data-mobile-sidebar-close="true"
-        className="hidden min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium hover:bg-chrome-hover max-lg:min-h-11 max-lg:grid max-lg:grid-cols-[20px_1fr] max-lg:gap-2.5 max-lg:px-3"
+        className="hidden min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-md px-2.5 text-left text-[0.8rem] font-medium hover:bg-chrome-hover max-lg:min-h-11 max-lg:grid max-lg:px-3"
         type="button"
         onClick={onOpenSettings}
         onFocus={() => preloadReviewView("settings")}
         onMouseEnter={() => preloadReviewView("settings")}
       >
-        <AppIcon name="settings" size={18} />
+        <AppIcon name="settings" size={16} />
         <span>设置</span>
       </button>
 
@@ -108,8 +108,8 @@ export function ReviewWorkspaceAppSidebar({
           <span className="text-[11px] text-muted">专项学习</span>
         </div>
         <details className="group rounded-md bg-chrome-selected/60 p-0.5">
-          <summary className={`grid min-h-8 cursor-pointer list-none grid-cols-[18px_1fr_auto] items-center gap-2 rounded-md px-2 text-left text-sm font-semibold max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"}`}>
-            <AppIcon name="project" size={18} />
+          <summary className={`grid min-h-8 cursor-pointer list-none grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-md px-2 text-left text-[0.8rem] font-semibold max-lg:min-h-11 [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"}`}>
+            <AppIcon name="project" size={16} />
             <span className="truncate">{civilServiceDomain.label}</span>
             <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
           </summary>
@@ -123,14 +123,14 @@ export function ReviewWorkspaceAppSidebar({
                   <button
                     key={module.id}
                     data-mobile-sidebar-close="true"
-                    className={`grid min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2 text-left text-sm max-lg:min-h-11 max-lg:grid-cols-[20px_1fr] max-lg:gap-2.5 ${view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"}`}
+                    className={`grid min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-md px-2 text-left text-[0.8rem] max-lg:min-h-11 ${view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"}`}
                     type="button"
                     title={module.description}
                     onClick={() => onSelectView(module.id)}
                     onFocus={() => preloadReviewView(module.id)}
                     onMouseEnter={() => preloadReviewView(module.id)}
                   >
-                    <AppIcon name={module.icon as ReviewNavIconName} size={18} />
+                    <AppIcon name={module.icon as ReviewNavIconName} size={16} />
                     <span className="truncate">{module.label}</span>
                   </button>
                 ))}
@@ -153,13 +153,13 @@ export function ReviewWorkspaceAppSidebar({
       {footer}
       <button
         data-mobile-sidebar-close="true"
-        className="relative z-40 mt-1 grid min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium hover:bg-chrome-hover max-lg:hidden"
+        className="relative z-40 mt-1 grid min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-md px-2.5 text-left text-[0.8rem] font-medium hover:bg-chrome-hover max-lg:hidden"
         type="button"
         onClick={onOpenSettings}
         onFocus={() => preloadReviewView("settings")}
         onMouseEnter={() => preloadReviewView("settings")}
       >
-        <AppIcon name="settings" size={18} />
+        <AppIcon name="settings" size={16} />
         <span>设置</span>
       </button>
     </>

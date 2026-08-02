@@ -34,6 +34,20 @@
   border-bottom: 0;
   background-color: var(--chrome-topbar-bg);
   background-image: var(--chrome-topbar-diffuse);
+  app-region: drag;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.chrome-topbar-safe-area {
+  width: env(titlebar-area-width, 100%);
+  margin-left: env(titlebar-area-x, 0);
+}
+
+.chrome-topbar button,
+.chrome-titlebar-control {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
 }
 
 body[data-diffuse-gradient="true"] .chrome-topbar {
@@ -162,7 +176,7 @@ body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame
     content: "";
     position: absolute;
     z-index: 0;
-    inset: 0 auto 0 0;
+    inset: var(--chrome-topbar-height) auto 0 0;
     width: var(--chrome-sidebar-width);
     pointer-events: none;
     background-color: var(--chrome-sidebar-bg);
@@ -171,26 +185,23 @@ body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame
 
   /* 桌面端顶部区与侧栏共用同一块 Chrome，工作区只保留 12px 呼吸间距。 */
   .chrome-shell > .chrome-topbar {
-    position: absolute;
+    position: relative;
     z-index: 40;
-    top: 0;
-    left: 0;
-    width: var(--chrome-sidebar-width);
-    background-color: transparent;
-    background-image: none;
+    width: 100%;
   }
 
   body[data-diffuse-gradient="true"] .chrome-shell > .chrome-topbar {
-    background-image: none;
+    background-image:
+      linear-gradient(180deg, transparent 0, transparent calc(100% - 12px), var(--chrome-topbar-bg) 100%),
+      var(--chrome-topbar-diffuse);
   }
 
   .chrome-shell > .chrome-layout {
-    height: 100dvh;
-    flex: none;
+    height: calc(100dvh - var(--chrome-topbar-height));
   }
 
   .chrome-shell .chrome-layout.is-sidebar-expanded .chrome-sidebar {
-    padding-top: calc(var(--chrome-topbar-height) + 1rem) !important;
+    padding-top: 1rem !important;
     background: transparent;
   }
 
@@ -199,25 +210,17 @@ body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame
   }
 
   .chrome-shell .chrome-content-frame {
-    align-self: start;
-    height: calc(100% - var(--chrome-workspace-top-inset));
-    margin-top: var(--chrome-workspace-top-inset);
+    height: 100%;
+    margin-top: 0;
   }
 
   /* 折叠后只保留紧凑切换按钮，避免完整标题栏遮挡扩展后的工作区。 */
   .chrome-shell[data-sidebar="collapsed"] > .chrome-topbar {
-    width: var(--chrome-topbar-height);
-    background-color: transparent;
-    background-image: none;
+    width: 100%;
   }
 
   .chrome-shell[data-sidebar="collapsed"]::before {
     width: var(--chrome-topbar-height);
-  }
-
-  .chrome-shell[data-sidebar="collapsed"] > .chrome-topbar > strong,
-  .chrome-shell[data-sidebar="collapsed"] > .chrome-topbar > button:not(.sidebar-toggle-button) {
-    display: none;
   }
 
   .chrome-shell .chrome-layout.is-sidebar-collapsed .chrome-content-frame,

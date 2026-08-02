@@ -449,3 +449,19 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - MCP 目录由“推荐、官方 Registry、自定义”三层组成。服务端代理固定请求官方 Registry，执行超时、响应上限、缓存和 active/latest/Streamable HTTP 过滤，不接受调用方提供的 Registry URL。
 - 目录条目一键添加只创建停用 profile；地址、鉴权和 discovery 成功后才允许启用。stdio/npm/PyPI/Docker 只展示“不兼容：需要本地进程”，应用不下载或执行社区代码。
 - 生产包体先通过拆分完整审查注册表、复用既有交互样式和保持重 repository 动态加载压缩，再以本次已核验构建重录 `docs/performance-budget.json`。新基线包含应用级同步调度和审查执行守卫，但继续禁止 Obsidian repository、文件解析、实时语音、已安排视图和设置工作区进入首屏。
+
+## UI 审查启动器与粉笔专用工作台（2026-08-02）
+
+- 审查场景通过页面和设置分区共同解析。启动器默认不进入普通发布首屏，仅在开发环境、显式 `?ui-review=1` /构建开关或已有审查数据时显示；已有记录必须始终保留清理入口。
+- 设置侧栏只承载紧凑启动器，完整操作在桌面弹层或移动底部层中完成，避免开发工具参与产品导航排版。
+- 粉笔工作台继续由 `ImportWorkspace`、`useImportDrafts` 和 `ImportProviderPlugin("fenbi")` 组成；账户、文件、截图和文本统一进入同一批次/草稿仓储。知识资料草稿改由知识库确认，不再复用粉笔页面。
+- `IconButton` 强制接收 `AppIconName` 与可访问标签，并复用 `UiTooltip`；重要、危险或领域相关动作继续保留可见文字。
+
+## Codex 对话、插件目录与 Electron 标题栏（2026-08-02）
+
+- `ConversationTopicNavigation` 继续从可见用户消息即时派生主题，桌面仅渲染消息区左缘的短横线轨道；悬浮或键盘聚焦时展开标签，1120px 以下继续使用原有可锁焦点抽屉，不增加持久化字段。
+- `PluginDirectoryItem` 把 Obsidian、粉笔两个 `builtin` 定义与 `InstalledExtensionRecord` 派生的 `declarative` 项合并为一级目录。声明式扩展市场只作为“浏览 / 导入扩展”入口，不再伪装成已安装插件。
+- 内置插件启用状态使用 `review_settings_plugins_v1` 版本化 localStorage 配置；默认启用，不升级 Dexie v16。停用只阻止新的 Vault 同步或粉笔导入，并保留既有数据、凭据、草稿与配置。
+- 声明式扩展卸载先撤销主题或人设启用效果，再删除 `review_extensions` 安装记录；内置插件永远不显示卸载动作。
+- Electron 窗口使用 `titleBarStyle: "hidden"` 与 52px `titleBarOverlay`。`.chrome-topbar` 是拖动区，全部按钮标记为 `app-region: no-drag`；受限 IPC 只接受 `light | dark` 并仅调整系统窗口按钮对比色。
+- 顶部栏横跨整个窗口，侧栏和工作区从 52px 标题栏下方开始；`<main>` 仍独占顶部/左侧共边和 18px 左上圆角，浏览器模式不伪造系统窗口按钮。

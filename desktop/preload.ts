@@ -16,3 +16,7 @@ contextBridge.exposeInMainWorld("reviewDesktopVault", {
     return () => ipcRenderer.removeListener("review-vault:changed", handler);
   },
 });
+
+contextBridge.exposeInMainWorld("reviewDesktopWindow", {
+  setTitleBarTheme: (mode: "light" | "dark") => ipcRenderer.invoke("review-titlebar:set-theme", mode),
+});

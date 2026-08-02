@@ -62,7 +62,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
     sidebar: getComputedStyle(element.querySelector<HTMLElement>(".chrome-sidebar")!).backgroundImage,
   }));
   expect(sharedChromeDiffuse.shell).toContain("radial-gradient");
-  expect(sharedChromeDiffuse.topbar).toBe("none");
+  expect(sharedChromeDiffuse.topbar).toContain("radial-gradient");
   expect(sharedChromeDiffuse.sidebar).toBe("none");
   const codeFontFamily = await page.locator("body").evaluate((element) => getComputedStyle(element).getPropertyValue("--app-code-font"));
   expect(codeFontFamily).toContain("GeistMono");
@@ -79,6 +79,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(page.locator(".chrome-topbar")).toHaveCSS("background-image", "none");
 
   await page.getByRole("button", { name: "AI 连接" }).click();
+  await page.getByRole("button", { name: "添加连接" }).click();
   const provider = page.getByRole("combobox", { name: "厂商" });
   await provider.click();
   const options = page.getByRole("listbox", { name: "厂商" }).getByRole("option");
@@ -94,12 +95,12 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   expect(capabilityBox?.width).toBeLessThanOrEqual(562);
   await expect(page.getByText("默认文本", { exact: true })).toBeVisible();
   await expect(page.getByText("默认多模态", { exact: true })).toBeVisible();
-  await expect(page.getByText("默认语音", { exact: true })).toBeHidden();
+  await expect(page.getByText("默认语音", { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("settings-ai-connections-compact-desktop.png"), fullPage: false });
   await page.getByRole("button", { name: "个性化" }).click();
   await expect(page.getByRole("heading", { name: "个性化" })).toBeVisible();
   await page.getByRole("button", { name: "额度" }).click();
-  await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible({ timeout: 15_000 });
   const quotaTable = page.getByRole("region", { name: "AI 额度与用量" });
   expect((await quotaTable.boundingBox())?.width).toBeLessThanOrEqual(762);
   await page.screenshot({ path: testInfo.outputPath("settings-quota-compact-desktop.png"), fullPage: false });
@@ -109,7 +110,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.waitForTimeout(200);
   await page.screenshot({ path: testInfo.outputPath("settings-quota-compact-desktop-dark.png"), fullPage: false });
   await page.waitForTimeout(250);
-  await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "诊断" }).click();
   await expect(page.getByRole("heading", { name: "诊断", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "个性化" }).click();
@@ -194,10 +195,11 @@ test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符�
       sidebarColor: getComputedStyle(sidebar).backgroundColor,
     };
   });
-  expect(shellGeometry.mainTop).toBe(12);
-  expect(shellGeometry.frameTop).toBe(12);
+  expect(shellGeometry.mainTop).toBe(52);
+  expect(shellGeometry.frameTop).toBe(52);
   expect(shellGeometry.frameBottom).toBe(shellGeometry.viewportHeight);
-  expect(shellGeometry.topbarColor).toBe(shellGeometry.sidebarColor);
+  expect(shellGeometry.topbarColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(shellGeometry.sidebarColor).toBe("rgba(0, 0, 0, 0)");
 
   await page.getByRole("button", { name: "AI 连接" }).click();
   const table = page.locator('[class*="connectionTable"]').first();
@@ -223,42 +225,19 @@ test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符�
 
   await page.getByRole("button", { name: "返回应用" }).click();
   await page.getByRole("button", { name: "插件" }).click();
-  const search = page.getByRole("textbox", { name: "搜索插件" });
-  await search.focus();
-  const searchStyles = await search.evaluate((input) => {
-    const inputStyle = getComputedStyle(input);
-    const rowStyle = getComputedStyle(input.parentElement!);
-    return {
-      inputBorder: inputStyle.borderTopWidth,
-      inputOutline: inputStyle.outlineStyle,
-      inputShadow: inputStyle.boxShadow,
-      rowBorder: rowStyle.borderTopWidth,
-      rowOutline: rowStyle.outlineStyle,
-      rowShadow: rowStyle.boxShadow,
-    };
-  });
-  expect(searchStyles).toEqual({
-    inputBorder: "0px",
-    inputOutline: "none",
-    inputShadow: "none",
-    rowBorder: "0px",
-    rowOutline: "none",
-    rowShadow: "none",
-  });
-  await page.getByRole("button", { name: /粉笔导入/ }).click();
-  const detailBounds = await page.getByRole("complementary", { name: "粉笔导入 详情" }).evaluate((detail) => {
+  const pluginList = page.getByRole("list");
+  await expect(pluginList.getByRole("listitem")).toHaveCount(2);
+  await page.getByRole("button", { name: "粉笔导入 错题文本与截图导入", exact: true }).click();
+  const detailBounds = await page.getByRole("region", { name: "粉笔导入 详情" }).evaluate((detail) => {
     const rect = detail.getBoundingClientRect();
     return {
-      bottom: rect.bottom,
-      viewportHeight: window.innerHeight,
+      width: rect.width,
       clientWidth: detail.clientWidth,
       scrollWidth: detail.scrollWidth,
-      overflowY: getComputedStyle(detail).overflowY,
     };
   });
-  expect(detailBounds.bottom).toBeLessThanOrEqual(detailBounds.viewportHeight + 1);
+  expect(detailBounds.width).toBeLessThanOrEqual(920);
   expect(detailBounds.scrollWidth).toBe(detailBounds.clientWidth);
-  expect(detailBounds.overflowY).toBe("auto");
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

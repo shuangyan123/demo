@@ -80,7 +80,7 @@ test("设置内容复用全站唯一外壳且真实示例由当前会话作用�
   assert.match(router, /SettingsWorkspaceSidebar/);
   assert.match(router, /<ReviewWorkspaceShell[\s\S]*\{settingsMode \? \(/);
   assert.match(shell, /--chrome-workspace-top-inset:\s*12px/);
-  assert.match(shell, /height:\s*calc\(100% - var\(--chrome-workspace-top-inset\)\)/);
+  assert.match(shell, /\.chrome-shell \.chrome-content-frame\s*\{[\s\S]*?height:\s*100%/);
   assert.match(reviewWorkspace, /useReviewWorkspaceSampleScope/);
   assert.match(sampleScope, /PERSONAL_WORKSPACE_DATA_SCOPE/);
   assert.match(sampleScope, /sampleScenarioRepository\.seed/);

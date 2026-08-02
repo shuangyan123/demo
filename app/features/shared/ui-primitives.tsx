@@ -1,7 +1,9 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, Ref } from "react";
 import type { ExportFormat } from "../../types/domains/review.ts";
 import type { UiReviewPackId, UiReviewStateId } from "./ui-review-scenario-registry.ts";
 import { UiReviewEmptyAction } from "./ui-review-data-context.tsx";
+import { AppIcon, type AppIconName } from "./app-icon.tsx";
+import { UiTooltip } from "./ui-tooltip.tsx";
 
 type ChipTone = "neutral" | "blue" | "green" | "yellow" | "red";
 type ButtonVariant = "primary" | "soft" | "ghost" | "danger" | "outline";
@@ -105,12 +107,35 @@ export function Button({
   );
 }
 
-// 渲染仅图标或紧凑图标按钮，继承 Button 的语义色和可访问属性。
-export function IconButton({ children, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+// 渲染语义明确的纯图标按钮；可访问名称和延迟 Tooltip 均为必填接口的一部分。
+export function IconButton({
+  className,
+  icon,
+  label,
+  ref,
+  size = 16,
+  ...props
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label" | "children"> & {
+  icon: AppIconName;
+  label: string;
+  ref?: Ref<HTMLButtonElement>;
+  size?: 14 | 16 | 18 | 20 | 22;
+}) {
   return (
-    <Button className={cx("h-9 w-9 p-0", className)} variant="ghost" {...props}>
-      {children}
-    </Button>
+    <UiTooltip content={label}>
+      {({ describedBy }) => (
+        <button
+          aria-describedby={describedBy}
+          aria-label={label}
+          className={cx("ui-button ui-button-ghost h-9 w-9 p-0", className)}
+          ref={ref}
+          type="button"
+          {...props}
+        >
+          <AppIcon name={icon} size={size} />
+        </button>
+      )}
+    </UiTooltip>
   );
 }
 

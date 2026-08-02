@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
-import { configureCustomTextConnection, setCustomDefaultTextModel } from "./helpers/configure-custom-ai";
+import { configureCustomTextConnection, openConnectionEditor, setCustomDefaultTextModel } from "./helpers/configure-custom-ai";
 
 test("AI 连接可保存本地自定义文本连接并设为默认", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
@@ -33,7 +33,7 @@ test("本机密钥库缺失时连接进入可恢复状态且重输只替换当�
 
   await page.goto("/");
   await openConnections();
-  await page.getByRole("combobox", { name: "厂商" }).click();
+  await (await openConnectionEditor(page)).click();
   await page.getByRole("option", { name: /Local \/ Custom/ }).click();
   await page.getByText("高级设置", { exact: true }).click();
   await page.getByLabel("连接名称").fill("E2E 凭据恢复");
@@ -90,6 +90,7 @@ test("官方厂商保存反馈就近显示且切换厂商原地更新", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "AI 连接" }).click();
+  await openConnectionEditor(page);
 
   const form = page.locator("form").filter({ has: page.getByRole("combobox", { name: "厂商" }) });
   await form.getByRole("combobox", { name: "厂商" }).click();

@@ -7,6 +7,7 @@ test("公考作为首个专项学习项目聚合核心学习模块", () => {
   assert.equal(studyDomainDefinitions[0]?.label, "公考");
   assert.deepEqual(civilServiceStudyModules.map((module) => module.id), [
     "dashboard",
+    "import",
     "library",
     "review",
     "knowledgeTraining",

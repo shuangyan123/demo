@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { mcpSettingsRepository } from "../../services/mcp-settings-repository";
-import { Button, EmptyState } from "../shared/ui-primitives";
+import { Button, EmptyState, IconButton } from "../shared/ui-primitives";
 
 type ConversationMcpToolPanelProps = {
   onClose: () => void;
@@ -47,7 +47,7 @@ export function ConversationMcpToolPanel({ onClose, onExecuted, onNotice }: Conv
 
   return (
     <section className="conversation-inline-inspector" aria-label="MCP 工具调用">
-      <header><div><span>MCP TOOL</span><h2>调用外部工具</h2></div><button type="button" onClick={onClose}>关闭</button></header>
+      <header><div><span>MCP TOOL</span><h2>调用外部工具</h2></div><IconButton icon="close" label="关闭 MCP 工具面板" onClick={onClose} /></header>
       {servers.length ? <>
         <div className="conversation-inline-fields">
           <label>Server<select value={serverId} onChange={(event) => { const id = event.currentTarget.value; setServerId(id); setToolName(snapshot.discovery[id]?.toolDescriptors?.[0]?.name ?? ""); }}><option value="">选择 Server</option>{servers.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>

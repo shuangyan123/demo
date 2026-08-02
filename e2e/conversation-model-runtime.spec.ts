@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { startMockAiProvider } from "./helpers/mock-ai-provider";
+import { openConnectionEditor } from "./helpers/configure-custom-ai";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
 /** 从真实 review_workspace 复读会话运行值与脱敏运行步骤。 */
@@ -36,7 +37,7 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     await page.goto("/");
     await page.getByRole("button", { name: "设置" }).first().click();
     await page.getByRole("button", { name: "AI 连接" }).click();
-    await page.getByRole("combobox", { name: "厂商" }).click();
+    await (await openConnectionEditor(page)).click();
     await page.getByRole("option", { name: "OpenAI", exact: true }).click();
     await page.getByText("高级设置", { exact: true }).click();
     await page.getByLabel("连接名称").fill("E2E OpenAI");

@@ -10,7 +10,8 @@ import type { AiModelsResult } from "../../services/api-client";
 import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 import type { AiCapability, AiConnectionPurpose, AiConnectionSnapshot, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { AiModelCatalogEntry } from "../../types/domains/provider-catalog.ts";
-import { Button, EmptyState, cx } from "../shared/ui-primitives";
+import { Button, EmptyState, IconButton, cx } from "../shared/ui-primitives";
+import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
 import { ProviderSelect } from "./provider-select";
 import { DefaultCapabilitySelector } from "./default-capability-selector";
@@ -402,12 +403,12 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
             setSelectedTestModelId("");
             setTestSucceeded(false);
             window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-          }}>添加连接</Button>}
+          }}><AppIcon name="newChat" size={16} />添加连接</Button>}
         />
       </div>
 
       {editorOpen ? <form ref={formRef} className={`${compactStyles.connectionForm} grid gap-5`} onSubmit={saveConnection}>
-        <header className={compactStyles.formEditorHeader}><div><h2>{form.id ? "编辑连接" : "添加连接"}</h2><p>密钥只写入本机加密仓储，不会在详情中回显。</p></div><button aria-label="关闭连接编辑器" type="button" onClick={() => setEditorOpen(false)}>×</button></header>
+        <header className={compactStyles.formEditorHeader}><div><h2>{form.id ? "编辑连接" : "添加连接"}</h2><p>密钥只写入本机加密仓储，不会在详情中回显。</p></div><IconButton icon="close" label="关闭连接编辑器" onClick={() => setEditorOpen(false)} /></header>
         <div className="ai-connection-picker">
           <label>厂商<ProviderSelect value={form.provider} providers={editableContracts.map((item) => item.provider)} onChange={selectProvider} /></label>
         </div>
@@ -432,7 +433,7 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
         <section className="ai-connection-test-flow" aria-label="模型发现与连接测试">
           <div className="ai-connection-test-steps" aria-label="连接配置进度"><span>1 配置连接</span><span>2 获取模型</span><span>3 测试连接</span><span>4 完成</span></div>
           <div className="ai-connection-test-controls">
-            <Button type="button" variant="outline" disabled={Boolean(busyAction) || credentialNeedsReentry} onClick={() => void discoverModels()}>{busyAction === "models" ? "获取中" : "获取模型"}</Button>
+            <Button type="button" variant="outline" disabled={Boolean(busyAction) || credentialNeedsReentry} onClick={() => void discoverModels()}><AppIcon name="refresh" size={16} />{busyAction === "models" ? "获取中" : "获取模型"}</Button>
             <ModelCatalogSelect
               ariaLabel="测试模型 ID"
               disabled={credentialNeedsReentry}
@@ -442,15 +443,15 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
               value={selectedTestModelId}
               onChange={(modelId) => { setSelectedTestModelId(modelId); setTestSucceeded(false); }}
             />
-            <Button type="button" variant="outline" disabled={!selectedTestModelId || Boolean(busyAction) || credentialNeedsReentry} onClick={() => void testSelectedModel()}>{busyAction === "test" ? "测试中" : "测试连接"}</Button>
+            <Button type="button" variant="outline" disabled={!selectedTestModelId || Boolean(busyAction) || credentialNeedsReentry} onClick={() => void testSelectedModel()}><AppIcon name="activity" size={16} />{busyAction === "test" ? "测试中" : "测试连接"}</Button>
             {testSucceeded && form.id ? <Button type="button" variant="ghost" onClick={() => void setTestedAsDefault()}>设为默认</Button> : null}
           </div>
           <p>测试会使用所选模型发送一次极小真实请求，可能产生少量用量。</p>
         </section>
 
         <div className={compactStyles.connectionSaveRow}>
-          <Button type="submit" variant="primary" disabled={Boolean(busyAction)}>{busyAction === "save" ? "保存中" : "保存连接"}</Button>
-          {form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setFeedback(null); setAvailableModels([]); setDiscoveredDirectory(undefined); setSelectedTestModelId(""); setTestSucceeded(false); }}>新建</Button> : null}
+          <Button type="submit" variant="primary" disabled={Boolean(busyAction)}><AppIcon name="save" size={16} />{busyAction === "save" ? "保存中" : "保存连接"}</Button>
+          {form.id ? <Button type="button" variant="ghost" onClick={() => { setForm(createForm()); setFeedback(null); setAvailableModels([]); setDiscoveredDirectory(undefined); setSelectedTestModelId(""); setTestSucceeded(false); }}><AppIcon name="newChat" size={16} />新建</Button> : null}
           <InlineStatus feedback={feedback} />
         </div>
       </form> : null}
@@ -477,9 +478,9 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
                   <span className={`${compactStyles.connectionStatus} ${compactStyles.cellCenter}`} data-status={credentialHealth[profile.id]?.status === "reentry_required" ? "failed" : profile.testStatus ?? "saved"}>{credentialHealth[profile.id]?.status === "reentry_required" ? "需要重新输入" : statusLabel(profile)}</span>
                   <span className={`${compactStyles.cellCenter} text-xs text-muted`}>{profile.testStatus && profile.testStatus !== "idle" ? formatConnectionDate(profile.updatedAt) : "尚未测试"}</span>
                   <div className={`${compactStyles.connectionActions} ${compactStyles.cellCenter}`}>
-                    <Button size="sm" variant="ghost" onClick={() => editProfile(profile)}>{credentialHealth[profile.id]?.status === "reentry_required" ? "重新输入密钥" : "编辑"}</Button>
-                    <Button size="sm" variant="ghost" disabled={Boolean(busyAction) || credentialHealth[profile.id]?.status === "reentry_required"} onClick={() => void testSavedProfile(profile)}>{busyAction === `test:${profile.id}` ? "测试中" : "测试"}</Button>
-                    <Button size="sm" variant="danger" onClick={() => void removeProfile(profile)}>删除</Button>
+                    <Button size="sm" variant="ghost" onClick={() => editProfile(profile)}><AppIcon name="edit" size={14} />{credentialHealth[profile.id]?.status === "reentry_required" ? "重新输入密钥" : "编辑"}</Button>
+                    <Button size="sm" variant="ghost" disabled={Boolean(busyAction) || credentialHealth[profile.id]?.status === "reentry_required"} onClick={() => void testSavedProfile(profile)}><AppIcon name="activity" size={14} />{busyAction === `test:${profile.id}` ? "测试中" : "测试"}</Button>
+                    <Button size="sm" variant="danger" onClick={() => void removeProfile(profile)}><AppIcon name="trash" size={14} />删除</Button>
                   </div>
               </article>
             )) : <div className="py-4"><EmptyState stateId="settings.connections.empty">尚未保存连接。</EmptyState></div>}
