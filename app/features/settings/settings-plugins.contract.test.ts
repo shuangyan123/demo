@@ -51,9 +51,10 @@ test("插件搜索无黑色焦点框且详情使用容器级滚动边界", async
     readFile(new URL("./plugins/settings-plugins-view.module.css", import.meta.url), "utf8"),
     readFile(new URL("../import/review-import-view.module.css", import.meta.url), "utf8"),
   ]);
-  assert.match(styles, /\.toolbar label[\s\S]*border:\s*0/);
+  assert.match(styles, /\.toolbar label[\s\S]*border:\s*1px solid var\(--color-line\)/);
   assert.match(styles, /\.toolbar input[\s\S]*box-shadow:\s*none !important/);
   assert.match(styles, /\.detail[\s\S]*container-type:\s*inline-size/);
   assert.match(styles, /\.detail[\s\S]*overflow-x:\s*hidden/);
-  assert.match(importStyles, /@container \(max-width: 720px\)/);
+  assert.match(importStyles, /@media \(max-width: 640px\)/);
+  assert.match(importStyles, /data-step="confirm"/);
 });

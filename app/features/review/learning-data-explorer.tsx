@@ -19,6 +19,7 @@ type LearningDataExplorerProps = {
   onOpenKnowledgeOperations: () => void;
   onOpenKnowledgeTraining: (id?: string) => void;
   onOpenReview: (id?: string) => void;
+  onRefresh: () => Promise<void>;
   onStartConversation: (context: ConversationLaunchContext) => void;
 };
 
@@ -31,7 +32,7 @@ function toKnowledgeRecord(item: KnowledgeEntry): ExplorerRecord {
 }
 
 /** 统一浏览错题、知识和薄弱项；板块筛选只在此处维护一次。 */
-export function LearningDataExplorer({ attempts, knowledgeEntries, managementContent, mistakes, onOpenKnowledgeOperations, onOpenKnowledgeTraining, onOpenReview, onStartConversation }: LearningDataExplorerProps) {
+export function LearningDataExplorer({ attempts, knowledgeEntries, managementContent, mistakes, onOpenKnowledgeOperations, onOpenKnowledgeTraining, onOpenReview, onRefresh, onStartConversation }: LearningDataExplorerProps) {
   const [tab, setTab] = useState<ExplorerTab>("mistakes");
   const [search, setSearch] = useState("");
   const [board, setBoard] = useState("全部");
@@ -82,6 +83,7 @@ export function LearningDataExplorer({ attempts, knowledgeEntries, managementCon
             mistakes={mistakes}
             onOpenKnowledgeTraining={onOpenKnowledgeTraining}
             onOpenReview={onOpenReview}
+            onRefresh={onRefresh}
           />
         </div>
       ) : (

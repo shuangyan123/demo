@@ -43,6 +43,18 @@ export function ReviewWorkspaceViewRouter({
   }
 
   const settingsMode = workspace.view === "settings";
+  const reviewControls = scope.kind === "personal" ? (
+    <SampleScenarioControls
+      busy={busy}
+      installedCount={installedCount}
+      scope={scope}
+      view={workspace.view}
+      onClear={onClearSamples}
+      onExit={onExitSample}
+      onInstallAll={onInstallAllSamples}
+      onLoad={onLoadSample}
+    />
+  ) : null;
   const leaveSettings = () => {
     workspace.resetSettingsSection();
     workspace.switchView(workspace.lastAppView);
@@ -57,11 +69,14 @@ export function ReviewWorkspaceViewRouter({
       notice={workspace.notice}
       contentClassName={settingsMode ? "settings-content settings-main-scroll px-8 py-8 max-lg:px-4 max-lg:py-6" : undefined}
       sidebarOverride={settingsMode ? (
-        <SettingsWorkspaceSidebar
-          activeSection={workspace.settingsSection}
-          onBack={leaveSettings}
-          onSectionChange={workspace.setSettingsSection}
-        />
+        <>
+          <SettingsWorkspaceSidebar
+            activeSection={workspace.settingsSection}
+            onBack={leaveSettings}
+            onSectionChange={workspace.setSettingsSection}
+          />
+          <div className="review-workspace-sidebar mt-auto pt-4">{reviewControls}</div>
+        </>
       ) : undefined}
       sidebarCollapsed={workspace.sidebarCollapsed}
       today={workspace.today}
@@ -78,18 +93,7 @@ export function ReviewWorkspaceViewRouter({
       onRefreshConversations={conversation.refresh}
       onSelectView={workspace.switchView}
       onToggleSidebar={workspace.toggleSidebar}
-      sidebarFooter={scope.kind === "personal" ? (
-        <SampleScenarioControls
-          busy={busy}
-          installedCount={installedCount}
-          scope={scope}
-          view={workspace.view}
-          onClear={onClearSamples}
-          onExit={onExitSample}
-          onInstallAll={onInstallAllSamples}
-          onLoad={onLoadSample}
-        />
-      ) : undefined}
+      sidebarFooter={settingsMode ? undefined : reviewControls}
     >
       {settingsMode ? (
         <SettingsWorkspace

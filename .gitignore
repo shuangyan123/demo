@@ -17,6 +17,8 @@
 /playwright-report/
 /blob-report/
 /.playwright-mcp/
+/.playwright-cli/
+/output/playwright/
 /.trunk/
 
 # next.js

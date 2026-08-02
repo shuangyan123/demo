@@ -3,6 +3,7 @@ import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 
 /** 薄弱分析支持的时间范围。 */
 export type LearningInsightRange = 7 | 30 | 90 | "all";
+export type LearningInsightScope = "all" | "due" | "unmastered";
 
 /** 单个日期的正确率趋势点。 */
 export type LearningInsightTrendPoint = {
@@ -10,6 +11,7 @@ export type LearningInsightTrendPoint = {
   reviewed: number;
   correct: number;
   correctRate: number;
+  movingAverage: number;
 };
 
 /** 单个板块的可核验复盘摘要。 */
@@ -18,6 +20,7 @@ export type LearningInsightBoardRow = {
   reviewed: number;
   correctRate: number | null;
   mastery: number | null;
+  masteryPercent: number | null;
   dueCount: number;
   sufficient: boolean;
   trend: "up" | "down" | "stable" | null;
@@ -26,6 +29,8 @@ export type LearningInsightBoardRow = {
 /** 薄弱分析只保存可由现有记录推导的展示快照。 */
 export type LearningInsightSnapshot = {
   range: LearningInsightRange;
+  board: string;
+  scope: LearningInsightScope;
   attemptsCount: number;
   correctRate: number | null;
   dueCount: number;
@@ -75,14 +80,23 @@ export function deriveLearningInsightSnapshot({
   mistakes,
   now,
   range,
+  board = "全部板块",
+  scope = "all",
 }: {
   attempts: Attempt[];
   knowledgeEntries: KnowledgeEntry[];
   mistakes: Mistake[];
   now: Date;
   range: LearningInsightRange;
+  board?: string;
+  scope?: LearningInsightScope;
 }): LearningInsightSnapshot {
-  const mistakeById = new Map(mistakes.map((mistake) => [mistake.id, mistake]));
+  const today = now.toISOString().slice(0, 10);
+  const scopedMistakes = mistakes.filter((mistake) => (
+    (board === "全部板块" || mistake.board === board)
+    && (scope === "all" || (scope === "due" ? mistake.nextReviewAt <= today : mistake.mastery <= 2))
+  ));
+  const mistakeById = new Map(scopedMistakes.map((mistake) => [mistake.id, mistake]));
   const validAttempts = attempts.filter((attempt) => mistakeById.has(attempt.mistakeId) && inRange(attempt.reviewedAt, range, now));
   const attemptsByBoard = new Map<string, Attempt[]>();
   for (const attempt of validAttempts) {
@@ -92,11 +106,10 @@ export function deriveLearningInsightSnapshot({
   }
 
   const mistakesByBoard = new Map<string, Mistake[]>();
-  for (const mistake of mistakes) {
+  for (const mistake of scopedMistakes) {
     mistakesByBoard.set(mistake.board, [...(mistakesByBoard.get(mistake.board) ?? []), mistake]);
   }
   const boards = [...new Set([...mistakesByBoard.keys(), ...attemptsByBoard.keys()])].sort((left, right) => left.localeCompare(right, "zh-CN"));
-  const today = now.toISOString().slice(0, 10);
   const rows = boards.map<LearningInsightBoardRow>((board) => {
     const boardAttempts = attemptsByBoard.get(board) ?? [];
     const boardMistakes = mistakesByBoard.get(board) ?? [];
@@ -106,6 +119,9 @@ export function deriveLearningInsightSnapshot({
       correctRate: rate(boardAttempts),
       mastery: boardMistakes.length
         ? Math.round((boardMistakes.reduce((sum, mistake) => sum + mistake.mastery, 0) / boardMistakes.length) * 10) / 10
+        : null,
+      masteryPercent: boardMistakes.length
+        ? Math.round((boardMistakes.reduce((sum, mistake) => sum + mistake.mastery, 0) / (boardMistakes.length * 5)) * 100)
         : null,
       dueCount: boardMistakes.filter((mistake) => mistake.nextReviewAt <= today).length,
       sufficient: boardAttempts.length >= MIN_RELIABLE_ATTEMPTS,
@@ -118,28 +134,39 @@ export function deriveLearningInsightSnapshot({
     const date = attempt.reviewedAt.slice(0, 10);
     trendByDate.set(date, [...(trendByDate.get(date) ?? []), attempt]);
   }
-  const trend = [...trendByDate.entries()]
+  const rawTrend = [...trendByDate.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map<LearningInsightTrendPoint>(([date, dateAttempts]) => ({
+    .map(([date, dateAttempts]) => ({
       date,
       reviewed: dateAttempts.length,
       correct: dateAttempts.filter((attempt) => isCorrect(attempt.result)).length,
       correctRate: rate(dateAttempts) ?? 0,
     }));
+  const trend = rawTrend.map<LearningInsightTrendPoint>((point, index) => {
+    const window = rawTrend.slice(Math.max(0, index - 6), index + 1);
+    return { ...point, movingAverage: Math.round(window.reduce((sum, item) => sum + item.correctRate, 0) / window.length) };
+  });
+
+  const scopedKnowledgeEntries = knowledgeEntries.filter((entry) => (
+    (board === "全部板块" || entry.category === board || entry.tags.includes(board))
+    && (scope === "all" || (scope === "due" ? entry.nextReviewAt <= today : entry.mastery <= 2))
+  ));
 
   return {
     range,
+    board,
+    scope,
     attemptsCount: validAttempts.length,
     correctRate: rate(validAttempts),
-    dueCount: mistakes.filter((mistake) => mistake.nextReviewAt <= today).length
-      + knowledgeEntries.filter((entry) => entry.nextReviewAt <= today).length,
+    dueCount: scopedMistakes.filter((mistake) => mistake.nextReviewAt <= today).length
+      + scopedKnowledgeEntries.filter((entry) => entry.nextReviewAt <= today).length,
     insufficientBoards: rows.filter((row) => !row.sufficient).length,
     trend,
     boards: rows,
-    priorityMistakes: [...mistakes]
+    priorityMistakes: [...scopedMistakes]
       .sort((left, right) => left.mastery - right.mastery || left.nextReviewAt.localeCompare(right.nextReviewAt))
       .slice(0, 5),
-    priorityKnowledge: [...knowledgeEntries]
+    priorityKnowledge: [...scopedKnowledgeEntries]
       .sort((left, right) => left.mastery - right.mastery || left.nextReviewAt.localeCompare(right.nextReviewAt))
       .slice(0, 4),
   };

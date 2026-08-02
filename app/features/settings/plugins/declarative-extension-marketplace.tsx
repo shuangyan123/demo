@@ -97,6 +97,12 @@ export function DeclarativeExtensionMarketplace({
     };
   }, [onNotice]);
 
+  useEffect(() => {
+    const openImporter = () => fileInputRef.current?.click();
+    window.addEventListener("review-workspace:open-extension-import", openImporter);
+    return () => window.removeEventListener("review-workspace:open-extension-import", openImporter);
+  }, []);
+
   async function install(extensionPackage: DeclarativeExtensionPackage, source: InstalledExtensionRecord["source"]): Promise<void> {
     setBusyId(extensionPackage.manifest.id);
     try {

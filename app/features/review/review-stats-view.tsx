@@ -9,12 +9,14 @@ export function StatsView({
   mistakes,
   onOpenKnowledgeTraining,
   onOpenReview,
+  onRefresh,
 }: {
   attempts: Attempt[];
   knowledgeEntries: KnowledgeEntry[];
   mistakes: Mistake[];
   onOpenKnowledgeTraining: (entryId?: string) => void;
   onOpenReview: (mistakeId?: string) => void;
+  onRefresh: () => Promise<void>;
 }) {
   return (
     <LearningInsightView
@@ -23,6 +25,7 @@ export function StatsView({
       mistakes={mistakes}
       onOpenKnowledgeTraining={onOpenKnowledgeTraining}
       onOpenReview={onOpenReview}
+      onRefresh={onRefresh}
     />
   );
 }
