@@ -48,11 +48,13 @@
 
 ## 0.4 Application Layer
 
-### Phase 1 状态（2026-08-09）
+### Phase 2 状态（2026-08-09）
 
 - Interview 已完成 `start-interview-session` 与 `submit-interview-turn` 两个真实 Use Case；Controller 保留 React 状态、输入校验、刷新、通知、示例模式和最终评分触发。
 - 用例通过显式窄依赖直接编排现有 repository、AI service 与 timer helper，并以直接 Node 测试覆盖调用顺序和部分提交；没有新增 DI 框架或跨 IndexedDB/AI 伪事务。
-- Automation、Import 仍为 pending；Conversation 明确 deferred。0.4 整体尚未完成。
+- Automation 已完成 `execute-automation-run`：Application 编排租约、`AutomationRun`、续租、外部执行、终态和 cleanup，Controller 保留 Web Locks、调度触发、busy、通知与刷新。
+- Automation 的直接 Node 测试覆盖租约竞争、成功/失败顺序、终态写入失败、部分提交、人工重试边界与 cleanup 失败；不对外部 AI、HTTP 采集或提案副作用进行隐式重放。
+- Import 仍为 pending；Conversation 明确 deferred。0.4 整体尚未完成。
 
 ### 目标
 

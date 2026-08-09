@@ -9,6 +9,7 @@ import "../../services/local-runtime-diagnostics.contract.test.ts";
 import "./neutral-interaction.contract.test.ts";
 import "../../platform/host.contract.test.ts";
 import "../../application/interview/interview-application.contract.test.ts";
+import "../../application/automation/automation-application.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 

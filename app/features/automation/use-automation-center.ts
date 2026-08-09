@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { executeAutomationRun } from "../../application/automation/execute-automation-run";
 import { automationRepository, type AutomationDefinitionInput } from "../../services/automation-repository";
 import { previewAutomationDefinition, trialAutomationDefinition } from "../../services/automation-executor";
 import { classifyAutomationError } from "../../services/automation-failure";
@@ -100,7 +101,7 @@ export function useAutomationCenter({
     if (!definition) throw new Error("已安排任务不存在");
     setBusyIds((current) => current.includes(definitionId) ? current : [...current, definitionId]);
     try {
-      const run = await withBrowserLock(`review-automation:${definitionId}`, () => automationRepository.run({
+      const run = await withBrowserLock(`review-automation:${definitionId}`, () => executeAutomationRun({
         definition,
         connection,
         aiSnapshot,
@@ -110,6 +111,7 @@ export function useAutomationCenter({
         nextRunAt: scheduled?.nextRunAt,
         missedCount: scheduled?.missedCount,
         expectedUpdatedAt: scheduled?.expectedUpdatedAt,
+        online: navigator.onLine,
       }));
       if (run) {
         notifyRun(run);

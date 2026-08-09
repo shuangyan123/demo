@@ -5,6 +5,7 @@ import "../features/automation/automation-ui.contract.test.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import Dexie from "dexie";
+import { executeAutomationRun } from "../application/automation/execute-automation-run.ts";
 import { reviewDb } from "../db/review-db.ts";
 import type { AutomationDefinition } from "../types/domains/automation.ts";
 import type { Mistake } from "../types/domains/review.ts";
@@ -96,9 +97,9 @@ test("上下文只读取授权范围，租约阻止重复运行，失败结果�
     timeZone: "Asia/Shanghai", schedule: { kind: "interval", intervalMinutes: 60 },
   }, baseTime);
   await reviewDb.automationDefinitions.update(definition.id, { leaseOwner: "other-tab", leaseExpiresAt: "2026-06-21T00:10:00.000Z" });
-  assert.equal(await automationRepository.run({ definition, personalization: createDefaultPersonalizationSettings(baseTime), trigger: "manual", now: baseTime }), undefined);
+  assert.equal(await executeAutomationRun({ definition, personalization: createDefaultPersonalizationSettings(baseTime), trigger: "manual", now: baseTime }), undefined);
   await reviewDb.automationDefinitions.update(definition.id, { leaseOwner: undefined, leaseExpiresAt: undefined });
-  const failed = await automationRepository.run({ definition, personalization: createDefaultPersonalizationSettings(baseTime), trigger: "scheduled", scheduledAt: baseTime.toISOString(), nextRunAt: "2026-06-21T01:00:00.000Z", now: baseTime });
+  const failed = await executeAutomationRun({ definition, personalization: createDefaultPersonalizationSettings(baseTime), trigger: "scheduled", scheduledAt: baseTime.toISOString(), nextRunAt: "2026-06-21T01:00:00.000Z", now: baseTime });
   assert.equal(failed?.status, "failed");
   assert.match(failed?.error ?? "", /默认文本连接/);
   assert.equal(failed?.failureCategory, "missing_connection");
@@ -155,7 +156,7 @@ test("计划任务使用旧版本快照时不会运行已停用定义", async ()
     timeZone: "Asia/Shanghai", schedule: { kind: "interval", intervalMinutes: 60 },
   }, baseTime);
   await automationRepository.toggle(definition.id, false, new Date("2026-06-21T00:01:00.000Z"));
-  const run = await automationRepository.run({
+  const run = await executeAutomationRun({
     definition,
     personalization: createDefaultPersonalizationSettings(baseTime),
     trigger: "scheduled",
