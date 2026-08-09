@@ -1,20 +1,11 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { configureCustomTextConnection, setCustomDefaultTextModel } from "./helpers/configure-custom-ai";
+import { replaceLearningFacts } from "./helpers/learning-loop-fixtures";
 import { startMockAiProvider, type MockAiRequest } from "./helpers/mock-ai-provider";
 
-const LEARNING_STORES = [
-  "mistakes",
-  "attempts",
-  "knowledgeEntries",
-  "knowledgeAttempts",
-  "interviewQuestions",
-  "interviewPracticePlans",
-  "interviewSessions",
-  "interviewEvaluations",
-  "tutoringSessions",
-  "tutoringTurns",
-  "tutoringPlans",
-];
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-08-09T08:00:00.000Z"));
+});
 
 function mockLearningLoopResponse(request: MockAiRequest): string {
   const payload = JSON.stringify(request.body);
@@ -60,32 +51,18 @@ async function openDashboard(page: Page): Promise<void> {
   await expect(page.getByRole("heading", { name: "今日学习" })).toBeVisible();
 }
 
-async function replaceLearningFacts(page: Page, records: Record<string, unknown[]>): Promise<void> {
-  await page.evaluate(async ({ stores, nextRecords }) => new Promise<void>((resolve, reject) => {
-    const request = indexedDB.open("review_workspace");
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const database = request.result;
-      const available = stores.filter((store) => database.objectStoreNames.contains(store));
-      const transaction = database.transaction(available, "readwrite");
-      transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error ?? new Error("学习事实写入事务已中止"));
-      transaction.oncomplete = () => {
-        database.close();
-        resolve();
-      };
-      try {
-        for (const storeName of available) {
-          const store = transaction.objectStore(storeName);
-          store.clear();
-          for (const record of nextRecords[storeName] ?? []) store.put(record);
-        }
-      } catch (error) {
-        transaction.abort();
-        reject(error);
-      }
-    };
-  }), { stores: LEARNING_STORES, nextRecords: records });
+
+async function tabUntilFocused(page: Page, target: Locator, maximumTabs = 40): Promise<void> {
+  let enteredTabOrder = false;
+  for (let index = 0; index < maximumTabs; index += 1) {
+    await page.keyboard.press("Tab");
+    const focus = await page.evaluate(() => ({ tagName: document.activeElement?.tagName, isBody: document.activeElement === document.body }));
+    if (focus.isBody && !enteredTabOrder) continue;
+    expect(focus.isBody, `进入 Tab 顺序后，第 ${index + 1} 次 Tab 不应把焦点丢失到 body`).toBe(false);
+    enteredTabOrder = true;
+    if (await target.evaluate((element) => element === document.activeElement)) return;
+  }
+  throw new Error(`未能在 ${maximumTabs} 次 Tab 内到达目标控件`);
 }
 
 test("grouped review 通过真实复盘逐项缩小，并在 reload 后保持完成状态", async ({ page }) => {
@@ -242,6 +219,60 @@ test("空学习档案不会制造推荐", async ({ page }) => {
   await page.reload();
   await expect(page.getByText("暂无足够学习记录形成今日推荐。", { exact: true })).toBeVisible();
   await expect(page.locator("[data-learning-action]")).toHaveCount(0);
+});
+
+test("未到期与未提交证据分别呈现准确边界状态", async ({ page }) => {
+  const past = "2026-08-01T08:00:00.000Z";
+  await page.goto("/");
+  await replaceLearningFacts(page, {
+    knowledgeEntries: [{ id: "future-only", category: "常识判断", title: "尚未到期知识", summary: "", content: "", tags: [], source: "E2E", favorite: false, mastery: 5, nextReviewAt: "2099-01-01", reviewCount: 1, createdAt: past, updatedAt: past }],
+  });
+  await page.reload();
+  await expect(page.getByText("当前暂无到期学习任务", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-learning-action]")).toHaveCount(0);
+
+  await replaceLearningFacts(page, {
+    tutoringTurns: [{
+      id: "unsubmitted-assessment",
+      sessionId: "unsubmitted-session",
+      speaker: "ai_tutor",
+      content: "等待用户提交微测",
+      confidence: 0.99,
+      microAssessment: { questions: [{ id: "pending-question", prompt: "请选择", options: ["A", "B"], correctOptionIndex: 0, explanation: "" }] },
+      createdAt: past,
+    }],
+  });
+  await page.reload();
+  await expect(page.getByText("有学习记录，但尚缺少已提交评测证据。", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-learning-action]")).toHaveCount(0);
+});
+
+test("键盘可展开推荐依据并进入具体复盘目标", async ({ page }) => {
+  const past = "2026-08-01T08:00:00.000Z";
+  await page.goto("/");
+  await replaceLearningFacts(page, {
+    mistakes: [{ id: "keyboard-review", board: "判断推理", source: "E2E", stem: "键盘可达的到期错题", answer: "A", explanation: "", reasons: ["条件关系"], tags: [], mastery: 2, nextReviewAt: "2026-08-01", createdAt: past, updatedAt: past }],
+  });
+  await page.reload();
+
+  const action = page.locator('[data-learning-action="review_mistakes"]');
+  const disclosure = action.getByText("为什么推荐？", { exact: true });
+  await tabUntilFocused(page, disclosure);
+  const disclosureFocus = await disclosure.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth };
+  });
+  expect(disclosureFocus.outlineStyle).not.toBe("none");
+  expect(disclosureFocus.outlineWidth).not.toBe("0px");
+  await page.keyboard.press("Enter");
+  await expect(action.locator("details")).toHaveAttribute("open", "");
+
+  const cta = action.getByRole("button", { name: "开始复盘" });
+  await tabUntilFocused(page, cta, 8);
+  await expect(cta).toBeFocused();
+  await expect(cta).toHaveCSS("outline-style", "solid");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "键盘可达的到期错题" })).toBeVisible();
 });
 
 test("同一 tutoring session 的失败微测与 future auto plan 只显示一个 P2 action", async ({ page }) => {
