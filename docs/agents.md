@@ -474,3 +474,11 @@
 - `useSyncExternalStore` 的 localStorage 快照必须保持引用稳定；跨标签 storage 事件先归一化并更新缓存，再通知订阅者，避免重复渲染或损坏配置传播。
 - Electron 自定义标题栏由网页顶栏横跨整个窗口承载，拖动区和交互区必须分别声明 `app-region: drag/no-drag`。主题 IPC 只接受枚举并校验 sender，不得借标题栏桥接扩大系统能力。
 - 浏览器视觉验证应明确区分 Web 顶栏与 Electron 系统按钮：Web 模式不绘制假按钮，Electron 实机继续单独检查拖动、双击最大化及窗口控制安全区。
+
+# 2026-08-09 · Host 与 Application 边界经验
+
+- renderer 业务代码不得直接读取 Electron preload global；只有 `app/platform/desktop/` 和 ambient 类型声明可以出现 `reviewDesktopVault` / `reviewDesktopWindow`。
+- Host 环境解析必须惰性执行，避免服务端渲染或测试在模块初始化阶段访问 `window`。Web adapter 只声明浏览器实际具备的能力，缺失能力返回 `undefined`。
+- Host capability 的类型不能扩大 preload 权限；新增能力必须先有独立安全设计，继续保留 context isolation、sandbox、sender 校验和 permission/navigation boundary。
+- 当前 Web 与 Electron 共用视觉 chrome，浏览器不得伪造系统窗口按钮或 IPC。只有出现真实视觉分叉时，才增加默认关闭、仅开发环境的 preview 样式开关。
+- Application Layer 只承载真实的多步骤业务编排；单次 repository 转发不应为追求分层而包装。首批候选优先面试、自动化和导入，对话发送链路待模式稳定后迁移。
