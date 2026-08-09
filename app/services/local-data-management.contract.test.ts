@@ -8,6 +8,7 @@ import { CORE_DATA_STORE_POLICIES, LOCAL_DATA_IMPORT_MAX_STORE_RECORDS, LOCAL_ST
 import { localDataManagementRepository, type LocalDataExportV2 } from "./local-data-management-repository.ts";
 import { encryptSecret } from "./crypto-service.ts";
 import { deleteSecureKeyStore, readSecurePrimaryKey } from "./secure-key-store.ts";
+import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
 import { secretContext } from "./secret-context.ts";
 
 async function resetDatabase(): Promise<void> {
@@ -233,7 +234,7 @@ test("恢复应用后的 verify 失败会回滚旧快照并在完成回滚后清
   assert.equal(await withTransferDatabase((database) => database.table("jobs").count()), 0);
 });
 
-test("只读 Health Check 识别关键悬空、缺密钥与中断事务且不泄漏敏感内容", async () => {
+test("Health Check 将关键用户数据与缺失主密钥保持 manual-only", async () => {
   await resetDatabase();
   const healthy = await localDataManagementRepository.inspectHealth();
   assert.equal(healthy.healthy, true);
@@ -243,10 +244,77 @@ test("只读 Health Check 识别关键悬空、缺密钥与中断事务且不泄
   await reviewDb.apiConnectionProfiles.put({ id: "credential", encryptedKey: "do-not-print", iv: "do-not-print-iv" } as never);
   const broken = await localDataManagementRepository.inspectHealth();
   assert.equal(broken.healthy, false);
-  assert.equal(broken.errors.some((issue) => issue.code === "critical-integrity"), true);
-  assert.equal(broken.errors.some((issue) => issue.code === "credential-key-unavailable"), true);
+  assert.equal(broken.errors.find((issue) => issue.code === "critical-integrity")?.repairability, "manual-only");
+  assert.equal(broken.errors.find((issue) => issue.code === "credential-key-unavailable")?.repairability, "manual-only");
+  assert.deepEqual(broken.repairable, []);
   assert.doesNotMatch(JSON.stringify(broken), /do-not-print/);
+});
 
+test("孤立对话运行步骤提供无泄漏 preview，确认前不修改且只定向删除预期记录", async () => {
+  await resetDatabase();
+  await seedConversation();
+  await reviewDb.aiConversationRunSteps.bulkPut([
+    { id: "valid-step", conversationId: "conversation", runId: "valid-run", label: "有效步骤", state: "done", createdAt: now, updatedAt: now },
+    { id: "orphan-step", conversationId: "missing-conversation", runId: "orphan-run", label: "孤立步骤", text: "never-leak-repair-evidence", state: "error", createdAt: now, updatedAt: now },
+  ] as never[]);
+
+  const health = await localDataManagementRepository.inspectHealth();
+  assert.equal(health.repairable.length, 1);
+  assert.equal(health.repairable[0]?.id, "delete-orphan-conversation-run-steps");
+  assert.equal(health.errors.find((issue) => issue.recordId === "orphan-step")?.repairability, "targeted-safe");
+
+  const preview = await localDataManagementRepository.inspectRepair("delete-orphan-conversation-run-steps");
+  assert.deepEqual(preview.affectedRecordIds, ["orphan-step"]);
+  assert.equal(preview.backupRequired, true);
+  assert.equal(await reviewDb.aiConversationRunSteps.count(), 2);
+  assert.doesNotMatch(JSON.stringify(preview), /never-leak-repair-evidence/);
+
+  const backup = await localDataManagementRepository.prepareRepairBackup(preview);
+  await localDataManagementRepository.inspectRestore(backup.source);
+  assert.doesNotMatch(backup.source, /never-leak-repair-evidence|orphan-step/);
+  await assert.rejects(() => localDataManagementRepository.executeRepair(preview, backup, false), /明确确认/);
+  assert.equal(await reviewDb.aiConversationRunSteps.count(), 2);
+
+  const result = await localDataManagementRepository.executeRepair(preview, backup, true);
+  assert.equal(result.verified, true);
+  assert.equal(await reviewDb.aiConversationRunSteps.get("orphan-step"), undefined);
+  assert.ok(await reviewDb.aiConversationRunSteps.get("valid-step"));
+  assert.ok(await reviewDb.aiConversations.get("conversation"));
+  assert.ok(await reviewDb.aiConversationMessages.get("message"));
+  assert.equal((await localDataManagementRepository.inspectHealth()).healthy, true);
+});
+
+test("定向修复 verify 失败会中止 transaction 并保留诊断证据", async () => {
+  await resetDatabase();
+  await reviewDb.aiConversationRunSteps.put({ id: "orphan-step", conversationId: "missing", runId: "run", label: "孤立", state: "error", createdAt: now, updatedAt: now } as never);
+  const preview = await localDataManagementRepository.inspectRepair("delete-orphan-conversation-run-steps");
+  const backup = await localDataManagementRepository.prepareRepairBackup(preview);
+  const originalBulkDelete = reviewDb.aiConversationRunSteps.bulkDelete.bind(reviewDb.aiConversationRunSteps);
+  Object.defineProperty(reviewDb.aiConversationRunSteps, "bulkDelete", { configurable: true, value: async () => undefined });
+  try {
+    await assert.rejects(() => localDataManagementRepository.executeRepair(preview, backup, true), /修复后验证失败/);
+  } finally {
+    Object.defineProperty(reviewDb.aiConversationRunSteps, "bulkDelete", { configurable: true, value: originalBulkDelete });
+  }
+  assert.ok(await reviewDb.aiConversationRunSteps.get("orphan-step"));
+});
+
+test("prepared 恢复事务只清理暂存且不改业务数据", async () => {
+  await resetDatabase();
+  await reviewDb.mistakes.put({ id: "current", board: "数量关系", stem: "当前数据", answer: "A", explanation: "", reasons: [], tags: [], mastery: 1, createdAt: now, updatedAt: now } as never);
+  const snapshot = JSON.parse(await localDataManagementRepository.exportAll()) as LocalDataExportV2;
+  await withTransferDatabase(async (database) => {
+    await database.table("jobs").put({ id: "prepared", status: "prepared", incoming: snapshot, previous: snapshot, createdAt: now });
+  });
+  const result = await localDataManagementRepository.recoverInterruptedRestore();
+  assert.equal(result.status, "recovered");
+  assert.equal(result.preparedDiscarded, 1);
+  assert.equal(result.applyingRolledBack, 0);
+  assert.equal((await reviewDb.mistakes.get("current"))?.stem, "当前数据");
+  assert.equal(await withTransferDatabase((database) => database.table("jobs").count()), 0);
+});
+
+test("applying 恢复事务成功回滚并验证后才清理", async () => {
   await resetDatabase();
   await reviewDb.mistakes.put({ id: "snapshot", board: "数量关系", stem: "原数据", answer: "A", explanation: "", reasons: [], tags: [], mastery: 1, createdAt: now, updatedAt: now } as never);
   const previous = JSON.parse(await localDataManagementRepository.exportAll()) as LocalDataExportV2;
@@ -256,10 +324,64 @@ test("只读 Health Check 识别关键悬空、缺密钥与中断事务且不泄
     await database.table("jobs").put({ id: "interrupted", status: "applying", incoming, previous, createdAt: now });
   });
   const interrupted = await localDataManagementRepository.inspectHealth();
-  assert.equal(interrupted.errors.some((issue) => issue.code === "restore-interrupted"), true);
-  assert.equal(await localDataManagementRepository.recoverInterruptedRestore(), true);
+  assert.equal(interrupted.errors.find((issue) => issue.code === "restore-interrupted")?.repairability, "manual-only");
+  const result = await localDataManagementRepository.recoverInterruptedRestore();
+  assert.equal(result.applyingRolledBack, 1);
   assert.equal((await reviewDb.mistakes.get("snapshot"))?.stem, "原数据");
   assert.equal(await withTransferDatabase((database) => database.table("jobs").count()), 0);
+});
+
+test("applying 回滚验证失败会保留事务且不报告恢复成功", async () => {
+  await resetDatabase();
+  const previous = JSON.parse(await localDataManagementRepository.exportAll()) as LocalDataExportV2;
+  previous.manifest.recordCounts.total += 1;
+  const incoming = JSON.parse(await localDataManagementRepository.exportAll()) as LocalDataExportV2;
+  await withTransferDatabase(async (database) => {
+    await database.table("jobs").put({ id: "broken-applying", status: "applying", incoming, previous, createdAt: now });
+  });
+  await assert.rejects(() => localDataManagementRepository.recoverInterruptedRestore(), /记录数与实际内容不一致/);
+  assert.equal(await withTransferDatabase((database) => database.table("jobs").count()), 1);
+});
+
+test("Vault permission、mapping conflict 与 hash 异常只读报告为 manual-only", async () => {
+  await resetDatabase();
+  await reviewDb.knowledgeEntries.put({ id: "knowledge", category: "方法", title: "知识", summary: "", content: "", tags: [], source: "test", favorite: false, mastery: 1, nextReviewAt: now, reviewCount: 0, createdAt: now, updatedAt: now } as never);
+  await reviewDb.obsidianVaultConfigs.put({ id: "default", backend: "browser", vaultName: "测试 Vault", managedRoot: "AI知识库", directoryHandle: "never-print-handle", createdAt: now, updatedAt: now } as never);
+  await reviewDb.obsidianNoteMappings.put({ path: "方法/知识.md", knowledgeId: "knowledge", category: "方法", baseHash: "base", vaultHash: "vault", appHash: "app", status: "conflict", wikilinks: [], sourceRefs: [], conflictVaultMarkdown: "never-print-vault-body", createdAt: now, updatedAt: now } as never);
+  const beforeConfig = await reviewDb.obsidianVaultConfigs.get("default");
+  const beforeMapping = await reviewDb.obsidianNoteMappings.get("方法/知识.md");
+  const originalLoadSnapshot = obsidianKnowledgeRepository.loadSnapshot.bind(obsidianKnowledgeRepository);
+  Object.defineProperty(obsidianKnowledgeRepository, "loadSnapshot", {
+    configurable: true,
+    value: async () => ({ id: "default", vaultName: "测试 Vault", managedRoot: "AI知识库", createdAt: now, updatedAt: now, connected: false, permission: "denied", recovery: "reauthorize", mappedCount: 1, conflictCount: 1, pendingProposalCount: 0 }),
+  });
+  try {
+    const health = await localDataManagementRepository.inspectHealth();
+    assert.equal(health.errors.find((issue) => issue.code === "vault-unavailable")?.repairability, "manual-only");
+    assert.equal(health.errors.find((issue) => issue.code === "vault-mapping-issue")?.repairability, "manual-only");
+    assert.doesNotMatch(JSON.stringify(health), /never-print/);
+    assert.doesNotMatch(await localDataManagementRepository.exportAll(), /never-print|conflictVaultMarkdown|conflictAppMarkdown/);
+  } finally {
+    Object.defineProperty(obsidianKnowledgeRepository, "loadSnapshot", { configurable: true, value: originalLoadSnapshot });
+  }
+  assert.deepEqual(await reviewDb.obsidianVaultConfigs.get("default"), beforeConfig);
+  assert.deepEqual(await reviewDb.obsidianNoteMappings.get("方法/知识.md"), beforeMapping);
+});
+
+test("恢复 preflight 拒绝伪造进入 V2 的 Vault conflict 正文", async () => {
+  await resetDatabase();
+  const payload = JSON.parse(await localDataManagementRepository.exportAll()) as LocalDataExportV2;
+  payload.databases.review_workspace.obsidianNoteMappings.push({
+    path: "方法/伪造.md",
+    knowledgeId: "knowledge",
+    conflictVaultMarkdown: "不得进入恢复边界的 Vault 正文",
+  });
+  payload.manifest.recordCounts.review_workspace.obsidianNoteMappings += 1;
+  payload.manifest.recordCounts.total += 1;
+  await assert.rejects(
+    () => localDataManagementRepository.inspectRestore(JSON.stringify(payload)),
+    /安全敏感字段/,
+  );
 });
 
 test("完整重置同时删除业务数据和不可导出主密钥", async () => {

@@ -545,3 +545,20 @@ Data Management UI
 - 恢复边界固定为 `preflight → previous snapshot → prepared/applying marker → core transaction → extension transaction → verify → cleanup`。单库事务原子但跨库不原子；apply/verify 失败后必须验证旧快照回滚，回滚失败则保留 marker 并由根 Bootstrap 阻止业务 controller 挂载。
 - `inspectHealth()` 是只读存储扫描，输出 `healthy/warnings/errors/repairable/manualActions`，不解密或输出凭据、不调用 Provider、不自动改记录。Vault 授权与冲突继续由现有 Obsidian 诊断负责；Repair Phase 1 只定义安全边界。
 - 本阶段不升级 `review_workspace` v16 / `review_extensions` v1，不修改 Electron 凭据存储、Provider、MCP、Conversation Application Layer 或 Vault 正文。
+
+# 0.4.x Data Reliability Phase 2（2026-08-09）
+
+```text
+Health issue classification
+  → typed targeted preview
+  → fresh recovery-safe LocalDataExportV2 download
+  → explicit user acknowledgement
+  → one review_workspace transaction
+  → in-transaction integrity verification
+```
+
+- `localDataManagementRepository` 只登记一个真实 targeted-safe 操作：删除无父对话的 `aiConversationRunSteps`。其余用户事实、凭据与 Vault 问题保持 manual-only；没有 Repair Manager/Registry/CommandBus 或新 Application framework。
+- Repair preview 和 fresh backup 都会重新扫描当前状态；备份后数据变化、其他 critical issue、未确认下载或 transaction 内 verify 失败都会 fail closed。删除只触及精确 run-step ID，不跨 core/extensions/Vault，并由 Dexie 在 verify throw 时回滚。
+- `ReviewWorkspaceBootstrap` 是 interrupted restore 的唯一执行入口。类型化结果区分 prepared discard 与 applying rollback；失败保留 transfer job 并阻止 controller。`DataManagementPanel` 的 page-load recovery 已移除，Health/refresh 不会自动 repair。
+- Vault Health 只在用户请求检查时动态加载现有 Obsidian snapshot，读取 permission 与 mapping/hash 状态；首屏不静态引入 Vault service，也不请求授权、写 Markdown、删除 mapping 或解决 conflict。
+- 本阶段继续保持 `review_workspace` v16、`review_extensions` v1、`LocalDataExportV2`、现有 Electron preload/IPC 与凭据安全边界。

@@ -69,8 +69,22 @@ export type LocalDataRestorePreview = {
 };
 
 export type LocalDataHealthIssue = {
-  code: "credential-key-unavailable" | "critical-integrity" | "restore-interrupted" | "store-classification-mismatch";
+  code: "credential-key-unavailable" | "critical-integrity" | "restore-interrupted" | "store-classification-mismatch" | "vault-mapping-issue" | "vault-unavailable";
+  manualAction?: string;
   message: string;
+  recordId?: string;
+  repairability: LocalDataRepairability;
+  scope: string;
+};
+
+export type LocalDataRepairability = "manual-only" | "not-repairable" | "targeted-safe";
+export type LocalDataRepairId = "delete-orphan-conversation-run-steps";
+
+export type LocalDataRepairCandidate = {
+  action: string;
+  affectedRecords: number;
+  id: LocalDataRepairId;
+  issueCode: LocalDataHealthIssue["code"];
   scope: string;
 };
 
@@ -79,8 +93,40 @@ export type LocalDataHealthReport = {
   errors: LocalDataHealthIssue[];
   healthy: boolean;
   manualActions: string[];
-  repairable: [];
+  repairable: LocalDataRepairCandidate[];
   warnings: LocalDataHealthIssue[];
+};
+
+export type LocalDataRepairPreview = {
+  action: string;
+  affectedRecordIds: string[];
+  affectedRecords: number;
+  backupRequired: true;
+  dataLossRisk: "low";
+  issueCode: "critical-integrity";
+  repairId: LocalDataRepairId;
+  scope: "aiConversationRunSteps";
+  verificationPlan: string;
+};
+
+export type LocalDataRepairBackup = {
+  affectedRecordIds: string[];
+  createdAt: string;
+  repairId: LocalDataRepairId;
+  source: string;
+};
+
+export type LocalDataRepairResult = {
+  affectedRecords: number;
+  repairId: LocalDataRepairId;
+  verified: true;
+};
+
+export type InterruptedRestoreRecoveryResult = {
+  applyingRolledBack: number;
+  message?: string;
+  preparedDiscarded: number;
+  status: "none" | "recovered";
 };
 
 /** 导出值只保留可序列化且非敏感字段，新增表不会绕过统一清理边界。 */
@@ -93,7 +139,7 @@ function sanitizeExportValue(value: unknown): unknown {
     && ("encryptedKey" in source || "maskedKey" in source);
   const result: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(source)) {
-    if (/^(encryptedKey|iv|encryptedToken|encryptedTokenIv|encryptedCookie|encryptedCredentials|maskedKey|directoryHandle)$/i.test(key)) continue;
+    if (/^(conflictAppMarkdown|conflictVaultMarkdown|encryptedKey|iv|encryptedToken|encryptedTokenIv|encryptedCookie|encryptedCredentials|maskedKey|directoryHandle)$/i.test(key)) continue;
     if (/^(apiKey|token|cookie|authorization|providerRawResponse)$/i.test(key)) continue;
     result[key] = sanitizeExportValue(item);
   }
@@ -231,7 +277,14 @@ function validateRestorePayload(value: unknown): LocalDataExportV2 {
 }
 
 async function exportPayload(): Promise<LocalDataExportV2> {
-  return JSON.parse(await localDataManagementRepository.exportAll()) as LocalDataExportV2;
+  const databases = await readBackupDatabases();
+  return {
+    schemaVersion: 2,
+    exportedAt: new Date().toISOString(),
+    credentialsExcluded: true,
+    manifest: createLocalDataExportManifest(databases.review_workspace, databases.review_extensions.extensions.length),
+    databases,
+  };
 }
 
 async function replaceWithPayload(payload: LocalDataExportV2): Promise<void> {
@@ -262,6 +315,12 @@ async function readBackupDatabases(): Promise<LocalDataExportV2["databases"]> {
     review_workspace: Object.fromEntries(coreEntries) as Record<string, unknown[]>,
     review_extensions: { extensions: sanitizeExportValue(await extensionDb.extensions.toArray()) as unknown[] },
   };
+}
+
+async function readAllCoreData(): Promise<Record<string, unknown[]>> {
+  return Object.fromEntries(
+    await Promise.all(reviewDb.tables.map(async (table) => [table.name, await table.toArray()] as const)),
+  ) as Record<string, unknown[]>;
 }
 
 /** 跨库 apply 后以记录数和关键引用复核真实落盘状态，验证成功才提交清理。 */
@@ -305,17 +364,139 @@ export async function restoreLocalData(preview: LocalDataRestorePreview): Promis
   }
 }
 
-/** 应用启动或诊断页加载时恢复未完成事务，避免中断后留下半套数据。 */
-export async function recoverInterruptedLocalDataRestore(): Promise<boolean> {
-  const jobs = await transferDb.jobs.toArray();
-  for (const job of jobs) {
-    if (job.status === "applying") {
-      await replaceWithPayload(job.previous);
-      await verifyAppliedPayload(job.previous);
-    }
-    await transferDb.jobs.delete(job.id);
+function targetedRepairPreview(core: Record<string, unknown[]>): LocalDataRepairPreview | undefined {
+  const affectedRecordIds = inspectLocalDataIntegrity(core)
+    .filter((issue) => issue.code === "dangling-reference" && issue.table === "aiConversationRunSteps" && issue.recordId)
+    .map((issue) => issue.recordId as string)
+    .sort();
+  if (!affectedRecordIds.length) return undefined;
+  return {
+    action: "删除没有父对话的脱敏工具与诊断运行步骤；不会删除对话、消息、附件或学习记录。",
+    affectedRecordIds,
+    affectedRecords: affectedRecordIds.length,
+    backupRequired: true,
+    dataLossRisk: "low",
+    issueCode: "critical-integrity",
+    repairId: "delete-orphan-conversation-run-steps",
+    scope: "aiConversationRunSteps",
+    verificationPlan: "在同一 Dexie transaction 内重新检查父对话、删除精确记录 ID，并确认目标悬空问题消失且未引入新的完整性问题。",
+  };
+}
+
+function assertSameRepairPreview(expected: LocalDataRepairPreview, candidate: LocalDataRepairPreview): void {
+  if (candidate.repairId !== expected.repairId
+    || candidate.scope !== expected.scope
+    || !sameStringSet(candidate.affectedRecordIds, expected.affectedRecordIds)) {
+    throw new Error("修复预览已过期，请重新检查数据健康后再继续");
   }
-  return jobs.length > 0;
+}
+
+export async function inspectLocalDataRepair(repairId: LocalDataRepairId): Promise<LocalDataRepairPreview> {
+  if (repairId !== "delete-orphan-conversation-run-steps") throw new Error("不支持的数据修复类型");
+  const preview = targetedRepairPreview(await readAllCoreData());
+  if (!preview) throw new Error("目标问题已不存在，请重新检查数据健康");
+  return preview;
+}
+
+async function buildRepairSafetyPayload(preview: LocalDataRepairPreview): Promise<LocalDataExportV2> {
+  const payload = await exportPayload();
+  const affected = new Set(preview.affectedRecordIds);
+  payload.databases.review_workspace.aiConversationRunSteps = payload.databases.review_workspace.aiConversationRunSteps
+    .filter((record) => !affected.has((record as Record<string, unknown>).id as string));
+  payload.manifest = createLocalDataExportManifest(
+    payload.databases.review_workspace,
+    payload.databases.review_extensions.extensions.length,
+  );
+  return payload;
+}
+
+/** 生成可直接恢复的 V2 安全备份；只从备份副本排除预览中确认无父级的运行元数据，不修改数据库。 */
+export async function prepareLocalDataRepairBackup(preview: LocalDataRepairPreview): Promise<LocalDataRepairBackup> {
+  const current = await inspectLocalDataRepair(preview.repairId);
+  assertSameRepairPreview(preview, current);
+  const payload = await buildRepairSafetyPayload(current);
+  let validated: LocalDataExportV2;
+  try {
+    validated = validateRestorePayload(payload);
+  } catch (error) {
+    throw new Error(`当前还存在无法安全自动处理的关键问题，已停止生成修复备份：${error instanceof Error ? error.message : "未知完整性错误"}`);
+  }
+  return {
+    affectedRecordIds: [...current.affectedRecordIds],
+    createdAt: validated.exportedAt,
+    repairId: current.repairId,
+    source: JSON.stringify(validated, null, 2),
+  };
+}
+
+/** 用户确认且 fresh V2 安全备份仍匹配当前数据后，原子删除精确的孤立运行步骤并在提交前验证。 */
+export async function executeLocalDataRepair(
+  preview: LocalDataRepairPreview,
+  backup: LocalDataRepairBackup,
+  confirmed: boolean,
+): Promise<LocalDataRepairResult> {
+  if (!confirmed) throw new Error("必须明确确认修复并确认备份下载后才能继续");
+  if (backup.repairId !== preview.repairId || !sameStringSet(backup.affectedRecordIds, preview.affectedRecordIds)) {
+    throw new Error("修复备份与当前预览不匹配，请重新生成备份");
+  }
+  let backupPayload: LocalDataExportV2;
+  try {
+    backupPayload = validateRestorePayload(JSON.parse(backup.source) as unknown);
+  } catch (error) {
+    throw new Error(`修复备份无法通过恢复校验：${error instanceof Error ? error.message : "未知错误"}`);
+  }
+  const current = await inspectLocalDataRepair(preview.repairId);
+  assertSameRepairPreview(preview, current);
+  const expectedBackup = await buildRepairSafetyPayload(current);
+  if (JSON.stringify(backupPayload.databases) !== JSON.stringify(expectedBackup.databases)) {
+    throw new Error("生成备份后本地数据已变化，请重新预览并下载新备份");
+  }
+
+  await reviewDb.transaction("rw", reviewDb.tables, async () => {
+    const beforeCore = await readAllCoreData();
+    const transactionPreview = targetedRepairPreview(beforeCore);
+    if (!transactionPreview) throw new Error("目标问题已不存在，请重新检查数据健康");
+    assertSameRepairPreview(current, transactionPreview);
+    const baselineIssues = new Set(inspectLocalDataIntegrity(beforeCore)
+      .filter((issue) => !(issue.code === "dangling-reference" && issue.table === "aiConversationRunSteps" && issue.recordId && current.affectedRecordIds.includes(issue.recordId)))
+      .map((issue) => `${issue.code}:${issue.table}:${issue.recordId ?? ""}`));
+
+    await reviewDb.aiConversationRunSteps.bulkDelete(current.affectedRecordIds);
+    const afterCore = await readAllCoreData();
+    if (targetedRepairPreview(afterCore)) throw new Error("修复后验证失败：目标孤立运行步骤仍然存在");
+    const introducedIssue = inspectLocalDataIntegrity(afterCore)
+      .find((issue) => !baselineIssues.has(`${issue.code}:${issue.table}:${issue.recordId ?? ""}`));
+    if (introducedIssue) throw new Error(`修复后验证失败：${introducedIssue.message}`);
+  });
+
+  return { affectedRecords: current.affectedRecords, repairId: current.repairId, verified: true };
+}
+
+/** 根 Bootstrap 独占中断恢复：prepared 可丢弃，applying 必须回滚并验证后才清理。 */
+export async function recoverInterruptedLocalDataRestore(): Promise<InterruptedRestoreRecoveryResult> {
+  const jobs = await transferDb.jobs.orderBy("createdAt").toArray();
+  const applying = jobs.filter((job) => job.status === "applying");
+  if (applying.length > 1) throw new Error("检测到多个 applying 恢复事务，无法安全判断回滚顺序；事务记录已保留");
+
+  let preparedDiscarded = 0;
+  let applyingRolledBack = 0;
+  for (const job of jobs) {
+    if (job.status === "prepared") {
+      await transferDb.jobs.delete(job.id);
+      preparedDiscarded += 1;
+      continue;
+    }
+    await replaceWithPayload(job.previous);
+    await verifyAppliedPayload(job.previous);
+    await transferDb.jobs.delete(job.id);
+    applyingRolledBack += 1;
+  }
+  if (!jobs.length) return { applyingRolledBack, preparedDiscarded, status: "none" };
+  const parts = [
+    preparedDiscarded ? `已丢弃 ${preparedDiscarded} 个尚未修改业务数据的恢复暂存` : "",
+    applyingRolledBack ? `已回滚并验证 ${applyingRolledBack} 个中断恢复事务` : "",
+  ].filter(Boolean);
+  return { applyingRolledBack, message: `${parts.join("；")}。`, preparedDiscarded, status: "recovered" };
 }
 
 function containsEncryptedCredentialMaterial(value: unknown): boolean {
@@ -332,20 +513,36 @@ export async function inspectLocalDataHealth(): Promise<LocalDataHealthReport> {
   const actualStores = reviewDb.tables.map((table) => table.name);
   const classifiedStores = Object.keys(CORE_DATA_STORE_POLICIES);
   if (!sameStringSet(actualStores, classifiedStores)) {
-    errors.push({ code: "store-classification-mismatch", message: "本地数据库表与备份分类清单不一致；已停止自动判断备份覆盖范围。", scope: "review_workspace" });
-    manualActions.add("升级应用或联系维护者确认新增表的备份分类");
+    const manualAction = "升级应用或联系维护者确认新增表的备份分类";
+    errors.push({ code: "store-classification-mismatch", manualAction, message: "本地数据库表与备份分类清单不一致；已停止自动判断备份覆盖范围。", repairability: "manual-only", scope: "review_workspace" });
+    manualActions.add(manualAction);
   }
 
-  const allCore = Object.fromEntries(await Promise.all(reviewDb.tables.map(async (table) => [table.name, await table.toArray()] as const))) as Record<string, unknown[]>;
-  for (const issue of inspectLocalDataIntegrity(allCore).slice(0, 50)) {
-    errors.push({ code: "critical-integrity", message: issue.message, scope: issue.table });
-    manualActions.add("先导出当前备份，再从已验证备份恢复或联系维护者");
+  const allCore = await readAllCoreData();
+  const integrityIssues = inspectLocalDataIntegrity(allCore).slice(0, 50);
+  const safeRunStepIssues = integrityIssues.filter((issue) => issue.code === "dangling-reference" && issue.table === "aiConversationRunSteps" && issue.recordId);
+  const manualIntegrityIssues = integrityIssues.filter((issue) => !safeRunStepIssues.includes(issue));
+  for (const issue of integrityIssues) {
+    const targetedSafe = safeRunStepIssues.includes(issue);
+    const manualAction = targetedSafe ? undefined : "先导出当前备份，再从已验证备份恢复或联系维护者";
+    errors.push({
+      code: "critical-integrity",
+      manualAction,
+      message: targetedSafe ? `${issue.message}；该记录仅为无父对话的脱敏运行元数据，可预览后定向清理。` : issue.message,
+      recordId: issue.recordId,
+      repairability: targetedSafe ? "targeted-safe" : "manual-only",
+      scope: issue.table,
+    });
+    if (manualAction) manualActions.add(manualAction);
   }
 
   const transferJobs = await transferDb.jobs.toArray();
   if (transferJobs.length) {
-    errors.push({ code: "restore-interrupted", message: `检测到 ${transferJobs.length} 个未完成恢复事务；重新打开应用会尝试回滚旧快照。`, scope: "review_workspace_transfer" });
-    manualActions.add("重新打开应用完成安全回滚；不要手工删除恢复事务库");
+    const prepared = transferJobs.filter((job) => job.status === "prepared").length;
+    const applying = transferJobs.filter((job) => job.status === "applying").length;
+    const manualAction = "重新打开应用完成安全恢复；不要手工删除恢复事务库";
+    errors.push({ code: "restore-interrupted", manualAction, message: `检测到未完成恢复事务：prepared ${prepared} 个，applying ${applying} 个。根启动边界必须先处理它们。`, repairability: "manual-only", scope: "review_workspace_transfer" });
+    manualActions.add(manualAction);
   }
 
   const credentialRecords = [allCore.apiSettings ?? [], allCore.apiConnectionProfiles ?? []];
@@ -360,43 +557,91 @@ export async function inspectLocalDataHealth(): Promise<LocalDataHealthReport> {
   if (hasEncryptedCredentials) {
     try {
       if (!await readSecurePrimaryKey()) {
-        errors.push({ code: "credential-key-unavailable", message: "检测到已加密凭据，但本机主密钥不可用；诊断未读取或输出凭据内容。", scope: "review_workspace_secure_keys" });
-        manualActions.add("重新输入受影响的凭据");
+        const manualAction = "重新输入受影响的凭据";
+        errors.push({ code: "credential-key-unavailable", manualAction, message: "检测到已加密凭据，但本机主密钥不可用；诊断未读取或输出凭据内容。", repairability: "manual-only", scope: "review_workspace_secure_keys" });
+        manualActions.add(manualAction);
       }
     } catch {
-      errors.push({ code: "credential-key-unavailable", message: "本机主密钥库无法安全读取；诊断未读取或输出凭据内容。", scope: "review_workspace_secure_keys" });
-      manualActions.add("重新输入受影响的凭据；若仍失败，先备份业务数据再完整重置");
+      const manualAction = "重新输入受影响的凭据；若仍失败，先备份业务数据再完整重置";
+      errors.push({ code: "credential-key-unavailable", manualAction, message: "本机主密钥库无法安全读取；诊断未读取或输出凭据内容。", repairability: "manual-only", scope: "review_workspace_secure_keys" });
+      manualActions.add(manualAction);
     }
   }
+
+  const vaultConfigs = allCore.obsidianVaultConfigs ?? [];
+  const vaultMappings = (allCore.obsidianNoteMappings ?? []) as Array<Record<string, unknown>>;
+  if (vaultConfigs.length || vaultMappings.length) {
+    const permissionAction = "重新授权或重新选择 Obsidian Vault，然后重新运行只读同步检查";
+    try {
+      // Vault service 保持按需加载，避免 Health foundation 把文件系统实现带回主工作台首屏。
+      const { obsidianKnowledgeRepository } = await import("./obsidian-knowledge-repository.ts");
+      const snapshot = await obsidianKnowledgeRepository.loadSnapshot();
+      if (!snapshot.connected || snapshot.permission !== "granted") {
+        errors.push({ code: "vault-unavailable", manualAction: permissionAction, message: `Vault 当前不可用（${snapshot.recovery}）；应用不会自动选择目录或修改 Markdown。`, repairability: "manual-only", scope: "obsidianVaultConfigs" });
+        manualActions.add(permissionAction);
+      }
+    } catch {
+      errors.push({ code: "vault-unavailable", manualAction: permissionAction, message: "Vault 权限状态无法安全读取；应用未修改目录授权或 Markdown。", repairability: "manual-only", scope: "obsidianVaultConfigs" });
+      manualActions.add(permissionAction);
+    }
+
+    const knowledgeIds = new Set((allCore.knowledgeEntries ?? []).map((record) => (record as Record<string, unknown>).id));
+    const missingKnowledge = vaultMappings.filter((mapping) => !knowledgeIds.has(mapping.knowledgeId)).length;
+    const conflictCount = vaultMappings.filter((mapping) => mapping.status === "conflict").length;
+    const disconnectedCount = vaultMappings.filter((mapping) => mapping.status === "disconnected").length;
+    const staleHashCount = vaultMappings.filter((mapping) => mapping.status === "synced"
+      && (mapping.baseHash !== mapping.vaultHash || mapping.baseHash !== mapping.appHash)).length;
+    const knowledgeIdCounts = new Map<string, number>();
+    for (const mapping of vaultMappings) {
+      if (typeof mapping.knowledgeId !== "string") continue;
+      knowledgeIdCounts.set(mapping.knowledgeId, (knowledgeIdCounts.get(mapping.knowledgeId) ?? 0) + 1);
+    }
+    const duplicateMappings = [...knowledgeIdCounts.values()].filter((count) => count > 1).length;
+    const mappingAction = "在 Vault 详情中重新授权并人工对账 mapping、review-id 与三方 hash；不要覆盖或删除 Vault 文件";
+    if (missingKnowledge || conflictCount || staleHashCount || duplicateMappings) {
+      errors.push({
+        code: "vault-mapping-issue",
+        manualAction: mappingAction,
+        message: `Vault mapping 需要人工对账：缺本地知识 ${missingKnowledge}，冲突 ${conflictCount}，hash 不一致 ${staleHashCount}，重复知识映射 ${duplicateMappings}。`,
+        repairability: "manual-only",
+        scope: "obsidianNoteMappings",
+      });
+      manualActions.add(mappingAction);
+    }
+    if (disconnectedCount) {
+      warnings.push({ code: "vault-mapping-issue", manualAction: mappingAction, message: `有 ${disconnectedCount} 条 Vault mapping 处于 disconnected；只报告，不自动删除 mapping 或 Vault 文件。`, repairability: "manual-only", scope: "obsidianNoteMappings" });
+      manualActions.add(mappingAction);
+    }
+  }
+
+  const repairPreview = targetedRepairPreview(allCore);
+  const repairable: LocalDataRepairCandidate[] = repairPreview && manualIntegrityIssues.length === 0
+    ? [{ action: repairPreview.action, affectedRecords: repairPreview.affectedRecords, id: repairPreview.repairId, issueCode: repairPreview.issueCode, scope: repairPreview.scope }]
+    : [];
 
   return {
     checkedAt: new Date().toISOString(),
     errors,
-    healthy: errors.length === 0,
+    healthy: errors.length === 0 && warnings.length === 0,
     manualActions: [...manualActions],
-    repairable: [],
+    repairable,
     warnings,
   };
 }
 
 export const localDataManagementRepository = {
+  executeRepair: executeLocalDataRepair,
   loadSummary: loadLocalDataSummary,
+  inspectRepair: inspectLocalDataRepair,
   inspectRestore: inspectLocalDataRestore,
+  prepareRepairBackup: prepareLocalDataRepairBackup,
   restore: restoreLocalData,
   recoverInterruptedRestore: recoverInterruptedLocalDataRestore,
   inspectHealth: inspectLocalDataHealth,
 
   /** 安全导出使用显式版本和字段清理，凭据与目录句柄永不进入导出包。 */
   async exportAll(): Promise<string> {
-    const databases = await readBackupDatabases();
-    const payload: LocalDataExportV2 = {
-      schemaVersion: 2,
-      exportedAt: new Date().toISOString(),
-      credentialsExcluded: true,
-      manifest: createLocalDataExportManifest(databases.review_workspace, databases.review_extensions.extensions.length),
-      databases,
-    };
-    return JSON.stringify(payload, null, 2);
+    return JSON.stringify(await exportPayload(), null, 2);
   },
 
   /** 只清理导入任务、批次与未确认草稿。 */

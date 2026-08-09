@@ -1,5 +1,16 @@
 # 发布前手工冒烟清单
 
+## 2026-08-09 · Data Reliability Phase 2
+
+1. 在隔离 profile 制造一条无父对话的 `aiConversationRunSteps`，确认 Health 只把它标为“可定向修复”；attempt/message/turn/knowledge dangling、缺密钥与 Vault 问题只能显示手动路径且没有修复按钮。
+2. 打开修复预览，确认只显示 scope、精确 ID、动作、低风险、备份要求和验证计划，不显示 step 文本、prompt、凭据、Vault 正文或原始响应；关闭 preview 后数据库不变。
+3. 确认未下载 fresh V2 备份或未勾选“文件已保存”时不能提交。下载后检查安全备份可通过 restore preflight，执行修复并刷新；孤立元数据消失，正常会话、消息与其他学习记录保持。
+4. 模拟 repair delete 完成但 transaction 内 verify 失败，确认 transaction 回滚、目标诊断证据仍存在且不会继续执行其他 repair。
+5. Seed `prepared` job 后启动：业务数据保持、暂存被清理且显示明确结果。Seed `applying` job 后启动：previous snapshot 恢复并验证后才挂载业务 controller，job 随后清理。
+6. **真实强制中断仍需人工验证**：开始 restore，DevTools 确认 transfer job 已到 `applying` 后强制关闭 Web profile 或结束 Electron 进程；重启应先显示恢复检查，再恢复旧快照、显示可见结果且不存在半恢复工作台。CI seeded job 不等同于真实 process kill。
+7. 破坏 previous manifest 或模拟 IndexedDB 写/验证失败，确认启动停留在“无法安全打开本地数据”，job 保留；“重新尝试”不得 reset、清库或删除 job。
+8. 对真实 Vault 分别撤销 permission、制造 conflict/disconnected/hash 不一致，确认 Health 只读报告 manual-only；mapping、目录授权和 Markdown 正文前后完全一致。
+
 ## 2026-08-09 · Data Reliability Phase 1
 
 1. 在隔离 profile 创建错题、知识、对话、自动化和扩展代表数据，点击“检查数据健康”，确认只读报告不修改计数、不输出密文/Vault 正文，并与上方 Vault 权限诊断一致。

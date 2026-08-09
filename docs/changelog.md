@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-09 · 0.4.x Data Reliability Phase 2
+
+- Health issue 增加 repairability 分类和 Vault permission/mapping/hash 只读诊断；用户事实、凭据和 Vault 问题保持 manual-only。
+- 增加唯一 targeted-safe repair：孤立对话运行步骤必须经过 preview、fresh V2 安全备份下载确认、精确事务删除与提交前完整性验证，不级联删除其他记录。
+- 中断恢复结果区分 prepared discard 与 applying rollback；Bootstrap 成功后展示可见说明，失败保留 transfer job 并阻止业务启动，诊断页不再在加载时重复恢复。
+- 新增 targeted repair 与 seeded applying startup Browser E2E；保持 Dexie v16、扩展库 v1、V2 格式、Vault 正文、Electron 权限和凭据边界不变。
+
 ## 2026-08-09 · 0.4.x Data Reliability Phase 1
 
 - 建立完整数据资产、表级备份分类、版本化 localStorage 与 R0–R4 恢复等级矩阵；核心 36 表与分类策略不一致时 contract 失败，安全表继续显式排除。

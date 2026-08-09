@@ -98,6 +98,13 @@
 - 恢复继续以 core/extension 两个独立 Dexie transaction 加 transfer job 实现，不伪造跨库 ACID；apply 后验证失败会回滚旧快照，回滚未完成时保留 job 并在根 Bootstrap 阻止业务 controller 启动。
 - 已增加只读 Health Check foundation，检查 schema/classification、关键引用、未完成恢复和主密钥可用性；Vault 权限继续复用现有只读诊断。Phase 1 不提供自动 Repair，也未升级 Dexie v16。
 
+### Phase 2 状态（2026-08-09）
+
+- Health issue 已增加 `targeted-safe` / `manual-only` / `not-repairable` 分类。用户事实 dangling、凭据缺密钥和 Vault 权限/mapping/conflict 均保持 manual-only，不以“全绿”为目标猜测或删除数据。
+- 唯一 targeted-safe repair 是无父对话的 `aiConversationRunSteps`：必须先生成 typed preview、请求下载 fresh recovery-safe V2 备份并由用户确认，再在单个 Dexie transaction 中精确删除和验证；不会级联删除其他记录。
+- 根 Bootstrap 独占 interrupted recovery：`prepared` 仅清理未 apply 暂存，`applying` 回滚并验证 previous snapshot 后清理；成功显示可见结果，失败保留 job 并阻止业务 controller。诊断 page load 不再重复恢复。
+- Vault Health 按需复用只读 snapshot 并检查 permission、mapping 状态与三方 hash；不请求新权限、不写 Markdown、不删 mapping、不自动解决 conflict。仍保持 `review_workspace` v16、`review_extensions` v1 与 `LocalDataExportV2`。
+
 ### 目标
 
 - 建立数据分类、所有权、可重建性和恢复级别清单。

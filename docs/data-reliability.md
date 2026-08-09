@@ -1,6 +1,6 @@
 # 数据可靠性支持矩阵
 
-本文是 `0.4.x Data Reliability Phase 1` 的版本化事实源，适用于 `review_workspace` v16、`review_extensions` v1 与 `LocalDataExportV2`。它不授权 Dexie schema 升级、云同步或自动修复用户数据。
+本文是 `0.4.x Data Reliability Phase 1–2` 的版本化事实源，适用于 `review_workspace` v16、`review_extensions` v1 与 `LocalDataExportV2`。它不授权 Dexie schema 升级、云同步或自动修复用户数据。
 
 ## 数据分类与恢复等级
 
@@ -124,6 +124,8 @@ preflight
 - 单个 Dexie transaction 内的 core replace 或 extension replace 各自原子；两个数据库之间不存在 ACID，也不覆盖 localStorage、主密钥或 Vault。
 - apply/verify 失败时用 `previous` 回滚 core 与 extension；只有回滚验证成功后才清理 job。回滚也失败时保留 `applying` job 并阻止应用进入业务 controller。
 - 页面关闭、刷新或浏览器崩溃后，根 Bootstrap 在任何业务 controller 挂载前读取 transfer DB：`prepared` 尚未修改业务库，可清理；`applying` 必须恢复并验证旧快照后再清理。
+- Bootstrap 返回并展示类型化结果：`preparedDiscarded` 明确表示只丢弃未开始 apply 的暂存，`applyingRolledBack` 表示旧快照已恢复且通过验证。诊断页不再在 page load 重复运行 recovery。
+- 同时出现多个 `applying` 或 rollback/verify 失败时无法安全判断最终状态：保留 transfer job、阻止业务 controller 挂载，并显示“重试/保留 profile/联系维护者”的稳定恢复错误；禁止自动 reset、清库或删除证据。
 - `QuotaExceededError`、IndexedDB write failure 与 verify failure 都走同一可识别回滚边界。应用不声称拥有跨数据库/Vault 的事务。
 
 ## Read-only Health Check contract
@@ -139,27 +141,56 @@ repairable[]
 manualActions[]
 ```
 
-Phase 1 检查：
+Phase 1–2 检查：
 
 - Dexie 表集合是否与显式分类完全一致；
 - 当前记录的对象/主键与 critical references；
 - `review_workspace_transfer` 是否存在未完成事务；
 - 存在加密凭据时不可导出主密钥是否可读取（不解密、不输出密文）；
-- Vault 未连接、权限丢失、冲突与待确认状态继续由现有 Obsidian 只读诊断报告检查。
+- Vault 配置存在时按需加载现有 Obsidian 只读 snapshot，报告 permission lost/unavailable；mapping 另外检查缺本地知识、`conflict`、`disconnected`、synced hash 不一致与重复 knowledge mapping。
 
-Health Check 不调用 Provider 在线 API，也不修改记录。UI 只在用户点击“检查数据健康”后执行存储扫描；Vault 诊断只提供重新选择/授权入口，不覆盖正文。
+Health issue 明确分为：
+
+| repairability | 语义 |
+| --- | --- |
+| `targeted-safe` | 有精确记录范围、无独立业务价值、可在单库事务中验证的定向修复 |
+| `manual-only` | 用户事实、凭据、Vault 权限/mapping/conflict 或恢复事务；只能备份恢复、重新输入、重新授权或人工对账 |
+| `not-repairable` | 仅报告且当前没有安全修改路径 |
+
+Health Check 不调用 Provider 在线 API，也不修改记录。UI 只在用户点击“检查数据健康”后执行存储扫描；Vault 检查不请求权限、不修改 mapping、不读取/输出 Markdown 正文。
 
 ## Repair safety policy
 
-Phase 1 不提供通用 Repair UI、Rule Engine 或自动修复：
+Phase 2 仍不提供通用 Repair framework。唯一 targeted-safe 类型是：
 
-- 默认路径是读取报告、导出当前备份、恢复已验证备份、重新输入凭据或重新授权 Vault。
-- `repairable` 当前固定为空；发现问题不会在应用启动时自动改业务记录。
-- 未来最小 repair 必须满足 `scan → preview → explicit confirmation → backup/recovery boundary → mutate → verify`。
-- 无法回滚的 Vault 写入必须逐项报告，不能归入本地数据库“修复成功”。
+```text
+aiConversationRunSteps.conversationId 不存在
+→ 该记录只是脱敏工具/诊断元数据
+→ 正常 deleteConversation 本就级联删除
+→ 精确删除不会级联或修改其他用户事实
+```
+
+`attempts`、消息、附件、面试/辅导 turn、知识、自动化收件箱与 Vault mapping 即使 dangling 也保持 `manual-only`。缺密钥只能重新输入凭据；Vault permission/conflict/mapping 只能重新授权或人工对账。
+
+定向修复固定执行：
+
+```text
+scan
+→ typed preview（issue/scope/IDs/action/risk/backup/verification）
+→ 生成 fresh recovery-safe LocalDataExportV2
+→ 浏览器发起下载，用户明确确认文件已保存
+→ 单个 review_workspace transaction 精确删除
+→ transaction 内重新检查目标消失且没有新增 integrity issue
+→ commit / failure rollback
+```
+
+- Preview 只含稳定 ID 和动作摘要，不含 step 文本、prompt、凭据、Vault 正文或厂商原始响应，且 preview 本身不写数据库。
+- 修复前 V2 安全备份保留全部可恢复业务数据，只从备份副本排除即将清理的孤立运行元数据；如果仍有其他关键损坏导致备份不能通过 restore preflight，则停止修复。
+- 应用无法证明浏览器下载已落盘，因此只声明“已请求下载”，并要求用户显式勾选确认；不会虚假声称备份已安全保存。
+- Repair 不在 startup、page load、Health Check 或 refresh 自动执行；Vault 与跨数据库系统不参与 targeted repair。
 
 ## 验证责任
 
-- Contract 覆盖表分类、清单/计数、secret exclusion、未知表、重复键、限制、关键引用、preflight 不变性、verify rollback、中断识别与 Health Check。
-- Browser E2E 覆盖真实下载备份、删除本地可见记录、导入恢复、刷新可见，以及畸形备份拒绝后原记录保持。
-- 真实 Vault 权限、外部文件冲突、磁盘配额和浏览器进程强制终止仍需按 `docs/release-smoke.md` 做人工验收。
+- Contract 覆盖表分类、清单/计数、secret exclusion、未知表、重复键、限制、关键引用、repairability、preview 不变性、fresh backup、transaction verify rollback、prepared/applying recovery 与 Vault 只读 manual-only 边界。
+- Browser E2E 覆盖既有 backup/restore 与畸形拒绝，以及 targeted repair 的 preview/backup/confirm/verify 和 seeded `applying` 启动回滚可见状态。
+- E2E seeded `applying` 证明启动边界读取并完成既有 crash state；它不伪装成真实浏览器进程强杀。真实 Vault 权限、外部文件冲突、磁盘配额和进程强制终止仍需按 `docs/release-smoke.md` 人工验收。
