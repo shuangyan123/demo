@@ -63,4 +63,3 @@ application/interview/submit-interview-turn.ts
 ## 本轮边界
 
 0.3 只建立 Host Capability Layer、迁移计划和守卫。本轮不创建空的 `app/application/` 目录，也不迁移正在高频变化的对话发送链路，避免把架构准备变成跨领域重写。
-
