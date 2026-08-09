@@ -465,3 +465,12 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - 声明式扩展卸载先撤销主题或人设启用效果，再删除 `review_extensions` 安装记录；内置插件永远不显示卸载动作。
 - Electron 窗口使用 `titleBarStyle: "hidden"` 与 52px `titleBarOverlay`。`.chrome-topbar` 是拖动区，全部按钮标记为 `app-region: no-drag`；受限 IPC 只接受 `light | dark` 并仅调整系统窗口按钮对比色。
 - 顶部栏横跨整个窗口，侧栏和工作区从 52px 标题栏下方开始；`<main>` 仍独占顶部/左侧共边和 18px 左上圆角，浏览器模式不伪造系统窗口按钮。
+
+# 0.3 Host Capability Layer（2026-08-09）
+
+- `app/platform/host.ts` 是 renderer 识别 Web、Electron 和服务端环境的唯一入口；能力按需解析，模块初始化阶段不读取 `window`。
+- `app/platform/web/` 只包装浏览器真实提供的能力；`app/platform/desktop/` 只包装现有 preload bridge。业务代码不再读取 `window.reviewDesktopVault` 或 `window.reviewDesktopWindow`。
+- 首批能力为 `vault` 与 `nativeWindow`。Electron adapter 不新增 IPC channel、参数或返回值，也不暴露 Node/Electron API；main process 的 sender、navigation、permission 和 runtime integrity 边界保持不变。
+- Vault service 继续保留 Web File System Access 与 Electron preload 两条原有路径；标题栏主题继续只向受限 preload 传递 `light | dark`。
+- Web 与 Electron 已共享 titlebar spacing、sidebar/content 和 viewport 布局。浏览器不会伪造系统窗口按钮或 IPC，因此本轮不新增 `hostPreview=desktop`；若未来宿主视觉分叉，再增加仅开发环境的样式开关。
+- 本次改造不新增 HTTP API，不修改 IndexedDB、凭据、Vault 文件格式、Provider/MCP/Automation/Plugin 协议，也不改变动态加载边界。

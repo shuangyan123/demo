@@ -7,6 +7,7 @@ import "../review/learning-insight-model.contract.test.ts";
 import "../../server/http/route-security.contract.test.ts";
 import "../../services/local-runtime-diagnostics.contract.test.ts";
 import "./neutral-interaction.contract.test.ts";
+import "../../platform/host.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -47,6 +48,26 @@ test("业务源码直接引用领域类型且核心 facade 保持预算", async 
   for (const [relativePath, budget] of budgets) {
     const lines = (await readFile(path.join(APP_ROOT, relativePath), "utf8")).split(/\r?\n/).length;
     assert.ok(lines <= budget, `${relativePath} 为 ${lines} 行，超过 ${budget} 行预算`);
+  }
+});
+
+test("业务层只能通过 Host Capability 访问 Electron preload", async () => {
+  const files = await sourceFiles(APP_ROOT);
+  const directBridgeReferences: string[] = [];
+  for (const file of files) {
+    const relativePath = path.relative(APP_ROOT, file).replace(/\\/g, "/");
+    if (relativePath === "types/review-desktop.d.ts" || relativePath.startsWith("platform/desktop/")) continue;
+    const source = await readFile(file, "utf8");
+    if (/reviewDesktop(?:Vault|Window)/.test(source)) directBridgeReferences.push(relativePath);
+  }
+  assert.deepEqual(directBridgeReferences, []);
+
+  const platformFiles = files.filter((file) => file.includes(path.join("app", "platform")));
+  for (const file of platformFiles) {
+    const source = await readFile(file, "utf8");
+    const imports = staticImports(source);
+    assert.equal(imports.some((target) => /(?:^|\/)(?:features|services|db|server)(?:\/|$)/.test(target)), false);
+    assert.equal(imports.some((target) => target === "react" || target.startsWith("react/")), false);
   }
 });
 

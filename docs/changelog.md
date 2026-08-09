@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-09 · 0.3 Host Capability 与产品化准备
+
+- 新增轻量 Host Capability Layer，统一暴露 Web / Electron 的 Vault 与原生窗口能力；业务 service 和 React hook 不再直接读取 Electron preload global。
+- Electron adapter 仅包装既有 preload API，没有新增 IPC 权限、修改 sender 校验或改变 main/preload 安全边界；Web adapter 不模拟 Electron 能力。
+- 增加 Host 架构契约，阻止 preload global 向业务代码回流，并禁止 platform 反向依赖 feature、service、database、server 或 React。
+- README、0.3→1.0 Roadmap、Application Layer 迁移计划和数据可靠性边界与当前实现对齐。`review_workspace` 保持 v16，备份格式、凭据、Vault、Provider、MCP、Automation 和 UI 行为不变。
+- 同 major 更新六个生产依赖修复安全公告，`npm run audit:prod` 归零；未使用强制审计修复，也未改变应用协议或数据结构。
+
 ## 2026-08-02 · Codex 风格对话、插件与 Electron 顶部栏
 
 - 对话主题目录由固定 12.5rem 侧栏改为消息区左缘短横线轨道，悬浮或键盘聚焦时延长并显示主题；移动端主题抽屉与滚动定位语义保持不变。

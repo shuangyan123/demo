@@ -330,3 +330,10 @@ P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controll
 - `/api/import/fenbi/validate` 与 `/api/import/fenbi/sync` 的 cookie 字段可接收纯 Cookie、完整 `Cookie:` 请求头或 Copy as cURL；服务端只保留 Cookie 值，丢弃 URL、命令和其他请求头。
 - Fenbi SSE 完成事件的诊断可包含脱敏的重复项数量，不包含 Cookie、题目正文或上游原始响应。
 - Electron preload 新增 Vault watch 启停与变更订阅；变更事件固定为 `{revision, occurredAt}`，不暴露正文、文件名或绝对路径。浏览器端没有新增公开 HTTP Route。
+
+# Host Capability 内部契约（2026-08-09）
+
+- renderer 内部通过 `host.capabilities.vault` 和 `host.capabilities.nativeWindow` 访问宿主能力；能力缺失以 `undefined` 表达。
+- Web Vault adapter 仅包装 `showDirectoryPicker` 与可用时的 `FileSystemObserver`；它不模拟 Electron IPC 或本地文件权限。
+- Desktop adapter 只代理既有 `reviewDesktopVault` / `reviewDesktopWindow` preload bridge。IPC channel、入参、返回值与 sender 校验均未改变。
+- 本轮没有新增或修改公开 HTTP Route、Provider 请求、SSE 事件、持久化字段或导出格式。
