@@ -138,9 +138,11 @@
 
 ## 0.5 学习闭环
 
-状态：Phase 1 Evidence Normalization & Read-only Learning Action Queue 已完成；后续阶段待启动。
+状态：Phase 1 Evidence Normalization & Read-only Learning Action Queue、Phase 1 Stabilization 与 Phase 2 Action Completion Semantics & Cross-module Progress Loop 已完成；后续阶段待启动。
 
 Phase 1 已交付：持久化 mastery 统一按 1..5 解释，错题、知识、辅导微测/计划与面试计划通过固定优先级派生只读行动队列；首页只展示有本地证据的最多四项行动。Automation 运行、待确认知识提案、未评分面试和未提交微测不作为学习完成证据。详见 `docs/learning-loop.md`。
+
+Phase 2 已交付：错题与知识 grouped action 按真实 repository commit 逐项缩小；Tutoring P1/P2/P4 只随最新确定性微测和 plan facts 转换；Interview 只有 `saveEvaluation()` 推进计划，中止或未评分场次不计数；重复错因只保留至少两道当前未解决证据。切回 Dashboard 与 reload 均从 v16 既有事实重新派生，不持久化 recommendation、不增加 schema，也不把 click、AI reply 或 Automation success 当作学习完成。
 
 ### 目标
 

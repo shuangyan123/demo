@@ -150,10 +150,26 @@ function boardWeaknessSignals(mistakes: Mistake[], latestAttempts: Map<string, R
   });
 }
 
-/** 聚合同名错因；通用占位词不会形成长期误区，且每道错题最多计数一次。 */
-function misconceptionSignals(mistakes: Mistake[]): LearnerStateSignal[] {
+/** 只有当前仍薄弱、最近未通过或已经到期的错题，才构成可执行的未解决错因证据。 */
+function isMistakeCurrentlyUnresolved(
+  mistake: Mistake,
+  latestAttempt: ResultEvidence | undefined,
+  today: Date,
+): boolean {
+  return mistake.mastery <= 2
+    || latestAttempt?.result === "wrong"
+    || latestAttempt?.result === "uncertain"
+    || isDue(mistake.nextReviewAt, today);
+}
+
+function misconceptionSignals(
+  mistakes: Mistake[],
+  latestAttempts: Map<string, ResultEvidence>,
+  today: Date,
+): LearnerStateSignal[] {
   const groups = new Map<string, { label: string; mistakes: Map<string, Mistake> }>();
   for (const mistake of mistakes) {
+    if (!isMistakeCurrentlyUnresolved(mistake, latestAttempts.get(mistake.id), today)) continue;
     for (const reason of new Set(mistake.reasons)) {
       const label = reason.trim().slice(0, 80);
       const key = label.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
@@ -282,9 +298,11 @@ function dueMistakeAction(items: Mistake[], latest: Map<string, ResultEvidence>)
   const uncertainCount = sorted.filter((item) => latest.get(item.id)?.result === "uncertain").length;
   return {
     id: actionId("due-mistakes", targetIds),
+    semanticKey: "review:due",
     kind: "review_mistakes",
     title: `复盘 ${items.length} 道到期错题`,
     summary: `${wrongCount ? `${wrongCount} 道最近答错，` : ""}${uncertainCount ? `${uncertainCount} 道最近不确定，` : ""}最早复盘日期已到。`,
+    completionHint: "提交复盘结果后，系统按新的复盘日期重新计算剩余到期错题。",
     priority: 100 - Math.min(20, wrongCount * 4 + uncertainCount * 2),
     priorityReason: "P1 到期复盘；最近答错或不确定会在同级中提前。",
     evidence: dedupeEvidence(sorted.flatMap((item) => [mistakeEvidence(item), ...(latest.get(item.id) ? [reviewAttemptEvidence(latest.get(item.id)!)] : [])])).slice(0, 12),
@@ -303,9 +321,11 @@ function dueKnowledgeAction(items: KnowledgeEntry[], latest: Map<string, Knowled
   const wrongCount = sorted.filter((item) => latest.get(item.id)?.result === "wrong").length;
   return {
     id: actionId("due-knowledge", targetIds),
+    semanticKey: "knowledge:due",
     kind: "review_knowledge",
     title: `训练 ${items.length} 个到期知识点`,
     summary: `${wrongCount ? `${wrongCount} 个最近训练未通过，` : ""}最早训练日期已到。`,
+    completionHint: "提交训练结果后，系统按新的训练日期重新计算剩余到期知识点。",
     priority: 110 - Math.min(16, wrongCount * 4),
     priorityReason: "P1 到期知识训练；最近错误会在同级中提前。",
     evidence: dedupeEvidence(sorted.flatMap((item) => [knowledgeEvidence(item), ...(latest.get(item.id) ? [knowledgeAttemptEvidence(latest.get(item.id)!)] : [])])).slice(0, 12),
@@ -319,9 +339,11 @@ function failedTutoringAssessmentAction(turn: TutoringTurn): LearningActionRecom
   const planId = `auto:${turn.sessionId}`;
   return {
     id: actionId("failed-tutoring-assessment", [planId]),
+    semanticKey: `tutoring:auto:${turn.sessionId}`,
     kind: "retry_tutoring",
     title: "重试未通过的辅导微测",
     summary: `最近微测答对 ${assessment.correctCount}/${assessment.questions.length}，需要换一种例子再练习。`,
+    completionHint: "提交新的确定性微测后，系统按最新结果更新复练建议。",
     priority: 200,
     priorityReason: "P2 可观察微测未全部通过。",
     evidence: [{ type: "tutoring", id: turn.id, label: `微测 ${assessment.correctCount}/${assessment.questions.length}`, observedAt: assessment.completedAt! }],
@@ -344,9 +366,11 @@ function tutoringActions(plans: TutoringPlan[], latestTurns: Map<string, Tutorin
       }
       return {
         id: actionId(isDue(plan.nextPracticeAt, today) ? "due-tutoring" : "active-tutoring", [plan.id]),
+        semanticKey: plan.id.startsWith("auto:") ? `tutoring:${plan.id}` : `tutoring-plan:${plan.id}`,
         kind: "retry_tutoring" as const,
         title: isDue(plan.nextPracticeAt, today) ? "完成到期辅导复练" : "继续辅导计划",
         summary: `${plan.nextTask}（${isDue(plan.nextPracticeAt, today) ? "已到期" : `计划 ${dateKey(plan.nextPracticeAt)}`}）`,
+        completionHint: "提交新的确定性微测后，系统按结果更新下一次复练。",
         priority: isDue(plan.nextPracticeAt, today) ? 120 : 400,
         priorityReason: isDue(plan.nextPracticeAt, today) ? "P1 已到期的明确辅导计划。" : "P4 已确认的进行中辅导计划。",
         evidence: [{ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt }],
@@ -366,9 +390,11 @@ function tutoringActions(plans: TutoringPlan[], latestTurns: Map<string, Tutorin
 function interviewActions(plans: InterviewPracticePlan[], today: Date): LearningActionRecommendation[] {
   return plans.filter((plan) => plan.status === "active" && dateKey(plan.nextPracticeAt) !== null).map((plan) => ({
     id: actionId(isDue(plan.nextPracticeAt, today) ? "due-interview" : "active-interview", [plan.id]),
+    semanticKey: `interview-plan:${plan.id}`,
     kind: "practice_interview" as const,
     title: isDue(plan.nextPracticeAt, today) ? "完成到期面试训练" : "继续面试训练计划",
     summary: `${plan.title} · 已完成 ${plan.completedSessionCount}/${plan.targetSessionCount}${isDue(plan.nextPracticeAt, today) ? "，计划日期已到" : `，下次 ${dateKey(plan.nextPracticeAt)}`}。`,
+    completionHint: "完成本场并保存评分后才推进训练计划；中止或未评分不会计数。",
     priority: isDue(plan.nextPracticeAt, today) ? 130 : 410,
     priorityReason: isDue(plan.nextPracticeAt, today) ? "P1 已到期的明确面试训练计划。" : "P4 已确认的进行中面试训练计划。",
     evidence: [{ type: "interview_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt }],
@@ -382,9 +408,11 @@ function misconceptionActions(signals: LearnerStateSignal[]): LearningActionReco
     const targetIds = signal.evidence.map((item) => item.id).toSorted();
     return {
       id: actionId("repeated-misconception", targetIds),
+      semanticKey: signal.id,
       kind: "review_mistakes" as const,
       title: signal.title,
       summary: signal.summary,
+      completionHint: "当同类错因少于两道题仍处于未解决状态时，此建议会消失。",
       priority: 300,
       priorityReason: "P3 至少两道独立错题呈现同一明确错因。",
       evidence: signal.evidence,
@@ -409,7 +437,7 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
     ...dueTutoringPlans.slice(0, 2).map((plan) => ({ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
     ...dueInterviewPlans.slice(0, 2).map((plan) => ({ type: "interview_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
   ]);
-  const misconception = misconceptionSignals(facts.mistakes);
+  const misconception = misconceptionSignals(facts.mistakes, latestAttempts, today);
   const signals = [
     ...goalAndActionSignals(facts.tutoringPlans, facts.tutoringSessions),
     ...(dueEvidence.length ? [{

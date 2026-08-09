@@ -1,4 +1,4 @@
-# Learning Loop Phase 1
+# Learning Loop Core
 
 ## 边界
 
@@ -12,6 +12,33 @@ existing local facts
 ```
 
 推荐不会创建计划、修改掌握度、调用 AI、触发 Automation、写 Vault 或确认知识演进提案。用户点击 CTA 后才进入既有业务流程。
+
+## Completion Semantics
+
+Recommendation lifecycle 始终由既有本地领域事实重新派生，不持久化完成事件或历史卡片。`id` 表示当前 target 集合对应的 recommendation instance；`semanticKey` 表示跨 partial progress 保持稳定的学习事项。`completionHint` 只向用户解释完成条件，不参与规则判断。
+
+| Action | Source evidence | Completion evidence | Non-completion events | Transition |
+| --- | --- | --- | --- | --- |
+| `review_mistakes` P1 | due `Mistake.nextReviewAt`、mastery、最近 `Attempt` | `reviewRepository.recordReview()` 在同一事务写入新 `Attempt` 并更新 Mistake；target 不再 due | 打开复盘、查看答案、提交后仍为 wrong 且仍 due | grouped targets 逐项缩小；全部不再 due 后消失 |
+| `review_knowledge` P1 | due `KnowledgeEntry.nextReviewAt`、mastery、最近 `KnowledgeAttempt` | `knowledgeRepository.recordReview()` 在同一事务写入 attempt 并更新 entry；target 不再 due | 打开训练、查看资料、`reviewCount + 1` 但仍 due | grouped targets 逐项缩小；全部不再 due 后消失 |
+| `retry_tutoring` P1 | active due `TutoringPlan` | 用户提交确定性 micro-assessment，事务更新 assessment 与 `nextPracticeAt` | 打开辅导、AI reply、模型 confidence、只点击“重新微测” | 新结果失败且 plan future：P2；通过且 plan future：P4；plan 非 active：消失 |
+| `retry_tutoring` P2 | 同一 session 最新 completed assessment 未全部通过 | 同一 assessment 重新提交或同 session 更新的 completed assessment | 打开辅导、再次讲解但没有提交新 assessment | 最新仍失败：保留 P2 并更新 evidence；最新通过且 plan future：P4 |
+| `retry_tutoring` P4 | future active `TutoringPlan` | 后续确定性 micro-assessment 更新计划，或计划进入既有非 active 状态 | 计划页访问、Automation reminder delivery | 到期：P1；最新失败：P2；plan completed/paused：不再 actionable |
+| `practice_interview` P1/P4 | active `InterviewPracticePlan` 的 `nextPracticeAt` 与进度 | `saveEvaluation()` 原子保存 evaluation、标记 session evaluated 并推进 plan | start session、active/unfinished session、`cancelSession()`、AI evaluation draft | 未达目标且 next date future：P4；达到目标且 plan completed：消失 |
+| repeated misconception P3 | 同一明确 reason 至少两道当前 unresolved Mistake | 后续复盘使当前 unresolved 独立证据少于两道 | 历史 reason 仍存在、通用占位 reason、单道未解决错题 | 证据不足时消失；历史 reasons 保留 |
+
+统一原则：
+
+```text
+click != completion
+navigation != completion
+AI response != completion
+Automation success != learning completion
+```
+
+Scheduled reminder delivery 只能证明 workflow 已执行，不能证明学习结果；pending Knowledge Evolution proposal 在 accepted 前也不是正式知识或完成证据。
+
+Review、Knowledge、Tutoring assessment 与 Interview evaluation 的真实提交完成后，切回 Dashboard 会调用既有 `refreshData()` 重新读取所有仓储；reload 会从相同持久化 facts 重建同一 recommendation 状态，不依赖 transient React state，也不引入 EventBus。
 
 ## 证据来源
 
@@ -83,3 +110,4 @@ Learner State derivation consumes normalized domain facts. 错题与知识 facts
 - Automation 尚无可靠的“用户已完成学习”语义，因此不作为行动或掌握证据；该映射留待后续阶段。
 - 不使用 FSRS、SM-2、IRT、Elo、ML ranking 或总学习分。
 - 推荐只导航到既有模块；不新增顶级页面或路由框架。
+- Interview/Tutoring 当前没有可复用的 plan 选择入口，recommendation 仍采用模块级导航；精确 plan deep-link 保持 deferred。

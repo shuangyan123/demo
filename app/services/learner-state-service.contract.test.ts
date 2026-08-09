@@ -155,6 +155,108 @@ test("latest wrong、uncertain、correct 以固定顺序影响同级到期推荐
   assert.match(action?.summary ?? "", /最近答错/);
 });
 
+test("grouped 错题按持久化 due facts 缩小、保留或消失", () => {
+  const initial = facts({ mistakes: [mistake("a", 2), mistake("b", 2), mistake("c", 2)] });
+  const before = deriveLearnerStateSnapshot(initial, today).recommendations.find((item) => item.semanticKey === "review:due");
+  assert.deepEqual(before?.destination.targetIds, ["a", "b", "c"]);
+
+  const partialFacts = {
+    ...initial,
+    mistakes: [mistake("a", 3, future), mistake("b", 2), mistake("c", 2)],
+    attempts: [attempt("a-correct", "a", "correct")],
+  };
+  const partial = deriveLearnerStateSnapshot(partialFacts, today).recommendations.find((item) => item.semanticKey === "review:due");
+  assert.deepEqual(partial?.destination.targetIds, ["b", "c"]);
+  assert.equal(partial?.title, "复盘 2 道到期错题");
+  assert.notEqual(partial?.id, before?.id);
+
+  const wrong = deriveLearnerStateSnapshot({
+    ...partialFacts,
+    mistakes: [mistake("a", 1), mistake("b", 3, future), mistake("c", 3, future)],
+    attempts: [attempt("a-wrong", "a", "wrong")],
+  }, today).recommendations.find((item) => item.semanticKey === "review:due");
+  assert.deepEqual(wrong?.destination.targetIds, ["a"]);
+
+  const resolved = deriveLearnerStateSnapshot({
+    ...initial,
+    mistakes: initial.mistakes.map((item) => ({ ...item, mastery: 3, nextReviewAt: future })),
+  }, today);
+  assert.equal(resolved.recommendations.some((item) => item.semanticKey === "review:due"), false);
+});
+
+test("grouped 知识训练按持久化 nextReviewAt 缩小并消失", () => {
+  const initial = facts({ knowledgeEntries: [knowledge("k1", 2), knowledge("k2", 2)] });
+  const before = deriveLearnerStateSnapshot(initial, today).recommendations.find((item) => item.semanticKey === "knowledge:due");
+  assert.deepEqual(before?.destination.targetIds, ["k1", "k2"]);
+
+  const partial = deriveLearnerStateSnapshot({
+    ...initial,
+    knowledgeEntries: [knowledge("k1", 3, future), knowledge("k2", 2)],
+    knowledgeAttempts: [knowledgeAttempt("ka1", "k1", "correct")],
+  }, today).recommendations.find((item) => item.semanticKey === "knowledge:due");
+  assert.deepEqual(partial?.destination.targetIds, ["k2"]);
+
+  const resolved = deriveLearnerStateSnapshot({
+    ...initial,
+    knowledgeEntries: [knowledge("k1", 3, future), knowledge("k2", 3, future)],
+  }, today);
+  assert.equal(resolved.recommendations.some((item) => item.semanticKey === "knowledge:due"), false);
+});
+
+test("tutoring P1/P2/P4 仅随最新微测与计划事实转换", () => {
+  const planId = "auto:progress";
+  const due = facts({
+    tutoringPlans: [tutoringPlan(planId, "active", past)],
+    tutoringTurns: [completedTutoringTurn("older-failed", "progress", 0, past)],
+  });
+  const p1 = tutoringRecommendations(deriveLearnerStateSnapshot(due, today), planId)[0];
+  assert.equal(p1?.priority, 120);
+
+  const newerFailed = tutoringRecommendations(deriveLearnerStateSnapshot({
+    ...due,
+    tutoringPlans: [tutoringPlan(planId, "active", future)],
+    tutoringTurns: [...due.tutoringTurns, completedTutoringTurn("newer-failed", "progress", 0, "2026-08-09T07:00:00.000Z")],
+  }, today), planId)[0];
+  assert.equal(newerFailed?.priority, 200);
+  assert.equal(newerFailed?.evidence[0]?.id, "newer-failed");
+  assert.equal(newerFailed?.semanticKey, p1?.semanticKey);
+
+  const newerPassed = tutoringRecommendations(deriveLearnerStateSnapshot({
+    ...due,
+    tutoringPlans: [tutoringPlan(planId, "active", future)],
+    tutoringTurns: [...due.tutoringTurns, completedTutoringTurn("newer-passed", "progress", 1, "2026-08-09T07:30:00.000Z")],
+  }, today), planId)[0];
+  assert.equal(newerPassed?.priority, 400);
+  assert.equal(newerPassed?.semanticKey, p1?.semanticKey);
+  assert.deepEqual(deriveLearnerStateSnapshot(due, today).recommendations, deriveLearnerStateSnapshot(due, today).recommendations);
+});
+
+test("面试开始或中止不推进计划，只有评分后的 plan facts 触发 P1 到 P4 或消失", () => {
+  const duePlan = interviewPlan("plan-progress", "active", past);
+  const activeSession: InterviewSession = {
+    id: "active-session", planId: duePlan.id, questionId: "q1", type: "structured", title: "进行中",
+    questionPrompt: "", questionMaterial: "", status: "active", stage: "answering", startedAt: past,
+    totalDurationSec: 0, transcriptText: "", createdAt: past, updatedAt: past,
+  };
+  const cancelledSession: InterviewSession = { ...activeSession, id: "cancelled-session", status: "cancelled", completedAt: past };
+  for (const session of [activeSession, cancelledSession]) {
+    const action = deriveLearnerStateSnapshot(facts({ interviewPracticePlans: [duePlan], interviewSessions: [session] }), today).recommendations[0];
+    assert.equal(action?.priority, 130);
+    assert.equal(action?.semanticKey, `interview-plan:${duePlan.id}`);
+  }
+
+  const progressed = deriveLearnerStateSnapshot(facts({
+    interviewPracticePlans: [{ ...duePlan, completedSessionCount: 2, nextPracticeAt: future, updatedAt: future }],
+  }), today).recommendations[0];
+  assert.equal(progressed?.priority, 410);
+  assert.match(progressed?.summary ?? "", /已完成 2\/3/);
+
+  const complete = deriveLearnerStateSnapshot(facts({
+    interviewPracticePlans: [{ ...duePlan, completedSessionCount: 3, status: "completed", nextPracticeAt: future }],
+  }), today);
+  assert.equal(complete.recommendations.some((item) => item.kind === "practice_interview"), false);
+});
+
 test("到期错题与知识进入队列，未来稳定记录不会制造到期任务", () => {
   const snapshot = deriveLearnerStateSnapshot(facts({ mistakes: [mistake("due-mistake", 2, past, ["到期错因"]), mistake("future-mistake", 5, future, ["稳定错因"])], attempts: [attempt("future-correct", "future-mistake", "correct")], knowledgeEntries: [knowledge("due-knowledge", 2), knowledge("future-knowledge", 5, future)], knowledgeAttempts: [knowledgeAttempt("future-knowledge-correct", "future-knowledge", "correct")] }), today);
   assert.deepEqual(snapshot.recommendations.filter((item) => item.priority < 200).map((item) => item.kind), ["review_mistakes", "review_knowledge"]);
@@ -200,6 +302,29 @@ test("重复错因只接受独立、非通用证据并去重", () => {
   assert.equal(misconception?.title, "反复错因：条件关系混淆");
   assert.deepEqual(misconception?.evidence.map((item) => item.id).toSorted(), ["m1", "m2"]);
   assert.equal(new Set(misconception?.evidence.map((item) => `${item.type}:${item.id}`)).size, misconception?.evidence.length);
+});
+
+test("重复错因只由至少两道当前未解决错题构成，并可随稳定复盘消失", () => {
+  const reason = ["资料单位换算"];
+  const unresolved = mistake("unresolved", 2, future, reason);
+  const resolved = mistake("resolved", 4, future, reason);
+  const mixed = deriveLearnerStateSnapshot(facts({
+    mistakes: [unresolved, resolved],
+    attempts: [attempt("unresolved-wrong", unresolved.id, "wrong"), attempt("resolved-correct", resolved.id, "correct")],
+  }), today);
+  assert.equal(mixed.recommendations.some((item) => item.priority === 300), false);
+
+  const repeated = deriveLearnerStateSnapshot(facts({
+    mistakes: [unresolved, mistake("unresolved-2", 3, past, reason)],
+    attempts: [attempt("unresolved-wrong", unresolved.id, "wrong"), attempt("unresolved-2-correct", "unresolved-2", "correct")],
+  }), today);
+  assert.equal(repeated.recommendations.some((item) => item.priority === 300), true);
+
+  const stable = deriveLearnerStateSnapshot(facts({
+    mistakes: [resolved, mistake("resolved-2", 5, future, reason)],
+    attempts: [attempt("resolved-correct", resolved.id, "correct"), attempt("resolved-2-correct", "resolved-2", "correct")],
+  }), today);
+  assert.equal(stable.recommendations.some((item) => item.priority === 300), false);
 });
 
 test("空事实不制造推荐；相同事实与 today 产生稳定 ID、证据和顺序", () => {

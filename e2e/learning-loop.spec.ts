@@ -1,10 +1,13 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { configureCustomTextConnection, setCustomDefaultTextModel } from "./helpers/configure-custom-ai";
+import { startMockAiProvider, type MockAiRequest } from "./helpers/mock-ai-provider";
 
 const LEARNING_STORES = [
   "mistakes",
   "attempts",
   "knowledgeEntries",
   "knowledgeAttempts",
+  "interviewQuestions",
   "interviewPracticePlans",
   "interviewSessions",
   "interviewEvaluations",
@@ -12,6 +15,50 @@ const LEARNING_STORES = [
   "tutoringTurns",
   "tutoringPlans",
 ];
+
+function mockLearningLoopResponse(request: MockAiRequest): string {
+  const payload = JSON.stringify(request.body);
+  if (payload.includes("tutoring_reply")) {
+    return JSON.stringify({
+      teacherMessage: "先判断条件关系，再提交新的确定性微测。",
+      boardNotes: ["必要条件", "充分条件"],
+      detectedProblem: "条件关系混淆",
+      studentAction: "完成微测",
+      nextQuestion: "哪项是必要条件？",
+      confidence: 0.99,
+      frameDescription: "",
+      microQuiz: [{ prompt: "必要条件判断", options: ["正确选项", "错误选项", "无关选项"], correctOptionIndex: 0, explanation: "以题干条件为准。" }],
+    });
+  }
+  if (payload.includes("最终评分")) {
+    return JSON.stringify({
+      totalScore: 82,
+      dimensions: [{ name: "内容", score: 82, maxScore: 100, comment: "结构完整。" }],
+      strengths: ["结构完整"], problems: [], suggestions: ["继续补充细节"], evidence: ["本地文字稿"],
+    });
+  }
+  return JSON.stringify({ reply: "请开始作答。", nextStage: "answering", shouldEvaluate: false });
+}
+
+async function configureMockTextConnection(page: Page, baseUrl: string): Promise<void> {
+  await page.getByRole("button", { name: "设置" }).first().click();
+  await page.getByRole("button", { name: "AI 连接" }).click();
+  await configureCustomTextConnection(page, { label: "Learning Loop Mock", baseUrl, model: "learning-loop-model" });
+  await setCustomDefaultTextModel(page, "Learning Loop Mock", "learning-loop-model");
+  await page.getByRole("button", { name: "返回应用" }).click();
+}
+
+async function ensureDetailsOpen(summary: Locator): Promise<void> {
+  if (!(await summary.evaluate((element) => (element.parentElement as HTMLDetailsElement).open))) await summary.click();
+}
+
+async function openDashboard(page: Page): Promise<void> {
+  const sidebar = page.locator(".chrome-sidebar:visible");
+  await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "公考" }).first());
+  await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "模块" }).first());
+  await sidebar.getByRole("button", { name: "总览", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "今日学习" })).toBeVisible();
+}
 
 async function replaceLearningFacts(page: Page, records: Record<string, unknown[]>): Promise<void> {
   await page.evaluate(async ({ stores, nextRecords }) => new Promise<void>((resolve, reject) => {
@@ -41,13 +88,17 @@ async function replaceLearningFacts(page: Page, records: Record<string, unknown[
   }), { stores: LEARNING_STORES, nextRecords: records });
 }
 
-test("本地证据变化会在刷新后重建确定性学习行动队列", async ({ page }) => {
+test("grouped review 通过真实复盘逐项缩小，并在 reload 后保持完成状态", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "今日学习" })).toBeVisible();
   const past = "2026-08-01T08:00:00.000Z";
   await replaceLearningFacts(page, {
-    mistakes: [{ id: "loop-mistake", board: "判断推理", source: "E2E", stem: "Learning Loop 到期错题", answer: "A", explanation: "验证复盘后队列更新", reasons: ["条件关系混淆"], tags: [], mastery: 1, nextReviewAt: "2026-08-01", createdAt: past, updatedAt: past }],
-    attempts: [{ id: "loop-attempt", mistakeId: "loop-mistake", result: "wrong", confidence: 2, reviewedAt: past }],
+    mistakes: [
+      { id: "loop-mistake-a", board: "判断推理", source: "E2E", stem: "Learning Loop 到期错题 A", answer: "A", explanation: "验证部分完成", reasons: ["条件关系混淆"], tags: [], mastery: 1, nextReviewAt: "2026-08-01", createdAt: past, updatedAt: past },
+      { id: "loop-mistake-b", board: "资料分析", source: "E2E", stem: "Learning Loop 到期错题 B", answer: "B", explanation: "验证全部完成", reasons: ["单位换算"], tags: [], mastery: 2, nextReviewAt: "2026-08-01", createdAt: past, updatedAt: past },
+    ],
+    attempts: [{ id: "loop-attempt", mistakeId: "loop-mistake-a", result: "wrong", confidence: 2, reviewedAt: past }],
     knowledgeEntries: [{ id: "future-knowledge", category: "常识判断", title: "未来稳定知识", summary: "尚未到期", content: "未来稳定知识正文", tags: [], source: "E2E", favorite: false, mastery: 5, nextReviewAt: "2099-01-01", reviewCount: 2, createdAt: past, updatedAt: past }],
     knowledgeAttempts: [{ id: "future-knowledge-attempt", knowledgeId: "future-knowledge", result: "correct", confidence: 4, reviewedAt: past }],
     interviewPracticePlans: [{ id: "loop-interview-plan", title: "结构化面试复练", type: "structured", questionIds: ["question-1"], targetSessionCount: 3, completedSessionCount: 1, nextPracticeAt: "2026-08-01T08:00:00.000Z", status: "active", reason: "保持结构表达", createdAt: past, updatedAt: past }],
@@ -55,7 +106,7 @@ test("本地证据变化会在刷新后重建确定性学习行动队列", async
   await page.reload();
 
   const mistakeAction = page.locator('[data-learning-action="review_mistakes"]');
-  await expect(mistakeAction).toContainText("复盘 1 道到期错题");
+  await expect(mistakeAction).toContainText("复盘 2 道到期错题");
   await expect(mistakeAction).toContainText("1 道最近答错");
   await expect(page.locator('[data-learning-action="practice_interview"]')).toContainText("完成到期面试训练");
   await expect(page.getByText("未来稳定知识", { exact: true })).toHaveCount(0);
@@ -66,13 +117,122 @@ test("本地证据变化会在刷新后重建确定性学习行动队列", async
   await expect(mistakeAction).not.toContainText("loop-mistake");
 
   await mistakeAction.getByRole("button", { name: "开始复盘" }).click();
-  await expect(page.getByRole("heading", { name: "Learning Loop 到期错题" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Learning Loop 到期错题 A" })).toBeVisible();
   await page.getByRole("button", { name: "会做" }).click();
   await expect(page.getByText("复盘记录已保存")).toBeVisible();
 
-  await page.goto("/");
+  await openDashboard(page);
+  await expect(mistakeAction).toContainText("复盘 1 道到期错题");
+  await expect(mistakeAction).toContainText("完成条件：提交复盘结果后");
+  await mistakeAction.getByRole("button", { name: "开始复盘" }).click();
+  await expect(page.getByRole("heading", { name: "Learning Loop 到期错题 B" })).toBeVisible();
+  await page.getByRole("button", { name: "会做" }).click();
+  await openDashboard(page);
   await expect(page.locator('[data-learning-action="review_mistakes"]')).toHaveCount(0);
   await expect(page.locator('[data-learning-action="practice_interview"]')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('[data-learning-action="review_mistakes"]')).toHaveCount(0);
+});
+
+test("grouped knowledge 通过真实训练逐项缩小并最终消失", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("/");
+  const past = "2026-08-01T08:00:00.000Z";
+  const entry = (id: string, title: string) => ({ id, category: "常识判断", title, summary: "闭卷回想", content: "知识正文", tags: [], source: "E2E", favorite: false, mastery: 2, nextReviewAt: "2026-08-01", reviewCount: 0, createdAt: past, updatedAt: past });
+  await replaceLearningFacts(page, { knowledgeEntries: [entry("loop-k1", "知识闭环一"), entry("loop-k2", "知识闭环二")] });
+  await page.reload();
+
+  const action = page.locator('[data-learning-action="review_knowledge"]');
+  await expect(action).toContainText("训练 2 个到期知识点");
+  await action.getByRole("button", { name: "进入训练" }).click();
+  await expect(page.locator("main").getByText("知识闭环一", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "会了" }).click();
+  await openDashboard(page);
+  await expect(action).toContainText("训练 1 个到期知识点");
+  await action.getByRole("button", { name: "进入训练" }).click();
+  await expect(page.locator("main").getByText("知识闭环二", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "会了" }).click();
+  await openDashboard(page);
+  await expect(page.locator('[data-learning-action="review_knowledge"]')).toHaveCount(0);
+});
+
+test("tutoring 只有真实新微测会把 P2 转换为 P4", async ({ page }) => {
+  test.setTimeout(90_000);
+  const provider = await startMockAiProvider({ response: mockLearningLoopResponse });
+  try {
+    await page.goto("/");
+    await configureMockTextConnection(page, provider.baseUrl);
+    await ensureDetailsOpen(page.locator("summary").filter({ hasText: "面试与辅导" }).first());
+    await page.getByRole("button", { name: "开始对话辅导" }).click();
+    const input = page.getByRole("textbox", { name: "对话输入" });
+    await input.fill("请给我一次条件关系微测");
+    await input.press("Enter");
+    let micro = page.getByRole("region", { name: "本轮微测" }).filter({
+      has: page.getByRole("button", { name: "提交微测并安排复练" }),
+    }).last();
+    await micro.getByLabel("错误选项").check();
+    await micro.getByRole("button", { name: "提交微测并安排复练" }).click();
+    await expect(page.getByRole("region", { name: "本轮微测" }).filter({ hasText: "0/1" }).last()).toBeVisible();
+
+    await openDashboard(page);
+    const action = page.locator('[data-learning-action="retry_tutoring"]');
+    await expect(action).toContainText("重试未通过的辅导微测");
+
+    await page.locator("[data-conversation-id]").first().locator(".conversation-tree-chat-label").click();
+    micro = page.getByRole("region", { name: "本轮微测" }).filter({
+      has: page.getByRole("button", { name: "重新微测" }),
+    }).last();
+    await micro.getByRole("button", { name: "重新微测" }).click();
+    micro = page.getByRole("region", { name: "本轮微测" }).filter({
+      has: page.getByRole("button", { name: "提交微测并安排复练" }),
+    }).last();
+    await micro.getByLabel("正确选项").check();
+    await micro.getByRole("button", { name: "提交微测并安排复练" }).click();
+    await expect(page.getByRole("region", { name: "本轮微测" }).filter({ hasText: "1/1" }).last()).toBeVisible();
+
+    await openDashboard(page);
+    await expect(action).toContainText("继续辅导计划");
+    await expect(action).not.toContainText("重试未通过的辅导微测");
+    await page.reload();
+    await expect(page.locator('[data-learning-action="retry_tutoring"]')).toContainText("继续辅导计划");
+  } finally {
+    await provider.stop();
+  }
+});
+
+test("interview 只有真实评分持久化会把到期计划推进为 P4", async ({ page }) => {
+  test.setTimeout(90_000);
+  const provider = await startMockAiProvider({ response: mockLearningLoopResponse });
+  try {
+    await page.goto("/");
+    await configureMockTextConnection(page, provider.baseUrl);
+    const past = "2026-08-01T08:00:00.000Z";
+    await replaceLearningFacts(page, {
+      interviewQuestions: [{ id: "loop-question", type: "structured", title: "闭环面试题", prompt: "请说明处理步骤", material: "", source: "E2E", tags: [], difficulty: "medium", favorite: false, practiceCount: 0, expectedDurationSec: 180, createdAt: past, updatedAt: past }],
+      interviewPracticePlans: [{ id: "loop-plan", title: "闭环面试计划", type: "structured", questionIds: ["loop-question"], targetSessionCount: 2, completedSessionCount: 0, nextPracticeAt: past, status: "active", reason: "验证评分推进", createdAt: past, updatedAt: past }],
+    });
+    await page.reload();
+
+    const action = page.locator('[data-learning-action="practice_interview"]');
+    await expect(action).toContainText("完成到期面试训练");
+    await action.getByRole("button", { name: "进入面试" }).click();
+    await page.getByRole("tab", { name: /训练计划/ }).click();
+    await page.getByRole("button", { name: "开始下一场" }).click();
+    await expect(page.getByRole("heading", { name: "闭环面试题" })).toBeVisible();
+    await page.getByRole("textbox", { name: "本轮文字稿" }).fill("我会先核验事实，再说明处理步骤。");
+    await page.getByRole("button", { name: "结束", exact: true }).first().click();
+    const dialog = page.getByRole("dialog", { name: "结束本次面试？" });
+    await dialog.getByRole("button", { name: "生成部分复盘" }).click();
+    await expect(page.getByRole("heading", { name: /复盘结果 · 82\/100/ })).toBeVisible();
+
+    await openDashboard(page);
+    await expect(action).toContainText("继续面试训练计划");
+    await expect(action).toContainText("已完成 1/2");
+    await page.reload();
+    await expect(page.locator('[data-learning-action="practice_interview"]')).toContainText("继续面试训练计划");
+  } finally {
+    await provider.stop();
+  }
 });
 
 test("空学习档案不会制造推荐", async ({ page }) => {

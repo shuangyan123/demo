@@ -37,9 +37,13 @@ export type LearningActionKind =
 
 export type LearningActionRecommendation = {
   id: string;
+  /** 稳定的学习事项身份；target 集合变化时仍用于解释同一事项的持续推进。 */
+  semanticKey: string;
   kind: LearningActionKind;
   title: string;
   summary: string;
+  /** 仅用于解释真实完成条件，不参与推荐派生。 */
+  completionHint: string;
   priority: number;
   priorityReason: string;
   evidence: LearnerEvidenceRef[];

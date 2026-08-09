@@ -99,6 +99,8 @@ test("Application Layer 保持纯 TypeScript 且不反向依赖 UI 或宿主全�
 
 test("学习行动队列保持只读纯派生边界", async () => {
   const source = await readFile(path.join(APP_ROOT, "services/learner-state-service.ts"), "utf8");
+  const types = await readFile(path.join(APP_ROOT, "types/domains/learner-state.ts"), "utf8");
+  const controller = await readFile(path.join(APP_ROOT, "features/review/use-review-workspace-controller.ts"), "utf8");
   const imports = staticImports(source);
   assert.equal(imports.some((target) => target === "react" || target.startsWith("react/") || target.includes("/features/") || target.includes("/server/ai/")), false);
   assert.doesNotMatch(source, /reviewDb\.(?:transaction|\w+\.(?:add|put|update|delete|bulkAdd|bulkPut|bulkDelete))\(/);
@@ -108,6 +110,10 @@ test("学习行动队列保持只读纯派生边界", async () => {
   assert.doesNotMatch(source, /reviewDb\.(?:mistakes|attempts|knowledgeEntries|knowledgeAttempts)\.toArray\(\)/);
   assert.match(source, /reviewDb\.interviewPracticePlans\.toArray\(\)/);
   assert.match(source, /deriveLearnerStateSnapshot/);
+  assert.match(types, /semanticKey: string/);
+  assert.match(types, /completionHint: string/);
+  assert.doesNotMatch(types, /(?:isCompleted|completedAt|completionEvent|completionHistory):/);
+  assert.match(controller, /nextView === "dashboard"[\s\S]{0,160}data\.refreshData\(\)/);
 });
 
 test("大型 workspace 保持受控预算并使用专用 controller", async () => {

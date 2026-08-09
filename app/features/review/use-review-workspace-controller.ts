@@ -137,6 +137,11 @@ export function useReviewWorkspaceController(scope: WorkspaceDataScope) {
 
   function switchView(nextView: ViewKey) {
     navigateView(nextView);
+    if (nextView === "dashboard") {
+      void data.refreshData().catch((error) => {
+        setNotice(error instanceof Error ? error.message : "学习进度刷新失败");
+      });
+    }
     if (nextView === "review") learning.actions.resetReview();
     if (nextView === "knowledgeTraining") knowledge.actions.resetTraining();
   }
