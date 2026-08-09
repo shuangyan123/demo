@@ -113,7 +113,7 @@ npm run audit:prod     # 生产依赖安全门禁
 | Obsidian 正文 | 用户选择的 Vault | 只访问用户授权的托管目录 |
 | 原始媒体与厂商原始事件 | 当前运行内存 | 不持久化 |
 
-备份采用允许列表导出，排除密钥、Cookie、Token、目录句柄和厂商原始响应。恢复后需要重新输入凭据并重新选择 Vault。
+备份采用与真实 Dexie schema 对照的显式分类表；V2 manifest 记录应用/schema、included stores、excluded categories 与逐表数量。恢复在任何替换前拒绝未知存储、敏感字段、重复键、超限包和关键悬空关联，应用后再验证；凭据与 Vault 正文/句柄始终排除，恢复后需要重新输入并重新授权。完整支持矩阵见 [数据可靠性文档](docs/data-reliability.md)。
 
 ## Web 与 Electron 差异
 

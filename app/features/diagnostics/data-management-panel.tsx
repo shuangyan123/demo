@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import {
   LOCAL_DATA_IMPORT_MAX_BYTES,
   localDataManagementRepository,
+  type LocalDataHealthReport,
   type LocalDataRestorePreview,
   type LocalDataSummary,
 } from "../../services/local-data-management-repository";
@@ -27,6 +28,7 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
   const [notice, setNotice] = useState("");
   const [pendingAction, setPendingAction] = useState<ClearScope | "all">();
   const [restorePreview, setRestorePreview] = useState<LocalDataRestorePreview>();
+  const [healthReport, setHealthReport] = useState<LocalDataHealthReport>();
   const [resetText, setResetText] = useState("");
   const dialogRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -83,6 +85,19 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
       setNotice("备份已导出；凭据与 Vault 目录未包含");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "导出备份失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function inspectHealth(): Promise<void> {
+    setBusy("health");
+    try {
+      const report = await localDataManagementRepository.inspectHealth();
+      setHealthReport(report);
+      setNotice(report.healthy ? "本地数据健康检查通过" : `发现 ${report.errors.length + report.warnings.length} 项数据可靠性问题`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "本地数据健康检查失败");
     } finally {
       setBusy("");
     }
@@ -158,6 +173,7 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
           <strong className="block text-sm">浏览器 / Electron 数据迁移</strong>
           <span className="mt-1 block text-xs text-muted">仅迁移安全业务数据；凭据与 Vault 目录始终排除。</span>
         </div>
+        <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void inspectHealth()}>{busy === "health" ? "检查中" : "检查数据健康"}</Button>
         <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void exportBackup()}>导出备份</Button>
         <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => importInputRef.current?.click()}>导入备份</Button>
         <input
@@ -169,6 +185,17 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
           onChange={(event) => void inspectBackup(event.currentTarget.files?.[0])}
         />
       </div>
+      {healthReport ? (
+        <div className="mb-4 rounded-lg border border-line bg-surface-muted p-3 text-sm" role="status">
+          <strong>{healthReport.healthy ? "本地业务数据正常" : "本地业务数据需要关注"}</strong>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            {healthReport.healthy
+              ? "表分类、关键关联、恢复事务与本机密钥可用性检查未发现错误。Vault 授权状态继续显示在上方诊断报告中。"
+              : [...healthReport.errors, ...healthReport.warnings].map((issue) => issue.message).join("；")}
+          </p>
+          {healthReport.manualActions.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted">{healthReport.manualActions.map((action) => <li key={action}>{action}</li>)}</ul> : null}
+        </div>
+      ) : null}
       <div className={styles.table}>
         <div className={`${styles.tableHeader} ${styles.dataColumns}`}><span>清除范围</span><span className={styles.cellCenter}>项目数</span><span className={styles.cellCenter}>操作</span></div>
         {rows.map((row) => (

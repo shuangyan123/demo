@@ -529,3 +529,19 @@ Import UI
 - `useConversationContext` 是 Composer 预算和手动压缩的共享装配边界；未发送草稿只在本机估算。压缩记录附加在既有会话上，不新增表、索引或 Dexie 版本，历史时间线保持完整。
 - 主题轨道挂在消息正文容器内并由 CSS 垂直居中；最新主题只由派生数组最后一项决定，滚动位置不改变常驻高亮。
 - 插件市场只负责发现、签名校验、安装和更新；启停与卸载继续归一级插件目录所有，重型详情面板仍按需加载。
+
+# 0.4.x Data Reliability Phase 1（2026-08-09）
+
+```text
+Data Management UI
+  → localDataManagementRepository
+  → explicit store policy + V2 preflight / integrity rules
+  → review_workspace v16 + review_extensions v1
+  → review_workspace_transfer v1（跨库 rollback marker）
+```
+
+- `CORE_DATA_STORE_POLICIES` 是核心表分类与 allowlist 的单一来源；contract 将 36 个策略键与 Dexie 运行时表集合做完全相等比较。`apiSettings` 与 `obsidianVaultConfigs` 必须保留排除原因，不能因新增表或“全量导出”自动进入备份。
+- `LocalDataExportV2` 保持格式版本 2 和早期 reader。新导出附加 manifest；reader 对提供的 manifest 校验 schema、included stores、excluded categories 与逐表计数，对早期无 manifest V2 规范化补齐。
+- 恢复边界固定为 `preflight → previous snapshot → prepared/applying marker → core transaction → extension transaction → verify → cleanup`。单库事务原子但跨库不原子；apply/verify 失败后必须验证旧快照回滚，回滚失败则保留 marker 并由根 Bootstrap 阻止业务 controller 挂载。
+- `inspectHealth()` 是只读存储扫描，输出 `healthy/warnings/errors/repairable/manualActions`，不解密或输出凭据、不调用 Provider、不自动改记录。Vault 授权与冲突继续由现有 Obsidian 诊断负责；Repair Phase 1 只定义安全边界。
+- 本阶段不升级 `review_workspace` v16 / `review_extensions` v1，不修改 Electron 凭据存储、Provider、MCP、Conversation Application Layer 或 Vault 正文。
