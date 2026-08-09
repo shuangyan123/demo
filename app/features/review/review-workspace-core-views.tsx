@@ -60,6 +60,7 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           knowledgeCategorySummaries={knowledge.snapshot.categorySummaries}
           knowledgeCorrectRate={knowledge.snapshot.correctRate}
           lowMistakes={learning.snapshot.lowMistakes}
+          learnerState={data.learnerState}
           notice={workspace.notice}
           obsidianConnected={workspace.health.obsidianSnapshot.connected}
           pendingProposalCount={workspace.health.obsidianSnapshot.pendingProposalCount}
@@ -85,6 +86,18 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           onCreateKnowledgeStarterDrafts={knowledge.actions.createStarterDrafts}
           onOpenReviewQueue={() => learning.actions.openReview()}
           onOpenReview={learning.actions.openReview}
+          onOpenLearningAction={(action) => {
+            const targetId = action.destination.targetIds?.[0];
+            if (action.destination.module === "review") learning.actions.openReview(targetId);
+            if (action.destination.module === "library") {
+              const mistake = data.mistakes.find((item) => item.id === targetId);
+              if (mistake) learning.actions.openMistake(mistake);
+              else workspace.switchView("library");
+            }
+            if (action.destination.module === "knowledgeTraining") knowledge.actions.openTraining(targetId);
+            if (action.destination.module === "tutoring") workspace.switchView("tutoring");
+            if (action.destination.module === "interview") workspace.switchView("interview");
+          }}
         />
       ) : null}
 

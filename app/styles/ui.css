@@ -442,6 +442,105 @@
   font-size: 0.82rem;
 }
 
+.dashboard-learning-actions {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  padding: 1rem 1.15rem;
+}
+
+.dashboard-learning-actions > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.dashboard-learning-actions > header p,
+.dashboard-learning-actions > header span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.dashboard-learning-actions > header h2 {
+  margin-top: 0.18rem;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.dashboard-learning-action-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.dashboard-learning-action-list > article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.dashboard-learning-action-list > article:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.dashboard-learning-action-icon {
+  display: grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  border-radius: 0.55rem;
+  background: var(--surface-muted);
+}
+
+.dashboard-learning-action-copy h3 {
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.dashboard-learning-action-copy > p,
+.dashboard-learning-action-copy details {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.dashboard-learning-action-copy summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.dashboard-learning-action-copy details p {
+  margin-top: 0.35rem;
+}
+
+.dashboard-learning-action-copy ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.dashboard-learning-action-copy li {
+  border-radius: 999px;
+  background: var(--surface-muted);
+  padding: 0.18rem 0.5rem;
+}
+
+.dashboard-learning-action-copy li span {
+  margin-right: 0.35rem;
+  color: var(--foreground);
+  font-weight: 600;
+}
+
 .dashboard-study-flow {
   margin-top: 2rem;
 }
@@ -2581,6 +2680,15 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   .dashboard-next-action .ui-button {
     min-height: 2.75rem;
     padding-inline: 0.85rem;
+  }
+
+  .dashboard-learning-action-list > article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .dashboard-learning-action-list > article > .ui-button {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .dashboard-study-flow {

@@ -138,6 +138,10 @@
 
 ## 0.5 学习闭环
 
+状态：Phase 1 Evidence Normalization & Read-only Learning Action Queue 已完成；后续阶段待启动。
+
+Phase 1 已交付：持久化 mastery 统一按 1..5 解释，错题、知识、辅导微测/计划与面试计划通过固定优先级派生只读行动队列；首页只展示有本地证据的最多四项行动。Automation 运行、待确认知识提案、未评分面试和未提交微测不作为学习完成证据。详见 `docs/learning-loop.md`。
+
 ### 目标
 
 - 将错题、知识、训练、面试、辅导、已安排复盘连接为可观察闭环。

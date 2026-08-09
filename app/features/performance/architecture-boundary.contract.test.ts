@@ -97,6 +97,16 @@ test("Application Layer 保持纯 TypeScript 且不反向依赖 UI 或宿主全�
   assert.deepEqual(violations, []);
 });
 
+test("学习行动队列保持只读纯派生边界", async () => {
+  const source = await readFile(path.join(APP_ROOT, "services/learner-state-service.ts"), "utf8");
+  const imports = staticImports(source);
+  assert.equal(imports.some((target) => target === "react" || target.startsWith("react/") || target.includes("/features/") || target.includes("/server/ai/")), false);
+  assert.doesNotMatch(source, /\.add\(|\.put\(|\.update\(|\.delete\(|\.bulk(?:Add|Put|Delete)\(/);
+  assert.doesNotMatch(source, /fetch\(|generateAi|automationRepository|obsidianKnowledgeRepository|reviewDesktop(?:Vault|Window)/);
+  assert.match(source, /reviewDb\.interviewPracticePlans\.toArray\(\)/);
+  assert.match(source, /deriveLearnerStateSnapshot/);
+});
+
 test("大型 workspace 保持受控预算并使用专用 controller", async () => {
   const budgets = new Map([
     ["features/review/review-workspace.tsx", 150],

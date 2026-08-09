@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { associationRepository } from "../../services/association-repository";
 import { knowledgeRepository } from "../../services/knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
+import { deriveLearnerStateSnapshot, loadLearnerStateSnapshot } from "../../services/learner-state-service.ts";
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
 import type { ImportJob } from "../../types/domains/import.ts";
 import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
@@ -28,14 +29,27 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
   const [knowledgeCorrectCount, setKnowledgeCorrectCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [readError, setReadError] = useState("");
+  const [learnerState, setLearnerState] = useState(() => deriveLearnerStateSnapshot({
+    mistakes: [],
+    attempts: [],
+    knowledgeEntries: [],
+    knowledgeAttempts: [],
+    interviewEvaluations: [],
+    interviewPracticePlans: [],
+    interviewSessions: [],
+    tutoringSessions: [],
+    tutoringTurns: [],
+    tutoringPlans: [],
+  }, today));
 
   // 从 repository 读取最新快照，并同步页面上所有派生计数的基础数据。
   const refreshData = useCallback(async () => {
     try {
-      const [snapshot, knowledgeTraining, links] = await Promise.all([
+      const [snapshot, knowledgeTraining, links, nextLearnerState] = await Promise.all([
         reviewRepository.loadSnapshot(today),
         knowledgeRepository.loadTrainingSnapshot(today),
         associationRepository.listAll(),
+        loadLearnerStateSnapshot(today, scope),
       ]);
       const scopedMistakes = filterWorkspaceRecords(snapshot.mistakes, scope);
       const scopedKnowledgeEntries = filterWorkspaceRecords(knowledgeTraining.entries, scope);
@@ -52,6 +66,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
       setCorrectCount(scopedAttempts.filter((item) => item.result === "correct").length);
       setKnowledgeAttemptsCount(scopedKnowledgeAttempts.length);
       setKnowledgeCorrectCount(scopedKnowledgeAttempts.filter((item) => item.result === "correct").length);
+      setLearnerState(nextLearnerState);
       setReadError("");
       notice.onSynced();
       setLoading(false);
@@ -85,6 +100,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
     knowledgeAttemptsCount,
     knowledgeCorrectCount,
     knowledgeEntries,
+    learnerState,
     loading,
     mistakes,
     readError,
