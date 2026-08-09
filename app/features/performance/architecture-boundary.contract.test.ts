@@ -8,6 +8,7 @@ import "../../server/http/route-security.contract.test.ts";
 import "../../services/local-runtime-diagnostics.contract.test.ts";
 import "./neutral-interaction.contract.test.ts";
 import "../../platform/host.contract.test.ts";
+import "../../application/interview/interview-application.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -66,9 +67,32 @@ test("业务层只能通过 Host Capability 访问 Electron preload", async () =
   for (const file of platformFiles) {
     const source = await readFile(file, "utf8");
     const imports = staticImports(source);
-    assert.equal(imports.some((target) => /(?:^|\/)(?:features|services|db|server)(?:\/|$)/.test(target)), false);
+    assert.equal(imports.some((target) => /(?:^|\/)(?:application|features|services|db|server)(?:\/|$)/.test(target)), false);
     assert.equal(imports.some((target) => target === "react" || target.startsWith("react/")), false);
   }
+});
+
+test("Application Layer 保持纯 TypeScript 且不反向依赖 UI 或宿主全局", async () => {
+  const applicationRoot = path.join(APP_ROOT, "application");
+  const files = await sourceFiles(applicationRoot);
+  const violations: string[] = [];
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    const imports = staticImports(source);
+    const forbiddenImport = imports.find((target) => (
+      target === "react"
+      || target.startsWith("react/")
+      || target === "react-dom"
+      || target.startsWith("react-dom/")
+      || target.startsWith("next/")
+      || /(?:^|\/)features(?:\/|$)/.test(target)
+      || /\.css$/i.test(target)
+    ));
+    if (forbiddenImport || /reviewDesktop(?:Vault|Window)|\bwindow\b|\bdocument\b/.test(source)) {
+      violations.push(path.relative(APP_ROOT, file).replace(/\\/g, "/"));
+    }
+  }
+  assert.deepEqual(violations, []);
 });
 
 test("大型 workspace 保持受控预算并使用专用 controller", async () => {
