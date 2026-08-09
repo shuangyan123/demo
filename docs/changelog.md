@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-09 · 0.4 Application Layer Phase 1（Interview）
+
+- 新增 `start-interview-session` 与 `submit-interview-turn` 两个轻量 Application Use Case，把 session/turn、AI 和 timer 的多步骤编排移出 React Hook；UI 状态、校验、刷新、通知、示例模式和评分触发保持在 Controller。
+- 增加稳定失败阶段与部分结果，直接 Node 测试覆盖成功、AI/turn/session 写入失败、调用顺序、`shouldEvaluate` 两个分支及不隐式重试语义。
+- 扩展架构守卫，禁止 Application 依赖 React、React DOM、Next UI、CSS、feature view、DOM 和 Electron preload global，并禁止 Platform 反向依赖 Application。
+- 保持现有部分提交行为，不伪造 IndexedDB 与外部 AI 的事务，不升级 Dexie v16；Automation、Import 仍待迁移，Conversation 延后。
+
 ## 2026-08-09 · 0.3 Host Capability 与产品化准备
 
 - 新增轻量 Host Capability Layer，统一暴露 Web / Electron 的 Vault 与原生窗口能力；业务 service 和 React hook 不再直接读取 Electron preload global。

@@ -48,6 +48,12 @@
 
 ## 0.4 Application Layer
 
+### Phase 1 状态（2026-08-09）
+
+- Interview 已完成 `start-interview-session` 与 `submit-interview-turn` 两个真实 Use Case；Controller 保留 React 状态、输入校验、刷新、通知、示例模式和最终评分触发。
+- 用例通过显式窄依赖直接编排现有 repository、AI service 与 timer helper，并以直接 Node 测试覆盖调用顺序和部分提交；没有新增 DI 框架或跨 IndexedDB/AI 伪事务。
+- Automation、Import 仍为 pending；Conversation 明确 deferred。0.4 整体尚未完成。
+
 ### 目标
 
 - 从真实的多步骤 React 编排中提取 Application Use Case。

@@ -481,6 +481,8 @@
 - Host capability 的类型不能扩大 preload 权限；新增能力必须先有独立安全设计，继续保留 context isolation、sandbox、sender 校验和 permission/navigation boundary。
 - 当前 Web 与 Electron 共用视觉 chrome，浏览器不得伪造系统窗口按钮或 IPC。只有出现真实视觉分叉时，才增加默认关闭、仅开发环境的 preview 样式开关。
 - Application Layer 只承载真实的多步骤业务编排；单次 repository 转发不应为追求分层而包装。首批候选优先面试、自动化和导入，对话发送链路待模式稳定后迁移。
+- Interview Application 首批采用显式窄函数依赖：Use Case 负责编排 repository、AI 与 timer，React Hook 只保留 busy、输入校验、刷新、通知、示例模式和评分触发。`shouldEvaluate` 由提交用例返回，禁止反向调用 Hook。
+- 跨 IndexedDB 与外部 AI 的失败保持部分提交：不回滚已确认 Candidate Turn、不自动重试请求。稳定错误必须标记失败步骤与已完成结果；无幂等键时不得宣称用户再次提交不会重复。
 
 - 主题标题、助手摘要与附件全部从 `ConversationTurnTimeline` 派生；常驻高亮永远是数组最后一项，阅读旧消息不得改写它。
 - 上下文预算、真实发送与压缩必须复用规范化会话装配边界；压缩保留最近六轮原文，只附加会话记录且不得升级 Dexie v16 或保存厂商专有状态。

@@ -475,6 +475,21 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - Web 与 Electron 已共享 titlebar spacing、sidebar/content 和 viewport 布局。浏览器不会伪造系统窗口按钮或 IPC，因此本轮不新增 `hostPreview=desktop`；若未来宿主视觉分叉，再增加仅开发环境的样式开关。
 - 本次改造不新增 HTTP API，不修改 IndexedDB、凭据、Vault 文件格式、Provider/MCP/Automation/Plugin 协议，也不改变动态加载边界。
 
+# 0.4 Application Layer Phase 1：Interview（2026-08-09）
+
+```text
+Interview UI
+  → useInterviewData（busy / validation / refresh / notice / sample / evaluation trigger）
+  → app/application/interview（多步骤业务编排）
+  → interview AI service / repository / timer helper
+```
+
+- `start-interview-session` 固定编排 session 创建、AI 开场、AI turn 保存和 session 阶段/文字稿更新；`submit-interview-turn` 固定编排 turns 读取、Candidate turn、AI 请求、AI turn、session/timer 更新。
+- Application 文件是无 React、DOM、CSS、Next UI 与 Electron preload global 的纯 TypeScript；依赖使用小型显式函数集合注入，不引入容器、CommandBus、EventBus、CQRS 或通用 UseCase 基类。
+- `finishSession` 暂时保留在 Controller：提交用例返回 `shouldEvaluate`，Controller 按原时序启动既有评分流程。手动结束、部分复盘、题库和计划的单次 repository 操作不为目录整齐而包装。
+- 跨 IndexedDB 与外部 AI 没有原子事务。用例不回滚已保存的用户回答、不自动重试，也通过稳定失败步骤和部分结果让 Controller 刷新真实状态；重新显式提交的幂等性仍受现有无提交键的数据模型限制。
+- 架构契约同时阻止 Application 反向导入 UI/宿主全局，以及 Platform 反向依赖 Application；核心数据库继续是 `review_workspace` v16。
+
 ## 对话上下文压缩与插件市场边界（2026-08-02）
 
 - `useConversationContext` 是 Composer 预算和手动压缩的共享装配边界；未发送草稿只在本机估算。压缩记录附加在既有会话上，不新增表、索引或 Dexie 版本，历史时间线保持完整。
