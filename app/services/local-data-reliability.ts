@@ -200,7 +200,7 @@ export function inspectLocalDataIntegrity(core: Record<string, unknown[]>): Loca
   return issues;
 }
 
-const SENSITIVE_FIELD = /^(?:accessToken|apiKey|authorization|cookie|directoryHandle|encryptedCookie|encryptedCredentials|encryptedKey|encryptedToken|encryptedTokenIv|fullPrompt|hiddenReasoning|iv|maskedKey|password|privateKey|providerRawResponse|rawProviderResponse|refreshToken|thoughtSignature|token)$/i;
+const SENSITIVE_FIELD = /^(?:accessToken|apiKey|authorization|conflictAppMarkdown|conflictVaultMarkdown|cookie|directoryHandle|encryptedCookie|encryptedCredentials|encryptedKey|encryptedToken|encryptedTokenIv|fullPrompt|hiddenReasoning|iv|maskedKey|password|privateKey|providerRawResponse|rawProviderResponse|refreshToken|thoughtSignature|token)$/i;
 
 /** 恢复包不得仅凭 credentialsExcluded 声明获得信任。 */
 export function findSensitiveRestoreFields(value: unknown, path = "$", matches: string[] = []): string[] {

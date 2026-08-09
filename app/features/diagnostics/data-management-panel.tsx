@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import {
   LOCAL_DATA_IMPORT_MAX_BYTES,
   localDataManagementRepository,
+  type LocalDataRepairBackup,
+  type LocalDataRepairPreview,
   type LocalDataHealthReport,
   type LocalDataRestorePreview,
   type LocalDataSummary,
@@ -29,6 +31,9 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
   const [pendingAction, setPendingAction] = useState<ClearScope | "all">();
   const [restorePreview, setRestorePreview] = useState<LocalDataRestorePreview>();
   const [healthReport, setHealthReport] = useState<LocalDataHealthReport>();
+  const [repairPreview, setRepairPreview] = useState<LocalDataRepairPreview>();
+  const [repairBackup, setRepairBackup] = useState<LocalDataRepairBackup>();
+  const [repairBackupAcknowledged, setRepairBackupAcknowledged] = useState(false);
   const [resetText, setResetText] = useState("");
   const dialogRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -41,21 +46,19 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
 
   useEffect(() => {
     let active = true;
-    void localDataManagementRepository.recoverInterruptedRestore()
-      .then((recovered) => recovered ? onChanged?.() : undefined)
-      .then(() => localDataManagementRepository.loadSummary())
+    void localDataManagementRepository.loadSummary()
       .then((next) => { if (active) { setSummary(next); setLoading(false); } });
     return () => { active = false; };
-  }, [onChanged]);
+  }, []);
 
   useEffect(() => {
-    if (!pendingAction && !restorePreview) return;
+    if (!pendingAction && !restorePreview && !repairPreview) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const dialog = dialogRef.current;
     dialog?.querySelector<HTMLElement>(pendingAction === "all" ? "input" : "button")?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setPendingAction(undefined); setRestorePreview(undefined); }
+      if (event.key === "Escape") { setPendingAction(undefined); setRestorePreview(undefined); setRepairPreview(undefined); }
       if (event.key !== "Tab" || !dialog) return;
       const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])')];
       if (!focusable.length) return;
@@ -70,24 +73,84 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
       window.removeEventListener("keydown", handleKeyDown);
       returnFocusRef.current?.focus();
     };
-  }, [pendingAction, restorePreview]);
+  }, [pendingAction, repairPreview, restorePreview]);
+
+  function downloadJson(source: string, fileName: string): void {
+    const url = URL.createObjectURL(new Blob([source], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function exportBackup(): Promise<void> {
     setBusy("export");
     try {
       const source = await localDataManagementRepository.exportAll();
-      const url = URL.createObjectURL(new Blob([source], { type: "application/json" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `review-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadJson(source, `review-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`);
       setNotice("备份已导出；凭据与 Vault 目录未包含");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "导出备份失败");
     } finally {
       setBusy("");
     }
+  }
+
+  async function previewRepair(repairId: "delete-orphan-conversation-run-steps"): Promise<void> {
+    setBusy("repair-preview");
+    try {
+      setRepairPreview(await localDataManagementRepository.inspectRepair(repairId));
+      setRepairBackup(undefined);
+      setRepairBackupAcknowledged(false);
+      setNotice("");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "无法生成修复预览");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function downloadRepairBackup(): Promise<void> {
+    if (!repairPreview) return;
+    setBusy("repair-backup");
+    try {
+      const backup = await localDataManagementRepository.prepareRepairBackup(repairPreview);
+      downloadJson(backup.source, `review-workspace-before-repair-${new Date().toISOString().slice(0, 10)}.json`);
+      setRepairBackup(backup);
+      setRepairBackupAcknowledged(false);
+      setNotice("已请求浏览器下载 fresh V2 安全备份；请确认文件确实保存后再继续。待清理的孤立运行元数据不进入该可恢复快照。");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "修复前备份生成失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function executeRepair(): Promise<void> {
+    if (!repairPreview || !repairBackup || !repairBackupAcknowledged) return;
+    setBusy("repair-execute");
+    try {
+      const result = await localDataManagementRepository.executeRepair(repairPreview, repairBackup, true);
+      await onChanged?.();
+      await refresh();
+      const report = await localDataManagementRepository.inspectHealth();
+      setHealthReport(report);
+      setRepairPreview(undefined);
+      setRepairBackup(undefined);
+      setRepairBackupAcknowledged(false);
+      setNotice(`已定向清理 ${result.affectedRecords} 条孤立运行元数据，并通过修复后完整性验证。`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "定向修复失败；事务未提交");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function closeRepairPreview(): void {
+    setRepairPreview(undefined);
+    setRepairBackup(undefined);
+    setRepairBackupAcknowledged(false);
   }
 
   async function inspectHealth(): Promise<void> {
@@ -169,7 +232,7 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
     <section className={styles.tableSection} aria-label="数据管理">
       <div className={styles.header}><div><h2>数据管理</h2><p>按数据范围清理，完整重置会删除全部本地数据和设置。</p></div>{notice ? <span className={styles.muted} role="status">{notice}</span> : null}</div>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-muted p-3">
-        <div className="min-w-[15rem] flex-1">
+        <div className="flex-1">
           <strong className="block text-sm">浏览器 / Electron 数据迁移</strong>
           <span className="mt-1 block text-xs text-muted">仅迁移安全业务数据；凭据与 Vault 目录始终排除。</span>
         </div>
@@ -188,12 +251,21 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
       {healthReport ? (
         <div className="mb-4 rounded-lg border border-line bg-surface-muted p-3 text-sm" role="status">
           <strong>{healthReport.healthy ? "本地业务数据正常" : "本地业务数据需要关注"}</strong>
-          <p className="mt-1 text-xs leading-5 text-muted">
-            {healthReport.healthy
-              ? "表分类、关键关联、恢复事务与本机密钥可用性检查未发现错误。Vault 授权状态继续显示在上方诊断报告中。"
-              : [...healthReport.errors, ...healthReport.warnings].map((issue) => issue.message).join("；")}
-          </p>
-          {healthReport.manualActions.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted">{healthReport.manualActions.map((action) => <li key={action}>{action}</li>)}</ul> : null}
+          {healthReport.healthy ? <p className="mt-1 text-xs leading-5 text-muted">表分类、关键关联、恢复事务、Vault mapping 与本机密钥可用性检查未发现问题。</p> : (
+            <ul aria-label="数据健康问题" className="mt-3">
+              {[...healthReport.errors, ...healthReport.warnings].map((issue, index) => {
+                const candidate = issue.repairability === "targeted-safe"
+                  ? healthReport.repairable.find((item) => item.scope === issue.scope)
+                  : undefined;
+                return <li key={`${issue.code}:${issue.scope}:${issue.recordId ?? index}`} className="rounded-md border border-line bg-surface p-2.5">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1"><span className="text-xs font-medium">{issue.repairability === "targeted-safe" ? "可定向修复" : issue.repairability === "manual-only" ? "需要手动处理" : "仅报告"}</span><p className="mt-1 text-xs leading-5 text-muted">{issue.message}</p>{issue.manualAction ? <p className="mt-1 text-xs leading-5 text-muted">下一步：{issue.manualAction}</p> : null}</div>
+                    {candidate ? <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={(event) => { returnFocusRef.current = event.currentTarget; void previewRepair(candidate.id); }}>查看修复预览</Button> : null}
+                  </div>
+                </li>;
+              })}
+            </ul>
+          )}
         </div>
       ) : null}
       <div className={styles.table}>
@@ -228,12 +300,40 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
               备份创建于 {new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(restorePreview.exportedAt))}，
               将用 {restorePreview.incomingRecords} 项记录替换当前 {restorePreview.replacingRecords} 项可迁移数据。
             </p>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted">
+            <ul className="mt-3 pl-5 text-xs text-muted">
               {restorePreview.reminders.map((item) => <li key={item}>{item}</li>)}
             </ul>
             <div className={styles.modalActions}>
               <Button size="sm" variant="outline" onClick={() => setRestorePreview(undefined)}>取消</Button>
               <Button size="sm" variant="danger" disabled={Boolean(busy)} onClick={() => void restoreBackup()}>{busy === "restore" ? "恢复中" : "确认替换"}</Button>
+            </div>
+          </section>
+        </div>
+      ), document.body) : null}
+      {repairPreview && typeof document !== "undefined" ? createPortal((
+        <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRepairPreview(); }}>
+          <section ref={dialogRef} aria-labelledby="data-repair-title" aria-modal="true" className={styles.modal} role="dialog">
+            <div className={styles.modalHeader}>
+              <h3 id="data-repair-title" className="text-base font-semibold">定向修复预览</h3>
+              <button aria-label="关闭修复预览" className={styles.iconButton} type="button" onClick={closeRepairPreview}><AppIcon name="close" size={16} /></button>
+            </div>
+            <dl className="mt-3 grid gap-2 text-sm">
+              <div><dt className="font-medium">会修改什么</dt><dd className="mt-1 text-muted">{repairPreview.action}</dd></div>
+              <div><dt className="font-medium">影响范围</dt><dd className="mt-1 text-muted">{repairPreview.scope} · {repairPreview.affectedRecords} 条精确记录</dd></div>
+              <div><dt className="font-medium">数据风险</dt><dd className="mt-1 text-muted">低；只删除没有父对话、无法被产品读取的脱敏运行元数据，不级联删除其他记录。</dd></div>
+              <div><dt className="font-medium">验证计划</dt><dd className="mt-1 text-muted">{repairPreview.verificationPlan}</dd></div>
+            </dl>
+            <details className="mt-3 text-xs text-muted"><summary>查看受影响记录 ID</summary><ul className="mt-2 pl-5">{repairPreview.affectedRecordIds.map((id) => <li key={id} className="break-all">{id}</li>)}</ul></details>
+            <div className="mt-4 rounded-md border border-line bg-surface-muted p-3 text-xs leading-5 text-muted">
+              修复前必须下载 fresh LocalDataExportV2 安全备份。浏览器只能发起下载，应用无法证明文件已经保存，因此需要你明确确认。
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void downloadRepairBackup()}>{busy === "repair-backup" ? "生成中" : "下载修复前备份"}</Button>
+              {repairBackup ? <label className="flex items-start gap-2 text-xs text-muted"><input checked={repairBackupAcknowledged} className="mt-0.5" type="checkbox" onChange={(event) => setRepairBackupAcknowledged(event.currentTarget.checked)} />我已确认浏览器已保存这份备份</label> : null}
+            </div>
+            <div className={styles.modalActions}>
+              <Button size="sm" variant="outline" onClick={closeRepairPreview}>取消</Button>
+              <Button size="sm" variant="danger" disabled={Boolean(busy) || !repairBackup || !repairBackupAcknowledged} onClick={() => void executeRepair()}>{busy === "repair-execute" ? "修复并验证中" : "确认定向修复"}</Button>
             </div>
           </section>
         </div>
