@@ -27,18 +27,15 @@ import { useConversationNavigation } from "./use-conversation-navigation";
 import { useConversationAutoMemory } from "./use-conversation-auto-memory.ts";
 import { useConversationRecording } from "./use-conversation-recording.ts";
 import { useConversationTutoringFinish } from "./use-conversation-tutoring-finish.ts";
+import { useConversationContext } from "./use-conversation-context.ts";
 import "./conversation-navigation.module.css";
 import { isUiReviewRuntimeActive } from "../../services/ui-review-runtime-guard.ts";
 const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
 const ConversationTutoringExperience = dynamic(() => import("./conversation-tutoring-experience").then((module) => module.ConversationTutoringExperience), { loading: () => <div className="conversation-message-list"><span className="ui-spinner" /></div> });
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
-export function ConversationWorkspace({
-  activeConversationId, connections, defaultSelections, knowledgeEntries,
-  launchContext, personalization, scheduledCount, snapshot, transcriptionConnection,
-  sampleMode = false,
-  onCreateConversation, onConversationSelected, onOpenConnections, onOpenKnowledge,
-  onOpenTutoringRecords, onRefresh, onNotice, onPersonalizationChange, onClearLaunchContext,
-}: ConversationWorkspaceProps) {
+export function ConversationWorkspace({ activeConversationId, connections, defaultSelections, knowledgeEntries, launchContext, personalization,
+  scheduledCount, snapshot, transcriptionConnection, sampleMode = false, onCreateConversation, onConversationSelected, onOpenConnections,
+  onOpenKnowledge, onOpenTutoringRecords, onRefresh, onNotice, onPersonalizationChange, onClearLaunchContext }: ConversationWorkspaceProps) {
   const [draft, setDraft] = useState(() => launchContext?.suggestedPrompt ?? "");
   const [assistantDraft, setAssistantDraft] = useState("");
   const [activeTurnId, setActiveTurnId] = useState<string>();
@@ -59,20 +56,12 @@ export function ConversationWorkspace({
   const realtimeConversationIdRef = useRef<string | undefined>(undefined);
   const runStepOrdinalsRef = useRef(new Map<string, number>());
   const { capture: captureVision, mode: visionMode, start: startVision, stop: stopVision, videoRef: visionVideoRef } = useConversationVisionTools(onNotice);
-  const recording = useConversationRecording({
-    disabled: busy,
-    transcriptionConnection,
-    onNotice,
-    onOpenConnections,
-    onTranscript: (text) => setDraft((current) => `${current}${current ? "\n" : ""}${text}`),
-  });
+  const recording = useConversationRecording({ disabled: busy, transcriptionConnection, onNotice, onOpenConnections,
+    onTranscript: (text) => setDraft((current) => `${current}${current ? "\n" : ""}${text}`) });
   const conversations = useMemo(() => snapshot.conversations.filter((conversation) => conversation.status === "active"), [snapshot.conversations]);
   const activeConversation = activeConversationId === null ? null : conversations.find((conversation) => conversation.id === activeConversationId) ?? conversations[0] ?? null;
   const requiresVision = attachments.some((attachment) => attachment.kind === "image");
-  const eligibleConnections = useMemo(
-    () => connections.filter((connection) => connection.capabilities.includes(requiresVision ? "vision" : "text")),
-    [connections, requiresVision],
-  );
+  const eligibleConnections = useMemo(() => connections.filter((connection) => connection.capabilities.includes(requiresVision ? "vision" : "text")), [connections, requiresVision]);
   const recentConversationSelection = conversations.find((conversation) => conversation.selectedConnectionId && conversation.selectedModelId);
   const defaultSelection = requiresVision ? defaultSelections?.vision : defaultSelections?.text;
   const { recordCompletedTurn } = useConversationAutoMemory({ connection: connections.find((connection) => connection.id === defaultSelections?.text?.connectionId), modelId: defaultSelections?.text?.modelId, settings: personalization, onSettingsChange: onPersonalizationChange, onNotice });
@@ -82,46 +71,32 @@ export function ConversationWorkspace({
   const defaultFallback = !activeConversation && defaultSelection?.connectionId && defaultSelection.modelId
     ? { connectionId: defaultSelection.connectionId, modelId: defaultSelection.modelId, selectedRuntimeValues: undefined }
     : undefined;
-  const { flushPendingSelection, selection, selectionError, selectModel } = useConversationModelSelection({
-    activeConversation,
-    conversations,
-    fallbackSelection: recentSelection ?? defaultFallback,
-    onNotice,
-    onRefresh,
-  });
+  const { flushPendingSelection, selection, selectionError, selectModel } = useConversationModelSelection({ activeConversation, conversations,
+    fallbackSelection: recentSelection ?? defaultFallback, onNotice, onRefresh });
   const selectedConnection = eligibleConnections.find((connection) => connection.id === selection?.connectionId);
   const selectedModelId = selectedConnection ? selection?.modelId : undefined;
   const storedRuntimeValues = selectedConnection ? selection?.selectedRuntimeValues : undefined;
   const effectiveConnection = selectedConnection;
   const runtimeDescriptor = effectiveConnection && selectedModelId ? getAiModelRuntimeDescriptor(effectiveConnection.provider, selectedModelId) : undefined;
   const selectedRuntimeValues = runtimeDescriptor ? normalizeAiSelectedRuntimeValues(runtimeDescriptor, storedRuntimeValues) : storedRuntimeValues;
-  const tutoringFinish = useConversationTutoringFinish({
-    connection: effectiveConnection,
-    conversation: activeConversation,
-    modelId: selectedModelId,
-    onNotice,
-    personalizationSettings: personalization,
-    selectedRuntimeValues,
-  });
+  const tutoringFinish = useConversationTutoringFinish({ connection: effectiveConnection, conversation: activeConversation, modelId: selectedModelId,
+    onNotice, personalizationSettings: personalization, selectedRuntimeValues });
   const messages = useMemo(() => snapshot.messages.filter((message) => message.conversationId === activeConversation?.id), [activeConversation?.id, snapshot.messages]);
+  const conversationAttachments = useMemo(() => snapshot.attachments.filter((attachment) => attachment.conversationId === activeConversation?.id), [activeConversation?.id, snapshot.attachments]);
   const runSteps = useMemo(() => snapshot.runSteps.filter((step) => step.conversationId === activeConversation?.id).slice(-100), [activeConversation?.id, snapshot.runSteps]);
   const timeline = useMemo(() => buildConversationTurnTimeline(messages, runSteps), [messages, runSteps]);
-  const conversationNavigation = useConversationNavigation({
-    assistantDraft,
-    scrollContainerRef: messageListRef,
-    timeline,
-  });
+  const conversationNavigation = useConversationNavigation({ assistantDraft, attachments: conversationAttachments, scrollContainerRef: messageListRef, timeline });
   const diagnostics = useMemo(() => {
     const groups = new Map<string, typeof runSteps>();
-    for (const step of runSteps) {
-      if (step.visibility !== "diagnostic" || !step.turnId) continue;
-      groups.set(step.turnId, [...(groups.get(step.turnId) ?? []), step]);
-    }
+    for (const step of runSteps) if (step.visibility === "diagnostic" && step.turnId) groups.set(step.turnId, [...(groups.get(step.turnId) ?? []), step]);
     return groups;
   }, [runSteps]);
-  useEffect(() => {
-    if (activeConversationId === undefined && activeConversation?.id) onConversationSelected(activeConversation.id);
-  }, [activeConversation?.id, activeConversationId, onConversationSelected]);
+  const contextWindow = effectiveConnection && selectedModelId ? runtimeDescriptor?.contextWindow
+    ?? getProviderModelCatalog(effectiveConnection.provider, requiresVision ? "vision" : "text").find((model) => model.id === selectedModelId)?.contextWindow : undefined;
+  const conversationContext = useConversationContext({ activeConversation, appendStep, attachments, connection: effectiveConnection, contextWindow, draft, knowledgeContext,
+    launchContext, messages, modelId: selectedModelId, personalization, persistedAttachments: conversationAttachments, runSteps, onNotice, onRefresh });
+  useEffect(() => { if (activeConversationId === undefined && activeConversation?.id) onConversationSelected(activeConversation.id); },
+    [activeConversation?.id, activeConversationId, onConversationSelected]);
   useEffect(() => {
     let active = true;
     if (!activeConversation?.id) return;
@@ -257,7 +232,7 @@ export function ConversationWorkspace({
         const memoryContext = buildPersonalMemoryContext(personalization, { moduleId: "conversation", conversationId: conversation.id, query: content });
         const history = [
           ...(memoryContext ? [{ role: "system" as const, content: memoryContext }] : []),
-          ...canonicalTurnsToChatHistory(buildCanonicalConversationTurns({ conversation, messages, attachments: snapshot.attachments.filter((attachment) => attachment.conversationId === conversation!.id), runSteps })),
+          ...canonicalTurnsToChatHistory(buildCanonicalConversationTurns({ conversation, messages, attachments: conversationAttachments, runSteps })),
           { role: "user" as const, content: userContent },
         ];
         const purpose = requiresVision ? "vision" : "text";
@@ -276,7 +251,26 @@ export function ConversationWorkspace({
           actualSpeed = result.actualSpeed;
         }
       }
-      const assistantMessage = await conversationRepository.appendMessage({ conversationId: conversation.id, turnId: runId, sequence: 2, role: "assistant", content: finalContent.trim() || "模型没有返回文本。" });
+      const assistantMessage = await conversationRepository.appendMessage({
+        conversationId: conversation.id,
+        turnId: runId,
+        sequence: 2,
+        role: "assistant",
+        content: finalContent.trim() || "模型没有返回文本。",
+        usage: usage ? {
+          id: crypto.randomUUID(),
+          provider: submissionConnection.provider,
+          connectionId: submissionConnection.id,
+          model: submissionModelId,
+          purpose: requiresVision ? "vision" : "text",
+          module: "conversation",
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+          status: "succeeded",
+          createdAt: new Date().toISOString(),
+        } : undefined,
+      });
       if (tutoringTurn) await tutoringTurn.persist(assistantMessage.id);
       recordCompletedTurn({ user: userMessage.content, assistant: assistantMessage.content, conversationId: conversation.id, sourceMessageIds: [userMessage.id, assistantMessage.id] });
       if (submissionRuntimeValues && Object.keys(submissionRuntimeValues).length) {
@@ -400,13 +394,6 @@ export function ConversationWorkspace({
   const tutoringMode = activeConversation?.kind === "tutoring" || launchContext?.kind === "tutoring";
   return (
     <section className="conversation-workspace" aria-label="AI 对话工作台">
-      <ConversationTopicNavigation
-        activeTopicId={conversationNavigation.activeTopicId}
-        drawerOpen={topicDrawerOpen}
-        topics={conversationNavigation.topics}
-        onCloseDrawer={() => setTopicDrawerOpen(false)}
-        onSelect={conversationNavigation.scrollToTopic}
-      />
       <div className="conversation-main">
         <header className="conversation-thread-header">
           <div className="min-w-0"><h1 className="truncate text-base font-semibold">{activeConversation?.title ?? "新对话"}</h1></div>
@@ -421,8 +408,15 @@ export function ConversationWorkspace({
             <button type="button" aria-label="移除对话上下文" onClick={onClearLaunchContext}><AppIcon name="close" size={16} /></button>
           </div>
         ) : null}
-        <div ref={messageListRef} className={conversationEmpty && !tutoringMode ? "conversation-message-list is-empty" : "conversation-message-list"}>
-          <div className="conversation-message-content">
+        <div className="conversation-message-region">
+          <ConversationTopicNavigation
+            drawerOpen={topicDrawerOpen}
+            topics={conversationNavigation.topics}
+            onCloseDrawer={() => setTopicDrawerOpen(false)}
+            onSelect={conversationNavigation.scrollToTopic}
+          />
+          <div ref={messageListRef} className={conversationEmpty && !tutoringMode ? "conversation-message-list is-empty" : "conversation-message-list"}>
+            <div className="conversation-message-content">
           {tutoringMode ? (
             <ConversationTutoringExperience
               activeTurnId={activeTurnId}
@@ -443,7 +437,8 @@ export function ConversationWorkspace({
             </>
           )}
           {conversationProposals.map((proposal) => <ConversationProposalBlock key={proposal.id} proposal={proposal} busy={proposalBusy} onAccept={() => void updateConversationProposal(proposal, "accept")} onReject={() => void updateConversationProposal(proposal, "reject")} />)}
-          <div ref={bottomRef} />
+            <div ref={bottomRef} />
+            </div>
           </div>
         </div>
         {visionMode ? (
@@ -479,9 +474,14 @@ export function ConversationWorkspace({
           runtimeDescriptor={runtimeDescriptor} selectedConnection={effectiveConnection}
           selectedModelId={selectedModelId} selectedRuntimeValues={selectedRuntimeValues}
           modelSelectionError={selectionError}
+          contextBudget={conversationContext.budget}
+          contextCompressing={conversationContext.compressing}
+          contextCompaction={activeConversation?.contextCompaction}
+          contextCompressionAvailable={Boolean(activeConversation && effectiveConnection && selectedModelId && conversationContext.candidate && !sampleMode)}
           onAttachmentsAdd={(nextAttachments) => setAttachments((current) => [...current, ...nextAttachments])}
           onAttachmentRemove={(attachmentId) => setAttachments((current) => current.filter((item) => item.id !== attachmentId))}
           onCaptureScreen={() => void captureScreenForAnalysis()}
+          onCompressContext={() => void conversationContext.compress()}
           onDraftChange={setDraft} onNotice={onNotice} onOpenConnections={onOpenConnections}
           onOpenMcp={() => setMcpPanelOpen(true)} onOpenProposal={() => setProposalPanelOpen(true)}
           onOpenRealtimeVoice={() => setRealtimeVoiceOpen(true)} onOpenTutoringRecords={onOpenTutoringRecords}

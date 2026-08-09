@@ -1519,8 +1519,13 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 }
 
 .conversation-composer-toolbar .conversation-send {
-  margin-left: auto;
+  margin-left: 0;
 }
+
+.conversation-context-budget { position: relative; margin-left: auto; }
+.conversation-context-budget > summary { min-height: 2rem; cursor: pointer; list-style: none; border-radius: 0.45rem; padding: 0.4rem 0.5rem; color: var(--muted); font-family: var(--app-code-font); font-size: 0.68rem; }
+.conversation-context-budget[open] > summary { background: var(--surface-muted); color: var(--foreground); }
+.conversation-context-budget > section { position: absolute; z-index: 62; right: 0; bottom: calc(100% + 0.5rem); display: grid; width: min(22rem, calc(100vw - 2rem)); gap: 0.75rem; border: 1px solid var(--line); border-radius: 0.8rem; background: var(--surface); padding: 0.85rem; box-shadow: 0 14px 34px rgb(0 0 0 / 12%); }
 
 .conversation-composer-menu {
   position: relative;

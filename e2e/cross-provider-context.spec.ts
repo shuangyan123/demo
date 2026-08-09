@@ -97,3 +97,94 @@ test("切换 Google 到 DeepSeek 后继续发送本地可见历史", async ({ pa
     await deepseek.stop();
   }
 });
+
+async function seedCompactionHistory(page: Page): Promise<string> {
+  return page.evaluate(() => new Promise<string>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction(["aiConversations", "aiConversationMessages"], "readwrite");
+      const conversations = transaction.objectStore("aiConversations").getAll();
+      conversations.onsuccess = () => {
+        const conversation = conversations.result.at(-1);
+        const store = transaction.objectStore("aiConversationMessages");
+        const base = Date.now() - 60_000;
+        for (let index = 0; index < 14; index += 1) store.put({
+          id: `compaction-message-${index}`,
+          conversationId: conversation.id,
+          turnId: `compaction-turn-${Math.floor(index / 2)}`,
+          sequence: index % 2 ? 2 : 0,
+          role: index % 2 ? "assistant" : "user",
+          content: `旧消息 ${index}：${"需要保留的背景事实与约束。".repeat(35)}`,
+          attachmentIds: [],
+          createdAt: new Date(base + index * 1_000).toISOString(),
+        });
+        conversation.messageCount = 16;
+        transaction.objectStore("aiConversations").put(conversation);
+        transaction.oncomplete = () => resolve(conversation.id);
+      };
+      transaction.onerror = () => reject(transaction.error);
+    };
+  }));
+}
+
+async function readCompaction(page: Page, conversationId: string) {
+  return page.evaluate((id) => new Promise<{ summary?: string; sourceMessageCount?: number }>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const record = request.result.transaction("aiConversations", "readonly").objectStore("aiConversations").get(id);
+      record.onsuccess = () => resolve(record.result?.contextCompaction ?? {});
+      record.onerror = () => reject(record.error);
+    };
+  }), conversationId);
+}
+
+test("上下文压缩经 mock provider 持久化并进入下一轮真实请求", async ({ page }) => {
+  test.setTimeout(60_000);
+  let returnCompaction = false;
+  const provider = await startMockAiProvider({
+    protocol: "chat_completions",
+    models: ["deepseek-v4-pro"],
+    response: () => returnCompaction
+      ? JSON.stringify({ goals: ["继续完成用户目标"], facts: ["已确认背景事实"], constraints: ["保持跨厂商可审计"], decisions: [], openItems: ["完成下一轮"], references: [] })
+      : "压缩后的下一轮回答",
+  });
+  try {
+    await openConnections(page);
+    await createConnection(page, { providerLabel: "DeepSeek", connectionLabel: "E2E Compaction", modelId: "deepseek-v4-pro", mock: provider });
+    await page.getByRole("button", { name: "返回应用" }).click();
+    await page.getByRole("button", { name: "新对话", exact: true }).click();
+    await page.getByRole("textbox", { name: "对话输入" }).fill("建立压缩测试会话");
+    await page.getByRole("button", { name: "发送" }).click();
+    await expect(page.getByText("压缩后的下一轮回答").last()).toBeVisible();
+    const conversationId = await seedCompactionHistory(page);
+    await page.reload();
+    await page.getByRole("button", { name: "建立压缩测试会话", exact: true }).click();
+
+    const summary = page.locator('summary[aria-label="查看对话上下文用量"]');
+    await summary.click();
+    returnCompaction = true;
+    await page.getByRole("button", { name: "压缩上下文" }).click();
+    await expect.poll(async () => (await readCompaction(page, conversationId)).summary, { timeout: 15_000 }).toContain("继续完成用户目标");
+    await page.reload();
+    await page.getByRole("button", { name: "建立压缩测试会话", exact: true }).click();
+    const compacted = await readCompaction(page, conversationId);
+    expect(compacted.summary).toContain("继续完成用户目标");
+    expect(compacted.sourceMessageCount).toBeGreaterThan(0);
+
+    returnCompaction = false;
+    const requestCount = provider.requests.filter((request) => request.method === "POST" && request.url === "/v1/chat/completions").length;
+    await page.getByRole("textbox", { name: "对话输入" }).fill("继续下一轮");
+    await page.getByRole("button", { name: "发送" }).click();
+    await expect.poll(() => provider.requests.filter((request) => request.method === "POST" && request.url === "/v1/chat/completions").length).toBeGreaterThan(requestCount);
+    await expect(page.getByText("压缩后的下一轮回答").last()).toBeVisible();
+    const body = provider.requests.filter((request) => request.method === "POST" && request.url === "/v1/chat/completions").at(-1)?.body as { messages?: Array<{ content?: string }> };
+    const sent = JSON.stringify(body.messages);
+    expect(sent).toContain("继续完成用户目标");
+    expect(sent).not.toContain("旧消息 0");
+  } finally {
+    await provider.stop();
+  }
+});

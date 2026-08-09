@@ -474,3 +474,9 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 - Vault service 继续保留 Web File System Access 与 Electron preload 两条原有路径；标题栏主题继续只向受限 preload 传递 `light | dark`。
 - Web 与 Electron 已共享 titlebar spacing、sidebar/content 和 viewport 布局。浏览器不会伪造系统窗口按钮或 IPC，因此本轮不新增 `hostPreview=desktop`；若未来宿主视觉分叉，再增加仅开发环境的样式开关。
 - 本次改造不新增 HTTP API，不修改 IndexedDB、凭据、Vault 文件格式、Provider/MCP/Automation/Plugin 协议，也不改变动态加载边界。
+
+## 对话上下文压缩与插件市场边界（2026-08-02）
+
+- `useConversationContext` 是 Composer 预算和手动压缩的共享装配边界；未发送草稿只在本机估算。压缩记录附加在既有会话上，不新增表、索引或 Dexie 版本，历史时间线保持完整。
+- 主题轨道挂在消息正文容器内并由 CSS 垂直居中；最新主题只由派生数组最后一项决定，滚动位置不改变常驻高亮。
+- 插件市场只负责发现、签名校验、安装和更新；启停与卸载继续归一级插件目录所有，重型详情面板仍按需加载。

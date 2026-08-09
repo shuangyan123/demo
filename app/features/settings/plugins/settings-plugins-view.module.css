@@ -126,6 +126,7 @@
 }
 
 .toggle input {
+  appearance: none;
   position: absolute;
   width: 1px;
   height: 1px;
@@ -250,13 +251,50 @@
 }
 
 .detailHero {
+  position: relative;
+  justify-content: space-between;
   gap: 1rem;
   padding: 2rem 0 1.75rem;
 }
 
-.detailHero > div {
+.detailIdentity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.detailIdentity > div {
   min-width: 0;
   flex: 1;
+}
+
+.detailControls {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.detailMore {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 0.45rem;
+  color: var(--color-muted);
+}
+
+.detailMore:hover,
+.detailMore:focus-visible {
+  background: var(--color-surface-muted);
+  color: var(--color-foreground);
+  outline: none;
+}
+
+.detailMenu {
+  top: calc(100% + 0.35rem);
 }
 
 .detailHero p {
@@ -321,6 +359,37 @@
   font-size: 0.78rem;
 }
 
+.market {
+  width: 100%;
+  padding-top: 1.5rem;
+}
+
+.marketSearch {
+  display: flex;
+  height: 2.4rem;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  padding: 0 0.7rem;
+  color: var(--color-muted);
+}
+
+.marketSearch:focus-within {
+  border-color: color-mix(in srgb, var(--color-foreground) 48%, var(--color-line));
+}
+
+.marketSearch input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-foreground);
+  font-size: 0.8rem;
+}
+
+.rowMain em { overflow: hidden; color: var(--color-muted); font-size: 0.68rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+
 @media (max-width: 640px) {
   .workspace,
   .detailPage {
@@ -350,12 +419,18 @@
 
   .detailHero {
     align-items: flex-start;
-    flex-wrap: wrap;
+    flex-direction: column;
     padding-top: 1.25rem;
   }
 
-  .detailHero .toggle {
-    margin-left: auto;
+  .detailIdentity {
+    align-items: flex-start;
+  }
+
+  .detailControls {
+    width: 100%;
+    min-height: 2.75rem;
+    justify-content: flex-end;
   }
 
   .metadata div {
@@ -365,6 +440,15 @@
 }
 
 @media (pointer: coarse) {
+  .toggle {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .toggle span {
+    inset: 0.75rem 0.25rem;
+  }
+
   .moreButton {
     width: 2.75rem;
     height: 2.75rem;

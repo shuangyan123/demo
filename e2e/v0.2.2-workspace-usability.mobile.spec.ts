@@ -1,6 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+async function hasReviewConversation(page: import("@playwright/test").Page) {
+  return page.evaluate(() => new Promise<boolean>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const record = request.result.transaction("aiConversations", "readonly").objectStore("aiConversations").get("ui-review:conversation-normal:conversation");
+      record.onsuccess = () => resolve(Boolean(record.result));
+      record.onerror = () => reject(record.error);
+    };
+  }));
+}
+
 test("移动 UI 审查对话主题使用可锁定焦点的底部抽屉且页面无横向溢出", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.goto("/?ui-review=1");
@@ -11,6 +23,7 @@ test("移动 UI 审查对话主题使用可锁定焦点的底部抽屉且页面�
   await appNavigation.locator(".sample-scenario-trigger").click();
   await appNavigation.getByLabel("选择当前页面审查场景").selectOption("conversation-normal");
   await appNavigation.getByRole("button", { name: "载入本页" }).click();
+  await expect.poll(() => hasReviewConversation(page), { timeout: 80_000 }).toBe(true);
   await page.reload();
   await page.getByRole("button", { name: "展开侧边栏" }).click();
   await appNavigation.getByRole("button", { name: "必要条件与充分条件", exact: true }).click();

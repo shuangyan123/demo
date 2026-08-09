@@ -337,3 +337,9 @@ P3 的 ReviewWorkspace 架构终止收口同样只调整客户端内部 controll
 - Web Vault adapter 仅包装 `showDirectoryPicker` 与可用时的 `FileSystemObserver`；它不模拟 Electron IPC 或本地文件权限。
 - Desktop adapter 只代理既有 `reviewDesktopVault` / `reviewDesktopWindow` preload bridge。IPC channel、入参、返回值与 sender 校验均未改变。
 - 本轮没有新增或修改公开 HTTP Route、Provider 请求、SSE 事件、持久化字段或导出格式。
+
+## 对话上下文预算与压缩
+
+- 无新增 HTTP API；压缩复用当前文本连接和既有生成适配层。支持结构化输出的连接使用固定 schema，其他连接由 `ai-json` 解析。
+- 只持久化规范化摘要、消息边界、来源数、时间、连接/模型 ID 与压缩前后估算 token；不保存厂商原始响应、专有 compaction item、密钥或隐藏推理。
+- 空响应、结构错误或预计节省低于 10% 时不更新已有压缩记录。

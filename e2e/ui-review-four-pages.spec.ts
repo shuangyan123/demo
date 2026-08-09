@@ -30,7 +30,7 @@ function collectExternalRequests(page: Page) {
   return requests;
 }
 
-test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联", async ({ page }) => {
+test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   const externalRequests = collectExternalRequests(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
@@ -45,9 +45,10 @@ test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联"
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
   await loadCurrentScenario(page, "plugins-directory-dense");
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
-  await page.getByRole("button", { name: "浏览 / 导入扩展" }).click();
+  await page.getByRole("button", { name: "插件市场" }).click();
   await expect(page.getByText("申论结构教练").first()).toBeVisible();
   await expect(page.getByText("专注纸张").first()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("plugin-marketplace-1536.png"), fullPage: false });
 
   await page.reload();
   await page.getByRole("button", { name: "粉笔导入" }).first().click();

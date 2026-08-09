@@ -75,7 +75,7 @@ test("P3 桌面薄弱分析、插件检查器与命令搜索保持真实状态",
 
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
   await expect(page.getByRole("heading", { name: "插件", exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "浏览 / 导入扩展" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "插件市场" })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("p3-plugins-list-desktop.png"), fullPage: false });
   await page.getByRole("button", { name: "Obsidian Vault 本地 Vault 双向知识同步", exact: true }).click();
   await expect(page.getByText("本地数据边界")).toBeVisible();

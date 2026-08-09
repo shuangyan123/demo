@@ -33,6 +33,18 @@ test("UI 审查对话数据提供主题目录、阅读保护和跳到最新消�
   const topics = page.getByRole("navigation", { name: "对话主题目录" });
   await expect(topics).toBeVisible();
   await expect(topics.getByRole("button")).toHaveCount(6);
+  await expect(topics.locator("button.is-latest")).toHaveCount(1);
+  await expect(topics.getByRole("button").last()).toHaveClass(/is-latest/);
+  await topics.getByRole("button").first().hover();
+  await expect(page.getByRole("tooltip")).toBeVisible();
+  await expect(page.getByRole("tooltip")).toContainText("先记住：有它未必行");
+  await page.screenshot({ path: testInfo.outputPath("conversation-topic-preview-desktop.png"), fullPage: false });
+  const contextSummary = page.locator('summary[aria-label="查看对话上下文用量"]');
+  await expect(contextSummary).toBeVisible();
+  await contextSummary.click();
+  await expect(page.getByRole("region", { name: "对话上下文详情" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("conversation-context-budget-desktop.png"), fullPage: false });
+  await contextSummary.click();
   await topics.getByRole("button", { name: /必要条件的常见题型陷阱/ }).click();
 
   const messageList = page.locator(".conversation-message-list");

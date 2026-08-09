@@ -49,3 +49,11 @@ test("添加菜单保留 Escape、外部点击、焦点恢复与首条消息阻�
   assert.match(addMenu, /请先发送首条消息，再调用 MCP 工具/);
   assert.match(addMenu, /请先发送首条消息，再生成 Obsidian 提案/);
 });
+
+test("Composer 使用共享上下文预算并提供显式压缩操作", () => {
+  assert.match(composer, /contextBudget\.usedTokens/);
+  assert.match(composer, /contextBudget\.remainingPercent/);
+  assert.match(composer, /压缩上下文/);
+  assert.match(composer, /onCompressContext/);
+  assert.match(composer, /厂商用量校准 \+ 增量估算/);
+});

@@ -1,7 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
 import type { AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
 import { legacyRuntimeValues } from "./model-runtime-descriptors.ts";
-import type { AiConversation, AiConversationAttachment, AiConversationFolder, AiConversationKind, AiConversationMessage, AiConversationRole, AiConversationRunStep, AiConversationSourceType, AiProject } from "../types/domains/conversation.ts";
+import type { AiConversation, AiConversationAttachment, AiConversationFolder, AiConversationKind, AiConversationMessage, AiConversationRole, AiConversationRunStep, AiConversationSourceType, AiProject, ConversationContextCompaction } from "../types/domains/conversation.ts";
 import type { AiUsageRecord } from "../types/domains/ai-connection.ts";
 import type { StudyDomainId } from "../types/domains/workspace.ts";
 
@@ -250,6 +250,15 @@ export const conversationRepository = {
       selectedRuntimeValues,
       selectedReasoningEffort: undefined,
       selectedSpeedMode: undefined,
+      updatedAt: nowIso(today),
+    });
+  },
+
+  /** 原子保存规范化压缩摘要和边界；历史消息与附件记录保持不变。 */
+  async setConversationContextCompaction(id: string, contextCompaction: ConversationContextCompaction, today = new Date()): Promise<void> {
+    await reviewDb.aiConversations.update(id, {
+      contextCompaction,
+      summary: contextCompaction.summary,
       updatedAt: nowIso(today),
     });
   },

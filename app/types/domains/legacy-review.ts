@@ -1056,6 +1056,19 @@ export type AiConversationStatus = "active" | "archived";
 export type AiConversationRole = "user" | "assistant" | "system" | "tool";
 export type AiConversationSourceType = "manual" | "mistake" | "tutoring" | "interview" | "import" | "knowledge";
 
+/** 跨厂商可移植的会话压缩记录；只保存规范化摘要，不保存厂商私有状态。 */
+export type ConversationContextCompaction = {
+  version: 1;
+  summary: string;
+  throughMessageId: string;
+  sourceMessageCount: number;
+  compactedAt: string;
+  connectionId: string;
+  modelId: string;
+  estimatedTokensBefore: number;
+  estimatedTokensAfter: number;
+};
+
 export type AiProject = {
   id: string;
   label: string;
@@ -1108,6 +1121,7 @@ export type AiConversation = {
   /** @deprecated 仅供 repository 读取历史会话并迁移到 selectedRuntimeValues。 */
   selectedSpeedMode?: "standard" | "priority";
   summary?: string;
+  contextCompaction?: ConversationContextCompaction;
   lastMessagePreview?: string;
   messageCount: number;
   createdAt: string;

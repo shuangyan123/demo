@@ -233,14 +233,14 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
 
   if (active?.kind === "browse") {
     return (
-      <section ref={detailRef} tabIndex={-1} className={styles.detailPage} aria-label="浏览和导入扩展" onKeyDown={(event) => { if (event.key === "Escape") closeDetail(); }}>
+      <section ref={detailRef} tabIndex={-1} className={styles.detailPage} aria-label="插件市场" onKeyDown={(event) => { if (event.key === "Escape") closeDetail(); }}>
         <button className={styles.backButton} type="button" onClick={closeDetail}><AppIcon name="back" size={16} />返回插件</button>
-        <header className={styles.detailHero}><span className={styles.glyph}>扩</span><div><p>扩展目录</p><h1>浏览与导入扩展</h1><span>只安装经过 SHA-256 与签名校验的数据包，不执行第三方代码。</span></div></header>
         <DeclarativeExtensionMarketplace
           appearanceSettings={props.appearanceSettings}
           personalization={props.personalization}
           onAppearanceChange={props.onAppearanceChange}
           onChanged={async () => { await Promise.all([props.onChanged(), refreshInstalled()]); }}
+          onInstalled={(id) => setActive({ kind: "plugin", id })}
           onPersonalizationChange={props.onPersonalizationChange}
           onNotice={props.onNotice}
         />
@@ -259,9 +259,19 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
       <section ref={detailRef} tabIndex={-1} className={styles.detailPage} aria-label={`${label} 详情`} onKeyDown={(event) => { if (event.key === "Escape") closeDetail(); }}>
         <button className={styles.backButton} type="button" onClick={closeDetail}><AppIcon name="back" size={16} />返回插件</button>
         <header className={styles.detailHero}>
-          <PluginGlyph item={activeItem} />
-          <div><p>{activeItem.kind === "builtin" ? "内置插件" : kindLabels[activeItem.record.kind]}</p><h1>{label}</h1><span>{description}</span></div>
-          <label className={styles.toggle}><input aria-label={`${label} 启用状态`} type="checkbox" checked={activeItem.enabled} disabled={busyId === activeItem.id} onChange={() => void toggle(activeItem)} /><span /></label>
+          <div className={styles.detailIdentity}>
+            <PluginGlyph item={activeItem} />
+            <div><p>{activeItem.kind === "builtin" ? "内置插件" : kindLabels[activeItem.record.kind]}</p><h1>{label}</h1><span>{description}</span></div>
+          </div>
+          <div className={styles.detailControls}>
+            <label className={styles.toggle}><input aria-label={`${label} 启用状态`} type="checkbox" checked={activeItem.enabled} disabled={busyId === activeItem.id} onChange={() => void toggle(activeItem)} /><span /></label>
+            <button ref={(node) => { if (node) menuButtonRefs.current.set(activeItem.id, node); }} className={styles.detailMore} type="button" aria-label={`${label} 更多操作`} aria-expanded={menuId === activeItem.id} onClick={() => setMenuId((current) => current === activeItem.id ? undefined : activeItem.id)}><AppIcon name="more" size={16} /></button>
+            {menuId === activeItem.id ? <div className={`${styles.menu} ${styles.detailMenu}`} role="menu" onMouseDown={(event) => event.stopPropagation()}>
+              <button role="menuitem" type="button" onClick={() => props.onNotice(activeItem.kind === "builtin" ? activeItem.definition.privacyNote : privacy)}>隐私与数据边界</button>
+              <button role="menuitem" type="button" onClick={() => props.onNotice(activeItem.kind === "builtin" ? "插件诊断位于下方配置面板。" : `签名有效 · SHA-256 ${activeItem.record.package.manifest.contentSha256}`)}>诊断信息</button>
+              {activeItem.kind === "declarative" ? <button role="menuitem" type="button" className={styles.danger} onClick={() => void uninstall(activeItem)}>卸载</button> : null}
+            </div> : null}
+          </div>
         </header>
         <dl className={styles.metadata}>
           <div><dt><AppIcon name="info" size={16} />来源</dt><dd>{source}</dd></div>
@@ -280,7 +290,7 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
     <section className={styles.workspace} aria-label="插件管理">
       <header className={styles.header}>
         <div><h1>插件</h1><p>启用需要的本地集成，或管理已经安装的声明式扩展。</p></div>
-        <Button variant="outline" onClick={() => setActive({ kind: "browse" })}><AppIcon name="plugins" size={16} />浏览 / 导入扩展</Button>
+        <Button variant="outline" onClick={() => setActive({ kind: "browse" })}><AppIcon name="plugins" size={16} />插件市场</Button>
       </header>
       <div className={styles.list} role="list">
         {directory.map((item) => {

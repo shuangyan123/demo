@@ -59,9 +59,11 @@ test("Obsidian 使用固定版本 Lobe 品牌资产并登记校验值", () => {
 });
 
 test("插件目录保持无分隔线开放列表并提供键盘焦点与整页详情", async () => {
-  const [styles, importStyles] = await Promise.all([
+  const [styles, importStyles, view, marketplace] = await Promise.all([
     readFile(new URL("./plugins/settings-plugins-view.module.css", import.meta.url), "utf8"),
     readFile(new URL("../import/review-import-view.module.css", import.meta.url), "utf8"),
+    readFile(new URL("./plugins/settings-plugins-view.tsx", import.meta.url), "utf8"),
+    readFile(new URL("./plugins/declarative-extension-marketplace.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(styles, /\.list\s*\{[\s\S]*gap:\s*0\.35rem/);
   assert.doesNotMatch(styles, /\.row[^}]*border-bottom/);
@@ -69,4 +71,13 @@ test("插件目录保持无分隔线开放列表并提供键盘焦点与整页�
   assert.match(styles, /\.detailPage\s*\{[\s\S]*width:\s*min\(57\.5rem, 100%\)/);
   assert.match(importStyles, /@media \(max-width: 640px\)/);
   assert.match(importStyles, /data-step="confirm"/);
+  assert.match(view, /useState<ActivePlugin \| undefined>/);
+  assert.match(view, /插件市场/);
+  assert.match(view, /className=\{styles\.rowMain\}/);
+  assert.match(view, /className=\{styles\.toggle\}/);
+  assert.match(view, /className=\{styles\.moreButton\}/);
+  assert.match(styles, /\.detailControls/);
+  assert.match(marketplace, /className=\{styles\.rowMain\}/);
+  assert.match(marketplace, /搜索插件名称、作用或作者/);
+  assert.doesNotMatch(marketplace, /<h[1-6][^>]*>已安装/);
 });

@@ -38,8 +38,8 @@ test("topic labels use the first non-empty user line and fall back to the turn o
   };
 
   assert.deepEqual(buildConversationTopics(timeline), [
-    { id: "turn-1", label: "如何拆解资料分析题？", ordinal: 1 },
-    { id: "turn-2", label: "第 2 轮", ordinal: 2 },
+    { attachments: [], id: "turn-1", label: "如何拆解资料分析题？", ordinal: 1, summary: undefined },
+    { attachments: [], id: "turn-2", label: "第 2 轮", ordinal: 2, summary: undefined },
   ]);
 });
 
@@ -54,4 +54,8 @@ test("conversation navigation keeps scrolling local and exposes accessible contr
   assert.match(hook, /overflowing && !atBottom/);
   assert.match(hook, /followNextUpdateRef/);
   assert.doesNotMatch(workspace, /bottomRef\.current\?\.scrollIntoView/);
+  assert.match(navigation, /index === topics\.length - 1/);
+  assert.match(navigation, /className=\{latest \? "is-latest"/);
+  assert.match(navigation, /role="tooltip"/);
+  assert.match(navigation, /topic\.attachments\.slice\(0, 2\)/);
 });

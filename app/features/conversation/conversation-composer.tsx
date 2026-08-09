@@ -3,8 +3,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from "react";
 import type { AiModelRuntimeDescriptor, AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
 import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
+import type { ConversationContextCompaction } from "../../types/domains/conversation.ts";
+import type { ConversationContextBudget } from "../../services/conversation-context-budget.ts";
+import { formatContextTokenCount } from "../../services/conversation-context-budget.ts";
 import { AppIcon } from "../shared/app-icon";
-import { cx } from "../shared/ui-primitives";
+import { Button, cx } from "../shared/ui-primitives";
 import type { DraftAttachment } from "./conversation-attachment-utils.ts";
 import { ConversationAddMenu } from "./conversation-add-menu";
 import { ConversationDraftInput } from "./conversation-draft-input";
@@ -22,6 +25,10 @@ type ConversationComposerProps = {
   attachments: DraftAttachment[];
   busy: boolean;
   connections: ApiConnectionProfile[];
+  contextBudget: ConversationContextBudget;
+  contextCompaction?: ConversationContextCompaction;
+  contextCompressing: boolean;
+  contextCompressionAvailable: boolean;
   draft: string;
   modelSelectionError?: string;
   purpose: AiConnectionPurpose;
@@ -33,6 +40,7 @@ type ConversationComposerProps = {
   onAttachmentsAdd: (attachments: DraftAttachment[]) => void;
   onAttachmentRemove: (attachmentId: string) => void;
   onCaptureScreen: () => void;
+  onCompressContext: () => void;
   onDraftChange: (draft: string) => void;
   onNotice: (message: string) => void;
   onOpenConnections: () => void;
@@ -80,6 +88,10 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   attachments,
   busy,
   connections,
+  contextBudget,
+  contextCompaction,
+  contextCompressing,
+  contextCompressionAvailable,
   draft,
   modelSelectionError,
   purpose,
@@ -91,6 +103,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   onAttachmentsAdd,
   onAttachmentRemove,
   onCaptureScreen,
+  onCompressContext,
   onDraftChange,
   onNotice,
   onOpenConnections,
@@ -260,6 +273,25 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
             });
           }}
         />
+        <details className="conversation-context-budget">
+          <summary aria-label="查看对话上下文用量">
+            上下文 {formatContextTokenCount(contextBudget.usedTokens)}
+            {contextBudget.contextWindow ? ` / ${formatContextTokenCount(contextBudget.contextWindow)} · 剩余 ${contextBudget.remainingPercent}%` : " · 上限未知"}
+          </summary>
+          <section aria-label="对话上下文详情">
+            <header className="flex justify-between gap-2"><strong>上下文</strong><span className="text-muted text-xs">{contextBudget.precision === "usage-calibrated" ? "厂商用量校准 + 增量估算" : "本地保守估算"}</span></header>
+            <dl className="grid gap-2 text-xs">
+              <div className="flex justify-between"><dt className="text-muted">已使用</dt><dd>{formatContextTokenCount(contextBudget.usedTokens)} tokens</dd></div>
+              <div className="flex justify-between"><dt className="text-muted">输出预留</dt><dd>{formatContextTokenCount(contextBudget.outputReserveTokens)} tokens</dd></div>
+              {contextBudget.remainingTokens !== undefined ? <div className="flex justify-between"><dt className="text-muted">剩余</dt><dd>{formatContextTokenCount(contextBudget.remainingTokens)} tokens · {contextBudget.remainingPercent}%</dd></div> : null}
+            </dl>
+            {contextCompaction ? <p className="text-muted text-xs">上次压缩：{new Date(contextCompaction.compactedAt).toLocaleString("zh-CN")} · 已覆盖 {contextCompaction.sourceMessageCount} 条消息</p> : null}
+            <Button size="sm" disabled={!contextCompressionAvailable || contextCompressing || busy} onClick={onCompressContext}>
+              {contextCompressing ? <><span className="ui-spinner" />正在压缩</> : <><AppIcon name="sparkles" size={16} />压缩上下文</>}
+            </Button>
+            {!contextCompressionAvailable ? <small className="text-muted text-xs">至少保留最近 6 轮；旧上下文达到可压缩规模后可用。</small> : null}
+          </section>
+        </details>
         <button className="conversation-send" disabled={busy || (!draft.trim() && !attachments.length)} type="submit" aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>
       </div>
     </form>

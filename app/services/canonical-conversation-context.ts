@@ -2,7 +2,7 @@ import type { AiConversation, AiConversationAttachment, AiConversationMessage, A
 import type { CanonicalConversationTurn } from "../types/domains/ai-conversation-context.ts";
 
 export type CanonicalConversationContextInput = {
-  conversation?: Pick<AiConversation, "summary">;
+  conversation?: Pick<AiConversation, "summary" | "contextCompaction">;
   messages: AiConversationMessage[];
   attachments?: AiConversationAttachment[];
   runSteps?: AiConversationRunStep[];
@@ -24,7 +24,12 @@ export function buildCanonicalConversationTurns(input: CanonicalConversationCont
     toolsByTurn.set(step.turnId, [...(toolsByTurn.get(step.turnId) ?? []), { name: step.label, summary: step.text.trim(), state }]);
   }
 
-  const turns = input.messages
+  const compaction = input.conversation?.contextCompaction;
+  const boundaryIndex = compaction
+    ? input.messages.findIndex((message) => message.id === compaction.throughMessageId)
+    : -1;
+  const visibleMessages = boundaryIndex >= 0 ? input.messages.slice(boundaryIndex + 1) : input.messages;
+  const turns = visibleMessages
     .filter((message) => message.role === "user" || message.role === "assistant")
     .map((message) => ({
       role: message.role as "user" | "assistant",
@@ -38,11 +43,15 @@ export function buildCanonicalConversationTurns(input: CanonicalConversationCont
   const size = turns.reduce((total, turn) => total + turn.content.length
     + (turn.attachmentSummaries?.join("").length ?? 0)
     + (turn.toolResults?.reduce((sum, tool) => sum + tool.summary.length, 0) ?? 0), 0);
-  if (size <= limit) return turns;
+  const compactedTurns: CanonicalConversationTurn[] = compaction && boundaryIndex >= 0
+    ? [{ role: "assistant", content: `此前对话压缩摘要：\n${compaction.summary.trim()}`, createdAt: turns[0]?.createdAt ?? compaction.compactedAt }, ...turns]
+    : turns;
+  if (size <= limit) return compactedTurns;
 
   const recent = turns.slice(-24); // 最近 12 轮用户/助手消息。
-  if (!input.conversation?.summary?.trim()) return recent;
-  return [{ role: "assistant", content: `此前对话摘要：${input.conversation.summary.trim()}`, createdAt: recent[0]?.createdAt ?? new Date(0).toISOString() }, ...recent];
+  const summary = compaction?.summary.trim() || input.conversation?.summary?.trim();
+  if (!summary) return recent;
+  return [{ role: "assistant", content: `此前对话摘要：${summary}`, createdAt: recent[0]?.createdAt ?? new Date(0).toISOString() }, ...recent];
 }
 
 /** 映射为统一聊天请求，同时只附加摘要，不读取附件正文或厂商私有字段。 */
