@@ -59,3 +59,13 @@ test("conversation navigation keeps scrolling local and exposes accessible contr
   assert.match(navigation, /role="tooltip"/);
   assert.match(navigation, /topic\.attachments\.slice\(0, 2\)/);
 });
+
+test("topic navigation auto-scroll effect never exposes the scroll return value as cleanup", () => {
+  const navigation = readFileSync(new URL("./conversation-topic-navigation.tsx", import.meta.url), "utf8");
+
+  assert.match(
+    navigation,
+    /useEffect\(\(\) => \{\s*latestRef\.current\?\.scrollIntoView\(\{ block: "nearest" \}\);\s*\}, \[topics\.length\]\);/,
+  );
+  assert.doesNotMatch(navigation, /useEffect\(\(\) => latestRef\.current\?\.scrollIntoView/);
+});
