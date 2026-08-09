@@ -1,13 +1,8 @@
 import { reviewDb } from "../db/review-db.ts";
-import type { ApiConnectionProfile, AiConnectionSnapshot } from "../types/domains/ai-connection.ts";
-import type { AutomationDefinition, AutomationRun, AutomationRunTrigger, AutomationSnapshot } from "../types/domains/automation.ts";
-import type { PersonalizationSettings } from "../types/domains/personalization.ts";
+import type { AutomationDefinition, AutomationRun, AutomationSnapshot } from "../types/domains/automation.ts";
 import { calculateDueAutomation, nextAutomationRun, validateAutomationSchedule } from "./automation-schedule.ts";
-import { executeAutomation, previewAutomationDefinition } from "./automation-executor.ts";
-import { classifyAutomationError } from "./automation-failure.ts";
 
 const LEASE_DURATION_MS = 5 * 60 * 1000;
-const LEASE_RENEW_INTERVAL_MS = 60 * 1000;
 
 export type AutomationDefinitionInput = Omit<AutomationDefinition, "id" | "nextRunAt" | "lastRunAt" | "leaseOwner" | "leaseExpiresAt" | "createdAt" | "updatedAt">;
 export type DueAutomation = {
@@ -61,6 +56,49 @@ async function releaseLease(id: string, owner: string): Promise<void> {
   const definition = await reviewDb.automationDefinitions.get(id);
   if (definition?.leaseOwner === owner) await reviewDb.automationDefinitions.update(id, { leaseOwner: undefined, leaseExpiresAt: undefined });
 }
+
+/** 单次执行所需的原子持久化端口；跨步骤顺序由 Application Layer 负责。 */
+export const automationExecutionRepository = {
+  acquireLease({ automationId, leaseOwner, now, expectedUpdatedAt }: {
+    automationId: string;
+    leaseOwner: string;
+    now: Date;
+    expectedUpdatedAt?: string;
+  }): Promise<AutomationDefinition | undefined> {
+    return acquireLease(automationId, leaseOwner, now, expectedUpdatedAt);
+  },
+
+  renewLease(automationId: string, leaseOwner: string): Promise<boolean> {
+    return renewAutomationLease(automationId, leaseOwner);
+  },
+
+  releaseLease(automationId: string, leaseOwner: string): Promise<void> {
+    return releaseLease(automationId, leaseOwner);
+  },
+
+  createRun(run: AutomationRun): Promise<void> {
+    return reviewDb.automationRuns.add(run).then(() => undefined);
+  },
+
+  async completeRun({ automationId, leaseOwner, nextRunAt, run }: {
+    automationId: string;
+    leaseOwner: string;
+    nextRunAt?: string;
+    run: AutomationRun;
+  }): Promise<void> {
+    await reviewDb.transaction("rw", [reviewDb.automationDefinitions, reviewDb.automationRuns], async () => {
+      await reviewDb.automationRuns.put(run);
+      const current = await reviewDb.automationDefinitions.get(automationId);
+      if (current?.leaseOwner === leaseOwner) {
+        await reviewDb.automationDefinitions.update(automationId, {
+          lastRunAt: run.finishedAt,
+          nextRunAt,
+          updatedAt: run.finishedAt,
+        });
+      }
+    });
+  },
+};
 
 /** 已安排仓储统一管理定义、运行收件箱、租约和调度推进。 */
 export const automationRepository = {
@@ -138,91 +176,6 @@ export const automationRepository = {
       missedCount: item.state.missedCount,
       expectedUpdatedAt: item.definition.updatedAt,
     }));
-  },
-
-  async run(input: {
-    definition: AutomationDefinition;
-    connection?: ApiConnectionProfile;
-    aiSnapshot?: AiConnectionSnapshot;
-    personalization: PersonalizationSettings;
-    trigger: AutomationRunTrigger;
-    scheduledAt?: string;
-    nextRunAt?: string;
-    missedCount?: number;
-    expectedUpdatedAt?: string;
-    now?: Date;
-  }): Promise<AutomationRun | undefined> {
-    const now = input.now ?? new Date();
-    const owner = crypto.randomUUID();
-    const definition = await acquireLease(input.definition.id, owner, now, input.expectedUpdatedAt);
-    if (!definition) return undefined;
-    const timestamp = nowIso(now);
-    const preview = await previewAutomationDefinition(definition);
-    const run: AutomationRun = {
-      id: owner,
-      automationId: definition.id,
-      automationName: definition.name,
-      status: "running",
-      trigger: input.trigger,
-      scheduledAt: input.scheduledAt ?? timestamp,
-      startedAt: timestamp,
-      unread: false,
-      missedCount: input.missedCount ?? 0,
-      proposalIds: [],
-      contextSummary: preview.summary,
-      contextCharCount: preview.contextCharCount,
-      createdAt: timestamp,
-    };
-    await reviewDb.automationRuns.add(run);
-    const leaseTimer = setInterval(() => {
-      void renewAutomationLease(definition.id, owner).catch(() => undefined);
-    }, LEASE_RENEW_INTERVAL_MS);
-    try {
-      const output = await executeAutomation({ definition, connection: input.connection, aiSnapshot: input.aiSnapshot, personalization: input.personalization });
-      const finishedAt = nowIso();
-      const completed: AutomationRun = {
-        ...run,
-        status: "succeeded",
-        result: output.result,
-        proposalIds: output.proposalIds,
-        contextSummary: output.contextSummary,
-        contextCharCount: output.contextCharCount,
-        collectionSummary: output.collectionSummary,
-        unread: true,
-        finishedAt,
-      };
-      await reviewDb.transaction("rw", [reviewDb.automationDefinitions, reviewDb.automationRuns], async () => {
-        await reviewDb.automationRuns.put(completed);
-        const current = await reviewDb.automationDefinitions.get(definition.id);
-        if (current?.leaseOwner === owner) {
-          await reviewDb.automationDefinitions.update(definition.id, { lastRunAt: finishedAt, nextRunAt: input.nextRunAt ?? definition.nextRunAt, updatedAt: finishedAt });
-        }
-      });
-      return completed;
-    } catch (error) {
-      const finishedAt = nowIso();
-      const diagnosis = classifyAutomationError(error, { online: typeof navigator === "undefined" ? undefined : navigator.onLine });
-      const failed: AutomationRun = {
-        ...run,
-        status: "failed",
-        error: diagnosis.message,
-        failureCategory: diagnosis.category,
-        failureRecoveryAction: diagnosis.recoveryAction,
-        unread: true,
-        finishedAt,
-      };
-      await reviewDb.transaction("rw", [reviewDb.automationDefinitions, reviewDb.automationRuns], async () => {
-        await reviewDb.automationRuns.put(failed);
-        const current = await reviewDb.automationDefinitions.get(definition.id);
-        if (current?.leaseOwner === owner) {
-          await reviewDb.automationDefinitions.update(definition.id, { lastRunAt: finishedAt, nextRunAt: input.nextRunAt ?? definition.nextRunAt, updatedAt: finishedAt });
-        }
-      });
-      return failed;
-    } finally {
-      clearInterval(leaseTimer);
-      await releaseLease(definition.id, owner);
-    }
   },
 
   async markRead(id: string): Promise<void> {

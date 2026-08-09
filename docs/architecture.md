@@ -490,6 +490,23 @@ Interview UI
 - 跨 IndexedDB 与外部 AI 没有原子事务。用例不回滚已保存的用户回答、不自动重试，也通过稳定失败步骤和部分结果让 Controller 刷新真实状态；重新显式提交的幂等性仍受现有无提交键的数据模型限制。
 - 架构契约同时阻止 Application 反向导入 UI/宿主全局，以及 Platform 反向依赖 Application；核心数据库继续是 `review_workspace` v16。
 
+# 0.4 Application Layer Phase 2：Automation Execution（2026-08-09）
+
+```text
+Automation UI
+  → useAutomationCenter（Web Locks / scheduler / busy / notice / refresh / sample）
+  → app/application/automation/execute-automation-run（单次执行编排）
+  → automation executor / failure classifier / execution repository ports
+  → IndexedDB + external AI / HTTP collection / proposal persistence
+```
+
+- 用例固定执行顺序为：获取租约、预览、写 `running`、启动续租、执行外部工作、写成功或失败终态、停止续租、释放租约。预览或 `running` 写入失败也会释放已经获得的租约。
+- 租约继续使用任务最新快照与 `expectedUpdatedAt` 阻止停用/已编辑的计划快照运行；续租失败不触发整流程重放，终态 transaction 仍以当前所有者复核决定是否推进 `lastRunAt` / `nextRunAt`。
+- `running` 记录与外部 AI、HTTP 采集、提案保存之间没有 ACID 事务。外部执行开始后若终态保存失败，已发生的远端请求或提案副作用不回滚；Application 暴露 `partialResult` 并将重试限制为 `manual-only`。
+- 已分类的外部执行错误仍保存一个未读 `failed` 运行并按原规则推进计划，不自动重试。成功/失败终态与当前租约所有者的任务更新继续位于同一个 Dexie transaction。
+- cleanup 失败保持为调用失败：`release-lease` 错误会覆盖正常返回或先前异常；若终态已经提交，错误中的部分结果保留该终态，避免调用方误判为未执行。
+- 本阶段不修改 Dexie v16 schema、Automation 定义/运行格式、Executor/Provider/MCP/采集协议、Web Locks、UI、Electron preload 或 Host Capability。
+
 ## 对话上下文压缩与插件市场边界（2026-08-02）
 
 - `useConversationContext` 是 Composer 预算和手动压缩的共享装配边界；未发送草稿只在本机估算。压缩记录附加在既有会话上，不新增表、索引或 Dexie 版本，历史时间线保持完整。
