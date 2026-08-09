@@ -83,3 +83,42 @@ test("空学习档案不会制造推荐", async ({ page }) => {
   await expect(page.getByText("暂无足够学习记录形成今日推荐。", { exact: true })).toBeVisible();
   await expect(page.locator("[data-learning-action]")).toHaveCount(0);
 });
+
+test("同一 tutoring session 的失败微测与 future auto plan 只显示一个 P2 action", async ({ page }) => {
+  await page.goto("/");
+  const completedAt = "2026-08-08T08:00:00.000Z";
+  await replaceLearningFacts(page, {
+    tutoringSessions: [{ id: "dedup-session", mode: "upload", topic: "条件关系", goal: "完成微测复练", status: "completed", turnCount: 1, startedAt: completedAt, completedAt, createdAt: completedAt, updatedAt: completedAt }],
+    tutoringTurns: [{
+      id: "dedup-failed-turn",
+      sessionId: "dedup-session",
+      speaker: "ai_tutor",
+      content: "完成随堂微测",
+      microAssessment: {
+        questions: [{ id: "dedup-question", prompt: "必要条件判断", options: ["A", "B"], correctOptionIndex: 0, explanation: "" }],
+        selections: [1],
+        correctCount: 0,
+        completedAt,
+      },
+      createdAt: completedAt,
+    }],
+    tutoringPlans: [{
+      id: "auto:dedup-session",
+      title: "条件关系 · 间隔复练",
+      objective: "巩固条件关系",
+      linkedKnowledgeIds: [],
+      linkedMistakeIds: [],
+      nextTask: "重新完成必要条件微测",
+      nextPracticeAt: "2099-08-12T08:00:00.000Z",
+      status: "active",
+      createdAt: completedAt,
+      updatedAt: completedAt,
+    }],
+  });
+  await page.reload();
+
+  const tutoringActions = page.locator('[data-learning-action="retry_tutoring"]');
+  await expect(tutoringActions).toHaveCount(1);
+  await expect(tutoringActions).toContainText("重试未通过的辅导微测");
+  await expect(tutoringActions).not.toContainText("继续辅导计划");
+});

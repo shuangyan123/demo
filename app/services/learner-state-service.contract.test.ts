@@ -9,6 +9,7 @@ import { deriveLearnerStateSnapshot, masteryLevelToScore, type LearnerStateFacts
 const today = new Date("2026-08-09T08:00:00.000Z");
 const past = "2026-08-08T08:00:00.000Z";
 const future = "2026-08-12T08:00:00.000Z";
+const tutoringQuestion = { id: "q1", prompt: "问题", options: ["A", "B"], correctOptionIndex: 0, explanation: "" };
 
 function facts(patch: Partial<LearnerStateFacts> = {}): LearnerStateFacts {
   return { mistakes: [], attempts: [], knowledgeEntries: [], knowledgeAttempts: [], interviewEvaluations: [], interviewPracticePlans: [], interviewSessions: [], tutoringSessions: [], tutoringTurns: [], tutoringPlans: [], ...patch };
@@ -33,6 +34,105 @@ function knowledgeAttempt(id: string, knowledgeId: string, result: ReviewResult,
 function tutoringPlan(id: string, status: TutoringPlan["status"], nextPracticeAt = past): TutoringPlan {
   return { id, title: `辅导计划 ${id}`, objective: "巩固判断关系", linkedKnowledgeIds: [], linkedMistakeIds: [], nextTask: "完成一次变式微测", nextPracticeAt, status, createdAt: past, updatedAt: past };
 }
+
+function completedTutoringTurn(id: string, sessionId: string, correctCount: number, completedAt: string, createdAt = completedAt): TutoringTurn {
+  return {
+    id,
+    sessionId,
+    speaker: "ai_tutor",
+    content: "",
+    microAssessment: { questions: [tutoringQuestion], selections: [correctCount ? 0 : 1], correctCount, completedAt },
+    createdAt,
+  };
+}
+
+function tutoringRecommendations(snapshot: ReturnType<typeof deriveLearnerStateSnapshot>, planId: string) {
+  return snapshot.recommendations.filter((item) => item.kind === "retry_tutoring" && item.destination.targetIds?.includes(planId));
+}
+
+test("future auto plan 与最新失败微测只保留 P2", () => {
+  const planId = "auto:session-a";
+  const snapshot = deriveLearnerStateSnapshot(facts({
+    tutoringPlans: [tutoringPlan(planId, "active", future)],
+    tutoringTurns: [completedTutoringTurn("failed-a", "session-a", 0, past)],
+  }), today);
+  const actions = tutoringRecommendations(snapshot, planId);
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0]?.priority, 200);
+  assert.equal(actions[0]?.evidence[0]?.id, "failed-a");
+});
+
+test("due auto plan 优先于同一 session 的失败微测，只保留 P1", () => {
+  const planId = "auto:session-b";
+  const snapshot = deriveLearnerStateSnapshot(facts({
+    tutoringPlans: [tutoringPlan(planId, "active", past)],
+    tutoringTurns: [completedTutoringTurn("failed-b", "session-b", 0, past)],
+  }), today);
+  const actions = tutoringRecommendations(snapshot, planId);
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0]?.priority, 120);
+  assert.equal(actions[0]?.evidence[0]?.id, planId);
+});
+
+test("future auto plan 与最新通过微测只保留 P4", () => {
+  const planId = "auto:session-c";
+  const snapshot = deriveLearnerStateSnapshot(facts({
+    tutoringPlans: [tutoringPlan(planId, "active", future)],
+    tutoringTurns: [completedTutoringTurn("passed-c", "session-c", 1, past)],
+  }), today);
+  const actions = tutoringRecommendations(snapshot, planId);
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0]?.priority, 400);
+  assert.equal(actions[0]?.evidence[0]?.id, planId);
+});
+
+test("同一 session 只以最新 completed assessment 决定 P2 或 P4", () => {
+  const older = "2026-08-06T08:00:00.000Z";
+  const newer = "2026-08-08T09:00:00.000Z";
+  const passedLatest = deriveLearnerStateSnapshot(facts({
+    tutoringPlans: [tutoringPlan("auto:session-d", "active", future)],
+    tutoringTurns: [completedTutoringTurn("older-failed", "session-d", 0, older), completedTutoringTurn("newer-passed", "session-d", 1, newer)],
+  }), today);
+  assert.deepEqual(tutoringRecommendations(passedLatest, "auto:session-d").map((item) => item.priority), [400]);
+
+  const failedLatest = deriveLearnerStateSnapshot(facts({
+    tutoringPlans: [tutoringPlan("auto:session-e", "active", future)],
+    tutoringTurns: [completedTutoringTurn("older-passed", "session-e", 1, older), completedTutoringTurn("newer-failed", "session-e", 0, newer)],
+  }), today);
+  const actions = tutoringRecommendations(failedLatest, "auto:session-e");
+  assert.deepEqual(actions.map((item) => item.priority), [200]);
+  assert.equal(actions[0]?.evidence[0]?.id, "newer-failed");
+});
+
+test("tutoring precedence 在输入数组重排后保持 recommendation IDs 与顺序", () => {
+  const input = facts({
+    tutoringPlans: [tutoringPlan("auto:stable-a", "active", future), tutoringPlan("auto:stable-b", "active", past)],
+    tutoringTurns: [
+      completedTutoringTurn("stable-a-new", "stable-a", 0, "2026-08-08T09:00:00.000Z"),
+      completedTutoringTurn("stable-a-old", "stable-a", 1, "2026-08-07T09:00:00.000Z"),
+      completedTutoringTurn("stable-b", "stable-b", 0, "2026-08-08T07:00:00.000Z"),
+    ],
+  });
+  const first = deriveLearnerStateSnapshot(input, today).recommendations;
+  const second = deriveLearnerStateSnapshot({ ...input, tutoringPlans: [...input.tutoringPlans].reverse(), tutoringTurns: [...input.tutoringTurns].reverse() }, today).recommendations;
+  assert.deepEqual(first.map((item) => item.id), second.map((item) => item.id));
+  assert.deepEqual(first, second);
+});
+
+test("malformed optional legacy dates fail safe without fabricating due actions", () => {
+  const invalidMistake = { ...mistake("invalid-mistake", 2), nextReviewAt: undefined } as unknown as Mistake;
+  const invalidKnowledge = { ...knowledge("invalid-knowledge", 2), nextReviewAt: "not-a-date" } as KnowledgeEntry;
+  const invalidTutoringPlan = { ...tutoringPlan("invalid-tutoring", "active"), nextPracticeAt: undefined } as unknown as TutoringPlan;
+  const invalidInterviewPlan = { ...interviewPlan("invalid-interview", "active"), nextPracticeAt: "not-a-date" } as InterviewPracticePlan;
+  const snapshot = deriveLearnerStateSnapshot(facts({
+    mistakes: [invalidMistake],
+    knowledgeEntries: [invalidKnowledge],
+    tutoringPlans: [invalidTutoringPlan],
+    interviewPracticePlans: [invalidInterviewPlan],
+  }), today);
+  assert.equal(snapshot.dueReviewCount, 0);
+  assert.deepEqual(snapshot.recommendations, []);
+});
 
 function interviewPlan(id: string, status: InterviewPracticePlan["status"], nextPracticeAt = past): InterviewPracticePlan {
   return { id, title: `面试计划 ${id}`, type: "structured", questionIds: ["question-1"], targetSessionCount: 3, completedSessionCount: 1, nextPracticeAt, status, reason: "提升结构化表达", createdAt: past, updatedAt: past };

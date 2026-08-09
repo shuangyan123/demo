@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { associationRepository } from "../../services/association-repository";
 import { knowledgeRepository } from "../../services/knowledge-repository";
 import { reviewRepository } from "../../services/review-repository";
-import { deriveLearnerStateSnapshot, loadLearnerStateSnapshot } from "../../services/learner-state-service.ts";
+import { deriveLearnerStateSnapshot, loadLearnerStateSnapshotFromNormalizedFacts } from "../../services/learner-state-service.ts";
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
 import type { ImportJob } from "../../types/domains/import.ts";
 import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
@@ -45,12 +45,17 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
   // 从 repository 读取最新快照，并同步页面上所有派生计数的基础数据。
   const refreshData = useCallback(async () => {
     try {
-      const [snapshot, knowledgeTraining, links, nextLearnerState] = await Promise.all([
+      const [snapshot, knowledgeTraining, links] = await Promise.all([
         reviewRepository.loadSnapshot(today),
         knowledgeRepository.loadTrainingSnapshot(today),
         associationRepository.listAll(),
-        loadLearnerStateSnapshot(today, scope),
       ]);
+      const nextLearnerState = await loadLearnerStateSnapshotFromNormalizedFacts({
+        mistakes: snapshot.mistakes,
+        attempts: snapshot.attempts,
+        knowledgeEntries: knowledgeTraining.entries,
+        knowledgeAttempts: knowledgeTraining.attempts,
+      }, today, scope);
       const scopedMistakes = filterWorkspaceRecords(snapshot.mistakes, scope);
       const scopedKnowledgeEntries = filterWorkspaceRecords(knowledgeTraining.entries, scope);
       const scopedLinks = filterWorkspaceRecords(links, scope);
