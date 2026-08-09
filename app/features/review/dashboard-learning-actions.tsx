@@ -32,33 +32,33 @@ export function DashboardLearningActions({
   onOpen: (action: LearningActionRecommendation) => void;
 }) {
   return (
-    <section className="dashboard-learning-actions" aria-labelledby="dashboard-learning-actions-title">
-      <header>
+    <section className="mt-4 rounded-2xl border border-line bg-surface p-4" aria-labelledby="dashboard-learning-actions-title">
+      <header className="mb-3 flex items-end justify-between gap-4">
         <div>
-          <p>基于本地可观察学习记录</p>
-          <h2 id="dashboard-learning-actions-title">今日学习</h2>
+          <p className="text-xs text-muted">基于本地可观察学习记录</p>
+          <h2 className="mt-0.5 text-base font-semibold" id="dashboard-learning-actions-title">今日学习</h2>
         </div>
-        {recommendations.length ? <span>{recommendations.length} 项可执行</span> : null}
+        {recommendations.length ? <span className="text-xs text-muted">{recommendations.length} 项可执行</span> : null}
       </header>
       {recommendations.length ? (
-        <div className="dashboard-learning-action-list">
+        <div className="grid gap-2">
           {recommendations.slice(0, 4).map((action) => (
-            <article key={action.id} data-learning-action={action.kind}>
-              <span className="dashboard-learning-action-icon" aria-hidden="true"><AppIcon name="chevronRight" size={18} /></span>
-              <div className="dashboard-learning-action-copy">
-                <h3>{action.title}</h3>
-                <p>{action.summary}</p>
-                <details>
-                  <summary>为什么推荐？</summary>
-                  <p>{action.priorityReason}</p>
-                  <ul aria-label="本地证据来源">
+            <article className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-t border-line pt-3 max-sm:grid-cols-[auto_minmax(0,1fr)]" key={action.id} data-learning-action={action.kind}>
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-surface-muted" aria-hidden="true"><AppIcon name="chevronRight" size={18} /></span>
+              <div>
+                <h3 className="text-sm font-semibold">{action.title}</h3>
+                <p className="mt-1 text-xs leading-5 text-muted">{action.summary}</p>
+                <details className="mt-1 text-xs leading-5 text-muted">
+                  <summary className="w-fit cursor-pointer font-semibold text-foreground">为什么推荐？</summary>
+                  <p className="mt-1">{action.priorityReason}</p>
+                  <ul className="mt-1.5 flex flex-wrap gap-1" aria-label="本地证据来源">
                     {action.evidence.slice(0, 4).map((item) => (
-                      <li key={`${item.type}:${item.id}`}><span>{evidenceLabels[item.type]}</span>{item.label}</li>
+                      <li className="rounded-full bg-surface-muted px-2 py-0.5" key={`${item.type}:${item.id}`}><span className="mr-1.5 font-semibold text-foreground">{evidenceLabels[item.type]}</span>{item.label}</li>
                     ))}
                   </ul>
                 </details>
               </div>
-              <Button size="sm" variant="soft" onClick={() => onOpen(action)}>{action.destination.module === "library" ? "查看错题" : actionLabels[action.kind]}</Button>
+              <Button className="max-sm:col-start-2 max-sm:justify-self-start" size="sm" variant="soft" onClick={() => onOpen(action)}>{action.destination.module === "library" ? "查看错题" : actionLabels[action.kind]}</Button>
             </article>
           ))}
         </div>
