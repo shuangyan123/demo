@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { startInterviewSession, type StartInterviewSessionDependencies } from "../../application/interview/start-interview-session.ts";
+import { submitInterviewTurn, type SubmitInterviewTurnDependencies } from "../../application/interview/submit-interview-turn.ts";
 import { requestInterviewEvaluation, requestInterviewPracticePlan, requestInterviewQuestions, requestInterviewReply } from "../../services/interview-ai-service";
 import { interviewRepository } from "../../services/interview-repository";
 import { finishInterviewTimer, pauseInterviewTimer, resetInterviewTurnTimer, resumeInterviewTimer } from "../../services/interview-timer";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
-import type { InterviewEvaluation, InterviewLink, InterviewPracticePlan, InterviewQuestion, InterviewQuestionDraft, InterviewQuestionSet, InterviewSession, InterviewSnapshot, InterviewSpeaker, InterviewStage, InterviewTurn, InterviewType } from "../../types/domains/interview.ts";
+import type { InterviewEvaluation, InterviewLink, InterviewPracticePlan, InterviewQuestion, InterviewQuestionDraft, InterviewQuestionSet, InterviewSession, InterviewSnapshot, InterviewTurn, InterviewType } from "../../types/domains/interview.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
@@ -35,12 +37,20 @@ function scopeInterviewSnapshot(snapshot: InterviewSnapshot, scope: WorkspaceDat
   };
 }
 
-// 根据当前阶段推断 AI 轮次角色；结构化小组和无领导会出现同组考生发言。
-function resolveAiSpeaker(type: InterviewType, stage: InterviewStage): InterviewSpeaker {
-  if (type === "structured_group" && (stage === "peer_review" || stage === "response")) return "ai_peer";
-  if (type === "leaderless_group" && stage === "discussion") return "ai_peer";
-  return "ai_interviewer";
-}
+const startSessionDependencies: StartInterviewSessionDependencies = {
+  addTurn: (input) => interviewRepository.addTurn(input),
+  createSession: (question, planId) => interviewRepository.createSession(question, planId),
+  requestReply: requestInterviewReply,
+  updateSession: (id, patch) => interviewRepository.updateSession(id, patch),
+};
+
+const submitTurnDependencies: SubmitInterviewTurnDependencies = {
+  addTurn: (input) => interviewRepository.addTurn(input),
+  listTurns: (sessionId) => interviewRepository.listTurns(sessionId),
+  requestReply: requestInterviewReply,
+  resetTurnTimer: resetInterviewTurnTimer,
+  updateSession: (id, patch) => interviewRepository.updateSession(id, patch),
+};
 
 // 面试模块的数据协调 hook，集中处理 Dexie 刷新、AI 推进和评分保存。
 export function useInterviewData({
@@ -250,21 +260,16 @@ export function useInterviewData({
     }
     setBusy(true);
     try {
-      const session = await interviewRepository.createSession(question, planId);
-      const aiReply = await requestInterviewReply({ question, session, connection: textConnection, turns: [], personalizationSettings });
-      await interviewRepository.addTurn({
-        content: aiReply.reply,
-        sessionId: session.id,
-        speaker: resolveAiSpeaker(session.type, aiReply.nextStage),
-        stage: aiReply.nextStage,
-      });
-      await interviewRepository.updateSession(session.id, {
-        stage: aiReply.nextStage,
-        transcriptText: aiReply.reply,
+      const result = await startInterviewSession({
+        question,
+        planId,
+        connection: textConnection,
+        personalizationSettings,
+        dependencies: startSessionDependencies,
       });
       await refresh();
       onNotice("面试模拟已开始");
-      return session;
+      return result.session;
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "AI 面试启动失败");
       await refresh();
@@ -291,29 +296,15 @@ export function useInterviewData({
     }
     setBusy(true);
     try {
-      const existingTurns = turnsBySessionId.get(session.id) ?? [];
-      const candidateTurn = await interviewRepository.addTurn({
-        content: answer,
+      const result = await submitInterviewTurn({
+        session,
+        answer,
         durationSec,
-        sessionId: session.id,
-        speaker: "candidate",
-        stage: session.stage,
+        connection: textConnection,
+        personalizationSettings,
+        dependencies: submitTurnDependencies,
       });
-      const nextTurns = [...existingTurns, candidateTurn];
-      const aiReply = await requestInterviewReply({ question: session, session, connection: textConnection, turns: nextTurns, personalizationSettings });
-      await interviewRepository.addTurn({
-        content: aiReply.reply,
-        sessionId: session.id,
-        speaker: resolveAiSpeaker(session.type, aiReply.nextStage),
-        stage: aiReply.nextStage,
-      });
-      await interviewRepository.updateSession(session.id, {
-        stage: aiReply.nextStage,
-        totalDurationSec: session.totalDurationSec + durationSec,
-        ...resetInterviewTurnTimer(),
-        transcriptText: [...nextTurns.map((turn) => turn.content), aiReply.reply].join("\n"),
-      });
-      if (aiReply.shouldEvaluate) {
+      if (result.shouldEvaluate) {
         await finishSession(session.id);
       } else {
         await refresh();
