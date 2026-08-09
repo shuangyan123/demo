@@ -16,6 +16,13 @@ async function readReviewConversations(page: import("@playwright/test").Page) {
 
 test("UI 审查对话数据提供主题目录、阅读保护和跳到最新消息", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
+  await page.addInitScript(() => {
+    const nativeScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (options?: boolean | ScrollIntoViewOptions) {
+      nativeScrollIntoView.call(this, options);
+      return { unexpectedCleanup: true };
+    };
+  });
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/?ui-review=1");
   await page.getByRole("button", { name: "新对话" }).first().click();
@@ -55,6 +62,7 @@ test("UI 审查对话数据提供主题目录、阅读保护和跳到最新消�
   await expect(jump).toBeHidden();
 
   await page.screenshot({ path: testInfo.outputPath("v0.2.2-conversation-topics-desktop.png"), fullPage: false });
+  await expect(page.getByText("工作台暂时无法显示")).toHaveCount(0);
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

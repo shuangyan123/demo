@@ -24,7 +24,9 @@ function TopicList({ drawer = false, onPreview, onSelect, topics }: {
   topics: ConversationTopic[];
 }) {
   const latestRef = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => latestRef.current?.scrollIntoView({ block: "nearest" }), [topics.length]);
+  useEffect(() => {
+    latestRef.current?.scrollIntoView({ block: "nearest" });
+  }, [topics.length]);
   return (
     <nav className="conversation-topic-list" aria-label="对话主题目录">
       {topics.map((topic, index) => {
