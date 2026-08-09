@@ -504,7 +504,7 @@ Automation UI
 - 租约继续使用任务最新快照与 `expectedUpdatedAt` 阻止停用/已编辑的计划快照运行；续租失败不触发整流程重放，终态 transaction 仍以当前所有者复核决定是否推进 `lastRunAt` / `nextRunAt`。
 - `running` 记录与外部 AI、HTTP 采集、提案保存之间没有 ACID 事务。外部执行开始后若终态保存失败，已发生的远端请求或提案副作用不回滚；Application 暴露 `partialResult` 并将重试限制为 `manual-only`。
 - 已分类的外部执行错误仍保存一个未读 `failed` 运行并按原规则推进计划，不自动重试。成功/失败终态与当前租约所有者的任务更新继续位于同一个 Dexie transaction。
-- cleanup 失败保持为调用失败：`release-lease` 错误会覆盖正常返回或先前异常；若终态已经提交，错误中的部分结果保留该终态，避免调用方误判为未执行。
+- cleanup 失败保持可见但不覆盖已有 Application 主错误：停止续租与释放租约异常进入原错误的 `cleanupErrors`；仅在主流程成功时才以 `release-lease` 作为主错误。若终态已经提交，错误中的部分结果继续保留该终态，避免调用方误判为未执行。
 - 本阶段不修改 Dexie v16 schema、Automation 定义/运行格式、Executor/Provider/MCP/采集协议、Web Locks、UI、Electron preload 或 Host Capability。
 
 ## 对话上下文压缩与插件市场边界（2026-08-02）

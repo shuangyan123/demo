@@ -81,12 +81,14 @@ function applicationError(
   step: AutomationApplicationStep,
   cause: unknown,
   partialResult: AutomationExecutionPartialResult,
+  cleanupErrors: readonly unknown[] = [],
 ): AutomationApplicationError {
   return new AutomationApplicationError(
     step,
     cause,
     partialResult,
     partialResult.externalSideEffectsStarted || partialResult.run ? "manual-only" : "safe",
+    cleanupErrors,
   );
 }
 
@@ -118,6 +120,7 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
     externalSideEffectsStarted: false,
   };
   let stopLeaseRenewal: (() => void) | undefined;
+  let primaryError: unknown;
 
   try {
     let preview: AutomationPreview;
@@ -222,6 +225,9 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
       throw applicationError("complete-run", error, partialResult);
     }
     return completed;
+  } catch (error) {
+    primaryError = error;
+    throw error;
   } finally {
     const cleanupErrors: unknown[] = [];
     try {
@@ -235,11 +241,16 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
       cleanupErrors.push(error);
     }
     if (cleanupErrors.length) {
-      throw applicationError(
-        "release-lease",
-        cleanupErrors.length === 1 ? cleanupErrors[0] : new AggregateError(cleanupErrors, "自动化租约清理失败"),
-        partialResult,
-      );
+      if (primaryError instanceof AutomationApplicationError) {
+        primaryError.attachCleanupErrors(cleanupErrors);
+      } else if (primaryError === undefined) {
+        throw applicationError(
+          "release-lease",
+          cleanupErrors.length === 1 ? cleanupErrors[0] : new AggregateError(cleanupErrors, "自动化租约清理失败"),
+          partialResult,
+          cleanupErrors,
+        );
+      }
     }
   }
 }

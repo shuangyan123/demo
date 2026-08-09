@@ -38,7 +38,7 @@ const output: AutomationExecutionResult = {
   contextCharCount: 20,
 };
 
-type FailurePoint = "acquire" | "preview" | "create-run" | "start-renewal" | "execute" | "complete-success" | "complete-failure" | "release";
+type FailurePoint = "acquire" | "preview" | "create-run" | "start-renewal" | "stop-renewal" | "execute" | "complete-success" | "complete-failure" | "release";
 
 function harness({ failAt, leaseAvailable = true }: { failAt?: FailurePoint | FailurePoint[]; leaseAvailable?: boolean } = {}) {
   const calls: string[] = [];
@@ -93,7 +93,10 @@ function harness({ failAt, leaseAvailable = true }: { failAt?: FailurePoint | Fa
     startLeaseRenewal() {
       calls.push("start-renewal");
       if (fails("start-renewal")) throw new Error("续租计时器启动失败");
-      return () => calls.push("stop-renewal");
+      return () => {
+        calls.push("stop-renewal");
+        if (fails("stop-renewal")) throw new Error("续租计时器停止失败");
+      };
     },
   };
   return { calls, dependencies, getPersistedRun: () => persistedRun };
@@ -177,35 +180,56 @@ test("外部执行失败只执行一次并将稳定失败终态写入收件箱",
   assert.deepEqual(state.calls.slice(-3), ["complete-failed", "stop-renewal", "release-lease"]);
 });
 
-test("外部成功但终态提交失败时保留 running 与输出证据并禁止隐式重试", async () => {
-  const state = harness({ failAt: "complete-success" });
+test("complete-run 与 releaseLease 同时失败时保留主错误并附加 cleanup 诊断", async () => {
+  const state = harness({ failAt: ["complete-success", "release"] });
   const error = await applicationError(executeAutomationRun(runInput(state.dependencies)));
   assert.equal(error.step, "complete-run");
+  assert.match((error.cause as Error).message, /成功终态保存失败/);
   assert.equal(error.retrySafety, "manual-only");
   assert.equal(error.partialResult.run?.status, "running");
   assert.equal(error.partialResult.output?.proposalIds[0], "proposal-1");
   assert.equal(state.getPersistedRun()?.status, "running");
+  assert.equal(error.cleanupErrors.length, 1);
+  assert.match((error.cleanupErrors[0] as Error).message, /租约释放失败/);
   assert.deepEqual(state.calls.slice(-2), ["stop-renewal", "release-lease"]);
 });
 
-test("外部失败且失败终态也无法保存时暴露部分提交并禁止隐式重试", async () => {
-  const state = harness({ failAt: ["execute", "complete-failure"] });
+test("record-failure 与 releaseLease 同时失败时保留主错误并附加 cleanup 诊断", async () => {
+  const state = harness({ failAt: ["execute", "complete-failure", "release"] });
   const error = await applicationError(executeAutomationRun(runInput(state.dependencies)));
   assert.equal(error.step, "record-failure");
+  assert.match((error.cause as Error).message, /外部执行失败，且失败终态未能保存/);
   assert.equal(error.retrySafety, "manual-only");
   assert.equal(error.partialResult.run?.status, "running");
   assert.equal(error.partialResult.externalSideEffectsStarted, true);
   assert.equal(state.getPersistedRun()?.status, "running");
+  assert.equal(error.cleanupErrors.length, 1);
+  assert.match((error.cleanupErrors[0] as Error).message, /租约释放失败/);
 });
 
-test("终态已提交但租约释放失败时以 cleanup 错误覆盖返回并保留终态证据", async () => {
+test("主流程成功且只有 releaseLease 失败时以 cleanup 作为主错误", async () => {
   const state = harness({ failAt: "release" });
   const error = await applicationError(executeAutomationRun(runInput(state.dependencies)));
   assert.equal(error.step, "release-lease");
   assert.equal(error.retrySafety, "manual-only");
   assert.equal(error.partialResult.run?.status, "succeeded");
   assert.equal(state.getPersistedRun()?.status, "succeeded");
+  assert.equal(error.cleanupErrors.length, 1);
+  assert.match((error.cleanupErrors[0] as Error).message, /租约释放失败/);
   assert.deepEqual(state.calls.slice(-2), ["stop-renewal", "release-lease"]);
+});
+
+test("停止续租与释放租约同时失败时保留全部 cleanup diagnostics", async () => {
+  const state = harness({ failAt: ["stop-renewal", "release"] });
+  const error = await applicationError(executeAutomationRun(runInput(state.dependencies)));
+  assert.equal(error.step, "release-lease");
+  assert.equal(error.partialResult.run?.status, "succeeded");
+  assert.deepEqual(error.cleanupErrors.map((item) => (item as Error).message), [
+    "续租计时器停止失败",
+    "租约释放失败",
+  ]);
+  assert.ok(error.cause instanceof AggregateError);
+  assert.equal(error.cause.errors.length, 2);
 });
 
 test("租约获取基础设施失败时不执行 cleanup 或外部调用", async () => {
