@@ -1,5 +1,5 @@
-import { reviewDb } from "../db/review-db";
-import { draftToMistakeInput, toISODate } from "../lib/review-utils";
+import { reviewDb } from "../db/review-db.ts";
+import { draftToMistakeInput, toISODate } from "../lib/review-utils.ts";
 import type { ImportBatch, ImportBatchSource, ImportDraft, ImportDraftIssue, PersistedImportDraft } from "../types/domains/import.ts";
 import type { Mistake } from "../types/domains/review.ts";
 
@@ -16,6 +16,11 @@ type PersistDraftOptions = {
   fileType?: string;
   rawText?: string;
   today: Date;
+};
+
+export type ImportDraftConfirmation = {
+  confirmedDrafts: PersistedImportDraft[];
+  createdMistakes: Mistake[];
 };
 
 // 把临时导入草稿转换为 Dexie 可持久化记录，补齐批次、时间和粉笔专属字段。
@@ -103,8 +108,8 @@ export const importDraftRepository = {
   },
 
   // 把确认后的草稿写入错题库，并同步移除草稿、更新批次保存统计。
-  async confirmDrafts(ids: string[], today: Date): Promise<Mistake[]> {
-    if (!ids.length) return [];
+  async confirmDrafts(ids: string[], today: Date): Promise<ImportDraftConfirmation> {
+    if (!ids.length) return { confirmedDrafts: [], createdMistakes: [] };
     const now = toISODate(today);
     const drafts = await reviewDb.importDrafts.where("id").anyOf(ids).toArray();
     const validDrafts = drafts.filter((draft) => draft.stem.trim());
@@ -134,7 +139,7 @@ export const importDraftRepository = {
       );
     });
 
-    return mistakes;
+    return { confirmedDrafts: validDrafts, createdMistakes: mistakes };
   },
 
   /** 仅供确认后 30 秒内的内存撤销凭据调用：删除本批新增错题并恢复原草稿。 */

@@ -507,6 +507,23 @@ Automation UI
 - cleanup 失败保持可见但不覆盖已有 Application 主错误：停止续租与释放租约异常进入原错误的 `cleanupErrors`；仅在主流程成功时才以 `release-lease` 作为主错误。若终态已经提交，错误中的部分结果继续保留该终态，避免调用方误判为未执行。
 - 本阶段不修改 Dexie v16 schema、Automation 定义/运行格式、Executor/Provider/MCP/采集协议、Web Locks、UI、Electron preload 或 Host Capability。
 
+# 0.4 Application Layer Phase 3：Import Confirmation（2026-08-09）
+
+```text
+Import UI
+  → useImportDrafts（sample / selection / notice / refresh / 30 秒撤销计时）
+  → app/application/import/confirm-import-drafts（确认与审计编排）
+  → importDraftRepository / reviewRepository
+  → IndexedDB v16
+```
+
+- `confirmDrafts` Repository transaction 继续原子创建正式 Mistakes、删除实际有效 Drafts，并按各 Batch 的实际确认数量推进 savedCount/status；Application 不接触 Dexie 细节。
+- Repository 的确认结果显式包含实际 `confirmedDrafts` 与 `createdMistakes`。Application receipt 同时记录 requested、confirmed 和 skipped ID，空题干或不存在草稿不会污染 notice、savedCount 或撤销数据。
+- 独立 `ImportJob` 是确认后的审计/兼容展示记录。其写入失败不会否定已经提交的用户数据，也不会自动重跑确认；存在实际提交时，Application 通过 `record-import-job` partial error 暴露提交集合并限制为人工恢复；零确认结果仍可安全重试。
+- Controller 在成功和 partial success 后都先用真实 receipt 建立 memory-only 撤销状态，再刷新 Import/Workspace 快照。`expiresAt`、`setTimeout`、notice 和 sample mode 不进入 Application。
+- `undoConfirmation` 已是单一原子 Repository 操作，继续由 Controller 直接调用，不新增对称 Use Case、undo table 或 command history。
+- 本阶段不修改 Dexie schema/index、Import parsing/Provider plugin、Conversation、Interview、Automation、Electron/Host 或 Import 页面视觉结构。
+
 ## 对话上下文压缩与插件市场边界（2026-08-02）
 
 - `useConversationContext` 是 Composer 预算和手动压缩的共享装配边界；未发送草稿只在本机估算。压缩记录附加在既有会话上，不新增表、索引或 Dexie 版本，历史时间线保持完整。
