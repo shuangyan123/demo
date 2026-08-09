@@ -101,8 +101,11 @@ test("学习行动队列保持只读纯派生边界", async () => {
   const source = await readFile(path.join(APP_ROOT, "services/learner-state-service.ts"), "utf8");
   const imports = staticImports(source);
   assert.equal(imports.some((target) => target === "react" || target.startsWith("react/") || target.includes("/features/") || target.includes("/server/ai/")), false);
-  assert.doesNotMatch(source, /\.add\(|\.put\(|\.update\(|\.delete\(|\.bulk(?:Add|Put|Delete)\(/);
+  assert.doesNotMatch(source, /reviewDb\.(?:transaction|\w+\.(?:add|put|update|delete|bulkAdd|bulkPut|bulkDelete))\(/);
   assert.doesNotMatch(source, /fetch\(|generateAi|automationRepository|obsidianKnowledgeRepository|reviewDesktop(?:Vault|Window)/);
+  assert.match(source, /reviewRepository\.loadSnapshot\(today\)/);
+  assert.match(source, /knowledgeRepository\.loadTrainingSnapshot\(today\)/);
+  assert.doesNotMatch(source, /reviewDb\.(?:mistakes|attempts|knowledgeEntries|knowledgeAttempts)\.toArray\(\)/);
   assert.match(source, /reviewDb\.interviewPracticePlans\.toArray\(\)/);
   assert.match(source, /deriveLearnerStateSnapshot/);
 });

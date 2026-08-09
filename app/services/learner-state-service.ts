@@ -9,6 +9,8 @@ import type {
   LearningActionRecommendation,
 } from "../types/domains/learner-state.ts";
 import type { TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
+import { knowledgeRepository } from "./knowledge-repository.ts";
+import { reviewRepository } from "./review-repository.ts";
 import { filterWorkspaceRecords, PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "./workspace-data-scope.ts";
 
 type ResultEvidence = {
@@ -30,6 +32,11 @@ export type LearnerStateFacts = {
   tutoringPlans: TutoringPlan[];
 };
 
+export type NormalizedLearnerStateCoreFacts = Pick<
+  LearnerStateFacts,
+  "mistakes" | "attempts" | "knowledgeEntries" | "knowledgeAttempts"
+>;
+
 const SIGNAL_LIMIT = 18;
 const ACTION_LIMIT = 12;
 const GENERIC_MISCONCEPTION_LABELS = new Set(["待归因", "其他", "其它", "未知", "不清楚", "未分类"]);
@@ -45,7 +52,8 @@ function clampScore(value: number): number {
   return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
 }
 
-function dateKey(value: string): string {
+function dateKey(value: string | undefined): string | null {
+  if (!value || Number.isNaN(Date.parse(value))) return null;
   return value.slice(0, 10);
 }
 
@@ -53,8 +61,9 @@ function todayKey(today: Date): string {
   return today.toISOString().slice(0, 10);
 }
 
-function isDue(value: string, today: Date): boolean {
-  return Boolean(value) && dateKey(value) <= todayKey(today);
+function isDue(value: string | undefined, today: Date): boolean {
+  const key = dateKey(value);
+  return key !== null && key <= todayKey(today);
 }
 
 /** 使用稳定字段构造派生 ID，便于刷新重建、测试和 UI 对照。 */
@@ -202,8 +211,30 @@ function interviewSignals(evaluations: InterviewEvaluation[]): LearnerStateSigna
 }
 
 /** 只有已提交的确定性微测才形成辅导学习信号；模型定位或置信度本身不是掌握证据。 */
-function tutoringSignals(turns: TutoringTurn[]): LearnerStateSignal[] {
-  return turns.toSorted((left, right) => right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id)).flatMap((turn) => {
+function latestCompletedTutoringTurns(turns: TutoringTurn[]): Map<string, TutoringTurn> {
+  const latest = new Map<string, TutoringTurn>();
+  const completed = turns.filter((turn) => {
+    const assessment = turn.microAssessment;
+    return Boolean(assessment?.completedAt && assessment.questions.length && assessment.correctCount !== undefined);
+  }).toSorted((left, right) => (
+    right.microAssessment!.completedAt!.localeCompare(left.microAssessment!.completedAt!)
+    || right.createdAt.localeCompare(left.createdAt)
+    || left.id.localeCompare(right.id)
+  ));
+  for (const turn of completed) {
+    if (!latest.has(turn.sessionId)) latest.set(turn.sessionId, turn);
+  }
+  return latest;
+}
+
+function failedCompletedAssessment(turn: TutoringTurn | undefined): boolean {
+  const assessment = turn?.microAssessment;
+  return Boolean(assessment?.completedAt && assessment.questions.length && assessment.correctCount !== undefined
+    && assessment.correctCount < assessment.questions.length);
+}
+
+function tutoringSignals(latestTurns: Map<string, TutoringTurn>): LearnerStateSignal[] {
+  return [...latestTurns.values()].flatMap((turn) => {
     const assessment = turn.microAssessment;
     if (!assessment?.completedAt || !assessment.questions.length || assessment.correctCount === undefined) return [];
     const ratio = assessment.correctCount / assessment.questions.length;
@@ -221,7 +252,7 @@ function tutoringSignals(turns: TutoringTurn[]): LearnerStateSignal[] {
 
 function goalAndActionSignals(plans: TutoringPlan[], sessions: TutoringSession[]): LearnerStateSignal[] {
   const signals: LearnerStateSignal[] = [];
-  const activePlan = plans.filter((plan) => plan.status === "active").toSorted((left, right) => left.nextPracticeAt.localeCompare(right.nextPracticeAt) || left.id.localeCompare(right.id))[0];
+  const activePlan = plans.filter((plan) => plan.status === "active" && dateKey(plan.nextPracticeAt) !== null).toSorted((left, right) => left.nextPracticeAt.localeCompare(right.nextPracticeAt) || left.id.localeCompare(right.id))[0];
   const activeSession = sessions.filter((session) => session.status === "active" || session.status === "paused").toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id))[0];
   if (activePlan) {
     const evidence = [{ type: "tutoring_plan" as const, id: activePlan.id, label: activePlan.title, observedAt: activePlan.updatedAt }];
@@ -283,41 +314,57 @@ function dueKnowledgeAction(items: KnowledgeEntry[], latest: Map<string, Knowled
   };
 }
 
-function tutoringActions(plans: TutoringPlan[], turns: TutoringTurn[], today: Date): LearningActionRecommendation[] {
-  const duePlanIds = new Set(plans.filter((plan) => plan.status === "active" && isDue(plan.nextPracticeAt, today)).map((plan) => plan.id));
-  const actions: LearningActionRecommendation[] = plans.filter((plan) => plan.status === "active").map((plan) => ({
-    id: actionId(isDue(plan.nextPracticeAt, today) ? "due-tutoring" : "active-tutoring", [plan.id]),
-    kind: "retry_tutoring" as const,
-    title: isDue(plan.nextPracticeAt, today) ? "完成到期辅导复练" : "继续辅导计划",
-    summary: `${plan.nextTask}（${isDue(plan.nextPracticeAt, today) ? "已到期" : `计划 ${dateKey(plan.nextPracticeAt)}`}）`,
-    priority: isDue(plan.nextPracticeAt, today) ? 120 : 400,
-    priorityReason: isDue(plan.nextPracticeAt, today) ? "P1 已到期的明确辅导计划。" : "P4 已确认的进行中辅导计划。",
-    evidence: [{ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt }],
-    destination: { module: "tutoring" as const, targetIds: [plan.id] },
-    state: "ready" as const,
-  }));
-  for (const turn of turns) {
+function failedTutoringAssessmentAction(turn: TutoringTurn): LearningActionRecommendation {
+  const assessment = turn.microAssessment!;
+  const planId = `auto:${turn.sessionId}`;
+  return {
+    id: actionId("failed-tutoring-assessment", [planId]),
+    kind: "retry_tutoring",
+    title: "重试未通过的辅导微测",
+    summary: `最近微测答对 ${assessment.correctCount}/${assessment.questions.length}，需要换一种例子再练习。`,
+    priority: 200,
+    priorityReason: "P2 可观察微测未全部通过。",
+    evidence: [{ type: "tutoring", id: turn.id, label: `微测 ${assessment.correctCount}/${assessment.questions.length}`, observedAt: assessment.completedAt! }],
+    destination: { module: "tutoring", targetIds: [planId] },
+    state: "ready",
+  };
+}
+
+/** 同一 auto plan/session 按 P1 > P2 > P4 只派生一个下一步。 */
+function tutoringActions(plans: TutoringPlan[], latestTurns: Map<string, TutoringTurn>, today: Date): LearningActionRecommendation[] {
+  const consumedSessionIds = new Set<string>();
+  const actions: LearningActionRecommendation[] = plans
+    .filter((plan) => plan.status === "active" && dateKey(plan.nextPracticeAt) !== null)
+    .map((plan) => {
+      const sessionId = plan.id.startsWith("auto:") ? plan.id.slice("auto:".length) : null;
+      const latestTurn = sessionId ? latestTurns.get(sessionId) : undefined;
+      if (sessionId) consumedSessionIds.add(sessionId);
+      if (!isDue(plan.nextPracticeAt, today) && failedCompletedAssessment(latestTurn)) {
+        return failedTutoringAssessmentAction(latestTurn!);
+      }
+      return {
+        id: actionId(isDue(plan.nextPracticeAt, today) ? "due-tutoring" : "active-tutoring", [plan.id]),
+        kind: "retry_tutoring" as const,
+        title: isDue(plan.nextPracticeAt, today) ? "完成到期辅导复练" : "继续辅导计划",
+        summary: `${plan.nextTask}（${isDue(plan.nextPracticeAt, today) ? "已到期" : `计划 ${dateKey(plan.nextPracticeAt)}`}）`,
+        priority: isDue(plan.nextPracticeAt, today) ? 120 : 400,
+        priorityReason: isDue(plan.nextPracticeAt, today) ? "P1 已到期的明确辅导计划。" : "P4 已确认的进行中辅导计划。",
+        evidence: [{ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt }],
+        destination: { module: "tutoring" as const, targetIds: [plan.id] },
+        state: "ready" as const,
+      };
+    });
+  for (const turn of latestTurns.values()) {
     const assessment = turn.microAssessment;
     if (!assessment?.completedAt || !assessment.questions.length || assessment.correctCount === undefined || assessment.correctCount === assessment.questions.length) continue;
-    const planId = `auto:${turn.sessionId}`;
-    if (duePlanIds.has(planId)) continue;
-    actions.push({
-      id: actionId("failed-tutoring-assessment", [turn.id]),
-      kind: "retry_tutoring",
-      title: "重试未通过的辅导微测",
-      summary: `最近微测答对 ${assessment.correctCount}/${assessment.questions.length}，需要换一种例子再练习。`,
-      priority: 200,
-      priorityReason: "P2 可观察微测未全部通过。",
-      evidence: [{ type: "tutoring", id: turn.id, label: `微测 ${assessment.correctCount}/${assessment.questions.length}`, observedAt: assessment.completedAt }],
-      destination: { module: "tutoring", targetIds: [planId] },
-      state: "ready",
-    });
+    if (consumedSessionIds.has(turn.sessionId)) continue;
+    actions.push(failedTutoringAssessmentAction(turn));
   }
   return actions;
 }
 
 function interviewActions(plans: InterviewPracticePlan[], today: Date): LearningActionRecommendation[] {
-  return plans.filter((plan) => plan.status === "active").map((plan) => ({
+  return plans.filter((plan) => plan.status === "active" && dateKey(plan.nextPracticeAt) !== null).map((plan) => ({
     id: actionId(isDue(plan.nextPracticeAt, today) ? "due-interview" : "active-interview", [plan.id]),
     kind: "practice_interview" as const,
     title: isDue(plan.nextPracticeAt, today) ? "完成到期面试训练" : "继续面试训练计划",
@@ -351,6 +398,7 @@ function misconceptionActions(signals: LearnerStateSignal[]): LearningActionReco
 export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new Date()): LearnerStateSnapshot {
   const latestAttempts = latestReviewAttempts(facts.attempts);
   const latestKnowledge = latestKnowledgeAttempts(facts.knowledgeAttempts);
+  const latestTutoringTurns = latestCompletedTutoringTurns(facts.tutoringTurns);
   const dueMistakes = facts.mistakes.filter((item) => isDue(item.nextReviewAt, today));
   const dueKnowledge = facts.knowledgeEntries.filter((item) => isDue(item.nextReviewAt, today));
   const dueTutoringPlans = facts.tutoringPlans.filter((item) => item.status === "active" && isDue(item.nextPracticeAt, today));
@@ -376,12 +424,12 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
     ...misconception,
     ...knowledgeSignals(facts.knowledgeEntries, latestKnowledge),
     ...interviewSignals(facts.interviewEvaluations),
-    ...tutoringSignals(facts.tutoringTurns),
+    ...tutoringSignals(latestTutoringTurns),
   ].toSorted((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, SIGNAL_LIMIT);
   const recommendations = [
     dueMistakeAction(dueMistakes, latestAttempts),
     dueKnowledgeAction(dueKnowledge, latestKnowledge),
-    ...tutoringActions(facts.tutoringPlans, facts.tutoringTurns, today),
+    ...tutoringActions(facts.tutoringPlans, latestTutoringTurns, today),
     ...interviewActions(facts.interviewPracticePlans, today),
     ...misconceptionActions(misconception),
   ].filter((item): item is LearningActionRecommendation => Boolean(item))
@@ -407,12 +455,12 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
 }
 
 /** 读取既有 v16 表并构造只读学习者状态；不写回推荐、模型推测或掌握分。 */
-export async function loadLearnerStateSnapshot(today = new Date(), scope: WorkspaceDataScope = PERSONAL_WORKSPACE_DATA_SCOPE): Promise<LearnerStateSnapshot> {
-  const [mistakes, attempts, knowledgeEntries, knowledgeAttempts, interviewEvaluations, interviewPracticePlans, interviewSessions, tutoringSessions, tutoringTurns, tutoringPlans] = await Promise.all([
-    reviewDb.mistakes.toArray(),
-    reviewDb.attempts.toArray(),
-    reviewDb.knowledgeEntries.toArray(),
-    reviewDb.knowledgeAttempts.toArray(),
+export async function loadLearnerStateSnapshotFromNormalizedFacts(
+  coreFacts: NormalizedLearnerStateCoreFacts,
+  today = new Date(),
+  scope: WorkspaceDataScope = PERSONAL_WORKSPACE_DATA_SCOPE,
+): Promise<LearnerStateSnapshot> {
+  const [interviewEvaluations, interviewPracticePlans, interviewSessions, tutoringSessions, tutoringTurns, tutoringPlans] = await Promise.all([
     reviewDb.interviewEvaluations.toArray(),
     reviewDb.interviewPracticePlans.toArray(),
     reviewDb.interviewSessions.toArray(),
@@ -421,10 +469,10 @@ export async function loadLearnerStateSnapshot(today = new Date(), scope: Worksp
     reviewDb.tutoringPlans.toArray(),
   ]);
   return deriveLearnerStateSnapshot({
-    mistakes: filterWorkspaceRecords(mistakes, scope),
-    attempts: filterWorkspaceRecords(attempts, scope),
-    knowledgeEntries: filterWorkspaceRecords(knowledgeEntries, scope),
-    knowledgeAttempts: filterWorkspaceRecords(knowledgeAttempts, scope),
+    mistakes: filterWorkspaceRecords(coreFacts.mistakes, scope),
+    attempts: filterWorkspaceRecords(coreFacts.attempts, scope),
+    knowledgeEntries: filterWorkspaceRecords(coreFacts.knowledgeEntries, scope),
+    knowledgeAttempts: filterWorkspaceRecords(coreFacts.knowledgeAttempts, scope),
     interviewEvaluations: filterWorkspaceRecords(interviewEvaluations, scope),
     interviewPracticePlans: filterWorkspaceRecords(interviewPracticePlans, scope),
     interviewSessions: filterWorkspaceRecords(interviewSessions, scope),
@@ -432,4 +480,18 @@ export async function loadLearnerStateSnapshot(today = new Date(), scope: Worksp
     tutoringTurns: filterWorkspaceRecords(tutoringTurns, scope),
     tutoringPlans: filterWorkspaceRecords(tutoringPlans, scope),
   }, today);
+}
+
+/** 公共加载路径必须先经过既有 Repository normalization owner，再派生只读 Learner State。 */
+export async function loadLearnerStateSnapshot(today = new Date(), scope: WorkspaceDataScope = PERSONAL_WORKSPACE_DATA_SCOPE): Promise<LearnerStateSnapshot> {
+  const [reviewSnapshot, knowledgeSnapshot] = await Promise.all([
+    reviewRepository.loadSnapshot(today),
+    knowledgeRepository.loadTrainingSnapshot(today),
+  ]);
+  return loadLearnerStateSnapshotFromNormalizedFacts({
+    mistakes: reviewSnapshot.mistakes,
+    attempts: reviewSnapshot.attempts,
+    knowledgeEntries: knowledgeSnapshot.entries,
+    knowledgeAttempts: knowledgeSnapshot.attempts,
+  }, today, scope);
 }

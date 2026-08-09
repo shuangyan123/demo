@@ -1,5 +1,5 @@
-import { reviewDb } from "../db/review-db";
-import { relativeDate, toISODate } from "../lib/review-utils";
+import { reviewDb } from "../db/review-db.ts";
+import { relativeDate, toISODate } from "../lib/review-utils.ts";
 import type { KnowledgeAttempt, KnowledgeCategory, KnowledgeEntry, KnowledgeImportDraft, KnowledgeStarterTemplate, KnowledgeTrainingSnapshot } from "../types/domains/knowledge.ts";
 import type { Mistake, ReviewResult } from "../types/domains/review.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";

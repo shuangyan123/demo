@@ -115,6 +115,48 @@ test("中文记忆与辅导评测集覆盖七类长期行为", () => {
   assert.ok(learningMemoryEvalCases.some((item) => item.category === "cross-session-tutoring" && item.expected.evidenceRequired));
 });
 
+test("legacy facts 首次正式加载已归一化，第二次刷新 recommendation 不漂移", async () => {
+  await resetReviewDb();
+  const today = new Date("2026-08-09T08:00:00.000Z");
+  const old = "2026-08-01T08:00:00.000Z";
+  await reviewDb.mistakes.put({
+    id: "legacy-mistake",
+    subject: "判断推理",
+    source: "legacy",
+    stem: "legacy mistake",
+    answer: "A",
+    explanation: "",
+    reasons: [],
+    createdAt: old,
+  } as never);
+  await reviewDb.knowledgeEntries.put({
+    id: "legacy-knowledge",
+    category: "常识判断",
+    title: "legacy knowledge",
+    summary: "legacy",
+    content: "legacy",
+    tags: [],
+    source: "legacy",
+    favorite: false,
+    createdAt: old,
+  } as never);
+
+  const first = await loadLearnerStateSnapshot(today);
+  const normalizedMistake = await reviewDb.mistakes.get("legacy-mistake");
+  const normalizedKnowledge = await reviewDb.knowledgeEntries.get("legacy-knowledge");
+  assert.equal(normalizedMistake?.mastery, 2);
+  assert.equal(normalizedMistake?.nextReviewAt, "2026-08-09");
+  assert.equal(normalizedKnowledge?.mastery, 2);
+  assert.equal(normalizedKnowledge?.nextReviewAt, old);
+  assert.equal(normalizedKnowledge?.reviewCount, 0);
+  assert.ok(first.recommendations.some((item) => item.kind === "review_mistakes" && item.destination.targetIds?.includes("legacy-mistake")));
+  assert.ok(first.recommendations.some((item) => item.kind === "review_knowledge" && item.destination.targetIds?.includes("legacy-knowledge")));
+
+  const second = await loadLearnerStateSnapshot(today);
+  assert.deepEqual(first.recommendations.map((item) => item.id), second.recommendations.map((item) => item.id));
+  assert.deepEqual(first.recommendations, second.recommendations);
+});
+
 test.after(async () => {
   reviewDb.close();
   await reviewDb.delete();

@@ -64,6 +64,20 @@ unfinished or cancelled interview != completed practice
 unsubmitted micro-assessment != mastery
 ```
 
+## Tutoring recommendation precedence
+
+同一 `auto:${sessionId}` 学习事项只显示一个 recommendation，并在派生规则内按语义身份执行：
+
+```text
+P1 due tutoring plan
+> P2 latest failed completed micro-assessment
+> P4 future active tutoring plan
+```
+
+同一 session 存在多轮已完成微测时，只使用按 `completedAt desc -> createdAt desc -> stable id` 选出的最新证据；较新的通过结果会淘汰旧失败建议。推荐 ID 由 rule 与稳定语义目标构造，不依赖数组插入顺序。
+
+Learner State derivation consumes normalized domain facts. 错题与知识 facts 必须先经过各自 Repository 的既有 legacy normalization，再进入纯派生；公共加载路径和 Dashboard refresh 均不得将 raw persistence read 与 normalization 并发竞速。Learner State 不复制 migration writer。
+
 ## Phase 1 限制
 
 - Automation 尚无可靠的“用户已完成学习”语义，因此不作为行动或掌握证据；该映射留待后续阶段。
