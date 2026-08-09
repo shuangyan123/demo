@@ -265,17 +265,26 @@ test("孤立对话运行步骤提供无泄漏 preview，确认前不修改且只
 
   const preview = await localDataManagementRepository.inspectRepair("delete-orphan-conversation-run-steps");
   assert.deepEqual(preview.affectedRecordIds, ["orphan-step"]);
-  assert.equal(preview.backupRequired, true);
+  assert.equal(preview.recoverySnapshotRequired, true);
+  assert.equal(preview.targetRecordsRecoverableFromSnapshot, false);
   assert.equal(await reviewDb.aiConversationRunSteps.count(), 2);
   assert.doesNotMatch(JSON.stringify(preview), /never-leak-repair-evidence/);
 
   const backup = await localDataManagementRepository.prepareRepairBackup(preview);
+  assert.equal(backup.snapshotKind, "recovery-safe");
+  assert.equal(backup.targetRecordsRecoverable, false);
   await localDataManagementRepository.inspectRestore(backup.source);
   assert.doesNotMatch(backup.source, /never-leak-repair-evidence|orphan-step/);
-  await assert.rejects(() => localDataManagementRepository.executeRepair(preview, backup, false), /明确确认/);
+  await assert.rejects(() => localDataManagementRepository.executeRepair(preview, backup, {
+    recoverySnapshotSaved: true,
+    targetRecordsNotRecoverableAcknowledged: false,
+  }), /确认恢复快照/);
   assert.equal(await reviewDb.aiConversationRunSteps.count(), 2);
 
-  const result = await localDataManagementRepository.executeRepair(preview, backup, true);
+  const result = await localDataManagementRepository.executeRepair(preview, backup, {
+    recoverySnapshotSaved: true,
+    targetRecordsNotRecoverableAcknowledged: true,
+  });
   assert.equal(result.verified, true);
   assert.equal(await reviewDb.aiConversationRunSteps.get("orphan-step"), undefined);
   assert.ok(await reviewDb.aiConversationRunSteps.get("valid-step"));
@@ -292,7 +301,10 @@ test("定向修复 verify 失败会中止 transaction 并保留诊断证据", as
   const originalBulkDelete = reviewDb.aiConversationRunSteps.bulkDelete.bind(reviewDb.aiConversationRunSteps);
   Object.defineProperty(reviewDb.aiConversationRunSteps, "bulkDelete", { configurable: true, value: async () => undefined });
   try {
-    await assert.rejects(() => localDataManagementRepository.executeRepair(preview, backup, true), /修复后验证失败/);
+    await assert.rejects(() => localDataManagementRepository.executeRepair(preview, backup, {
+      recoverySnapshotSaved: true,
+      targetRecordsNotRecoverableAcknowledged: true,
+    }), /修复后验证失败/);
   } finally {
     Object.defineProperty(reviewDb.aiConversationRunSteps, "bulkDelete", { configurable: true, value: originalBulkDelete });
   }

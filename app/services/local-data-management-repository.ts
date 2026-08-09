@@ -101,11 +101,12 @@ export type LocalDataRepairPreview = {
   action: string;
   affectedRecordIds: string[];
   affectedRecords: number;
-  backupRequired: true;
   dataLossRisk: "low";
   issueCode: "critical-integrity";
+  recoverySnapshotRequired: true;
   repairId: LocalDataRepairId;
   scope: "aiConversationRunSteps";
+  targetRecordsRecoverableFromSnapshot: false;
   verificationPlan: string;
 };
 
@@ -113,7 +114,14 @@ export type LocalDataRepairBackup = {
   affectedRecordIds: string[];
   createdAt: string;
   repairId: LocalDataRepairId;
+  snapshotKind: "recovery-safe";
   source: string;
+  targetRecordsRecoverable: false;
+};
+
+export type LocalDataRepairConfirmation = {
+  recoverySnapshotSaved: boolean;
+  targetRecordsNotRecoverableAcknowledged: boolean;
 };
 
 export type LocalDataRepairResult = {
@@ -374,11 +382,12 @@ function targetedRepairPreview(core: Record<string, unknown[]>): LocalDataRepair
     action: "删除没有父对话的脱敏工具与诊断运行步骤；不会删除对话、消息、附件或学习记录。",
     affectedRecordIds,
     affectedRecords: affectedRecordIds.length,
-    backupRequired: true,
     dataLossRisk: "low",
     issueCode: "critical-integrity",
+    recoverySnapshotRequired: true,
     repairId: "delete-orphan-conversation-run-steps",
     scope: "aiConversationRunSteps",
+    targetRecordsRecoverableFromSnapshot: false,
     verificationPlan: "在同一 Dexie transaction 内重新检查父对话、删除精确记录 ID，并确认目标悬空问题消失且未引入新的完整性问题。",
   };
 }
@@ -410,7 +419,7 @@ async function buildRepairSafetyPayload(preview: LocalDataRepairPreview): Promis
   return payload;
 }
 
-/** 生成可直接恢复的 V2 安全备份；只从备份副本排除预览中确认无父级的运行元数据，不修改数据库。 */
+/** 生成 recovery-safe V2 快照；它排除目标孤立元数据，因此不能把目标记录恢复到修复前状态。 */
 export async function prepareLocalDataRepairBackup(preview: LocalDataRepairPreview): Promise<LocalDataRepairBackup> {
   const current = await inspectLocalDataRepair(preview.repairId);
   assertSameRepairPreview(preview, current);
@@ -419,37 +428,44 @@ export async function prepareLocalDataRepairBackup(preview: LocalDataRepairPrevi
   try {
     validated = validateRestorePayload(payload);
   } catch (error) {
-    throw new Error(`当前还存在无法安全自动处理的关键问题，已停止生成修复备份：${error instanceof Error ? error.message : "未知完整性错误"}`);
+    throw new Error(`当前还存在无法安全自动处理的关键问题，已停止生成修复安全恢复快照：${error instanceof Error ? error.message : "未知完整性错误"}`);
   }
   return {
     affectedRecordIds: [...current.affectedRecordIds],
     createdAt: validated.exportedAt,
     repairId: current.repairId,
+    snapshotKind: "recovery-safe",
     source: JSON.stringify(validated, null, 2),
+    targetRecordsRecoverable: false,
   };
 }
 
-/** 用户确认且 fresh V2 安全备份仍匹配当前数据后，原子删除精确的孤立运行步骤并在提交前验证。 */
+/** 用户确认恢复快照限制且 fresh V2 快照仍匹配当前数据后，原子删除精确目标并在提交前验证。 */
 export async function executeLocalDataRepair(
   preview: LocalDataRepairPreview,
   backup: LocalDataRepairBackup,
-  confirmed: boolean,
+  confirmation: LocalDataRepairConfirmation,
 ): Promise<LocalDataRepairResult> {
-  if (!confirmed) throw new Error("必须明确确认修复并确认备份下载后才能继续");
-  if (backup.repairId !== preview.repairId || !sameStringSet(backup.affectedRecordIds, preview.affectedRecordIds)) {
-    throw new Error("修复备份与当前预览不匹配，请重新生成备份");
+  if (!confirmation.recoverySnapshotSaved || !confirmation.targetRecordsNotRecoverableAcknowledged) {
+    throw new Error("必须确认恢复快照已保存并理解目标记录无法通过该快照恢复后才能继续");
+  }
+  if (backup.snapshotKind !== "recovery-safe"
+    || backup.targetRecordsRecoverable !== false
+    || backup.repairId !== preview.repairId
+    || !sameStringSet(backup.affectedRecordIds, preview.affectedRecordIds)) {
+    throw new Error("修复安全恢复快照与当前预览不匹配，请重新生成快照");
   }
   let backupPayload: LocalDataExportV2;
   try {
     backupPayload = validateRestorePayload(JSON.parse(backup.source) as unknown);
   } catch (error) {
-    throw new Error(`修复备份无法通过恢复校验：${error instanceof Error ? error.message : "未知错误"}`);
+    throw new Error(`修复安全恢复快照无法通过恢复校验：${error instanceof Error ? error.message : "未知错误"}`);
   }
   const current = await inspectLocalDataRepair(preview.repairId);
   assertSameRepairPreview(preview, current);
   const expectedBackup = await buildRepairSafetyPayload(current);
   if (JSON.stringify(backupPayload.databases) !== JSON.stringify(expectedBackup.databases)) {
-    throw new Error("生成备份后本地数据已变化，请重新预览并下载新备份");
+    throw new Error("生成恢复快照后本地数据已变化，请重新预览并下载新快照");
   }
 
   await reviewDb.transaction("rw", reviewDb.tables, async () => {
