@@ -335,6 +335,7 @@ test("空事实不制造推荐；相同事实与 today 产生稳定 ID、证据�
   const first = deriveLearnerStateSnapshot(input, today);
   const second = deriveLearnerStateSnapshot({ ...input, mistakes: [...input.mistakes].reverse(), attempts: [...input.attempts].reverse() }, today);
   assert.deepEqual(first.recommendations, second.recommendations);
+  assert.equal(new Set(first.recommendations.map((action) => action.semanticKey)).size, first.recommendations.length);
   const factIds = new Set(["m1", "m2", "a1", "a2", "k1"]);
   for (const action of first.recommendations) {
     assert.ok(action.evidence.length > 0);

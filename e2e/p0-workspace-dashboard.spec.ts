@@ -1,14 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectNoHorizontalOverflow } from "./helpers/layout-assertions";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
-
-/** 断言页面根节点没有产生横向滚动。 */
-async function expectNoHorizontalOverflow(page: Page) {
-  const size = await page.evaluate(() => ({
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
-  expect(size.scrollWidth).toBeLessThanOrEqual(size.clientWidth + 1);
-}
 
 /** 计算每个编号圆环中心到桌面装饰路径的最短屏幕距离。 */
 async function readDesktopFlowNodeDistances(page: Page) {

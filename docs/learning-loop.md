@@ -91,6 +91,15 @@ unfinished or cancelled interview != completed practice
 unsubmitted micro-assessment != mastery
 ```
 
+## Accessibility & Responsive Acceptance
+
+- Desktop 与 mobile Dashboard 使用同一个 `LearningActionRecommendation[]` 派生模型和同一个语义组件；390×844 完整交互与 360×800 窄屏 smoke 均验证文本换行、证据 chips、CTA 可达和无横向溢出。
+- “为什么推荐？”继续使用原生 `details` / `summary`，CTA 继续使用真实 `button`；两者可仅通过键盘到达、展开和触发，并保留可辨识的 `:focus-visible` / 浏览器原生焦点轮廓。
+- 推荐原因、完成条件和证据标签均为可读文本，不依赖 hover、颜色、图标或视觉位置表达语义，也不向普通用户暴露数据库 ID 或内部优先级代号。
+- click、navigation、AI reply 与 Automation success 仍不代表完成；recommendation transition 完全由 Review、Knowledge、Tutoring assessment 与 Interview evaluation 的 persisted domain facts 驱动。
+- Dashboard refresh 与页面 reload 都从相同 v16 facts 重建 recommendation，不持久化卡片、完成事件或 UI 状态。
+- Review 与 Knowledge 继续导航到具体 target；Tutoring / Interview 继续采用模块级导航，精确 plan deep-link 仍 deferred。
+
 ## Tutoring recommendation precedence
 
 同一 `auto:${sessionId}` 学习事项只显示一个 recommendation，并在派生规则内按语义身份执行：
