@@ -2,6 +2,8 @@
 
 import type { SyntheticEvent } from "react";
 import { useEffect, useState } from "react";
+import { confirmImportDrafts } from "../../application/import/confirm-import-drafts.ts";
+import { ImportApplicationError, type ImportConfirmationReceipt } from "../../application/import/import-application.ts";
 import { splitInput, textValue } from "../../lib/form-utils";
 import { markDuplicateDrafts } from "../../services/dedupe-service";
 import { importDraftRepository } from "../../services/import-draft-repository";
@@ -304,7 +306,19 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     setNotice(`已删除 ${ids.length} 条草稿`);
   }
 
-  // 将选中的导入草稿批量确认入库，并同步刷新错题库快照。
+  function rememberConfirmation(receipt: ImportConfirmationReceipt) {
+    if (!receipt.createdMistakes.length) {
+      setUndoReceipt(undefined);
+      return;
+    }
+    setUndoReceipt({
+      mistakeIds: receipt.createdMistakes.map((mistake) => mistake.id),
+      drafts: receipt.confirmedDrafts,
+      expiresAt: Date.now() + 30_000,
+    });
+  }
+
+  // Controller 只选择草稿、建立撤销计时并刷新 UI；实际确认与审计顺序由 Application 固定。
   async function confirmDrafts(ids?: string[]) {
     if (scope.kind === "sample") {
       setNotice("示例模式不会把草稿写入个人错题库。");
@@ -315,22 +329,28 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
       setNotice("请选择至少一条有效草稿");
       return;
     }
-    const confirmedDrafts = drafts.filter((draft) => selectedIds.includes(draft.id));
-    const saved = await importDraftRepository.confirmDrafts(selectedIds, today);
-    await reviewRepository.createImportJob(
-      {
-        type: "text",
-        rawText: "",
-        status: "saved",
-        parsedCount: saved.length,
-        message: `${saved.length} 条粉笔错题草稿已确认入库`,
-      },
-      today,
-    );
-    await refreshImportDrafts();
-    await onRefreshWorkspace();
-    setUndoReceipt({ mistakeIds: saved.map((mistake) => mistake.id), drafts: confirmedDrafts, expiresAt: Date.now() + 30_000 });
-    setNotice(`${saved.length} 条粉笔错题已入库`);
+    try {
+      const result = await confirmImportDrafts({ draftIds: selectedIds, today });
+      rememberConfirmation(result);
+      await refreshImportDrafts();
+      await onRefreshWorkspace();
+      setNotice(`${result.createdMistakes.length} 条粉笔错题已入库`);
+    } catch (error) {
+      const partialConfirmation = error instanceof ImportApplicationError ? error.partialResult.confirmation : undefined;
+      if (partialConfirmation?.createdMistakes.length) {
+        rememberConfirmation(partialConfirmation);
+        try {
+          await refreshImportDrafts();
+          await onRefreshWorkspace();
+          setNotice(`${partialConfirmation.createdMistakes.length} 条粉笔错题已入库，但确认记录保存失败；仍可撤销本批`);
+        } catch (refreshError) {
+          const message = refreshError instanceof Error ? refreshError.message : "刷新失败";
+          setNotice(`${partialConfirmation.createdMistakes.length} 条粉笔错题已入库，但确认记录和界面刷新失败：${message}`);
+        }
+        return;
+      }
+      setNotice(error instanceof Error ? error.message : "草稿确认失败");
+    }
   }
 
   /** 撤销只依赖内存凭据，刷新页面后自动失效，避免长期保存危险操作令牌。 */

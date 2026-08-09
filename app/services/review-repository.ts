@@ -1,5 +1,5 @@
-import { reviewDb } from "../db/review-db";
-import { buildAttempt, nextStateAfterReview, normalizeBoard, toISODate } from "../lib/review-utils";
+import { reviewDb } from "../db/review-db.ts";
+import { buildAttempt, nextStateAfterReview, normalizeBoard, toISODate } from "../lib/review-utils.ts";
 import type { ImportJob } from "../types/domains/import.ts";
 import type { Mistake, ReviewResult, ReviewSnapshot } from "../types/domains/review.ts";
 

@@ -62,6 +62,22 @@ application/automation/execute-automation-run.ts
 
 本阶段不修改任务、运行记录或提案 schema，不改变试运行、调度频率、Web Locks、通知、Electron/Host、凭据或外部执行协议。
 
+## 0.4 Phase 3：Import Confirmation（2026-08-09）
+
+第三个真实用例已经落地：
+
+```text
+application/import/confirm-import-drafts.ts
+```
+
+- `importDraftRepository.confirmDrafts()` 继续在一个 Dexie transaction 内创建正式 Mistakes、删除实际有效 Drafts，并按实际确认数量更新相关 Batch；Application 不复制或拆分该事务。
+- Repository 返回 `confirmedDrafts` 与 `createdMistakes`，Application 据此生成包含 requested、confirmed、skipped 集合的稳定 receipt。不存在 ID 和空题干草稿不会进入确认集合、savedCount 或撤销凭据。
+- `reviewRepository.createImportJob()` 是确认 transaction 之后的审计/旧 UI 记录，不是正式 Mistake 入库的核心提交。若已有实际确认提交且该步骤失败，`ImportApplicationError` 以 `record-import-job`、`manual-only` 和 `partialResult.confirmation` 表达已完成的确认，不回滚或隐式重跑；实际确认数为零时仍可安全重试。
+- `useImportDrafts` 只保留示例模式、选择、notice、刷新和 30 秒内存撤销计时；成功或 partial success 都从 Application receipt 建立真实撤销凭据。
+- `undoConfirmation()` 仍是单一 Repository transaction，因此不为目录对称新增 Use Case；撤销 token 不持久化，页面刷新后继续失效。
+
+本阶段不迁移文本/文件/AI/OCR/Fenbi parsing、Draft CRUD、Provider plugin 或 Conversation；不修改 Dexie v16、Electron/Host、凭据和 UI 视觉结构。
+
 ## 架构守卫
 
 建立 `app/application/` 后，沿用现有文本契约测试，至少保证：
@@ -81,10 +97,11 @@ application/automation/execute-automation-run.ts
 4. 是否保持 Dexie v16、凭据、Vault、对话和自动化数据兼容？
 5. 删除新用例并恢复原 Controller 调用，是否能在单个提交内回滚？
 
-## Phase 2 状态与后续边界
+## Phase 3 状态与后续边界
 
 - Interview：`start-interview-session`、`submit-interview-turn` 已完成，并有成功、失败、调用顺序与部分提交的直接 Node 测试。
 - Automation：`execute-automation-run` 已完成，并有租约竞争、调用顺序、外部失败、部分提交、重试安全和 cleanup 失败的直接 Node 测试。
-- Import：pending。
+- Import：`confirm-import-drafts` 已完成，并有实际确认集合、mixed validity、ImportJob partial success、精确撤销和无隐式重跑的直接测试。
 - Conversation：deferred；上下文预算、压缩、主题、插件和工具链仍在高频变化，本阶段不迁移。
 - Host Capability、Electron、Dexie v16、Provider/Vault/凭据格式均未扩展。
+- 0.4 当前计划范围已满足验收；Conversation 的 deferred 状态不因本阶段完成而改变，后续迁移需要独立授权。
