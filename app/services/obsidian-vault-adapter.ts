@@ -1,5 +1,7 @@
 import type { KnowledgeCategory } from "../types/domains/knowledge.ts";
 import type { ObsidianPermissionState } from "../types/domains/obsidian.ts";
+import { host } from "../platform/host.ts";
+import type { DesktopVaultCapability, WebVaultCapability } from "../platform/capabilities.ts";
 
 type PermissionMode = "read" | "readwrite";
 type PermissionHandle = FileSystemDirectoryHandle & {
@@ -8,15 +10,6 @@ type PermissionHandle = FileSystemDirectoryHandle & {
 };
 type IterableDirectoryHandle = FileSystemDirectoryHandle & {
   entries: () => AsyncIterableIterator<[string, FileSystemHandle]>;
-};
-type DirectoryPickerWindow = Window & {
-  showDirectoryPicker?: (options?: { id?: string; mode?: PermissionMode }) => Promise<FileSystemDirectoryHandle>;
-  FileSystemObserver?: new (
-    callback: (records: Array<{ type?: string }>) => void,
-  ) => {
-    observe(handle: FileSystemDirectoryHandle, options?: { recursive?: boolean }): Promise<void>;
-    disconnect(): void;
-  };
 };
 
 export type ObsidianVaultErrorCode =
@@ -59,8 +52,14 @@ export type VaultWatchSession = {
 
 const CATEGORIES: KnowledgeCategory[] = ["政治理论", "常识判断", "申论"];
 
-function desktopBridge(): ReviewDesktopVaultBridge | undefined {
-  return typeof window === "undefined" ? undefined : window.reviewDesktopVault;
+function desktopVaultCapability(): DesktopVaultCapability | undefined {
+  const vault = host.capabilities.vault;
+  return vault?.kind === "desktop" ? vault : undefined;
+}
+
+function webVaultCapability(): WebVaultCapability | undefined {
+  const vault = host.capabilities.vault;
+  return vault?.kind === "web" ? vault : undefined;
 }
 
 /** 规范化 Vault 内部路径，禁止绝对路径和父级跳转逃逸托管目录。 */
@@ -127,24 +126,24 @@ async function walkMarkdown(directory: FileSystemDirectoryHandle, prefix = ""): 
 /** 浏览器 Vault 适配器集中管理目录权限和文件读写，业务组件不持有目录句柄。 */
 export const obsidianVaultAdapter = {
   preferredBackend(): VaultBackend {
-    return desktopBridge() ? "desktop" : "browser";
+    return desktopVaultCapability() ? "desktop" : "browser";
   },
 
   isSupported(): boolean {
-    return Boolean(desktopBridge()) || (typeof window !== "undefined" && typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function");
+    return Boolean(host.capabilities.vault);
   },
 
   async chooseVault(): Promise<VaultSelection> {
-    const desktop = desktopBridge();
+    const desktop = desktopVaultCapability();
     if (desktop) {
       const selection = await desktop.chooseVault();
       if (selection.cancelled || !selection.vaultName) throw new ObsidianVaultError("cancelled", "已取消选择 Vault，现有知识库没有发生变化。");
       return { backend: "desktop", vaultName: selection.vaultName };
     }
-    const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
-    if (!picker) throw new Error("当前浏览器不支持选择 Vault 文件夹，请改用 Chrome 或 Edge，或使用一次性 Markdown 导入。");
+    const web = webVaultCapability();
+    if (!web) throw new Error("当前浏览器不支持选择 Vault 文件夹，请改用 Chrome 或 Edge，或使用一次性 Markdown 导入。");
     try {
-      const directoryHandle = await picker({ id: "review-workspace-obsidian", mode: "readwrite" });
+      const directoryHandle = await web.chooseDirectory({ id: "review-workspace-obsidian", mode: "readwrite" });
       return { backend: "browser", vaultName: directoryHandle.name, directoryHandle };
     } catch (error) {
       throw toObsidianVaultError(error, "选择 Vault");
@@ -153,7 +152,7 @@ export const obsidianVaultAdapter = {
 
   async permission(handle?: FileSystemDirectoryHandle, request = false, backend: VaultBackend = "browser"): Promise<ObsidianPermissionState> {
     if (backend === "desktop") {
-      const desktop = desktopBridge();
+      const desktop = desktopVaultCapability();
       if (!desktop) return "unsupported";
       return (await desktop.getState()).configured ? "granted" : "denied";
     }
@@ -172,7 +171,7 @@ export const obsidianVaultAdapter = {
 
   async ensureManagedTree(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, backend: VaultBackend = "browser"): Promise<void> {
     if (backend === "desktop") {
-      const desktop = desktopBridge();
+      const desktop = desktopVaultCapability();
       if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
       return desktop.ensureManagedTree(normalizeObsidianPath(managedRoot, "托管目录"));
     }
@@ -187,7 +186,7 @@ export const obsidianVaultAdapter = {
 
   async listMarkdown(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, backend: VaultBackend = "browser"): Promise<VaultMarkdownFile[]> {
     if (backend === "desktop") {
-      const desktop = desktopBridge();
+      const desktop = desktopVaultCapability();
       if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
       return desktop.listMarkdown(normalizeObsidianPath(managedRoot, "托管目录"));
     }
@@ -204,7 +203,7 @@ export const obsidianVaultAdapter = {
 
   async readMarkdown(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, relativePath: string, backend: VaultBackend = "browser"): Promise<string> {
     if (backend === "desktop") {
-      const desktop = desktopBridge();
+      const desktop = desktopVaultCapability();
       if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
       return desktop.readMarkdown(normalizeObsidianPath(managedRoot, "托管目录"), normalizeObsidianPath(relativePath, "Obsidian 笔记路径"));
     }
@@ -225,7 +224,7 @@ export const obsidianVaultAdapter = {
 
   async writeMarkdown(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, relativePath: string, markdown: string, backend: VaultBackend = "browser"): Promise<void> {
     if (backend === "desktop") {
-      const desktop = desktopBridge();
+      const desktop = desktopVaultCapability();
       if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
       return desktop.writeMarkdown(normalizeObsidianPath(managedRoot, "托管目录"), normalizeObsidianPath(relativePath, "Obsidian 笔记路径"), markdown);
     }
@@ -251,7 +250,7 @@ export const obsidianVaultAdapter = {
 
   async removeMarkdown(handle: FileSystemDirectoryHandle | undefined, managedRoot: string, relativePath: string, backend: VaultBackend = "browser"): Promise<void> {
     if (backend === "desktop") {
-      const desktop = desktopBridge();
+      const desktop = desktopVaultCapability();
       if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
       return desktop.removeMarkdown(normalizeObsidianPath(managedRoot, "托管目录"), normalizeObsidianPath(relativePath, "Obsidian 笔记路径"));
     }
@@ -276,7 +275,7 @@ export const obsidianVaultAdapter = {
     listener: (change: { revision: number; occurredAt: string }) => void,
   ): Promise<VaultWatchSession> {
     if (backend === "desktop") {
-      const desktop = desktopBridge();
+      const desktop = desktopVaultCapability();
       if (!desktop) throw new ObsidianVaultError("handle_invalid", "桌面 Vault 桥接不可用，请重新启动应用。");
       const unsubscribe = desktop.onVaultChanged(listener);
       await desktop.startWatching(normalizeObsidianPath(managedRoot, "托管目录"));
@@ -289,11 +288,11 @@ export const obsidianVaultAdapter = {
       };
     }
 
-    const Observer = typeof window === "undefined" ? undefined : (window as DirectoryPickerWindow).FileSystemObserver;
-    if (!Observer || !handle) return { mode: "polling", stop: () => undefined };
+    const web = webVaultCapability();
+    if (!web?.createObserver || !handle) return { mode: "polling", stop: () => undefined };
     const managedDirectory = await resolveDirectory(handle, managedRoot);
     let revision = 0;
-    const observer = new Observer((records) => {
+    const observer = web.createObserver((records) => {
       if (!records.length) return;
       revision += 1;
       listener({ revision, occurredAt: new Date().toISOString() });
