@@ -58,7 +58,7 @@ application/automation/execute-automation-run.ts
 - 获取租约后，预览或 `running` 记录写入失败也会进入清理；`running` 写入成功后才启动每分钟续租，终态形成后先停止续租，再由当前所有者释放租约。
 - `running` 记录先于外部 AI、HTTP 采集和提案保存提交。外部执行与 IndexedDB 不构成 ACID 事务；成功/失败终态和当前所有者的调度推进仍在同一个本地 Dexie transaction 内提交。
 - 外部执行错误只分类并写一次 `failed` 终态，不自动重放。外部执行开始后若终态写入或 cleanup 失败，`AutomationApplicationError` 以 `partialResult` 暴露已确认的 `running`/终态记录和输出证据，并将 `retrySafety` 标为 `manual-only`。
-- cleanup 失败继续覆盖正常返回或原失败，但现在具有稳定的 `release-lease` 步骤；若终态已经提交，部分结果明确保留该终态，调用方不得把异常理解为“从未执行”。
+- cleanup 失败不会覆盖已有 Application 主错误：原 `step`、cause、`retrySafety` 与 `partialResult` 保持不变，停止续租/释放租约异常附加到 `cleanupErrors` 作为次级诊断。仅当主流程成功时，cleanup 才以稳定的 `release-lease` 主错误返回；若终态已经提交，部分结果仍明确保留该终态。
 
 本阶段不修改任务、运行记录或提案 schema，不改变试运行、调度频率、Web Locks、通知、Electron/Host、凭据或外部执行协议。
 
