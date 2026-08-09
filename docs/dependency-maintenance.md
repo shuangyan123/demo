@@ -21,6 +21,13 @@
 - `npm run audit:prod` 优先读取 npm audit 的有效 JSON；只有端点异常时才回退官方 Bulk Advisory API。两条路径都不可用、报告无效或生产依赖树为空时必须失败关闭。
 - `docs/upgrade-roadmap.md` 是本轮升级状态、验收证据和回滚点的唯一追踪表。
 
+## 2026-08-09 生产安全补丁批次
+
+- `npm run audit:prod` 识别出 `fast-uri`、`ip-address`、`nanoid`、`pdfjs-dist` 与 `undici` 的 high 公告，以及 `hono` 的 moderate 公告。
+- 在不跨 major 的前提下固定 `fast-uri@3.1.5`、`ip-address@10.4.0`、`nanoid@3.3.17`、`undici@7.29.0`、`hono@4.12.34`，并把直接依赖 `pdfjs-dist` 提升到 `6.2.108`。
+- 未使用 `npm audit fix --force`。锁文件更新后生产审计为 0 low / 0 moderate / 0 high / 0 critical；MCP、SSRF、文件导入、desktop、contracts、build 与 E2E 继续作为回归边界。
+- 回滚必须整体撤销本批 `package.json` 与 `package-lock.json`，不得只降级单个 override 后继续发布。
+
 ## 已关闭风险例外
 
 - Next 内置 `postcss@8.4.31` 的 moderate 例外已于 2026-07-26 关闭：新披露的 high 公告使旧例外失效，改由 Next 子树 `postcss@8.5.23` 定向 override 消除。
