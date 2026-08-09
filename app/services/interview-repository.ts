@@ -220,6 +220,11 @@ export const interviewRepository = {
     await reviewDb.interviewSessions.update(id, { ...patch, updatedAt: nowISO() });
   },
 
+  // 按持久化顺序读取单场面试轮次，供多步骤 Application 用例构造完整上下文。
+  async listTurns(sessionId: string): Promise<InterviewTurn[]> {
+    return reviewDb.interviewTurns.where("sessionId").equals(sessionId).sortBy("createdAt");
+  },
+
   // 写入一轮面试对话，包括 AI 面试官、AI 同组考生和用户作答文本。
   async addTurn(input: NewTurnInput): Promise<InterviewTurn> {
     const turn: InterviewTurn = {
