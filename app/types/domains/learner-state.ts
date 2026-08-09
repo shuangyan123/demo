@@ -7,6 +7,7 @@ export type LearnerEvidenceType =
   | "knowledge"
   | "knowledge_attempt"
   | "interview"
+  | "interview_plan"
   | "tutoring"
   | "tutoring_plan";
 
@@ -28,13 +29,37 @@ export type LearnerStateSignal = {
   evidence: LearnerEvidenceRef[];
 };
 
+export type LearningActionKind =
+  | "review_mistakes"
+  | "review_knowledge"
+  | "retry_tutoring"
+  | "practice_interview";
+
+export type LearningActionRecommendation = {
+  id: string;
+  kind: LearningActionKind;
+  title: string;
+  summary: string;
+  priority: number;
+  priorityReason: string;
+  evidence: LearnerEvidenceRef[];
+  destination: {
+    module: "review" | "library" | "knowledgeTraining" | "tutoring" | "interview";
+    targetIds?: string[];
+  };
+  state: "ready" | "insufficient-data" | "blocked" | "conflict";
+};
+
 /** 从错题、知识、面试和辅导记录实时计算的只读快照。 */
 export type LearnerStateSnapshot = {
   generatedAt: string;
   currentGoal?: string;
   dueReviewCount: number;
   evidenceCount: number;
+  insufficientEvidenceCount: number;
+  sourceRecordCount: number;
   signals: LearnerStateSignal[];
+  recommendations: LearningActionRecommendation[];
 };
 
 /** 辅导微测固定使用可确定评分的单选题，避免模型自信直接改变掌握度。 */

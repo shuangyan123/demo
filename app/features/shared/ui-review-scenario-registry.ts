@@ -33,6 +33,9 @@ export type UiReviewScenarioDefinition = {
 
 /** 全应用可审查状态清单。首次空白可载入真实本地数据，其余状态保留原业务动作。 */
 export const uiReviewScenarioDefinitions = [
+  { id: "dashboard.learning-actions.insufficient", view: "dashboard", kind: "first-use-empty", packId: "learning", target: "今日学习推荐", safety: "local-data" },
+  { id: "dashboard.learning-actions.unsubmitted", view: "dashboard", kind: "first-use-empty", packId: "learning", target: "今日学习推荐", safety: "local-data" },
+  { id: "dashboard.learning-actions.not-due", view: "dashboard", kind: "first-use-empty", packId: "learning", target: "今日学习推荐", safety: "local-data" },
   { id: "dashboard.due-mistakes.empty", view: "dashboard", kind: "first-use-empty", packId: "learning", target: "今日错题队列", safety: "local-data" },
   { id: "dashboard.weak-boards.empty", view: "dashboard", kind: "first-use-empty", packId: "learning", target: "薄弱板块", safety: "local-data" },
   { id: "dashboard.due-knowledge.empty", view: "dashboard", kind: "first-use-empty", packId: "learning", target: "今日知识队列", safety: "local-data" },

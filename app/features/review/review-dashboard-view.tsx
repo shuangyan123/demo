@@ -1,6 +1,7 @@
 import type { BoardStat } from "../../lib/review-selectors";
 import type { Board, Mistake } from "../../types/domains/review.ts";
 import type { KnowledgeCategory, KnowledgeCategorySummary, KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { LearnerStateSnapshot, LearningActionRecommendation } from "../../types/domains/learner-state.ts";
 import { ConfigurationHealthPanel } from "../onboarding/configuration-health-panel";
 import type { ConfigurationHealth, ConfigurationHealthAction } from "../onboarding/use-configuration-health";
 import { AppIcon } from "../shared/app-icon";
@@ -8,6 +9,7 @@ import { Button, CardButton, Chip, DataList, DataRow, EmptyState, MasteryDots } 
 import { studyDomainDefinitions } from "../study/study-registry";
 import { resolveDashboardNextAction, type DashboardNextActionId } from "./dashboard-next-action.ts";
 import { DashboardStudyFlow, dashboardFlowTones, type DashboardFlowItem } from "./dashboard-study-flow";
+import { DashboardLearningActions } from "./dashboard-learning-actions.tsx";
 
 const boardColors = ["#2f6fed", "#1a9b71", "#d79018", "#d45145", "#7a5bd4", "#1c8c9a"];
 const civilServiceDomain = studyDomainDefinitions[0]!;
@@ -27,6 +29,7 @@ type DashboardViewProps = {
   knowledgeCategorySummaries: KnowledgeCategorySummary[];
   knowledgeCorrectRate: number;
   lowMistakes: Mistake[];
+  learnerState: LearnerStateSnapshot;
   notice: string;
   obsidianConnected: boolean;
   pendingProposalCount: number;
@@ -42,6 +45,7 @@ type DashboardViewProps = {
   onOpenReview: (id: string) => void;
   onOpenReviewQueue: () => void;
   onOpenTutoring: () => void;
+  onOpenLearningAction: (action: LearningActionRecommendation) => void;
 };
 
 /** 渲染三个默认折叠的低频信息区，保留旧首页能力但不占用首屏注意力。 */
@@ -82,6 +86,7 @@ export function DashboardView({
   knowledgeCategorySummaries,
   knowledgeCorrectRate,
   lowMistakes,
+  learnerState,
   notice,
   obsidianConnected,
   pendingProposalCount,
@@ -97,6 +102,7 @@ export function DashboardView({
   onOpenReview,
   onOpenReviewQueue,
   onOpenTutoring,
+  onOpenLearningAction,
 }: DashboardViewProps) {
   const knowledgeTotal = knowledgeCategorySummaries.reduce((total, item) => total + item.total, 0);
   const mistakeTotal = boardStats.reduce((total, item) => total + item.total, 0);
@@ -162,6 +168,13 @@ export function DashboardView({
         </div>
         <Button variant="primary" onClick={actions[nextAction.id]}>{nextAction.label}</Button>
       </section>
+
+      <DashboardLearningActions
+        recommendations={learnerState.recommendations}
+        sourceRecordCount={learnerState.sourceRecordCount}
+        insufficientEvidenceCount={learnerState.insufficientEvidenceCount}
+        onOpen={onOpenLearningAction}
+      />
 
       <DashboardStudyFlow items={flowItems} />
 

@@ -1,4 +1,5 @@
 import "fake-indexeddb/auto";
+import "./learner-state-service.contract.test.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";
@@ -19,8 +20,8 @@ test("学习者状态只从本地可观察结果派生，并为每个结论保�
   const now = "2026-07-16T00:00:00.000Z";
   const old = "2026-07-01T00:00:00.000Z";
   await reviewDb.mistakes.bulkPut([
-    { id: "m1", board: "资料分析", source: "eval", stem: "完整题干不应进入学习上下文 SENTINEL-A", answer: "A", explanation: "", reasons: ["单位换算"], tags: [], mastery: 30, nextReviewAt: old, createdAt: old, updatedAt: now },
-    { id: "m2", board: "资料分析", source: "eval", stem: "另一道完整题干 SENTINEL-B", answer: "B", explanation: "", reasons: ["单位换算"], tags: [], mastery: 40, nextReviewAt: old, createdAt: old, updatedAt: now },
+    { id: "m1", board: "资料分析", source: "eval", stem: "完整题干不应进入学习上下文 SENTINEL-A", answer: "A", explanation: "", reasons: ["单位换算"], tags: [], mastery: 1, nextReviewAt: old, createdAt: old, updatedAt: now },
+    { id: "m2", board: "资料分析", source: "eval", stem: "另一道完整题干 SENTINEL-B", answer: "B", explanation: "", reasons: ["单位换算"], tags: [], mastery: 2, nextReviewAt: old, createdAt: old, updatedAt: now },
   ] as never[]);
   await reviewDb.tutoringTurns.put({
     id: "turn-evidence",

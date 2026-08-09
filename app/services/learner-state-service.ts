@@ -1,9 +1,15 @@
 import { reviewDb } from "../db/review-db.ts";
-import type { Board, Mistake, ReviewResult } from "../types/domains/review.ts";
-import type { InterviewEvaluation } from "../types/domains/interview.ts";
+import type { Attempt, Board, Mistake, ReviewResult } from "../types/domains/review.ts";
+import type { InterviewEvaluation, InterviewPracticePlan, InterviewSession } from "../types/domains/interview.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
-import type { LearnerEvidenceRef, LearnerStateSignal, LearnerStateSnapshot } from "../types/domains/learner-state.ts";
+import type {
+  LearnerEvidenceRef,
+  LearnerStateSignal,
+  LearnerStateSnapshot,
+  LearningActionRecommendation,
+} from "../types/domains/learner-state.ts";
 import type { TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
+import { filterWorkspaceRecords, PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "./workspace-data-scope.ts";
 
 type ResultEvidence = {
   id: string;
@@ -11,104 +17,178 @@ type ResultEvidence = {
   observedAt: string;
 };
 
-const SIGNAL_LIMIT = 18;
+export type LearnerStateFacts = {
+  mistakes: Mistake[];
+  attempts: Attempt[];
+  knowledgeEntries: KnowledgeEntry[];
+  knowledgeAttempts: KnowledgeAttempt[];
+  interviewEvaluations: InterviewEvaluation[];
+  interviewPracticePlans: InterviewPracticePlan[];
+  interviewSessions: InterviewSession[];
+  tutoringSessions: TutoringSession[];
+  tutoringTurns: TutoringTurn[];
+  tutoringPlans: TutoringPlan[];
+};
 
-/** 把分数限制在稳定区间，避免异常导入数据支配上下文排序。 */
+const SIGNAL_LIMIT = 18;
+const ACTION_LIMIT = 12;
+const GENERIC_MISCONCEPTION_LABELS = new Set(["待归因", "其他", "其它", "未知", "不清楚", "未分类"]);
+
+/** 持久化掌握度固定为 1..5；百分分数只用于只读排序，绝不写回领域记录。 */
+export function masteryLevelToScore(value: number): number {
+  const level = Math.max(1, Math.min(5, Number.isFinite(value) ? value : 1));
+  return Math.round(((level - 1) / 4) * 100);
+}
+
+/** 把派生排序分限制在稳定区间，避免异常导入数据支配上下文排序。 */
 function clampScore(value: number): number {
   return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
 }
 
-/** 使用稳定字段构造信号 ID，便于测试和 UI 对照。 */
+function dateKey(value: string): string {
+  return value.slice(0, 10);
+}
+
+function todayKey(today: Date): string {
+  return today.toISOString().slice(0, 10);
+}
+
+function isDue(value: string, today: Date): boolean {
+  return Boolean(value) && dateKey(value) <= todayKey(today);
+}
+
+/** 使用稳定字段构造派生 ID，便于刷新重建、测试和 UI 对照。 */
+function derivedId(prefix: string, key: string): string {
+  return `${prefix}:${key.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "-").slice(0, 120)}`;
+}
+
 function signalId(kind: LearnerStateSignal["kind"], key: string): string {
-  return `${kind}:${key.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "-").slice(0, 80)}`;
+  return derivedId(kind, key);
+}
+
+function actionId(rule: string, targetIds: string[]): string {
+  const input = targetIds.toSorted().join("\u001f");
+  let hash = 2166136261;
+  for (const character of input) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return derivedId("learning-action", `${rule}-${(hash >>> 0).toString(36)}`);
+}
+
+function dedupeEvidence(evidence: LearnerEvidenceRef[]): LearnerEvidenceRef[] {
+  const unique = new Map<string, LearnerEvidenceRef>();
+  for (const item of evidence) unique.set(`${item.type}:${item.id}`, item);
+  return [...unique.values()].toSorted((left, right) => (
+    right.observedAt.localeCompare(left.observedAt)
+    || left.type.localeCompare(right.type)
+    || left.id.localeCompare(right.id)
+  ));
 }
 
 function mistakeEvidence(item: Mistake): LearnerEvidenceRef {
-  return { type: "mistake", id: item.id, label: `${item.board} · ${item.stem.slice(0, 48)}`, observedAt: item.updatedAt };
+  return { type: "mistake", id: item.id, label: `${item.board}错题`, observedAt: item.updatedAt };
+}
+
+function reviewAttemptEvidence(attempt: ResultEvidence): LearnerEvidenceRef {
+  return { type: "review_attempt", id: attempt.id, label: `最近复盘：${attempt.result}`, observedAt: attempt.observedAt };
 }
 
 function knowledgeEvidence(item: KnowledgeEntry): LearnerEvidenceRef {
-  return { type: "knowledge", id: item.id, label: `${item.category} · ${item.title}`, observedAt: item.updatedAt };
+  return { type: "knowledge", id: item.id, label: `${item.category} · ${item.title.slice(0, 48)}`, observedAt: item.updatedAt };
 }
 
-/** 按板块聚合低掌握度错题和最近错误复盘，形成可核验薄弱信号。 */
-function boardWeaknessSignals(
-  mistakes: Mistake[],
-  latestAttempts: Map<string, ResultEvidence>,
-): LearnerStateSignal[] {
+function knowledgeAttemptEvidence(attempt: KnowledgeAttempt): LearnerEvidenceRef {
+  return { type: "knowledge_attempt", id: attempt.id, label: `最近训练：${attempt.result}`, observedAt: attempt.reviewedAt };
+}
+
+function latestReviewAttempts(attempts: Attempt[]): Map<string, ResultEvidence> {
+  const latest = new Map<string, ResultEvidence>();
+  for (const attempt of attempts.toSorted((left, right) => right.reviewedAt.localeCompare(left.reviewedAt) || left.id.localeCompare(right.id))) {
+    if (!latest.has(attempt.mistakeId)) latest.set(attempt.mistakeId, { id: attempt.id, result: attempt.result, observedAt: attempt.reviewedAt });
+  }
+  return latest;
+}
+
+function latestKnowledgeAttempts(attempts: KnowledgeAttempt[]): Map<string, KnowledgeAttempt> {
+  const latest = new Map<string, KnowledgeAttempt>();
+  for (const attempt of attempts.toSorted((left, right) => right.reviewedAt.localeCompare(left.reviewedAt) || left.id.localeCompare(right.id))) {
+    if (!latest.has(attempt.knowledgeId)) latest.set(attempt.knowledgeId, attempt);
+  }
+  return latest;
+}
+
+/** 按板块聚合 1..5 掌握度和最近错误复盘，形成可核验薄弱信号。 */
+function boardWeaknessSignals(mistakes: Mistake[], latestAttempts: Map<string, ResultEvidence>): LearnerStateSignal[] {
   const groups = new Map<Board, Mistake[]>();
   for (const mistake of mistakes) {
     const attempt = latestAttempts.get(mistake.id);
-    if (mistake.mastery >= 60 && attempt?.result !== "wrong" && attempt?.result !== "uncertain") continue;
+    if (mistake.mastery > 2 && attempt?.result !== "wrong" && attempt?.result !== "uncertain") continue;
     groups.set(mistake.board, [...(groups.get(mistake.board) ?? []), mistake]);
   }
   return [...groups.entries()].map(([board, items]) => {
-    const sorted = items.toSorted((left, right) => left.mastery - right.mastery || right.updatedAt.localeCompare(left.updatedAt));
-    const averageMastery = sorted.reduce((sum, item) => sum + clampScore(item.mastery), 0) / sorted.length;
+    const sorted = items.toSorted((left, right) => left.mastery - right.mastery || right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id));
+    const averageMasteryScore = sorted.reduce((sum, item) => sum + masteryLevelToScore(item.mastery), 0) / sorted.length;
     const wrongCount = sorted.filter((item) => latestAttempts.get(item.id)?.result === "wrong").length;
     return {
       id: signalId("weakness", board),
       kind: "weakness",
-      title: `${board}仍是主要薄弱板块`,
-      summary: `${sorted.length} 道题需要巩固，平均掌握度 ${Math.round(averageMastery)}${wrongCount ? `，其中 ${wrongCount} 道最近仍答错` : ""}。`,
-      score: clampScore(90 - averageMastery + Math.min(20, wrongCount * 4)),
-      evidence: sorted.slice(0, 3).map(mistakeEvidence),
+      title: `${board}仍需巩固`,
+      summary: `${sorted.length} 道题有低掌握度或最近未通过，派生掌握分 ${Math.round(averageMasteryScore)}/100${wrongCount ? `，其中 ${wrongCount} 道最近答错` : ""}。`,
+      score: clampScore(90 - averageMasteryScore + Math.min(20, wrongCount * 4)),
+      evidence: dedupeEvidence(sorted.slice(0, 3).flatMap((item) => [mistakeEvidence(item), ...(latestAttempts.get(item.id) ? [reviewAttemptEvidence(latestAttempts.get(item.id)!)] : [])])),
     } satisfies LearnerStateSignal;
   });
 }
 
-/** 聚合同名错因；只有至少两条独立错题证据时才形成长期误区。 */
+/** 聚合同名错因；通用占位词不会形成长期误区，且每道错题最多计数一次。 */
 function misconceptionSignals(mistakes: Mistake[]): LearnerStateSignal[] {
-  const groups = new Map<string, { label: string; mistakes: Mistake[] }>();
+  const groups = new Map<string, { label: string; mistakes: Map<string, Mistake> }>();
   for (const mistake of mistakes) {
-    for (const reason of mistake.reasons) {
+    for (const reason of new Set(mistake.reasons)) {
       const label = reason.trim().slice(0, 80);
       const key = label.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
-      if (!key) continue;
-      const current = groups.get(key) ?? { label, mistakes: [] };
-      current.mistakes.push(mistake);
+      if (!key || GENERIC_MISCONCEPTION_LABELS.has(label)) continue;
+      const current = groups.get(key) ?? { label, mistakes: new Map<string, Mistake>() };
+      current.mistakes.set(mistake.id, mistake);
       groups.set(key, current);
     }
   }
   return [...groups.entries()].flatMap(([key, group]) => {
-    const unique = new Map(group.mistakes.map((item) => [item.id, item]));
-    const items = [...unique.values()];
+    const items = [...group.mistakes.values()];
     if (items.length < 2) return [];
     return [{
       id: signalId("misconception", key),
       kind: "misconception" as const,
       title: `反复错因：${group.label}`,
-      summary: `该错因已在 ${items.length} 道不同题目中出现，应先让学生解释判断依据，再进入下一题。`,
+      summary: `该错因已在 ${items.length} 道不同题目中出现，应先解释判断依据再继续训练。`,
       score: clampScore(56 + items.length * 7),
-      evidence: items.toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 3).map(mistakeEvidence),
+      evidence: items.toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id)).slice(0, 3).map(mistakeEvidence),
     }];
   });
 }
 
 function knowledgeSignals(entries: KnowledgeEntry[], latestAttempts: Map<string, KnowledgeAttempt>): LearnerStateSignal[] {
   return entries
-    .filter((entry) => entry.mastery < 60 || ["wrong", "uncertain"].includes(latestAttempts.get(entry.id)?.result ?? ""))
-    .toSorted((left, right) => left.mastery - right.mastery || right.updatedAt.localeCompare(left.updatedAt))
+    .filter((entry) => entry.mastery <= 2 || ["wrong", "uncertain"].includes(latestAttempts.get(entry.id)?.result ?? ""))
+    .toSorted((left, right) => left.mastery - right.mastery || right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id))
     .slice(0, 5)
     .map((entry) => {
       const attempt = latestAttempts.get(entry.id);
+      const masteryScore = masteryLevelToScore(entry.mastery);
       return {
         id: signalId("weakness", `knowledge-${entry.id}`),
         kind: "weakness" as const,
         title: `知识点待巩固：${entry.title}`,
-        summary: `${entry.category}知识掌握度 ${Math.round(clampScore(entry.mastery))}${attempt ? `，最近复习结果为 ${attempt.result}` : ""}，应结合例题或反例重新检验。`,
-        score: clampScore(85 - entry.mastery + (attempt?.result === "wrong" ? 12 : 0)),
-        evidence: [
-          knowledgeEvidence(entry),
-          ...(attempt ? [{ type: "knowledge_attempt" as const, id: attempt.id, label: `复习结果 ${attempt.result}`, observedAt: attempt.reviewedAt }] : []),
-        ],
+        summary: `${entry.category}知识掌握度 ${entry.mastery}/5（派生分 ${masteryScore}/100）${attempt ? `，最近训练结果为 ${attempt.result}` : ""}。`,
+        score: clampScore(85 - masteryScore + (attempt?.result === "wrong" ? 12 : attempt?.result === "uncertain" ? 6 : 0)),
+        evidence: dedupeEvidence([knowledgeEvidence(entry), ...(attempt ? [knowledgeAttemptEvidence(attempt)] : [])]),
       };
     });
 }
 
 function interviewSignals(evaluations: InterviewEvaluation[]): LearnerStateSignal[] {
-  const latest = evaluations.toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 4);
-  return latest.flatMap((evaluation) => evaluation.dimensions
+  return evaluations.toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id)).slice(0, 4).flatMap((evaluation) => evaluation.dimensions
     .filter((dimension) => dimension.maxScore > 0 && dimension.score / dimension.maxScore < 0.7)
     .slice(0, 2)
     .map((dimension) => ({
@@ -121,58 +201,32 @@ function interviewSignals(evaluations: InterviewEvaluation[]): LearnerStateSigna
     })));
 }
 
+/** 只有已提交的确定性微测才形成辅导学习信号；模型定位或置信度本身不是掌握证据。 */
 function tutoringSignals(turns: TutoringTurn[]): LearnerStateSignal[] {
-  const seen = new Set<string>();
-  return turns.toSorted((left, right) => right.createdAt.localeCompare(left.createdAt)).flatMap((turn) => {
-    const problem = turn.detectedProblem?.trim();
-    if (!problem) return [];
-    const key = problem.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "").slice(0, 100);
-    if (!key || seen.has(key)) return [];
-    seen.add(key);
+  return turns.toSorted((left, right) => right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id)).flatMap((turn) => {
     const assessment = turn.microAssessment;
-    const ratio = assessment?.completedAt && assessment.questions.length
-      ? (assessment.correctCount ?? 0) / assessment.questions.length
-      : undefined;
+    if (!assessment?.completedAt || !assessment.questions.length || assessment.correctCount === undefined) return [];
+    const ratio = assessment.correctCount / assessment.questions.length;
+    if (ratio >= 1) return [];
     return [{
-      id: signalId("misconception", `tutoring-${key}`),
-      kind: "misconception" as const,
-      title: `辅导中已定位：${problem}`.slice(0, 100),
-      summary: ratio === undefined
-        ? "该问题已讲解但尚无微测证据，不能视为已经掌握。"
-        : ratio < 1
-          ? `微测正确率 ${Math.round(ratio * 100)}%，仍需换一种例子复练。`
-          : "微测已全部答对，可在间隔复习中再次确认。",
-      score: ratio === undefined ? 66 : ratio < 1 ? 82 : 42,
-      evidence: [{ type: "tutoring" as const, id: turn.id, label: problem.slice(0, 64), observedAt: turn.createdAt }],
+      id: signalId("weakness", `tutoring-${turn.id}`),
+      kind: "weakness" as const,
+      title: "辅导微测仍需复练",
+      summary: `微测答对 ${assessment.correctCount}/${assessment.questions.length}，需要按间隔计划复练。`,
+      score: 82,
+      evidence: [{ type: "tutoring" as const, id: turn.id, label: `微测 ${assessment.correctCount}/${assessment.questions.length}`, observedAt: assessment.completedAt }],
     }];
   }).slice(0, 5);
 }
 
 function goalAndActionSignals(plans: TutoringPlan[], sessions: TutoringSession[]): LearnerStateSignal[] {
   const signals: LearnerStateSignal[] = [];
-  const activePlan = plans
-    .filter((plan) => plan.status === "active")
-    .toSorted((left, right) => left.nextPracticeAt.localeCompare(right.nextPracticeAt))[0];
-  const activeSession = sessions
-    .filter((session) => session.status === "active" || session.status === "paused")
-    .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
+  const activePlan = plans.filter((plan) => plan.status === "active").toSorted((left, right) => left.nextPracticeAt.localeCompare(right.nextPracticeAt) || left.id.localeCompare(right.id))[0];
+  const activeSession = sessions.filter((session) => session.status === "active" || session.status === "paused").toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id))[0];
   if (activePlan) {
-    signals.push({
-      id: signalId("goal", activePlan.id),
-      kind: "goal",
-      title: activePlan.title,
-      summary: activePlan.objective,
-      score: 88,
-      evidence: [{ type: "tutoring_plan", id: activePlan.id, label: activePlan.title, observedAt: activePlan.updatedAt }],
-    });
-    signals.push({
-      id: signalId("next_action", activePlan.id),
-      kind: "next_action",
-      title: "下一次辅导任务",
-      summary: `${activePlan.nextTask}（计划时间：${activePlan.nextPracticeAt.slice(0, 10)}）`,
-      score: 78,
-      evidence: [{ type: "tutoring_plan", id: activePlan.id, label: activePlan.nextTask, observedAt: activePlan.updatedAt }],
-    });
+    const evidence = [{ type: "tutoring_plan" as const, id: activePlan.id, label: activePlan.title, observedAt: activePlan.updatedAt }];
+    signals.push({ id: signalId("goal", activePlan.id), kind: "goal", title: activePlan.title, summary: activePlan.objective, score: 88, evidence });
+    signals.push({ id: signalId("next_action", activePlan.id), kind: "next_action", title: "下一次辅导任务", summary: `${activePlan.nextTask}（计划时间：${dateKey(activePlan.nextPracticeAt)}）`, score: 78, evidence });
   } else if (activeSession?.goal) {
     signals.push({
       id: signalId("goal", activeSession.id),
@@ -186,57 +240,196 @@ function goalAndActionSignals(plans: TutoringPlan[], sessions: TutoringSession[]
   return signals;
 }
 
-/** 读取既有表并构造学习者状态；不创建新表，也不写回任何模型推测。 */
-export async function loadLearnerStateSnapshot(today = new Date()): Promise<LearnerStateSnapshot> {
-  const [mistakes, attempts, knowledgeEntries, knowledgeAttempts, interviewEvaluations, tutoringSessions, tutoringTurns, tutoringPlans] = await Promise.all([
+function dueMistakeAction(items: Mistake[], latest: Map<string, ResultEvidence>): LearningActionRecommendation | null {
+  if (!items.length) return null;
+  const sorted = items.toSorted((left, right) => {
+    const resultRank = (item: Mistake) => latest.get(item.id)?.result === "wrong" ? 0 : latest.get(item.id)?.result === "uncertain" ? 1 : 2;
+    return resultRank(left) - resultRank(right) || left.mastery - right.mastery || left.nextReviewAt.localeCompare(right.nextReviewAt) || left.id.localeCompare(right.id);
+  });
+  const targetIds = sorted.map((item) => item.id);
+  const wrongCount = sorted.filter((item) => latest.get(item.id)?.result === "wrong").length;
+  const uncertainCount = sorted.filter((item) => latest.get(item.id)?.result === "uncertain").length;
+  return {
+    id: actionId("due-mistakes", targetIds),
+    kind: "review_mistakes",
+    title: `复盘 ${items.length} 道到期错题`,
+    summary: `${wrongCount ? `${wrongCount} 道最近答错，` : ""}${uncertainCount ? `${uncertainCount} 道最近不确定，` : ""}最早复盘日期已到。`,
+    priority: 100 - Math.min(20, wrongCount * 4 + uncertainCount * 2),
+    priorityReason: "P1 到期复盘；最近答错或不确定会在同级中提前。",
+    evidence: dedupeEvidence(sorted.flatMap((item) => [mistakeEvidence(item), ...(latest.get(item.id) ? [reviewAttemptEvidence(latest.get(item.id)!)] : [])])).slice(0, 12),
+    destination: { module: "review", targetIds },
+    state: "ready",
+  };
+}
+
+function dueKnowledgeAction(items: KnowledgeEntry[], latest: Map<string, KnowledgeAttempt>): LearningActionRecommendation | null {
+  if (!items.length) return null;
+  const sorted = items.toSorted((left, right) => {
+    const resultRank = (item: KnowledgeEntry) => latest.get(item.id)?.result === "wrong" ? 0 : latest.get(item.id)?.result === "uncertain" ? 1 : 2;
+    return resultRank(left) - resultRank(right) || left.mastery - right.mastery || left.nextReviewAt.localeCompare(right.nextReviewAt) || left.id.localeCompare(right.id);
+  });
+  const targetIds = sorted.map((item) => item.id);
+  const wrongCount = sorted.filter((item) => latest.get(item.id)?.result === "wrong").length;
+  return {
+    id: actionId("due-knowledge", targetIds),
+    kind: "review_knowledge",
+    title: `训练 ${items.length} 个到期知识点`,
+    summary: `${wrongCount ? `${wrongCount} 个最近训练未通过，` : ""}最早训练日期已到。`,
+    priority: 110 - Math.min(16, wrongCount * 4),
+    priorityReason: "P1 到期知识训练；最近错误会在同级中提前。",
+    evidence: dedupeEvidence(sorted.flatMap((item) => [knowledgeEvidence(item), ...(latest.get(item.id) ? [knowledgeAttemptEvidence(latest.get(item.id)!)] : [])])).slice(0, 12),
+    destination: { module: "knowledgeTraining", targetIds },
+    state: "ready",
+  };
+}
+
+function tutoringActions(plans: TutoringPlan[], turns: TutoringTurn[], today: Date): LearningActionRecommendation[] {
+  const duePlanIds = new Set(plans.filter((plan) => plan.status === "active" && isDue(plan.nextPracticeAt, today)).map((plan) => plan.id));
+  const actions: LearningActionRecommendation[] = plans.filter((plan) => plan.status === "active").map((plan) => ({
+    id: actionId(isDue(plan.nextPracticeAt, today) ? "due-tutoring" : "active-tutoring", [plan.id]),
+    kind: "retry_tutoring" as const,
+    title: isDue(plan.nextPracticeAt, today) ? "完成到期辅导复练" : "继续辅导计划",
+    summary: `${plan.nextTask}（${isDue(plan.nextPracticeAt, today) ? "已到期" : `计划 ${dateKey(plan.nextPracticeAt)}`}）`,
+    priority: isDue(plan.nextPracticeAt, today) ? 120 : 400,
+    priorityReason: isDue(plan.nextPracticeAt, today) ? "P1 已到期的明确辅导计划。" : "P4 已确认的进行中辅导计划。",
+    evidence: [{ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt }],
+    destination: { module: "tutoring" as const, targetIds: [plan.id] },
+    state: "ready" as const,
+  }));
+  for (const turn of turns) {
+    const assessment = turn.microAssessment;
+    if (!assessment?.completedAt || !assessment.questions.length || assessment.correctCount === undefined || assessment.correctCount === assessment.questions.length) continue;
+    const planId = `auto:${turn.sessionId}`;
+    if (duePlanIds.has(planId)) continue;
+    actions.push({
+      id: actionId("failed-tutoring-assessment", [turn.id]),
+      kind: "retry_tutoring",
+      title: "重试未通过的辅导微测",
+      summary: `最近微测答对 ${assessment.correctCount}/${assessment.questions.length}，需要换一种例子再练习。`,
+      priority: 200,
+      priorityReason: "P2 可观察微测未全部通过。",
+      evidence: [{ type: "tutoring", id: turn.id, label: `微测 ${assessment.correctCount}/${assessment.questions.length}`, observedAt: assessment.completedAt }],
+      destination: { module: "tutoring", targetIds: [planId] },
+      state: "ready",
+    });
+  }
+  return actions;
+}
+
+function interviewActions(plans: InterviewPracticePlan[], today: Date): LearningActionRecommendation[] {
+  return plans.filter((plan) => plan.status === "active").map((plan) => ({
+    id: actionId(isDue(plan.nextPracticeAt, today) ? "due-interview" : "active-interview", [plan.id]),
+    kind: "practice_interview" as const,
+    title: isDue(plan.nextPracticeAt, today) ? "完成到期面试训练" : "继续面试训练计划",
+    summary: `${plan.title} · 已完成 ${plan.completedSessionCount}/${plan.targetSessionCount}${isDue(plan.nextPracticeAt, today) ? "，计划日期已到" : `，下次 ${dateKey(plan.nextPracticeAt)}`}。`,
+    priority: isDue(plan.nextPracticeAt, today) ? 130 : 410,
+    priorityReason: isDue(plan.nextPracticeAt, today) ? "P1 已到期的明确面试训练计划。" : "P4 已确认的进行中面试训练计划。",
+    evidence: [{ type: "interview_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt }],
+    destination: { module: "interview" as const, targetIds: [plan.id] },
+    state: "ready" as const,
+  }));
+}
+
+function misconceptionActions(signals: LearnerStateSignal[]): LearningActionRecommendation[] {
+  return signals.filter((signal) => signal.kind === "misconception" && signal.evidence.every((item) => item.type === "mistake")).map((signal) => {
+    const targetIds = signal.evidence.map((item) => item.id).toSorted();
+    return {
+      id: actionId("repeated-misconception", targetIds),
+      kind: "review_mistakes" as const,
+      title: signal.title,
+      summary: signal.summary,
+      priority: 300,
+      priorityReason: "P3 至少两道独立错题呈现同一明确错因。",
+      evidence: signal.evidence,
+      destination: { module: "library" as const, targetIds },
+      state: "ready" as const,
+    };
+  });
+}
+
+/** 从显式本地事实纯派生学习状态与行动队列；相同 facts + today 必须产生相同 ID 和顺序。 */
+export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new Date()): LearnerStateSnapshot {
+  const latestAttempts = latestReviewAttempts(facts.attempts);
+  const latestKnowledge = latestKnowledgeAttempts(facts.knowledgeAttempts);
+  const dueMistakes = facts.mistakes.filter((item) => isDue(item.nextReviewAt, today));
+  const dueKnowledge = facts.knowledgeEntries.filter((item) => isDue(item.nextReviewAt, today));
+  const dueTutoringPlans = facts.tutoringPlans.filter((item) => item.status === "active" && isDue(item.nextPracticeAt, today));
+  const dueInterviewPlans = facts.interviewPracticePlans.filter((item) => item.status === "active" && isDue(item.nextPracticeAt, today));
+  const dueEvidence = dedupeEvidence([
+    ...dueMistakes.slice(0, 2).map(mistakeEvidence),
+    ...dueKnowledge.slice(0, 2).map(knowledgeEvidence),
+    ...dueTutoringPlans.slice(0, 2).map((plan) => ({ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
+    ...dueInterviewPlans.slice(0, 2).map((plan) => ({ type: "interview_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
+  ]);
+  const misconception = misconceptionSignals(facts.mistakes);
+  const signals = [
+    ...goalAndActionSignals(facts.tutoringPlans, facts.tutoringSessions),
+    ...(dueEvidence.length ? [{
+      id: signalId("due_review", "current"),
+      kind: "due_review" as const,
+      title: "存在到期学习任务",
+      summary: `当前有 ${dueMistakes.length} 道错题、${dueKnowledge.length} 个知识点、${dueTutoringPlans.length} 个辅导任务和 ${dueInterviewPlans.length} 个面试计划到期。`,
+      score: 92,
+      evidence: dueEvidence,
+    }] : []),
+    ...boardWeaknessSignals(facts.mistakes, latestAttempts),
+    ...misconception,
+    ...knowledgeSignals(facts.knowledgeEntries, latestKnowledge),
+    ...interviewSignals(facts.interviewEvaluations),
+    ...tutoringSignals(facts.tutoringTurns),
+  ].toSorted((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, SIGNAL_LIMIT);
+  const recommendations = [
+    dueMistakeAction(dueMistakes, latestAttempts),
+    dueKnowledgeAction(dueKnowledge, latestKnowledge),
+    ...tutoringActions(facts.tutoringPlans, facts.tutoringTurns, today),
+    ...interviewActions(facts.interviewPracticePlans, today),
+    ...misconceptionActions(misconception),
+  ].filter((item): item is LearningActionRecommendation => Boolean(item))
+    .map((item) => ({ ...item, evidence: dedupeEvidence(item.evidence) }))
+    .filter((item) => item.evidence.length > 0)
+    .toSorted((left, right) => left.priority - right.priority || left.id.localeCompare(right.id))
+    .slice(0, ACTION_LIMIT);
+  const evidenceCount = new Set(signals.flatMap((signal) => signal.evidence.map((item) => `${item.type}:${item.id}`))).size;
+  const sourceRecordCount = Object.values(facts).reduce((count, records) => count + records.length, 0);
+  const evaluatedSessionIds = new Set(facts.interviewEvaluations.map((evaluation) => evaluation.sessionId));
+  const insufficientEvidenceCount = facts.tutoringTurns.filter((turn) => turn.microAssessment?.questions.length && !turn.microAssessment.completedAt).length
+    + facts.interviewSessions.filter((session) => session.status !== "evaluated" && session.status !== "cancelled" && !evaluatedSessionIds.has(session.id)).length;
+  return {
+    generatedAt: today.toISOString(),
+    currentGoal: signals.find((signal) => signal.kind === "goal")?.summary,
+    dueReviewCount: dueMistakes.length + dueKnowledge.length + dueTutoringPlans.length + dueInterviewPlans.length,
+    evidenceCount,
+    insufficientEvidenceCount,
+    sourceRecordCount,
+    signals,
+    recommendations,
+  };
+}
+
+/** 读取既有 v16 表并构造只读学习者状态；不写回推荐、模型推测或掌握分。 */
+export async function loadLearnerStateSnapshot(today = new Date(), scope: WorkspaceDataScope = PERSONAL_WORKSPACE_DATA_SCOPE): Promise<LearnerStateSnapshot> {
+  const [mistakes, attempts, knowledgeEntries, knowledgeAttempts, interviewEvaluations, interviewPracticePlans, interviewSessions, tutoringSessions, tutoringTurns, tutoringPlans] = await Promise.all([
     reviewDb.mistakes.toArray(),
     reviewDb.attempts.toArray(),
     reviewDb.knowledgeEntries.toArray(),
     reviewDb.knowledgeAttempts.toArray(),
     reviewDb.interviewEvaluations.toArray(),
+    reviewDb.interviewPracticePlans.toArray(),
+    reviewDb.interviewSessions.toArray(),
     reviewDb.tutoringSessions.toArray(),
     reviewDb.tutoringTurns.toArray(),
     reviewDb.tutoringPlans.toArray(),
   ]);
-  const latestAttempts = new Map<string, ResultEvidence>();
-  for (const attempt of attempts.toSorted((left, right) => right.reviewedAt.localeCompare(left.reviewedAt))) {
-    if (!latestAttempts.has(attempt.mistakeId)) latestAttempts.set(attempt.mistakeId, { id: attempt.id, result: attempt.result, observedAt: attempt.reviewedAt });
-  }
-  const latestKnowledgeAttempts = new Map<string, KnowledgeAttempt>();
-  for (const attempt of knowledgeAttempts.toSorted((left, right) => right.reviewedAt.localeCompare(left.reviewedAt))) {
-    if (!latestKnowledgeAttempts.has(attempt.knowledgeId)) latestKnowledgeAttempts.set(attempt.knowledgeId, attempt);
-  }
-  const now = today.getTime();
-  const dueMistakes = mistakes.filter((item) => Date.parse(item.nextReviewAt) <= now);
-  const dueKnowledge = knowledgeEntries.filter((item) => Date.parse(item.nextReviewAt) <= now);
-  const duePlans = tutoringPlans.filter((item) => item.status === "active" && Date.parse(item.nextPracticeAt) <= now);
-  const dueEvidence: LearnerEvidenceRef[] = [
-    ...dueMistakes.slice(0, 2).map(mistakeEvidence),
-    ...dueKnowledge.slice(0, 2).map(knowledgeEvidence),
-    ...duePlans.slice(0, 2).map((plan) => ({ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
-  ];
-  const signals = [
-    ...goalAndActionSignals(tutoringPlans, tutoringSessions),
-    ...(dueEvidence.length ? [{
-      id: signalId("due_review", "current"),
-      kind: "due_review" as const,
-      title: "存在到期复习",
-      summary: `当前有 ${dueMistakes.length} 道错题、${dueKnowledge.length} 个知识点和 ${duePlans.length} 个辅导任务到期。`,
-      score: 92,
-      evidence: dueEvidence,
-    }] : []),
-    ...boardWeaknessSignals(mistakes, latestAttempts),
-    ...misconceptionSignals(mistakes),
-    ...knowledgeSignals(knowledgeEntries, latestKnowledgeAttempts),
-    ...interviewSignals(interviewEvaluations),
-    ...tutoringSignals(tutoringTurns),
-  ].toSorted((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, SIGNAL_LIMIT);
-  const evidenceCount = new Set(signals.flatMap((signal) => signal.evidence.map((item) => `${item.type}:${item.id}`))).size;
-  return {
-    generatedAt: today.toISOString(),
-    currentGoal: signals.find((signal) => signal.kind === "goal")?.summary,
-    dueReviewCount: dueMistakes.length + dueKnowledge.length + duePlans.length,
-    evidenceCount,
-    signals,
-  };
+  return deriveLearnerStateSnapshot({
+    mistakes: filterWorkspaceRecords(mistakes, scope),
+    attempts: filterWorkspaceRecords(attempts, scope),
+    knowledgeEntries: filterWorkspaceRecords(knowledgeEntries, scope),
+    knowledgeAttempts: filterWorkspaceRecords(knowledgeAttempts, scope),
+    interviewEvaluations: filterWorkspaceRecords(interviewEvaluations, scope),
+    interviewPracticePlans: filterWorkspaceRecords(interviewPracticePlans, scope),
+    interviewSessions: filterWorkspaceRecords(interviewSessions, scope),
+    tutoringSessions: filterWorkspaceRecords(tutoringSessions, scope),
+    tutoringTurns: filterWorkspaceRecords(tutoringTurns, scope),
+    tutoringPlans: filterWorkspaceRecords(tutoringPlans, scope),
+  }, today);
 }

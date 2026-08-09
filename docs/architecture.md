@@ -261,6 +261,8 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 ```text
 错题 / 知识 / 面试 / 辅导微测 / 计划
   -> LearnerStateSnapshot（只读、证据化）
+  -> LearningActionRecommendation[]（固定优先级、真实目的地）
+  -> 总览“今日学习”（用户显式进入既有流程）
   -> LearningContextAssembler（最多 6–8 条、字符预算）
   -> 辅导请求
   -> 学生操作与微测
@@ -280,6 +282,8 @@ Vault Event -> Obsidian Controller -> Repository -> File System Access API
 
 - `PersonalMemoryEntry` 继续只处理稳定资料、偏好和目标；掌握度、错因、到期复习和下一步行动属于动态学习者模型，不写入通用记忆。
 - `LearnerStateSnapshot` 不新增表和索引，每次按当前本地数据计算；所有进入提示词的结论必须至少包含一个 `LearnerEvidenceRef`，上下文只输出证据 ID，不复制完整题库、知识正文或历史对话。
+- 持久化 `Mistake.mastery` 与 `KnowledgeEntry.mastery` 的契约是 1..5；0..100 仅为 `masteryLevelToScore()` 的只读排序结果，禁止写回。`LearningActionRecommendation` 使用 P1 到期计划、P2 可观察失败、P3 独立重复错因、P4 已确认活动计划的固定顺序，相同事实与日期产生稳定 ID 和顺序。
+- 学习行动队列不读取 Provider、AI 置信度、Automation 成功或待确认知识提案，也不写 IndexedDB、Vault 或计划。未提交微测、未评分/取消面试均不算学习进展；CTA 只导航到既有复盘、知识训练、辅导或面试流程。
 - `VisionSourceAdapter` 是未来 Android XR 配套应用的输入端口。浏览器实现只管理内存中的 `MediaStream`、关键帧和不可逆灰度指纹；Dexie 只保存观察摘要、时间、置信度和用户确认结果。
 - `review_extensions` 与 `review_workspace` 完全分离。扩展包只有 `data.json` 和受控资产，不能注入 JSX、脚本或 HTML；需要新工具的扩展仍通过独立 MCP 安全边界。
 - 扩展市场是低频动态加载视图；安装、启用、停用、卸载、导出和单版本回滚由 `declarativeExtensionRepository` 管理，完整重置和导出同时覆盖两个数据库。

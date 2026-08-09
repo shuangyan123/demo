@@ -442,6 +442,7 @@
   font-size: 0.82rem;
 }
 
+
 .dashboard-study-flow {
   margin-top: 2rem;
 }
@@ -2582,6 +2583,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
     min-height: 2.75rem;
     padding-inline: 0.85rem;
   }
+
 
   .dashboard-study-flow {
     margin-top: 1.75rem;
