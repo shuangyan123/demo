@@ -5,7 +5,8 @@
 - 本轮不新增公开 HTTP Route，也不改变现有 JSON、SSE、音频、模型目录、MCP 或采集响应契约。
 - 安装版 Next standalone 仅监听 `127.0.0.1` 的随机端口。根 `proxy.ts` 仅在 `REVIEW_DESKTOP_RUNTIME_TOKEN` 存在时要求 `x-review-runtime-token`；普通 Web 开发与部署不启用该门禁。
 - `x-review-runtime-token` 由 Electron 主进程在 `review-app` 协议代理时注入，Next 校验后从上游请求头删除。renderer、业务 service 和持久化层不得读取该值。
-- `LocalDataExportV2` 仍是唯一支持的业务备份格式。导入只允许显式表白名单，拒绝未知版本、未知表、非对象记录、重复键和关键悬空关联。
+- `LocalDataExportV2` 仍是唯一支持的业务备份格式；早期无 manifest 的 V2 继续可读。新导出 manifest 包含应用/schema、included stores、excluded categories 和逐表计数。
+- 导入只允许与真实 Dexie schema 建立 contract 的显式分类表，并在 destructive mutation 前二次 preflight；未知数据库/表、非对象记录、重复键、超限记录、敏感字段、伪造清单和关键悬空关联全部拒绝且不改变现有数据。
 - 凭据、密文、IV、主密钥、MCP Token、粉笔 Cookie、额度凭据、厂商原始响应和 Vault 目录句柄不属于备份 API。
 
 

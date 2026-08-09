@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-09 · 0.4.x Data Reliability Phase 1
+
+- 建立完整数据资产、表级备份分类、版本化 localStorage 与 R0–R4 恢复等级矩阵；核心 36 表与分类策略不一致时 contract 失败，安全表继续显式排除。
+- 保留 `LocalDataExportV2` 和早期 reader，新导出增加应用/schema、included/excluded 清单与逐表计数；恢复新增二次 preflight、敏感字段/记录预算校验和 apply 后验证。
+- 跨 core/extension 恢复失败会验证旧快照回滚；回滚未完成时保留 transfer job。新增只读 Health Check，报告关键悬空、未完成事务与主密钥不可用而不泄漏凭据。
+- 增加成功恢复与畸形包拒绝 Browser E2E；保持 `review_workspace` v16、`review_extensions` v1、Vault 正文、Electron 凭据和 Provider/MCP 边界不变。
+
 ## 2026-08-09 · 0.4 Application Layer Phase 1（Interview）
 
 - 新增 `start-interview-session` 与 `submit-interview-turn` 两个轻量 Application Use Case，把 session/turn、AI 和 timer 的多步骤编排移出 React Hook；UI 状态、校验、刷新、通知、示例模式和评分触发保持在 Controller。

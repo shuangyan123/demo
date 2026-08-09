@@ -1,5 +1,14 @@
 # 发布前手工冒烟清单
 
+## 2026-08-09 · Data Reliability Phase 1
+
+1. 在隔离 profile 创建错题、知识、对话、自动化和扩展代表数据，点击“检查数据健康”，确认只读报告不修改计数、不输出密文/Vault 正文，并与上方 Vault 权限诊断一致。
+2. 下载 V2 备份，核对 manifest 的应用/schema、included stores、excluded categories 和逐表计数；搜索确认没有 Key、Token、Cookie、密文、IV、目录句柄、Vault 正文或厂商原始响应。
+3. 删除一条用户可见对话后导入备份、确认替换并刷新，确认记录恢复且凭据/Vault 明确要求重新配置。
+4. 分别导入未知数据库/表、敏感字段、错误/伪造 manifest、重复 ID、关键悬空关联、超过 100MB/记录限制的包；确认在出现替换确认前拒绝，刷新后现有数据完全不变。
+5. 在隔离 profile 模拟 core 成功而 extension 写入/验证失败，确认旧快照恢复；在 `applying` 后强制关闭页面，重启时必须先回滚并清理 transfer job，不能进入半套业务数据。
+6. 真实浏览器配额不足、IndexedDB blocked/写失败和 Vault permission lost 仍需人工执行；应用不得声称这些跨数据库/Vault 操作具有 ACID。
+
 ## 2026-07-28 · Electron 与数据迁移
 
 1. 同时运行 Web 与桌面开发入口，确认 Codex 浏览器仍可访问 `http://localhost:3000`，Electron 展示同一套 React/CSS。

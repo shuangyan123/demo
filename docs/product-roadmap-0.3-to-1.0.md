@@ -91,6 +91,13 @@
 
 ## 0.4.x 数据可靠性
 
+### Phase 1 状态（2026-08-09）
+
+- 已建立覆盖 `review_workspace` 36 个表、扩展库、安全密钥库、恢复事务、版本化 localStorage、Vault 与运行时数据的所有权/分类/恢复等级矩阵；核心表与备份策略必须完全匹配，新增未知表会使 contract 失败。
+- 保留 `LocalDataExportV2` 与早期无 manifest reader；新导出增加应用/schema、included stores、excluded categories 和逐表计数。恢复在 destructive mutation 前二次 preflight，并拒绝未知存储、敏感字段、重复键、超限记录、伪造清单和关键悬空引用。
+- 恢复继续以 core/extension 两个独立 Dexie transaction 加 transfer job 实现，不伪造跨库 ACID；apply 后验证失败会回滚旧快照，回滚未完成时保留 job 并在根 Bootstrap 阻止业务 controller 启动。
+- 已增加只读 Health Check foundation，检查 schema/classification、关键引用、未完成恢复和主密钥可用性；Vault 权限继续复用现有只读诊断。Phase 1 不提供自动 Repair，也未升级 Dexie v16。
+
 ### 目标
 
 - 建立数据分类、所有权、可重建性和恢复级别清单。
