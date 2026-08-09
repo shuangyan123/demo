@@ -558,7 +558,7 @@ Health issue classification
 ```
 
 - `localDataManagementRepository` 只登记一个真实 targeted-safe 操作：删除无父对话的 `aiConversationRunSteps`。其余用户事实、凭据与 Vault 问题保持 manual-only；没有 Repair Manager/Registry/CommandBus 或新 Application framework。
-- Repair preview 和 fresh backup 都会重新扫描当前状态；备份后数据变化、其他 critical issue、未确认下载或 transaction 内 verify 失败都会 fail closed。删除只触及精确 run-step ID，不跨 core/extensions/Vault，并由 Dexie 在 verify throw 时回滚。
+- Repair preview 和 fresh recovery-safe snapshot 都会重新扫描当前状态；快照后数据变化、其他 critical issue、未完成“已保存 + 目标不可恢复”双确认或 transaction 内 verify 失败都会 fail closed。快照恢复其余合法 V2 数据但刻意排除 targeted orphan；删除只触及精确 run-step ID，不跨 core/extensions/Vault，并由 Dexie 在 verify throw 时回滚。
 - `ReviewWorkspaceBootstrap` 是 interrupted restore 的唯一执行入口。类型化结果区分 prepared discard 与 applying rollback；失败保留 transfer job 并阻止 controller。`DataManagementPanel` 的 page-load recovery 已移除，Health/refresh 不会自动 repair。
 - Vault Health 只在用户请求检查时动态加载现有 Obsidian snapshot，读取 permission 与 mapping/hash 状态；首屏不静态引入 Vault service，也不请求授权、写 Markdown、删除 mapping 或解决 conflict。
 - 本阶段继续保持 `review_workspace` v16、`review_extensions` v1、`LocalDataExportV2`、现有 Electron preload/IPC 与凭据安全边界。

@@ -176,21 +176,22 @@ aiConversationRunSteps.conversationId 不存在
 
 ```text
 scan
-→ typed preview（issue/scope/IDs/action/risk/backup/verification）
-→ 生成 fresh recovery-safe LocalDataExportV2
-→ 浏览器发起下载，用户明确确认文件已保存
+→ typed preview（issue/scope/IDs/action/risk/recovery capability/verification）
+→ 生成 fresh recovery-safe LocalDataExportV2 snapshot
+→ 浏览器发起下载，用户明确确认文件已保存且理解目标记录不可由该快照恢复
 → 单个 review_workspace transaction 精确删除
 → transaction 内重新检查目标消失且没有新增 integrity issue
 → commit / failure rollback
 ```
 
-- Preview 只含稳定 ID 和动作摘要，不含 step 文本、prompt、凭据、Vault 正文或厂商原始响应，且 preview 本身不写数据库。
-- 修复前 V2 安全备份保留全部可恢复业务数据，只从备份副本排除即将清理的孤立运行元数据；如果仍有其他关键损坏导致备份不能通过 restore preflight，则停止修复。
-- 应用无法证明浏览器下载已落盘，因此只声明“已请求下载”，并要求用户显式勾选确认；不会虚假声称备份已安全保存。
+- Preview 只含稳定 ID 和动作摘要，不含 step 文本、prompt、凭据、Vault 正文或厂商原始响应，且 preview 本身不写数据库；类型明确标记目标记录不能从生成的 recovery snapshot 恢复。
+- 修复安全恢复快照可恢复所有仍满足 `LocalDataExportV2` integrity contract 的受支持数据，但刻意排除即将清理的孤立运行元数据。这些 dangling records 本身会被 Restore preflight 拒绝；若放入普通 V2，文件将不再是合法恢复包。
+- Targeted repair 在单个 Dexie transaction 内可安全回滚失败写入，但确认提交后的目标删除不能通过生成的 V2 recovery snapshot 撤销，系统不声称 Repair fully reversible。
+- 应用无法证明浏览器下载已落盘，因此只声明“已请求下载”，并要求用户分别确认文件已保存、理解目标记录不可恢复；不会虚假声称快照已安全保存或能完整回到修复前状态。
 - Repair 不在 startup、page load、Health Check 或 refresh 自动执行；Vault 与跨数据库系统不参与 targeted repair。
 
 ## 验证责任
 
-- Contract 覆盖表分类、清单/计数、secret exclusion、未知表、重复键、限制、关键引用、repairability、preview 不变性、fresh backup、transaction verify rollback、prepared/applying recovery 与 Vault 只读 manual-only 边界。
-- Browser E2E 覆盖既有 backup/restore 与畸形拒绝，以及 targeted repair 的 preview/backup/confirm/verify 和 seeded `applying` 启动回滚可见状态。
+- Contract 覆盖表分类、清单/计数、secret exclusion、未知表、重复键、限制、关键引用、repairability、preview 不变性、recovery snapshot 语义与合法 V2 校验、transaction verify rollback、prepared/applying recovery 与 Vault 只读 manual-only 边界。
+- Browser E2E 覆盖既有 backup/restore 与畸形拒绝，以及 targeted repair 的 preview/snapshot/双确认/verify 和 seeded `applying` 启动回滚可见状态。
 - E2E seeded `applying` 证明启动边界读取并完成既有 crash state；它不伪装成真实浏览器进程强杀。真实 Vault 权限、外部文件冲突、磁盘配额和进程强制终止仍需按 `docs/release-smoke.md` 人工验收。

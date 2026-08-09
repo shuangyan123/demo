@@ -33,7 +33,8 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
   const [healthReport, setHealthReport] = useState<LocalDataHealthReport>();
   const [repairPreview, setRepairPreview] = useState<LocalDataRepairPreview>();
   const [repairBackup, setRepairBackup] = useState<LocalDataRepairBackup>();
-  const [repairBackupAcknowledged, setRepairBackupAcknowledged] = useState(false);
+  const [repairSnapshotSavedAcknowledged, setRepairSnapshotSavedAcknowledged] = useState(false);
+  const [repairTargetDeletionAcknowledged, setRepairTargetDeletionAcknowledged] = useState(false);
   const [resetText, setResetText] = useState("");
   const dialogRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +103,8 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
     try {
       setRepairPreview(await localDataManagementRepository.inspectRepair(repairId));
       setRepairBackup(undefined);
-      setRepairBackupAcknowledged(false);
+      setRepairSnapshotSavedAcknowledged(false);
+      setRepairTargetDeletionAcknowledged(false);
       setNotice("");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "无法生成修复预览");
@@ -116,29 +118,34 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
     setBusy("repair-backup");
     try {
       const backup = await localDataManagementRepository.prepareRepairBackup(repairPreview);
-      downloadJson(backup.source, `review-workspace-before-repair-${new Date().toISOString().slice(0, 10)}.json`);
+      downloadJson(backup.source, `review-workspace-repair-recovery-${new Date().toISOString().slice(0, 10)}.json`);
       setRepairBackup(backup);
-      setRepairBackupAcknowledged(false);
-      setNotice("已请求浏览器下载 fresh V2 安全备份；请确认文件确实保存后再继续。待清理的孤立运行元数据不进入该可恢复快照。");
+      setRepairSnapshotSavedAcknowledged(false);
+      setRepairTargetDeletionAcknowledged(false);
+      setNotice("已请求浏览器下载 fresh V2 修复安全恢复快照。该快照不包含本次待清理的孤立运行元数据，请确认文件确实保存并理解该限制后再继续。");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "修复前备份生成失败");
+      setNotice(error instanceof Error ? error.message : "修复安全恢复快照生成失败");
     } finally {
       setBusy("");
     }
   }
 
   async function executeRepair(): Promise<void> {
-    if (!repairPreview || !repairBackup || !repairBackupAcknowledged) return;
+    if (!repairPreview || !repairBackup || !repairSnapshotSavedAcknowledged || !repairTargetDeletionAcknowledged) return;
     setBusy("repair-execute");
     try {
-      const result = await localDataManagementRepository.executeRepair(repairPreview, repairBackup, true);
+      const result = await localDataManagementRepository.executeRepair(repairPreview, repairBackup, {
+        recoverySnapshotSaved: repairSnapshotSavedAcknowledged,
+        targetRecordsNotRecoverableAcknowledged: repairTargetDeletionAcknowledged,
+      });
       await onChanged?.();
       await refresh();
       const report = await localDataManagementRepository.inspectHealth();
       setHealthReport(report);
       setRepairPreview(undefined);
       setRepairBackup(undefined);
-      setRepairBackupAcknowledged(false);
+      setRepairSnapshotSavedAcknowledged(false);
+      setRepairTargetDeletionAcknowledged(false);
       setNotice(`已定向清理 ${result.affectedRecords} 条孤立运行元数据，并通过修复后完整性验证。`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "定向修复失败；事务未提交");
@@ -150,7 +157,8 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
   function closeRepairPreview(): void {
     setRepairPreview(undefined);
     setRepairBackup(undefined);
-    setRepairBackupAcknowledged(false);
+    setRepairSnapshotSavedAcknowledged(false);
+    setRepairTargetDeletionAcknowledged(false);
   }
 
   async function inspectHealth(): Promise<void> {
@@ -321,19 +329,20 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
               <div><dt className="font-medium">会修改什么</dt><dd className="mt-1 text-muted">{repairPreview.action}</dd></div>
               <div><dt className="font-medium">影响范围</dt><dd className="mt-1 text-muted">{repairPreview.scope} · {repairPreview.affectedRecords} 条精确记录</dd></div>
               <div><dt className="font-medium">数据风险</dt><dd className="mt-1 text-muted">低；只删除没有父对话、无法被产品读取的脱敏运行元数据，不级联删除其他记录。</dd></div>
+              <div><dt className="font-medium">恢复能力</dt><dd className="mt-1 text-muted">该恢复快照包含所有仍满足 LocalDataExportV2 integrity contract 的受支持业务数据，但不包含本次准备永久清理的孤立运行元数据。本次目标记录不能通过该快照恢复。</dd></div>
               <div><dt className="font-medium">验证计划</dt><dd className="mt-1 text-muted">{repairPreview.verificationPlan}</dd></div>
             </dl>
             <details className="mt-3 text-xs text-muted"><summary>查看受影响记录 ID</summary><ul className="mt-2 pl-5">{repairPreview.affectedRecordIds.map((id) => <li key={id} className="break-all">{id}</li>)}</ul></details>
             <div className="mt-4 rounded-md border border-line bg-surface-muted p-3 text-xs leading-5 text-muted">
-              修复前必须下载 fresh LocalDataExportV2 安全备份。浏览器只能发起下载，应用无法证明文件已经保存，因此需要你明确确认。
+              修复前必须下载 fresh LocalDataExportV2 修复安全恢复快照。浏览器只能发起下载，应用无法证明文件已经保存；该快照也不能恢复本次目标记录，因此需要两项明确确认。
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void downloadRepairBackup()}>{busy === "repair-backup" ? "生成中" : "下载修复前备份"}</Button>
-              {repairBackup ? <label className="flex items-start gap-2 text-xs text-muted"><input checked={repairBackupAcknowledged} className="mt-0.5" type="checkbox" onChange={(event) => setRepairBackupAcknowledged(event.currentTarget.checked)} />我已确认浏览器已保存这份备份</label> : null}
+              <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void downloadRepairBackup()}>{busy === "repair-backup" ? "生成中" : "下载修复安全恢复快照"}</Button>
+              {repairBackup ? <div className="grid gap-2"><label className="flex items-start gap-2 text-xs text-muted"><input checked={repairSnapshotSavedAcknowledged} className="mt-0.5" type="checkbox" onChange={(event) => setRepairSnapshotSavedAcknowledged(event.currentTarget.checked)} />我已确认浏览器已保存恢复快照</label><label className="flex items-start gap-2 text-xs text-muted"><input checked={repairTargetDeletionAcknowledged} className="mt-0.5" type="checkbox" onChange={(event) => setRepairTargetDeletionAcknowledged(event.currentTarget.checked)} />我理解本次孤立运行元数据不会进入恢复快照，确认后无法通过该快照恢复</label></div> : null}
             </div>
             <div className={styles.modalActions}>
               <Button size="sm" variant="outline" onClick={closeRepairPreview}>取消</Button>
-              <Button size="sm" variant="danger" disabled={Boolean(busy) || !repairBackup || !repairBackupAcknowledged} onClick={() => void executeRepair()}>{busy === "repair-execute" ? "修复并验证中" : "确认定向修复"}</Button>
+              <Button size="sm" variant="danger" disabled={Boolean(busy) || !repairBackup || !repairSnapshotSavedAcknowledged || !repairTargetDeletionAcknowledged} onClick={() => void executeRepair()}>{busy === "repair-execute" ? "修复并验证中" : "确认定向修复"}</Button>
             </div>
           </section>
         </div>

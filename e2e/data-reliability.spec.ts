@@ -152,7 +152,7 @@ test("畸形备份在 destructive mutation 前被拒绝且刷新后原数据保�
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("targeted repair 必须预览、下载备份和确认，验证后只移除孤立运行元数据", async ({ page }) => {
+test("targeted repair 必须预览、下载恢复快照和双确认，验证后只移除孤立运行元数据", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   const title = "定向修复保留会话";
   await seedConversation(page, title);
@@ -165,15 +165,26 @@ test("targeted repair 必须预览、下载备份和确认，验证后只移除�
   const dialog = page.getByRole("dialog", { name: "定向修复预览" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("aiConversationRunSteps · 1 条精确记录");
+  await expect(dialog).toContainText("本次目标记录不能通过该快照恢复");
   await expect(dialog).not.toContainText("不应出现在修复预览");
-  await expect(dialog.getByRole("button", { name: "确认定向修复" })).toBeDisabled();
+  const executeButton = dialog.getByRole("button", { name: "确认定向修复" });
+  await expect(executeButton).toBeDisabled();
   expect(await hasRecord(page, "aiConversationRunSteps", "data-reliability-orphan-step")).toBe(true);
 
   const downloadPromise = page.waitForEvent("download");
-  await dialog.getByRole("button", { name: "下载修复前备份" }).click();
-  await downloadPromise;
-  await dialog.getByLabel("我已确认浏览器已保存这份备份").check();
-  await dialog.getByRole("button", { name: "确认定向修复" }).click();
+  await dialog.getByRole("button", { name: "下载修复安全恢复快照" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^review-workspace-repair-recovery-\d{4}-\d{2}-\d{2}\.json$/);
+  const savedAcknowledgement = dialog.getByLabel("我已确认浏览器已保存恢复快照");
+  const deletionAcknowledgement = dialog.getByLabel("我理解本次孤立运行元数据不会进入恢复快照，确认后无法通过该快照恢复");
+  await savedAcknowledgement.check();
+  await expect(executeButton).toBeDisabled();
+  await savedAcknowledgement.uncheck();
+  await deletionAcknowledgement.check();
+  await expect(executeButton).toBeDisabled();
+  await savedAcknowledgement.check();
+  await expect(executeButton).toBeEnabled();
+  await executeButton.click();
   await expect(page.getByText("已定向清理 1 条孤立运行元数据，并通过修复后完整性验证。", { exact: true })).toBeVisible();
 
   await page.reload();
