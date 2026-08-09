@@ -48,6 +48,7 @@ export function DashboardLearningActions({
               <div>
                 <h3 className="text-sm font-semibold">{action.title}</h3>
                 <p className="mt-1 text-xs leading-5 text-muted">{action.summary}</p>
+                <p className="mt-1 text-xs leading-5 text-muted">完成条件：{action.completionHint}</p>
                 <details className="mt-1 text-xs leading-5 text-muted">
                   <summary className="w-fit cursor-pointer font-semibold text-foreground">为什么推荐？</summary>
                   <p className="mt-1">{action.priorityReason}</p>

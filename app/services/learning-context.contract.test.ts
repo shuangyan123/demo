@@ -1,5 +1,6 @@
 import "fake-indexeddb/auto";
 import "./learner-state-service.contract.test.ts";
+import "./learning-loop-completion.contract.test.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reviewDb } from "../db/review-db.ts";

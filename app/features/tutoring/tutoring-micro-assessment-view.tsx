@@ -50,11 +50,22 @@ export function TutoringMicroAssessmentView({
   onComplete,
 }: {
   turn: TutoringTurn;
-  onComplete: (turnId: string, selections: number[]) => void;
+  onComplete: (turnId: string, selections: number[]) => Promise<void> | void;
 }) {
   const assessment = turn.microAssessment!;
   const [selections, setSelections] = useState<number[]>(() => assessment.selections ?? assessment.questions.map(() => -1));
-  const completed = Boolean(assessment.completedAt);
+  const [retrying, setRetrying] = useState(false);
+  const completed = Boolean(assessment.completedAt) && !retrying;
+
+  async function submitAssessment() {
+    await onComplete(turn.id, selections);
+    setRetrying(false);
+  }
+
+  function retryAssessment() {
+    setSelections(assessment.questions.map(() => -1));
+    setRetrying(true);
+  }
   return (
     <section className="mt-3 rounded-xl border border-line bg-surface-muted/55 p-3" aria-label="本轮微测">
       <div className="flex items-center justify-between gap-3">
@@ -86,9 +97,11 @@ export function TutoringMicroAssessmentView({
         ))}
       </div>
       {!completed ? (
-        <Button className="mt-3" disabled={selections.some((value) => value < 0)} size="sm" variant="primary" onClick={() => onComplete(turn.id, selections)}>
+        <Button className="mt-3" disabled={selections.some((value) => value < 0)} size="sm" variant="primary" onClick={() => void submitAssessment()}>
           提交微测并安排复练
         </Button>
+      ) : assessment.correctCount !== assessment.questions.length ? (
+        <Button className="mt-3" size="sm" variant="soft" onClick={retryAssessment}>重新微测</Button>
       ) : null}
     </section>
   );
