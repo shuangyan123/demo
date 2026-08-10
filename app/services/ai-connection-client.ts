@@ -14,7 +14,7 @@ import {
   type AiTranscriptionResult,
 } from "./api-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
-import { AiCapabilityContractError } from "../types/domains/ai-capability.ts";
+import { AiCapabilityContractError, type ModelCapabilityProfile } from "../types/domains/ai-capability.ts";
 import { assertEffectiveModelCapability, resolveEffectiveModelCapability, resolveModelCapabilityProfile } from "./ai-capability-resolution.ts";
 import { getAiModelRuntimeDescriptor, resolveRuntimeModelId, validateAiSelectedRuntimeValues } from "./model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "./provider-contracts.ts";
@@ -27,6 +27,12 @@ type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "
 type ConnectionSpeechInput = Omit<AiSpeechRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & {
   model?: string;
 };
+
+/** 以完整连接身份读取可信目录事实，再交给纯 capability core 解析。 */
+export function resolveConnectionModelCapabilityProfile(connection: ApiConnectionProfile, modelId: string): ModelCapabilityProfile {
+  const discovered = providerModelCache.load(connection.id, connection.provider, connection.baseUrl)?.models.find((model) => model.id === modelId);
+  return resolveModelCapabilityProfile(connection.provider, modelId, discovered);
+}
 
 function assertExternalCallsAllowed(connection?: ApiConnectionProfile): void {
   if (isUiReviewRuntimeActive() || (connection && isUiReviewRecordId(connection.id))) {
@@ -61,8 +67,7 @@ async function resolveGenerationContract(
   input: ConnectionGenerateInput,
 ) {
   const selectedModel = await aiConnectionsRepository.resolveRuntimeModel(connection, purpose, input.modelId);
-  const discovered = providerModelCache.load(connection.id, connection.provider, connection.baseUrl)?.models.find((model) => model.id === selectedModel);
-  const capabilityProfile = resolveModelCapabilityProfile(connection.provider, selectedModel, discovered);
+  const capabilityProfile = resolveConnectionModelCapabilityProfile(connection, selectedModel);
   assertEffectiveModelCapability(capabilityProfile, purpose);
   const structuredOutput = input.structuredOutput
     ? resolveEffectiveModelCapability(capabilityProfile, "structured_output")

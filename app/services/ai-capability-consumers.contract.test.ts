@@ -18,8 +18,10 @@ const personalization: PersonalizationSettings = createDefaultPersonalizationSet
 
 test("Conversation 只按 effective model/protocol fact 选择流式路径", async () => {
   const source = await readFile(path.resolve(process.cwd(), "app/features/conversation/conversation-workspace.tsx"), "utf8");
-  assert.match(source, /resolveEffectiveModelCapability\(resolveModelCapabilityProfile\(submissionConnection\.provider, submissionModelId\), "streaming"\)/);
+  assert.match(source, /resolveEffectiveModelCapability\(resolveConnectionModelCapabilityProfile\(submissionConnection, submissionModelId\), "streaming"\)/);
+  assert.match(source, /resolveConnectionModelCapabilityProfile\(effectiveConnection, selectedModelId\)/);
   assert.doesNotMatch(source, /submissionConnection\.capabilities\.includes\("streaming"\)/);
+  assert.doesNotMatch(source, /provider-model-cache/);
   assert.match(source, /generateWithConnectionStream/);
   assert.match(source, /generateWithConnection\(/);
 });
