@@ -205,7 +205,7 @@ app/
 
 ```text
 User Event -> Feature Controller -> Domain Service -> Repository -> IndexedDB
-AI Request -> Connection Client -> Runtime Descriptor -> /api/ai/* -> Provider Mapper -> Provider Adapter -> Provider
+AI Request -> Connection Client -> Model + Protocol Capability Resolution -> Runtime Validation -> /api/ai/* -> Provider Mapper -> Provider Adapter -> Provider
 Vault Event -> Obsidian Controller -> Repository -> File System Access API
 ```
 

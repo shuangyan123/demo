@@ -103,9 +103,11 @@ function modelCapabilities(provider: ApiProvider, id: string, raw: JsonObject): 
   const inputModalities = stringArray(architecture?.input_modalities) ?? stringArray(raw.input_modalities) ?? [];
   const providerVision = raw.supports_image_in === true || capabilities?.vision === true || capabilities?.image_input === true || inputModalities.includes("image");
   const providerVideo = raw.supports_video_in === true || inputModalities.includes("video");
-  const hasProviderMetadata = providerVision || providerVideo || Boolean(capabilities) || provider === "kimi";
+  const providerStructuredOutput = raw.supports_structured_output === true || capabilities?.structured_output === true;
+  const providerStreaming = raw.supports_streaming === true || capabilities?.streaming === true;
+  const hasProviderMetadata = providerVision || providerVideo || providerStructuredOutput || providerStreaming || Boolean(capabilities);
   return {
-    capabilities: ["text", ...(providerVision ? ["vision" as const] : []), ...(providerVideo ? ["video" as const] : []), "structured_output", "streaming"],
+    capabilities: ["text", ...(providerVision ? ["vision" as const] : []), ...(providerVideo ? ["video" as const] : []), ...(providerStructuredOutput ? ["structured_output" as const] : []), ...(providerStreaming ? ["streaming" as const] : [])],
     source: hasProviderMetadata ? "provider" : "unknown",
   };
 }

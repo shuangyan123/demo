@@ -2,28 +2,25 @@ import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from 
 import type { AiCapability } from "../../types/domains/ai-connection.ts";
 import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 import { buildGenerateProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent } from "./provider-adapter.ts";
+import { getProviderProtocolCapabilityProfile, getSupportedProtocolCapabilities, nativeProviderProtocolProfiles } from "../../services/provider-protocol-capabilities.ts";
 
 type ProviderHttpRequest = { url: string; headers: Record<string, string>; body: unknown };
 
 /** 服务端厂商适配器统一边界；业务路由只依赖归一化输入输出。 */
 export type ProviderAdapter = {
   provider: ApiProvider;
-  protocol: "responses" | "model_routed" | "messages" | "chat_completions";
+  protocol: import("../../types/domains/ai-capability.ts").ProviderProtocol;
   capabilities: AiCapability[];
   buildGenerate: (input: AiGenerateRequest) => ProviderHttpRequest;
   parseGenerate: (input: AiGenerateRequest, payload: unknown, headers: Headers) => AiGenerateResult;
   parseStream: (input: AiGenerateRequest, payload: unknown, headers: Headers) => AiGenerateStreamEvent[];
 };
 
-const definitions: Array<Pick<ProviderAdapter, "provider" | "protocol" | "capabilities">> = [
-  { provider: "openai", protocol: "responses", capabilities: ["text", "vision", "structured_output", "streaming"] },
-  { provider: "google", protocol: "model_routed", capabilities: ["text", "vision", "structured_output", "streaming", "speech", "transcription", "realtime"] },
-  { provider: "anthropic", protocol: "messages", capabilities: ["text", "vision", "structured_output", "streaming"] },
-  { provider: "deepseek", protocol: "chat_completions", capabilities: ["text", "structured_output", "streaming"] },
-  { provider: "zhipu", protocol: "chat_completions", capabilities: ["text", "vision", "structured_output", "streaming", "speech", "transcription", "realtime"] },
-  { provider: "minimax", protocol: "messages", capabilities: ["text", "vision", "video", "tools", "structured_output", "streaming", "speech"] },
-  { provider: "xai", protocol: "responses", capabilities: ["text", "vision", "structured_output", "streaming"] },
-];
+const definitions: Array<Pick<ProviderAdapter, "provider" | "protocol" | "capabilities">> = nativeProviderProtocolProfiles.map((profile) => ({
+  provider: profile.provider,
+  protocol: profile.protocol,
+  capabilities: getSupportedProtocolCapabilities(profile.provider),
+}));
 
 /** 七家已核验厂商共享路由契约，协议差异由具体请求构造和解析器处理。 */
 export const providerAdapterRegistry = new Map<ApiProvider, ProviderAdapter>(definitions.map((definition) => [definition.provider, {
@@ -35,8 +32,8 @@ export const providerAdapterRegistry = new Map<ApiProvider, ProviderAdapter>(def
 
 const compatibilityAdapter: ProviderAdapter = {
   provider: "custom",
-  protocol: "chat_completions",
-  capabilities: ["text", "vision", "structured_output", "streaming"],
+  protocol: getProviderProtocolCapabilityProfile("custom").protocol,
+  capabilities: getSupportedProtocolCapabilities("custom"),
   buildGenerate: buildGenerateProviderRequest,
   parseGenerate: parseGenerateProviderResponse,
   parseStream: parseGenerateProviderStreamEvent,

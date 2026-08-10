@@ -105,6 +105,32 @@ test("连接级客户端在解密前拒绝能力不匹配的生成与语音请�
   );
 });
 
+test("具体模型的 unsupported、unknown 与非法 runtime 在解密和网络前稳定失败", async () => {
+  const originalResolveSecret = aiConnectionsRepository.resolveSecret;
+  let secretReads = 0;
+  aiConnectionsRepository.resolveSecret = async () => {
+    secretReads += 1;
+    return "fixture-secret";
+  };
+  try {
+    await assert.rejects(
+      generateWithConnection({ ...connection, provider: "deepseek", capabilities: ["text", "vision"] }, "vision", { modelId: "deepseek-v4-pro", messages: [{ role: "user", content: "分析图片" }] }),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "model-capability-unsupported",
+    );
+    await assert.rejects(
+      generateWithConnection({ ...connection, provider: "custom", capabilities: ["text", "vision"] }, "vision", { modelId: "gpt-5.5-vision", messages: [{ role: "user", content: "分析图片" }] }),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "model-capability-unknown",
+    );
+    await assert.rejects(
+      generateWithConnection({ ...connection, provider: "google", capabilities: ["text"] }, "text", { modelId: "gemini-2.5-pro", selectedRuntimeValues: { reasoning: 127 }, messages: [{ role: "user", content: "测试" }] }),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "invalid-runtime-value",
+    );
+    assert.equal(secretReads, 0);
+  } finally {
+    aiConnectionsRepository.resolveSecret = originalResolveSecret;
+  }
+});
+
 test("连接级转写请求要求 Google 与 transcription 能力", async () => {
   await assert.rejects(
     transcribeWithConnection({ ...connection, capabilities: ["text"] }, { audioBase64: "UklGRg==", mimeType: "audio/webm" }),

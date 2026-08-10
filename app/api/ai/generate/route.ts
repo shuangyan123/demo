@@ -11,6 +11,7 @@ import {
   readRouteJson,
 } from "../../../server/http/route-security.ts";
 import { networkPolicyFromProviderOptions, validateOutboundNetworkTarget } from "../../../server/http/outbound-network-policy.ts";
+import { AiCapabilityContractError } from "../../../types/domains/ai-capability.ts";
 
 const MAX_GENERATE_REQUEST_BYTES = 20 * 1024 * 1024;
 
@@ -144,6 +145,13 @@ export async function POST(request: Request) {
     const payload: unknown = await response.json();
     return apiJsonResponse(adapter.parseGenerate(effectiveBody, payload, response.headers), { requestId });
   } catch (error) {
+    if (error instanceof AiCapabilityContractError) {
+      return apiErrorResponse(
+        new RouteSecurityError(error.code, error.message, 400),
+        { code: error.code, message: error.message, status: 400 },
+        requestId,
+      );
+    }
     return apiErrorResponse(error, {
       code: "ai_generate_failed",
       message: error instanceof Error && error.message.includes("URL") ? "API 地址无效" : "AI API 请求失败",

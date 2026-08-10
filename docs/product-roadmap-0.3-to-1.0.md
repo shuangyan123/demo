@@ -177,6 +177,19 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 
 ## 0.5.x AI capability abstraction
 
+**状态：IN PROGRESS**
+
+### Phase 1 — Model Capability Facts & Runtime Contract
+
+**COMPLETE（2026-08-10）**
+
+- 静态 model catalog 是已核验模型能力与数值事实源；runtime descriptor 只保留推理/速度值域，不再重复模型能力或上下文。
+- 模型能力与当前 adapter/protocol 能力使用 `supported / unsupported / unknown` 分离表达；effective resolution 仅在双方明确支持时放行并保留失败原因。
+- 具体模型、结构化输出、流式与显式 runtime 值在解密连接密钥和进入 provider mapper 前校验；未知/custom-compatible 不按名称继承原厂能力。
+- 未新增 Provider、Dexie schema、凭据边界或隐藏思维数据。
+
+后续 Phase 2 才处理更完整的 Provider request / response / stream / error normalization；0.5.x 整体因此仍为 IN PROGRESS。
+
 ### 目标
 
 - 继续以具体模型目录项驱动文本、多模态、语音、推理和运行档位。

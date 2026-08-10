@@ -5,6 +5,7 @@ import { generateWithConnection, generateWithConnectionStream } from "../../serv
 import { emitAiActivity } from "../../services/ai-activity-events.ts";
 import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues } from "../../services/model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "../../services/provider-contracts.ts";
+import { resolveEffectiveModelCapability, resolveModelCapabilityProfile } from "../../services/ai-capability-resolution.ts";
 import { buildPersonalMemoryContext } from "../../services/personal-memory-context.ts";
 import { buildCanonicalConversationTurns, canonicalTurnsToChatHistory } from "../../services/canonical-conversation-context.ts";
 import type { ChatMessageContent } from "../../services/api-client.ts";
@@ -91,8 +92,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
     for (const step of runSteps) if (step.visibility === "diagnostic" && step.turnId) groups.set(step.turnId, [...(groups.get(step.turnId) ?? []), step]);
     return groups;
   }, [runSteps]);
-  const contextWindow = effectiveConnection && selectedModelId ? runtimeDescriptor?.contextWindow
-    ?? getProviderModelCatalog(effectiveConnection.provider, requiresVision ? "vision" : "text").find((model) => model.id === selectedModelId)?.contextWindow : undefined;
+  const contextWindow = effectiveConnection && selectedModelId ? getProviderModelCatalog(effectiveConnection.provider, requiresVision ? "vision" : "text").find((model) => model.id === selectedModelId)?.contextWindow : undefined;
   const conversationContext = useConversationContext({ activeConversation, appendStep, attachments, connection: effectiveConnection, contextWindow, draft, knowledgeContext,
     launchContext, messages, modelId: selectedModelId, personalization, persistedAttachments: conversationAttachments, runSteps, onNotice, onRefresh });
   useEffect(() => { if (activeConversationId === undefined && activeConversation?.id) onConversationSelected(activeConversation.id); },
@@ -236,7 +236,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
           { role: "user" as const, content: userContent },
         ];
         const purpose = requiresVision ? "vision" : "text";
-        if (submissionConnection.capabilities.includes("streaming")) {
+        if (resolveEffectiveModelCapability(resolveModelCapabilityProfile(submissionConnection.provider, submissionModelId), "streaming").support === "supported") {
           await appendStep(conversation.id, runId, "流式输出", "running", "正在接收内容");
           for await (const event of generateWithConnectionStream(submissionConnection, purpose, { modelId: submissionModelId, selectedRuntimeValues: submissionRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: submissionConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } })) {
             if (event.type === "delta") { finalContent += event.text; setAssistantDraft(finalContent); }
