@@ -58,6 +58,8 @@ Supported values are preserved. Unsupported, unknown, and out-of-range explicit 
 
 Custom and compatible endpoints do not inherit native model facts even when the model ID resembles an official model. Text generation remains available as the protocol minimum. Vision, structured output, streaming, reasoning, speed, audio, tools, and numeric limits remain unknown unless an existing trusted fact source proves them. Existing custom connection capability selections are preserved in storage; they do not become verified model facts.
 
+For business-owned JSON prompts, unknown structured-output support degrades to an ordinary text request with a provider-neutral JSON Schema instruction and omits provider-specific structured-output parameters. The capability fact remains unknown, and the existing response parser still validates the returned JSON. Vision requests and explicit runtime controls do not use this fallback.
+
 Provider protocol compatibility is not model capability equivalence.
 
 ## Numeric limit policy

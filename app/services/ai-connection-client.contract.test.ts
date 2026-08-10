@@ -131,6 +131,37 @@ test("具体模型的 unsupported、unknown 与非法 runtime 在解密和网络
   }
 });
 
+test("custom unknown 结构化输出能力保留文本流程但不发送未经验证的协议参数", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalResolveSecret = aiConnectionsRepository.resolveSecret;
+  let requestBody: Record<string, unknown> | undefined;
+  aiConnectionsRepository.resolveSecret = async () => "fixture-secret";
+  globalThis.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json({ content: JSON.stringify({ ok: true }) });
+  };
+  try {
+    const result = await generateWithConnection(
+      { ...connection, provider: "custom", capabilities: ["text", "structured_output"] },
+      "text",
+      {
+        modelId: "mock-json-model",
+        messages: [{ role: "system", content: "保留业务指令" }, { role: "user", content: "只返回 JSON" }],
+        structuredOutput: { name: "probe", schema: { type: "object" } },
+      },
+    );
+    assert.equal(result.content, JSON.stringify({ ok: true }));
+    assert.equal(requestBody?.model, "mock-json-model");
+    assert.equal("structuredOutput" in (requestBody ?? {}), false);
+    assert.match(JSON.stringify(requestBody?.messages), /保留业务指令/);
+    assert.match(JSON.stringify(requestBody?.messages), /输出契约 probe/);
+    assert.match(JSON.stringify(requestBody?.messages), /JSON Schema/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    aiConnectionsRepository.resolveSecret = originalResolveSecret;
+  }
+});
+
 test("连接级转写请求要求 Google 与 transcription 能力", async () => {
   await assert.rejects(
     transcribeWithConnection({ ...connection, capabilities: ["text"] }, { audioBase64: "UklGRg==", mimeType: "audio/webm" }),

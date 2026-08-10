@@ -15,7 +15,7 @@ import {
 } from "./api-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { AiCapabilityContractError } from "../types/domains/ai-capability.ts";
-import { assertEffectiveModelCapability, resolveModelCapabilityProfile } from "./ai-capability-resolution.ts";
+import { assertEffectiveModelCapability, resolveEffectiveModelCapability, resolveModelCapabilityProfile } from "./ai-capability-resolution.ts";
 import { getAiModelRuntimeDescriptor, resolveRuntimeModelId, validateAiSelectedRuntimeValues } from "./model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "./provider-contracts.ts";
 import { providerModelCache } from "./provider-model-cache.ts";
@@ -34,6 +34,27 @@ function assertExternalCallsAllowed(connection?: ApiConnectionProfile): void {
   }
 }
 
+function applyStructuredOutputFallback(input: ConnectionGenerateInput): ConnectionGenerateInput {
+  if (!input.structuredOutput) return input;
+  const { name, schema } = input.structuredOutput;
+  const instruction = `输出契约 ${name}：只输出符合以下 JSON Schema 的 JSON，不要附加 Markdown。\n${JSON.stringify(schema)}`;
+  const systemIndex = input.messages.findIndex((message) => message.role === "system");
+  const messages = systemIndex >= 0
+    ? input.messages.map((message, index) => index !== systemIndex
+      ? message
+      : {
+          ...message,
+          content: typeof message.content === "string"
+            ? `${message.content}\n\n${instruction}`
+            : [...message.content, { type: "text" as const, text: instruction }],
+        })
+    : [{ role: "system" as const, content: instruction }, ...input.messages];
+  return {
+    ...input,
+    messages,
+  };
+}
+
 async function resolveGenerationContract(
   connection: ApiConnectionProfile,
   purpose: GenerateConnectionPurpose,
@@ -43,7 +64,12 @@ async function resolveGenerationContract(
   const discovered = providerModelCache.load(connection.id, connection.provider, connection.baseUrl)?.models.find((model) => model.id === selectedModel);
   const capabilityProfile = resolveModelCapabilityProfile(connection.provider, selectedModel, discovered);
   assertEffectiveModelCapability(capabilityProfile, purpose);
-  if (input.structuredOutput) assertEffectiveModelCapability(capabilityProfile, "structured_output");
+  const structuredOutput = input.structuredOutput
+    ? resolveEffectiveModelCapability(capabilityProfile, "structured_output")
+    : undefined;
+  if (structuredOutput?.support === "unsupported") {
+    assertEffectiveModelCapability(capabilityProfile, "structured_output");
+  }
   if (input.stream) assertEffectiveModelCapability(capabilityProfile, "streaming");
 
   const descriptor = getAiModelRuntimeDescriptor(connection.provider, selectedModel);
@@ -70,6 +96,8 @@ async function resolveGenerationContract(
     descriptor,
     runtime: validation.values,
     model: resolveRuntimeModelId(descriptor, selectedModel, validation.values),
+    // 未验证的 custom/compatible 模型仍可执行普通文本 JSON 提示，但不得发送未经证实的协议参数。
+    includeStructuredOutput: structuredOutput?.support === "supported",
   };
 }
 
@@ -96,9 +124,10 @@ export async function generateWithConnection(
   const resolved = await resolveGenerationContract(connection, purpose, input);
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
   const runtimePayload = Object.keys(resolved.runtime).length ? { runtime: resolved.runtime } : {};
-  const request = { ...input };
+  const request = { ...(resolved.includeStructuredOutput ? input : applyStructuredOutputFallback(input)) };
   delete request.modelId;
   delete request.selectedRuntimeValues;
+  if (!resolved.includeStructuredOutput) delete request.structuredOutput;
   return callAiGenerate({
     ...request,
     provider: connection.provider,
@@ -127,9 +156,10 @@ export async function* generateWithConnectionStream(
   const resolved = await resolveGenerationContract(connection, purpose, { ...input, stream: true });
   const apiKey = await aiConnectionsRepository.resolveSecret(connection);
   const runtimePayload = Object.keys(resolved.runtime).length ? { runtime: resolved.runtime } : {};
-  const request = { ...input };
+  const request = { ...(resolved.includeStructuredOutput ? input : applyStructuredOutputFallback(input)) };
   delete request.modelId;
   delete request.selectedRuntimeValues;
+  if (!resolved.includeStructuredOutput) delete request.structuredOutput;
   yield* callAiGenerateStream({
     ...request,
     provider: connection.provider,
