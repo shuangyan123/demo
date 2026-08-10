@@ -280,10 +280,12 @@ test("Gemini 2.5 自定义预算与动态关闭哨兵原样映射", () => {
 
   const flashLiteDynamic = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-2.5-flash-lite", runtime: { reasoning: -1 } });
   const flashLiteDisabled = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-2.5-flash-lite", runtime: { reasoning: 0 } });
-  const flashLiteInvalid = buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-2.5-flash-lite", runtime: { reasoning: 511 } });
   assert.deepEqual((flashLiteDynamic.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingBudget: -1 });
   assert.deepEqual((flashLiteDisabled.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingBudget: 0 });
-  assert.deepEqual((flashLiteInvalid.body as { generationConfig: { thinkingConfig: unknown } }).generationConfig.thinkingConfig, { thinkingBudget: 0 });
+  assert.throws(
+    () => buildGenerateProviderRequest({ ...baseGenerate, provider: "google", model: "gemini-2.5-flash-lite", runtime: { reasoning: 511 } }),
+    (error: unknown) => error instanceof Error && "code" in error && error.code === "invalid-runtime-value",
+  );
 });
 
 test("Claude 预算型思考把思考 token 与正文输出额度合并到 max_tokens", () => {
@@ -296,9 +298,10 @@ test("Claude 预算型思考把思考 token 与正文输出额度合并到 max_t
   assert.equal((customBudget.body as { max_tokens: number }).max_tokens, 12000 + 321);
   assert.equal("temperature" in (customBudget.body as object), false);
 
-  const invalidBudget = buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", model: "claude-haiku-4-5", runtime: { reasoning: 1000 } });
-  assert.deepEqual((invalidBudget.body as { thinking: unknown }).thinking, { type: "enabled", budget_tokens: 1024 });
-  assert.equal((invalidBudget.body as { max_tokens: number }).max_tokens, 1024 + 321);
+  assert.throws(
+    () => buildGenerateProviderRequest({ ...baseGenerate, provider: "anthropic", model: "claude-haiku-4-5", runtime: { reasoning: 1000 } }),
+    (error: unknown) => error instanceof Error && "code" in error && error.code === "invalid-runtime-value",
+  );
 });
 
 test("GLM-5.2 原样发送七档并默认 max，旧 GLM 只发送思考开关", () => {
@@ -316,9 +319,11 @@ test("GLM-5.2 原样发送七档并默认 max，旧 GLM 只发送思考开关", 
   assert.equal("reasoning_effort" in (oldEnabled.body as object), false);
 
   for (const model of ["glm-999", "glm-5.2-custom"]) {
-    const unknown = buildGenerateProviderRequest({ ...baseGenerate, provider: "zhipu", model, runtime: { reasoning: "max" } });
-    assert.equal("thinking" in (unknown.body as object), false, model);
-    assert.equal("reasoning_effort" in (unknown.body as object), false, model);
+    assert.throws(
+      () => buildGenerateProviderRequest({ ...baseGenerate, provider: "zhipu", model, runtime: { reasoning: "max" } }),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "runtime-capability-unknown",
+      model,
+    );
   }
 });
 
@@ -557,8 +562,10 @@ test("模型目录代理归一化 Google models.list 且不返回密钥和原始
     assert.equal(result.models[0].source, "official_api");
     assert.equal(result.models[0].supportsStreaming, true);
     assert.equal(result.models[0].supportsStructuredOutput, true);
-    assert.deepEqual(result.models[1].capabilities, ["text", "structured_output", "streaming"]);
+    assert.deepEqual(result.models[1].capabilities, ["text"]);
     assert.equal(result.models[1].capabilitySource, "unknown");
+    assert.equal(result.models[1].supportsStreaming, false);
+    assert.equal(result.models[1].supportsStructuredOutput, false);
     assert.ok(result.models[0].updatedAt);
     assert.ok(result.fetchedAt);
     assert.equal(JSON.stringify(result).includes("fixture-key"), false);

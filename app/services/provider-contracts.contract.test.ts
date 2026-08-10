@@ -3,6 +3,7 @@ import test from "node:test";
 import { creatableProviderContracts, getProviderModelCatalog, getProviderModels, providerContracts } from "./provider-contracts.ts";
 import { getVoiceProviderDescriptor } from "./voice-provider-descriptors.ts";
 import { getAiModelRuntimeDescriptor, normalizeAiSelectedRuntimeValues, resolveRuntimeModelId } from "./model-runtime-descriptors.ts";
+import { resolveModelCapabilityProfile } from "./ai-capability-resolution.ts";
 
 test("新建连接暴露七家原生、六家兼容厂商与高级自定义入口", () => {
   const providers = creatableProviderContracts.map((contract) => contract.provider);
@@ -119,8 +120,11 @@ test("GLM 七档、非法旧值回退与 MiniMax 配对高速模型保持明确�
   assert.equal(resolveRuntimeModelId(minimax, "MiniMax-M2.7", { speed: "highspeed" }), "MiniMax-M2.7-highspeed");
   assert.equal(resolveRuntimeModelId(minimax, "MiniMax-M2.7-highspeed", { speed: "standard" }), "MiniMax-M2.7");
   const minimaxM3 = getAiModelRuntimeDescriptor("minimax", "MiniMax-M3")!;
-  assert.deepEqual(minimaxM3.capabilities, ["text", "vision", "video", "tools"]);
-  assert.equal(minimaxM3.contextWindow, 1_000_000);
+  const minimaxM3Facts = resolveModelCapabilityProfile("minimax", "MiniMax-M3");
+  assert.equal(minimaxM3Facts.capabilities.vision, "supported");
+  assert.equal(minimaxM3Facts.capabilities.video, "supported");
+  assert.equal(minimaxM3Facts.capabilities.tools, "supported");
+  assert.equal(minimaxM3Facts.contextWindowTokens, 1_000_000);
   assert.equal(minimaxM3.reasoning?.defaultValue, "disabled");
   assert.deepEqual(minimaxM3.speed?.options.map((option) => option.value), ["standard", "priority"]);
 });

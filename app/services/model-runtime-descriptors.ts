@@ -1,3 +1,4 @@
+import type { AiRuntimeValidationResult } from "../types/domains/ai-capability.ts";
 import type { AiModelRuntimeDescriptor, AiModelRuntimeOption, AiModelRuntimeValue, AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
 import type { ApiProvider } from "../types/domains/ai-provider.ts";
 
@@ -146,8 +147,6 @@ for (const modelId of ["deepseek-v4-flash", "deepseek-v4-pro"]) {
 register(descriptor({
   provider: "minimax",
   modelId: "MiniMax-M3",
-  capabilities: ["text", "vision", "video", "tools"],
-  contextWindow: 1_000_000,
   reasoning: { kind: "adaptive", options: [{ id: "disabled", label: "关闭", value: "disabled" }, { id: "adaptive", label: "自适应", value: "adaptive" }], defaultValue: "disabled" },
   speed: { kind: "service_tier", options: serviceTierOptions, defaultValue: "standard" },
   documentationUrl: MINIMAX_MODEL_URL,
@@ -217,6 +216,32 @@ function supportsReasoningValue(descriptorValue: AiModelRuntimeDescriptor, value
     && Number.isInteger(value)
     && value >= reasoning.customRange.min
     && value <= reasoning.customRange.max;
+}
+
+/** 显式运行值必须保留、明确拒绝或报告未知；不得在请求路径静默回退。 */
+export function validateAiSelectedRuntimeValues(
+  descriptorValue: AiModelRuntimeDescriptor | undefined,
+  requested?: AiSelectedRuntimeValues,
+): AiRuntimeValidationResult {
+  for (const option of ["reasoning", "speed"] as const) {
+    const requestedValue = requested?.[option];
+    if (requestedValue === undefined) continue;
+    if (!descriptorValue) return { status: "invalid", code: "runtime-capability-unknown", option, requestedValue };
+    const contract = descriptorValue[option];
+    if (!contract) return { status: "invalid", code: "runtime-capability-unsupported", option, requestedValue };
+    const supported = option === "reasoning"
+      ? supportsReasoningValue(descriptorValue, requestedValue)
+      : includesValue(contract.options, requestedValue);
+    if (!supported) return { status: "invalid", code: "invalid-runtime-value", option, requestedValue };
+  }
+  if (!descriptorValue) return { status: "valid", values: {} };
+  return {
+    status: "valid",
+    values: {
+      ...(descriptorValue.reasoning ? { reasoning: requested?.reasoning ?? descriptorValue.reasoning.defaultValue } : {}),
+      ...(descriptorValue.speed ? { speed: requested?.speed ?? descriptorValue.speed.defaultValue } : {}),
+    },
+  };
 }
 
 /** 保留新模型仍支持的值；不支持或缺失时回退到 descriptor 默认值。 */

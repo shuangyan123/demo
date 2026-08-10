@@ -97,6 +97,23 @@ test("Application Layer 保持纯 TypeScript 且不反向依赖 UI 或宿主全�
   assert.deepEqual(violations, []);
 });
 
+test("AI capability core 保持纯 TypeScript 且不反向依赖协议实现", async () => {
+  const capabilityFiles = [
+    "types/domains/ai-capability.ts",
+    "services/ai-capability-resolution.ts",
+    "services/provider-protocol-capabilities.ts",
+    "services/model-runtime-descriptors.ts",
+  ];
+  for (const relativePath of capabilityFiles) {
+    const source = await readFile(path.join(APP_ROOT, relativePath), "utf8");
+    const imports = staticImports(source);
+    assert.equal(imports.some((target) => target === "react" || target.startsWith("react/") || target.startsWith("next/") || target.includes("/features/") || target.includes("/server/ai/")), false, relativePath);
+    assert.doesNotMatch(source, /\bfetch\s*\(|reviewDb|reviewDesktop(?:Vault|Window)|apiKey|Authorization|\.tsx["']/i, relativePath);
+  }
+  const adapterRegistry = await readFile(path.join(APP_ROOT, "server/ai/provider-adapter-registry.ts"), "utf8");
+  assert.match(adapterRegistry, /provider-protocol-capabilities/);
+});
+
 test("学习行动队列保持只读纯派生边界", async () => {
   const source = await readFile(path.join(APP_ROOT, "services/learner-state-service.ts"), "utf8");
   const types = await readFile(path.join(APP_ROOT, "types/domains/learner-state.ts"), "utf8");

@@ -59,6 +59,8 @@ test("compatible providers keep official metadata without guessing unknown visio
     data: [{ id: "kimi-vision", supports_image_in: true, supports_video_in: true, supports_reasoning: true }],
   }));
   assert.equal(kimi.models[0]?.capabilities.includes("vision"), true);
+  assert.equal(kimi.models[0]?.capabilities.includes("streaming"), false);
+  assert.equal(kimi.models[0]?.capabilities.includes("structured_output"), false);
   assert.equal(kimi.models[0]?.capabilitySource, "provider");
 
   const groq = await fetchProviderModelDirectory(request("groq", "https://api.groq.com/openai/v1"), async () => Response.json({ data: [{ id: "unknown-model" }] }));
