@@ -188,6 +188,14 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - 具体模型、结构化输出、流式与显式 runtime 值在解密连接密钥和进入 provider mapper 前校验；未知/custom-compatible 不按名称继承原厂能力。
 - 未新增 Provider、Dexie schema、凭据边界或隐藏思维数据。
 
+### Phase 1 Stabilization — Capability Fact Propagation
+
+**COMPLETE（2026-08-10）**
+
+- connection + selected model 统一通过 connection-scoped resolver 合并静态核验事实与可信 provider metadata；Conversation 流式预路由、context budget 与 generation contract 不再各自选择不同 fact input。
+- UI 不直接读取 provider model cache；无缓存时保留静态/unknown 回退，缓存继续按 connection ID、provider 与 base URL 隔离。
+- 静态 catalog 优先级、custom-compatible 保守语义、Dexie v16、Provider adapter 与凭据边界均保持不变。
+
 后续 Phase 2 才处理更完整的 Provider request / response / stream / error normalization；0.5.x 整体因此仍为 IN PROGRESS。
 
 ### 目标

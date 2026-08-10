@@ -109,9 +109,20 @@ test("AI capability core 保持纯 TypeScript 且不反向依赖协议实现", a
     const imports = staticImports(source);
     assert.equal(imports.some((target) => target === "react" || target.startsWith("react/") || target.startsWith("next/") || target.includes("/features/") || target.includes("/server/ai/")), false, relativePath);
     assert.doesNotMatch(source, /\bfetch\s*\(|reviewDb|reviewDesktop(?:Vault|Window)|apiKey|Authorization|\.tsx["']/i, relativePath);
+    if (relativePath === "services/ai-capability-resolution.ts") assert.doesNotMatch(source, /provider-model-cache/, relativePath);
   }
   const adapterRegistry = await readFile(path.join(APP_ROOT, "server/ai/provider-adapter-registry.ts"), "utf8");
   assert.match(adapterRegistry, /provider-protocol-capabilities/);
+});
+
+test("Connection-scoped capability resolver 独占缓存编排且 UI 不直接读取模型缓存", async () => {
+  const resolverSource = await readFile(path.join(APP_ROOT, "services/ai-connection-client.ts"), "utf8");
+  const conversationSource = await readFile(path.join(APP_ROOT, "features/conversation/conversation-workspace.tsx"), "utf8");
+  assert.match(resolverSource, /providerModelCache/);
+  assert.match(resolverSource, /resolveModelCapabilityProfile/);
+  assert.match(resolverSource, /resolveConnectionModelCapabilityProfile\(connection: ApiConnectionProfile, modelId: string\)[\s\S]*?providerModelCache\.load\(connection\.id, connection\.provider, connection\.baseUrl\)[\s\S]*?resolveModelCapabilityProfile\(connection\.provider, modelId, discovered\)/);
+  assert.match(conversationSource, /resolveConnectionModelCapabilityProfile/);
+  assert.doesNotMatch(conversationSource, /provider-model-cache/);
 });
 
 test("学习行动队列保持只读纯派生边界", async () => {

@@ -66,6 +66,12 @@ Provider protocol compatibility is not model capability equivalence.
 
 Context-window and maximum-output values exist only when an exact catalog or trusted provider metadata fact supplies them. Unknown models have no synthetic 128K, 1M, 32K, or 4096 fallback.
 
+## Connection-scoped capability resolution
+
+Runtime decisions that depend on discovered metadata use `resolveConnectionModelCapabilityProfile(connection, modelId)`. The resolver combines the verified static catalog with trusted provider metadata cached for the exact connection identity, then returns one `ModelCapabilityProfile` for both pre-routing and the generation contract.
+
+UI consumers must not read `providerModelCache` directly. With no cache entry, resolution falls back to the same static-catalog or conservative unknown result as the pure model resolver. Cache lookup remains scoped by connection ID, provider, and normalized base URL, so compatible endpoints with the same model ID cannot share capability facts.
+
 ## Credentials and reasoning privacy
 
 Capability profiles contain no API key, authorization header, encrypted credential, provider private state, user prompt, or raw response. Secret resolution stays in `ai-connection-client` after capability validation.

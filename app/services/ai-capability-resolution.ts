@@ -47,6 +47,7 @@ export function resolveModelCapabilityProfile(
   const fact: ModelFact | undefined = verified ?? discoveredFact;
   const source = factSource(fact);
   const descriptor = getAiModelRuntimeDescriptor(provider, modelId);
+  const hasTrustedNumericFacts = source === "verified-catalog" || source === "provider-metadata";
   return {
     provider,
     modelId,
@@ -56,8 +57,8 @@ export function resolveModelCapabilityProfile(
       reasoning: descriptor?.reasoning ? "supported" : "unknown",
       speed: descriptor?.speed ? "supported" : "unknown",
     },
-    contextWindowTokens: fact?.contextWindow,
-    maxOutputTokens: fact?.maxOutputTokens,
+    contextWindowTokens: hasTrustedNumericFacts ? fact?.contextWindow : undefined,
+    maxOutputTokens: hasTrustedNumericFacts ? fact?.maxOutputTokens : undefined,
   };
 }
 
