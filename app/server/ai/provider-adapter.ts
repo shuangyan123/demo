@@ -3,6 +3,7 @@ import { getProviderContract } from "../../services/provider-contracts.ts";
 import { normalizeGoogleApiBaseUrl, normalizeGoogleInteractionsBaseUrl } from "../../services/google-connection.ts";
 import { miniMaxBearerHeaders, normalizeMiniMaxAnthropicBaseUrl } from "../../services/minimax-connection.ts";
 import { mapProviderRuntimeOptions } from "./runtime-option-mappers/index.ts";
+import { malformedProviderResponse } from "./provider-failure.ts";
 export { buildSpeechProviderRequest, parseSpeechJsonResponse, type SpeechParseMode } from "./provider-speech-adapter.ts";
 
 type ProviderHttpRequest = {
@@ -250,12 +251,22 @@ export function parseTranscriptionProviderResponse(payload: unknown, headers: He
   return { text, requestId: headers.get("x-request-id") ?? undefined };
 }
 
-function usageResult(inputTokens: unknown, outputTokens: unknown, totalTokens: unknown) {
-  return {
-    inputTokens: Number(inputTokens) || undefined,
-    outputTokens: Number(outputTokens) || undefined,
-    totalTokens: Number(totalTokens) || undefined,
-  };
+function tokenValue(value: unknown): number | undefined {
+  const number = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
+  return Number.isFinite(number) && number >= 0 ? number : undefined;
+}
+
+function usageResult(inputTokens: unknown, outputTokens: unknown, totalTokens: unknown): AiGenerateResult["usage"] {
+  const input = tokenValue(inputTokens);
+  const output = tokenValue(outputTokens);
+  const explicitTotal = tokenValue(totalTokens);
+  const total = explicitTotal ?? (input !== undefined && output !== undefined ? input + output : undefined);
+  if (input === undefined && output === undefined && total === undefined) return undefined;
+  return Object.fromEntries([
+    ["inputTokens", input],
+    ["outputTokens", output],
+    ["totalTokens", total],
+  ].filter(([, value]) => value !== undefined)) as AiGenerateResult["usage"];
 }
 
 /** 只归一化厂商确认的实际档位，不保留完整响应或计费对象。 */
@@ -275,10 +286,12 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
   const format = getProviderContract(input.provider).apiFormat;
   const actualSpeed = actualSpeedFromResponse(input, root, headers);
   if (input.provider === "google" && input.generationProtocol === "google_interactions") {
+    if (!Array.isArray(root.steps) && typeof root.output_text !== "string") throw malformedProviderResponse(input, headers);
     const steps = Array.isArray(root.steps) ? root.steps : [];
     const content = steps
       .filter((step) => asRecord(step).type === "model_output")
       .flatMap((step) => Array.isArray(asRecord(step).content) ? asRecord(step).content as unknown[] : [])
+      .filter((part) => !asRecord(part).type || asRecord(part).type === "text")
       .map((part) => asRecord(part).text)
       .filter((text): text is string => typeof text === "string")
       .join("");
@@ -292,9 +305,12 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
     };
   }
   if (format === "responses") {
+    if (typeof root.output_text !== "string" && !Array.isArray(root.output)) throw malformedProviderResponse(input, headers);
     const output = Array.isArray(root.output) ? root.output : [];
     const nestedText = output
+      .filter((item) => !asRecord(item).type || asRecord(item).type === "message")
       .flatMap((item) => (Array.isArray(asRecord(item).content) ? (asRecord(item).content as unknown[]) : []))
+      .filter((item) => !asRecord(item).type || asRecord(item).type === "output_text" || asRecord(item).type === "text")
       .map((item) => asRecord(item).text)
       .filter((text): text is string => typeof text === "string")
       .join("");
@@ -307,11 +323,12 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
     };
   }
   if (format === "google_generate_content") {
+    if (!Array.isArray(root.candidates)) throw malformedProviderResponse(input, headers);
     const candidate = asRecord(Array.isArray(root.candidates) ? root.candidates[0] : undefined);
     const parts = asRecord(candidate.content).parts;
     const usage = asRecord(root.usageMetadata);
     return {
-      content: (Array.isArray(parts) ? parts : []).map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join(""),
+      content: (Array.isArray(parts) ? parts : []).filter((part) => asRecord(part).thought !== true).map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join(""),
       requestId: headers.get("x-request-id") ?? undefined,
       usage: usageResult(usage.promptTokenCount, usage.candidatesTokenCount, usage.totalTokenCount),
       ...(actualSpeed ? { actualSpeed } : {}),
@@ -319,15 +336,18 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
     };
   }
   if (format === "anthropic_messages") {
+    if (!Array.isArray(root.content)) throw malformedProviderResponse(input, headers);
     const content = Array.isArray(root.content) ? root.content : [];
     const usage = asRecord(root.usage);
     return {
-      content: content.map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join(""),
+      content: content.filter((part) => !asRecord(part).type || asRecord(part).type === "text").map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join(""),
       requestId: headers.get("request-id") ?? (typeof root.id === "string" ? root.id : undefined),
       usage: usageResult(usage.input_tokens, usage.output_tokens, Number(usage.input_tokens) + Number(usage.output_tokens)),
       ...(actualSpeed ? { actualSpeed } : {}),
     };
   }
+  const firstChoice = asRecord(Array.isArray(root.choices) ? root.choices[0] : undefined);
+  if (!Array.isArray(root.choices) || !root.choices.length || !firstChoice.message || typeof firstChoice.message !== "object" || Array.isArray(firstChoice.message)) throw malformedProviderResponse(input, headers);
   const choices = Array.isArray(root.choices) ? root.choices : [];
   const message = asRecord(asRecord(choices[0]).message);
   const usage = asRecord(root.usage);
@@ -365,7 +385,7 @@ export function parseGenerateProviderStreamEvent(input: AiGenerateRequest, paylo
     if (eventType === "interaction.completed") {
       const interaction = asRecord(root.interaction);
       const usage = usageFromRecord(asRecord(interaction.usage), "google_interactions");
-      return [{ type: "usage", requestId: stringValue(interaction.id) || headers.get("x-request-id") || undefined, usage, actualSpeed: stringValue(interaction.service_tier) || undefined }];
+      return [{ type: "done", requestId: stringValue(interaction.id) || headers.get("x-request-id") || undefined, usage, actualSpeed: stringValue(interaction.service_tier) || undefined }];
     }
     return [];
   }
@@ -376,30 +396,43 @@ export function parseGenerateProviderStreamEvent(input: AiGenerateRequest, paylo
     const usage = usageFromRecord(asRecord(response.usage), "openai");
     const actualSpeed = actualSpeedFromResponse(input, response, headers);
     if (eventType === "response.completed") {
-      return [{ type: "usage", requestId: stringValue(response.id) || headers.get("x-request-id") || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }];
+      return [{ type: "done", requestId: stringValue(response.id) || headers.get("x-request-id") || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }];
     }
     return [];
   }
   if (format === "google_generate_content") {
     const candidate = asRecord(Array.isArray(root.candidates) ? root.candidates[0] : undefined);
     const parts = asRecord(candidate.content).parts;
-    const text = (Array.isArray(parts) ? parts : []).map((part) => stringValue(asRecord(part).text)).join("");
+    const text = (Array.isArray(parts) ? parts : []).filter((part) => asRecord(part).thought !== true).map((part) => stringValue(asRecord(part).text)).join("");
     const usage = usageFromRecord(asRecord(root.usageMetadata), "google");
     const actualSpeed = actualSpeedFromResponse(input, root, headers);
-    return [...(text ? [{ type: "delta" as const, text }] : []), ...(usage ? [{ type: "usage" as const, requestId: headers.get("x-request-id") ?? undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : [])];
+    const finishReason = stringValue(candidate.finishReason) || stringValue(root.finishReason);
+    return [
+      ...(text ? [{ type: "delta" as const, text }] : []),
+      ...(usage ? [{ type: "usage" as const, requestId: headers.get("x-request-id") ?? undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : []),
+      ...(finishReason || root.done === true ? [{ type: "done" as const, requestId: headers.get("x-request-id") ?? undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : []),
+    ];
   }
   if (format === "anthropic_messages") {
     const eventType = stringValue(root.type);
     const delta = asRecord(root.delta);
-    if (eventType === "content_block_delta") return [{ type: "delta", text: stringValue(delta.text) }];
-    const usage = usageFromRecord(asRecord(delta.usage), "anthropic");
+    const message = asRecord(root.message);
+    if (eventType === "content_block_delta" && delta.type === "text_delta" && typeof delta.text === "string") return [{ type: "delta", text: delta.text }];
+    if (eventType === "message_stop") return [{ type: "done", requestId: (headers.get("request-id") ?? stringValue(message.id)) || undefined }];
+    const usage = usageFromRecord(asRecord(root.usage), "anthropic") ?? usageFromRecord(asRecord(delta.usage), "anthropic") ?? usageFromRecord(asRecord(message.usage), "anthropic");
     const actualSpeed = actualSpeedFromResponse(input, root, headers);
     return usage || actualSpeed ? [{ type: "usage", requestId: (headers.get("request-id") ?? stringValue(asRecord(root.message).id)) || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : [];
   }
   const choices = Array.isArray(root.choices) ? root.choices : [];
-  const delta = asRecord(asRecord(choices[0]).delta);
+  const choice = asRecord(choices[0]);
+  const delta = asRecord(choice.delta);
   const text = stringValue(delta.content);
   const usage = usageFromRecord(asRecord(root.usage), "chat");
   const actualSpeed = actualSpeedFromResponse(input, root, headers);
-  return [...(text ? [{ type: "delta" as const, text }] : []), ...(usage || actualSpeed ? [{ type: "usage" as const, requestId: (headers.get("x-request-id") ?? stringValue(root.id)) || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : [])];
+  const finishReason = stringValue(choice.finish_reason);
+  return [
+    ...(text ? [{ type: "delta" as const, text }] : []),
+    ...(usage || actualSpeed ? [{ type: "usage" as const, requestId: (headers.get("x-request-id") ?? stringValue(root.id)) || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : []),
+    ...(finishReason ? [{ type: "done" as const, requestId: (headers.get("x-request-id") ?? stringValue(root.id)) || undefined, usage, ...(actualSpeed ? { actualSpeed } : {}) }] : []),
+  ];
 }

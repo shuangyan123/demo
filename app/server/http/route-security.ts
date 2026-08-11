@@ -1,3 +1,5 @@
+import type { AiProviderFailure } from "../../services/ai-provider-failure.ts";
+
 const DEFAULT_JSON_LIMIT_BYTES = 256 * 1024;
 const AUTHORIZATION_BEARER_PATTERN = /authorization\s*[:=]\s*bearer\s+\S+/gi;
 const BEARER_ERROR_PATTERN = /bearer\s+\S+/gi;
@@ -8,6 +10,7 @@ export type ApiErrorPayload = {
   message: string;
   requestId: string;
   retryable: boolean;
+  failure?: AiProviderFailure;
 };
 
 export class RouteSecurityError extends Error {
@@ -119,7 +122,7 @@ export function sanitizeRouteMessage(message: string): string {
 /** 统一 API 错误结构和安全响应头。 */
 export function apiErrorResponse(
   error: unknown,
-  fallback: { code: string; message: string; status?: number; retryable?: boolean },
+  fallback: { code: string; message: string; status?: number; retryable?: boolean; failure?: AiProviderFailure },
   requestId = createRequestId(),
 ): Response {
   const known = error instanceof RouteSecurityError ? error : undefined;
@@ -128,6 +131,7 @@ export function apiErrorResponse(
     message: sanitizeRouteMessage(known?.message ?? fallback.message),
     requestId,
     retryable: known?.retryable ?? fallback.retryable ?? false,
+    ...(fallback.failure ? { failure: fallback.failure } : {}),
   };
   return Response.json(payload, {
     status: known?.status ?? fallback.status ?? 500,

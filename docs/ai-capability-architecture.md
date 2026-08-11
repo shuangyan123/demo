@@ -1,4 +1,4 @@
-# AI Capability Architecture
+# 0.5.x AI capability architecture
 
 ## Phase 1 scope
 
@@ -82,6 +82,91 @@ Reasoning capability only controls public request configuration. It does not gra
 
 Conversation, Tutoring, Interview, Automation, Import, and other business services continue to call `generateWithConnection`. Text-only flows retain the existing request shape. Known vision models continue through the existing multimodal payload path. Unsupported or unknown vision fails before secret decryption and before the provider request.
 
-## What Phase 1 does not abstract
+Phase 2 below completes the provider protocol normalization that Phase 1 deliberately left unchanged.
 
-Phase 2 remains responsible for broader provider request/response/stream/error normalization, including authentication, quota, rate-limit, availability, malformed-response, and interrupted-stream taxonomy. Phase 1 does not change Dexie v16, credentials, HTTP success schemas, Electron, MCP permissions, provider inventory, automatic fallback, model routing, or benchmark execution.
+## Phase 2 scope
+
+Phase 2 (`Provider Request / Response / Stream / Error Normalization`) establishes the boundary between application behavior and provider protocols. The existing provider registry remains the composition point; this phase does not add a provider, change the Dexie schema, introduce a retry manager, or add provider fallback.
+
+The dependency direction is:
+
+```text
+feature / application
+  -> AiGenerateRequest and normalized result/event
+  -> /api/ai/generate
+  -> ProviderAdapter
+  -> ProviderTransport
+  -> provider
+```
+
+## Normalized request
+
+`AiGenerateRequest` is the single application-facing generation input. It contains business-neutral fields (`messages`, `model`, `maxOutputTokens`, `temperature`, `structuredOutput`, `stream`, and normalized runtime values) plus connection transport fields needed for one in-memory request (`provider`, `apiKey`, `baseUrl`, `providerOptions`).
+
+Provider-specific request fields are created only by `app/server/ai/provider-adapter.ts` and the allow-listed runtime mappers. `providerOptions` is never spread into a provider body. The adapter selects the endpoint, authentication header, message shape, token field, structured-output field, and stream flag for the selected protocol.
+
+The seven native registrations are OpenAI Responses, Google model-routed GenerateContent/Interactions, Anthropic Messages, DeepSeek Chat Completions, GLM/Zhipu Chat Completions, MiniMax Messages, and xAI Responses. Unknown or user-defined connections use the explicit custom Chat Completions compatibility boundary; they are not silently treated as a native provider.
+
+## Normalized response
+
+`AiGenerateResult` contains only:
+
+- `content`: visible assistant text;
+- `requestId`: a safe request identifier when the provider supplies one;
+- `usage`: `inputTokens`, `outputTokens`, and `totalTokens` when known;
+- `actualSpeed`: a verified response-side tier when available;
+- `generationProtocol`: the protocol confirmed by a connection test.
+
+Token `0` is a valid value. An explicit provider total is preserved; a total is calculated only when both input and output counts are known. Missing usage remains `undefined`.
+
+Response parsing is strict at the provider boundary. A successful HTTP response with no recognized response shape becomes `malformed_response`, rather than an empty assistant answer. Reasoning summaries, thinking blocks, thought-marked Gemini parts, signatures, and other non-visible content are excluded before the result leaves the adapter.
+
+## Normalized stream
+
+`AiGenerateStreamEvent` is limited to `status`, incremental `delta`, `usage`, `done`, and `error`.
+
+`delta` is a newly received fragment, never the provider's full-so-far content. The route accumulates the visible fragments only to build the final `done.content`; it does not expose provider event names or raw payloads.
+
+Completion semantics are explicit:
+
+| Adapter protocol | Completion evidence |
+| --- | --- |
+| Responses / Messages | provider completion event (`response.completed` / `message_stop`) |
+| Chat Completions | `finish_reason` or the provider `[DONE]` sentinel |
+| Gemini GenerateContent | normal adapter-declared EOF, with a finish reason when present |
+| Google Interactions | `interaction.completed` |
+
+If a stream ends before its completion evidence, the route emits one normalized `error` with `stream_interrupted` and does not emit `done`. The client reconstructs this as `AiProviderFailureError`. A provider parse error is `malformed_response`; transport cancellation, timeout, and network failures keep their own codes.
+
+## Provider failure taxonomy
+
+`AiProviderFailure` is the safe cross-provider failure shape:
+
+```ts
+type AiProviderFailure = {
+  code: "authentication" | "permission" | "invalid_request" | "model_not_found"
+    | "rate_limit" | "quota_exhausted" | "provider_unavailable"
+    | "network" | "timeout" | "cancelled" | "malformed_response"
+    | "stream_interrupted" | "unknown";
+  provider: ApiProvider;
+  retry: "safe" | "after-delay" | "manual-only" | "no";
+  httpStatus?: number;
+  providerCode?: string;
+  requestId?: string;
+  retryAfterMs?: number;
+};
+```
+
+The normalized failure may include bounded, safe provider code and request metadata, but never raw error text, response body, key, authorization header, prompt, or hidden reasoning. Provider failures are returned by the local route with a stable message and HTTP 502. `AiCapabilityContractError` remains a separate HTTP 400 contract error with no provider failure object.
+
+`retry` describes safety and intent; it does not execute a retry. Phase 2 performs no automatic retry and no provider fallback. This matters for generation requests whose side effects or billing cannot be inferred to be idempotent.
+
+## Validation and persistence boundaries
+
+Provider response-shape validation happens in the adapter. Business JSON validation happens later in `app/services/ai-json.ts`, after complete visible content is assembled. These failures are intentionally distinct so malformed provider protocol data is not presented as a user task's invalid JSON, and invalid business JSON is not mislabeled as a provider outage.
+
+Conversation persistence continues to store visible user/assistant content, safe request metadata, and normalized usage only. No schema migration is part of Phase 2.
+
+## Evidence
+
+Direct fixtures cover all seven native registrations and the custom compatibility path for requests, non-stream responses, incremental streams, hidden-reasoning exclusion, usage edge cases, representative provider failures, malformed responses, route interruption, client error reconstruction, and capability/business validation separation. Live paid-provider calls are intentionally outside the local contract suite.

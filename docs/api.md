@@ -113,6 +113,15 @@
 
 ## 生成
 
+### 0.5.x Phase 2：Provider normalization（2026-08-11）
+
+`/api/ai/generate` 的 Provider request、response、stream 和 failure 都在服务端 adapter 边界归一化。`AiGenerateRequest` 保留连接所需的 transport 字段，但业务层只依赖 `messages`、`model`、`usage`、`content` 和归一化 stream event；Provider 私有字段不得进入 feature 或 repository。
+
+- 非流式结果固定使用 `content`、`requestId`、`usage`、可选 `actualSpeed` 和 `generationProtocol`。未知 token 使用量保持 `undefined`，明确返回的 `0` 和 `totalTokens` 不被丢弃。
+- SSE 事件固定为 `status`、增量 `delta`、`usage`、最终 `done` 和 `error`。`delta` 只包含新片段；`done` 只在 adapter 宣布完成、兼容 Chat Completions 收到完成哨兵/finish reason，或 Gemini GenerateContent 正常 EOF 时发送。异常 EOF 发送 `stream_interrupted`，不会伪装成成功。
+- Provider failure 使用 `AiProviderFailure` 的稳定 code、provider、retry policy、可选 HTTP/provider code、request ID 和 `retryAfterMs`。Provider HTTP failure 对本地路由统一返回 502；能力契约错误仍是 400，业务 JSON 解析仍在 `app/services/ai-json.ts` 独立完成。
+- failure 和 diagnostics 不保存 API key、Authorization、prompt、完整 provider body、隐藏 reasoning 或原始媒体。当前不自动 retry，也不自动 fallback；`retry` 仅描述调用方可以采取的安全策略。
+
 文本和多模态任务统一调用 `/api/ai/generate`。业务 service 调用 `generateWithConnection(connection, purpose, input)` 时必须显式传入 `text` 或 `vision`；连接不具备对应能力时，请求会在密钥解密和网络调用前失败。
 
 `/api/ai/generate` 在 `stream: true` 时返回 `text/event-stream`，事件固定为 `status`、`delta`、`usage`、`done`、`error`。业务层通过 `generateWithConnectionStream()` 消费归一化事件；结构化 JSON 任务仍必须等完整内容结束后交给 `app/services/ai-json.ts` 解析。

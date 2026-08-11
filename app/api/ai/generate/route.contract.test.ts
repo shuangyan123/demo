@@ -1,0 +1,165 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { POST } from "./route.ts";
+import { AiProviderFailureError, type AiProviderFailure } from "../../../services/ai-provider-failure.ts";
+import { callAiGenerate, callAiGenerateStream, type AiGenerateRequest } from "../../../services/api-client.ts";
+
+const baseInput: AiGenerateRequest = {
+  provider: "deepseek",
+  apiKey: "fixture-key",
+  baseUrl: "https://provider.example/v1",
+  model: "fixture-model",
+  messages: [{ role: "user", content: "fixture prompt" }],
+};
+
+async function postGenerate(overrides: Partial<AiGenerateRequest> = {}): Promise<Response> {
+  return POST(new Request("http://localhost/api/ai/generate", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...baseInput, ...overrides }),
+  }));
+}
+
+async function readSse(response: Response): Promise<Array<Record<string, unknown>>> {
+  const source = await response.text();
+  return source
+    .split(/\r?\n\r?\n/)
+    .map((block) => block.split(/\r?\n/).find((line) => line.startsWith("data: "))?.slice(6))
+    .filter((data): data is string => Boolean(data))
+    .map((data) => JSON.parse(data) as Record<string, unknown>);
+}
+
+function providerFailure(overrides: Partial<AiProviderFailure> = {}): AiProviderFailure {
+  return {
+    code: "authentication",
+    provider: "deepseek",
+    retry: "no",
+    httpStatus: 502,
+    ...overrides,
+  };
+}
+
+test("route marks a normal incremental stream complete only after provider completion", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    `data: ${JSON.stringify({ id: "chat_1", choices: [{ delta: { content: "Hel" } }] })}\n\n`,
+    { status: 200, headers: { "content-type": "text/event-stream" } },
+  );
+  try {
+    const response = await postGenerate({ stream: true });
+    const events = await readSse(response);
+    assert.equal(response.status, 200);
+    assert.deepEqual(events.filter((event) => event.type === "delta").map((event) => event.text), ["Hel"]);
+    assert.equal(events.filter((event) => event.type === "done").length, 0);
+    const error = events.find((event) => event.type === "error");
+    assert.equal((error?.failure as AiProviderFailure).code, "stream_interrupted");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("route maps provider HTTP failures to typed local failures without exposing upstream text", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    error: {
+      code: "apiKey=fixture-key",
+      type: "invalid_api_key",
+      message: "apiKey=fixture-key Authorization: Bearer secret prompt=fixture prompt",
+    },
+  }, { status: 401, headers: { "x-request-id": "upstream-auth" } });
+  try {
+    const response = await postGenerate();
+    const payload = await response.json() as Record<string, unknown>;
+    assert.equal(response.status, 502);
+    assert.equal(payload.code, "authentication");
+    assert.equal((payload.failure as AiProviderFailure).code, "authentication");
+    assert.equal((payload.failure as AiProviderFailure).requestId, "upstream-auth");
+    assert.equal(JSON.stringify(payload).includes("fixture-key"), false);
+    assert.equal(JSON.stringify(payload).includes("secret"), false);
+    assert.equal(JSON.stringify(payload).includes("fixture prompt"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("route preserves retry-after metadata while keeping retry policy explicit", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ error: { type: "rate_limit_error" } }, {
+    status: 429,
+    headers: { "retry-after": "2" },
+  });
+  try {
+    const response = await postGenerate();
+    const payload = await response.json() as { retryable: boolean; failure: AiProviderFailure };
+    assert.equal(response.status, 502);
+    assert.equal(payload.failure.code, "rate_limit");
+    assert.equal(payload.failure.retry, "after-delay");
+    assert.equal(payload.failure.retryAfterMs, 2000);
+    assert.equal(payload.retryable, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("route separates malformed provider responses from capability contract failures", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return Response.json({ choices: "malformed" });
+  };
+  try {
+    const malformedResponse = await postGenerate();
+    const malformed = await malformedResponse.json() as { failure?: AiProviderFailure };
+    assert.equal(malformedResponse.status, 502);
+    assert.equal(malformed.failure?.code, "malformed_response");
+
+    const capabilityResponse = await postGenerate({
+      provider: "google",
+      model: "gemini-2.5-flash-lite",
+      generationProtocol: "google_generate_content",
+      runtime: { reasoning: 511 },
+    });
+    const capability = await capabilityResponse.json() as { code?: string; failure?: AiProviderFailure };
+    assert.equal(capabilityResponse.status, 400);
+    assert.equal(capability.code, "invalid-runtime-value");
+    assert.equal("failure" in capability, false);
+    assert.equal(fetchCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client reconstructs typed provider failures and does not treat stream interruption as success", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    const requestBody = JSON.parse(String(init?.body)) as { stream?: boolean };
+    if (requestBody.stream) {
+      return new Response(`data: ${JSON.stringify({
+        type: "error",
+        message: "safe message",
+        failure: providerFailure({ code: "stream_interrupted", retry: "manual-only" }),
+      })}\n\n`, { status: 200, headers: { "content-type": "text/event-stream" } });
+    }
+    return Response.json({
+      code: "authentication",
+      message: "safe message",
+      retryable: false,
+      failure: providerFailure(),
+    }, { status: 502 });
+  };
+  try {
+    await assert.rejects(() => callAiGenerate(baseInput), (error: unknown) => {
+      return error instanceof AiProviderFailureError && error.failure.code === "authentication";
+    });
+    await assert.rejects(async () => {
+      for await (const event of callAiGenerateStream({ ...baseInput, stream: true })) {
+        assert.equal(event.type, "status");
+      }
+    }, (error: unknown) => {
+      return error instanceof AiProviderFailureError && error.failure.code === "stream_interrupted";
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

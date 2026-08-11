@@ -1,8 +1,7 @@
 import type { AiGenerateRequest, AiGenerateResult, AiGenerateStreamEvent } from "../../../services/api-client";
 import { getProviderAdapter } from "../../../server/ai/provider-adapter-registry.ts";
 import { executeProviderGenerate } from "../../../server/ai/execute-provider-generate.ts";
-import { miniMaxFailureMessage } from "../../../services/minimax-connection.ts";
-import { googleUpstreamFailureMessage } from "../../../server/ai/google-error.ts";
+import { AiProviderFailureError, aiProviderFailureMessage, type AiProviderFailure } from "../../../services/ai-provider-failure.ts";
 import {
   RouteSecurityError,
   apiErrorResponse,
@@ -12,6 +11,7 @@ import {
 } from "../../../server/http/route-security.ts";
 import { networkPolicyFromProviderOptions, validateOutboundNetworkTarget } from "../../../server/http/outbound-network-policy.ts";
 import { AiCapabilityContractError } from "../../../types/domains/ai-capability.ts";
+import { classifyProviderStreamFailure, classifyProviderTransportFailure, providerFailureStreamEvent } from "../../../server/ai/provider-failure.ts";
 
 const MAX_GENERATE_REQUEST_BYTES = 20 * 1024 * 1024;
 
@@ -27,33 +27,20 @@ function encodeSse(event: AiGenerateStreamEvent): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
 
-/** 将常见厂商容量状态归一成可行动提示，避免把原始错误正文展示到业务界面。 */
-function providerFailureMessage(status: number, body: AiGenerateRequest): string {
-  if (body.provider === "minimax") {
-    return miniMaxFailureMessage(
-      status,
-      "generate",
-      body.providerOptions?.region === "global" ? "global" : "cn",
-      body.providerOptions?.credentialPlan === "token_plan" ? "token_plan" : "pay_as_you_go",
-    );
-  }
-  if (status === 401 || status === 403) return "API 鉴权失败，请检查连接密钥和权限";
-  if (status === 404) return "模型或 API 地址不存在，请刷新模型目录后重新选择";
-  if (status === 408 || status === 504) return "厂商响应超时，请稍后重试";
-  if (status === 413 || status === 422) return "请求内容超出模型限制或参数不兼容";
-  if (status === 429) return "请求已被限流，请稍后重试或切换模型";
-  if (status === 503) return "模型暂时满载，请切换模型或稍后再试";
-  return `厂商 API 请求失败（${status}）`;
+function providerFailureResponse(failure: AiProviderFailure, routeRequestId: string): Response {
+  const message = aiProviderFailureMessage(failure.code);
+  const retryable = failure.retry === "safe" || failure.retry === "after-delay";
+  return apiErrorResponse(
+    new RouteSecurityError(failure.code, message, 502, retryable),
+    { code: failure.code, message, status: 502, retryable, failure },
+    routeRequestId,
+  );
 }
 
-async function pipeProviderStream(body: AiGenerateRequest, response: Response, routeRequestId: string): Promise<Response> {
+async function pipeProviderStream(body: AiGenerateRequest, response: Response, routeRequestId: string, signal: AbortSignal): Promise<Response> {
   const adapter = getProviderAdapter(body.provider);
   if (!response.body) {
-    return apiErrorResponse(
-      new RouteSecurityError("provider_stream_missing", "厂商未返回可读取的流", 502, true),
-      { code: "provider_stream_missing", message: "厂商未返回可读取的流", status: 502 },
-      routeRequestId,
-    );
+    return providerFailureResponse({ code: "provider_unavailable", provider: body.provider, retry: "after-delay" }, routeRequestId);
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -62,9 +49,43 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response, r
   let finalUsage: AiGenerateResult["usage"];
   let providerRequestId: string | undefined;
   let actualSpeed: string | undefined;
+  let completed = false;
+  const completion = adapter.streamCompletion(body);
+  const consumeEvent = (event: AiGenerateStreamEvent, controller: ReadableStreamDefaultController<Uint8Array>) => {
+    if (event.type === "delta") content += event.text;
+    if (event.type === "usage") {
+      finalUsage = event.usage ?? finalUsage;
+      providerRequestId = event.requestId ?? providerRequestId;
+      actualSpeed = event.actualSpeed ?? actualSpeed;
+    }
+    if (event.type === "done") {
+      completed = true;
+      finalUsage = event.usage ?? finalUsage;
+      providerRequestId = event.requestId ?? providerRequestId;
+      actualSpeed = event.actualSpeed ?? actualSpeed;
+      return;
+    }
+    controller.enqueue(encodeSse(event));
+  };
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       controller.enqueue(encodeSse({ type: "status", message: "已连接厂商，正在等待模型输出" }));
+      const processChunk = (chunk: string) => {
+        const dataLines = chunk.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim());
+        if (!dataLines.length) return;
+        const data = dataLines.join("\n");
+        if (data === "[DONE]") {
+          if (completion === "sentinel") completed = true;
+          return;
+        }
+        let payload: unknown;
+        try {
+          payload = JSON.parse(data) as unknown;
+        } catch {
+          throw new AiProviderFailureError({ code: "malformed_response", provider: body.provider, retry: "no" });
+        }
+        for (const event of adapter.parseStream(body, payload, response.headers)) consumeEvent(event, controller);
+      };
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -72,32 +93,18 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response, r
           buffer += decoder.decode(value, { stream: true });
           const chunks = buffer.split(/\r?\n\r?\n/);
           buffer = chunks.pop() ?? "";
-          for (const chunk of chunks) {
-            const dataLines = chunk.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim());
-            if (!dataLines.length) continue;
-            const data = dataLines.join("\n");
-            if (data === "[DONE]") continue;
-            const events = adapter.parseStream(body, JSON.parse(data) as unknown, response.headers);
-            for (const event of events) {
-              if (event.type === "delta") content += event.text;
-              if (event.type === "usage") {
-                finalUsage = event.usage;
-                providerRequestId = event.requestId;
-                actualSpeed = event.actualSpeed ?? actualSpeed;
-              }
-              controller.enqueue(encodeSse(event));
-            }
-          }
+          for (const chunk of chunks) processChunk(chunk);
         }
+        buffer += decoder.decode();
+        if (buffer.trim()) processChunk(buffer);
+        if (completion === "eof") completed = true;
+        if (!completed) throw new AiProviderFailureError({ code: "stream_interrupted", provider: body.provider, retry: "manual-only" });
         controller.enqueue(encodeSse({ type: "done", content, requestId: providerRequestId, usage: finalUsage, actualSpeed }));
-      } catch {
-        controller.enqueue(encodeSse({
-          type: "error",
-          code: "provider_stream_parse_failed",
-          message: "流式响应解析失败",
-          requestId: routeRequestId,
-          retryable: true,
-        }));
+      } catch (error) {
+        const failure = error instanceof AiProviderFailureError
+          ? error.failure
+          : classifyProviderStreamFailure(body, error, signal);
+        controller.enqueue(encodeSse(providerFailureStreamEvent(failure, routeRequestId)));
       } finally {
         controller.close();
       }
@@ -117,32 +124,32 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response, r
 // 代理文本、视觉和结构化输出请求；Key 只存在于本次请求内存，不在服务端持久化。
 export async function POST(request: Request) {
   const requestId = createRequestId();
+  let body: AiGenerateRequest | undefined;
   try {
-    const body = await readRouteJson(request, MAX_GENERATE_REQUEST_BYTES);
-    if (!isGenerateRequest(body)) {
+    const parsedBody = await readRouteJson(request, MAX_GENERATE_REQUEST_BYTES);
+    if (!isGenerateRequest(parsedBody)) {
       return apiErrorResponse(
         new RouteSecurityError("invalid_ai_request", "缺少有效的 AI 连接或消息内容", 400),
         { code: "invalid_ai_request", message: "AI 请求无效", status: 400 },
         requestId,
       );
     }
+    body = parsedBody;
     await validateOutboundNetworkTarget(body.baseUrl, networkPolicyFromProviderOptions(body.providerOptions));
     const adapter = getProviderAdapter(body.provider);
     const executed = await executeProviderGenerate(body, { signal: request.signal });
     const effectiveBody = executed.body;
     const response = executed.response;
     if (!response.ok) {
-      const message = body.provider === "google"
-        ? await googleUpstreamFailureMessage(response, "接收响应", effectiveBody.generationProtocol ?? "google_generate_content")
-        : providerFailureMessage(response.status, body);
-      return apiErrorResponse(
-        new RouteSecurityError("provider_request_failed", message, response.status, response.status >= 429),
-        { code: "provider_request_failed", message, status: response.status },
-        requestId,
-      );
+      return providerFailureResponse(await adapter.parseFailure(effectiveBody, response), requestId);
     }
-    if (effectiveBody.stream) return pipeProviderStream(effectiveBody, response, requestId);
-    const payload: unknown = await response.json();
+    if (effectiveBody.stream) return pipeProviderStream(effectiveBody, response, requestId, request.signal);
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new AiProviderFailureError({ code: "malformed_response", provider: effectiveBody.provider, retry: "no" });
+    }
     return apiJsonResponse(adapter.parseGenerate(effectiveBody, payload, response.headers), { requestId });
   } catch (error) {
     if (error instanceof AiCapabilityContractError) {
@@ -152,11 +159,16 @@ export async function POST(request: Request) {
         requestId,
       );
     }
+    if (error instanceof RouteSecurityError) {
+      return apiErrorResponse(error, { code: error.code, message: error.message, status: error.status, retryable: error.retryable }, requestId);
+    }
+    if (error instanceof AiProviderFailureError) return providerFailureResponse(error.failure, requestId);
+    if (body) return providerFailureResponse(classifyProviderTransportFailure(body, error, request.signal), requestId);
     return apiErrorResponse(error, {
       code: "ai_generate_failed",
       message: error instanceof Error && error.message.includes("URL") ? "API 地址无效" : "AI API 请求失败",
       status: 500,
-      retryable: true,
+      retryable: false,
     }, requestId);
   }
 }

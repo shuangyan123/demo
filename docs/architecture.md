@@ -209,6 +209,12 @@ AI Request -> Connection Client -> Model + Protocol Capability Resolution -> Run
 Vault Event -> Obsidian Controller -> Repository -> File System Access API
 ```
 
+### AI provider normalization boundary（2026-08-11）
+
+Provider request、response、stream 与 failure 统一在 `app/server/ai/provider-adapter.ts`、adapter registry 和 `/api/ai/generate` route 内归一化。Feature、Application 和 conversation persistence 只消费 `AiGenerateResult`、`AiGenerateStreamEvent` 与 `AiProviderFailure`，不读取 choices/candidates/output_text 等厂商字段。
+
+流式 `delta` 只表示新增可见片段；route 仅在 adapter 宣布完成后发出 `done`，异常 EOF 归类为 `stream_interrupted`。Provider failure、capability contract failure 和业务 JSON validation 分别由 provider failure boundary、`AiCapabilityContractError` 与 `app/services/ai-json.ts` 处理。Phase 2 不自动 retry、不自动 fallback、不升级 Dexie v16，也不持久化 key、Authorization、完整 prompt 或隐藏 reasoning。
+
 - 页面草稿、筛选、展开和媒体状态留在 feature/controller。
 - 业务实体、会话摘要、运行结果和迁移基线存入 `review_workspace`。
 - Dexie 当前版本保持 v16；`review-db-migrations.ts` 承载幂等迁移函数，不为前端切片新增索引。

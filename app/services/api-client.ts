@@ -2,7 +2,8 @@ import type { AiGenerationProtocol, AiSelectedRuntimeValues } from "../types/dom
 import type { ApiProvider } from "../types/domains/ai-provider.ts";
 import type { AiCapability, AiConnectionPurpose } from "../types/domains/ai-connection.ts";
 import { emitAiActivity } from "./ai-activity-events.ts";
-import { readApiErrorMessage } from "./api-error.ts";
+import { readApiErrorMessage, readApiErrorPayload, type ClientApiErrorPayload } from "./api-error.ts";
+import type { AiProviderFailure } from "./ai-provider-failure.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 
 export type ChatMessageContent =
@@ -61,8 +62,8 @@ export type AiGenerateStreamEvent =
   | { type: "status"; message: string }
   | { type: "delta"; text: string }
   | { type: "usage"; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
-  | { type: "done"; content: string; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
-  | { type: "error"; message: string; code?: string; requestId?: string; retryable?: boolean };
+  | { type: "done"; content?: string; requestId?: string; usage?: AiGenerateResult["usage"]; actualSpeed?: string }
+  | { type: "error"; message: string; code?: string; requestId?: string; retryable?: boolean; failure?: AiProviderFailure };
 
 export type AiSpeechRequest = {
   provider: ApiProvider;
@@ -131,6 +132,22 @@ export type AiModelsResult = {
   complete?: boolean;
 };
 
+type AiProviderFailureClientModule = typeof import("./ai-provider-failure-client.ts");
+
+async function providerFailureClientModule(): Promise<AiProviderFailureClientModule> {
+  return import("./ai-provider-failure-client.ts");
+}
+
+async function throwProviderFailure(failure: AiProviderFailure): Promise<never> {
+  const { throwClientProviderFailure } = await providerFailureClientModule();
+  return throwClientProviderFailure(failure);
+}
+
+async function throwApiFailure(input: AiGenerateRequest, response: Response, fallback: string, knownPayload?: ClientApiErrorPayload): Promise<never> {
+  const { throwClientApiFailure } = await providerFailureClientModule();
+  return throwClientApiFailure(input, response, fallback, knownPayload);
+}
+
 // 调用统一生成路由，客户端不再拼接各厂商 endpoint 或解析厂商响应。
 export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenerateResult> {
   const runId = input.activity?.runId ?? crypto.randomUUID();
@@ -155,9 +172,10 @@ export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenera
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const text = await readApiErrorMessage(response, `API 请求失败：${response.status}`);
+    const payload = await readApiErrorPayload(response, `API 请求失败：${response.status}`);
+    const text = payload.message ?? `API 请求失败：${response.status}`;
     emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
-    throw new Error(text || `API 请求失败：${response.status}`);
+    await throwApiFailure(input, response, text || `API 请求失败：${response.status}`, payload);
   }
   const result = (await response.json()) as AiGenerateResult;
   emitAiActivity({ ...activityBase, phase: "usage", label: `${input.provider} · ${input.model}`, stepId: "usage", text: result.usage?.totalTokens ? `${result.usage.totalTokens} tokens` : "厂商未返回用量", usage: result.usage });
@@ -187,14 +205,29 @@ export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGene
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...input, stream: true }),
   });
-  if (!response.ok || !response.body) {
-    const text = await readApiErrorMessage(response, `API 请求失败：${response.status}`);
+  const streamBody = response.body;
+  if (!response.ok || !streamBody) {
+    const payload = await readApiErrorPayload(response, `API 请求失败：${response.status}`);
+    const text = payload.message ?? `API 请求失败：${response.status}`;
     emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
-    throw new Error(text || `API 请求失败：${response.status}`);
+    await throwApiFailure(input, response, text || `API 请求失败：${response.status}`, payload);
   }
-  const reader = response.body.getReader();
+  const reader = streamBody!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let completed = false;
+  const emitStreamEvent = (event: AiGenerateStreamEvent) => {
+    emitAiActivity({ ...activityBase, phase: event.type === "delta" ? "delta" : event.type === "error" ? "error" : event.type === "done" ? "done" : event.type === "usage" ? "usage" : "waiting", label: `${input.provider} · ${input.model}`, stepId: event.type === "delta" ? "stream" : event.type, text: "text" in event ? event.text : "message" in event ? event.message : event.type, usage: "usage" in event ? event.usage : undefined });
+  };
+  const consumeEvent = async (event: AiGenerateStreamEvent): Promise<AiGenerateStreamEvent> => {
+    emitStreamEvent(event);
+    if (event.type === "error") {
+      const { throwClientStreamFailure } = await providerFailureClientModule();
+      return throwClientStreamFailure(input, event);
+    }
+    if (event.type === "done") completed = true;
+    return event;
+  };
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -204,19 +237,29 @@ export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGene
     for (const part of parts) {
       const data = part.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
       if (!data) continue;
-      const event = JSON.parse(data) as AiGenerateStreamEvent;
-      emitAiActivity({ ...activityBase, phase: event.type === "delta" ? "delta" : event.type === "error" ? "error" : event.type === "done" ? "done" : event.type === "usage" ? "usage" : "waiting", label: `${input.provider} · ${input.model}`, stepId: event.type === "delta" ? "stream" : event.type, text: "text" in event ? event.text : "message" in event ? event.message : event.type, usage: "usage" in event ? event.usage : undefined });
-      yield event;
+      let event: AiGenerateStreamEvent;
+      try {
+        event = JSON.parse(data) as AiGenerateStreamEvent;
+      } catch {
+        await throwProviderFailure({ code: "malformed_response", provider: input.provider, retry: "no" });
+      }
+      yield await consumeEvent(event!);
     }
   }
+  buffer += decoder.decode();
   if (buffer.trim()) {
     const data = buffer.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
     if (data) {
-      const event = JSON.parse(data) as AiGenerateStreamEvent;
-      emitAiActivity({ ...activityBase, phase: event.type === "delta" ? "delta" : event.type === "error" ? "error" : event.type === "done" ? "done" : event.type === "usage" ? "usage" : "waiting", label: `${input.provider} · ${input.model}`, stepId: event.type === "delta" ? "stream" : event.type, text: "text" in event ? event.text : "message" in event ? event.message : event.type, usage: "usage" in event ? event.usage : undefined });
-      yield event;
+      let event: AiGenerateStreamEvent;
+      try {
+        event = JSON.parse(data) as AiGenerateStreamEvent;
+      } catch {
+        await throwProviderFailure({ code: "malformed_response", provider: input.provider, retry: "no" });
+      }
+      yield await consumeEvent(event!);
     }
   }
+  if (!completed) await throwProviderFailure({ code: "stream_interrupted", provider: input.provider, retry: "manual-only" });
 }
 
 // 调用云端语音路由并返回临时音频 Blob；调用方负责撤销对应 object URL。
