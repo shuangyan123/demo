@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { AiProviderFailureError } from "../../services/ai-provider-failure.ts";
+import { AutomationExecutionProgressError } from "../../services/automation-errors.ts";
+import type { AutomationExternalAuthorizationResult } from "../../services/automation-external-authorization.ts";
 import type { AutomationExecutionResult } from "../../services/automation-executor.ts";
-import type { AutomationDefinition, AutomationRun } from "../../types/domains/automation.ts";
+import type { AutomationDefinition, AutomationExternalExecutionSummary, AutomationRun } from "../../types/domains/automation.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { AutomationApplicationError } from "./automation-application.ts";
 import { executeAutomationRun, type ExecuteAutomationRunDependencies } from "./execute-automation-run.ts";
@@ -37,10 +40,27 @@ const output: AutomationExecutionResult = {
   contextSummary: [{ scope: "mistakes", label: "错题", count: 1, sampleTitles: ["测试错题"] }],
   contextCharCount: 20,
 };
+const readyAuthorization: AutomationExternalAuthorizationResult = {
+  status: "ready",
+  requirements: [],
+  missingPermissions: [],
+  disabledResources: [],
+  staleResources: [],
+  invalidScopes: [],
+  reasonCodes: ["authorization_ready"],
+};
+const acquiredExternalExecution: AutomationExternalExecutionSummary = {
+  sourceKinds: ["url", "mcp_search"],
+  mcpTools: [{ serverId: "server-a", toolName: "search-y" }],
+  httpOrigins: ["https://example.com"],
+  externalCallCount: 3,
+  successfulCallCount: 2,
+  failedCallCount: 1,
+};
 
 type FailurePoint = "acquire" | "preview" | "create-run" | "start-renewal" | "stop-renewal" | "execute" | "complete-success" | "complete-failure" | "release";
 
-function harness({ failAt, leaseAvailable = true }: { failAt?: FailurePoint | FailurePoint[]; leaseAvailable?: boolean } = {}) {
+function harness({ failAt, leaseAvailable = true, authorize = false, executeError }: { failAt?: FailurePoint | FailurePoint[]; leaseAvailable?: boolean; authorize?: boolean; executeError?: unknown } = {}) {
   const calls: string[] = [];
   let persistedRun: AutomationRun | undefined;
   const fails = (point: FailurePoint) => Array.isArray(failAt) ? failAt.includes(point) : failAt === point;
@@ -76,7 +96,7 @@ function harness({ failAt, leaseAvailable = true }: { failAt?: FailurePoint | Fa
     },
     async execute() {
       calls.push("execute");
-      if (fails("execute")) throw new Error("Failed to fetch");
+      if (fails("execute")) throw executeError ?? new Error("Failed to fetch");
       return output;
     },
     classifyError(error, environment) {
@@ -98,6 +118,7 @@ function harness({ failAt, leaseAvailable = true }: { failAt?: FailurePoint | Fa
         if (fails("stop-renewal")) throw new Error("续租计时器停止失败");
       };
     },
+    authorize: authorize ? async () => readyAuthorization : undefined,
   };
   return { calls, dependencies, getPersistedRun: () => persistedRun };
 }
@@ -238,4 +259,27 @@ test("租约获取基础设施失败时不执行 cleanup 或外部调用", async
   assert.equal(error.step, "acquire-lease");
   assert.equal(error.retrySafety, "safe");
   assert.deepEqual(state.calls, ["acquire-lease"]);
+});
+
+test("后续 AI 失败时保留采集外部执行摘要且不泄漏 typed error cause", async () => {
+  const state = harness({
+    failAt: "execute",
+    authorize: true,
+    executeError: new AutomationExecutionProgressError(
+      new AiProviderFailureError({ code: "provider_unavailable", provider: "deepseek", retry: "manual-only" }, "secret-token-123 Bearer raw-result prompt-secret"),
+      acquiredExternalExecution,
+    ),
+  });
+  const run = await executeAutomationRun(runInput(state.dependencies));
+
+  assert.equal(run?.status, "failed");
+  assert.equal(run?.unattendedAudit?.authorization, "ready");
+  assert.equal(run?.unattendedAudit?.terminalState, "failed");
+  assert.equal(run?.unattendedAudit?.externalCallCount, 3);
+  assert.equal(run?.unattendedAudit?.successfulCallCount, 2);
+  assert.equal(run?.unattendedAudit?.failedCallCount, 1);
+  assert.deepEqual(run?.unattendedAudit?.mcpTools, acquiredExternalExecution.mcpTools);
+  assert.deepEqual(run?.unattendedAudit?.httpOrigins, acquiredExternalExecution.httpOrigins);
+  assert.equal(run?.unattendedAudit?.reasonCodes.includes("runtime_failed"), true);
+  assert.doesNotMatch(JSON.stringify(run), /secret-token-123|Bearer|raw-result|prompt-secret/);
 });

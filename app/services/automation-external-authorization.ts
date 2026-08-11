@@ -308,7 +308,7 @@ export function createUnattendedExecutionAuditSummary(input: {
   ]) as AutomationExternalSourceKind[];
   const failedCallCount = input.execution?.failedCallCount ?? 0;
   const reasons = [...input.authorization.reasonCodes];
-  if (failedCallCount > 0) reasons.push("runtime_failed");
+  if (input.terminalState === "failed" || failedCallCount > 0) reasons.push("runtime_failed");
   if (input.terminalState === "succeeded") reasons.push("completed");
   return {
     taskId: input.taskId,

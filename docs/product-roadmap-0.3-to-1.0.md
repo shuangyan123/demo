@@ -284,6 +284,17 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - 增加 Phase 1 preflight architecture guards、任务/工具权限分离、撤销/资源变化、无网络拒绝、审计隐私和来源部分失败契约；保持 `review_workspace` v16。
 - 详见 `docs/automation-external-authorization.md` 与 `docs/mcp-permissions.md`。
 
+### Phase 2 Stabilization — Failure-path External Effect Audit Accuracy
+
+**COMPLETE (2026-08-11)**
+
+- Acquisition, AI/proposal, and persistence failure paths preserve known sanitized external-effect summaries after a real HTTP or MCP call has started.
+- Failed audits retain factual call counts and resource identities without persisting raw arguments, results, full URLs, document content, provider payloads, credentials, or error causes.
+- Authorization-blocked runs remain zero-call `blocked` runs; uncertain external effects remain `manual-only`, with no automatic retry, replay, rollback, schema migration, or per-call journal.
+- Direct contracts cover blocked zero-call behavior, MCP/HTTP failure progress, later-stage failure retention, deterministic merge/no double count, privacy, and unchanged success/partial-success semantics.
+
+`0.6 Phase 2` is complete. `0.6 overall` remains **IN PROGRESS** because Phase 3 and Acceptance Closure are intentionally deferred.
+
 ### Deferred 0.6 work
 
 - Phase 3：Declarative Extension permission & disable semantics（NOT STARTED）。

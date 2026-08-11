@@ -47,3 +47,11 @@ AutomationDefinition.collectionConfig
 授权阻断写入显式 `failed + audit.terminalState: blocked` 收件箱记录，外部调用数为零，并推进当前计划时间以避免每分钟重复占用租约。网络超时、HTTP/feed 解析、远端 MCP 和模型失败仍是 runtime failure；已发生外部副作用后继续保持既有 `manual-only` 恢复语义，不新增重试框架。
 
 proposal persistence 仍只是本地 pending 写入；确认知识或 Vault 的既有复读、hash 校验、用户确认和部分提交边界不由本阶段自动化授权绕过。Declarative Extension package/template 安装不授予网络或 scheduled MCP 权限，本阶段不实现插件运行时或 Phase 3 disable semantics。`review_workspace` 继续保持 v16。
+
+## Failure-path audit accuracy
+
+Phase 2 Stabilization is complete. When acquisition has already contacted an HTTP or MCP source and a later AI, proposal-generation, persistence, or orchestration step fails, known successful AI/proposal-generation calls are folded into the cumulative sanitized progress before proposal persistence; the summary is then transported through a typed in-memory error and retained in the failed `AutomationRun.unattendedAudit`.
+
+- The audit remains aggregate and sanitized: counts, source kinds, MCP server/tool identities, and normalized HTTP origins only.
+- Raw MCP arguments/results, full URLs, document content, prompts, provider payloads, credentials, and error causes stay outside persistence.
+- Authorization blocks remain zero-call `blocked` runs; known external effects do not authorize automatic retry, replay, or cross-system rollback.

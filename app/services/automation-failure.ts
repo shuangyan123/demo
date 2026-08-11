@@ -1,5 +1,5 @@
 import type { AutomationFailureCategory, AutomationRecoveryAction } from "../types/domains/automation.ts";
-import { AutomationAuthorizationError } from "./automation-errors.ts";
+import { automationExecutionCause, AutomationAuthorizationError } from "./automation-errors.ts";
 
 export type AutomationFailureDiagnosis = {
   category: AutomationFailureCategory;
@@ -33,7 +33,8 @@ function authorizationFailureMessage(error: AutomationAuthorizationError): strin
 }
 
 /** 将原始异常归类为用户可恢复的自动化错误。 */
-export function classifyAutomationError(error: unknown, options: { online?: boolean } = {}): AutomationFailureDiagnosis {
+export function classifyAutomationError(inputError: unknown, options: { online?: boolean } = {}): AutomationFailureDiagnosis {
+  const error = automationExecutionCause(inputError);
   if (error instanceof AutomationAuthorizationError) {
     const needsMcp = error.authorization.reasonCodes.some((code) => code.startsWith("mcp_"));
     return {
