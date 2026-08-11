@@ -206,6 +206,15 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - 隐藏 reasoning、API key、Authorization、完整 prompt、原始响应和原始媒体不进入 normalized result、SSE error、diagnostics 或 conversation persistence；本阶段不新增 schema、不自动 retry、不自动 fallback。
 - 详见 `docs/ai-capability-architecture.md`。0.5.x 整体仍为 **IN PROGRESS**，下一阶段不在本轮范围内。
 
+### Phase 2 Stabilization - Terminal Result & Consumer Failure Semantics
+
+**COMPLETE (2026-08-11)**
+
+- Typed provider failures reach Conversation presentation by `AiProviderFailure.code`; consumer code no longer guesses provider semantics from status text, raw messages, or capacity wording.
+- A recognized provider response or completed stream without supported visible output fails as `malformed_response`; `stream_interrupted` remains reserved for missing completion evidence.
+- Conversation does not persist a fabricated empty assistant answer, successful usage, or completed-turn memory after a failed generation. User input and an error run step may remain as durable facts.
+- No automatic retry, provider fallback, hidden reasoning exposure, schema migration, new provider, capability change, or request-mapping rewrite was introduced.
+
 ### 目标
 
 - 继续以具体模型目录项驱动文本、多模态、语音、推理和运行档位。

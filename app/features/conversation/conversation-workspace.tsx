@@ -14,7 +14,7 @@ import { buildConversationTurnTimeline } from "../../services/conversation-turns
 import type { KnowledgeEvolutionProposal } from "../../types/domains/obsidian.ts";
 import { AppIcon } from "../shared/app-icon";
 import { persistDraftAttachmentSummaries, type DraftAttachment } from "./conversation-attachment-utils.ts";
-import { conversationProviderErrorMessage, readBlobAsDataUrl } from "./conversation-message-utils.ts";
+import { conversationProviderErrorMessage, readBlobAsDataUrl, requireConversationAssistantContent } from "./conversation-message-utils.ts";
 import { useConversationVisionTools } from "./use-conversation-vision-tools.ts";
 import { ConversationComposer, type ConversationComposerHandle } from "./conversation-composer";
 import { ConversationMcpToolPanel } from "./conversation-mcp-tool-panel";
@@ -242,7 +242,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
             if (event.type === "delta") { finalContent += event.text; setAssistantDraft(finalContent); }
             if (event.type === "done") { finalContent = event.content || finalContent; usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
             if (event.type === "usage") { usage = event.usage ?? usage; actualSpeed = event.actualSpeed ?? actualSpeed; }
-            if (event.type === "error") throw new Error(event.message);
+            if (event.type === "error") await (await import("../../services/ai-provider-failure-client.ts")).throwClientStreamFailureForProvider(submissionConnection.provider, event);
           }
         } else {
           const result = await generateWithConnection(submissionConnection, purpose, { modelId: submissionModelId, selectedRuntimeValues: submissionRuntimeValues, messages: history, maxOutputTokens: 1200, activity: { runId, module: "对话", purpose: conversation.kind, connectionLabel: submissionConnection.label, conversationId: conversation.id, projectId: conversation.projectId, studyDomainId: conversation.studyDomainId } });
@@ -256,7 +256,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
         turnId: runId,
         sequence: 2,
         role: "assistant",
-        content: finalContent.trim() || "模型没有返回文本。",
+        content: requireConversationAssistantContent(finalContent),
         usage: usage ? {
           id: crypto.randomUUID(),
           provider: submissionConnection.provider,

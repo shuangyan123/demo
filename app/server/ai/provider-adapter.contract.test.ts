@@ -329,8 +329,8 @@ test("GLM-5.2 原样发送七档并默认 max，旧 GLM 只发送思考开关", 
 
 test("厂商实际 service tier 被归一化为最小运行结果", () => {
   const openai = parseGenerateProviderResponse({ ...baseGenerate, provider: "openai" }, { output_text: "完成", service_tier: "priority" }, new Headers());
-  const google = parseGenerateProviderResponse({ ...baseGenerate, provider: "google" }, { candidates: [] }, new Headers({ "x-gemini-service-tier": "priority" }));
-  const claude = parseGenerateProviderResponse({ ...baseGenerate, provider: "anthropic" }, { content: [], usage: { speed: "fast" } }, new Headers());
+  const google = parseGenerateProviderResponse({ ...baseGenerate, provider: "google" }, { candidates: [{ content: { parts: [{ text: "完成" }] } }] }, new Headers({ "x-gemini-service-tier": "priority" }));
+  const claude = parseGenerateProviderResponse({ ...baseGenerate, provider: "anthropic" }, { content: [{ type: "text", text: "完成" }], usage: { speed: "fast" } }, new Headers());
   assert.equal(openai.actualSpeed, "priority");
   assert.equal(google.actualSpeed, "priority");
   assert.equal(claude.actualSpeed, "fast");

@@ -215,6 +215,13 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 
 流式 `delta` 只表示新增可见片段；route 仅在 adapter 宣布完成后发出 `done`，异常 EOF 归类为 `stream_interrupted`。Provider failure、capability contract failure 和业务 JSON validation 分别由 provider failure boundary、`AiCapabilityContractError` 与 `app/services/ai-json.ts` 处理。Phase 2 不自动 retry、不自动 fallback、不升级 Dexie v16，也不持久化 key、Authorization、完整 prompt 或隐藏 reasoning。
 
+### Phase 2 stabilization：terminal result 与 consumer failure semantics（2026-08-11）
+
+- 当前 text、vision 和 structured-output-through-text consumer 必须获得可见终态内容才算 generation 成功。只有 reasoning/thinking、usage、completion metadata 或 whitespace-only output 都不能生成成功的 assistant turn。
+- `stream_interrupted` 只表示缺少 provider completion evidence；合法 completion 但没有 visible output 归类为 `malformed_response`。有 visible text 但业务 JSON 不合法仍由 `app/services/ai-json.ts` 独立处理。
+- Conversation 使用 `AiProviderFailure.code` 的共享安全文案，不再从 429、503、capacity、provider raw message 或 HTTP status 文本重新猜测 Provider 语义；普通本地/业务错误继续保留自己的安全 message。
+- 失败 generation 不会写入 fabricated assistant message、成功 usage 或 completed-turn memory。用户消息和 error run step 仍可作为已发生事实保留；本轮不新增 schema、retry、fallback、Provider 或 capability。
+
 - 页面草稿、筛选、展开和媒体状态留在 feature/controller。
 - 业务实体、会话摘要、运行结果和迁移基线存入 `review_workspace`。
 - Dexie 当前版本保持 v16；`review-db-migrations.ts` 承载幂等迁移函数，不为前端切片新增索引。

@@ -11,7 +11,7 @@ import {
 } from "../../../server/http/route-security.ts";
 import { networkPolicyFromProviderOptions, validateOutboundNetworkTarget } from "../../../server/http/outbound-network-policy.ts";
 import { AiCapabilityContractError } from "../../../types/domains/ai-capability.ts";
-import { classifyProviderStreamFailure, classifyProviderTransportFailure, providerFailureStreamEvent } from "../../../server/ai/provider-failure.ts";
+import { classifyProviderStreamFailure, classifyProviderTransportFailure, providerFailureStreamEvent, requireVisibleGenerateContent } from "../../../server/ai/provider-failure.ts";
 
 const MAX_GENERATE_REQUEST_BYTES = 20 * 1024 * 1024;
 
@@ -99,7 +99,8 @@ async function pipeProviderStream(body: AiGenerateRequest, response: Response, r
         if (buffer.trim()) processChunk(buffer);
         if (completion === "eof") completed = true;
         if (!completed) throw new AiProviderFailureError({ code: "stream_interrupted", provider: body.provider, retry: "manual-only" });
-        controller.enqueue(encodeSse({ type: "done", content, requestId: providerRequestId, usage: finalUsage, actualSpeed }));
+        const visibleContent = requireVisibleGenerateContent(body, response.headers, content, providerRequestId);
+        controller.enqueue(encodeSse({ type: "done", content: visibleContent, requestId: providerRequestId, usage: finalUsage, actualSpeed }));
       } catch (error) {
         const failure = error instanceof AiProviderFailureError
           ? error.failure

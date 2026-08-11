@@ -3,7 +3,7 @@ import { getProviderContract } from "../../services/provider-contracts.ts";
 import { normalizeGoogleApiBaseUrl, normalizeGoogleInteractionsBaseUrl } from "../../services/google-connection.ts";
 import { miniMaxBearerHeaders, normalizeMiniMaxAnthropicBaseUrl } from "../../services/minimax-connection.ts";
 import { mapProviderRuntimeOptions } from "./runtime-option-mappers/index.ts";
-import { malformedProviderResponse } from "./provider-failure.ts";
+import { malformedProviderResponse, requireVisibleGenerateContent } from "./provider-failure.ts";
 export { buildSpeechProviderRequest, parseSpeechJsonResponse, type SpeechParseMode } from "./provider-speech-adapter.ts";
 
 type ProviderHttpRequest = {
@@ -297,7 +297,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
       .join("");
     const usage = asRecord(root.usage);
     return {
-      content: typeof root.output_text === "string" ? root.output_text : content,
+      content: requireVisibleGenerateContent(input, headers, typeof root.output_text === "string" && root.output_text.trim() ? root.output_text : content),
       requestId: typeof root.id === "string" ? root.id : headers.get("x-request-id") ?? undefined,
       usage: usageResult(usage.total_input_tokens, usage.total_output_tokens, usage.total_tokens),
       ...(actualSpeed ? { actualSpeed } : {}),
@@ -316,7 +316,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
       .join("");
     const usage = asRecord(root.usage);
     return {
-      content: typeof root.output_text === "string" ? root.output_text : nestedText,
+      content: requireVisibleGenerateContent(input, headers, typeof root.output_text === "string" && root.output_text.trim() ? root.output_text : nestedText),
       requestId: headers.get("x-request-id") ?? (typeof root.id === "string" ? root.id : undefined),
       usage: usageResult(usage.input_tokens, usage.output_tokens, usage.total_tokens),
       ...(actualSpeed ? { actualSpeed } : {}),
@@ -328,7 +328,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
     const parts = asRecord(candidate.content).parts;
     const usage = asRecord(root.usageMetadata);
     return {
-      content: (Array.isArray(parts) ? parts : []).filter((part) => asRecord(part).thought !== true).map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join(""),
+      content: requireVisibleGenerateContent(input, headers, (Array.isArray(parts) ? parts : []).filter((part) => asRecord(part).thought !== true).map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join("")),
       requestId: headers.get("x-request-id") ?? undefined,
       usage: usageResult(usage.promptTokenCount, usage.candidatesTokenCount, usage.totalTokenCount),
       ...(actualSpeed ? { actualSpeed } : {}),
@@ -340,7 +340,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
     const content = Array.isArray(root.content) ? root.content : [];
     const usage = asRecord(root.usage);
     return {
-      content: content.filter((part) => !asRecord(part).type || asRecord(part).type === "text").map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join(""),
+      content: requireVisibleGenerateContent(input, headers, content.filter((part) => !asRecord(part).type || asRecord(part).type === "text").map((part) => asRecord(part).text).filter((text): text is string => typeof text === "string").join("")),
       requestId: headers.get("request-id") ?? (typeof root.id === "string" ? root.id : undefined),
       usage: usageResult(usage.input_tokens, usage.output_tokens, Number(usage.input_tokens) + Number(usage.output_tokens)),
       ...(actualSpeed ? { actualSpeed } : {}),
@@ -352,7 +352,7 @@ export function parseGenerateProviderResponse(input: AiGenerateRequest, payload:
   const message = asRecord(asRecord(choices[0]).message);
   const usage = asRecord(root.usage);
   return {
-    content: typeof message.content === "string" ? message.content : "",
+    content: requireVisibleGenerateContent(input, headers, typeof message.content === "string" ? message.content : ""),
     requestId: headers.get("x-request-id") ?? (typeof root.id === "string" ? root.id : undefined),
     usage: usageResult(usage.prompt_tokens, usage.completion_tokens, usage.total_tokens),
     ...(actualSpeed ? { actualSpeed } : {}),

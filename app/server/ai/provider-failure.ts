@@ -142,13 +142,25 @@ export async function parseProviderFailure(input: AiGenerateRequest, response: R
   return Object.fromEntries(Object.entries(failure).filter(([, value]) => value !== undefined)) as AiProviderFailure;
 }
 
-export function malformedProviderResponse(input: AiGenerateRequest, headers: Headers): AiProviderFailureError {
+export function malformedProviderResponse(input: AiGenerateRequest, headers: Headers, providerCode = "invalid_response_shape"): AiProviderFailureError {
   return new AiProviderFailureError({
     code: "malformed_response",
     provider: input.provider,
     retry: "no",
-    providerCode: "invalid_response_shape",
+    providerCode,
     requestId: headers.get("x-request-id") ?? headers.get("request-id") ?? undefined,
+  });
+}
+
+/** 当前 text/vision/JSON consumers 只有在拿到可消费的可见终态内容时才能完成一轮生成。 */
+export function requireVisibleGenerateContent(input: AiGenerateRequest, headers: Headers, content: string, requestId?: string): string {
+  if (content.trim()) return content;
+  throw new AiProviderFailureError({
+    code: "malformed_response",
+    provider: input.provider,
+    retry: "no",
+    providerCode: "empty_visible_output",
+    requestId: requestId ?? headers.get("x-request-id") ?? headers.get("request-id") ?? undefined,
   });
 }
 
