@@ -145,6 +145,31 @@ test("response normalization returns common content, request id and usage withou
   }
 });
 
+const emptyVisibleResponseFixtures: Array<{ label: string; input: AiGenerateRequest; payload: unknown }> = [
+  { label: "OpenAI Responses reasoning-only", input: input("openai"), payload: { output: [{ type: "reasoning", summary: [{ type: "summary_text", text: "hidden reasoning" }] }] } },
+  { label: "xAI Responses without visible output", input: input("xai", { model: "grok-4.5" }), payload: { output: [] } },
+  { label: "Google GenerateContent empty candidates", input: input("google", { generationProtocol: "google_generate_content" }), payload: { candidates: [] } },
+  { label: "Google GenerateContent thought-only", input: input("google", { generationProtocol: "google_generate_content" }), payload: { candidates: [{ content: { parts: [{ thought: true, text: "hidden reasoning" }] } }] } },
+  { label: "Google Interactions without model output", input: input("google", { generationProtocol: "google_interactions" }), payload: { steps: [{ type: "user_input", content: [{ type: "text", text: "fixture prompt" }] }] } },
+  { label: "Anthropic thinking-only", input: input("anthropic"), payload: { content: [{ type: "thinking", thinking: "hidden reasoning" }] } },
+  { label: "MiniMax non-text-only", input: input("minimax", { model: "MiniMax-M3", providerOptions: { region: "cn" } }), payload: { content: [{ type: "thinking", thinking: "hidden reasoning" }] } },
+  { label: "DeepSeek empty message", input: input("deepseek"), payload: { choices: [{ message: {} }] } },
+  { label: "Zhipu empty message", input: input("zhipu"), payload: { choices: [{ message: {} }] } },
+  { label: "Custom missing visible message content", input: input("custom"), payload: { choices: [{ message: {} }] } },
+];
+
+test("recognized provider response without visible terminal output fails closed", () => {
+  for (const fixture of emptyVisibleResponseFixtures) {
+    assert.throws(
+      () => parseGenerateProviderResponse(fixture.input, fixture.payload, new Headers()),
+      (error: unknown) => error instanceof AiProviderFailureError
+        && error.failure.code === "malformed_response"
+        && error.failure.providerCode === "empty_visible_output",
+      fixture.label,
+    );
+  }
+});
+
 test("usage normalization preserves zero and explicit totals while leaving unknown values undefined", () => {
   const zero = parseGenerateProviderResponse(input("deepseek"), {
     id: "zero",

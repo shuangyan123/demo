@@ -58,6 +58,33 @@ test("route marks a normal incremental stream complete only after provider compl
   }
 });
 
+const emptyTerminalStreams: Array<{ label: string; overrides: Partial<AiGenerateRequest>; payload: unknown }> = [
+  { label: "Responses completed without visible delta", overrides: { provider: "openai" }, payload: { type: "response.completed", response: { id: "resp_empty" } } },
+  { label: "Messages stopped without visible delta", overrides: { provider: "anthropic" }, payload: { type: "message_stop", message: { id: "msg_empty" } } },
+  { label: "Chat finish without visible delta", overrides: { provider: "deepseek" }, payload: { choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } } },
+  { label: "Gemini GenerateContent EOF without visible delta", overrides: { provider: "google", model: "gemini-2.5-flash-lite", generationProtocol: "google_generate_content" }, payload: { candidates: [] } },
+  { label: "Google Interactions completed without visible delta", overrides: { provider: "google", model: "gemini-3.5-flash", generationProtocol: "google_interactions" }, payload: { type: "interaction.completed", interaction: { id: "interaction_empty" } } },
+];
+
+test("provider completion without visible stream output is malformed, not a successful done event", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const fixture of emptyTerminalStreams) {
+      globalThis.fetch = async () => new Response(`data: ${JSON.stringify(fixture.payload)}\n\n`, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+      const response = await postGenerate({ ...fixture.overrides, stream: true });
+      const events = await readSse(response);
+      assert.equal(response.status, 200, fixture.label);
+      assert.equal(events.some((event) => event.type === "done"), false, fixture.label);
+      assert.equal((events.find((event) => event.type === "error")?.failure as AiProviderFailure).code, "malformed_response", fixture.label);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("route maps provider HTTP failures to typed local failures without exposing upstream text", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => Response.json({
@@ -132,13 +159,15 @@ test("route separates malformed provider responses from capability contract fail
 
 test("client reconstructs typed provider failures and does not treat stream interruption as success", async () => {
   const originalFetch = globalThis.fetch;
+  const streamFailureCodes: Array<"stream_interrupted" | "malformed_response"> = ["stream_interrupted", "malformed_response"];
   globalThis.fetch = async (_input, init) => {
     const requestBody = JSON.parse(String(init?.body)) as { stream?: boolean };
     if (requestBody.stream) {
+      const code = streamFailureCodes.shift() ?? "malformed_response";
       return new Response(`data: ${JSON.stringify({
         type: "error",
         message: "safe message",
-        failure: providerFailure({ code: "stream_interrupted", retry: "manual-only" }),
+        failure: providerFailure({ code, retry: code === "stream_interrupted" ? "manual-only" : "no" }),
       })}\n\n`, { status: 200, headers: { "content-type": "text/event-stream" } });
     }
     return Response.json({
@@ -158,6 +187,13 @@ test("client reconstructs typed provider failures and does not treat stream inte
       }
     }, (error: unknown) => {
       return error instanceof AiProviderFailureError && error.failure.code === "stream_interrupted";
+    });
+    await assert.rejects(async () => {
+      for await (const event of callAiGenerateStream({ ...baseInput, stream: true })) {
+        assert.equal(event.type, "status");
+      }
+    }, (error: unknown) => {
+      return error instanceof AiProviderFailureError && error.failure.code === "malformed_response";
     });
   } finally {
     globalThis.fetch = originalFetch;

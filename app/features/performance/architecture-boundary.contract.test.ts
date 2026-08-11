@@ -135,6 +135,13 @@ test("AI provider normalization keeps failure data safe and vendor fields behind
   assert.match(client, /providerFailureClientModule/);
   assert.match(clientFailure, /AiProviderFailureError/);
   assert.doesNotMatch(conversation, /(?:choices|candidates|output_text|content_block_delta|usageMetadata|prompt_tokens|completion_tokens)/);
+  const conversationMessageUtils = await readFile(path.join(APP_ROOT, "features/conversation/conversation-message-utils.ts"), "utf8");
+  assert.match(conversationMessageUtils, /AiProviderFailureError/);
+  assert.match(conversationMessageUtils, /aiProviderFailureMessage/);
+  assert.doesNotMatch(conversationMessageUtils, /at capacity|overload|resource exhausted|429|503/);
+  assert.doesNotMatch(conversation, /模型没有返回文本/);
+  assert.match(conversation, /requireConversationAssistantContent\(finalContent\)/);
+  assert.doesNotMatch(conversation, /throw new Error\(event\.message\)/);
 });
 
 test("Connection-scoped capability resolver 独占缓存编排且 UI 不直接读取模型缓存", async () => {

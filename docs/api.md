@@ -121,6 +121,9 @@
 - SSE 事件固定为 `status`、增量 `delta`、`usage`、最终 `done` 和 `error`。`delta` 只包含新片段；`done` 只在 adapter 宣布完成、兼容 Chat Completions 收到完成哨兵/finish reason，或 Gemini GenerateContent 正常 EOF 时发送。异常 EOF 发送 `stream_interrupted`，不会伪装成成功。
 - Provider failure 使用 `AiProviderFailure` 的稳定 code、provider、retry policy、可选 HTTP/provider code、request ID 和 `retryAfterMs`。Provider HTTP failure 对本地路由统一返回 502；能力契约错误仍是 400，业务 JSON 解析仍在 `app/services/ai-json.ts` 独立完成。
 - failure 和 diagnostics 不保存 API key、Authorization、prompt、完整 provider body、隐藏 reasoning 或原始媒体。当前不自动 retry，也不自动 fallback；`retry` 仅描述调用方可以采取的安全策略。
+- 当前 text/vision/structured-output-through-text consumer 只有在获得可消费的 visible terminal output 后才算成功；hidden reasoning、usage-only 数据和 completion metadata 都不算助手答案。识别到响应 shape 但没有 visible output 时返回 `malformed_response`，不会返回空 `content`。
+- Provider completion 与 visible output 是两个独立条件：缺少 completion evidence 是 `stream_interrupted`，有合法 completion 但没有 visible delta 是 `malformed_response`。Conversation 只在 visible content 通过终态校验后持久化 assistant message、成功 usage 和 completed-turn memory。
+- Provider failure 展示只使用 `AiProviderFailure.code` 与共享安全文案；consumer 不得从 HTTP status、provider raw message、provider code 或 `429`/`503`/capacity 文本重新猜测语义。普通本地/业务错误仍可展示已有安全 message。
 
 文本和多模态任务统一调用 `/api/ai/generate`。业务 service 调用 `generateWithConnection(connection, purpose, input)` 时必须显式传入 `text` 或 `vision`；连接不具备对应能力时，请求会在密钥解密和网络调用前失败。
 

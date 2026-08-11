@@ -167,6 +167,27 @@ Provider response-shape validation happens in the adapter. Business JSON validat
 
 Conversation persistence continues to store visible user/assistant content, safe request metadata, and normalized usage only. No schema migration is part of Phase 2.
 
+## Terminal visible-output semantics
+
+The current text, vision, and structured-output-through-text consumers require a supported visible terminal result before a generation is considered successful. Hidden reasoning, reasoning summaries, thought signatures, usage-only data, provider completion metadata, and internal tool metadata are not assistant answers.
+
+For non-stream responses, a recognized provider shape with no visible content fails closed as `malformed_response`; it never becomes `AiGenerateResult.content = ""`. Whitespace-only visible text is also not a successful terminal result. Explicit provider refusal or content-policy terminal outcomes remain deferred until a provider supplies a stable, recognized signal.
+
+For streams, completion evidence and visible output are separate requirements:
+
+- missing completion evidence is `stream_interrupted`;
+- valid completion evidence without visible output is `malformed_response`;
+- invalid SSE/JSON/provider shape is `malformed_response`;
+- visible text followed by a valid completion produces `done`.
+
+Usage does not change these rules. A stream with usage and completion but no visible delta is not a successful assistant turn. Business JSON validation remains a later boundary: visible text that is not valid JSON is a business parsing failure, while no visible text is a provider terminal failure.
+
+## Consumer failure presentation
+
+`AiProviderFailureError` and `AiProviderFailure.code` cross the local route, client, connection service, and business consumer unchanged. Conversation presentation uses `aiProviderFailureMessage(code)` and never reclassifies provider failures from HTTP status text, provider codes, raw provider messages, or `429`/`503`/capacity wording. Ordinary local and business errors may still display their existing safe message.
+
+Conversation persists the user message and an error run step when an external generation fails, but it only appends an assistant message, successful usage, or completed-turn memory after visible terminal content has been validated. There is no fabricated empty assistant answer, automatic retry, provider fallback, usage-success persistence for a failed terminal result, or schema migration.
+
 ## Evidence
 
 Direct fixtures cover all seven native registrations and the custom compatibility path for requests, non-stream responses, incremental streams, hidden-reasoning exclusion, usage edge cases, representative provider failures, malformed responses, route interruption, client error reconstruction, and capability/business validation separation. Live paid-provider calls are intentionally outside the local contract suite.

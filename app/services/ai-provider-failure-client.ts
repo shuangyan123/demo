@@ -1,6 +1,7 @@
 import type { AiGenerateRequest, AiGenerateStreamEvent } from "./api-client.ts";
 import type { AiProviderFailure, AiProviderFailureCode } from "./ai-provider-failure.ts";
 import { readApiErrorPayload, type ClientApiErrorPayload } from "./api-error.ts";
+import type { ApiProvider } from "../types/domains/ai-provider.ts";
 
 type FailureModule = typeof import("./ai-provider-failure.ts");
 
@@ -51,10 +52,15 @@ export async function throwClientApiFailure(
 }
 
 export async function throwClientStreamFailure(input: AiGenerateRequest, event: Extract<AiGenerateStreamEvent, { type: "error" }>): Promise<never> {
+  return throwClientStreamFailureForProvider(input.provider, event);
+}
+
+/** 供 feature 侧处理未来可直接暴露的归一化 stream error；不得把 typed failure 降级成 message-only Error。 */
+export async function throwClientStreamFailureForProvider(provider: ApiProvider, event: Extract<AiGenerateStreamEvent, { type: "error" }>): Promise<never> {
   const failureApi = await failureModule();
   const failure = (failureApi.isAiProviderFailure(event.failure) ? event.failure : undefined)
     ?? (typeof event.code === "string" && failureApi.aiProviderFailureCodes.includes(event.code as AiProviderFailureCode)
-      ? { code: event.code as AiProviderFailureCode, provider: input.provider, retry: event.retryable ? "after-delay" : "no", requestId: event.requestId } satisfies AiProviderFailure
+      ? { code: event.code as AiProviderFailureCode, provider, retry: event.retryable ? "after-delay" : "no", requestId: event.requestId } satisfies AiProviderFailure
       : undefined);
   if (failure) return throwClientProviderFailure(failure);
   throw new Error(event.message);
