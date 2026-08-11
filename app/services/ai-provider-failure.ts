@@ -74,9 +74,20 @@ export function isAiProviderFailure(value: unknown): value is AiProviderFailure 
 export class AiProviderFailureError extends Error {
   readonly failure: AiProviderFailure;
 
-  constructor(failure: AiProviderFailure, message = aiProviderFailureMessage(failure.code)) {
-    super(message);
+  constructor(failure: AiProviderFailure, _message?: string) {
+    // 忽略兼容调用方传入的原始文案，typed failure 的 Error.message 也必须保持可公开安全。
+    super(aiProviderFailureMessage(failure.code));
+    void _message;
     this.name = "AiProviderFailureError";
     this.failure = failure;
+  }
+
+  get recoveryDiagnosis() {
+    const networkFailure = this.failure.code === "network"
+      || this.failure.code === "timeout"
+      || this.failure.code === "stream_interrupted";
+    return networkFailure
+      ? { category: "network" as const, recoveryAction: "check_network" as const }
+      : { category: "model" as const, recoveryAction: "configure_ai_connection" as const };
   }
 }

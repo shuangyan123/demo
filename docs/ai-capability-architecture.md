@@ -184,9 +184,43 @@ Usage does not change these rules. A stream with usage and completion but no vis
 
 ## Consumer failure presentation
 
-`AiProviderFailureError` and `AiProviderFailure.code` cross the local route, client, connection service, and business consumer unchanged. Conversation presentation uses `aiProviderFailureMessage(code)` and never reclassifies provider failures from HTTP status text, provider codes, raw provider messages, or `429`/`503`/capacity wording. Ordinary local and business errors may still display their existing safe message.
+`AiProviderFailureError` and `AiProviderFailure.code` cross the local route, client, connection service, and business consumer unchanged. Its constructor always rebuilds the safe product message, and its typed `recoveryDiagnosis` keeps the network/model recovery mapping at the failure boundary. Conversation presentation uses `aiProviderFailureMessage(code)`; Automation consumes `recoveryDiagnosis` and never reclassifies provider failures from HTTP status text, provider codes, raw provider messages, or `429`/`503`/capacity wording. Ordinary local and business errors may still display their existing safe message.
 
 Conversation persists the user message and an error run step when an external generation fails, but it only appends an assistant message, successful usage, or completed-turn memory after visible terminal content has been validated. There is no fabricated empty assistant answer, automatic retry, provider fallback, usage-success persistence for a failed terminal result, or schema migration.
+
+## Acceptance Matrix
+
+| Boundary | Accepted contract | Evidence |
+| --- | --- | --- |
+| Capability | Exact catalog and trusted connection metadata produce `supported` / `unsupported` / `unknown`; unknown model names do not grant optional capabilities or numeric limits. | Capability resolution and connection contract tests |
+| Runtime | Explicit reasoning/speed values are domain- and capability-validated before secret resolution and provider mapping; invalid, unsupported, and unknown values fail locally. | Runtime and connection-client contract tests |
+| Request | Consumers construct only `AiGenerateRequest`; vendor bodies, headers, endpoints, and runtime fields are created inside the adapter boundary. | Provider adapter fixtures and consumer architecture guard |
+| Response | Normalized results contain visible content and safe metadata only; recognized empty or non-visible terminal output is `malformed_response`. | Provider normalization and route contract tests |
+| Stream | Only normalized `status`, `delta`, `usage`, `done`, and `error` events cross the route; completion evidence and visible output are both required. | Provider stream and route contract tests |
+| Failure | `AiProviderFailure.code` and safe metadata survive route, client, connection service, and consumers; unknown stream errors are rebuilt as typed `unknown`. | Failure, client reconstruction, and consumer contract tests |
+| Consumer | Conversation, Tutoring, Interview, Automation, and AI-backed Import paths use `generateWithConnection` and do not parse vendor response/SSE fields. | Architecture boundary and consumer contract tests |
+| Privacy | API keys, authorization, prompts, raw provider bodies, hidden reasoning, signatures, and raw media do not cross the normalized result/failure/stream or persistence boundary. | Provider, route, and persistence contract tests |
+
+Terminal outcome matrix:
+
+| Situation | Normalized outcome | Business persistence |
+| --- | --- | --- |
+| Valid capability, runtime, provider response, and visible output | success / `done` | Success may persist normalized content and usage |
+| Unsupported or unknown required capability | local capability contract failure | No provider request |
+| Invalid explicit runtime value | local runtime contract failure | No provider request |
+| Provider HTTP failure | typed `AiProviderFailure` | No assistant success |
+| Malformed 2xx provider response | `malformed_response` | No assistant success |
+| Missing stream completion evidence | `stream_interrupted` | No `done` or assistant success |
+| Completed stream with no visible output | `malformed_response` | No `done` or assistant success |
+| Visible output that fails a business JSON schema | business validation error | Provider normalization remains successful; caller decides recovery |
+
+## Deferred / Residual Boundaries
+
+- Live provider protocol drift remains a release-validation risk; acceptance uses protocol fixtures and mocked HTTP/SSE rather than paid calls.
+- Provider-specific refusal and content-policy terminal normalization remains deferred until a stable cross-provider signal is verified; unsupported no-visible-output continues to fail closed.
+- Provider-generation automatic retry and provider fallback remain disabled. Retry metadata is informational and does not authorize replay of generation or external side effects. The existing knowledge-evolution structured-repair retry is a separate, visible business-validation path after a visible response and is not a provider-failure recovery mechanism.
+- Benchmark scoring, leaderboard/evaluation datasets, user capability overrides, and a cloud model catalog are outside 0.5.x.
+- Cached provider metadata freshness continues to follow the existing connection-scoped cache lifecycle; this closure does not add a persistence table or migration.
 
 ## Evidence
 

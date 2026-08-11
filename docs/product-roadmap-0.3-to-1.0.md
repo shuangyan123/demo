@@ -177,7 +177,7 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 
 ## 0.5.x AI capability abstraction
 
-**状态：IN PROGRESS**
+**状态：COMPLETE**
 
 ### Phase 1 — Model Capability Facts & Runtime Contract
 
@@ -204,7 +204,7 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - 七家原生 Provider 与 custom-compatible 路径均有 request、response、stream 和 failure fixtures；usage 的 `0`、显式 total、未知值、增量 delta、完成事件和异常中断均有直接契约测试。
 - 统一 `AiProviderFailure` taxonomy，保留安全的 provider code/request ID/retry-after metadata；capability failure、malformed provider response 和业务 JSON validation 保持不同错误边界。
 - 隐藏 reasoning、API key、Authorization、完整 prompt、原始响应和原始媒体不进入 normalized result、SSE error、diagnostics 或 conversation persistence；本阶段不新增 schema、不自动 retry、不自动 fallback。
-- 详见 `docs/ai-capability-architecture.md`。0.5.x 整体仍为 **IN PROGRESS**，下一阶段不在本轮范围内。
+- 详见 `docs/ai-capability-architecture.md`；最终 acceptance closure 见下方记录。
 
 ### Phase 2 Stabilization - Terminal Result & Consumer Failure Semantics
 
@@ -214,6 +214,15 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - A recognized provider response or completed stream without supported visible output fails as `malformed_response`; `stream_interrupted` remains reserved for missing completion evidence.
 - Conversation does not persist a fabricated empty assistant answer, successful usage, or completed-turn memory after a failed generation. User input and an error run step may remain as durable facts.
 - No automatic retry, provider fallback, hidden reasoning exposure, schema migration, new provider, capability change, or request-mapping rewrite was introduced.
+
+### Acceptance Closure — Final Architecture / Consumer / Security Verification
+
+**COMPLETE (2026-08-11)**
+
+- A–K architecture audit confirmed the capability source, connection-scoped resolution, runtime validation, request/response/stream normalization, typed failure taxonomy, consumer boundary, visible terminal semantics, and privacy/security boundary.
+- Direct fixtures cover native and custom protocols, visible and hidden-only terminal results, stream interruption versus completed-empty output, business JSON validation separation, typed client reconstruction, and bounded failure sanitization.
+- Conversation, Tutoring, Interview, Automation, and AI-backed Import paths remain behind the shared generation facade; no consumer parses vendor request/response/SSE fields or re-guesses typed provider failures from status text.
+- Acceptance Matrix and Deferred / Residual Boundaries are recorded in `docs/ai-capability-architecture.md`. No schema migration, new provider, automatic retry, provider fallback, or benchmark work is part of this closure.
 
 ### 目标
 

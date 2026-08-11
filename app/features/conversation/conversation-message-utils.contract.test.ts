@@ -27,6 +27,20 @@ test("normalized stream failure remains typed when a feature receives the error 
   );
 });
 
+test("unrecognized stream failure is rebuilt as safe typed unknown", async () => {
+  await assert.rejects(
+    () => throwClientStreamFailureForProvider("deepseek", {
+      type: "error",
+      message: "apiKey=fixture-key vendor 503 overload",
+      requestId: "route-unknown",
+    }),
+    (error: unknown) => error instanceof AiProviderFailureError
+      && error.failure.code === "unknown"
+      && error.message === aiProviderFailureMessage("unknown")
+      && !error.message.includes("fixture-key"),
+  );
+});
+
 test("Conversation requires visible assistant content before persistence", () => {
   assert.equal(requireConversationAssistantContent("  Hello\n"), "Hello");
   assert.throws(() => requireConversationAssistantContent(" \n\t"), /未写入助手消息/);
