@@ -2,6 +2,8 @@ import type { McpDiscoveryResult, McpServerProfile, McpToolDescriptor, McpToolPe
 import { decryptSecret, encryptSecret } from "./crypto-service.ts";
 import type { ClientApiErrorPayload } from "./api-error.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
+import type { McpExecutionContext, McpPersistedToolPermission } from "./mcp-permission.ts";
+import { clearMcpSessionPermissions, mcpSessionGrantKey, mcpSessionPermissionGrants, retainMcpSessionPermissions } from "./mcp-session-permission-store.ts";
 import { secretContext } from "./secret-context.ts";
 import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
@@ -26,6 +28,22 @@ function defaultSnapshot(): McpSettingsSnapshot {
   return { profiles: [], discovery: {} };
 }
 
+function normalizeMcpPersistedPermission(value: unknown): McpPersistedToolPermission {
+  return value === "deny" || value === "allow_scheduled" ? value : "ask";
+}
+
+function normalizeDiscovery(serverId: string, value: unknown): McpDiscoveryResult | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const discovery = value as McpDiscoveryResult;
+  return {
+    ...discovery,
+    serverId,
+    toolDescriptors: Array.isArray(discovery.toolDescriptors)
+      ? discovery.toolDescriptors.map((tool) => ({ ...tool, permission: normalizeMcpPersistedPermission(tool.permission) }))
+      : undefined,
+  };
+}
+
 function normalizeProfile(profile: Partial<McpServerProfile>): McpServerProfile | undefined {
   if (!profile.id || !profile.endpoint) return undefined;
   const timestamp = now();
@@ -45,7 +63,7 @@ function normalizeProfile(profile: Partial<McpServerProfile>): McpServerProfile 
   };
 }
 
-function readSnapshot(): McpSettingsSnapshot {
+function readPersistedSnapshot(): McpSettingsSnapshot {
   if (typeof window === "undefined") return defaultSnapshot();
   const raw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
   if (!raw) return defaultSnapshot();
@@ -56,11 +74,27 @@ function readSnapshot(): McpSettingsSnapshot {
         const normalized = normalizeProfile(profile);
         return normalized ? [normalized] : [];
       }) : [],
-      discovery: parsed.discovery && typeof parsed.discovery === "object" ? parsed.discovery : {},
+      discovery: parsed.discovery && typeof parsed.discovery === "object"
+        ? Object.fromEntries(Object.entries(parsed.discovery).flatMap(([serverId, value]) => {
+          const normalized = normalizeDiscovery(serverId, value);
+          return normalized ? [[serverId, normalized]] : [];
+        }))
+        : {},
     };
   } catch {
     return defaultSnapshot();
   }
+}
+
+function applySessionPermissions(snapshot: McpSettingsSnapshot): McpSettingsSnapshot {
+  for (const [serverId, discovery] of Object.entries(snapshot.discovery)) {
+    if (!discovery.toolDescriptors) continue;
+    discovery.toolDescriptors = discovery.toolDescriptors.map((tool) => ({
+      ...tool,
+      permission: tool.permission !== "deny" && mcpSessionPermissionGrants.has(mcpSessionGrantKey(serverId, tool.name)) ? "allow_session" : tool.permission,
+    }));
+  }
+  return snapshot;
 }
 
 function writeSnapshot(snapshot: McpSettingsSnapshot): void {
@@ -82,14 +116,19 @@ async function requestJson<T>(path: string, payload: Record<string, unknown>): P
   return result;
 }
 
+async function executeTool(serverId: string, toolName: string, args: Record<string, unknown>, context: McpExecutionContext): Promise<unknown> {
+  const { executeMcpTool } = await import("./mcp-execution.ts");
+  return executeMcpTool(serverId, toolName, args, context, { readSnapshot: readPersistedSnapshot, tokenFor, requestJson });
+}
+
 export const mcpSettingsRepository = {
   load(): McpSettingsSnapshot {
-    return readSnapshot();
+    return applySessionPermissions(readPersistedSnapshot());
   },
 
   async saveProfile(input: { id?: string; label: string; endpoint: string; enabled: boolean; authMode: "none" | "bearer"; token?: string; allowPrivateNetwork?: boolean; toolAllowlist?: string[]; catalogSource?: McpServerProfile["catalogSource"] }): Promise<McpServerProfile> {
     await ensureStoredSecretsMigrated();
-    const snapshot = readSnapshot();
+    const snapshot = readPersistedSnapshot();
     const timestamp = now();
     const existing = input.id ? snapshot.profiles.find((profile) => profile.id === input.id) : undefined;
     const profileId = existing?.id ?? input.id ?? crypto.randomUUID();
@@ -116,21 +155,25 @@ export const mcpSettingsRepository = {
       updatedAt: timestamp,
     };
     const discovery = { ...snapshot.discovery };
-    if (connectionChanged) delete discovery[profileId];
+    if (connectionChanged) {
+      delete discovery[profileId];
+      clearMcpSessionPermissions(profileId);
+    }
     writeSnapshot({ profiles: [profile, ...snapshot.profiles.filter((item) => item.id !== profile.id)], discovery });
     return profile;
   },
 
   removeProfile(id: string): void {
-    const snapshot = readSnapshot();
+    const snapshot = readPersistedSnapshot();
     const discovery = { ...snapshot.discovery };
     delete discovery[id];
+    clearMcpSessionPermissions(id);
     writeSnapshot({ profiles: snapshot.profiles.filter((profile) => profile.id !== id), discovery });
   },
 
   async discover(profile: McpServerProfile): Promise<McpDiscoveryResult> {
     if (isUiReviewRuntimeActive() || isUiReviewRecordId(profile.id)) throw new Error("UI 审查 MCP 只用于检查界面，不会连接外部 Server。");
-    const snapshot = readSnapshot();
+    const snapshot = readPersistedSnapshot();
     try {
       const remote = await requestJson<{ tools: McpRemoteTool[]; resources: Array<{ name: string }>; prompts: Array<{ name: string }> }>("/api/mcp/discover", {
         endpoint: profile.endpoint,
@@ -141,9 +184,10 @@ export const mcpSettingsRepository = {
       const allowedTools = profile.toolAllowlist?.length
         ? remote.tools.filter((tool) => profile.toolAllowlist?.includes(tool.name))
         : remote.tools;
+      retainMcpSessionPermissions(profile.id, allowedTools.map((tool) => tool.name));
       const toolDescriptors: McpToolDescriptor[] = allowedTools.map((tool) => ({
         ...tool,
-        permission: existingPermissions.get(tool.name) ?? "ask",
+        permission: normalizeMcpPersistedPermission(existingPermissions.get(tool.name) ?? "ask"),
       }));
       const result: McpDiscoveryResult = {
         serverId: profile.id,
@@ -156,7 +200,7 @@ export const mcpSettingsRepository = {
         checkedAt: now(),
       };
       writeSnapshot({ ...snapshot, discovery: { ...snapshot.discovery, [profile.id]: result } });
-      return result;
+      return applySessionPermissions({ ...snapshot, discovery: { ...snapshot.discovery, [profile.id]: result } }).discovery[profile.id];
     } catch (error) {
       const result: McpDiscoveryResult = {
         serverId: profile.id, status: "error", tools: [], resources: [], prompts: [],
@@ -167,37 +211,24 @@ export const mcpSettingsRepository = {
     }
   },
 
-  async callTool(profile: McpServerProfile, tool: string, args: Record<string, unknown>): Promise<unknown> {
-    if (isUiReviewRuntimeActive() || isUiReviewRecordId(profile.id)) throw new Error("UI 审查 MCP 只用于检查界面，不会调用外部工具。");
-    const response = await requestJson<{ result: unknown }>("/api/mcp/call", {
-      endpoint: profile.endpoint,
-      token: await tokenFor(profile),
-      allowPrivateNetwork: profile.allowPrivateNetwork === true,
-      tool,
-      arguments: args,
-    });
-    return response.result;
+  async callTool(profile: McpServerProfile, tool: string, args: Record<string, unknown>, context: McpExecutionContext): Promise<unknown> {
+    return executeTool(profile.id, tool, args, context);
   },
 
-  /** 无人值守任务在调用前重新校验 Server、发现状态和持久化的定时权限。 */
+  /** 无人值守任务与交互调用共享同一个执行边界和 permission core。 */
   async callScheduledTool(serverId: string, toolName: string, args: Record<string, unknown>): Promise<unknown> {
-    const snapshot = readSnapshot();
-    const profile = snapshot.profiles.find((item) => item.id === serverId);
-    if (isUiReviewRuntimeActive() || isUiReviewRecordId(serverId)) throw new Error("UI 审查 MCP 不允许已安排调用");
-    if (!profile?.enabled) throw new Error("MCP Server 未启用，已阻止定时调用");
-    const discovery = snapshot.discovery[serverId];
-    if (discovery?.status !== "ready") throw new Error("MCP Server 尚未通过连接发现");
-    const tool = discovery.toolDescriptors?.find((item) => item.name === toolName);
-    if (!tool) throw new Error("MCP 工具不存在或已从 Server 移除");
-    if (tool.permission !== "allow_scheduled") throw new Error("MCP 工具未获得定时任务授权");
-    return this.callTool(profile, toolName, args);
+    return executeTool(serverId, toolName, args, { mode: "scheduled", confirmed: false });
   },
 
   setToolPermission(serverId: string, toolName: string, permission: McpToolPermission): void {
-    const snapshot = readSnapshot();
+    const snapshot = readPersistedSnapshot();
     const discovery = snapshot.discovery[serverId];
     if (!discovery?.toolDescriptors) return;
-    const next = { ...discovery, toolDescriptors: discovery.toolDescriptors.map((tool) => tool.name === toolName ? { ...tool, permission } : tool) };
+    if (!discovery.toolDescriptors.some((tool) => tool.name === toolName)) return;
+    if (permission === "allow_session") mcpSessionPermissionGrants.add(mcpSessionGrantKey(serverId, toolName));
+    else mcpSessionPermissionGrants.delete(mcpSessionGrantKey(serverId, toolName));
+    const persistedPermission = permission === "allow_session" ? "ask" : normalizeMcpPersistedPermission(permission);
+    const next = { ...discovery, toolDescriptors: discovery.toolDescriptors.map((tool) => tool.name === toolName ? { ...tool, permission: persistedPermission } : tool) };
     writeSnapshot({ ...snapshot, discovery: { ...snapshot.discovery, [serverId]: next } });
   },
 };

@@ -97,6 +97,28 @@ test("Application Layer 保持纯 TypeScript 且不反向依赖 UI 或宿主全�
   assert.deepEqual(violations, []);
 });
 
+test("MCP permission core 与 execution boundary 不被 Feature UI 绕过", async () => {
+  const coreSource = await readFile(path.join(APP_ROOT, "services/mcp-permission.ts"), "utf8");
+  const repositorySource = await readFile(path.join(APP_ROOT, "services/mcp-settings-repository.ts"), "utf8");
+  const executionSource = await readFile(path.join(APP_ROOT, "services/mcp-execution.ts"), "utf8");
+  const panelSource = await readFile(path.join(APP_ROOT, "features/conversation/conversation-mcp-tool-panel.tsx"), "utf8");
+  const conversationFiles = (await sourceFiles(path.join(APP_ROOT, "features", "conversation")));
+
+  assert.doesNotMatch(coreSource, /react|next\/|Electron|Dexie|localStorage|fetch\s*\(|crypto|window|document/i);
+  assert.match(repositorySource, /import\("\.\/mcp-execution\.ts"\)/);
+  assert.match(executionSource, /decideMcpToolPermission/);
+  assert.match(executionSource, /decision !== "allowed"[\s\S]*?dependencies\.tokenFor\(profile\)/);
+  assert.match(repositorySource, /callScheduledTool[\s\S]*?executeTool\(serverId, toolName, args/);
+  assert.match(panelSource, /callTool\(server, tool\.name, args, \{ mode: "interactive", confirmed: true \}\)/);
+  assert.match(panelSource, /确认并调用/);
+
+  for (const file of conversationFiles) {
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(source, /\/api\/mcp\/call|decryptSecret|tokenFor\(/, path.relative(APP_ROOT, file));
+    assert.doesNotMatch(source, /permission\s*===\s*["']allow_scheduled["']/, path.relative(APP_ROOT, file));
+  }
+});
+
 test("AI capability core 保持纯 TypeScript 且不反向依赖协议实现", async () => {
   const capabilityFiles = [
     "types/domains/ai-capability.ts",

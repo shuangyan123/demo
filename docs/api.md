@@ -251,6 +251,7 @@ Vault Adapter 对外提供目录选择、权限查询/恢复、Markdown 遍历�
 - `POST /api/mcp/call` 接受 `{ endpoint, token?, tool, arguments }`，使用官方 MCP TypeScript SDK 调用工具；响应体超出 32 KiB 时拒绝交给浏览器。
 - 两个路由都拒绝 URL 内凭据、非 HTTP(S)、远程明文 HTTP 与跨 origin 重定向；请求超时为 15 秒。HTTP 仅允许 `localhost`、`127.0.0.0/8` 和 `::1`。
 - 浏览器 repository 负责本地加密 Bearer Token；IndexedDB 和工具步骤不得保存 Token 或 MCP 原始结果。
+- 应用内真实 tool call 必须先经过 `mcpSettingsRepository` 的 permission execution boundary；Route 只负责既有 MCP transport 与网络安全校验，不成为 UI 权限判断的替代品。
 # 实时语音 API
 
 - `POST /api/ai/realtime/session`：用长期连接密钥交换 OpenAI/Gemini 临时凭据，或创建 GLM 内存中继会话。响应永不返回长期密钥。
