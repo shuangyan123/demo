@@ -2,7 +2,9 @@ import type { AutomationExecutionResult } from "../../services/automation-execut
 import { executeAutomation, previewAutomationDefinition } from "../../services/automation-executor.ts";
 import type { AutomationFailureDiagnosis } from "../../services/automation-failure.ts";
 import { classifyAutomationError } from "../../services/automation-failure.ts";
+import { AutomationAuthorizationError } from "../../services/automation-errors.ts";
 import { automationExecutionRepository } from "../../services/automation-repository.ts";
+import type { AutomationExternalAuthorizationResult, createUnattendedExecutionAuditSummary } from "../../services/automation-external-authorization.ts";
 import type { ApiConnectionProfile, AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
 import type { AutomationContextSummary, AutomationDefinition, AutomationRun, AutomationRunTrigger } from "../../types/domains/automation.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
@@ -32,6 +34,7 @@ export type ExecuteAutomationRunDependencies = {
     run: AutomationRun;
   }) => Promise<void>;
   previewDefinition: (definition: AutomationDefinition) => Promise<AutomationPreview>;
+  authorize?: (definition: AutomationDefinition) => AutomationExternalAuthorizationResult | Promise<AutomationExternalAuthorizationResult>;
   execute: (input: {
     definition: AutomationDefinition;
     connection?: ApiConnectionProfile;
@@ -67,8 +70,26 @@ function startDefaultLeaseRenewal(renew: () => Promise<boolean>): () => void {
   return () => clearInterval(timer);
 }
 
+async function resolveCurrentAuthorization(definition: AutomationDefinition): Promise<AutomationExternalAuthorizationResult> {
+  const [{ collectMcpAuthorizationResources, resolveAutomationExternalAuthorization }, { mcpSettingsRepository }] = await Promise.all([
+    import("../../services/automation-external-authorization.ts"),
+    import("../../services/mcp-settings-repository.ts"),
+  ]);
+  return resolveAutomationExternalAuthorization(definition, {
+    mcpResources: collectMcpAuthorizationResources(mcpSettingsRepository.load()),
+  });
+}
+
+type AuditSummaryInput = Parameters<typeof createUnattendedExecutionAuditSummary>[0];
+
+async function createAuditSummary(input: AuditSummaryInput): Promise<NonNullable<AutomationRun["unattendedAudit"]>> {
+  const { createUnattendedExecutionAuditSummary } = await import("../../services/automation-external-authorization.ts");
+  return createUnattendedExecutionAuditSummary(input);
+}
+
 const defaultDependencies: ExecuteAutomationRunDependencies = {
   ...automationExecutionRepository,
+  authorize: resolveCurrentAuthorization,
   previewDefinition: previewAutomationDefinition,
   execute: executeAutomation,
   classifyError: classifyAutomationError,
@@ -121,8 +142,62 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
   };
   let stopLeaseRenewal: (() => void) | undefined;
   let primaryError: unknown;
+  let authorization: AutomationExternalAuthorizationResult | undefined;
 
   try {
+    if (dependencies.authorize) {
+      try {
+        authorization = await dependencies.authorize(definition);
+      } catch (error) {
+        throw applicationError("authorize", error, partialResult);
+      }
+    }
+
+    if (authorization && authorization.status !== "ready") {
+      const finishedAt = dependencies.now().toISOString();
+      const diagnosis = dependencies.classifyError(new AutomationAuthorizationError(authorization), { online: input.online });
+      const blocked: AutomationRun = {
+        id: leaseOwner,
+        automationId: definition.id,
+        automationName: definition.name,
+        status: "failed",
+        trigger: input.trigger,
+        scheduledAt: input.scheduledAt ?? startedAt.toISOString(),
+        startedAt: startedAt.toISOString(),
+        finishedAt,
+        error: diagnosis.message,
+        unread: true,
+        missedCount: input.missedCount ?? 0,
+        proposalIds: [],
+        failureCategory: "permission",
+        failureRecoveryAction: diagnosis.recoveryAction,
+        unattendedAudit: await createAuditSummary({
+          taskId: definition.id,
+          runId: leaseOwner,
+          mode: input.trigger,
+          startedAt: startedAt.toISOString(),
+          finishedAt,
+          authorization,
+          proposalCount: 0,
+          terminalState: "blocked",
+        }),
+        createdAt: startedAt.toISOString(),
+      };
+      try {
+        await dependencies.createRun(blocked);
+        partialResult.run = blocked;
+        await dependencies.completeRun({
+          automationId: definition.id,
+          leaseOwner,
+          nextRunAt: input.nextRunAt ?? definition.nextRunAt,
+          run: blocked,
+        });
+      } catch (error) {
+        throw applicationError("complete-run", error, partialResult);
+      }
+      return blocked;
+    }
+
     let preview: AutomationPreview;
     try {
       preview = await dependencies.previewDefinition(definition);
@@ -146,6 +221,17 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
       contextCharCount: preview.contextCharCount,
       createdAt: timestamp,
     };
+    if (authorization) {
+      running.unattendedAudit = await createAuditSummary({
+        taskId: definition.id,
+        runId: leaseOwner,
+        mode: input.trigger,
+        startedAt: timestamp,
+        authorization,
+        proposalCount: 0,
+        terminalState: "running",
+      });
+    }
     try {
       await dependencies.createRun(running);
       partialResult.run = running;
@@ -172,6 +258,7 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
       });
       partialResult.output = output;
     } catch (executionError) {
+      if (executionError instanceof AutomationAuthorizationError) authorization = executionError.authorization as AutomationExternalAuthorizationResult;
       const diagnosis = dependencies.classifyError(executionError, { online: input.online });
       const finishedAt = dependencies.now().toISOString();
       const failed: AutomationRun = {
@@ -182,6 +269,16 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
         failureRecoveryAction: diagnosis.recoveryAction,
         unread: true,
         finishedAt,
+        unattendedAudit: authorization ? await createAuditSummary({
+          taskId: definition.id,
+          runId: leaseOwner,
+          mode: input.trigger,
+          startedAt: running.startedAt ?? startedAt.toISOString(),
+          finishedAt,
+          authorization,
+          proposalCount: 0,
+          terminalState: authorization.status === "ready" ? "failed" : "blocked",
+        }) : undefined,
       };
       try {
         await dependencies.completeRun({
@@ -210,6 +307,17 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
       contextSummary: output.contextSummary,
       contextCharCount: output.contextCharCount,
       collectionSummary: output.collectionSummary,
+      unattendedAudit: authorization ? await createAuditSummary({
+        taskId: definition.id,
+        runId: leaseOwner,
+        mode: input.trigger,
+        startedAt: running.startedAt ?? startedAt.toISOString(),
+        finishedAt,
+        authorization,
+        execution: output.externalExecution,
+        proposalCount: output.proposalIds.length,
+        terminalState: "succeeded",
+      }) : undefined,
       unread: true,
       finishedAt,
     };

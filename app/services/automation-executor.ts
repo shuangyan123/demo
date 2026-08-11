@@ -1,6 +1,6 @@
 import type { AcquisitionModelRef, AcquisitionRunSummary } from "../types/domains/acquisition.ts";
 import type { ApiConnectionProfile, AiConnectionSnapshot } from "../types/domains/ai-connection.ts";
-import type { AutomationContextSummary, AutomationDefinition, AutomationSourceScope, AutomationTemplateId } from "../types/domains/automation.ts";
+import type { AutomationContextSummary, AutomationDefinition, AutomationExternalExecutionSummary, AutomationSourceScope, AutomationTemplateId } from "../types/domains/automation.ts";
 import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import { generateWithConnection } from "./ai-connection-client.ts";
 import { buildAutomationContextPreview, buildAutomationContextResult, type AutomationContextPreview } from "./automation-context-service.ts";
@@ -31,7 +31,26 @@ export type AutomationExecutionResult = {
   contextSummary: AutomationContextSummary[];
   contextCharCount: number;
   collectionSummary?: AcquisitionRunSummary;
+  externalExecution?: AutomationExternalExecutionSummary;
 };
+
+function aiExecutionSummary(callCount = 1): AutomationExternalExecutionSummary {
+  return { sourceKinds: callCount ? ["ai"] : [], mcpTools: [], httpOrigins: [], externalCallCount: callCount, successfulCallCount: callCount, failedCallCount: 0 };
+}
+
+function mergeExternalExecution(...summaries: Array<AutomationExternalExecutionSummary | undefined>): AutomationExternalExecutionSummary {
+  const sourceKinds = [...new Set(summaries.flatMap((summary) => summary?.sourceKinds ?? []))];
+  const mcpTools = [...new Map(summaries.flatMap((summary) => summary?.mcpTools ?? []).map((item) => [`${item.serverId}:${item.toolName}`, item])).values()];
+  const httpOrigins = [...new Set(summaries.flatMap((summary) => summary?.httpOrigins ?? []))];
+  return {
+    sourceKinds,
+    mcpTools,
+    httpOrigins,
+    externalCallCount: summaries.reduce((total, summary) => total + (summary?.externalCallCount ?? 0), 0),
+    successfulCallCount: summaries.reduce((total, summary) => total + (summary?.successfulCallCount ?? 0), 0),
+    failedCallCount: summaries.reduce((total, summary) => total + (summary?.failedCallCount ?? 0), 0),
+  };
+}
 
 /** 预览只返回摘要和字符数，不把完整上下文交给 UI。 */
 export async function previewAutomationDefinition(input: { sourceScopes: AutomationSourceScope[]; collectionConfig?: AutomationDefinition["collectionConfig"] }): Promise<AutomationContextPreview> {
@@ -63,6 +82,13 @@ export async function executeAutomation(input: {
   if (isUiReviewRuntimeActive() || isUiReviewRecordId(input.definition.id)) {
     throw new Error("UI 审查任务只用于检查界面，不会执行外部调用");
   }
+  const [{ assertAutomationExternalAuthorization, collectMcpAuthorizationResources, resolveAutomationExternalAuthorization }, { mcpSettingsRepository }] = await Promise.all([
+    import("./automation-external-authorization.ts"),
+    import("./mcp-settings-repository.ts"),
+  ]);
+  assertAutomationExternalAuthorization(resolveAutomationExternalAuthorization(input.definition, {
+    mcpResources: collectMcpAuthorizationResources(mcpSettingsRepository.load()),
+  }));
   if (input.definition.collectionConfig) {
     const config = input.definition.collectionConfig;
     const snapshot = input.aiSnapshot;
@@ -102,6 +128,7 @@ export async function executeAutomation(input: {
       contextSummary: [],
       contextCharCount: 0,
       collectionSummary,
+      externalExecution: mergeExternalExecution(acquisition.externalExecution, aiExecutionSummary(acquisition.documents.length ? reviewer ? 2 : 1 : 0)),
     };
   }
   const contextResult = await buildAutomationContextResult(input.definition.sourceScopes);
@@ -129,6 +156,7 @@ export async function executeAutomation(input: {
       proposalIds: proposals.map((item) => item.id),
       contextSummary: contextResult.summary,
       contextCharCount: contextResult.contextCharCount,
+      externalExecution: aiExecutionSummary(),
     };
   }
 
@@ -155,5 +183,6 @@ export async function executeAutomation(input: {
     proposalIds: [],
     contextSummary: contextResult.summary,
     contextCharCount: contextResult.contextCharCount,
+    externalExecution: aiExecutionSummary(),
   };
 }

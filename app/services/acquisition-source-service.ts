@@ -1,4 +1,5 @@
 import type { AcquisitionDocument, AcquisitionSourceConfig, AutomationCollectionConfig } from "../types/domains/acquisition.ts";
+import type { AutomationExternalExecutionSummary } from "../types/domains/automation.ts";
 import type { KnowledgeEvolutionProposal } from "../types/domains/obsidian.ts";
 import { mcpSettingsRepository } from "./mcp-settings-repository.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
@@ -23,6 +24,16 @@ export type AcquisitionDiscoveryResult = {
   fetchedCount: number;
   duplicateCount: number;
   diagnostics: string[];
+  externalExecution: AutomationExternalExecutionSummary;
+};
+
+type ExternalCallTracker = {
+  sourceKinds: Set<AutomationExternalExecutionSummary["sourceKinds"][number]>;
+  mcpTools: Set<string>;
+  httpOrigins: Set<string>;
+  externalCallCount: number;
+  successfulCallCount: number;
+  failedCallCount: number;
 };
 
 function normalizeOrigin(value: string): string | undefined {
@@ -96,30 +107,48 @@ export function extractCandidateUrls(value: unknown): string[] {
   return [...new Set(urls.map((url) => url.replace(/[.,;:!?]+$/, "")))];
 }
 
-async function fetchDocument(url: string, allowedOrigins: string[]): Promise<FetchResponse> {
-  const response = await fetchLocalApi("/api/acquisition/fetch", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, allowedOrigins }),
-  });
-  const result = await response.json() as FetchResponse;
-  if (!response.ok) throw new Error(result.message || result.error || "来源抓取失败");
-  return result;
+async function fetchDocument(url: string, allowedOrigins: string[], tracker?: ExternalCallTracker): Promise<FetchResponse> {
+  if (tracker) {
+    tracker.externalCallCount += 1;
+    for (const origin of allowedOrigins) tracker.httpOrigins.add(origin);
+  }
+  try {
+    const response = await fetchLocalApi("/api/acquisition/fetch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, allowedOrigins }),
+    });
+    const result = await response.json() as FetchResponse;
+    if (!response.ok) throw new Error(result.message || result.error || "来源抓取失败");
+    if (tracker) tracker.successfulCallCount += 1;
+    return result;
+  } catch (error) {
+    if (tracker) tracker.failedCallCount += 1;
+    throw error;
+  }
 }
 
-async function discoverSourceUrls(config: AutomationCollectionConfig, source: AcquisitionSourceConfig): Promise<{ urls: string[]; diagnostics: string[] }> {
+async function discoverSourceUrls(config: AutomationCollectionConfig, source: AcquisitionSourceConfig, tracker: ExternalCallTracker): Promise<{ urls: string[]; diagnostics: string[] }> {
   const origins = effectiveOrigins(config, source);
   if (!origins.length) return { urls: [], diagnostics: [`${source.label} 没有与任务白名单相交的允许域名`] };
   if (source.kind === "url") return { urls: source.urls.filter((url) => isAllowedUrl(url, origins)), diagnostics: [] };
   if (source.kind === "feed") {
     if (!isAllowedUrl(source.url, origins)) return { urls: [], diagnostics: [`${source.label} 的订阅地址不在允许域名中`] };
-    const feed = await fetchDocument(source.url, origins);
+    const feed = await fetchDocument(source.url, origins, tracker);
     return { urls: feed.discoveredUrls.filter((url) => isAllowedUrl(url, origins)), diagnostics: [] };
   }
   const urls: string[] = [];
   for (const query of config.queries) {
-    const result = await mcpSettingsRepository.callScheduledTool(source.serverId, source.toolName, parseMcpArguments(source.argumentTemplate, query));
-    urls.push(...extractCandidateUrls(result).filter((url) => isAllowedUrl(url, origins)));
+    tracker.externalCallCount += 1;
+    tracker.mcpTools.add(`${source.serverId}\u0000${source.toolName}`);
+    try {
+      const result = await mcpSettingsRepository.callScheduledTool(source.serverId, source.toolName, parseMcpArguments(source.argumentTemplate, query));
+      tracker.successfulCallCount += 1;
+      urls.push(...extractCandidateUrls(result).filter((url) => isAllowedUrl(url, origins)));
+    } catch (error) {
+      tracker.failedCallCount += 1;
+      throw error;
+    }
   }
   return { urls: [...new Set(urls)], diagnostics: [] };
 }
@@ -128,11 +157,22 @@ async function discoverSourceUrls(config: AutomationCollectionConfig, source: Ac
 export async function acquireCollectionDocuments(input: AutomationCollectionConfig): Promise<AcquisitionDiscoveryResult> {
   const config = normalizeCollectionConfig(input);
   const enabledSources = config.sources.filter((source) => source.enabled);
+  const tracker: ExternalCallTracker = {
+    sourceKinds: new Set(),
+    mcpTools: new Set(),
+    httpOrigins: new Set(),
+    externalCallCount: 0,
+    successfulCallCount: 0,
+    failedCallCount: 0,
+  };
   const discovered: Array<{ url: string; source: AcquisitionSourceConfig; origins: string[] }> = [];
   const diagnostics: string[] = [];
   for (const source of enabledSources) {
+    tracker.sourceKinds.add(source.kind);
+    for (const origin of effectiveOrigins(config, source)) tracker.httpOrigins.add(origin);
     try {
-      const result = await discoverSourceUrls(config, source);
+      if (source.kind === "mcp_search") tracker.mcpTools.add(`${source.serverId}\u0000${source.toolName}`);
+      const result = await discoverSourceUrls(config, source, tracker);
       diagnostics.push(...result.diagnostics);
       const origins = effectiveOrigins(config, source);
       result.urls.forEach((url) => discovered.push({ url, source, origins }));
@@ -148,7 +188,7 @@ export async function acquireCollectionDocuments(input: AutomationCollectionConf
   for (const candidate of uniqueUrls) {
     if (documents.length >= config.maxDocuments) break;
     try {
-      const fetched = await fetchDocument(candidate.url, candidate.origins);
+      const fetched = await fetchDocument(candidate.url, candidate.origins, tracker);
       if (hashes.has(fetched.contentHash)) {
         duplicateCount += 1;
         continue;
@@ -173,7 +213,24 @@ export async function acquireCollectionDocuments(input: AutomationCollectionConf
       diagnostics.push(`${candidate.url}：${error instanceof Error ? error.message : "抓取失败"}`);
     }
   }
-  return { documents, discoveredCount: uniqueUrls.length, fetchedCount: documents.length, duplicateCount, diagnostics };
+  return {
+    documents,
+    discoveredCount: uniqueUrls.length,
+    fetchedCount: documents.length,
+    duplicateCount,
+    diagnostics,
+    externalExecution: {
+      sourceKinds: [...tracker.sourceKinds],
+      mcpTools: [...tracker.mcpTools].map((item) => {
+        const [serverId, toolName] = item.split("\u0000");
+        return { serverId, toolName };
+      }),
+      httpOrigins: [...tracker.httpOrigins],
+      externalCallCount: tracker.externalCallCount,
+      successfulCallCount: tracker.successfulCallCount,
+      failedCallCount: tracker.failedCallCount,
+    },
+  };
 }
 
 /** 配置预览是纯函数，不联网、不调用模型。 */

@@ -104,6 +104,7 @@ test("MCP permission core 与 execution boundary 不被 Feature UI 绕过", asyn
   const executionSource = await readFile(path.join(APP_ROOT, "services/mcp-execution.ts"), "utf8");
   const panelSource = await readFile(path.join(APP_ROOT, "features/conversation/conversation-mcp-tool-panel.tsx"), "utf8");
   const conversationFiles = (await sourceFiles(path.join(APP_ROOT, "features", "conversation")));
+  const files = await sourceFiles(APP_ROOT);
 
   assert.doesNotMatch(coreSource, /react|next\/|Electron|Dexie|localStorage|fetch\s*\(|crypto|window|document/i);
   assert.doesNotMatch(sessionStoreSource, /export\s+(?:const|let|var)\s+\w+\s*=\s*new\s+Set/);
@@ -131,6 +132,43 @@ test("MCP permission core 与 execution boundary 不被 Feature UI 绕过", asyn
     const source = await readFile(file, "utf8");
     assert.doesNotMatch(source, /mcp-session-permission-store|grantMcpSessionPermission|revokeMcpSessionPermission|clearMcpSessionPermissions|retainMcpSessionPermissions/, path.relative(APP_ROOT, file));
   }
+
+  const mutationViolations: string[] = [];
+  const clearForTestViolations: string[] = [];
+  const confirmedCallerViolations: string[] = [];
+  for (const file of files) {
+    const relativePath = path.relative(APP_ROOT, file).replace(/\\/g, "/");
+    const source = await readFile(file, "utf8");
+    if (/grantMcpSessionPermission|revokeMcpSessionPermission|clearMcpSessionPermissions|retainMcpSessionPermissions/.test(source) && relativePath !== "services/mcp-settings-repository.ts" && relativePath !== "services/mcp-session-permission-store.ts") {
+      mutationViolations.push(relativePath);
+    }
+    if (/clearAllMcpSessionPermissionsForTest\s*\(/.test(source) && relativePath !== "services/mcp-session-permission-store.ts") {
+      clearForTestViolations.push(relativePath);
+    }
+    if (/confirmed\s*:\s*true/.test(source) && relativePath !== "features/conversation/conversation-mcp-tool-panel.tsx") {
+      confirmedCallerViolations.push(relativePath);
+    }
+  }
+  assert.deepEqual(mutationViolations, []);
+  assert.deepEqual(clearForTestViolations, []);
+  assert.deepEqual(confirmedCallerViolations, []);
+
+  const automationExecutorSource = await readFile(path.join(APP_ROOT, "services/automation-executor.ts"), "utf8");
+  assert.doesNotMatch(automationExecutorSource, /\/api\/mcp\/call|\/api\/acquisition\/fetch|fetch\s*\(/);
+  const acquisitionFiles = files.filter((file) => path.relative(APP_ROOT, file).replace(/\\/g, "/").startsWith("services/acquisition-"));
+  for (const file of acquisitionFiles) {
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(source, /\/api\/mcp\/call/);
+  }
+  const scheduledCallers: string[] = [];
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    if (/callScheduledTool\s*\(/.test(source)) scheduledCallers.push(path.relative(APP_ROOT, file).replace(/\\/g, "/"));
+  }
+  assert.deepEqual(scheduledCallers.sort(), [
+    "services/acquisition-source-service.ts",
+    "services/mcp-settings-repository.ts",
+  ]);
 });
 
 test("AI capability core 保持纯 TypeScript 且不反向依赖协议实现", async () => {
