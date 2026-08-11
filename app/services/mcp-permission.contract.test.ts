@@ -1,0 +1,74 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { decideMcpToolPermission, normalizeMcpPersistedPermission } from "./mcp-permission.ts";
+import { executeMcpTool } from "./mcp-execution.ts";
+import { mcpSessionGrantKey, mcpSessionPermissionGrants, clearMcpSessionPermissions, retainMcpSessionPermissions } from "./mcp-session-permission-store.ts";
+
+test("MCP permission core covers the four policies without side effects", () => {
+  assert.equal(decideMcpToolPermission({ policy: "deny", sessionGrantPresent: true, mode: "interactive", confirmed: true }), "denied");
+  assert.equal(decideMcpToolPermission({ policy: "deny", sessionGrantPresent: false, mode: "scheduled", confirmed: false }), "denied");
+
+  assert.equal(decideMcpToolPermission({ policy: "ask", sessionGrantPresent: false, mode: "interactive", confirmed: false }), "confirmation_required");
+  assert.equal(decideMcpToolPermission({ policy: "ask", sessionGrantPresent: false, mode: "interactive", confirmed: true }), "allowed");
+  assert.equal(decideMcpToolPermission({ policy: "ask", sessionGrantPresent: false, mode: "scheduled", confirmed: true }), "denied");
+
+  assert.equal(decideMcpToolPermission({ policy: "ask", sessionGrantPresent: true, mode: "interactive", confirmed: false }), "allowed");
+  assert.equal(decideMcpToolPermission({ policy: "ask", sessionGrantPresent: true, mode: "scheduled", confirmed: false }), "denied");
+
+  assert.equal(decideMcpToolPermission({ policy: "allow_scheduled", sessionGrantPresent: false, mode: "scheduled", confirmed: false }), "allowed");
+  assert.equal(decideMcpToolPermission({ policy: "allow_scheduled", sessionGrantPresent: false, mode: "interactive", confirmed: false }), "confirmation_required");
+  assert.equal(decideMcpToolPermission({ policy: "allow_scheduled", sessionGrantPresent: false, mode: "interactive", confirmed: true }), "allowed");
+});
+
+test("legacy persisted allow_session is a conservative ask policy", () => {
+  assert.equal(normalizeMcpPersistedPermission("allow_session"), "ask");
+  assert.equal(normalizeMcpPersistedPermission("unexpected"), "ask");
+  assert.equal(normalizeMcpPersistedPermission("deny"), "deny");
+  assert.equal(normalizeMcpPersistedPermission("allow_scheduled"), "allow_scheduled");
+});
+
+test("session grants are exact server/tool pairs and can be revoked", () => {
+  mcpSessionPermissionGrants.clear();
+  mcpSessionPermissionGrants.add(mcpSessionGrantKey("server-a", "tool-x"));
+  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-x")), true);
+  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-y")), false);
+  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-b", "tool-x")), false);
+
+  mcpSessionPermissionGrants.delete(mcpSessionGrantKey("server-a", "tool-x"));
+  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-x")), false);
+
+  mcpSessionPermissionGrants.add(mcpSessionGrantKey("server-a", "tool-x"));
+  mcpSessionPermissionGrants.add(mcpSessionGrantKey("server-a", "tool-y"));
+  retainMcpSessionPermissions("server-a", ["tool-x"]);
+  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-x")), true);
+  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-y")), false);
+  clearMcpSessionPermissions("server-a");
+  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-x")), false);
+});
+
+test("execution boundary rejects deny without resolving credentials or requesting the route", async () => {
+  let tokenCalls = 0;
+  let requestCalls = 0;
+  await assert.rejects(
+    () => executeMcpTool(
+      "server-a",
+      "tool-x",
+      {},
+      { mode: "interactive", confirmed: true },
+      {
+        readSnapshot: () => ({
+          profiles: [{ id: "server-a", label: "Server A", endpoint: "https://mcp.example.com/mcp", enabled: true, authMode: "none", createdAt: "", updatedAt: "" }],
+          discovery: {
+            "server-a": { serverId: "server-a", status: "ready", tools: ["tool-x"], resources: [], prompts: [], message: "ready", toolDescriptors: [{ name: "tool-x", permission: "deny" }],
+            },
+          },
+        }),
+        tokenFor: async () => { tokenCalls += 1; return "secret"; },
+        requestJson: async () => { requestCalls += 1; return { result: {} }; },
+      },
+    ),
+    /禁止/,
+  );
+  assert.equal(tokenCalls, 0);
+  assert.equal(requestCalls, 0);
+});

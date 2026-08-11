@@ -34,7 +34,7 @@ export function ConversationMcpToolPanel({ onClose, onExecuted, onNotice }: Conv
     }
     setBusy(true);
     try {
-      const result = await mcpSettingsRepository.callTool(server, tool.name, args);
+      const result = await mcpSettingsRepository.callTool(server, tool.name, args, { mode: "interactive", confirmed: true });
       const raw = JSON.stringify(result);
       setResultPreview(raw.slice(0, 2400));
       await onExecuted(`${server.label} / ${tool.name}`, `参数键：${Object.keys(args).join("、") || "无"} · 已返回 ${raw.length} 字符`);

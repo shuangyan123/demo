@@ -254,6 +254,22 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 
 ## 0.6 MCP / Automation / Plugin 权限模型
 
+### Phase 1 — Permission Decision Core & MCP Execution Boundary
+
+**COMPLETE（2026-08-11）**
+
+- `ask`、`allow_session`、`allow_scheduled`、`deny` 通过纯 TypeScript decision core 统一解释；`allow_session` 只保存在当前进程内的精确 `serverId + toolName` session grant 中。
+- `mcpSettingsRepository.callTool()` 与 `callScheduledTool()` 共享 execution boundary；Server 启用状态、最新 discovery、工具存在性和权限在凭据解密与 `/api/mcp/call` 之前复核，拒绝路径不触网。
+- 旧的持久化 `allow_session` 读取时降级为 `ask`；重新发现只按精确 tool 名保留持久化策略和仍存在的会话 grant。UI 只收集交互确认，不能绕过 repository boundary。
+- 保持 `review_workspace` v16、现有 MCP route、凭据加密、`allowPrivateNetwork`、SSRF 检查和 raw tool result 非持久化；增加直接权限矩阵、会话作用域、reload、无网络拒绝和 UI 架构 contract。
+- 详见 `docs/mcp-permissions.md`。
+
+### Deferred 0.6 work
+
+- Phase 2：Automation / Acquisition unattended authorization & audit。
+- Phase 3：Declarative Extension permission & disable semantics。
+- Acceptance Closure：在后续阶段针对完整 0.6 范围收口。
+
 ### 目标
 
 - 统一声明交互期、会话期和无人值守权限。

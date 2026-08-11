@@ -197,7 +197,7 @@ function McpSettingsLiveView({ onNotice }: { onNotice: (message: string) => void
                 {discovery ? <span>能力 <strong>{discovery.tools.length} tools · {discovery.resources.length} resources · {discovery.prompts.length} prompts</strong></span> : null}
               </div>
               <section className="mcp-tools-section">
-                <div><h3>Tools</h3><p>“允许已安排任务”是无人值守调用的唯一有效授权；每次运行仍会复核 Server、工具和任务级白名单。</p></div>
+                <div><h3>Tools</h3><p>“本次会话允许”在关闭或重载应用后失效；“允许已安排任务”只用于无人值守调用，交互调用仍需当前用户确认。</p></div>
                 {discovery?.toolDescriptors?.length ? (
                   <div className="mcp-tool-table">
                     {discovery.toolDescriptors.map((tool) => (
