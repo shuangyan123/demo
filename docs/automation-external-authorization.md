@@ -50,7 +50,7 @@ proposal persistence 仍只是本地 pending 写入；确认知识或 Vault 的�
 
 ## Failure-path audit accuracy
 
-Phase 2 Stabilization is complete. When acquisition has already contacted an HTTP or MCP source and a later AI, proposal, or orchestration step fails, the known external-effect summary is transported through a typed in-memory error and retained in the failed `AutomationRun.unattendedAudit`.
+Phase 2 Stabilization is complete. When acquisition has already contacted an HTTP or MCP source and a later AI, proposal-generation, persistence, or orchestration step fails, known successful AI/proposal-generation calls are folded into the cumulative sanitized progress before proposal persistence; the summary is then transported through a typed in-memory error and retained in the failed `AutomationRun.unattendedAudit`.
 
 - The audit remains aggregate and sanitized: counts, source kinds, MCP server/tool identities, and normalized HTTP origins only.
 - Raw MCP arguments/results, full URLs, document content, prompts, provider payloads, credentials, and error causes stay outside persistence.

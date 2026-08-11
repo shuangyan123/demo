@@ -99,6 +99,10 @@ export async function executeAutomation(input: {
       externalExecution = acquisition.externalExecution;
       const existingProposals = await obsidianKnowledgeRepository.listProposals();
       const proposals = await requestAcquisitionProposals({ config, documents: acquisition.documents, curator, reviewer, existingProposals });
+      externalExecution = mergeAutomationExternalExecution(
+        externalExecution,
+        aiExecutionSummary(acquisition.documents.length ? reviewer ? 2 : 1 : 0),
+      );
       if (input.persistProposals !== false && proposals.length) await obsidianKnowledgeRepository.saveProposals(proposals);
       const collectionSummary: AcquisitionRunSummary = {
         discoveredCount: acquisition.discoveredCount,
@@ -118,7 +122,7 @@ export async function executeAutomation(input: {
         contextSummary: [],
         contextCharCount: 0,
         collectionSummary,
-        externalExecution: mergeAutomationExternalExecution(externalExecution, aiExecutionSummary(acquisition.documents.length ? reviewer ? 2 : 1 : 0)),
+        externalExecution,
       };
     } catch (error) {
       throw wrapAutomationExecutionProgress(error, externalExecution);

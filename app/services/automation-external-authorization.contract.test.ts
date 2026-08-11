@@ -1,6 +1,9 @@
+import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { trialAutomationDefinition } from "./automation-executor.ts";
+import { executeAutomation, trialAutomationDefinition } from "./automation-executor.ts";
+import { reviewDb } from "../db/review-db.ts";
+import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 import {
   AutomationAuthorizationError,
   createUnattendedExecutionAuditSummary,
@@ -17,6 +20,8 @@ import {
 import type { AutomationDefinition, AutomationExternalExecutionSummary } from "../types/domains/automation.ts";
 import type { AcquisitionMcpSource, AcquisitionUrlSource } from "../types/domains/acquisition.ts";
 import { createDefaultPersonalizationSettings } from "./personalization-settings-repository.ts";
+import { aiConnectionsRepository } from "./ai-connections-repository.ts";
+import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
 
 const now = "2026-08-11T00:00:00.000Z";
 
@@ -278,4 +283,103 @@ test("typed external progress preserves the sanitized summary without double cou
     failedCallCount: 1,
   });
   assert.doesNotMatch(JSON.stringify(automationExternalExecution(progress)), /provider-raw-result|secret-token-123/);
+});
+
+test("executor 在提案持久化失败时保留已成功的采集与 AI 调用摘要", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalResolveRuntimeModel = aiConnectionsRepository.resolveRuntimeModel;
+  const originalResolveSecret = aiConnectionsRepository.resolveSecret;
+  const originalSaveProposals = obsidianKnowledgeRepository.saveProposals;
+  const feedUrl = "https://example.com/feed";
+  const articleUrl = "https://example.com/article";
+  const connection: ApiConnectionProfile = {
+    id: "executor-fixture-connection", label: "Executor fixture", provider: "custom", apiFormat: "chat_completions",
+    baseUrl: "https://provider.example/v1", capabilities: ["text", "structured_output"], encryptedKey: "cipher", iv: "iv",
+    maskedKey: "***", providerOptions: {}, createdAt: now, updatedAt: now,
+  };
+
+  await reviewDb.delete();
+  await reviewDb.open();
+  let saveCalls = 0;
+  aiConnectionsRepository.resolveRuntimeModel = async () => "fixture-model";
+  aiConnectionsRepository.resolveSecret = async () => "secret-token-123";
+  obsidianKnowledgeRepository.saveProposals = async () => {
+    saveCalls += 1;
+    throw new Error("provider-payload-secret raw-proposal-content Bearer secret-token-123");
+  };
+  globalThis.fetch = (async (input, init) => {
+    const route = String(input);
+    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    if (route === "/api/acquisition/fetch") {
+      if (body.url === feedUrl) {
+        return Response.json({
+          url: feedUrl, title: "公开资料订阅", fetchedAt: now, contentHash: "feed-hash", text: "", excerpt: "", discoveredUrls: [articleUrl],
+        });
+      }
+      return Response.json({
+        url: articleUrl, title: "公开资料", publisher: "公开来源", publishedAt: now, fetchedAt: now, contentHash: "article-hash",
+        text: "这是用于测试的公开资料摘要，包含可核验的方法说明。", excerpt: "公开资料摘要", discoveredUrls: [],
+      });
+    }
+    if (route === "/api/ai/generate") {
+      const messages = body.messages as Array<{ role: string; content: string }> | undefined;
+      const userMessage = messages?.find((message) => message.role === "user");
+      const prompt = JSON.parse(String(userMessage?.content ?? "{}")) as { documents?: Array<{ id: string }> };
+      const documentId = prompt.documents?.[0]?.id;
+      assert.ok(documentId);
+      return Response.json({ content: JSON.stringify({
+        items: [{
+          key: "fixture-proposal", title: "公开资料提案", summary: "测试摘要",
+          paragraphs: [{ text: "根据公开资料形成的摘要。", evidenceIds: [`${documentId}:e1`] }],
+          tags: ["测试"], proposedLinks: [], reason: "测试持久化失败路径",
+        }],
+      }) });
+    }
+    throw new Error(`unexpected fixture route: ${route}`);
+  }) as typeof fetch;
+
+  try {
+    const config = definition().collectionConfig!;
+    const executorDefinition = definition({
+      id: "executor-persistence-failure",
+      collectionConfig: {
+        ...config,
+        sources: [{
+          id: "feed-source", label: "公开订阅", enabled: true, kind: "feed", url: feedUrl,
+          allowedOrigins: ["https://example.com"], authority: "official", contentPolicy: "summary_only",
+        }],
+        curator: { connectionId: connection.id, modelId: "fixture-model" },
+      },
+    });
+    let error: unknown;
+    try {
+      await executeAutomation({
+        definition: executorDefinition,
+        connection,
+        aiSnapshot: { profiles: [connection], defaults: { id: "default", updatedAt: now } },
+        personalization: createDefaultPersonalizationSettings(new Date(now)),
+      });
+      assert.fail("expected proposal persistence failure");
+    } catch (caught) {
+      error = caught;
+    }
+
+    assert.ok(error instanceof AutomationExecutionProgressError);
+    assert.equal(saveCalls, 1);
+    assert.deepEqual(automationExternalExecution(error), {
+      sourceKinds: ["feed", "ai"],
+      mcpTools: [],
+      httpOrigins: ["https://example.com"],
+      externalCallCount: 3,
+      successfulCallCount: 3,
+      failedCallCount: 0,
+    });
+    assert.doesNotMatch(JSON.stringify(automationExternalExecution(error)), /secret-token-123|Bearer|raw-proposal-content|provider-payload-secret/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    aiConnectionsRepository.resolveRuntimeModel = originalResolveRuntimeModel;
+    aiConnectionsRepository.resolveSecret = originalResolveSecret;
+    obsidianKnowledgeRepository.saveProposals = originalSaveProposals;
+    await reviewDb.delete();
+  }
 });
