@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { executeAutomationRun } from "../../application/automation/execute-automation-run";
 import { automationRepository, type AutomationDefinitionInput } from "../../services/automation-repository";
-import { previewAutomationDefinition, trialAutomationDefinition } from "../../services/automation-executor";
+import { AutomationAuthorizationError } from "../../services/automation-errors";
 import { classifyAutomationError } from "../../services/automation-failure";
 import { previewCollectionConfig } from "../../services/acquisition-source-service";
+import type { AutomationExternalAuthorizationResult } from "../../services/automation-external-authorization";
 import type { ApiConnectionProfile, AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
 import type { AutomationContextSummary, AutomationDefinition, AutomationFailureCategory, AutomationRecoveryAction, AutomationRun, AutomationSnapshot } from "../../types/domains/automation.ts";
 import type { AcquisitionRunSummary } from "../../types/domains/acquisition.ts";
@@ -17,7 +17,7 @@ const EMPTY_SNAPSHOT: AutomationSnapshot = { definitions: [], runs: [], unreadCo
 export type AutomationPreviewResult = {
   summary: AutomationContextSummary[];
   contextCharCount: number;
-  collection?: { sourceLabels: string[]; allowedOrigins: string[]; estimatedDocuments: number };
+  collection?: { sourceLabels: string[]; allowedOrigins: string[]; estimatedDocuments: number; authorization: AutomationExternalAuthorizationResult };
 };
 
 export type AutomationTrialResult = {
@@ -65,6 +65,16 @@ function draftToTrialDefinition(input: AutomationDefinitionInput): AutomationDef
   };
 }
 
+async function resolveCurrentAuthorization(definition: AutomationDefinition): Promise<AutomationExternalAuthorizationResult> {
+  const [{ collectMcpAuthorizationResources, resolveAutomationExternalAuthorization }, { mcpSettingsRepository }] = await Promise.all([
+    import("../../services/automation-external-authorization"),
+    import("../../services/mcp-settings-repository"),
+  ]);
+  return resolveAutomationExternalAuthorization(definition, {
+    mcpResources: collectMcpAuthorizationResources(mcpSettingsRepository.load()),
+  });
+}
+
 /** 已安排 hook 只维护可序列化快照，调度、租约和执行均委托给服务层。 */
 export function useAutomationCenter({
   connection,
@@ -101,18 +111,21 @@ export function useAutomationCenter({
     if (!definition) throw new Error("已安排任务不存在");
     setBusyIds((current) => current.includes(definitionId) ? current : [...current, definitionId]);
     try {
-      const run = await withBrowserLock(`review-automation:${definitionId}`, () => executeAutomationRun({
-        definition,
-        connection,
-        aiSnapshot,
-        personalization,
-        trigger: scheduled ? scheduled.missedCount > 0 ? "catchup" : "scheduled" : "manual",
-        scheduledAt: scheduled?.scheduledAt,
-        nextRunAt: scheduled?.nextRunAt,
-        missedCount: scheduled?.missedCount,
-        expectedUpdatedAt: scheduled?.expectedUpdatedAt,
-        online: navigator.onLine,
-      }));
+      const run = await withBrowserLock(`review-automation:${definitionId}`, async () => {
+        const { executeAutomationRun } = await import("../../application/automation/execute-automation-run");
+        return executeAutomationRun({
+          definition,
+          connection,
+          aiSnapshot,
+          personalization,
+          trigger: scheduled ? scheduled.missedCount > 0 ? "catchup" : "scheduled" : "manual",
+          scheduledAt: scheduled?.scheduledAt,
+          nextRunAt: scheduled?.nextRunAt,
+          missedCount: scheduled?.missedCount,
+          expectedUpdatedAt: scheduled?.expectedUpdatedAt,
+          online: navigator.onLine,
+        });
+      });
       if (run) {
         notifyRun(run);
         await onChanged();
@@ -159,22 +172,39 @@ export function useAutomationCenter({
   }, [onNotice, processDue, refresh]);
 
   const save = useCallback(async (input: AutomationDefinitionInput, id?: string) => {
-    if (id) await automationRepository.update(id, input);
-    else await automationRepository.create(input);
+    const authorization = await resolveCurrentAuthorization(draftToTrialDefinition(input));
+    const persistedInput = input.enabled && authorization.status !== "ready" ? { ...input, enabled: false } : input;
+    if (id) await automationRepository.update(id, persistedInput);
+    else await automationRepository.create(persistedInput);
     await refresh();
-    onNotice(id ? "已安排任务已更新" : "已安排任务已创建");
+    if (input.enabled && authorization.status !== "ready") {
+      const diagnosis = classifyAutomationError(new AutomationAuthorizationError(authorization));
+      onNotice(`${id ? "已安排任务已更新" : "已安排任务已创建"}，但已保持停用：${diagnosis.message}`);
+    } else {
+      onNotice(id ? "已安排任务已更新" : "已安排任务已创建");
+    }
   }, [onNotice, refresh]);
 
   const preview = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationPreviewResult> => {
     if (scope.kind === "sample") return { summary: [], contextCharCount: 0 };
+    const { previewAutomationDefinition } = await import("../../services/automation-executor");
     const result = await previewAutomationDefinition(input);
-    return { ...result, collection: input.collectionConfig ? previewCollectionConfig(input.collectionConfig) : undefined };
+    return {
+      ...result,
+      collection: input.collectionConfig
+        ? {
+          ...previewCollectionConfig(input.collectionConfig),
+          authorization: await resolveCurrentAuthorization(draftToTrialDefinition(input)),
+        }
+        : undefined,
+    };
   }, [scope.kind]);
 
   const trialRun = useCallback(async (input: AutomationDefinitionInput): Promise<AutomationTrialResult> => {
     if (scope.kind === "sample") {
       return { status: "failed", error: "示例模式不会调用真实 AI", proposalCount: 0, contextSummary: [], contextCharCount: 0 };
     }
+    const { previewAutomationDefinition, trialAutomationDefinition } = await import("../../services/automation-executor");
     const previewResult = await previewAutomationDefinition(input);
     try {
       const output = await trialAutomationDefinition({
@@ -218,6 +248,12 @@ export function useAutomationCenter({
   }, [onNotice, refresh]);
 
   const toggle = useCallback(async (id: string, enabled: boolean) => {
+    if (enabled) {
+      const definition = (await automationRepository.loadSnapshot()).definitions.find((item) => item.id === id);
+      if (!definition) throw new Error("已安排任务不存在");
+      const authorization = await resolveCurrentAuthorization(definition);
+      if (authorization.status !== "ready") throw new AutomationAuthorizationError(authorization);
+    }
     await automationRepository.toggle(id, enabled);
     await refresh();
   }, [refresh]);

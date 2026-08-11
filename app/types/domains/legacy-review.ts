@@ -920,6 +920,50 @@ export type AutomationTemplateId = "daily_review" | "knowledge_evolution" | "wee
 /** 自动化只读取用户明确选择的数据范围。 */
 export type AutomationSourceScope = "mistakes" | "knowledge" | "interview" | "tutoring" | "obsidian";
 
+/** 无人值守授权解析与运行审计使用的稳定原因码。 */
+export type UnattendedAuthorizationReasonCode =
+  | "mcp_permission_missing"
+  | "mcp_server_disabled"
+  | "mcp_discovery_not_ready"
+  | "mcp_tool_missing"
+  | "origin_not_allowed"
+  | "source_invalid"
+  | "authorization_ready"
+  | "runtime_failed"
+  | "completed";
+
+export type AutomationExternalSourceKind = "ai" | "url" | "feed" | "mcp_search";
+
+/** 外部执行只返回计数和脱敏资源标识，不携带参数、正文或原始响应。 */
+export type AutomationExternalExecutionSummary = {
+  sourceKinds: AutomationExternalSourceKind[];
+  mcpTools: Array<{ serverId: string; toolName: string }>;
+  httpOrigins: string[];
+  externalCallCount: number;
+  successfulCallCount: number;
+  failedCallCount: number;
+};
+
+/** 复用 AutomationRun 的最小无人值守审计摘要；不新增审计表或索引。 */
+export type UnattendedExecutionAuditSummary = {
+  taskId: string;
+  runId: string;
+  startedAt: string;
+  finishedAt?: string;
+  mode: AutomationRunTrigger;
+  authorization: "ready" | "blocked" | "invalid";
+  reasonCodes: UnattendedAuthorizationReasonCode[];
+  externalRequirementCount: number;
+  sourceKinds: AutomationExternalSourceKind[];
+  mcpTools: Array<{ serverId: string; toolName: string }>;
+  httpOrigins: string[];
+  externalCallCount: number;
+  successfulCallCount: number;
+  failedCallCount: number;
+  proposalCount: number;
+  terminalState: "running" | "succeeded" | "failed" | "blocked";
+};
+
 /** 自动化调度配置；所有时间按 definition.timeZone 解释。 */
 export type AutomationSchedule =
   | { kind: "interval"; intervalMinutes: number }
@@ -962,7 +1006,7 @@ export type AutomationContextSummary = {
 
 /** 自动化失败分类用于给出可恢复动作，避免只展示原始错误。 */
 export type AutomationFailureCategory = "missing_connection" | "network" | "permission" | "model" | "empty_scope" | "unknown";
-export type AutomationRecoveryAction = "configure_ai_connection" | "configure_mcp" | "open_knowledge" | "open_import" | "open_entry" | "check_network" | "retry" | "none";
+export type AutomationRecoveryAction = "configure_ai_connection" | "configure_mcp" | "configure_automation" | "open_knowledge" | "open_import" | "open_entry" | "check_network" | "retry" | "none";
 
 /** 每次自动化运行都进入收件箱，AI 结果只保存文本和待确认提案引用。 */
 export type AutomationRun = {
@@ -985,6 +1029,8 @@ export type AutomationRun = {
   failureRecoveryAction?: AutomationRecoveryAction;
   /** 外部采集运行只持久化聚合数量。 */
   collectionSummary?: AcquisitionRunSummary;
+  /** 无人值守执行只保存授权、资源标识、计数和终态，不保存秘密或原始内容。 */
+  unattendedAudit?: UnattendedExecutionAuditSummary;
   createdAt: string;
 };
 

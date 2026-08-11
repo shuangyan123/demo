@@ -36,6 +36,10 @@ export function AutomationView({
       if (action === "configure_mcp") onNotice("请在设置 → MCP 中将目标工具设为“允许已安排任务”");
       return;
     }
+    if (action === "configure_automation") {
+      onNotice("请编辑已安排任务，修正来源、允许域名或 MCP 工具声明后再启用");
+      return;
+    }
     if (action === "open_knowledge") return onOpenKnowledge();
     if (action === "open_import") return onOpenImport();
     if (action === "open_entry") return onOpenEntry();

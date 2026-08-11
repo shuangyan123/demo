@@ -129,6 +129,49 @@ test("试运行缺默认文本连接时不创建运行记录、提案或任务�
   await reviewDb.delete();
 });
 
+test("无人值守授权阻断在任何外部调用前写入明确 blocked 审计并推进计划", async () => {
+  await reviewDb.delete();
+  await reviewDb.open();
+  const definition = await automationRepository.create({
+    name: "未授权 MCP 采集",
+    templateId: "xingce_collection",
+    prompt: "整理白名单资料",
+    sourceScopes: [],
+    collectionConfig: {
+      domain: "xingce",
+      queries: ["行测 方法"],
+      allowedOrigins: ["https://example.com"],
+      sources: [{
+        id: "mcp-source",
+        label: "未授权 MCP",
+        enabled: true,
+        kind: "mcp_search",
+        serverId: "missing-server",
+        toolName: "search",
+        argumentTemplate: '{"query":"{{query}}"}',
+        allowedOrigins: ["https://example.com"],
+        authority: "other",
+        contentPolicy: "summary_only",
+      }],
+      freshnessDays: 30,
+      maxDocuments: 10,
+    },
+    enabled: true,
+    timeZone: "Asia/Shanghai",
+    schedule: { kind: "interval", intervalMinutes: 60 },
+  }, baseTime);
+  const run = await executeAutomationRun({ definition, personalization: createDefaultPersonalizationSettings(baseTime), trigger: "scheduled", scheduledAt: baseTime.toISOString(), nextRunAt: "2026-06-21T01:00:00.000Z", now: baseTime });
+  assert.equal(run?.status, "failed");
+  assert.equal(run?.failureCategory, "permission");
+  assert.equal(run?.unattendedAudit?.authorization, "blocked");
+  assert.equal(run?.unattendedAudit?.terminalState, "blocked");
+  assert.equal(run?.unattendedAudit?.externalCallCount, 0);
+  assert.equal(run?.unattendedAudit?.reasonCodes.includes("mcp_discovery_not_ready"), true);
+  assert.equal((await reviewDb.automationRuns.count()), 1);
+  assert.equal((await reviewDb.automationDefinitions.get(definition.id))?.nextRunAt, "2026-06-21T01:00:00.000Z");
+  await reviewDb.delete();
+});
+
 test("自动化失败分类给出稳定恢复动作", () => {
   assert.deepEqual(classifyAutomationError(new Error("请先配置默认文本连接")).category, "missing_connection");
   assert.deepEqual(classifyAutomationError(new Error("Failed to fetch"), { online: false }).recoveryAction, "check_network");

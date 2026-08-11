@@ -3,6 +3,7 @@ import type { AutomationDefinition, AutomationRun } from "../../types/domains/au
 
 export type AutomationApplicationStep =
   | "acquire-lease"
+  | "authorize"
   | "preview"
   | "create-run"
   | "start-lease-renewal"

@@ -55,7 +55,7 @@ export function AutomationInbox({
               <button aria-label={`查看详情：${run.automationName}`} className={styles.runSummary} type="button" onClick={() => setExpandedRunId((current) => current === run.id ? undefined : run.id)}>
                 <span>
                   <strong>{run.automationName}</strong>
-                  <small>{run.status === "failed" ? "失败" : run.status === "succeeded" ? "成功" : "运行中"} · {formatAutomationDate(run.startedAt || run.createdAt)}</small>
+                  <small>{run.unattendedAudit?.terminalState === "blocked" ? "需要授权" : run.status === "failed" ? "失败" : run.status === "succeeded" ? "成功" : "运行中"} · {formatAutomationDate(run.startedAt || run.createdAt)}</small>
                 </span>
                 <span>{run.unread ? "未读" : ""} ›</span>
               </button>
@@ -110,6 +110,13 @@ function AutomationRunDetails({
         <span>完成：{formatAutomationDate(run.finishedAt)}</span>
         <span>提案引用：{run.proposalIds.length} 条</span>
       </div>
+      {run.unattendedAudit ? (
+        <p className="text-xs text-muted">
+          外部授权：{run.unattendedAudit.authorization === "ready" ? "已满足" : run.unattendedAudit.authorization === "blocked" ? "已阻断" : "声明无效"} ·
+          调用 {run.unattendedAudit.externalCallCount} 次（成功 {run.unattendedAudit.successfulCallCount} / 失败 {run.unattendedAudit.failedCallCount}）·
+          来源要求 {run.unattendedAudit.externalRequirementCount} 项
+        </p>
+      ) : null}
       {run.collectionSummary ? (
         <p className="text-xs text-muted">
           A 级 {run.collectionSummary.gradeA} · B 级 {run.collectionSummary.gradeB} · C 级 {run.collectionSummary.gradeC} ·
@@ -119,7 +126,7 @@ function AutomationRunDetails({
       {run.contextSummary?.length ? <div><strong className="text-sm">读取摘要</strong><AutomationSummaryList summary={run.contextSummary} /></div> : null}
       {run.status === "failed" ? (
         <div className={styles.failure}>
-          <strong>{automationFailureLabel(run.failureCategory)}</strong>
+          <strong>{run.unattendedAudit?.terminalState === "blocked" ? "无人值守授权未满足" : automationFailureLabel(run.failureCategory)}</strong>
           {run.failureRecoveryAction && run.failureRecoveryAction !== "none" ? (
             <Button size="sm" variant="outline" onClick={() => onRecoveryAction(run.failureRecoveryAction!)}>
               {automationRecoveryLabel(run.failureRecoveryAction)}

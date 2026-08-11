@@ -257,6 +257,13 @@ function AutomationContextSummaryView({ result }: { result: AutomationPreviewRes
         <div className="mt-3 grid gap-2 text-sm">
           <p>将访问：{result.collection.sourceLabels.length ? result.collection.sourceLabels.join("、") : "无已启用来源"}</p>
           <p className="break-all text-muted">允许域名：{result.collection.allowedOrigins.length ? result.collection.allowedOrigins.join("、") : "未配置"}</p>
+          <p className={result.collection.authorization.status === "ready" ? "text-green" : "text-amber-700"}>
+            无人值守授权：{result.collection.authorization.status === "ready" ? "已满足" : result.collection.authorization.status === "blocked" ? "已阻断，需修正当前授权或资源" : "声明无效，需修正来源"}
+          </p>
+          {result.collection.authorization.missingPermissions.length ? <p className="text-amber-700">缺少 MCP 定时授权：{result.collection.authorization.missingPermissions.join("、")}</p> : null}
+          {result.collection.authorization.disabledResources.length ? <p className="text-amber-700">已停用资源：{result.collection.authorization.disabledResources.join("、")}</p> : null}
+          {result.collection.authorization.staleResources.length ? <p className="text-amber-700">待重新发现资源：{result.collection.authorization.staleResources.join("、")}</p> : null}
+          {result.collection.authorization.invalidScopes.length ? <p className="text-red">无效来源声明：{result.collection.authorization.invalidScopes.join("、")}</p> : null}
           <p className="text-muted">预计最多读取 {result.collection.estimatedDocuments} 个文档；本次预览未联网、未调用模型。</p>
         </div>
       ) : null}

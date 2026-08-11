@@ -4,7 +4,7 @@ Review Workspace 的 MCP 权限由 `app/services/mcp-settings-repository.ts` 在
 
 ## Phase 1 状态
 
-已完成 Permission Decision Core & MCP Execution Boundary。0.6 MCP / Automation / Plugin 权限模型仍处于 IN PROGRESS；Automation / Acquisition 无人值守权限扩展、声明式扩展权限和 Acceptance Closure 留给后续阶段。
+已完成 Permission Decision Core & MCP Execution Boundary 与 Phase 2 Automation / Acquisition Unattended Authorization & Minimal Audit。0.6 MCP / Automation / Plugin 权限模型仍处于 IN PROGRESS；声明式扩展权限和 Acceptance Closure 留给后续阶段。
 
 本阶段不新增 Dexie 表或 schema，不执行插件代码，不改变 MCP Streamable HTTP、凭据解密或 SSRF 网络策略。
 
@@ -49,7 +49,17 @@ Permission Decision Core
 
 Server disabled、discovery 非 `ready`、工具已从最新 discovery 移除或权限 decision 非 `allowed` 时，不会解析 Token，也不会发起 `/api/mcp/call` 或远端请求。Discovery 只更新能力描述，新增工具默认 `ask`，不授予执行权限。
 
-已安排采集的 MCP source 仍保留现有白名单、内容抓取和手动恢复边界，只通过 `callScheduledTool` 使用 `allow_scheduled`。本阶段不重构 Automation，也不新增 Acquisition 权限 UI。
+## Phase 2：Automation / Acquisition 无人值守授权
+
+已安排采集复用 `AutomationDefinition.collectionConfig` 作为任务级声明。URL、Feed、MCP source 必须在 definition 中显式启用；MCP source 还必须声明精确 `serverId` 与 `toolName`。MCP tool 的 `allow_scheduled` 只是 tool-level 条件，不能单独授权任意 Automation；`allow_session` 永远不能成为 scheduled backdoor。
+
+预览只执行本地、确定性的声明解析，展示来源数量、origin、MCP Server/tool、缺少 permission、停用或未 ready 资源，不调用网络、AI 或自动 grant。保存/启用缺少授权时保留配置并保持停用，失败恢复 CTA 只导航或提示。
+
+真实任务在 lease 后、凭据和 `/api/mcp/call` 或 `/api/acquisition/fetch` 前重新解析当前 definition、MCP discovery、Server enabled、tool 存在性、`allow_scheduled` 和 origin 交集。Session grant 不参与 scheduled 解析。权限撤销、Server 停用、tool 移除或 discovery 失效只阻止新运行，保留配置和历史。
+
+运行复用 `AutomationRun.unattendedAudit` 保存最小审计：task/run ID、触发模式、授权状态、稳定原因码、需求数量、source kind、MCP Server/tool ID、HTTP origin、调用成功/失败数、proposal count 和终态。不保存 token、完整参数、raw result、完整 URL 路径、文档正文、prompt 或模型响应。授权阻断是显式 blocked terminal，不是成功空结果；已发生外部副作用继续保持人工恢复和不自动重试。
+
+详细声明、解析、撤销与隐私边界见 `docs/automation-external-authorization.md`。
 
 ## 隐私与最小审计
 

@@ -248,6 +248,12 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 可信度权重固定为 25/25/15/10/15/10。缺复核模型时最高 B；URL 不可验证、无证据段落、来源哈希变化、精确重复或模型事实冲突会阻止确认。
 - 批量确认不承诺文件系统事务回滚：预检完成后顺序写入，成功项立即 accepted；失败和尚未处理项保持 pending。Dexie 继续使用 `review_workspace` v16，不新增索引。
 
+### Unattended external authorization（2026-08-11）
+
+- Automation collection 的 URL、Feed 和 MCP source 继续由 `AutomationDefinition.collectionConfig` 声明；`app/services/automation-external-authorization.ts` 只接收当前资源快照，纯函数解析 `ready` / `blocked` / `invalid`，不读取凭据、网络或 React。
+- Application 在 lease 后、凭据和外部请求前执行任务级 preflight；Executor 与 Acquisition service 仍保留 defense-in-depth 的 MCP scheduled、origin、SSRF 和内容边界。每次真实运行都重新解析当前 definition、MCP discovery/tool、`allow_scheduled` 与 origin 交集。
+- `AutomationRun.unattendedAudit` 复用既有运行记录保存最小授权与外部调用摘要；不新增审计表、不保存 secrets、完整 args、raw result、完整 URL 路径、文档正文或模型上下文。授权阻断保留任务/配置/历史，并以 blocked terminal 进入收件箱。
+
 ## 扩展点
 
 - 新学习专项注册 `StudyDomainDefinition`，不得在 shell 中新增专项分支。

@@ -273,11 +273,23 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - 保持 `ask`、`allow_session`、`allow_scheduled`、`deny` 的既有语义、内存有效期、重发现清理、无网络拒绝和 `review_workspace` v16。
 - 通过直接 permission/session contract、architecture boundary contract、完整质量门和相关 E2E 验证。
 
+### Phase 2 — Automation / Acquisition Unattended Authorization & Minimal Audit
+
+**COMPLETE（2026-08-11）**
+
+- Automation 的 URL、Feed 和 MCP 外部能力从现有 `collectionConfig` / source / origin allowlist 派生为确定性的任务级声明；普通本地范围 + AI 任务不新增权限值，knowledge evolution 仍只是可撤销的 pending proposal。
+- 新增纯 TypeScript authorization resolver，区分 `ready`、`blocked`、`invalid`，并在租约后、凭据和外部网络前解析当前 definition、MCP Server/discovery/tool、持久化 `allow_scheduled` 与 origin 交集；`allow_session` 不参与 scheduled。
+- 预览不联网、不调用 AI、不自动授权；保存/启用缺少授权时保留配置并保持停用。真实执行只访问显式启用来源，MCP 保持 `callScheduledTool` 与既有 route/SSRF boundary，来源失败仍遵循部分结果语义。
+- `AutomationRun` 复用可选最小 `unattendedAudit`，保存授权状态、稳定原因码、需求和资源摘要、origin、调用计数、proposal count 与终态；不保存秘密、完整参数、原始结果、完整 URL 路径、文档正文或完整模型上下文。阻断运行进入显式 blocked terminal，不自动 grant 或自动重试。
+- 增加 Phase 1 preflight architecture guards、任务/工具权限分离、撤销/资源变化、无网络拒绝、审计隐私和来源部分失败契约；保持 `review_workspace` v16。
+- 详见 `docs/automation-external-authorization.md` 与 `docs/mcp-permissions.md`。
+
 ### Deferred 0.6 work
 
-- Phase 2：Automation / Acquisition unattended authorization & audit。
-- Phase 3：Declarative Extension permission & disable semantics。
-- Acceptance Closure：在后续阶段针对完整 0.6 范围收口。
+- Phase 3：Declarative Extension permission & disable semantics（NOT STARTED）。
+- Acceptance Closure：针对完整 0.6 范围的最终收口（NOT STARTED）。
+
+0.6 overall：**IN PROGRESS**。
 
 ### 目标
 

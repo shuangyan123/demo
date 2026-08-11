@@ -1,4 +1,5 @@
 import type { AutomationFailureCategory, AutomationRecoveryAction } from "../types/domains/automation.ts";
+import { AutomationAuthorizationError } from "./automation-errors.ts";
 
 export type AutomationFailureDiagnosis = {
   category: AutomationFailureCategory;
@@ -20,8 +21,27 @@ function errorMessage(error: unknown): string {
   return typeof error === "string" ? error : "自动化执行失败";
 }
 
+function authorizationFailureMessage(error: AutomationAuthorizationError): string {
+  const result = error.authorization;
+  const details = [
+    result.missingPermissions.length ? `MCP 工具：${result.missingPermissions.join("、")}` : "",
+    result.disabledResources.length ? `已停用资源：${result.disabledResources.join("、")}` : "",
+    result.staleResources.length ? `待重新发现资源：${result.staleResources.join("、")}` : "",
+    result.invalidScopes.length ? `无效来源声明：${result.invalidScopes.join("、")}` : "",
+  ].filter(Boolean);
+  return details.length ? `无人值守授权未满足：${details.join("；")}` : "无人值守来源声明无效，请检查任务配置";
+}
+
 /** 将原始异常归类为用户可恢复的自动化错误。 */
 export function classifyAutomationError(error: unknown, options: { online?: boolean } = {}): AutomationFailureDiagnosis {
+  if (error instanceof AutomationAuthorizationError) {
+    const needsMcp = error.authorization.reasonCodes.some((code) => code.startsWith("mcp_"));
+    return {
+      category: "permission",
+      recoveryAction: needsMcp ? "configure_mcp" : "configure_automation",
+      message: authorizationFailureMessage(error),
+    };
+  }
   if (error instanceof Error && "recoveryDiagnosis" in error) {
     const providerFailure = error as Error & {
       recoveryDiagnosis: Pick<AutomationFailureDiagnosis, "category" | "recoveryAction">;
@@ -64,6 +84,7 @@ export function automationFailureLabel(category?: AutomationFailureCategory): st
 export function automationRecoveryLabel(action?: AutomationRecoveryAction): string {
   if (action === "configure_ai_connection") return "配置 AI 连接";
   if (action === "configure_mcp") return "检查 MCP 定时授权";
+  if (action === "configure_automation") return "修正已安排来源";
   if (action === "open_knowledge") return "打开知识库";
   if (action === "open_import") return "导入资料";
   if (action === "open_entry") return "手动录入";
