@@ -1,6 +1,7 @@
 import type { AcquisitionDocument, AcquisitionSourceConfig, AutomationCollectionConfig } from "../types/domains/acquisition.ts";
 import type { AutomationExternalExecutionSummary } from "../types/domains/automation.ts";
 import type { KnowledgeEvolutionProposal } from "../types/domains/obsidian.ts";
+import { wrapAutomationExecutionProgress } from "./automation-errors.ts";
 import { mcpSettingsRepository } from "./mcp-settings-repository.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 
@@ -35,6 +36,27 @@ type ExternalCallTracker = {
   successfulCallCount: number;
   failedCallCount: number;
 };
+
+function snapshotExternalExecution(tracker: ExternalCallTracker): AutomationExternalExecutionSummary {
+  return {
+    sourceKinds: [...tracker.sourceKinds],
+    mcpTools: [...tracker.mcpTools].map((item) => {
+      const [serverId, toolName] = item.split("\u0000");
+      return { serverId, toolName };
+    }),
+    httpOrigins: [...tracker.httpOrigins],
+    externalCallCount: tracker.externalCallCount,
+    successfulCallCount: tracker.successfulCallCount,
+    failedCallCount: tracker.failedCallCount,
+  };
+}
+
+function hasExternalExecutionProgress(summary: AutomationExternalExecutionSummary): boolean {
+  return summary.externalCallCount > 0
+    || summary.sourceKinds.length > 0
+    || summary.mcpTools.length > 0
+    || summary.httpOrigins.length > 0;
+}
 
 function normalizeOrigin(value: string): string | undefined {
   try {
@@ -155,8 +177,6 @@ async function discoverSourceUrls(config: AutomationCollectionConfig, source: Ac
 
 /** 按白名单发现、抓取并用 URL 与内容哈希双重去重。 */
 export async function acquireCollectionDocuments(input: AutomationCollectionConfig): Promise<AcquisitionDiscoveryResult> {
-  const config = normalizeCollectionConfig(input);
-  const enabledSources = config.sources.filter((source) => source.enabled);
   const tracker: ExternalCallTracker = {
     sourceKinds: new Set(),
     mcpTools: new Set(),
@@ -165,72 +185,70 @@ export async function acquireCollectionDocuments(input: AutomationCollectionConf
     successfulCallCount: 0,
     failedCallCount: 0,
   };
-  const discovered: Array<{ url: string; source: AcquisitionSourceConfig; origins: string[] }> = [];
-  const diagnostics: string[] = [];
-  for (const source of enabledSources) {
-    tracker.sourceKinds.add(source.kind);
-    for (const origin of effectiveOrigins(config, source)) tracker.httpOrigins.add(origin);
-    try {
-      if (source.kind === "mcp_search") tracker.mcpTools.add(`${source.serverId}\u0000${source.toolName}`);
-      const result = await discoverSourceUrls(config, source, tracker);
-      diagnostics.push(...result.diagnostics);
-      const origins = effectiveOrigins(config, source);
-      result.urls.forEach((url) => discovered.push({ url, source, origins }));
-    } catch (error) {
-      diagnostics.push(`${source.label}：${error instanceof Error ? error.message : "来源发现失败"}`);
-    }
-  }
-
-  const uniqueUrls = [...new Map(discovered.map((item) => [item.url, item])).values()];
-  const documents: AcquisitionDocument[] = [];
-  const hashes = new Set<string>();
-  let duplicateCount = discovered.length - uniqueUrls.length;
-  for (const candidate of uniqueUrls) {
-    if (documents.length >= config.maxDocuments) break;
-    try {
-      const fetched = await fetchDocument(candidate.url, candidate.origins, tracker);
-      if (hashes.has(fetched.contentHash)) {
-        duplicateCount += 1;
-        continue;
+  try {
+    const config = normalizeCollectionConfig(input);
+    const enabledSources = config.sources.filter((source) => source.enabled);
+    const discovered: Array<{ url: string; source: AcquisitionSourceConfig; origins: string[] }> = [];
+    const diagnostics: string[] = [];
+    for (const source of enabledSources) {
+      tracker.sourceKinds.add(source.kind);
+      for (const origin of effectiveOrigins(config, source)) tracker.httpOrigins.add(origin);
+      try {
+        if (source.kind === "mcp_search") tracker.mcpTools.add(`${source.serverId}\u0000${source.toolName}`);
+        const result = await discoverSourceUrls(config, source, tracker);
+        diagnostics.push(...result.diagnostics);
+        const origins = effectiveOrigins(config, source);
+        result.urls.forEach((url) => discovered.push({ url, source, origins }));
+      } catch (error) {
+        diagnostics.push(`${source.label}：${error instanceof Error ? error.message : "来源发现失败"}`);
       }
-      hashes.add(fetched.contentHash);
-      documents.push({
-        id: crypto.randomUUID(),
-        url: fetched.url,
-        title: fetched.title,
-        publisher: fetched.publisher,
-        publishedAt: fetched.publishedAt,
-        fetchedAt: fetched.fetchedAt,
-        contentHash: fetched.contentHash,
-        text: fetched.text,
-        excerpt: fetched.excerpt,
-        sourceKind: candidate.source.kind,
-        authority: candidate.source.authority,
-        contentPolicy: candidate.source.contentPolicy,
-        licenseNote: candidate.source.licenseNote,
-      });
-    } catch (error) {
-      diagnostics.push(`${candidate.url}：${error instanceof Error ? error.message : "抓取失败"}`);
     }
+
+    const uniqueUrls = [...new Map(discovered.map((item) => [item.url, item])).values()];
+    const documents: AcquisitionDocument[] = [];
+    const hashes = new Set<string>();
+    let duplicateCount = discovered.length - uniqueUrls.length;
+    for (const candidate of uniqueUrls) {
+      if (documents.length >= config.maxDocuments) break;
+      try {
+        const fetched = await fetchDocument(candidate.url, candidate.origins, tracker);
+        if (hashes.has(fetched.contentHash)) {
+          duplicateCount += 1;
+          continue;
+        }
+        hashes.add(fetched.contentHash);
+        documents.push({
+          id: crypto.randomUUID(),
+          url: fetched.url,
+          title: fetched.title,
+          publisher: fetched.publisher,
+          publishedAt: fetched.publishedAt,
+          fetchedAt: fetched.fetchedAt,
+          contentHash: fetched.contentHash,
+          text: fetched.text,
+          excerpt: fetched.excerpt,
+          sourceKind: candidate.source.kind,
+          authority: candidate.source.authority,
+          contentPolicy: candidate.source.contentPolicy,
+          licenseNote: candidate.source.licenseNote,
+        });
+      } catch (error) {
+        diagnostics.push(`${candidate.url}：${error instanceof Error ? error.message : "抓取失败"}`);
+      }
+    }
+    return {
+      documents,
+      discoveredCount: uniqueUrls.length,
+      fetchedCount: documents.length,
+      duplicateCount,
+      diagnostics,
+      externalExecution: snapshotExternalExecution(tracker),
+    };
+  } catch (error) {
+    const externalExecution = snapshotExternalExecution(tracker);
+    if (hasExternalExecutionProgress(externalExecution)) throw wrapAutomationExecutionProgress(error, externalExecution);
+    throw error;
   }
-  return {
-    documents,
-    discoveredCount: uniqueUrls.length,
-    fetchedCount: documents.length,
-    duplicateCount,
-    diagnostics,
-    externalExecution: {
-      sourceKinds: [...tracker.sourceKinds],
-      mcpTools: [...tracker.mcpTools].map((item) => {
-        const [serverId, toolName] = item.split("\u0000");
-        return { serverId, toolName };
-      }),
-      httpOrigins: [...tracker.httpOrigins],
-      externalCallCount: tracker.externalCallCount,
-      successfulCallCount: tracker.successfulCallCount,
-      failedCallCount: tracker.failedCallCount,
-    },
-  };
 }
 
 /** 配置预览是纯函数，不联网、不调用模型。 */

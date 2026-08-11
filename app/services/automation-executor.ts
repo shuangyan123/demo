@@ -14,6 +14,7 @@ import { requestAcquisitionProposals } from "./acquisition-proposal-service.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { isUiReviewRecordId } from "./workspace-data-scope.ts";
 import { isUiReviewRuntimeActive } from "./ui-review-runtime-guard.ts";
+import { mergeAutomationExternalExecution, wrapAutomationExecutionProgress } from "./automation-errors.ts";
 
 export const AUTOMATION_TEMPLATES: Array<{ id: AutomationTemplateId; name: string; description: string; prompt: string; scopes: AutomationSourceScope[]; collectionDomain?: "xingce" | "shenlun" | "interview" }> = [
   { id: "daily_review", name: "每日复盘简报", description: "汇总到期错题、薄弱知识和今天最值得处理的三件事。", prompt: "生成今天的复盘简报：先列优先级，再给出不超过三项可执行任务，最后提醒一个最容易重复犯错的模式。", scopes: ["mistakes", "knowledge"] },
@@ -36,20 +37,6 @@ export type AutomationExecutionResult = {
 
 function aiExecutionSummary(callCount = 1): AutomationExternalExecutionSummary {
   return { sourceKinds: callCount ? ["ai"] : [], mcpTools: [], httpOrigins: [], externalCallCount: callCount, successfulCallCount: callCount, failedCallCount: 0 };
-}
-
-function mergeExternalExecution(...summaries: Array<AutomationExternalExecutionSummary | undefined>): AutomationExternalExecutionSummary {
-  const sourceKinds = [...new Set(summaries.flatMap((summary) => summary?.sourceKinds ?? []))];
-  const mcpTools = [...new Map(summaries.flatMap((summary) => summary?.mcpTools ?? []).map((item) => [`${item.serverId}:${item.toolName}`, item])).values()];
-  const httpOrigins = [...new Set(summaries.flatMap((summary) => summary?.httpOrigins ?? []))];
-  return {
-    sourceKinds,
-    mcpTools,
-    httpOrigins,
-    externalCallCount: summaries.reduce((total, summary) => total + (summary?.externalCallCount ?? 0), 0),
-    successfulCallCount: summaries.reduce((total, summary) => total + (summary?.successfulCallCount ?? 0), 0),
-    failedCallCount: summaries.reduce((total, summary) => total + (summary?.failedCallCount ?? 0), 0),
-  };
 }
 
 /** 预览只返回摘要和字符数，不把完整上下文交给 UI。 */
@@ -106,30 +93,36 @@ export async function executeAutomation(input: {
     const reviewer = config.reviewer ? await findSelection(config.reviewer) : undefined;
     if (config.reviewer && !reviewer) throw new Error("复核模型连接不存在或已被删除");
     if (reviewer && reviewer.ref.connectionId === curator.ref.connectionId && reviewer.ref.modelId === curator.ref.modelId) throw new Error("复核模型必须与整理模型不同");
-    const acquisition = await acquireCollectionDocuments(config);
-    const existingProposals = await obsidianKnowledgeRepository.listProposals();
-    const proposals = await requestAcquisitionProposals({ config, documents: acquisition.documents, curator, reviewer, existingProposals });
-    if (input.persistProposals !== false && proposals.length) await obsidianKnowledgeRepository.saveProposals(proposals);
-    const collectionSummary: AcquisitionRunSummary = {
-      discoveredCount: acquisition.discoveredCount,
-      fetchedCount: acquisition.fetchedCount,
-      duplicateCount: acquisition.duplicateCount,
-      gradeA: proposals.filter((item) => item.provenance?.trust.grade === "A").length,
-      gradeB: proposals.filter((item) => item.provenance?.trust.grade === "B").length,
-      gradeC: proposals.filter((item) => item.provenance?.trust.grade === "C").length,
-      disputedCount: proposals.filter((item) => item.provenance?.reviewStatus === "disputed").length,
-      reviewStatus: reviewer ? proposals.some((item) => item.provenance?.reviewStatus === "disputed") ? "disputed" : "agreed" : "not_configured",
-    };
-    return {
-      result: proposals.length
-        ? `${input.persistProposals === false ? "试运行整理出" : "已生成"} ${proposals.length} 条外部知识提案，确认前不会写入知识库或 Vault。`
-        : `本次发现 ${acquisition.discoveredCount} 个候选来源，未生成可用提案。${acquisition.diagnostics[0] ? ` ${acquisition.diagnostics[0]}` : ""}`,
-      proposalIds: proposals.map((item) => item.id),
-      contextSummary: [],
-      contextCharCount: 0,
-      collectionSummary,
-      externalExecution: mergeExternalExecution(acquisition.externalExecution, aiExecutionSummary(acquisition.documents.length ? reviewer ? 2 : 1 : 0)),
-    };
+    let externalExecution: AutomationExternalExecutionSummary | undefined;
+    try {
+      const acquisition = await acquireCollectionDocuments(config);
+      externalExecution = acquisition.externalExecution;
+      const existingProposals = await obsidianKnowledgeRepository.listProposals();
+      const proposals = await requestAcquisitionProposals({ config, documents: acquisition.documents, curator, reviewer, existingProposals });
+      if (input.persistProposals !== false && proposals.length) await obsidianKnowledgeRepository.saveProposals(proposals);
+      const collectionSummary: AcquisitionRunSummary = {
+        discoveredCount: acquisition.discoveredCount,
+        fetchedCount: acquisition.fetchedCount,
+        duplicateCount: acquisition.duplicateCount,
+        gradeA: proposals.filter((item) => item.provenance?.trust.grade === "A").length,
+        gradeB: proposals.filter((item) => item.provenance?.trust.grade === "B").length,
+        gradeC: proposals.filter((item) => item.provenance?.trust.grade === "C").length,
+        disputedCount: proposals.filter((item) => item.provenance?.reviewStatus === "disputed").length,
+        reviewStatus: reviewer ? proposals.some((item) => item.provenance?.reviewStatus === "disputed") ? "disputed" : "agreed" : "not_configured",
+      };
+      return {
+        result: proposals.length
+          ? `${input.persistProposals === false ? "试运行整理出" : "已生成"} ${proposals.length} 条外部知识提案，确认前不会写入知识库或 Vault。`
+          : `本次发现 ${acquisition.discoveredCount} 个候选来源，未生成可用提案。${acquisition.diagnostics[0] ? ` ${acquisition.diagnostics[0]}` : ""}`,
+        proposalIds: proposals.map((item) => item.id),
+        contextSummary: [],
+        contextCharCount: 0,
+        collectionSummary,
+        externalExecution: mergeAutomationExternalExecution(externalExecution, aiExecutionSummary(acquisition.documents.length ? reviewer ? 2 : 1 : 0)),
+      };
+    } catch (error) {
+      throw wrapAutomationExecutionProgress(error, externalExecution);
+    }
   }
   const contextResult = await buildAutomationContextResult(input.definition.sourceScopes);
   if (!input.connection) throw new Error("请先配置默认文本连接，再运行已安排任务");

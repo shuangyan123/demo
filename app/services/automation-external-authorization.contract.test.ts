@@ -7,7 +7,14 @@ import {
   resolveAutomationExternalAuthorization,
   type McpAuthorizationResource,
 } from "./automation-external-authorization.ts";
-import type { AutomationDefinition } from "../types/domains/automation.ts";
+import {
+  automationExecutionCause,
+  automationExternalExecution,
+  AutomationExecutionProgressError,
+  mergeAutomationExternalExecution,
+  wrapAutomationExecutionProgress,
+} from "./automation-errors.ts";
+import type { AutomationDefinition, AutomationExternalExecutionSummary } from "../types/domains/automation.ts";
 import type { AcquisitionMcpSource, AcquisitionUrlSource } from "../types/domains/acquisition.ts";
 import { createDefaultPersonalizationSettings } from "./personalization-settings-repository.ts";
 
@@ -236,4 +243,39 @@ test("blocked audit 明确原因且外部调用数为零；部分运行保留失
   });
   assert.equal(partial.failedCallCount, 1);
   assert.equal(partial.reasonCodes.includes("runtime_failed"), true);
+});
+
+test("typed external progress preserves the sanitized summary without double counting", () => {
+  const cause = new Error("provider-raw-result secret-token-123");
+  const summary: AutomationExternalExecutionSummary = {
+    sourceKinds: ["mcp_search"],
+    mcpTools: [{ serverId: "server-a", toolName: "search-y" }],
+    httpOrigins: ["https://example.com"],
+    externalCallCount: 1,
+    successfulCallCount: 1,
+    failedCallCount: 0,
+  };
+  const progress = new AutomationExecutionProgressError(cause, summary);
+  const wrapped = wrapAutomationExecutionProgress(progress, summary);
+
+  assert.equal(wrapped, progress);
+  assert.equal(automationExecutionCause(progress), cause);
+  assert.deepEqual(automationExternalExecution(progress), summary);
+  assert.deepEqual(mergeAutomationExternalExecution(summary, {
+    ...summary,
+    sourceKinds: ["ai"],
+    mcpTools: [],
+    httpOrigins: [],
+    externalCallCount: 1,
+    successfulCallCount: 0,
+    failedCallCount: 1,
+  }), {
+    sourceKinds: ["mcp_search", "ai"],
+    mcpTools: summary.mcpTools,
+    httpOrigins: summary.httpOrigins,
+    externalCallCount: 2,
+    successfulCallCount: 1,
+    failedCallCount: 1,
+  });
+  assert.doesNotMatch(JSON.stringify(automationExternalExecution(progress)), /provider-raw-result|secret-token-123/);
 });

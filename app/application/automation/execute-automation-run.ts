@@ -2,7 +2,7 @@ import type { AutomationExecutionResult } from "../../services/automation-execut
 import { executeAutomation, previewAutomationDefinition } from "../../services/automation-executor.ts";
 import type { AutomationFailureDiagnosis } from "../../services/automation-failure.ts";
 import { classifyAutomationError } from "../../services/automation-failure.ts";
-import { AutomationAuthorizationError } from "../../services/automation-errors.ts";
+import { automationExternalExecution, AutomationAuthorizationError } from "../../services/automation-errors.ts";
 import { automationExecutionRepository } from "../../services/automation-repository.ts";
 import type { AutomationExternalAuthorizationResult, createUnattendedExecutionAuditSummary } from "../../services/automation-external-authorization.ts";
 import type { ApiConnectionProfile, AiConnectionSnapshot } from "../../types/domains/ai-connection.ts";
@@ -259,6 +259,7 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
       partialResult.output = output;
     } catch (executionError) {
       if (executionError instanceof AutomationAuthorizationError) authorization = executionError.authorization as AutomationExternalAuthorizationResult;
+      const execution = automationExternalExecution(executionError);
       const diagnosis = dependencies.classifyError(executionError, { online: input.online });
       const finishedAt = dependencies.now().toISOString();
       const failed: AutomationRun = {
@@ -276,6 +277,7 @@ export async function executeAutomationRun(input: ExecuteAutomationRunInput): Pr
           startedAt: running.startedAt ?? startedAt.toISOString(),
           finishedAt,
           authorization,
+          execution,
           proposalCount: 0,
           terminalState: authorization.status === "ready" ? "failed" : "blocked",
         }) : undefined,
