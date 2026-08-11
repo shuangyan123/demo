@@ -143,7 +143,7 @@ test("Conversation 流式预路由与 generation contract 对同一缓存事实�
     secretReads += 1;
     return "fixture-secret";
   };
-  globalThis.fetch = async () => new Response('data: {"type":"delta","text":"ok"}\n\n', {
+  globalThis.fetch = async () => new Response('data: {"type":"delta","text":"ok"}\n\ndata: {"type":"done","content":"ok"}\n\n', {
     status: 200,
     headers: { "Content-Type": "text/event-stream" },
   });
@@ -153,7 +153,7 @@ test("Conversation 流式预路由与 generation contract 对同一缓存事实�
       modelId: "account-model",
       messages: [{ role: "user", content: "测试" }],
     })) events.push(event);
-    assert.deepEqual(events, [{ type: "delta", text: "ok" }]);
+    assert.deepEqual(events, [{ type: "delta", text: "ok" }, { type: "done", content: "ok" }]);
     assert.equal(secretReads, 1);
   } finally {
     globalThis.fetch = originalFetch;

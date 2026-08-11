@@ -78,7 +78,7 @@ test("Google Interactions stream maps step.delta and interaction.completed", () 
   assert.deepEqual(parseGenerateProviderStreamEvent(input, { type: "step.delta", delta: { type: "text", text: "hello" } }, new Headers()), [{ type: "delta", text: "hello" }]);
   assert.deepEqual(
     parseGenerateProviderStreamEvent(input, { type: "interaction.completed", interaction: { id: "int_2", usage: { total_input_tokens: 3, total_output_tokens: 2, total_tokens: 5 } } }, new Headers()),
-    [{ type: "usage", requestId: "int_2", usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 }, actualSpeed: undefined }],
+    [{ type: "done", requestId: "int_2", usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 }, actualSpeed: undefined }],
   );
 });
 
@@ -423,7 +423,7 @@ test("流式生成请求会启用厂商原生 stream 字段并归一化 delta �
   );
   assert.deepEqual(
     parseGenerateProviderStreamEvent(openaiInput, { type: "response.completed", response: { id: "resp_1", usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 } } }, new Headers()),
-    [{ type: "usage", requestId: "resp_1", usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 } }],
+    [{ type: "done", requestId: "resp_1", usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 } }],
   );
 
   const chatInput: AiGenerateRequest = { ...baseGenerate, provider: "deepseek", stream: true };

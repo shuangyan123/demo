@@ -115,6 +115,28 @@ test("AI capability core 保持纯 TypeScript 且不反向依赖协议实现", a
   assert.match(adapterRegistry, /provider-protocol-capabilities/);
 });
 
+test("AI provider normalization keeps failure data safe and vendor fields behind the adapter", async () => {
+  const failureCore = await readFile(path.join(APP_ROOT, "services/ai-provider-failure.ts"), "utf8");
+  const providerFailure = await readFile(path.join(APP_ROOT, "server/ai/provider-failure.ts"), "utf8");
+  const registry = await readFile(path.join(APP_ROOT, "server/ai/provider-adapter-registry.ts"), "utf8");
+  const route = await readFile(path.join(APP_ROOT, "api/ai/generate/route.ts"), "utf8");
+  const client = await readFile(path.join(APP_ROOT, "services/api-client.ts"), "utf8");
+  const clientFailure = await readFile(path.join(APP_ROOT, "services/ai-provider-failure-client.ts"), "utf8");
+  const conversation = await readFile(path.join(APP_ROOT, "features/conversation/conversation-workspace.tsx"), "utf8");
+
+  assert.doesNotMatch(failureCore, /apiKey|Authorization|prompt|raw response|hidden reasoning/i);
+  assert.doesNotMatch(providerFailure, /apiKey|Authorization|prompt|raw response|hidden reasoning/i);
+  assert.match(failureCore, /malformed_response/);
+  assert.match(failureCore, /stream_interrupted/);
+  assert.match(registry, /parseFailure/);
+  assert.match(registry, /streamCompletion/);
+  assert.match(route, /adapter\.parseFailure/);
+  assert.match(route, /classifyProviderStreamFailure/);
+  assert.match(client, /providerFailureClientModule/);
+  assert.match(clientFailure, /AiProviderFailureError/);
+  assert.doesNotMatch(conversation, /(?:choices|candidates|output_text|content_block_delta|usageMetadata|prompt_tokens|completion_tokens)/);
+});
+
 test("Connection-scoped capability resolver 独占缓存编排且 UI 不直接读取模型缓存", async () => {
   const resolverSource = await readFile(path.join(APP_ROOT, "services/ai-connection-client.ts"), "utf8");
   const conversationSource = await readFile(path.join(APP_ROOT, "features/conversation/conversation-workspace.tsx"), "utf8");

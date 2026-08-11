@@ -196,7 +196,15 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - UI 不直接读取 provider model cache；无缓存时保留静态/unknown 回退，缓存继续按 connection ID、provider 与 base URL 隔离。
 - 静态 catalog 优先级、custom-compatible 保守语义、Dexie v16、Provider adapter 与凭据边界均保持不变。
 
-后续 Phase 2 才处理更完整的 Provider request / response / stream / error normalization；0.5.x 整体因此仍为 IN PROGRESS。
+### Phase 2 — Provider Request / Response / Stream / Error Normalization
+
+**COMPLETE（2026-08-11）**
+
+- 以 `AiGenerateRequest`、`AiGenerateResult` 和 `AiGenerateStreamEvent` 固定应用层输入、输出与增量流语义；Provider 私有 request/response/event 字段停留在 adapter boundary。
+- 七家原生 Provider 与 custom-compatible 路径均有 request、response、stream 和 failure fixtures；usage 的 `0`、显式 total、未知值、增量 delta、完成事件和异常中断均有直接契约测试。
+- 统一 `AiProviderFailure` taxonomy，保留安全的 provider code/request ID/retry-after metadata；capability failure、malformed provider response 和业务 JSON validation 保持不同错误边界。
+- 隐藏 reasoning、API key、Authorization、完整 prompt、原始响应和原始媒体不进入 normalized result、SSE error、diagnostics 或 conversation persistence；本阶段不新增 schema、不自动 retry、不自动 fallback。
+- 详见 `docs/ai-capability-architecture.md`。0.5.x 整体仍为 **IN PROGRESS**，下一阶段不在本轮范围内。
 
 ### 目标
 
