@@ -99,14 +99,22 @@ test("Application Layer 保持纯 TypeScript 且不反向依赖 UI 或宿主全�
 
 test("MCP permission core 与 execution boundary 不被 Feature UI 绕过", async () => {
   const coreSource = await readFile(path.join(APP_ROOT, "services/mcp-permission.ts"), "utf8");
+  const sessionStoreSource = await readFile(path.join(APP_ROOT, "services/mcp-session-permission-store.ts"), "utf8");
   const repositorySource = await readFile(path.join(APP_ROOT, "services/mcp-settings-repository.ts"), "utf8");
   const executionSource = await readFile(path.join(APP_ROOT, "services/mcp-execution.ts"), "utf8");
   const panelSource = await readFile(path.join(APP_ROOT, "features/conversation/conversation-mcp-tool-panel.tsx"), "utf8");
   const conversationFiles = (await sourceFiles(path.join(APP_ROOT, "features", "conversation")));
 
   assert.doesNotMatch(coreSource, /react|next\/|Electron|Dexie|localStorage|fetch\s*\(|crypto|window|document/i);
+  assert.doesNotMatch(sessionStoreSource, /export\s+(?:const|let|var)\s+\w+\s*=\s*new\s+Set/);
+  assert.match(sessionStoreSource, /export function hasMcpSessionPermission/);
+  assert.match(sessionStoreSource, /export function grantMcpSessionPermission/);
+  assert.match(sessionStoreSource, /export function revokeMcpSessionPermission/);
+  assert.match(repositorySource, /normalizeMcpPersistedPermission/);
   assert.match(repositorySource, /import\("\.\/mcp-execution\.ts"\)/);
   assert.match(executionSource, /decideMcpToolPermission/);
+  assert.match(executionSource, /hasMcpSessionPermission/);
+  assert.doesNotMatch(executionSource, /grantMcpSessionPermission|revokeMcpSessionPermission|clearMcpSessionPermissions|retainMcpSessionPermissions/);
   assert.match(executionSource, /decision !== "allowed"[\s\S]*?dependencies\.tokenFor\(profile\)/);
   assert.match(repositorySource, /callScheduledTool[\s\S]*?executeTool\(serverId, toolName, args/);
   assert.match(panelSource, /callTool\(server, tool\.name, args, \{ mode: "interactive", confirmed: true \}\)/);
@@ -116,6 +124,12 @@ test("MCP permission core 与 execution boundary 不被 Feature UI 绕过", asyn
     const source = await readFile(file, "utf8");
     assert.doesNotMatch(source, /\/api\/mcp\/call|decryptSecret|tokenFor\(/, path.relative(APP_ROOT, file));
     assert.doesNotMatch(source, /permission\s*===\s*["']allow_scheduled["']/, path.relative(APP_ROOT, file));
+  }
+
+  const featureFiles = (await sourceFiles(path.join(APP_ROOT, "features"))).filter((file) => !file.endsWith(".contract.test.ts"));
+  for (const file of featureFiles) {
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(source, /mcp-session-permission-store|grantMcpSessionPermission|revokeMcpSessionPermission|clearMcpSessionPermissions|retainMcpSessionPermissions/, path.relative(APP_ROOT, file));
   }
 });
 

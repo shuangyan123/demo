@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { decideMcpToolPermission, normalizeMcpPersistedPermission } from "./mcp-permission.ts";
 import { executeMcpTool } from "./mcp-execution.ts";
-import { mcpSessionGrantKey, mcpSessionPermissionGrants, clearMcpSessionPermissions, retainMcpSessionPermissions } from "./mcp-session-permission-store.ts";
+import { clearAllMcpSessionPermissionsForTest, clearMcpSessionPermissions, grantMcpSessionPermission, hasMcpSessionPermission, retainMcpSessionPermissions, revokeMcpSessionPermission } from "./mcp-session-permission-store.ts";
 
 test("MCP permission core covers the four policies without side effects", () => {
   assert.equal(decideMcpToolPermission({ policy: "deny", sessionGrantPresent: true, mode: "interactive", confirmed: true }), "denied");
@@ -28,22 +28,23 @@ test("legacy persisted allow_session is a conservative ask policy", () => {
 });
 
 test("session grants are exact server/tool pairs and can be revoked", () => {
-  mcpSessionPermissionGrants.clear();
-  mcpSessionPermissionGrants.add(mcpSessionGrantKey("server-a", "tool-x"));
-  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-x")), true);
-  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-y")), false);
-  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-b", "tool-x")), false);
+  clearAllMcpSessionPermissionsForTest();
+  grantMcpSessionPermission("server-a", "tool-x");
+  assert.equal(hasMcpSessionPermission("server-a", "tool-x"), true);
+  assert.equal(hasMcpSessionPermission("server-a", "tool-y"), false);
+  assert.equal(hasMcpSessionPermission("server-b", "tool-x"), false);
 
-  mcpSessionPermissionGrants.delete(mcpSessionGrantKey("server-a", "tool-x"));
-  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-x")), false);
+  revokeMcpSessionPermission("server-a", "tool-x");
+  assert.equal(hasMcpSessionPermission("server-a", "tool-x"), false);
 
-  mcpSessionPermissionGrants.add(mcpSessionGrantKey("server-a", "tool-x"));
-  mcpSessionPermissionGrants.add(mcpSessionGrantKey("server-a", "tool-y"));
+  grantMcpSessionPermission("server-a", "tool-x");
+  grantMcpSessionPermission("server-a", "tool-y");
   retainMcpSessionPermissions("server-a", ["tool-x"]);
-  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-x")), true);
-  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-y")), false);
+  assert.equal(hasMcpSessionPermission("server-a", "tool-x"), true);
+  assert.equal(hasMcpSessionPermission("server-a", "tool-y"), false);
   clearMcpSessionPermissions("server-a");
-  assert.equal(mcpSessionPermissionGrants.has(mcpSessionGrantKey("server-a", "tool-x")), false);
+  assert.equal(hasMcpSessionPermission("server-a", "tool-x"), false);
+  clearAllMcpSessionPermissionsForTest();
 });
 
 test("execution boundary rejects deny without resolving credentials or requesting the route", async () => {

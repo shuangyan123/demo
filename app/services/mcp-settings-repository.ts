@@ -2,8 +2,8 @@ import type { McpDiscoveryResult, McpServerProfile, McpToolDescriptor, McpToolPe
 import { decryptSecret, encryptSecret } from "./crypto-service.ts";
 import type { ClientApiErrorPayload } from "./api-error.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
-import type { McpExecutionContext, McpPersistedToolPermission } from "./mcp-permission.ts";
-import { clearMcpSessionPermissions, mcpSessionGrantKey, mcpSessionPermissionGrants, retainMcpSessionPermissions } from "./mcp-session-permission-store.ts";
+import { normalizeMcpPersistedPermission, type McpExecutionContext } from "./mcp-permission.ts";
+import { clearMcpSessionPermissions, grantMcpSessionPermission, hasMcpSessionPermission, retainMcpSessionPermissions, revokeMcpSessionPermission } from "./mcp-session-permission-store.ts";
 import { secretContext } from "./secret-context.ts";
 import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
@@ -26,10 +26,6 @@ function now(): string {
 
 function defaultSnapshot(): McpSettingsSnapshot {
   return { profiles: [], discovery: {} };
-}
-
-function normalizeMcpPersistedPermission(value: unknown): McpPersistedToolPermission {
-  return value === "deny" || value === "allow_scheduled" ? value : "ask";
 }
 
 function normalizeDiscovery(serverId: string, value: unknown): McpDiscoveryResult | undefined {
@@ -91,7 +87,7 @@ function applySessionPermissions(snapshot: McpSettingsSnapshot): McpSettingsSnap
     if (!discovery.toolDescriptors) continue;
     discovery.toolDescriptors = discovery.toolDescriptors.map((tool) => ({
       ...tool,
-      permission: tool.permission !== "deny" && mcpSessionPermissionGrants.has(mcpSessionGrantKey(serverId, tool.name)) ? "allow_session" : tool.permission,
+      permission: tool.permission !== "deny" && hasMcpSessionPermission(serverId, tool.name) ? "allow_session" : tool.permission,
     }));
   }
   return snapshot;
@@ -225,8 +221,8 @@ export const mcpSettingsRepository = {
     const discovery = snapshot.discovery[serverId];
     if (!discovery?.toolDescriptors) return;
     if (!discovery.toolDescriptors.some((tool) => tool.name === toolName)) return;
-    if (permission === "allow_session") mcpSessionPermissionGrants.add(mcpSessionGrantKey(serverId, toolName));
-    else mcpSessionPermissionGrants.delete(mcpSessionGrantKey(serverId, toolName));
+    if (permission === "allow_session") grantMcpSessionPermission(serverId, toolName);
+    else revokeMcpSessionPermission(serverId, toolName);
     const persistedPermission = permission === "allow_session" ? "ask" : normalizeMcpPersistedPermission(permission);
     const next = { ...discovery, toolDescriptors: discovery.toolDescriptors.map((tool) => tool.name === toolName ? { ...tool, permission: persistedPermission } : tool) };
     writeSnapshot({ ...snapshot, discovery: { ...snapshot.discovery, [serverId]: next } });
