@@ -22,6 +22,16 @@ function errorMessage(error: unknown): string {
 
 /** 将原始异常归类为用户可恢复的自动化错误。 */
 export function classifyAutomationError(error: unknown, options: { online?: boolean } = {}): AutomationFailureDiagnosis {
+  if (error instanceof Error && "recoveryDiagnosis" in error) {
+    const providerFailure = error as Error & {
+      recoveryDiagnosis: Pick<AutomationFailureDiagnosis, "category" | "recoveryAction">;
+    };
+    return {
+      ...providerFailure.recoveryDiagnosis,
+      // AiProviderFailureError 构造器统一写入产品安全文案；Automation 不读取厂商原始错误。
+      message: providerFailure.message,
+    };
+  }
   const message = errorMessage(error);
   const normalized = message.toLowerCase();
   if (message.includes("默认文本连接") || message.includes("AI 连接") || normalized.includes("connection")) {

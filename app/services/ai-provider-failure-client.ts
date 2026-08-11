@@ -63,5 +63,6 @@ export async function throwClientStreamFailureForProvider(provider: ApiProvider,
       ? { code: event.code as AiProviderFailureCode, provider, retry: event.retryable ? "after-delay" : "no", requestId: event.requestId } satisfies AiProviderFailure
       : undefined);
   if (failure) return throwClientProviderFailure(failure);
-  throw new Error(event.message);
+  // 未知的 stream error 也必须保持在 typed failure 边界内，不能把厂商原文传播到 consumer。
+  return throwClientProviderFailure({ code: "unknown", provider, retry: "no", requestId: event.requestId });
 }

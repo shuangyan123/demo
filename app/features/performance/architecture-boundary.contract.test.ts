@@ -144,6 +144,31 @@ test("AI provider normalization keeps failure data safe and vendor fields behind
   assert.doesNotMatch(conversation, /throw new Error\(event\.message\)/);
 });
 
+test("AI consumers remain behind the unified generation and normalization boundary", async () => {
+  const consumerPaths = [
+    "features/conversation/conversation-workspace.tsx",
+    "services/tutoring-ai-service.ts",
+    "services/interview-ai-service.ts",
+    "services/automation-executor.ts",
+    "services/knowledge-evolution-service.ts",
+    "services/acquisition-proposal-service.ts",
+    "services/fenbi-import-service.ts",
+  ];
+  const forbiddenVendorBoundary = /parseGenerateProvider|parseProviderFailure|getProviderAdapter|response\.json\(\)|output_text|content_block_delta|usageMetadata|prompt_tokens|completion_tokens|response\.completed|message_stop|step\.delta|generationConfig|reasoning_effort|thinkingConfig|anthropic-version/;
+  for (const relativePath of consumerPaths) {
+    const source = await readFile(path.join(APP_ROOT, relativePath), "utf8");
+    const imports = staticImports(source);
+    assert.equal(imports.some((target) => target.includes("/server/ai/")), false, relativePath);
+    assert.match(source, /generateWithConnection/, relativePath);
+    assert.doesNotMatch(source, forbiddenVendorBoundary, relativePath);
+  }
+  const automationFailure = await readFile(path.join(APP_ROOT, "services/automation-failure.ts"), "utf8");
+  assert.match(automationFailure, /recoveryDiagnosis/);
+  assert.match(automationFailure, /"recoveryDiagnosis"\s+in\s+error/);
+  assert.match(automationFailure, /message: providerFailure\.message/);
+  assert.doesNotMatch(automationFailure, /throw new Error\(event\.message\)/);
+});
+
 test("Connection-scoped capability resolver 独占缓存编排且 UI 不直接读取模型缓存", async () => {
   const resolverSource = await readFile(path.join(APP_ROOT, "services/ai-connection-client.ts"), "utf8");
   const conversationSource = await readFile(path.join(APP_ROOT, "features/conversation/conversation-workspace.tsx"), "utf8");

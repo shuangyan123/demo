@@ -13,6 +13,7 @@ import { createDefaultPersonalizationSettings } from "./personalization-settings
 import { buildAutomationContext, buildAutomationContextResult } from "./automation-context-service.ts";
 import { automationRepository, renewAutomationLease } from "./automation-repository.ts";
 import { classifyAutomationError } from "./automation-failure.ts";
+import { AiProviderFailureError, aiProviderFailureMessage } from "./ai-provider-failure.ts";
 import { trialAutomationDefinition } from "./automation-executor.ts";
 import { calculateDueAutomation, nextAutomationRun, validateAutomationSchedule } from "./automation-schedule.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
@@ -134,6 +135,20 @@ test("自动化失败分类给出稳定恢复动作", () => {
   assert.deepEqual(classifyAutomationError(new Error("Vault permission denied")).recoveryAction, "open_knowledge");
   assert.deepEqual(classifyAutomationError(new Error("HTTP 401 model error")).category, "model");
   assert.deepEqual(classifyAutomationError(new Error("没有可读取数据")).recoveryAction, "open_import");
+});
+
+test("Automation 对 typed provider failure 按 code 分类且使用共享安全文案", () => {
+  const failure = new AiProviderFailureError({ code: "rate_limit", provider: "deepseek", retry: "after-delay" }, "vendor 503 overload");
+  const diagnosis = classifyAutomationError(failure);
+  assert.equal(diagnosis.category, "model");
+  assert.equal(diagnosis.recoveryAction, "configure_ai_connection");
+  assert.equal(diagnosis.message, aiProviderFailureMessage("rate_limit"));
+  assert.doesNotMatch(diagnosis.message, /vendor|503|overload/);
+
+  const interrupted = classifyAutomationError(new AiProviderFailureError({ code: "stream_interrupted", provider: "deepseek", retry: "manual-only" }, "vendor stream detail"));
+  assert.equal(interrupted.category, "network");
+  assert.equal(interrupted.recoveryAction, "check_network");
+  assert.equal(interrupted.message, aiProviderFailureMessage("stream_interrupted"));
 });
 
 test("租约可续期且旧所有者不能覆盖新租约", async () => {
