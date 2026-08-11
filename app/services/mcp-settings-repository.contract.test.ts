@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import "fake-indexeddb/auto";
 import { mcpSettingsRepository } from "./mcp-settings-repository.ts";
-import { mcpSessionPermissionGrants } from "./mcp-session-permission-store.ts";
+import { clearAllMcpSessionPermissionsForTest } from "./mcp-session-permission-store.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
 
 const values = new Map<string, string>();
@@ -15,7 +15,7 @@ Object.defineProperty(globalThis, "window", { configurable: true, value: { local
 
 test("MCP settings persist encrypted profiles and sanitized discovery summaries without Dexie", async () => {
   values.clear();
-  mcpSessionPermissionGrants.clear();
+  clearAllMcpSessionPermissionsForTest();
   const originalFetch = globalThis.fetch;
   let callRequests = 0;
   globalThis.fetch = async (_url, init) => {
@@ -84,7 +84,7 @@ test("MCP settings persist encrypted profiles and sanitized discovery summaries 
     const legacySnapshot = JSON.parse(values.get(secretStorageLocations.mcpSettings) ?? "{}") as { discovery: Record<string, { toolDescriptors: Array<{ permission: string }> }> };
     legacySnapshot.discovery[profile.id].toolDescriptors[0].permission = "allow_session";
     values.set(secretStorageLocations.mcpSettings, JSON.stringify(legacySnapshot));
-    mcpSessionPermissionGrants.clear();
+    clearAllMcpSessionPermissionsForTest();
     assert.equal(mcpSettingsRepository.load().discovery[profile.id]?.toolDescriptors?.[0]?.permission, "ask");
     await assert.rejects(() => mcpSettingsRepository.callScheduledTool(profile.id, "search", {}), /未获得定时任务授权/);
     mcpSettingsRepository.setToolPermission(profile.id, "search", "ask");
@@ -124,9 +124,12 @@ test("MCP settings persist encrypted profiles and sanitized discovery summaries 
     mcpSettingsRepository.removeProfile(stable.id);
     assert.equal(mcpSettingsRepository.load().profiles.length, 0);
   } finally {
-    mcpSessionPermissionGrants.clear();
+    clearAllMcpSessionPermissionsForTest();
     globalThis.fetch = originalFetch;
   }
 });
 
-test.after(() => { Reflect.deleteProperty(globalThis, "window"); });
+test.after(() => {
+  clearAllMcpSessionPermissionsForTest();
+  Reflect.deleteProperty(globalThis, "window");
+});

@@ -264,6 +264,15 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - 保持 `review_workspace` v16、现有 MCP route、凭据加密、`allowPrivateNetwork`、SSRF 检查和 raw tool result 非持久化；增加直接权限矩阵、会话作用域、reload、无网络拒绝和 UI 架构 contract。
 - 详见 `docs/mcp-permissions.md`。
 
+### Phase 1 Stabilization — Permission Source-of-Truth & Session Grant Authority
+
+**COMPLETE（2026-08-11）**
+
+- 持久化 permission normalization 收敛到 `mcp-permission.ts`；session grant 的可变集合收拢在私有 store 内部。
+- execution boundary 只读取 session grant，Settings Repository 负责 grant lifecycle mutation；Feature UI 不再拥有直接 mutation authority。
+- 保持 `ask`、`allow_session`、`allow_scheduled`、`deny` 的既有语义、内存有效期、重发现清理、无网络拒绝和 `review_workspace` v16。
+- 通过直接 permission/session contract、architecture boundary contract、完整质量门和相关 E2E 验证。
+
 ### Deferred 0.6 work
 
 - Phase 2：Automation / Acquisition unattended authorization & audit。

@@ -11,9 +11,16 @@ Review Workspace 的 MCP 权限由 `app/services/mcp-settings-repository.ts` 在
 ## 两种权限状态
 
 - 持久化 policy 只保存可跨 reload 保留的用户决策：`ask`、`allow_scheduled`、`deny`。
-- `allow_session` 只存在于内存 `mcpSessionPermissionGrants`，作用域是精确的 `serverId + toolName`。刷新页面、重启 Web 应用或重启 Electron renderer 后会消失。
+- `allow_session` 只存在于内存 session grant store，作用域是精确的 `serverId + toolName`。刷新页面、重启 Web 应用或重启 Electron renderer 后会消失。
 - 旧快照若仍含 `permission: "allow_session"`，读取时安全规范化为 `ask`，不会恢复授权；下一次正常写入会写回 canonical policy。
 - 改为 `ask`、`deny` 或 `allow_scheduled` 会立即清除同一工具的会话 grant。重新发现时只保留仍存在且仍在 allowlist 中的工具 grant；连接变化、删除 Server 或工具消失会使旧 grant 失效。
+
+## Stabilization — Session Grant Authority
+
+- 持久化 permission normalization 只有 `app/services/mcp-permission.ts` 一个 source-of-truth；Settings Repository 直接复用，不保留复制实现。
+- session grant store 的可变 `Set` 只在 store 内部可见；对外只提供精确的读取、授予、撤销、清理和重发现保留 API。
+- execution boundary 只有当前 session grant 的读取权限；它不能直接创建、撤销或清理 grant。
+- Settings Repository 拥有 session grant lifecycle 的 mutation authority；Feature UI 只能通过 repository 表达权限意图，不能直接修改 session grant。
 
 ## 决策矩阵
 

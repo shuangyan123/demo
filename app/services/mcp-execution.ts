@@ -1,5 +1,5 @@
 import { decideMcpToolPermission, normalizeMcpPersistedPermission, type McpExecutionContext } from "./mcp-permission.ts";
-import { mcpSessionGrantKey, mcpSessionPermissionGrants } from "./mcp-session-permission-store.ts";
+import { hasMcpSessionPermission } from "./mcp-session-permission-store.ts";
 import type { McpServerProfile } from "../types/domains/mcp.ts";
 import type { McpSettingsSnapshot } from "./mcp-settings-repository.ts";
 import { isUiReviewRecordId } from "./workspace-data-scope.ts";
@@ -37,7 +37,7 @@ export async function executeMcpTool(
 
   const decision = decideMcpToolPermission({
     policy: normalizeMcpPersistedPermission(tool.permission),
-    sessionGrantPresent: mcpSessionPermissionGrants.has(mcpSessionGrantKey(serverId, toolName)),
+    sessionGrantPresent: hasMcpSessionPermission(serverId, toolName),
     mode: context.mode,
     confirmed: context.confirmed,
   });
