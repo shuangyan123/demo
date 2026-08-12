@@ -50,6 +50,9 @@ jobs:
       - name: Desktop contracts
         run: npm run test:desktop
 
+      - name: Sandboxed preload integration smoke
+        run: npm run test:desktop:integration
+
       - name: Production dependency audit
         run: npm run audit:prod
 
@@ -67,6 +70,9 @@ jobs:
 
       - name: Make Windows installer
         run: npm run desktop:make
+
+      - name: Packaged preload artifact regression
+        run: npm run test:desktop:artifact
 
       - name: Generate SHA-256 manifest
         shell: pwsh

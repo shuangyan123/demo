@@ -37,6 +37,16 @@ test("requires-reentry、blocked、recovery-required 和不可用状态都使用
   assert.equal(projectDesktopCredentialMigration({ ...available, protectionStatus: "temporarily_unavailable" }).status, "unavailable");
 });
 
+test("Desktop host remains visible when its credential protection backend is unavailable", () => {
+  const model = projectDesktopCredentialMigration({
+    ...available,
+    protectionStatus: "unavailable",
+  });
+  assert.equal(model.visible, true);
+  assert.equal(model.status, "unavailable");
+  assert.equal(model.canStart, false);
+});
+
 test("迁移前后 Desktop protection unavailable 都使用不暗示迁移历史的安全文案", () => {
   const models = [
     projectDesktopCredentialMigration({

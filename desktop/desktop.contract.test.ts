@@ -8,7 +8,7 @@ const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const runtime = readFileSync(new URL("./runtime.ts", import.meta.url), "utf8");
 const protocol = readFileSync(new URL("./protocol.ts", import.meta.url), "utf8");
 const permissions = readFileSync(new URL("./permissions.ts", import.meta.url), "utf8");
-const preload = readFileSync(new URL("./preload.ts", import.meta.url), "utf8");
+const preload = readFileSync(new URL("./preload.cts", import.meta.url), "utf8");
 const proxy = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
 
 test("桌面窗口保持隔离、沙箱与单实例边界", () => {

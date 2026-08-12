@@ -12,6 +12,6 @@
     "isolatedModules": false,
     "types": ["node", "electron"]
   },
-  "include": ["./**/*.ts"],
+  "include": ["./**/*.ts", "./**/*.cts"],
   "exclude": ["./**/*.test.ts"]
 }

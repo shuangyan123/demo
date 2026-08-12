@@ -11,7 +11,7 @@ import {
 } from "./credential-storage-envelope.ts";
 
 const ipc = readFileSync(new URL("./credential-storage.ts", import.meta.url), "utf8");
-const preload = readFileSync(new URL("./preload.ts", import.meta.url), "utf8");
+const preload = readFileSync(new URL("./preload.cts", import.meta.url), "utf8");
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 
 test("Desktop credential envelope round-trip binds context and rejects substitution", () => {

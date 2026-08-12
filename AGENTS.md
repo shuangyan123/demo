@@ -230,7 +230,7 @@ app/
 
 desktop/
 ├─ main.ts
-├─ preload.ts
+├─ preload.cts
 ├─ runtime.ts
 ├─ permissions.ts
 └─ vault.ts

@@ -64,7 +64,7 @@ async function createMainWindow(): Promise<void> {
       height: TITLE_BAR_HEIGHT,
     },
     webPreferences: {
-      preload: path.join(import.meta.dirname, "preload.js"),
+      preload: path.join(import.meta.dirname, "preload.cjs"),
       partition,
       nodeIntegration: false,
       contextIsolation: true,

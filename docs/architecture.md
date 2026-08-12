@@ -7,7 +7,7 @@ desktop/
 ├─ main.ts          单实例、窗口、安全导航与生命周期
 ├─ runtime.ts       资源校验、随机端口与 Next standalone 子进程
 ├─ protocol.ts      review-app 自定义协议与令牌代理
-├─ preload.ts       context-isolated 最小桌面桥
+├─ preload.cts       sandbox-compatible CommonJS context-isolated 最小桌面桥
 ├─ vault.ts         Vault 目录选择、恢复与受限 IPC
 ├─ credential-storage.ts 版本化凭据保护 capability 与安全 IPC
 └─ permissions.ts   媒体、文件与屏幕来源权限

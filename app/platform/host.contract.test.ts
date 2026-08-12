@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveHost } from "./host.ts";
-import type { DesktopVaultPreloadBridge, DesktopWindowPreloadBridge } from "./capabilities.ts";
+import type {
+  DesktopCredentialProtectionPreloadBridge,
+  DesktopVaultPreloadBridge,
+  DesktopWindowPreloadBridge,
+} from "./capabilities.ts";
 
 function windowStub(value: Record<string, unknown>): Window {
   return value as unknown as Window;
@@ -19,6 +23,14 @@ function desktopVaultStub(): DesktopVaultPreloadBridge {
     startWatching: async () => undefined,
     stopWatching: async () => undefined,
     onVaultChanged: () => () => undefined,
+  };
+}
+
+function desktopCredentialProtectionStub(): DesktopCredentialProtectionPreloadBridge {
+  return {
+    getStatus: async () => ({ ok: true, value: { status: "temporarily_unavailable" } }),
+    protectCredential: async () => ({ ok: false, error: { code: "host_unavailable", message: "safe failure" } }),
+    unprotectCredential: async () => ({ ok: false, error: { code: "host_unavailable", message: "safe failure" } }),
   };
 }
 
@@ -57,4 +69,20 @@ test("Desktop 宿主优先包裹 preload 且不扩大桥接权限", async () => 
   await runtime.capabilities.nativeWindow?.setTitleBarTheme("dark");
   assert.deepEqual(calls, ["dark"]);
   assert.deepEqual(Object.keys(runtime.capabilities).sort(), ["nativeWindow", "vault"]);
+});
+
+test("Credential preload bridge alone keeps Host desktop and exposes only the typed capability", async () => {
+  const runtime = resolveHost(windowStub({
+    reviewDesktopCredentialProtection: desktopCredentialProtectionStub(),
+  }));
+
+  assert.equal(runtime.kind, "desktop");
+  assert.equal(runtime.capabilities.credentialProtection?.kind, "desktop");
+  assert.deepEqual(await runtime.capabilities.credentialProtection?.getStatus(), { status: "temporarily_unavailable" });
+  assert.deepEqual(
+    Object.keys(runtime.capabilities)
+      .filter((key) => Boolean(runtime.capabilities[key as keyof typeof runtime.capabilities]))
+      .sort(),
+    ["credentialProtection"],
+  );
 });

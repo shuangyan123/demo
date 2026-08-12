@@ -17,7 +17,7 @@ import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts"
 test("Obsidian 应用级运行时串行防抖、合并补跑且不泄露路径", () => {
   const runtime = readFileSync(new URL("./obsidian-sync-runtime.ts", import.meta.url), "utf8");
   const desktopVault = readFileSync(new URL("../../desktop/vault.ts", import.meta.url), "utf8");
-  const preload = readFileSync(new URL("../../desktop/preload.ts", import.meta.url), "utf8");
+  const preload = readFileSync(new URL("../../desktop/preload.cts", import.meta.url), "utf8");
   assert.match(runtime, /CHANGE_DEBOUNCE_MS = 1_000/);
   assert.match(runtime, /POLL_INTERVAL_MS = 30_000/);
   assert.match(runtime, /rerunRequested = true/);

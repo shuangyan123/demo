@@ -17,6 +17,8 @@ test("桌面发布只在 Windows x64 手动或标签触发并校验版本", () =
   assert.match(workflow, /runs-on: windows-latest/);
   assert.match(workflow, /Tag .* does not match package\.json version/);
   assert.match(workflow, /npm run desktop:make/);
+  assert.match(workflow, /npm run test:desktop:integration/);
+  assert.match(workflow, /npm run test:desktop:artifact/);
 });
 
 test("标签创建正式 Release 且只发布安装器与校验清单", () => {

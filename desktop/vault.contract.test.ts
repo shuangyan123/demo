@@ -40,7 +40,7 @@ test("桌面 Vault 解析逐段拒绝符号链接逃逸", async (context) => {
 
 test("Vault IPC 校验调用来源、正文上限且 preload 不暴露绝对路径", () => {
   const ipc = readFileSync(new URL("./vault.ts", import.meta.url), "utf8");
-  const preload = readFileSync(new URL("./preload.ts", import.meta.url), "utf8");
+  const preload = readFileSync(new URL("./preload.cts", import.meta.url), "utf8");
   assert.match(ipc, /assertTrustedSender/);
   assert.match(ipc, /MAX_MARKDOWN_BYTES/);
   assert.match(ipc, /app\.getPath\("userData"\)/);
