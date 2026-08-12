@@ -675,7 +675,7 @@ main
 
 不要引入长期 `develop`，除非用户明确改变分支策略。
 
-涉及实现、修复、重构、UI 修改、架构迁移或发布交付时：
+涉及实现、修复、重构、UI 修改、架构迁移、维护、规则/文档修改或发布交付时：
 
 **必须使用项目 Skill：**
 
@@ -711,6 +711,76 @@ Branch
 → Sync main
 → Post-merge verification
 ```
+
+## 20.1 Git branch / worktree hard invariants
+
+以下规则是仓库级硬约束，适用于产品代码、测试、文档和 Codex 项目规则维护。
+
+### New write task preflight
+
+任何新的 write task 在第一次修改文件前必须完成：
+
+```bash
+git status --short
+git status -sb
+git branch --show-current
+git rev-parse HEAD
+git fetch origin
+git rev-parse origin/main
+git worktree list
+git status --short
+```
+
+对于新的 write task，必须确认：
+
+* 当前工作区 clean
+* 当前 checkout 是 `main`
+* `HEAD` 与 `origin/main` 一致
+* 当前目录没有未提交或未知修改
+* 不需要处理其他 worktree 才能开始本任务
+
+预检通过后，必须从最新 `origin/main` 创建并切换到 task-specific fresh branch，之后才允许修改任何文件。规则维护本身也是 write task，不能因为只修改 `AGENTS.md` 或 Skill 就跳过该约束。
+
+如果预检发现 dirty state、分支不正确、HEAD 不一致或 worktree ownership conflict，必须立即 STOP。不得自行执行：
+
+* `stash`
+* `reset`
+* `restore`
+* `clean`
+* `checkout --`
+* 提交 unrelated changes
+* 删除、prune、merge 或 rebase 其他 worktree / WIP branch
+
+### Fresh branch requirement
+
+新的 implementation、refactor、fix、maintenance、rules 或 docs task 必须从最新 `origin/main` 开始，并在第一次写入前进入 task-specific branch。禁止直接在：
+
+* `main`
+* detached HEAD
+* 无关 feature branch
+* WIP branch
+
+上实现新任务。Detached HEAD 在有效 task branch 建立前只允许读操作。
+
+### Existing PR continuation
+
+如果当前任务明确是继续已有 open PR、处理该 PR 的 review/CI/stabilization，必须继续该 PR 的 exact head branch，不得另建 feature branch 或第二个 PR。写入前必须核对：
+
+* PR head branch
+* local branch
+* PR HEAD SHA
+
+三者必须对应；否则 STOP 并报告实际状态。
+
+### Worktree conflict
+
+如果目标 branch 已被其他 worktree checkout，或 Git 报告 branch/worktree ownership conflict，必须 STOP 并报告 conflicting branch、worktree path、当前 HEAD 和当前 branch。不得切到 detached HEAD、随意改用另一个 branch、删除 worktree、prune worktree 或 force 操作来绕过冲突。
+
+### Merge and cleanup invariants
+
+不得在以下条件下 Merge：required CI pending/failed、存在冲突、Changes Requested、未解决的阻断 review、或验证后 PR HEAD 已变化。HEAD 变化后必须重新验证。
+
+Merge 后只有在确认没有其他 open PR 依赖该 branch 时，才可删除已合并的 task branch；无关 worktree 和 WIP branch 必须保持不动。随后必须回到 `main`，执行 `git pull --ff-only origin main`，确认工作区 clean，再进行 post-merge verification。
 
 ---
 

@@ -37,6 +37,26 @@ Identify explicit exclusions.
 
 Do not automatically expand the task into adjacent Roadmap phases.
 
+## 1.1 Select the workflow mode
+
+Use exactly one of these modes before choosing a branch:
+
+### A. Read-only task
+
+Examples: audit, review, explain, inspect, or research.
+
+If no file will be modified, do not create a branch. Read the repository state and report the evidence only.
+
+### B. New write task
+
+Examples: feature, fix, refactor, UI, architecture migration, maintenance, rules maintenance, docs maintenance, or test modification.
+
+This mode requires the hard preflight in section 2 and a task-specific fresh branch from the latest `origin/main` before the first file edit. Rules-only changes are still write tasks.
+
+### C. Existing PR continuation
+
+If the user explicitly asks to continue an existing open PR or to address its review, CI, or stabilization work, inspect and continue that PR's exact head branch. Do not create another branch or a second PR. Verify the PR head branch, local branch, and PR HEAD SHA before writing.
+
 For roadmap work, read:
 
 ```text
@@ -47,25 +67,32 @@ and the relevant architecture document.
 
 ---
 
-# 2. Inspect repository state
+# 2. HARD PREFLIGHT BEFORE WRITING
 
-Before editing:
+For mode B, before editing, run:
 
 ```bash
-git status
+git status --short
+git status -sb
 git branch --show-current
-git remote -v
-git log --oneline -10
+git rev-parse HEAD
 git fetch origin
+git rev-parse origin/main
+git worktree list
+git status --short
 ```
 
-Confirm:
+The preflight must establish:
 
-* correct repository
-* correct remote
-* no unknown local work would be overwritten
-* current base branch state
-* existing relevant branch / PR state
+* the current worktree is clean
+* the current branch is `main`
+* `HEAD` equals `origin/main`
+* there are no unknown local changes
+* no other worktree must be modified or resolved to begin this task
+
+If any condition fails, STOP. Do not stash, reset, restore, clean, checkout away local changes, commit unrelated changes, delete/prune worktrees, or alter WIP branches.
+
+For mode C, inspect the existing PR first and verify its exact head branch, the local checkout, and the PR HEAD SHA. A dirty state is only continuable when it is proven to belong to that exact PR task.
 
 Never discard unknown user changes.
 
@@ -196,9 +223,9 @@ Otherwise record it as residual work.
 
 ---
 
-# 7. Create an appropriate work branch
+# 7. Establish or continue the task branch
 
-Do not perform substantial work directly on `main`.
+For mode B, after the hard preflight create and switch to a fresh task-specific branch from the validated `origin/main`:
 
 Use:
 
@@ -215,11 +242,19 @@ For Roadmap architecture migrations prefer:
 refactor/<phase-or-domain>
 ```
 
-Base the branch on the current validated `main`.
+Example:
 
-If a same-name remote branch already exists, inspect it before using it.
+```bash
+git switch -c chore/<scope> origin/main
+```
 
-Never overwrite unknown remote history.
+Confirm the branch and clean state before the first file edit. If the desired branch name already exists locally or remotely, inspect its history and ownership; never overwrite unknown history.
+
+If Git reports that the branch is already used by another worktree, STOP and report the conflicting branch, worktree path, current HEAD, and current branch. Do not switch to detached HEAD, silently use an unrelated branch, delete the worktree, or force the operation.
+
+For mode C, continue the verified exact PR head branch instead of creating a new branch. Read-only mode requires no branch.
+
+Never perform a new write task directly on `main`, detached HEAD, an unrelated feature branch, or a WIP branch.
 
 ---
 
@@ -323,6 +358,14 @@ Do not invent fake transaction guarantees only to simplify tests.
 ---
 
 # 11. Run local quality gates
+
+For rules-only changes limited to repository instructions and the engineering Skill, run at least:
+
+```bash
+git diff --check
+```
+
+Also run any repository-provided AGENTS, Skill, Markdown, or rules validation that applies. Do not mechanically run product build, Playwright, or Electron packaging when no runtime boundary changed; state the rules-only scope and the commands actually run in the PR.
 
 For ordinary TypeScript / React / Service / Application changes run at minimum:
 
