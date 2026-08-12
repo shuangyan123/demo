@@ -3,6 +3,7 @@ import type {
   ObsidianSyncRuntimeSnapshot,
 } from "../types/domains/obsidian.ts";
 import { isUiReviewRuntimeActive } from "./ui-review-runtime-guard.ts";
+import { settingsPluginPreferencesRepository } from "./settings-plugin-preferences-repository.ts";
 
 type Listener = () => void;
 
@@ -50,7 +51,7 @@ async function stopCurrentWatch(): Promise<void> {
 
 function isRuntimeActive(): boolean {
   if (typeof document === "undefined" || typeof navigator === "undefined") return false;
-  return !isUiReviewRuntimeActive() && document.visibilityState === "visible" && navigator.onLine;
+  return settingsPluginPreferencesRepository.isEnabled("obsidian-vault") && !isUiReviewRuntimeActive() && document.visibilityState === "visible" && navigator.onLine;
 }
 
 function scheduleSync(delay = CHANGE_DEBOUNCE_MS): void {
@@ -111,6 +112,10 @@ async function executeSync(): Promise<ObsidianSyncReport | undefined> {
 async function configureWatch(): Promise<void> {
   clearTimers();
   await stopCurrentWatch();
+  if (!settingsPluginPreferencesRepository.isEnabled("obsidian-vault")) {
+    publish({ status: "paused", mode: "none", errorMessage: undefined });
+    return;
+  }
   try {
     const repository = await loadRepository();
     const current = await repository.loadSnapshot();
@@ -153,6 +158,11 @@ function handleKnowledgeChanged(): void {
   scheduleSync();
 }
 
+function handlePluginPreferenceChanged(): void {
+  if (!started) return;
+  void configureWatch().then(() => scheduleSync());
+}
+
 /** 应用级单例：页面切换不会中断，应用卸载时才停止。 */
 export const obsidianSyncRuntime = {
   getSnapshot(): ObsidianSyncRuntimeSnapshot {
@@ -174,6 +184,7 @@ export const obsidianSyncRuntime = {
     document.addEventListener("visibilitychange", handleResume);
     window.addEventListener("online", handleResume);
     window.addEventListener("review:knowledge-changed", handleKnowledgeChanged);
+    window.addEventListener("review:settings-plugin-changed", handlePluginPreferenceChanged);
     await configureWatch();
   },
 
@@ -184,6 +195,7 @@ export const obsidianSyncRuntime = {
     document.removeEventListener("visibilitychange", handleResume);
     window.removeEventListener("online", handleResume);
     window.removeEventListener("review:knowledge-changed", handleKnowledgeChanged);
+    window.removeEventListener("review:settings-plugin-changed", handlePluginPreferenceChanged);
     await stopCurrentWatch();
     publish({ status: "paused", mode: "none" });
   },

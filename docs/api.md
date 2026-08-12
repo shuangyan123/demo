@@ -176,6 +176,12 @@ GLM 运行能力只按显式模型清单登记。七档清单当前仅含 `glm-5
 
 `SettingsPluginCategory` 当前包含 `featured`、`knowledge-sync`、`import-source` 和 `study-extension`。`featured` 只用于目录聚合展示，不代表第三方动态安装能力；额度与 MCP 均不进入该目录。
 
+## 声明式扩展权限
+
+`ExtensionManifestV1.permissions` 是声明，不是授权。当前有效状态由安装记录的 `enabled`、严格声明校验、当前应用能力和既有产品底层权限共同决定；无交集时返回稳定的 `extension_disabled`、`extension_invalid`、`capability_unavailable` 或 `permission_missing` reason code。真实执行入口会在回调前重新读取状态，停用、撤销或旧 UI 快照都不能绕过检查。
+
+主题和教师人设是当前唯一存在的声明式执行入口；学习路径、已安排模板和评分标准包只作为受校验数据保存。扩展包不能携带脚本、HTML、JSX、远程运行时或任意模板表达式，也不会自动获得 MCP、网络、AI、Vault 或 scheduled 权限。权限与停用边界不升级 Dexie schema；MCP 仍由现有 MCP execution boundary 决定。
+
 ## MCP 设置
 
 `McpServerProfile` 保存本地 MCP server 的名称、endpoint、启用状态和更新时间。`McpDiscoveryResult` 保存一次脱敏探测摘要，包括 tools/resources/prompts 名称列表、状态、错误和检查时间。

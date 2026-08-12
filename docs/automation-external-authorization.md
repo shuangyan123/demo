@@ -2,7 +2,7 @@
 
 ## 状态
 
-Phase 2 已完成。0.6 MCP / Automation / Plugin 权限模型仍为 `IN PROGRESS`；Declarative Extension Phase 3 和 Acceptance Closure 尚未开始。
+Phase 2 与 Declarative Extension Phase 3 已完成。0.6 MCP / Automation / Plugin 权限模型仍为 `IN PROGRESS`；Acceptance Closure 尚未开始。声明式扩展的具体边界见 `docs/declarative-extension-permissions.md`。
 
 本阶段复用现有 `AutomationDefinition.collectionConfig`，不新增第二套任务权限字段：URL、Feed 和 MCP source 就是任务级外部能力声明。普通 `daily_review`、`weekly_progress` 与 `knowledge_evolution` 仍可使用既有默认文本连接；知识演进只保存 pending proposal，不等于知识库或 Vault 已确认写入。
 
@@ -46,7 +46,7 @@ AutomationDefinition.collectionConfig
 
 授权阻断写入显式 `failed + audit.terminalState: blocked` 收件箱记录，外部调用数为零，并推进当前计划时间以避免每分钟重复占用租约。网络超时、HTTP/feed 解析、远端 MCP 和模型失败仍是 runtime failure；已发生外部副作用后继续保持既有 `manual-only` 恢复语义，不新增重试框架。
 
-proposal persistence 仍只是本地 pending 写入；确认知识或 Vault 的既有复读、hash 校验、用户确认和部分提交边界不由本阶段自动化授权绕过。Declarative Extension package/template 安装不授予网络或 scheduled MCP 权限，本阶段不实现插件运行时或 Phase 3 disable semantics。`review_workspace` 继续保持 v16。
+proposal persistence 仍只是本地 pending 写入；确认知识或 Vault 的既有复读、hash 校验、用户确认和部分提交边界不由本阶段自动化授权绕过。Declarative Extension package/template 安装不授予网络或 scheduled MCP 权限；Phase 3 已通过独立声明决策核和实际执行入口复核停用/能力阻断，仍不实现任意插件运行时。`review_workspace` 继续保持 v16。
 
 ## Failure-path audit accuracy
 

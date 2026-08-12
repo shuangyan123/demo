@@ -294,11 +294,19 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - Direct contracts cover blocked zero-call behavior, MCP/HTTP failure progress, later-stage failure retention, deterministic merge/no double count, privacy, and unchanged success/partial-success semantics.
 - Persisted `AutomationRun.error` messages are derived from stable category, provider, or authorization product text; raw failure causes remain process-local and the existing `unattendedAudit` boundary is unchanged.
 
-`0.6 Phase 2` is complete. `0.6 overall` remains **IN PROGRESS** because Phase 3 and Acceptance Closure are intentionally deferred.
+`0.6 Phase 2` is complete. `0.6 overall` remains **IN PROGRESS** because Acceptance Closure is intentionally deferred.
+
+### Phase 3 — Declarative Extension permission & disable semantics
+
+- **COMPLETE（2026-08-12）**
+- 现有 `ExtensionManifestV1` 的权限字段继续作为 declaration；由纯 TypeScript resolver 与当前 `enabled`、能力快照和底层设置交集决定 `ready`、`blocked` 或 `invalid`，不自动授予权限。
+- 主题/人设的真实应用入口、显式启用和设置层内置 Obsidian/Fenbi 边界均在执行前复核当前状态；停用、撤销、旧 UI callback、无效旧记录和能力缺失均 fail closed。
+- 升级改变声明时不继承旧 enabled；学习路径、已安排模板和评分标准包保持数据声明，不创建 plugin runtime、MCP registry 或任意代码执行。
+- 保持既有 MCP/Host/AI/Vault authority、隐私边界、`review_extensions` v1 与 `review_workspace` v16；无新迁移、外部审计表或自动 fallback。
+- 详见 `docs/declarative-extension-permissions.md`。
 
 ### Deferred 0.6 work
 
-- Phase 3：Declarative Extension permission & disable semantics（NOT STARTED）。
 - Acceptance Closure：针对完整 0.6 范围的最终收口（NOT STARTED）。
 
 0.6 overall：**IN PROGRESS**。

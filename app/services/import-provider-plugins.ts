@@ -1,4 +1,5 @@
 import type { ImportDraft, ImportProviderParseResult, ImportProviderPlugin } from "../types/domains/import.ts";
+import { assertSettingsPluginEnabled } from "./settings-plugin-preferences-repository.ts";
 
 function diagnosticsForDrafts(drafts: ImportDraft[]): ImportProviderParseResult["diagnostics"] {
   const diagnostics: ImportProviderParseResult["diagnostics"] = [
@@ -24,9 +25,14 @@ export const fenbiImportProviderPlugin: ImportProviderPlugin = {
   draftSink: "import-drafts",
   aiCapabilities: ["text-parse", "vision-ocr"],
   async parseText({ rawText, mode, textConnection }) {
+    assertSettingsPluginEnabled("fenbi-import");
     if (mode === "ai" && !textConnection) throw new Error("请先在 AI 连接中配置默认文本连接，再使用粉笔 AI 文本解析。");
     const drafts = mode === "ai"
-      ? await (await import("./fenbi-import-service.ts")).parseFenbiTextWithAi(rawText, textConnection!)
+      ? await (async () => {
+        const { parseFenbiTextWithAi } = await import("./fenbi-import-service.ts");
+        assertSettingsPluginEnabled("fenbi-import");
+        return parseFenbiTextWithAi(rawText, textConnection!);
+      })()
       : (await import("./fenbi-parser.ts")).parseFenbiTextByName(rawText, "paste.txt");
     return {
       providerId: "fenbi",
@@ -37,7 +43,10 @@ export const fenbiImportProviderPlugin: ImportProviderPlugin = {
     };
   },
   async parseFile({ file, visionConnection }) {
-    const drafts = await (await import("./fenbi-import-service.ts")).parseFenbiFile(file, visionConnection);
+    assertSettingsPluginEnabled("fenbi-import");
+    const { parseFenbiFile } = await import("./fenbi-import-service.ts");
+    assertSettingsPluginEnabled("fenbi-import");
+    const drafts = await parseFenbiFile(file, visionConnection);
     return {
       providerId: "fenbi",
       sourceLabel: "粉笔导入",

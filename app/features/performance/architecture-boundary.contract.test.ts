@@ -171,6 +171,30 @@ test("MCP permission core 与 execution boundary 不被 Feature UI 绕过", asyn
   ]);
 });
 
+test("声明式扩展和内置插件在真实执行入口复核当前状态", async () => {
+  const [permissionSource, serviceSource, settingsSource, obsidianBridgeSource, obsidianRuntimeSource, importProviderSource, fenbiQuickImportSource] = await Promise.all([
+    readFile(path.join(APP_ROOT, "services/declarative-extension-permissions.ts"), "utf8"),
+    readFile(path.join(APP_ROOT, "services/declarative-extension-service.ts"), "utf8"),
+    readFile(path.join(APP_ROOT, "features/settings/plugins/settings-plugins-view.tsx"), "utf8"),
+    readFile(path.join(APP_ROOT, "features/knowledge/use-obsidian-knowledge-bridge.ts"), "utf8"),
+    readFile(path.join(APP_ROOT, "services/obsidian-sync-runtime.ts"), "utf8"),
+    readFile(path.join(APP_ROOT, "services/import-provider-plugins.ts"), "utf8"),
+    readFile(path.join(APP_ROOT, "features/import/use-fenbi-quick-import.ts"), "utf8"),
+  ]);
+  assert.doesNotMatch(permissionSource, /react|next\/|reviewDb|fetch\s*\(|MCP|Electron|window|document/i);
+  assert.match(permissionSource, /resolveExtensionAuthorization/);
+  assert.match(serviceSource, /inspectInstalledExtensionAuthorization/);
+  assert.match(serviceSource, /executeInstalledExtensionAction/);
+  assert.doesNotMatch(serviceSource, /eval\s*\(|new\s+Function|<script|\.tsx/i);
+  assert.match(settingsSource, /executeInstalledExtensionAction/);
+  assert.match(settingsSource, /extensionAuthorizationMessage/);
+  assert.doesNotMatch(settingsSource, /fetch\s*\(|\/api\/mcp|reviewDesktop(?:Vault|Window)/);
+  assert.match(obsidianBridgeSource, /assertSettingsPluginEnabled\("obsidian-vault"\)/);
+  assert.match(obsidianRuntimeSource, /settingsPluginPreferencesRepository\.isEnabled\("obsidian-vault"\)/);
+  assert.match(importProviderSource, /assertSettingsPluginEnabled\("fenbi-import"\)/);
+  assert.match(fenbiQuickImportSource, /assertSettingsPluginEnabled\("fenbi-import"\)[\s\S]*?fenbiCredentialRepository\.reveal/);
+});
+
 test("AI capability core 保持纯 TypeScript 且不反向依赖协议实现", async () => {
   const capabilityFiles = [
     "types/domains/ai-capability.ts",

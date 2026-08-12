@@ -22,11 +22,10 @@ import {
   ObsidianVaultError,
   obsidianVaultAdapter,
 } from "./obsidian-vault-adapter.ts";
-
+import { assertSettingsPluginEnabled } from "./settings-plugin-preferences-repository.ts";
 const DEFAULT_MANAGED_ROOT = "AI知识库";
 let activeDirectoryHandle: FileSystemDirectoryHandle | undefined;
 const runningOperations = new Set<string>();
-
 export type KnowledgeEvolutionSource = {
   id: string;
   type: KnowledgeEvolutionProposal["sourceType"];
@@ -34,8 +33,6 @@ export type KnowledgeEvolutionSource = {
   content: string;
   tags: string[];
 };
-
-
 /** 防止同一 repository 操作被双击或多组件并发执行。 */
 async function withOperationLock<T>(key: string, task: () => Promise<T>): Promise<T> {
   if (runningOperations.has(key)) throw new Error("同一 Obsidian 操作正在进行，请等待完成后再试");
@@ -46,8 +43,7 @@ async function withOperationLock<T>(key: string, task: () => Promise<T>): Promis
     runningOperations.delete(key);
   }
 }
-
-async function requireConnectedConfig(): Promise<ObsidianVaultConfig> {
+async function requireConnectedConfig(): Promise<ObsidianVaultConfig> { assertSettingsPluginEnabled("obsidian-vault");
   const config = await reviewDb.obsidianVaultConfigs.get("default");
   const preferredBackend = obsidianVaultAdapter.preferredBackend();
   if (!config || (preferredBackend === "desktop" && config.backend !== "desktop") || (preferredBackend === "browser" && config.backend !== "desktop" && !config.directoryHandle)) {
@@ -60,7 +56,7 @@ async function requireConnectedConfig(): Promise<ObsidianVaultConfig> {
 }
 
 async function writeMappedEntry(config: ObsidianVaultConfig, entry: KnowledgeEntry, mapping: ObsidianNoteMapping, today: Date): Promise<ObsidianNoteMapping> {
-  const markdown = await serializeObsidianEntry(entry, mapping.wikilinks, mapping.sourceRefs);
+  const markdown = await serializeObsidianEntry(entry, mapping.wikilinks, mapping.sourceRefs); assertSettingsPluginEnabled("obsidian-vault");
   await obsidianVaultAdapter.writeMarkdown(config.directoryHandle, config.managedRoot, mapping.path, markdown, config.backend);
   const hash = await semanticHash(entry, mapping.wikilinks);
   const timestamp = nowStamp(today);
@@ -124,8 +120,7 @@ export const obsidianKnowledgeRepository = {
       pendingProposalCount,
     };
   },
-
-  async connect(managedRoot = DEFAULT_MANAGED_ROOT, today = new Date()): Promise<ObsidianVaultSnapshot> {
+  async connect(managedRoot = DEFAULT_MANAGED_ROOT, today = new Date()): Promise<ObsidianVaultSnapshot> { assertSettingsPluginEnabled("obsidian-vault");
     const normalizedRoot = normalizeObsidianPath(managedRoot || DEFAULT_MANAGED_ROOT, "托管目录");
     const selection = await obsidianVaultAdapter.chooseVault();
     await obsidianVaultAdapter.ensureManagedTree(selection.directoryHandle, normalizedRoot, selection.backend);
@@ -135,15 +130,13 @@ export const obsidianKnowledgeRepository = {
     activeDirectoryHandle = selection.directoryHandle;
     return this.loadSnapshot();
   },
-
-  async requestPermission(): Promise<ObsidianVaultSnapshot> {
+  async requestPermission(): Promise<ObsidianVaultSnapshot> { assertSettingsPluginEnabled("obsidian-vault");
     const config = await reviewDb.obsidianVaultConfigs.get("default");
     if (!config || (config.backend !== "desktop" && !activeDirectoryHandle)) throw new Error("已保存的 Vault 句柄尚未恢复，请刷新页面或重新选择 Vault");
     const permission = await obsidianVaultAdapter.permission(activeDirectoryHandle, true, config.backend);
     if (permission !== "granted") throw new Error("Vault 仍未获得读写权限，请重新授权或重新选择 Vault");
     return this.loadSnapshot();
   },
-
   async sync(today = new Date()): Promise<ObsidianSyncReport> {
     return withOperationLock("sync", async () => {
       const config = await requireConnectedConfig();
@@ -266,6 +259,7 @@ export const obsidianKnowledgeRepository = {
 
       // 文件系统无法参与 IndexedDB 事务；先写 Vault，失败时不提交任何新基线，下一次同步可安全恢复。
       for (const write of vaultWrites) {
+        assertSettingsPluginEnabled("obsidian-vault");
         await obsidianVaultAdapter.writeMarkdown(config.directoryHandle, config.managedRoot, write.path, write.markdown, config.backend);
       }
       await reviewDb.transaction("rw", [reviewDb.knowledgeEntries, reviewDb.obsidianNoteMappings, reviewDb.obsidianVaultConfigs], async () => {
@@ -278,7 +272,7 @@ export const obsidianKnowledgeRepository = {
     });
   },
 
-  async importMarkdownFiles(files: File[], today = new Date()): Promise<number> {
+  async importMarkdownFiles(files: File[], today = new Date()): Promise<number> { assertSettingsPluginEnabled("obsidian-vault");
     const markdownFiles = files.filter((file) => /\.md$/i.test(file.name));
     for (const file of markdownFiles) {
       const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
@@ -292,9 +286,7 @@ export const obsidianKnowledgeRepository = {
     return reviewDb.obsidianNoteMappings.orderBy("updatedAt").reverse().toArray();
   },
 
-  async loadGraphSnapshot(): Promise<ObsidianGraphSnapshot> {
-    return loadObsidianGraphSnapshot();
-  },
+  async loadGraphSnapshot(): Promise<ObsidianGraphSnapshot> { return loadObsidianGraphSnapshot(); },
 
   async mappingForKnowledge(knowledgeId: string): Promise<ObsidianNoteMapping | undefined> {
     return reviewDb.obsidianNoteMappings.where("knowledgeId").equals(knowledgeId).first();
@@ -309,7 +301,10 @@ export const obsidianKnowledgeRepository = {
     const mappings = (await reviewDb.obsidianNoteMappings.where("knowledgeId").anyOf(knowledgeIds).toArray());
     if (!mappings.length) return;
     const config = await requireConnectedConfig();
-    for (const mapping of mappings) await obsidianVaultAdapter.removeMarkdown(config.directoryHandle, config.managedRoot, mapping.path, config.backend);
+    for (const mapping of mappings) {
+      assertSettingsPluginEnabled("obsidian-vault");
+      await obsidianVaultAdapter.removeMarkdown(config.directoryHandle, config.managedRoot, mapping.path, config.backend);
+    }
     await reviewDb.obsidianNoteMappings.bulkDelete(mappings.map((item) => item.path));
   },
 
@@ -431,6 +426,7 @@ export const obsidianKnowledgeRepository = {
       }
 
       const markdown = await serializeObsidianEntry(entry, mapping.wikilinks, mapping.sourceRefs);
+      assertSettingsPluginEnabled("obsidian-vault");
       await obsidianVaultAdapter.writeMarkdown(config.directoryHandle, config.managedRoot, mapping.path, markdown, config.backend);
       const hash = await semanticHash(entry, mapping.wikilinks);
       const syncedMapping: ObsidianNoteMapping = { ...mapping, baseHash: hash, vaultHash: hash, appHash: hash, status: "synced", conflictVaultMarkdown: undefined, conflictAppMarkdown: undefined, lastSyncedAt: timestamp, updatedAt: timestamp };

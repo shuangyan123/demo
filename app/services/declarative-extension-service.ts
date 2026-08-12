@@ -1,10 +1,16 @@
 import { extensionDb } from "../db/extension-db.ts";
+import {
+  currentDeclarativeExtensionRuntime,
+  extensionPermissionByKind,
+  resolveExtensionAuthorization,
+  sameExtensionAuthorizationDeclaration,
+  type ExtensionAuthorizationDecision,
+} from "./declarative-extension-permissions.ts";
 import type {
   DeclarativeExtensionPackage,
   ExtensionAsset,
   ExtensionKind,
   ExtensionManifestV1,
-  ExtensionPermission,
   InstalledExtensionRecord,
 } from "../types/domains/declarative-extension.ts";
 
@@ -158,13 +164,7 @@ function validateRubricPackData(value: unknown): void {
   }
 }
 
-const kindPermission: Record<ExtensionKind, ExtensionPermission> = {
-  theme: "appearance.write",
-  persona: "persona.write",
-  "study-pack": "study.read",
-  "automation-pack": "automation.template",
-  "rubric-pack": "rubric.read",
-};
+const kindPermission = extensionPermissionByKind;
 
 function validateData(kind: ExtensionKind, value: unknown): void {
   assertNoRemoteRuntimeData(value);
@@ -261,15 +261,18 @@ export async function validateExtensionPackage(value: unknown): Promise<Declarat
 export async function installExtension(value: unknown, source: InstalledExtensionRecord["source"]): Promise<InstalledExtensionRecord> {
   const extensionPackage = await validateExtensionPackage(value);
   const existing = await extensionDb.extensions.get(extensionPackage.manifest.id);
-  if (existing && compareSemver(extensionPackage.manifest.version, existing.package.manifest.version) < 0) throw new Error("扩展版本低于已安装版本，请使用回滚操作");
+  const existingVersion = existing?.package?.manifest?.version;
+  if (existingVersion && compareSemver(extensionPackage.manifest.version, existingVersion) < 0) throw new Error("扩展版本低于已安装版本，请使用回滚操作");
   const now = new Date().toISOString();
+  const declarationChanged = existing ? !sameExtensionAuthorizationDeclaration(existing.package?.manifest, extensionPackage.manifest) : false;
   const record: InstalledExtensionRecord = {
     id: extensionPackage.manifest.id,
     kind: extensionPackage.manifest.kind,
-    enabled: existing?.enabled ?? false,
+    // 新版本若改变声明，旧 enabled 只代表旧包状态，不能默默授权新要求。
+    enabled: declarationChanged ? false : existing?.enabled === true,
     source,
     package: extensionPackage,
-    previousPackage: existing && existing.package.manifest.version !== extensionPackage.manifest.version ? existing.package : existing?.previousPackage,
+    previousPackage: existing?.package && existing.package.manifest.version !== extensionPackage.manifest.version ? existing.package : existing?.previousPackage,
     rollbackData: existing?.rollbackData,
     installedAt: existing?.installedAt ?? now,
     updatedAt: now,
@@ -278,17 +281,86 @@ export async function installExtension(value: unknown, source: InstalledExtensio
   return record;
 }
 
+type ExtensionAuthorizationFailure = Exclude<ExtensionAuthorizationDecision, { status: "ready" }>;
+
+export class ExtensionAuthorizationError extends Error {
+  readonly decision: ExtensionAuthorizationFailure;
+
+  constructor(decision: ExtensionAuthorizationFailure) {
+    const message = decision.status === "invalid"
+      ? "扩展声明无效，已阻止执行"
+      : decision.reason === "extension_disabled"
+        ? "扩展已停用，已阻止执行"
+        : decision.reason === "capability_unavailable"
+          ? "当前应用尚无该扩展的可执行入口"
+          : "扩展所需的当前产品权限不可用";
+    super(message);
+    this.name = "ExtensionAuthorizationError";
+    this.decision = decision;
+  }
+}
+
+export async function inspectInstalledExtensionAuthorization(id: string): Promise<{
+  record?: InstalledExtensionRecord;
+  decision: ExtensionAuthorizationDecision;
+}> {
+  const record = await extensionDb.extensions.get(id);
+  if (!record) return { decision: { status: "invalid", reason: "extension_invalid", declaredPermissions: [] } };
+  return {
+    record,
+    decision: resolveExtensionAuthorization({
+      declaration: record.package?.manifest,
+      enabled: record.enabled,
+      expectedId: record.id,
+      expectedKind: record.kind,
+      availablePermissions: currentDeclarativeExtensionRuntime.availablePermissions,
+      lowerLevelPermissions: currentDeclarativeExtensionRuntime.lowerLevelPermissions,
+    }),
+  };
+}
+
+/** 显式启用的状态转换预检；它不执行扩展动作，也不把声明自动升级为授权。 */
+export async function assertInstalledExtensionCanEnable(id: string): Promise<InstalledExtensionRecord> {
+  const authorization = await inspectInstalledExtensionAuthorization(id); if (!authorization.record) throw new Error("扩展尚未安装");
+  const decision = resolveExtensionAuthorization({ declaration: authorization.record.package?.manifest, enabled: true, expectedId: authorization.record.id, expectedKind: authorization.record.kind, availablePermissions: currentDeclarativeExtensionRuntime.availablePermissions, lowerLevelPermissions: currentDeclarativeExtensionRuntime.lowerLevelPermissions });
+  if (decision.status !== "ready") throw new ExtensionAuthorizationError(decision); return authorization.record;
+}
+
+/** 所有声明式扩展真实应用入口的共同边界；回调执行前重新读取当前记录。 */
+export async function executeInstalledExtensionAction<T>(
+  id: string,
+  action: (record: InstalledExtensionRecord) => T | Promise<T>,
+): Promise<T> {
+  const authorization = await inspectInstalledExtensionAuthorization(id);
+  if (!authorization.record) throw new Error("扩展尚未安装");
+  if (authorization.decision.status !== "ready") throw new ExtensionAuthorizationError(authorization.decision);
+  return action(authorization.record);
+}
+
 export const declarativeExtensionRepository = {
   list: () => extensionDb.extensions.orderBy("updatedAt").reverse().toArray(),
   get: (id: string) => extensionDb.extensions.get(id),
   install: installExtension,
 
   async setEnabled(id: string, enabled: boolean, rollbackData?: unknown): Promise<InstalledExtensionRecord> {
-    const existing = await extensionDb.extensions.get(id);
-    if (!existing) throw new Error("扩展尚未安装");
-    const updated = { ...existing, enabled, rollbackData: enabled ? rollbackData : undefined, updatedAt: new Date().toISOString() };
-    await extensionDb.extensions.put(updated);
-    return updated;
+    return extensionDb.transaction("rw", extensionDb.extensions, async () => {
+      const existing = await extensionDb.extensions.get(id);
+      if (!existing) throw new Error("扩展尚未安装");
+      if (enabled) {
+        const decision = resolveExtensionAuthorization({
+          declaration: existing.package?.manifest,
+          enabled: true,
+          expectedId: existing.id,
+          expectedKind: existing.kind,
+          availablePermissions: currentDeclarativeExtensionRuntime.availablePermissions,
+          lowerLevelPermissions: currentDeclarativeExtensionRuntime.lowerLevelPermissions,
+        });
+        if (decision.status !== "ready") throw new ExtensionAuthorizationError(decision);
+      }
+      const updated = { ...existing, enabled: enabled === true, rollbackData: enabled === true ? rollbackData : undefined, updatedAt: new Date().toISOString() };
+      await extensionDb.extensions.put(updated);
+      return updated;
+    });
   },
 
   async rollback(id: string): Promise<InstalledExtensionRecord> {
@@ -315,11 +387,12 @@ export const declarativeExtensionRepository = {
   async exportPackage(id: string): Promise<string> {
     const existing = await extensionDb.extensions.get(id);
     if (!existing) throw new Error("扩展尚未安装");
+    if (!existing.package?.manifest) throw new ExtensionAuthorizationError({ status: "invalid", reason: "extension_invalid", declaredPermissions: [] });
     return JSON.stringify(existing.package, null, 2);
   },
 
   async enabledPackages(): Promise<DeclarativeExtensionPackage[]> {
-    return (await extensionDb.extensions.toArray()).filter((record) => record.enabled).map((record) => record.package);
+    return (await extensionDb.extensions.toArray()).filter((record) => record.enabled && record.package?.manifest).map((record) => record.package);
   },
 
   async reset(): Promise<void> {

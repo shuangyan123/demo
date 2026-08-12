@@ -9,7 +9,7 @@ import { emitAiActivity } from "../../services/ai-activity-events";
 import { obsidianSyncRuntime } from "../../services/obsidian-sync-runtime.ts";
 import { useObsidianSyncRuntimeSnapshot } from "./obsidian-sync-runtime-host.tsx";
 import { useUiReviewData } from "../shared/ui-review-data-context.tsx";
-import { settingsPluginPreferencesRepository } from "../../services/settings-plugin-preferences-repository.ts";
+import { assertSettingsPluginEnabled, settingsPluginPreferencesRepository } from "../../services/settings-plugin-preferences-repository.ts";
 
 const EMPTY_SNAPSHOT: ObsidianVaultSnapshot = {
   id: "default", vaultName: "", managedRoot: "AI知识库", connected: false, permission: "denied",
@@ -91,8 +91,10 @@ export function useObsidianKnowledgeBridge({
   }, [onNotice, refresh]);
 
   const run = useCallback(async (task: () => Promise<string | void>, fallback: string) => {
-    if (!pluginEnabled) {
-      onNotice("Obsidian Vault 插件已停用，请在插件页重新启用。");
+    try {
+      assertSettingsPluginEnabled("obsidian-vault");
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "Obsidian Vault 插件已停用，请在插件页重新启用。");
       onOpenPlugins();
       return;
     }
@@ -116,7 +118,7 @@ export function useObsidianKnowledgeBridge({
     } finally {
       setBusy(false);
     }
-  }, [onChanged, onNotice, onOpenPlugins, pluginEnabled, refresh, safeMode]);
+  }, [onChanged, onNotice, onOpenPlugins, refresh, safeMode]);
 
   const connect = useCallback((managedRoot: string) => run(async () => {
     const obsidianKnowledgeRepository = await loadObsidianKnowledgeRepository();
@@ -160,6 +162,7 @@ export function useObsidianKnowledgeBridge({
     }
     const graphSnapshot = await obsidianKnowledgeRepository.loadGraphSnapshot();
     const modelId = await aiConnectionsRepository.resolveRuntimeModel(textConnection, "text");
+    assertSettingsPluginEnabled("obsidian-vault");
     const result = await requestKnowledgeEvolutionProposals({ connection: textConnection, modelId, personalization, sources, entries, graph: graphSnapshot, activityRunId });
     emitAiActivity({ runId: activityRunId, module: "Obsidian 插件", purpose: "知识演进提案", presentation: "background", phase: "waiting", label: `${textConnection.provider} · ${modelId}`, stepId: "save", connectionLabel: textConnection.label, model: modelId, text: `正在保存 ${result.proposals.length} 条 pending 提案` });
     await obsidianKnowledgeRepository.saveProposals(result.proposals);

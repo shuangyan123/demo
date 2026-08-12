@@ -9,6 +9,7 @@ import { markDuplicateDrafts } from "../../services/dedupe-service";
 import { importDraftRepository } from "../../services/import-draft-repository";
 import { getImportProviderPlugin } from "../../services/import-provider-plugins";
 import { reviewRepository } from "../../services/review-repository";
+import { assertSettingsPluginEnabled } from "../../services/settings-plugin-preferences-repository.ts";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { ImportBatch, ImportDraft, ImportJob, PersistedImportDraft } from "../../types/domains/import.ts";
 import type { Mistake } from "../../types/domains/review.ts";
@@ -92,6 +93,7 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     jobMessage: string;
     existingDrafts?: Array<{ stem: string }>;
   }) {
+    assertSettingsPluginEnabled("fenbi-import");
     const withIssues = markDuplicateDrafts(input.drafts, mistakes, input.existingDrafts);
     await importDraftRepository.addDrafts(withIssues, {
       batchId: input.batchId,
@@ -116,6 +118,7 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
 
   /** 把账户同步结果接入现有草稿链路；确认前不会创建错题。 */
   async function importAccountDrafts(accountDrafts: ImportDraft[]): Promise<number> {
+    assertSettingsPluginEnabled("fenbi-import");
     const batch = await importDraftRepository.createBatch({
       source: "fenbi",
       fileNames: ["粉笔账户同步"],
@@ -147,6 +150,12 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     const rawText = textValue(new FormData(form).get("rawText"));
     if (!rawText) {
       setNotice("请先粘贴粉笔错题文本");
+      return;
+    }
+    try {
+      assertSettingsPluginEnabled("fenbi-import");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "粉笔导入插件已停用");
       return;
     }
 
@@ -205,6 +214,12 @@ export function useImportDrafts({ textConnection, visionConnection, importJobs, 
     const files = filesFromForm(form);
     if (!files.length) {
       setNotice("请选择粉笔截图或导出文件");
+      return;
+    }
+    try {
+      assertSettingsPluginEnabled("fenbi-import");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "粉笔导入插件已停用");
       return;
     }
 
