@@ -11,12 +11,13 @@ export async function openConnectionEditor(page: Page) {
 }
 
 /** 使用紧凑厂商选择器创建本地 OpenAI 兼容连接。 */
-export async function configureCustomTextConnection(page: Page, input: { label: string; baseUrl: string; model: string }) {
+export async function configureCustomTextConnection(page: Page, input: { label: string; baseUrl: string; model: string; apiKey?: string }) {
   await (await openConnectionEditor(page)).click();
   await page.getByRole("option", { name: /Local \/ Custom/ }).click();
   await page.getByText("高级设置", { exact: true }).click();
   await page.getByLabel("连接名称").fill(input.label);
   await page.getByLabel("Base URL").fill(input.baseUrl);
+  if (input.apiKey) await page.getByLabel("API Key").fill(input.apiKey);
   await page.getByRole("button", { name: "保存连接" }).click();
 }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-12 — 0.7 Desktop Credential Acceptance Stabilization
+
+- Corrected the installed-app acceptance order so Desktop authority is established before a non-empty fresh credential is saved and verified after restart; WebCrypto, Desktop `safeStorage`, installed-app persistence, and DPAPI portability remain separate evidence claims.
+- Strengthened the deterministic fake-Desktop Browser E2E with a non-empty credential protect/unprotect round-trip and safe no-plaintext assertions without exposing credential or backend internals to product UI.
+- Windows installed-app acceptance remains **PENDING MANUAL ACCEPTANCE**. No credential cleanup or retained-source deletion was performed.
+
 ## 2026-08-12 — 0.7 Desktop Credential Product Entry
 
 - Added the smallest explicit Desktop credential migration entry under Settings → AI connections. Web does not render a fake Desktop action, and opening Settings performs only safe status/journal reads.

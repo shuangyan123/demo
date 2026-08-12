@@ -37,6 +37,30 @@ test("requires-reentry、blocked、recovery-required 和不可用状态都使用
   assert.equal(projectDesktopCredentialMigration({ ...available, protectionStatus: "temporarily_unavailable" }).status, "unavailable");
 });
 
+test("迁移前后 Desktop protection unavailable 都使用不暗示迁移历史的安全文案", () => {
+  const models = [
+    projectDesktopCredentialMigration({
+      ...available,
+      protectionStatus: "temporarily_unavailable",
+      journal: { state: "idle", reason: "host_unavailable_before_migration", backendPolicy: "web_preferred" },
+    }),
+    projectDesktopCredentialMigration({
+      ...available,
+      protectionStatus: "temporarily_unavailable",
+      journal: { state: "complete", reason: "host_unavailable_after_cutover:api-key-secret", backendPolicy: "desktop_preferred" },
+    }),
+  ];
+
+  for (const model of models) {
+    assert.equal(model.status, "unavailable");
+    assert.equal(model.canStart, false);
+    assert.match(model.message, /暂时无法读取或继续验证 Desktop 凭据/);
+    assert.match(model.message, /不会降级为明文存储/);
+    assert.match(model.message, /不会将 Desktop 凭据静默回退到 Web/);
+    assert.doesNotMatch(JSON.stringify(model), /未执行迁移|host_unavailable_after_cutover|api-key-secret/i);
+  }
+});
+
 test("UI-visible migration model 不包含 journal ID、密文或原始错误", () => {
   const model = projectDesktopCredentialMigration({
     ...available,

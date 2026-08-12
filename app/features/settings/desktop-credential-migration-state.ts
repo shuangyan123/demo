@@ -37,7 +37,7 @@ const SAFE_MESSAGES: Record<DesktopCredentialMigrationUiStatus, string> = {
   requires_reentry: "部分凭据需要重新输入。完成重新输入后，可以安全重试迁移。",
   blocked: "当前凭据迁移被安全规则阻止。处理对应配置后，可以安全重试。",
   recovery_required: "迁移需要恢复。可以安全重试；Web 凭据仍保留，未执行清理。",
-  unavailable: "Desktop 凭据保护当前不可用。未执行迁移，也不会回退到明文或 Web 写入。",
+  unavailable: "Desktop 凭据保护当前不可用。暂时无法读取或继续验证 Desktop 凭据；不会降级为明文存储，也不会将 Desktop 凭据静默回退到 Web。",
 };
 
 const IN_PROGRESS_STATES = new Set<CredentialMigrationJournal["state"]>([
