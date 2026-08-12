@@ -31,8 +31,8 @@ import { useConversationTutoringFinish } from "./use-conversation-tutoring-finis
 import { useConversationContext } from "./use-conversation-context.ts";
 import "./conversation-navigation.module.css";
 import { isUiReviewRuntimeActive } from "../../services/ui-review-runtime-guard.ts";
-const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false });
-const ConversationTutoringExperience = dynamic(() => import("./conversation-tutoring-experience").then((module) => module.ConversationTutoringExperience), { loading: () => <div className="conversation-message-list"><span className="ui-spinner" /></div> });
+import { assertSettingsPluginEnabled, guardSettingsPluginAction } from "../../services/settings-plugin-preferences-repository.ts";
+const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((module) => module.RealtimeVoicePanel), { ssr: false }); const ConversationTutoringExperience = dynamic(() => import("./conversation-tutoring-experience").then((module) => module.ConversationTutoringExperience), { loading: () => <div className="conversation-message-list"><span className="ui-spinner" /></div> });
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({ activeConversationId, connections, defaultSelections, knowledgeEntries, launchContext, personalization,
   scheduledCount, snapshot, transcriptionConnection, sampleMode = false, onCreateConversation, onConversationSelected, onOpenConnections,
@@ -336,9 +336,8 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
     await appendStep(activeConversation.id, runId, `MCP · ${label}`, "done", summary, "timeline");
     await onRefresh();
   }
-  async function generateConversationProposals() {
-    if (!activeConversation || !effectiveConnection) return;
-    const runId = crypto.randomUUID();
+  async function generateConversationProposals() { if (!activeConversation || !effectiveConnection) return;
+    if (!guardSettingsPluginAction("obsidian-vault", onNotice, "Obsidian Vault 插件已停用")) return; const runId = crypto.randomUUID();
     setProposalBusy(true);
     try {
       await appendStep(activeConversation.id, runId, "收集提案来源", "done", `当前对话 · ${proposalKnowledgeIds.length} 条已勾选知识`, "timeline");
@@ -354,6 +353,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
         import("../../services/knowledge-evolution-service"), import("../../services/obsidian-knowledge-repository"),
       ]);
       const graph = await obsidianKnowledgeRepository.loadGraphSnapshot();
+      assertSettingsPluginEnabled("obsidian-vault");
       const result = await requestKnowledgeEvolutionProposals({ connection: effectiveConnection, modelId: selectedModelId, selectedRuntimeValues, personalization, sources, entries: knowledgeEntries, graph, activityRunId: runId });
       const linked = result.proposals.map((proposal) => ({ ...proposal, conversationId: activeConversation.id, runId }));
       await obsidianKnowledgeRepository.saveProposals(linked);
@@ -369,7 +369,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
     } finally { setProposalBusy(false); }
   }
   async function updateConversationProposal(proposal: KnowledgeEvolutionProposal, action: "accept" | "reject") {
-    setProposalBusy(true);
+    if (!guardSettingsPluginAction("obsidian-vault", onNotice, "Obsidian Vault 插件已停用")) return; setProposalBusy(true);
     try {
       const { obsidianKnowledgeRepository } = await import("../../services/obsidian-knowledge-repository");
       if (action === "accept") {

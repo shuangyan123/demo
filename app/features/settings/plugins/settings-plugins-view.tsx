@@ -1,8 +1,8 @@
 "use client";
-
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
-import { declarativeExtensionRepository } from "../../../services/declarative-extension-service.ts";
+import { assertInstalledExtensionCanEnable, declarativeExtensionRepository, executeInstalledExtensionAction } from "../../../services/declarative-extension-service.ts";
+import { currentDeclarativeExtensionRuntime, extensionAuthorizationMessage, resolveExtensionAuthorization } from "../../../services/declarative-extension-permissions.ts";
 import { personalizationSettingsRepository, removeCustomPersona } from "../../../services/personalization-settings-repository.ts";
 import { settingsPluginPreferencesRepository } from "../../../services/settings-plugin-preferences-repository.ts";
 import type { ApiConnectionProfile } from "../../../types/domains/ai-connection.ts";
@@ -18,11 +18,9 @@ import { buildPluginDirectory, type PluginDirectoryItem } from "./settings-plugi
 import { settingsPluginDefinitions, type SettingsPluginDefinition, type SettingsPluginId } from "./settings-plugin-registry.ts";
 import styles from "./settings-plugins-view.module.css";
 import { useSettingsPluginPreferences } from "./use-settings-plugin-preferences.ts";
-
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 type ThemeRollback = Pick<AppearanceSettings, "lightTheme" | "darkTheme">;
 type ActivePlugin = { kind: "plugin"; id: string } | { kind: "browse" };
-
 const kindLabels = {
   theme: "主题",
   persona: "教师人设",
@@ -30,7 +28,6 @@ const kindLabels = {
   "automation-pack": "已安排模板",
   "rubric-pack": "评分标准",
 } as const;
-
 const ObsidianPluginPanel = dynamic(() => import("./obsidian/obsidian-plugin-panel").then((module) => module.ObsidianPluginPanel), {
   loading: () => <EmptyState stateId="settings.plugins.loading-obsidian">正在加载 Obsidian Vault…</EmptyState>,
 });
@@ -40,7 +37,6 @@ const ImportWorkspace = dynamic(() => import("../../import/import-workspace").th
 const DeclarativeExtensionMarketplace = dynamic(() => import("./declarative-extension-marketplace").then((module) => module.DeclarativeExtensionMarketplace), {
   loading: () => <EmptyState stateId="settings.plugins.loading-marketplace">正在加载声明式扩展市场…</EmptyState>,
 });
-
 type SettingsPluginsViewProps = {
   appearanceSettings: AppearanceSettings;
   entries: KnowledgeEntry[];
@@ -65,21 +61,17 @@ type SettingsPluginsViewProps = {
   onUpdateKnowledgeDraft: (id: string, patch: Partial<KnowledgeImportDraft>) => void;
   onUpdateKnowledgeDraftList: (id: string, value: string) => void;
 };
-
 function isThemeRollback(value: unknown): value is ThemeRollback {
   return Boolean(value && typeof value === "object" && "lightTheme" in value && "darkTheme" in value);
 }
-
 function itemLabel(item: PluginDirectoryItem): string {
-  return item.kind === "builtin" ? item.definition.label : item.record.package.manifest.name;
+  return item.kind === "builtin" ? item.definition.label : item.record.package?.manifest?.name ?? `无效扩展 · ${item.record.id}`;
 }
-
 function itemDescription(item: PluginDirectoryItem): string {
-  return item.kind === "builtin" ? item.definition.shortDescription : item.record.package.manifest.description;
+  return item.kind === "builtin" ? item.definition.shortDescription : item.record.package?.manifest?.description ?? "声明无效，已阻止执行";
 }
-
 function PluginGlyph({ item }: { item: PluginDirectoryItem }) {
-  if (item.kind === "declarative") return <span className={styles.glyph} aria-hidden="true">{item.record.package.manifest.name.slice(0, 1)}</span>;
+  if (item.kind === "declarative") return <span className={styles.glyph} aria-hidden="true">{item.record.package?.manifest?.name?.slice(0, 1) ?? "?"}</span>;
   const { icon } = item.definition;
   return (
     <span className={styles.glyph} style={{ backgroundColor: icon.background }} aria-hidden="true">
@@ -138,46 +130,63 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
   }, [menuId]);
 
   async function disableDeclarative(record: InstalledExtensionRecord): Promise<void> {
-    if (record.kind === "theme" && isThemeRollback(record.rollbackData)) {
-      props.onAppearanceChange({ ...props.appearanceSettings, ...record.rollbackData });
+    const current = await declarativeExtensionRepository.get(record.id);
+    if (!current || !current.enabled) return;
+    // 先持久化撤销授权，再做主题/人设回滚；并发的旧 callback 从此刻起必须 fail closed。
+    await declarativeExtensionRepository.setEnabled(current.id, false);
+    if (current.kind === "theme" && isThemeRollback(current.rollbackData)) {
+      props.onAppearanceChange({ ...props.appearanceSettings, ...current.rollbackData });
     }
-    if (record.kind === "persona") {
-      const data = record.package.data as PersonaExtensionData;
-      props.onPersonalizationChange(await personalizationSettingsRepository.save(removeCustomPersona(props.personalization, data.persona.id)));
+    if (current.kind === "persona") {
+      const data = current.package?.data as PersonaExtensionData | undefined;
+      if (data?.persona?.id) props.onPersonalizationChange(await personalizationSettingsRepository.save(removeCustomPersona(props.personalization, data.persona.id)));
     }
-    await declarativeExtensionRepository.setEnabled(record.id, false);
   }
 
   async function toggleDeclarative(record: InstalledExtensionRecord): Promise<void> {
     setBusyId(record.id);
     try {
-      if (record.enabled) {
-        await disableDeclarative(record);
+      const current = await declarativeExtensionRepository.get(record.id);
+      if (!current) throw new Error("扩展尚未安装");
+      if (current.enabled) {
+        await disableDeclarative(current);
       } else {
-        if (record.kind === "theme") {
-          for (const current of installed.filter((item) => item.kind === "theme" && item.enabled)) await disableDeclarative(current);
+        const enableCandidate = await assertInstalledExtensionCanEnable(current.id);
+        if (current.kind === "theme") {
+          const latestInstalled = await declarativeExtensionRepository.list();
+          for (const existing of latestInstalled.filter((item) => item.kind === "theme" && item.enabled && item.id !== current.id)) await disableDeclarative(existing);
         }
-        let rollbackData: ThemeRollback | undefined;
-        if (record.kind === "theme") {
-          const data = record.package.data as ThemeExtensionData;
-          rollbackData = { lightTheme: props.appearanceSettings.lightTheme, darkTheme: props.appearanceSettings.darkTheme };
-          props.onAppearanceChange({
-            ...props.appearanceSettings,
-            lightTheme: data.target === "dark" ? props.appearanceSettings.lightTheme : data.theme,
-            darkTheme: data.target === "light" ? props.appearanceSettings.darkTheme : data.theme,
+        const rollbackData: ThemeRollback | undefined = enableCandidate.kind === "theme"
+          ? { lightTheme: props.appearanceSettings.lightTheme, darkTheme: props.appearanceSettings.darkTheme }
+          : undefined;
+        await declarativeExtensionRepository.setEnabled(enableCandidate.id, true, rollbackData);
+        try {
+          await executeInstalledExtensionAction(enableCandidate.id, async (latest) => {
+            if (latest.kind === "theme") {
+              const data = latest.package?.data as ThemeExtensionData | undefined;
+              if (!data) throw new Error("扩展声明无效，已阻止执行");
+              props.onAppearanceChange({
+                ...props.appearanceSettings,
+                lightTheme: data.target === "dark" ? props.appearanceSettings.lightTheme : data.theme,
+                darkTheme: data.target === "light" ? props.appearanceSettings.darkTheme : data.theme,
+              });
+            }
+            if (latest.kind === "persona") {
+              const data = latest.package?.data as PersonaExtensionData | undefined;
+              if (!data?.persona) throw new Error("扩展声明无效，已阻止执行");
+              const next = props.personalization.customPersonas.some((persona) => persona.id === data.persona.id)
+                ? props.personalization
+                : { ...props.personalization, personaDisplayMode: "custom" as const, customPersonas: [...props.personalization.customPersonas, data.persona] };
+              props.onPersonalizationChange(await personalizationSettingsRepository.save(next));
+            }
           });
+        } catch (error) {
+          await declarativeExtensionRepository.setEnabled(enableCandidate.id, false);
+          throw error;
         }
-        if (record.kind === "persona") {
-          const data = record.package.data as PersonaExtensionData;
-          const next = props.personalization.customPersonas.some((persona) => persona.id === data.persona.id)
-            ? props.personalization
-            : { ...props.personalization, personaDisplayMode: "custom" as const, customPersonas: [...props.personalization.customPersonas, data.persona] };
-          props.onPersonalizationChange(await personalizationSettingsRepository.save(next));
-        }
-        await declarativeExtensionRepository.setEnabled(record.id, true, rollbackData);
       }
       await Promise.all([refreshInstalled(), props.onChanged()]);
-      props.onNotice(`${record.package.manifest.name} 已${record.enabled ? "停用" : "启用"}`);
+      props.onNotice(`${record.package?.manifest?.name ?? record.id} 已${record.enabled ? "停用" : "启用"}`);
     } catch (error) {
       props.onNotice(error instanceof Error ? error.message : "扩展状态更新失败");
     } finally {
@@ -187,8 +196,9 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
 
   async function toggle(item: PluginDirectoryItem): Promise<void> {
     if (item.kind === "builtin") {
-      settingsPluginPreferencesRepository.setEnabled(item.id, !item.enabled);
-      props.onNotice(`${item.definition.label} 已${item.enabled ? "停用" : "启用"}；现有数据与配置保持不变`);
+      const currentEnabled = settingsPluginPreferencesRepository.isEnabled(item.id);
+      settingsPluginPreferencesRepository.setEnabled(item.id, !currentEnabled);
+      props.onNotice(`${item.definition.label} 已${currentEnabled ? "停用" : "启用"}；现有数据与配置保持不变`);
       return;
     }
     await toggleDeclarative(item.record);
@@ -197,11 +207,11 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
   async function uninstall(item: Extract<PluginDirectoryItem, { kind: "declarative" }>): Promise<void> {
     setBusyId(item.id);
     try {
-      if (item.record.enabled) await disableDeclarative(item.record);
+      await disableDeclarative(item.record);
       await declarativeExtensionRepository.uninstall(item.id);
       setActive(undefined);
       await Promise.all([refreshInstalled(), props.onChanged()]);
-      props.onNotice(`${item.record.package.manifest.name} 已卸载`);
+       props.onNotice(`${item.record.package?.manifest?.name ?? item.id} 已卸载`);
     } catch (error) {
       props.onNotice(error instanceof Error ? error.message : "扩展卸载失败");
     } finally {
@@ -209,9 +219,7 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
     }
   }
 
-  function closeDetail(): void {
-    setActive(undefined);
-  }
+  function closeDetail(): void { setActive(undefined); }
 
   function renderBuiltinPanel(definition: SettingsPluginDefinition) {
     if (definition.detailPanelLoader === "fenbi-import") {
@@ -251,10 +259,21 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
   if (activeItem) {
     const label = itemLabel(activeItem);
     const description = itemDescription(activeItem);
+    const manifest = activeItem.kind === "declarative" ? activeItem.record.package?.manifest : undefined;
     const source = activeItem.kind === "builtin" ? activeItem.definition.providerLabel : activeItem.record.source === "catalog" ? "官方静态目录" : "本地签名包";
-    const version = activeItem.kind === "builtin" ? "随应用版本更新" : `v${activeItem.record.package.manifest.version}`;
-    const permissions = activeItem.kind === "builtin" ? activeItem.definition.capabilities.join("、") : activeItem.record.package.manifest.permissions.join("、");
+    const version = activeItem.kind === "builtin" ? "随应用版本更新" : manifest ? `v${manifest.version}` : "声明无效";
+    const permissions = activeItem.kind === "builtin" ? activeItem.definition.capabilities.join("、") : manifest?.permissions.join("、") ?? "未知（声明无效）";
     const privacy = activeItem.kind === "builtin" ? activeItem.definition.privacyNote : "扩展保存在独立 review_extensions 数据库；包内不允许脚本、HTML、远程字体或 Token。";
+    const authorization = activeItem.kind === "declarative"
+      ? resolveExtensionAuthorization({
+        declaration: activeItem.record.package?.manifest,
+        enabled: activeItem.record.enabled,
+        expectedId: activeItem.record.id,
+        expectedKind: activeItem.record.kind,
+        availablePermissions: currentDeclarativeExtensionRuntime.availablePermissions,
+        lowerLevelPermissions: currentDeclarativeExtensionRuntime.lowerLevelPermissions,
+      })
+      : undefined;
     return (
       <section ref={detailRef} tabIndex={-1} className={styles.detailPage} aria-label={`${label} 详情`} onKeyDown={(event) => { if (event.key === "Escape") closeDetail(); }}>
         <button className={styles.backButton} type="button" onClick={closeDetail}><AppIcon name="back" size={16} />返回插件</button>
@@ -268,7 +287,7 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
             <button ref={(node) => { if (node) menuButtonRefs.current.set(activeItem.id, node); }} className={styles.detailMore} type="button" aria-label={`${label} 更多操作`} aria-expanded={menuId === activeItem.id} onClick={() => setMenuId((current) => current === activeItem.id ? undefined : activeItem.id)}><AppIcon name="more" size={16} /></button>
             {menuId === activeItem.id ? <div className={`${styles.menu} ${styles.detailMenu}`} role="menu" onMouseDown={(event) => event.stopPropagation()}>
               <button role="menuitem" type="button" onClick={() => props.onNotice(activeItem.kind === "builtin" ? activeItem.definition.privacyNote : privacy)}>隐私与数据边界</button>
-              <button role="menuitem" type="button" onClick={() => props.onNotice(activeItem.kind === "builtin" ? "插件诊断位于下方配置面板。" : `签名有效 · SHA-256 ${activeItem.record.package.manifest.contentSha256}`)}>诊断信息</button>
+               <button role="menuitem" type="button" onClick={() => props.onNotice(activeItem.kind === "builtin" ? "插件诊断位于下方配置面板。" : manifest ? `签名有效 · SHA-256 ${manifest.contentSha256}` : "声明无效，无法读取签名信息")}>诊断信息</button>
               {activeItem.kind === "declarative" ? <button role="menuitem" type="button" className={styles.danger} onClick={() => void uninstall(activeItem)}>卸载</button> : null}
             </div> : null}
           </div>
@@ -279,6 +298,10 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
           <div><dt><AppIcon name="configure" size={16} />权限与能力</dt><dd>{permissions}</dd></div>
           <div><dt><AppIcon name="library" size={16} />本地数据边界</dt><dd>{privacy}</dd></div>
         </dl>
+        {authorization && authorization.status !== "ready" ? <div className={styles.disabledNotice} role="status">
+          <strong>{authorization.status === "invalid" ? "声明无效" : authorization.reason === "extension_disabled" ? "扩展已停用" : "扩展暂不可执行"}</strong>
+          <span>{extensionAuthorizationMessage(authorization)}</span>
+        </div> : null}
         {activeItem.kind === "declarative" ? (
           <div className={styles.detailActions}><Button variant="outline" disabled={busyId === activeItem.id} onClick={() => void uninstall(activeItem)}><AppIcon name="trash" size={16} />卸载</Button></div>
         ) : activeItem.enabled ? <div className={styles.panel}>{renderBuiltinPanel(activeItem.definition)}</div> : <div className={styles.disabledNotice}><strong>插件已停用</strong><span>现有数据和配置仍保留。重新启用后才能执行同步或导入。</span><Button size="sm" onClick={() => void toggle(activeItem)}>重新启用</Button></div>}
@@ -306,8 +329,7 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
               <div className={styles.menuHost}>
                 <button ref={(node) => { if (node) menuButtonRefs.current.set(item.id, node); }} className={styles.moreButton} type="button" aria-label={`${label} 更多操作`} aria-expanded={menuId === item.id} onClick={(event) => { event.stopPropagation(); setMenuId((current) => current === item.id ? undefined : item.id); }}><AppIcon name="more" size={16} /></button>
                 {menuId === item.id ? <div className={styles.menu} role="menu" onMouseDown={(event) => event.stopPropagation()}><button role="menuitem" type="button" onClick={open}>打开详情</button><button role="menuitem" type="button" onClick={() => void toggle(item)}>{item.enabled ? "停用" : "启用"}</button>{item.kind === "declarative" ? <button role="menuitem" type="button" className={styles.danger} onClick={() => void uninstall(item)}>卸载</button> : null}</div> : null}
-              </div>
-            </article>
+              </div></article>
           );
         })}
         {!directory.length ? <EmptyState stateId="settings.plugins.filtered-empty">还没有可管理的插件。</EmptyState> : null}

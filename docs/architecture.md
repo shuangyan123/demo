@@ -487,6 +487,8 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - `PluginDirectoryItem` 把 Obsidian、粉笔两个 `builtin` 定义与 `InstalledExtensionRecord` 派生的 `declarative` 项合并为一级目录。声明式扩展市场只作为“浏览 / 导入扩展”入口，不再伪装成已安装插件。
 - 内置插件启用状态使用 `review_settings_plugins_v1` 版本化 localStorage 配置；默认启用，不升级 Dexie v16。停用只阻止新的 Vault 同步或粉笔导入，并保留既有数据、凭据、草稿与配置。
 - 声明式扩展卸载先撤销主题或人设启用效果，再删除 `review_extensions` 安装记录；内置插件永远不显示卸载动作。
+- 声明式扩展权限由 `declarative-extension-permissions.ts` 纯决策核解释，`enabled` 不等于授权；主题/人设执行入口与 `setEnabled(true)` 都在实际回调/事务前重新读取当前声明、能力和底层设置。学习路径、模板和评分标准包暂时没有 runtime，保持阻断。
+- 内置 Obsidian/Fenbi 的真实 repository、provider、网络和应用级监听边界分别复核当前插件偏好；停用只阻止下一次执行，不删除历史数据，也不创建第二套 MCP 权限系统。详见 `docs/declarative-extension-permissions.md`。
 - Electron 窗口使用 `titleBarStyle: "hidden"` 与 52px `titleBarOverlay`。`.chrome-topbar` 是拖动区，全部按钮标记为 `app-region: no-drag`；受限 IPC 只接受 `light | dark` 并仅调整系统窗口按钮对比色。
 - 顶部栏横跨整个窗口，侧栏和工作区从 52px 标题栏下方开始；`<main>` 仍独占顶部/左侧共边和 18px 左上圆角，浏览器模式不伪造系统窗口按钮。
 

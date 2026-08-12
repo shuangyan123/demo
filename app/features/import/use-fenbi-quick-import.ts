@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fenbiCredentialRepository } from "../../services/fenbi-credential-repository";
 import { fetchLocalApi } from "../../services/local-runtime-diagnostics";
+import { assertSettingsPluginEnabled } from "../../services/settings-plugin-preferences-repository.ts";
 import type { FenbiImportCredential, FenbiSyncEvent, FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
 import type { ImportDraft } from "../../types/domains/import.ts";
 import { normalizeFenbiCookie } from "../../services/fenbi-cookie";
@@ -41,6 +42,14 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
   }, []);
 
   async function validateSavedCookie(cookie?: string, candidate = false, quiet = false): Promise<boolean> {
+    try {
+      assertSettingsPluginEnabled("fenbi-import");
+    } catch (caught) {
+      setStatus("error");
+      setError(caught instanceof Error ? caught.message : "粉笔导入插件已停用");
+      setErrorCode("plugin_disabled");
+      return false;
+    }
     if (safeMode) {
       setError("示例模式禁止验证真实粉笔账户。");
       setErrorCode("sample_mode_blocked");
@@ -55,6 +64,7 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
     const timeoutId = window.setTimeout(() => controller.abort(), 20_000);
     try {
       const plainCookie = normalizeFenbiCookie(cookie ?? await fenbiCredentialRepository.reveal());
+      assertSettingsPluginEnabled("fenbi-import");
       const response = await fetchLocalApi("/api/import/fenbi/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,7 +75,9 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
       const nextRequestId = result.requestId || response.headers.get("x-request-id") || "";
       setRequestId(nextRequestId);
       if (!response.ok || !result.valid) throw Object.assign(new Error(result.message || "粉笔会话验证失败"), { code: result.code });
+      assertSettingsPluginEnabled("fenbi-import");
       if (candidate) await fenbiCredentialRepository.save(plainCookie);
+      assertSettingsPluginEnabled("fenbi-import");
       const verified = fenbiCredentialRepository.markVerified(new Date().toISOString());
       setCredential(verified);
       setStatus("ready");
@@ -91,6 +103,14 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
   }
 
   async function sync(scope: FenbiSyncScope = { wrongOnly: true, sinceDays: 30 }) {
+    try {
+      assertSettingsPluginEnabled("fenbi-import");
+    } catch (caught) {
+      setStatus("error");
+      setError(caught instanceof Error ? caught.message : "粉笔导入插件已停用");
+      setErrorCode("plugin_disabled");
+      return;
+    }
     if (safeMode) {
       setStatus("error");
       setError("示例模式禁止同步真实粉笔账户。");
@@ -114,7 +134,9 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
     setRequestId("");
     setFallbackRecommended(false);
     try {
+      assertSettingsPluginEnabled("fenbi-import");
       const cookie = await fenbiCredentialRepository.reveal();
+      assertSettingsPluginEnabled("fenbi-import");
       const response = await fetchLocalApi("/api/import/fenbi/sync", {
         method: "POST",
         headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
@@ -140,7 +162,9 @@ export function useFenbiQuickImport({ onDrafts, setNotice, sampleMode = false }:
           if (event.type === "drafts") receivedDrafts = event.drafts;
           if (event.type === "error") throw Object.assign(new Error(event.message), { code: event.code });
           if (event.type === "done") {
+            assertSettingsPluginEnabled("fenbi-import");
             const savedCount = await onDrafts(receivedDrafts);
+            assertSettingsPluginEnabled("fenbi-import");
             const scopeLabel = scope.keypointIds?.length
               ? `${scope.keypointIds.length} 个板块`
               : scope.sinceDays ? `最近 ${scope.sinceDays} 天` : "全部错题";
