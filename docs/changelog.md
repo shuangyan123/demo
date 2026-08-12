@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-12 — 0.7 Desktop Credential Migration Phase 2
+
+- Completed controlled Desktop credential cutover with structured IPC errors, explicit source inventory/formats, context binding, staged verification, resumable migration journal, and Desktop-preferred single-write policy.
+- Preserved Web sources and Web mode, retained fail-closed host-unavailable behavior, excluded Desktop envelopes/journal from backup, and kept Windows installed-app acceptance and cleanup as pending follow-up work.
+- Added direct contracts for AI, quota, MCP, and Fenbi repository integration plus zero-unprotect permission/disabled paths.
+
 ## 2026-08-09 · 0.4.x Data Reliability Phase 2
 
 - Health issue 增加 repairability 分类和 Vault permission/mapping/hash 只读诊断；用户事实、凭据和 Vault 问题保持 manual-only。

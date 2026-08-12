@@ -1,5 +1,6 @@
 import type { FenbiImportCredential } from "../types/domains/fenbi-import.ts";
-import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
+import { maskSecret } from "./crypto-service.ts";
+import { clearDesktopCredential, hasCredentialReference, readCredentialSecret, writeCredentialSecret } from "./credential-backend.ts";
 import { secretContext } from "./secret-context.ts";
 import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
@@ -12,7 +13,8 @@ function readCredential(): FenbiImportCredential | undefined {
   if (typeof window === "undefined") return undefined;
   try {
     const parsed = JSON.parse(window.localStorage.getItem(FENBI_CREDENTIAL_STORAGE_KEY) ?? "null") as FenbiImportCredential | null;
-    return parsed?.encryptedCookie && parsed.iv ? parsed : undefined;
+    if (!parsed) return undefined;
+    return hasCredentialReference(secretContext.fenbiCookie(), { encryptedKey: parsed.encryptedCookie, iv: parsed.iv }) ? parsed : undefined;
   } catch {
     return undefined;
   }
@@ -32,7 +34,12 @@ export const fenbiCredentialRepository = {
     assertSettingsPluginEnabled("fenbi-import");
     await ensureStoredSecretsMigrated();
     const normalized = normalizeFenbiCookie(cookie);
-    const encrypted = await encryptSecret(normalized, secretContext.fenbiCookie());
+    const existing = readCredential();
+    const encrypted = await writeCredentialSecret(
+      secretContext.fenbiCookie(),
+      existing ? { encryptedKey: existing.encryptedCookie, iv: existing.iv } : undefined,
+      normalized,
+    );
     const credential: FenbiImportCredential = {
       encryptedCookie: encrypted.encryptedKey,
       iv: encrypted.iv,
@@ -47,7 +54,7 @@ export const fenbiCredentialRepository = {
     await ensureStoredSecretsMigrated();
     const credential = readCredential();
     if (!credential) throw new Error("请先配置粉笔 Cookie");
-    return decryptSecret(credential.encryptedCookie, credential.iv, secretContext.fenbiCookie());
+    return readCredentialSecret(secretContext.fenbiCookie(), { encryptedKey: credential.encryptedCookie, iv: credential.iv });
   },
 
   markVerified(verifiedAt: string): FenbiImportCredential | undefined {
@@ -76,5 +83,6 @@ export const fenbiCredentialRepository = {
 
   clear(): void {
     if (typeof window !== "undefined") window.localStorage.removeItem(FENBI_CREDENTIAL_STORAGE_KEY);
+    clearDesktopCredential(secretContext.fenbiCookie());
   },
 };

@@ -1,7 +1,8 @@
 import { toISODate } from "../lib/review-utils.ts";
 import type { AiQuotaCredentialKey, AiQuotaPluginConfig, AiQuotaMetric, AiQuotaSnapshot, AiQuotaVerificationResult } from "../types/domains/ai-quota.ts";
 import type { ApiProvider } from "../types/domains/ai-provider.ts";
-import { decryptSecret, encryptSecret, maskSecret } from "./crypto-service.ts";
+import { maskSecret } from "./crypto-service.ts";
+import { hasCredentialReference, readCredentialSecret, writeCredentialSecret, type CredentialReference } from "./credential-backend.ts";
 import { aiQuotaProviderPlugins, getAiQuotaPlugin } from "./ai-quota-plugins.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 import { secretContext } from "./secret-context.ts";
@@ -52,20 +53,15 @@ async function getConfig(id: ApiProvider | "manual"): Promise<AiQuotaPluginConfi
 async function decryptCredentials(config: AiQuotaPluginConfig): Promise<Partial<Record<AiQuotaCredentialKey, string>>> {
   const credentials: Partial<Record<AiQuotaCredentialKey, string>> = { teamId: config.parameters?.teamId };
   for (const [key, encrypted] of Object.entries(config.encryptedCredentials ?? {})) {
-    if (!encrypted) continue;
-    credentials[key as AiQuotaCredentialKey] = await decryptSecret(
-      encrypted.encryptedKey,
-      encrypted.iv,
-      secretContext.quotaCredential(config.id, key),
-    );
+    const context = secretContext.quotaCredential(config.id, key);
+    const reference: CredentialReference | undefined = encrypted ? { encryptedKey: encrypted.encryptedKey, iv: encrypted.iv } : undefined;
+    if (!hasCredentialReference(context, reference)) continue;
+    credentials[key as AiQuotaCredentialKey] = await readCredentialSecret(context, reference ?? {});
   }
   // 旧单密钥配置只在读取边界转换，不回写 Dexie 或复制到连接密钥。
-  if (config.encryptedKey && config.iv && !Object.keys(config.encryptedCredentials ?? {}).length) {
-    const legacy = await decryptSecret(
-      config.encryptedKey,
-      config.iv,
-      secretContext.quotaLegacyCredential(config.id),
-    );
+  const legacyContext = secretContext.quotaLegacyCredential(config.id);
+  if (hasCredentialReference(legacyContext, { encryptedKey: config.encryptedKey, iv: config.iv }) && !Object.keys(config.encryptedCredentials ?? {}).length) {
+    const legacy = await readCredentialSecret(legacyContext, { encryptedKey: config.encryptedKey, iv: config.iv });
     credentials[config.id === "openai" || config.id === "anthropic" ? "adminKey" : "apiKey"] = legacy;
   }
   return credentials;
@@ -141,7 +137,7 @@ export const aiQuotaRepository = {
 
   async saveConfig(input: SaveQuotaPluginInput): Promise<AiQuotaPluginConfig> {
     // 旧凭据迁移是尽力而为的后台维护，不能阻断当前额度配置使用新的 v2 密钥保存。
-    void attemptStoredSecretsMigration();
+    await attemptStoredSecretsMigration();
     const configs = readActiveQuotaRecords<AiQuotaPluginConfig>(AI_QUOTA_CONFIG_STORAGE_KEY);
     const existing = configs.find((config) => config.id === input.id);
     const plugin = getAiQuotaPlugin(input.id);
@@ -151,8 +147,9 @@ export const aiQuotaRepository = {
     for (const key of ["apiKey", "adminKey", "managementKey"] as const) {
       const value = submitted[key]?.trim();
       if (!value) continue;
-      const encrypted = await encryptSecret(value, secretContext.quotaCredential(input.id, key));
-      encryptedCredentials[key] = { ...encrypted, maskedKey: maskSecret(value) };
+      const context = secretContext.quotaCredential(input.id, key);
+      const encrypted = await writeCredentialSecret(context, existing?.encryptedCredentials?.[key], value);
+      encryptedCredentials[key] = { encryptedKey: encrypted.encryptedKey, iv: encrypted.iv, maskedKey: maskSecret(value) };
     }
     const config: AiQuotaPluginConfig = {
       id: input.id,
@@ -218,8 +215,9 @@ export const aiQuotaRepository = {
     const plugin = getAiQuotaPlugin(id);
     return plugin.credentialFields.filter((field) => field.required).every((field) => {
       if (field.key === "teamId") return Boolean(config.parameters?.teamId);
-      if (config.encryptedCredentials?.[field.key]) return true;
-      return Boolean(config.encryptedKey && config.iv);
+      const reference = config.encryptedCredentials?.[field.key];
+      if (hasCredentialReference(secretContext.quotaCredential(id, field.key), reference)) return true;
+      return hasCredentialReference(secretContext.quotaLegacyCredential(id), { encryptedKey: config.encryptedKey, iv: config.iv });
     });
   },
 

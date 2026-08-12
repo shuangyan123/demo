@@ -59,8 +59,8 @@ export type CredentialMigrationPlan = {
   nextState: CredentialMigrationState;
   retryable: boolean;
   readStrategy: "web_only" | "desktop_first_web_fallback";
-  writeStrategy: "web_only" | "none_phase_1";
-  destructiveActions: "none_phase_1";
+  writeStrategy: "web_only" | "desktop_preferred";
+  destructiveActions: "none_phase_2";
   items: CredentialMigrationItemPlan[];
 };
 
@@ -140,8 +140,8 @@ function basePlan(items: readonly CredentialInventoryItem[], desktopReady: boole
     nextState: "blocked",
     retryable: false,
     readStrategy: desktopReady ? "desktop_first_web_fallback" : "web_only",
-    writeStrategy: "none_phase_1",
-    destructiveActions: "none_phase_1",
+    writeStrategy: desktopReady ? "desktop_preferred" : "web_only",
+    destructiveActions: "none_phase_2",
     items: planItems(items, desktopReady),
   };
 }

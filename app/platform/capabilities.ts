@@ -55,6 +55,27 @@ export type CredentialProtectionStatus =
   | { status: "available"; backend: "os_protected" }
   | { status: "unavailable" | "unsupported" | "temporarily_unavailable" };
 
+export type CredentialHostErrorCode =
+  | "host_unavailable"
+  | "host_protection_failed"
+  | "host_unprotect_failed"
+  | "host_context_mismatch"
+  | "host_payload_invalid";
+
+export type CredentialHostResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: { code: CredentialHostErrorCode; message: string } };
+
+export class DesktopCredentialProtectionError extends Error {
+  readonly code: CredentialHostErrorCode;
+
+  constructor(code: CredentialHostErrorCode, message: string) {
+    super(message);
+    this.name = "DesktopCredentialProtectionError";
+    this.code = code;
+  }
+}
+
 export type DesktopCredentialEnvelope = {
   version: "desktop-v1";
   context: string;
@@ -88,4 +109,8 @@ export type HostRuntime = {
 /** Electron preload 只实现这些中性端口，renderer 不接触 Node.js、IPC 或绝对路径。 */
 export type DesktopVaultPreloadBridge = Omit<DesktopVaultCapability, "kind">;
 export type DesktopWindowPreloadBridge = NativeWindowCapability;
-export type DesktopCredentialProtectionPreloadBridge = Omit<DesktopCredentialProtectionCapability, "kind">;
+export type DesktopCredentialProtectionPreloadBridge = {
+  getStatus(): Promise<CredentialHostResult<CredentialProtectionStatus>>;
+  protectCredential(context: string, secret: string): Promise<CredentialHostResult<DesktopCredentialEnvelope>>;
+  unprotectCredential(context: string, envelope: DesktopCredentialEnvelope): Promise<CredentialHostResult<DesktopCredentialUnprotectResult>>;
+};

@@ -1,5 +1,5 @@
 import type { McpDiscoveryResult, McpServerProfile, McpToolDescriptor, McpToolPermission } from "../types/domains/mcp.ts";
-import { decryptSecret, encryptSecret } from "./crypto-service.ts";
+import { clearDesktopCredential, hasCredentialReference, readCredentialSecret, writeCredentialSecret, type CredentialReference } from "./credential-backend.ts";
 import type { ClientApiErrorPayload } from "./api-error.ts";
 import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 import { normalizeMcpPersistedPermission, type McpExecutionContext } from "./mcp-permission.ts";
@@ -100,9 +100,12 @@ function writeSnapshot(snapshot: McpSettingsSnapshot): void {
 }
 
 async function tokenFor(profile: McpServerProfile): Promise<string> {
-  if (profile.authMode !== "bearer" || !profile.encryptedToken || !profile.encryptedTokenIv) return "";
+  if (profile.authMode !== "bearer") return "";
+  const context = secretContext.mcpToken(profile.id);
+  const reference: CredentialReference = { encryptedKey: profile.encryptedToken, iv: profile.encryptedTokenIv };
+  if (!hasCredentialReference(context, reference)) return "";
   await ensureStoredSecretsMigrated();
-  return decryptSecret(profile.encryptedToken, profile.encryptedTokenIv, secretContext.mcpToken(profile.id));
+  return readCredentialSecret(context, reference);
 }
 
 async function requestJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
@@ -131,10 +134,13 @@ export const mcpSettingsRepository = {
     const endpoint = input.endpoint.trim().replace(/[?#].*$/, "");
     const connectionChanged = Boolean(existing && (existing.endpoint !== endpoint || existing.authMode !== input.authMode || existing.allowPrivateNetwork !== (input.allowPrivateNetwork === true)));
     const canEnable = Boolean(existing && !connectionChanged && snapshot.discovery[profileId]?.status === "ready");
+    const existingReference: CredentialReference | undefined = existing
+      ? { encryptedKey: existing.encryptedToken, iv: existing.encryptedTokenIv }
+      : undefined;
     const encrypted = input.authMode === "bearer" && input.token?.trim()
-      ? await encryptSecret(input.token.trim(), secretContext.mcpToken(profileId))
-      : existing?.encryptedToken && existing.encryptedTokenIv
-        ? { encryptedKey: existing.encryptedToken, iv: existing.encryptedTokenIv }
+      ? await writeCredentialSecret(secretContext.mcpToken(profileId), existingReference, input.token.trim())
+      : existing?.encryptedToken || existing?.encryptedTokenIv || hasCredentialReference(secretContext.mcpToken(profileId), existingReference)
+        ? existingReference
         : undefined;
     const profile: McpServerProfile = {
       id: profileId,
@@ -143,8 +149,8 @@ export const mcpSettingsRepository = {
       enabled: input.enabled && canEnable,
       authMode: input.authMode,
       allowPrivateNetwork: input.allowPrivateNetwork === true,
-      encryptedToken: input.authMode === "bearer" ? encrypted?.encryptedKey : undefined,
-      encryptedTokenIv: input.authMode === "bearer" ? encrypted?.iv : undefined,
+      encryptedToken: input.authMode === "bearer" ? encrypted?.encryptedKey || undefined : undefined,
+      encryptedTokenIv: input.authMode === "bearer" ? encrypted?.iv || undefined : undefined,
       toolAllowlist: input.toolAllowlist ?? existing?.toolAllowlist,
       catalogSource: input.catalogSource ?? existing?.catalogSource ?? "custom",
       createdAt: existing?.createdAt ?? timestamp,
@@ -156,6 +162,7 @@ export const mcpSettingsRepository = {
       clearMcpSessionPermissions(profileId);
     }
     writeSnapshot({ profiles: [profile, ...snapshot.profiles.filter((item) => item.id !== profile.id)], discovery });
+    if (input.authMode !== "bearer") clearDesktopCredential(secretContext.mcpToken(profileId));
     return profile;
   },
 
@@ -164,6 +171,7 @@ export const mcpSettingsRepository = {
     const discovery = { ...snapshot.discovery };
     delete discovery[id];
     clearMcpSessionPermissions(id);
+    clearDesktopCredential(secretContext.mcpToken(id));
     writeSnapshot({ profiles: snapshot.profiles.filter((profile) => profile.id !== id), discovery });
   },
 

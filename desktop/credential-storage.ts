@@ -6,6 +6,8 @@ import {
   decodeCredentialEnvelope,
   readProtectedPayload,
   type CredentialHostErrorCode,
+  toCredentialHostFailure,
+  type CredentialHostResult,
   type DesktopCredentialEnvelope,
 } from "./credential-storage-envelope.js";
 
@@ -92,36 +94,35 @@ async function unprotectCredential(context: string, envelope: unknown): Promise<
   }
 }
 
-function safeIpcError(error: unknown, fallback: CredentialHostErrorCode): Error {
-  const safe = asSafeHostError(error, fallback);
-  return new Error(safe.message);
-}
-
 /** 安装最小凭据保护 IPC；不暴露 safeStorage、文件路径或任意机器密文解密接口。 */
 export function installDesktopCredentialStorageIpc(developmentUrl?: string): void {
   for (const channel of [CREDENTIAL_STATUS_CHANNEL, CREDENTIAL_PROTECT_CHANNEL, CREDENTIAL_UNPROTECT_CHANNEL]) {
     ipcMain.removeHandler(channel);
   }
   ipcMain.handle(CREDENTIAL_STATUS_CHANNEL, async (event) => {
-    assertTrustedSender(event, developmentUrl);
-    return getDesktopCredentialProtectionStatus();
+    try {
+      assertTrustedSender(event, developmentUrl);
+      return { ok: true, value: await getDesktopCredentialProtectionStatus() } satisfies CredentialHostResult<DesktopCredentialProtectionStatus>;
+    } catch (error) {
+      return toCredentialHostFailure(error, "host_unavailable");
+    }
   });
   ipcMain.handle(CREDENTIAL_PROTECT_CHANNEL, async (event, context: unknown, secret: unknown) => {
-    assertTrustedSender(event, developmentUrl);
     try {
+      assertTrustedSender(event, developmentUrl);
       if (typeof context !== "string" || typeof secret !== "string") throw new CredentialHostError("host_payload_invalid");
-      return await protectCredential(context, secret);
+      return { ok: true, value: await protectCredential(context, secret) } satisfies CredentialHostResult<DesktopCredentialEnvelope>;
     } catch (error) {
-      throw safeIpcError(error, "host_protection_failed");
+      return toCredentialHostFailure(error, "host_protection_failed");
     }
   });
   ipcMain.handle(CREDENTIAL_UNPROTECT_CHANNEL, async (event, context: unknown, envelope: unknown) => {
-    assertTrustedSender(event, developmentUrl);
     try {
+      assertTrustedSender(event, developmentUrl);
       if (typeof context !== "string") throw new CredentialHostError("host_payload_invalid");
-      return await unprotectCredential(context, envelope);
+      return { ok: true, value: await unprotectCredential(context, envelope) } satisfies CredentialHostResult<DesktopCredentialUnprotectResult>;
     } catch (error) {
-      throw safeIpcError(error, "host_unprotect_failed");
+      return toCredentialHostFailure(error, "host_unprotect_failed");
     }
   });
 }

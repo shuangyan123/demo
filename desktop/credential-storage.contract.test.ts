@@ -7,6 +7,7 @@ import {
   createProtectedPayload,
   decodeCredentialEnvelope,
   readProtectedPayload,
+  toCredentialHostFailure,
 } from "./credential-storage-envelope.ts";
 
 const ipc = readFileSync(new URL("./credential-storage.ts", import.meta.url), "utf8");
@@ -57,14 +58,27 @@ test("Real Electron host integration is async, sender-checked and fail-closed", 
   assert.match(ipc, /assertTrustedSender/);
   assert.match(ipc, /decodeCredentialEnvelope/);
   assert.match(ipc, /host_unavailable/);
+  assert.match(ipc, /ok: true/);
+  assert.match(ipc, /toCredentialHostFailure/);
+  assert.doesNotMatch(ipc, /safeIpcError|throw new Error\(safe\.message\)/);
   assert.doesNotMatch(ipc, /setUsePlainTextEncryption/);
   assert.match(main, /installDesktopCredentialStorageIpc\(developmentUrl\)/);
+});
+
+test("IPC failures are structured and never carry raw Error details", () => {
+  const result = toCredentialHostFailure(new Error("secret path and stack detail"), "host_unprotect_failed");
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.error.code, "host_unprotect_failed");
+  assert.ok(result.error.message.length > 0);
+  assert.doesNotMatch(JSON.stringify(result), /secret path|stack detail|Error/);
 });
 
 test("Preload 只暴露版本化凭据 capability，不暴露通用 safeStorage 原语", () => {
   assert.match(preload, /reviewDesktopCredentialProtection/);
   assert.match(preload, /protectCredential/);
   assert.match(preload, /unprotectCredential/);
-  assert.match(preload, /desktop-v1/);
+  assert.match(preload, /DesktopCredentialEnvelope/);
+  assert.match(preload, /CredentialHostResult/);
   assert.doesNotMatch(preload, /contextBridge\.exposeInMainWorld\([^)]*(?:safeStorage|encryptString|decryptString|rootPath|userData)/i);
 });

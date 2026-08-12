@@ -16,6 +16,19 @@ export type CredentialHostErrorCode =
   | "host_context_mismatch"
   | "host_payload_invalid";
 
+export type CredentialHostResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: { code: CredentialHostErrorCode; message: string } };
+
+export type DesktopCredentialProtectionStatus =
+  | { status: "available"; backend: "os_protected" }
+  | { status: "unavailable" | "unsupported" | "temporarily_unavailable" };
+
+export type DesktopCredentialUnprotectResult = {
+  secret: string;
+  shouldReProtect: boolean;
+};
+
 const HOST_ERROR_MESSAGES: Record<CredentialHostErrorCode, string> = {
   host_unavailable: "桌面凭据保护当前不可用",
   host_protection_failed: "桌面凭据保护失败，请稍后重试",
@@ -32,6 +45,12 @@ export class CredentialHostError extends Error {
     this.name = "CredentialHostError";
     this.code = code;
   }
+}
+
+/** IPC 边界只允许返回稳定错误码和安全文案，不把 Error/stack 传播到 renderer。 */
+export function toCredentialHostFailure(error: unknown, fallback: CredentialHostErrorCode): CredentialHostResult<never> {
+  const safe = error instanceof CredentialHostError ? error : new CredentialHostError(fallback);
+  return { ok: false, error: { code: safe.code, message: safe.message } };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

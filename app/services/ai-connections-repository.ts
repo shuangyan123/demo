@@ -2,7 +2,16 @@ import { reviewDb } from "../db/review-db.ts";
 import { toISODate } from "../lib/review-utils.ts";
 import type { AiConnectionDefaults, AiConnectionPurpose, AiConnectionSnapshot, AiCapability, ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 import type { ApiProvider } from "../types/domains/ai-provider.ts";
-import { CredentialSecurityError, decryptSecret, encryptSecret, maskSecret, type CredentialSecurityErrorCode } from "./crypto-service.ts";
+import { CredentialSecurityError, encryptSecret, maskSecret, type CredentialSecurityErrorCode } from "./crypto-service.ts";
+import {
+  clearDesktopCredential,
+  CredentialBackendError,
+  readCredentialSecret,
+  writeCredentialSecret,
+  type CredentialBackendErrorCode,
+  type CredentialReference,
+} from "./credential-backend.ts";
+import { getCredentialAuthority } from "./credential-migration-state.ts";
 import { getProviderContract, getProviderModelCatalog } from "./provider-contracts.ts";
 import { createProfileFromLegacySetting } from "./legacy-ai-settings-migration.ts";
 import { inferMiniMaxRegion, normalizeMiniMaxAnthropicBaseUrl } from "./minimax-connection.ts";
@@ -23,7 +32,7 @@ export type SaveConnectionInput = {
 
 export type ConnectionCredentialHealth =
   | { status: "ready" }
-  | { status: "reentry_required"; code: CredentialSecurityErrorCode; message: string };
+  | { status: "reentry_required"; code: CredentialSecurityErrorCode | CredentialBackendErrorCode; message: string };
 
 // 创建尚未分配任何连接的默认能力映射。
 function emptyDefaults(today: Date): AiConnectionDefaults {
@@ -96,7 +105,9 @@ async function syncLegacyTextSetting(profile: ApiConnectionProfile | undefined, 
     return;
   }
   if (isUiReviewRecordId(profile.id)) return;
-  const plainText = await decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
+  const profileContext = secretContext.aiConnection(profile.id);
+  if (getCredentialAuthority(profileContext) === "desktop_primary" || getCredentialAuthority(secretContext.legacyAiSetting()) === "desktop_primary") return;
+  const plainText = await readCredentialSecret(profileContext, { encryptedKey: profile.encryptedKey, iv: profile.iv });
   const encrypted = await encryptSecret(plainText, secretContext.legacyAiSetting());
   await reviewDb.apiSettings.put({
     id: "default",
@@ -122,10 +133,13 @@ export const aiConnectionsRepository = {
     }
     try {
       await attemptStoredSecretsMigration();
-      await decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
+      await readCredentialSecret(secretContext.aiConnection(profile.id), { encryptedKey: profile.encryptedKey, iv: profile.iv });
       return { status: "ready" };
     } catch (error) {
       if (error instanceof CredentialSecurityError) {
+        return { status: "reentry_required", code: error.code, message: error.message };
+      }
+      if (error instanceof CredentialBackendError) {
         return { status: "reentry_required", code: error.code, message: error.message };
       }
       return {
@@ -208,14 +222,17 @@ export const aiConnectionsRepository = {
     if (providerChanged && !providedSecret) {
       throw new Error("切换厂商后必须重新输入 API Key");
     }
+    const existingReference: CredentialReference | undefined = existing
+      ? { encryptedKey: existing.encryptedKey, iv: existing.iv }
+      : undefined;
     const existingSecret = existing && !providedSecret
-      ? await decryptSecret(existing.encryptedKey, existing.iv, secretContext.aiConnection(existing.id))
+      ? await readCredentialSecret(secretContext.aiConnection(existing.id), existingReference!)
       : "";
     if (input.provider !== "custom" && !providedSecret && !existingSecret) throw new Error("该厂商连接必须填写 API Key");
     // 自定义连接允许无鉴权，但仍加密空字符串以保持连接档案结构稳定，避免引入第二套密钥存储形态。
     const encrypted = providedSecret
-      ? await encryptSecret(providedSecret, secretContext.aiConnection(profileId))
-      : existing ?? await encryptSecret("", secretContext.aiConnection(profileId));
+      ? await writeCredentialSecret(secretContext.aiConnection(profileId), existingReference, providedSecret)
+      : existingReference ?? await writeCredentialSecret(secretContext.aiConnection(profileId), undefined, "");
     const contract = getProviderContract(input.provider);
     const capabilities = (input.provider === "custom" ? input.capabilities ?? existing?.capabilities ?? contract.capabilities : contract.capabilities)
       .filter((capability) => contract.capabilities.includes(capability));
@@ -231,8 +248,8 @@ export const aiConnectionsRepository = {
       apiFormat: contract.apiFormat,
       baseUrl: minimaxRegion ? normalizeMiniMaxAnthropicBaseUrl(input.baseUrl, minimaxRegion) : input.baseUrl.replace(/\/$/, ""),
       capabilities,
-      encryptedKey: encrypted.encryptedKey,
-      iv: encrypted.iv,
+      encryptedKey: encrypted.encryptedKey ?? "",
+      iv: encrypted.iv ?? "",
       maskedKey: providedSecret ? maskSecret(providedSecret) : existing?.maskedKey ?? (input.provider === "custom" ? "无鉴权" : "未配置"),
       providerOptions: input.providerOptions ?? existing?.providerOptions ?? {},
       testStatus: "idle",
@@ -273,6 +290,7 @@ export const aiConnectionsRepository = {
       await reviewDb.apiConnectionDefaults.put(nextDefaults);
       if (clearsLegacyText) await reviewDb.apiSettings.delete("default");
     });
+    clearDesktopCredential(secretContext.aiConnection(id));
   },
 
   // 为文本、视觉或语音能力指定默认连接，并验证连接确实声明了该能力。
@@ -318,7 +336,7 @@ export const aiConnectionsRepository = {
   // 仅在发起请求前解密指定连接的 Key，不把明文写回 React 状态或 IndexedDB。
   async resolveSecret(profile: ApiConnectionProfile): Promise<string> {
     await attemptStoredSecretsMigration();
-    return decryptSecret(profile.encryptedKey, profile.iv, secretContext.aiConnection(profile.id));
+    return readCredentialSecret(secretContext.aiConnection(profile.id), { encryptedKey: profile.encryptedKey, iv: profile.iv });
   },
 
   // 保存最近一次连接测试状态，供配置页展示。

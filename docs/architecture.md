@@ -508,8 +508,16 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - `desktop/credential-storage.ts` 只在 Main Process、`app.whenReady()` 之后使用 Electron 43.2.0 的 async `safeStorage` API。Windows DPAPI 的实际边界是同用户空间内其他应用仍可能访问，不能描述为 TPM、硬件密钥或 zero-trust vault；Linux `basic_text` 明确不作为安全 backend。
 - 新增 `reviewDesktopCredentialProtection` 只包装版本化 `desktop-v1` envelope 和合法 credential context；不暴露通用 `safeStorage`、任意 decrypt blob、文件路径或 OS resource。跨记录 context substitution 在 host 解密后再次校验并 fail closed。
 - `app/platform/credential-protection.ts` 做确定性的 Web/Desktop backend inspection；Web adapter 不伪造 host storage，Desktop 缺少 capability 时返回显式 unsupported/unavailable。现有 credential repositories 本轮不调用该 capability，因此没有 production cutover、dual-write 或 schema migration。
-- `app/services/credential-migration-planner.ts` 是纯 TypeScript、无解密/网络/存储副作用的后续迁移资格 planner。它只允许完整 inventory 驱动 `eligible | blocked | no_op | requires_reentry`，固定 `none_phase_1` destructive action，支持 dual-read/single-write 的后续设计但不执行迁移。
+- `app/services/credential-migration-planner.ts` 是纯 TypeScript、无解密/网络/存储副作用的迁移资格 planner。它只允许完整 inventory 驱动 `eligible | blocked | no_op | requires_reentry`，Phase 1 保持无 destructive action；Phase 2 的实际执行由独立 orchestration service 负责。
 - 详细凭据清单、浏览器与 Windows threat model、失败矩阵、恢复和 Windows acceptance plan 见 `docs/desktop-credential-threat-model.md`。0.7 overall 仍为 IN PROGRESS；实际 credential cutover、Windows acceptance 与 cleanup confirmation 留在后续阶段。
+
+# 0.7 Desktop credential migration Phase 2 (2026-08-12)
+
+- Desktop credential migration is now production-wired through `app/services/credential-backend.ts` and `app/services/credential-migration-service.ts`. The service boundary uses the existing Host Capability layer; it does not import Electron or preload globals.
+- `review-workspace:desktop-credentials:v1` stores only versioned OS-protected envelopes and `review-workspace:credential-migration:v1` stores only safe migration metadata. Neither is part of local backup/export.
+- The migration inventory covers AI provider keys, the legacy AI compatibility record, quota credentials, current/legacy MCP bearer tokens, and Fenbi Cookie. Web v2 remains the source until every Desktop record is staged and verified. The authority commit then makes Desktop preferred and switches repository writes to Desktop-only.
+- Web mode is unchanged. After Desktop cutover, missing/unavailable/invalid Desktop records fail closed; Web is not used as a silent downgrade. `review_workspace` remains v16 and no 0.8 installer or Windows acceptance work is included.
+- Detailed state, failure, recovery, and residual risk contracts are in `docs/desktop-credential-migration.md`.
 
 # 0.4 Application Layer Phase 1：Interview（2026-08-09）
 
