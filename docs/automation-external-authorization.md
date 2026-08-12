@@ -2,7 +2,7 @@
 
 ## 状态
 
-Phase 2 与 Declarative Extension Phase 3 已完成。0.6 MCP / Automation / Plugin 权限模型仍为 `IN PROGRESS`；Acceptance Closure 尚未开始。声明式扩展的具体边界见 `docs/declarative-extension-permissions.md`。
+Phase 2 与 Declarative Extension Phase 3 已完成。0.6 MCP / Automation / Plugin 权限模型的 Acceptance Closure 已完成；跨边界矩阵与证据见 `docs/permission-model-acceptance.md`。声明式扩展的具体边界见 `docs/declarative-extension-permissions.md`。
 
 本阶段复用现有 `AutomationDefinition.collectionConfig`，不新增第二套任务权限字段：URL、Feed 和 MCP source 就是任务级外部能力声明。普通 `daily_review`、`weekly_progress` 与 `knowledge_evolution` 仍可使用既有默认文本连接；知识演进只保存 pending proposal，不等于知识库或 Vault 已确认写入。
 

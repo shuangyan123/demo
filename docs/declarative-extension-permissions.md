@@ -34,3 +34,5 @@ enabled
 权限决策和错误只携带扩展 ID、类型、稳定 reason code 和安全产品文案，不保存凭据、Token、MCP 参数/结果、完整 prompt、Vault 正文、原始 provider 响应或私有 URL 查询。旧安装记录缺少包声明时按 `extension_invalid` 处理；缺少/异常 enabled 不会扩大权限。停用不是卸载，卸载仍由现有插件目录显式执行并按既有主题/人设回滚语义处理。
 
 本 Phase 没有新增 Dexie migration、MCP registry、插件 runtime、脚本执行器、远程下载或新的审计表。
+
+0.6 的跨边界 Acceptance Closure 证据见 `docs/permission-model-acceptance.md`；本声明式扩展边界仍与既有 MCP、Host、Vault 和 AI authority 分离。

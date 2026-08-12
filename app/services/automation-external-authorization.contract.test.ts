@@ -183,14 +183,48 @@ test("授权撤销和 origin 变更在下一次解析立即生效", () => {
 
 test("blocked trial 在 preflight 失败，不读取连接、不请求 MCP 或 acquisition route", async () => {
   const originalFetch = globalThis.fetch;
+  const originalResolveSecret = aiConnectionsRepository.resolveSecret;
   let fetchCalls = 0;
+  let secretCalls = 0;
   globalThis.fetch = (async () => {
     fetchCalls += 1;
     throw new Error("external call must not happen");
   }) as typeof fetch;
+  aiConnectionsRepository.resolveSecret = async () => {
+    secretCalls += 1;
+    return "secret-must-not-be-resolved";
+  };
   try {
     await assert.rejects(() => trialAutomationDefinition({
       definition: mcpDefinition(),
+      personalization: createDefaultPersonalizationSettings(new Date(now)),
+    }), AutomationAuthorizationError);
+    assert.equal(fetchCalls, 0);
+    assert.equal(secretCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    aiConnectionsRepository.resolveSecret = originalResolveSecret;
+  }
+});
+
+test("真实 executor 在 origin 授权撤销后重新阻断，而不是复用旧的 ready 快照", async () => {
+  const originallyAuthorized = definition();
+  assert.equal(resolveAutomationExternalAuthorization(originallyAuthorized).status, "ready");
+  const revoked = definition({
+    collectionConfig: {
+      ...originallyAuthorized.collectionConfig!,
+      allowedOrigins: [],
+    },
+  });
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = (async () => {
+    fetchCalls += 1;
+    throw new Error("revoked origin must not reach acquisition");
+  }) as typeof fetch;
+  try {
+    await assert.rejects(() => trialAutomationDefinition({
+      definition: revoked,
       personalization: createDefaultPersonalizationSettings(new Date(now)),
     }), AutomationAuthorizationError);
     assert.equal(fetchCalls, 0);

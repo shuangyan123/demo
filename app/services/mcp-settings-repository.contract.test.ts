@@ -98,6 +98,13 @@ test("MCP settings persist encrypted profiles and sanitized discovery summaries 
     await mcpSettingsRepository.callTool(profile, "search", {}, { mode: "interactive", confirmed: true });
     assert.equal(callRequests, 4);
 
+    // Revoke the persisted scheduled grant after a successful execution; the next
+    // call must re-read the current policy before touching credentials or network.
+    mcpSettingsRepository.setToolPermission(profile.id, "search", "deny");
+    await assert.rejects(() => mcpSettingsRepository.callScheduledTool(profile.id, "search", {}), /未获得定时任务授权/);
+    assert.equal(callRequests, 4);
+    mcpSettingsRepository.setToolPermission(profile.id, "search", "allow_scheduled");
+
     const readySnapshot = values.get(secretStorageLocations.mcpSettings) ?? "";
     const staleToolSnapshot = JSON.parse(readySnapshot) as { discovery: Record<string, { status: string; tools: string[]; toolDescriptors?: Array<{ name: string; permission: string }> }> };
     staleToolSnapshot.discovery[profile.id].tools = [];
