@@ -55,3 +55,7 @@ Phase 2 Stabilization is complete. When acquisition has already contacted an HTT
 - The audit remains aggregate and sanitized: counts, source kinds, MCP server/tool identities, and normalized HTTP origins only.
 - Raw MCP arguments/results, full URLs, document content, prompts, provider payloads, credentials, and error causes stay outside persistence.
 - Authorization blocks remain zero-call `blocked` runs; known external effects do not authorize automatic retry, replay, or cross-system rollback.
+
+## Persisted failure messages
+
+Automation failure classification may inspect the raw cause while the run is in memory, but raw causes remain process-local. `AutomationRun.error` stores only a stable safe product message; typed provider and authorization errors may preserve their already-sanitized structured messages. `unattendedAudit` remains unchanged and continues to store only its existing aggregate, sanitized execution facts.

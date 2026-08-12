@@ -15,6 +15,7 @@ import { buildAutomationContext, buildAutomationContextResult } from "./automati
 import { automationRepository, renewAutomationLease } from "./automation-repository.ts";
 import { classifyAutomationError } from "./automation-failure.ts";
 import { AiProviderFailureError, aiProviderFailureMessage } from "./ai-provider-failure.ts";
+import { AutomationAuthorizationError } from "./automation-errors.ts";
 import { trialAutomationDefinition } from "./automation-executor.ts";
 import { calculateDueAutomation, nextAutomationRun, validateAutomationSchedule } from "./automation-schedule.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
@@ -103,7 +104,7 @@ test("上下文只读取授权范围，租约阻止重复运行，失败结果�
   await reviewDb.automationDefinitions.update(definition.id, { leaseOwner: undefined, leaseExpiresAt: undefined });
   const failed = await executeAutomationRun({ definition, personalization: createDefaultPersonalizationSettings(baseTime), trigger: "scheduled", scheduledAt: baseTime.toISOString(), nextRunAt: "2026-06-21T01:00:00.000Z", now: baseTime });
   assert.equal(failed?.status, "failed");
-  assert.match(failed?.error ?? "", /默认文本连接/);
+  assert.equal(failed?.error, "缺少默认文本连接");
   assert.equal(failed?.failureCategory, "missing_connection");
   assert.equal(failed?.failureRecoveryAction, "configure_ai_connection");
   assert.equal(failed?.contextSummary?.[0].scope, "mistakes");
@@ -179,6 +180,49 @@ test("自动化失败分类给出稳定恢复动作", () => {
   assert.deepEqual(classifyAutomationError(new Error("Vault permission denied")).recoveryAction, "open_knowledge");
   assert.deepEqual(classifyAutomationError(new Error("HTTP 401 model error")).category, "model");
   assert.deepEqual(classifyAutomationError(new Error("没有可读取数据")).recoveryAction, "open_import");
+});
+
+test("普通错误只参与内存分类，诊断文案始终是稳定安全的产品消息", () => {
+  const secretMessage = "provider-payload-secret raw-proposal-content Bearer secret-token-123 C:\\Users\\Private\\secret.txt https://example.com/path?token=abc";
+  const model = classifyAutomationError(new Error(secretMessage));
+  assert.equal(model.category, "model");
+  assert.equal(model.recoveryAction, "configure_ai_connection");
+  assert.equal(model.message, "模型服务返回异常");
+
+  const network = classifyAutomationError(new Error("Failed to fetch"));
+  assert.equal(network.category, "network");
+  assert.equal(network.recoveryAction, "check_network");
+  assert.equal(network.message, "网络不可用或请求中断");
+
+  const permission = classifyAutomationError(new Error("Vault permission denied C:\\Users\\Private\\secret.txt"));
+  assert.equal(permission.category, "permission");
+  assert.equal(permission.recoveryAction, "open_knowledge");
+  assert.equal(permission.message, "访问权限不足或资源不可用");
+
+  const emptyScope = classifyAutomationError(new Error("没有可读取数据 raw-proposal-content"));
+  assert.equal(emptyScope.category, "empty_scope");
+  assert.equal(emptyScope.recoveryAction, "open_import");
+  assert.equal(emptyScope.message, "暂无可读取的数据");
+
+  const unknown = classifyAutomationError(new Error("database internal secret=abc"));
+  assert.equal(unknown.category, "unknown");
+  assert.equal(unknown.recoveryAction, "retry");
+  assert.equal(unknown.message, "自动化执行失败");
+  assert.doesNotMatch(JSON.stringify({ model, network, permission, emptyScope, unknown }), /provider-payload-secret|raw-proposal-content|Bearer|secret-token-123|Private\\secret\.txt|token=abc/);
+});
+
+test("typed authorization failure 保留结构化且安全的授权文案", () => {
+  const diagnosis = classifyAutomationError(new AutomationAuthorizationError({
+    status: "blocked",
+    reasonCodes: ["mcp_permission_missing"],
+    missingPermissions: ["server-a:search-y"],
+    disabledResources: [],
+    staleResources: [],
+    invalidScopes: [],
+  }));
+  assert.equal(diagnosis.category, "permission");
+  assert.equal(diagnosis.recoveryAction, "configure_mcp");
+  assert.equal(diagnosis.message, "无人值守授权未满足：MCP 工具：server-a:search-y");
 });
 
 test("Automation 对 typed provider failure 按 code 分类且使用共享安全文案", () => {
