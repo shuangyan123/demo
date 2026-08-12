@@ -242,6 +242,32 @@ test("empty Desktop inventory remains a no-op and does not enable Desktop writes
   assert.equal(currentJournal.backendPolicy, "web_preferred");
 });
 
+test("repeated explicit migration actions share one in-flight operation", async () => {
+  let release!: () => void;
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => { markStarted = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let currentJournal = journal();
+  const empty: CredentialMigrationInventory = { expectedIds: [], items: [], records: [], inventoryVersion: "" };
+  const dependencies: CredentialMigrationDependencies = {
+    getHost: async () => ({ kind: "desktop", availability: "available" }),
+    collectInventory: async () => {
+      markStarted();
+      await gate;
+      return empty;
+    },
+    readJournal: () => currentJournal,
+    writeJournal: (next) => { currentJournal = next; return next; },
+  };
+
+  const first = migrateDesktopCredentials(dependencies);
+  await started;
+  const second = migrateDesktopCredentials(dependencies);
+  assert.strictEqual(first, second);
+  release();
+  assert.equal((await first).status, "no_op");
+});
+
 test("partial staging is recovery-required and resumable without replaying completed records", async () => {
   const values = {
     [secretContext.aiConnection("resume-a")]: "secret-a",

@@ -1,6 +1,6 @@
 # Desktop Credential Migration and Controlled Cutover
 
-Status: Phase 2 COMPLETE (2026-08-12). The 0.7 effort remains IN PROGRESS until Windows acceptance and later cleanup confirmation are complete. This document describes the implementation in Phase 2; it does not claim a Windows DPAPI acceptance run.
+Status: Phase 2 COMPLETE; Phase 3 product entry IMPLEMENTED (2026-08-12). The 0.7 effort remains IN PROGRESS until Windows installed-app acceptance and later cleanup confirmation are complete. This document does not claim a Windows DPAPI acceptance run.
 
 ## Decision and security boundary
 
@@ -44,6 +44,17 @@ Staging, verification, and commit are sequential and bounded to one record at a 
 
 Before cutover, Web v2 is authoritative and Desktop is only a staged candidate. After post-commit verification, Desktop is preferred and each committed context is `desktop_primary`. The authority change is the cutover point. There is no permanent dual-write.
 
+## Product entry and safe UI boundary
+
+The only production entry is the `Desktop 凭据保护` panel rendered inside Settings → AI 连接. It is mounted only when the existing Host Capability resolver identifies a Desktop host; Web renders no Desktop migration action and does not simulate one.
+
+- Opening Settings reads the Desktop protection status and the safe migration journal only. It never calls `migrateDesktopCredentials()`, stages a record, writes a journal, or starts migration automatically.
+- The user must explicitly select `迁移到 Desktop 保护`. Repeated activation is guarded by the panel's busy state and the service's existing renderer-local single-flight promise.
+- The UI receives only a fixed status projection: ready, in progress, complete, requires re-entry, blocked, recovery required, or Desktop protection unavailable. It does not render expected IDs, journal reasons, ciphertext, IV, protected payloads, plaintext, paths, stack traces, or raw IPC errors.
+- Completion text explicitly states that Web sources remain retained recovery evidence and that cleanup was not performed. A Desktop host failure remains unavailable/fail-closed; the entry does not offer a Web downgrade.
+
+The browser acceptance harness uses a deterministic fake Desktop capability to prove this product boundary and journal reload behavior. It is not evidence of Windows DPAPI, Electron `userData`, or installed-app lifecycle behavior.
+
 ## Read and write policy after cutover
 
 Dual-read is deliberately asymmetric:
@@ -66,4 +77,6 @@ The implementation does not claim that a copied `userData` directory, an OS acco
 
 Contracts cover structured IPC failures, sender/context/payload validation, format detection, multi-source inventory, legacy/missing/masked/unknown states, successful migration, partial staging, resume, inventory changes, commit ordering, source retention, context substitution, no-new-key decrypt behavior, Desktop-first reads, no downgrade after host failure, single-write repository behavior, MCP denied-path zero unprotect calls, Fenbi disabled-path zero unprotect calls, and Web regression behavior.
 
-Required release gates for this phase are typecheck, lint, contracts, Desktop compile/tests, production audit, build, and bundle checks. Windows installed-app acceptance, signing/distribution, and later source cleanup remain outside this phase and outside 0.8 work.
+Required release gates for this phase are typecheck, lint, contracts, Desktop compile/tests, production audit, build, and bundle checks. The automated browser harness covers Web hiding, explicit initiation, no startup migration, safe completion state, and reload from the journal. Windows installed-app acceptance remains **PENDING MANUAL ACCEPTANCE**; signing/distribution and later source cleanup remain outside this phase and outside 0.8 work.
+
+No cleanup was performed in Phase 2 or this product-entry closure: retained Web v2 ciphertext, the Web secure key, legacy compatibility material, and source records remain subject to the later explicit cleanup confirmation phase.

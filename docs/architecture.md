@@ -507,7 +507,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 当前生产凭据仍保持 `crypto-service.ts` 的 WebCrypto AES-GCM、不可导出主密钥和 record-specific AAD；AI 连接、额度凭据、MCP Bearer 与粉笔 Cookie 的 v1 → v2 Web 迁移和旧 JWK 删除语义不变。
 - `desktop/credential-storage.ts` 只在 Main Process、`app.whenReady()` 之后使用 Electron 43.2.0 的 async `safeStorage` API。Windows DPAPI 的实际边界是同用户空间内其他应用仍可能访问，不能描述为 TPM、硬件密钥或 zero-trust vault；Linux `basic_text` 明确不作为安全 backend。
 - 新增 `reviewDesktopCredentialProtection` 只包装版本化 `desktop-v1` envelope 和合法 credential context；不暴露通用 `safeStorage`、任意 decrypt blob、文件路径或 OS resource。跨记录 context substitution 在 host 解密后再次校验并 fail closed。
-- `app/platform/credential-protection.ts` 做确定性的 Web/Desktop backend inspection；Web adapter 不伪造 host storage，Desktop 缺少 capability 时返回显式 unsupported/unavailable。现有 credential repositories 本轮不调用该 capability，因此没有 production cutover、dual-write 或 schema migration。
+- `app/platform/credential-protection.ts` 做确定性的 Web/Desktop backend inspection；Web adapter 不伪造 host storage，Desktop 缺少 capability 时返回显式 unsupported/unavailable。Phase 1 当时不接入 production repository，也没有 dual-write 或 schema migration；后续 Phase 2/3 通过既有 Host Capability 和独立迁移 service 接入，未改变该边界。
 - `app/services/credential-migration-planner.ts` 是纯 TypeScript、无解密/网络/存储副作用的迁移资格 planner。它只允许完整 inventory 驱动 `eligible | blocked | no_op | requires_reentry`，Phase 1 保持无 destructive action；Phase 2 的实际执行由独立 orchestration service 负责。
 - 详细凭据清单、浏览器与 Windows threat model、失败矩阵、恢复和 Windows acceptance plan 见 `docs/desktop-credential-threat-model.md`。0.7 overall 仍为 IN PROGRESS；实际 credential cutover、Windows acceptance 与 cleanup confirmation 留在后续阶段。
 
@@ -518,6 +518,14 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - The migration inventory covers AI provider keys, the legacy AI compatibility record, quota credentials, current/legacy MCP bearer tokens, and Fenbi Cookie. Web v2 remains the source until every Desktop record is staged and verified. The authority commit then makes Desktop preferred and switches repository writes to Desktop-only.
 - Web mode is unchanged. After Desktop cutover, missing/unavailable/invalid Desktop records fail closed; Web is not used as a silent downgrade. `review_workspace` remains v16 and no 0.8 installer or Windows acceptance work is included.
 - Detailed state, failure, recovery, and residual risk contracts are in `docs/desktop-credential-migration.md`.
+
+# 0.7 Desktop credential product entry & installed-app acceptance（2026-08-12）
+
+- Settings → AI 连接内的 `DesktopCredentialMigrationPanel` 是唯一生产迁移入口；它通过 `useDesktopCredentialMigration` 读取 `resolveHost()`、Host protection status 和 safe journal，Web 宿主不渲染该能力。
+- Settings mount 和应用启动只做只读状态探测；只有用户点击后才调用 `migrateDesktopCredentials()`。UI 使用固定状态投影，不传播 credential IDs、journal reason、ciphertext、IV、payload、路径、堆栈或 raw IPC error。
+- Desktop authority、missing-record hard failure、post-cutover Desktop-only write、Web source retention、backup/export exclusion 和 v16/v1 schema 边界保持不变；本阶段没有 cleanup。
+- `e2e/desktop-credential-migration.spec.ts` 是 deterministic fake-Desktop product harness，证明 Web hiding、explicit action、zero startup journal write 和 durable complete reload。它不证明 Windows DPAPI、Electron `userData`、安装/升级或换机恢复。
+- Windows installed-app acceptance 目前为 **PENDING MANUAL ACCEPTANCE**，具体矩阵与证据分类见 `docs/release-smoke.md`。
 
 # 0.4 Application Layer Phase 1：Interview（2026-08-09）
 
