@@ -4,6 +4,7 @@ import test from "node:test";
 import { extensionDb } from "../db/extension-db.ts";
 import { officialDeclarativeExtensionCatalog } from "./declarative-extension-catalog.ts";
 import {
+  canonicalExtensionJson,
   declarativeExtensionRepository,
   executeInstalledExtensionAction,
   ExtensionAuthorizationError,
@@ -15,6 +16,7 @@ import {
   resolveExtensionAuthorization,
   sameExtensionAuthorizationDeclaration,
 } from "./declarative-extension-permissions.ts";
+import type { DeclarativeExtensionPackage } from "../types/domains/declarative-extension.ts";
 
 async function resetExtensions(): Promise<void> {
   extensionDb.close();
@@ -25,6 +27,40 @@ async function resetExtensions(): Promise<void> {
 function blockedReason(decision: ReturnType<typeof resolveExtensionAuthorization>): string {
   if (decision.status !== "blocked") throw new Error(`expected blocked decision, got ${decision.status}`);
   return decision.reason;
+}
+
+async function createSignedPackage(
+  base: DeclarativeExtensionPackage,
+  manifestPatch: Partial<DeclarativeExtensionPackage["manifest"]>,
+  data: DeclarativeExtensionPackage["data"] = base.data,
+): Promise<DeclarativeExtensionPackage> {
+  const keyPair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"],
+  ) as CryptoKeyPair;
+  const manifest = { ...base.manifest, ...manifestPatch };
+  const unsignedManifest = Object.fromEntries(
+    Object.entries(manifest).filter(([key]) => key !== "contentSha256" && key !== "signature"),
+  );
+  const unsignedPackage = { manifest: unsignedManifest, data, assets: structuredClone(base.assets) };
+  const canonical = canonicalExtensionJson(unsignedPackage);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  const signature = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    keyPair.privateKey,
+    new TextEncoder().encode(canonical),
+  );
+  const publicKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+  return {
+    manifest: {
+      ...manifest,
+      contentSha256: [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+      signature: { algorithm: "ECDSA_P256_SHA256", publicKeyJwk, value: Buffer.from(signature).toString("base64") },
+    },
+    data,
+    assets: structuredClone(base.assets),
+  };
 }
 
 test("官方声明式扩展通过摘要和签名校验", async () => {
@@ -90,17 +126,16 @@ test("声明式扩展停用或底层能力缺失时，在副作用前阻断并�
   const installed = await declarativeExtensionRepository.install(officialDeclarativeExtensionCatalog[0], "catalog");
   await declarativeExtensionRepository.setEnabled(installed.id, true);
   let sideEffects = 0;
-  assert.equal(await executeInstalledExtensionAction(installed.id, () => {
+  const capturedAction = () => executeInstalledExtensionAction(installed.id, () => {
     sideEffects += 1;
     return "applied";
-  }), "applied");
+  });
+  assert.equal(await capturedAction(), "applied");
   assert.equal(sideEffects, 1);
 
   await declarativeExtensionRepository.setEnabled(installed.id, false);
   await assert.rejects(
-    () => executeInstalledExtensionAction(installed.id, () => {
-      sideEffects += 1;
-    }),
+    capturedAction,
     (error: unknown) => error instanceof ExtensionAuthorizationError
       && error.decision.status === "blocked"
       && error.decision.reason === "extension_disabled",
@@ -130,6 +165,29 @@ test("声明式扩展停用或底层能力缺失时，在副作用前阻断并�
     sideEffects += 1;
   }), ExtensionAuthorizationError);
   assert.equal(sideEffects, 1);
+});
+
+test("扩展升级若改变授权声明则清除旧 enabled，而声明不变的合法升级保留 enabled", async () => {
+  await resetExtensions();
+  const v1 = officialDeclarativeExtensionCatalog[0];
+  const installed = await declarativeExtensionRepository.install(v1, "catalog");
+  await declarativeExtensionRepository.setEnabled(installed.id, true);
+
+  const unchangedV2 = await createSignedPackage(v1, { version: "2.0.0", name: "专注纸张 2" });
+  const preserved = await declarativeExtensionRepository.install(unchangedV2, "catalog");
+  assert.equal(preserved.enabled, true);
+  assert.equal(preserved.package.manifest.version, "2.0.0");
+
+  const changedV3 = await createSignedPackage(
+    officialDeclarativeExtensionCatalog[1],
+    { id: v1.manifest.id, version: "3.0.0", name: "专注纸张教师版" },
+  );
+  const cleared = await declarativeExtensionRepository.install(changedV3, "catalog");
+  assert.equal(cleared.enabled, false);
+  assert.equal(cleared.previousPackage?.manifest.version, "2.0.0");
+  const decision = (await inspectInstalledExtensionAuthorization(cleared.id)).decision;
+  assert.equal(decision.status, "blocked");
+  if (decision.status === "blocked") assert.equal(decision.reason, "extension_disabled");
 });
 
 test("未知字段、恶意路径、超大资产、错误签名和版本冲突包全部拒绝", async () => {

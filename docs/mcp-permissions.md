@@ -4,7 +4,7 @@ Review Workspace 的 MCP 权限由 `app/services/mcp-settings-repository.ts` 在
 
 ## Phase 1 状态
 
-已完成 Permission Decision Core & MCP Execution Boundary 与 Phase 2 Automation / Acquisition Unattended Authorization & Minimal Audit。0.6 MCP / Automation / Plugin 权限模型仍处于 IN PROGRESS；声明式扩展权限和 Acceptance Closure 留给后续阶段。
+已完成 Permission Decision Core & MCP Execution Boundary 与 Phase 2 Automation / Acquisition Unattended Authorization & Minimal Audit。0.6 MCP / Automation / Plugin 权限模型的 Acceptance Closure 已完成；跨边界矩阵与证据见 `docs/permission-model-acceptance.md`。
 
 本阶段不新增 Dexie 表或 schema，不执行插件代码，不改变 MCP Streamable HTTP、凭据解密或 SSRF 网络策略。
 

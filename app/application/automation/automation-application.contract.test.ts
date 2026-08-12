@@ -202,6 +202,35 @@ test("外部执行失败只执行一次并将稳定失败终态写入收件箱",
   assert.deepEqual(state.calls.slice(-3), ["complete-failed", "stop-renewal", "release-lease"]);
 });
 
+test("当前无人值守授权被撤销时真实 Application 边界写入 blocked 终态且不执行外部流程", async () => {
+  const state = harness();
+  let executeCalls = 0;
+  state.dependencies.authorize = async () => ({
+    status: "blocked",
+    requirements: [{ kind: "mcp_tool", sourceId: "source-1", serverId: "server-a", toolName: "search-y" }],
+    missingPermissions: ["server-a:search-y"],
+    disabledResources: [],
+    staleResources: [],
+    invalidScopes: [],
+    reasonCodes: ["mcp_permission_missing"],
+  });
+  state.dependencies.execute = async () => {
+    executeCalls += 1;
+    throw new Error("外部执行不应发生");
+  };
+
+  const run = await executeAutomationRun(runInput(state.dependencies));
+
+  assert.equal(run?.status, "failed");
+  assert.equal(run?.failureCategory, "permission");
+  assert.equal(run?.unattendedAudit?.terminalState, "blocked");
+  assert.equal(run?.unattendedAudit?.externalCallCount, 0);
+  assert.equal(run?.unattendedAudit?.successfulCallCount, 0);
+  assert.equal(run?.unattendedAudit?.failedCallCount, 0);
+  assert.equal(executeCalls, 0);
+  assert.deepEqual(state.calls, ["acquire-lease", "classify-error", "create-run", "complete-failed", "release-lease"]);
+});
+
 test("complete-run 与 releaseLease 同时失败时保留主错误并附加 cleanup 诊断", async () => {
   const state = harness({ failAt: ["complete-success", "release"] });
   const error = await applicationError(executeAutomationRun(runInput(state.dependencies)));

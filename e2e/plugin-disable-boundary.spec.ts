@@ -18,3 +18,36 @@ test("内置插件停用后设置面板立即阻断后续操作并保留数据�
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
+
+test("声明式主题扩展通过真实安装、启停和 reload 保持执行边界闭合", async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.goto("/");
+  await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
+  await page.getByRole("button", { name: "插件市场" }).click();
+
+  const themeRow = page.getByRole("listitem").filter({ hasText: "专注纸张" });
+  await expect(themeRow).toBeVisible();
+  await themeRow.getByRole("button", { name: "安装", exact: true }).click();
+
+  const detail = page.getByRole("region", { name: "专注纸张 详情" });
+  await expect(detail).toBeVisible();
+  const enabled = detail.getByRole("checkbox", { name: "专注纸张 启用状态" });
+  const initialBackground = await page.evaluate(() => document.documentElement.style.getPropertyValue("--background"));
+  await enabled.click();
+  await expect(enabled).toBeChecked();
+  await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue("--background"))).toBe("#f7f4ec");
+
+  await enabled.click();
+  await expect(enabled).not.toBeChecked();
+  await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue("--background"))).toBe(initialBackground);
+
+  await page.reload();
+  await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
+  await page.getByRole("listitem").filter({ hasText: "专注纸张" }).getByRole("button").first().click();
+  const reloadedDetail = page.getByRole("region", { name: "专注纸张 详情" });
+  await expect(reloadedDetail.getByRole("checkbox", { name: "专注纸张 启用状态" })).not.toBeChecked();
+  await expect(reloadedDetail.getByText("扩展已停用", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue("--background"))).toBe(initialBackground);
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});

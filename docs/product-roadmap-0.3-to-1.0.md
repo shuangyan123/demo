@@ -294,7 +294,7 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - Direct contracts cover blocked zero-call behavior, MCP/HTTP failure progress, later-stage failure retention, deterministic merge/no double count, privacy, and unchanged success/partial-success semantics.
 - Persisted `AutomationRun.error` messages are derived from stable category, provider, or authorization product text; raw failure causes remain process-local and the existing `unattendedAudit` boundary is unchanged.
 
-`0.6 Phase 2` is complete. `0.6 overall` remains **IN PROGRESS** because Acceptance Closure is intentionally deferred.
+`0.6 Phase 2` is complete. The final cross-boundary Acceptance Closure is recorded below.
 
 ### Phase 3 — Declarative Extension permission & disable semantics
 
@@ -305,11 +305,16 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - 保持既有 MCP/Host/AI/Vault authority、隐私边界、`review_extensions` v1 与 `review_workspace` v16；无新迁移、外部审计表或自动 fallback。
 - 详见 `docs/declarative-extension-permissions.md`。
 
-### Deferred 0.6 work
+### Acceptance Closure — Final cross-boundary verification
 
-- Acceptance Closure：针对完整 0.6 范围的最终收口（NOT STARTED）。
+**COMPLETE（2026-08-12）**
 
-0.6 overall：**IN PROGRESS**。
+- MCP、Automation HTTP/MCP、Declarative Extension、Obsidian 与 Fenbi 的权限声明、当前授权、停用/撤销和隐私边界已按同一 acceptance matrix 收口。
+- 真实执行路径 contract 覆盖 MCP stale/revocation、Automation blocked zero-call 与 origin revocation、扩展旧 callback、声明变更升级和内置插件数据保留。
+- Chromium Playwright 覆盖内置插件停用与官方主题扩展的安装、启用、停用、主题回滚和 reload。
+- 证据矩阵与兼容/回滚边界见 `docs/permission-model-acceptance.md`。
+
+`0.6 overall`：**COMPLETE**。`0.7` 仍为 **NOT STARTED**。
 
 ### 目标
 
