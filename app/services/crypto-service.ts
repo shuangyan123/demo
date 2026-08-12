@@ -1,4 +1,5 @@
 import { getOrCreateSecurePrimaryKey, readSecurePrimaryKey } from "./secure-key-store.ts";
+import { detectCredentialStorageFormat } from "./credential-storage-format.ts";
 
 export const LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME = "review_workspace_crypto_key_v1";
 const VERSIONED_CIPHERTEXT_PREFIX = "v2:";
@@ -58,7 +59,7 @@ async function getLegacyLocalCryptoKey(): Promise<CryptoKey> {
 
 /** 判断密文是否仍依赖旧版 localStorage JWK。 */
 export function isLegacyEncryptedSecret(encryptedKey: string | undefined): boolean {
-  return Boolean(encryptedKey && !encryptedKey.startsWith(VERSIONED_CIPHERTEXT_PREFIX));
+  return detectCredentialStorageFormat(encryptedKey, encryptedKey ? "legacy" : undefined) === "legacy-v1";
 }
 
 // 使用不可导出主密钥加密凭据，并通过 AAD 绑定稳定的记录上下文。
@@ -81,7 +82,11 @@ export async function encryptSecret(plainText: string, context: string): Promise
 // 解密指定上下文的密文；旧版密文仅用于可恢复迁移，不使用 AAD。
 export async function decryptSecret(encryptedKey: string, iv: string, context: string): Promise<string> {
   try {
-    const legacy = isLegacyEncryptedSecret(encryptedKey);
+    const format = detectCredentialStorageFormat(encryptedKey, iv);
+    if (format === "desktop-v1" || format === "unknown" || format === "invalid" || format === "missing") {
+      throw new CredentialSecurityError("ciphertext_invalid", "Stored credential format is invalid; re-enter it and save again.");
+    }
+    const legacy = format === "legacy-v1";
     const key = legacy ? await getLegacyLocalCryptoKey() : await readSecurePrimaryKey();
     if (!key) {
       throw new CredentialSecurityError(

@@ -1,9 +1,16 @@
 import type {
+  CredentialHostResult,
   DesktopCredentialProtectionCapability,
   DesktopVaultCapability,
   HostRuntime,
   NativeWindowCapability,
 } from "../capabilities.ts";
+import { DesktopCredentialProtectionError } from "../capabilities.ts";
+
+function unwrapCredentialResult<T>(result: CredentialHostResult<T>): T {
+  if (result.ok) return result.value;
+  throw new DesktopCredentialProtectionError(result.error.code, result.error.message);
+}
 
 /** 将现有 preload global 包装为中性能力；这里是 renderer 唯一允许读取桥接全局的位置。 */
 export function createDesktopHost(target: Window): HostRuntime | undefined {
@@ -34,9 +41,9 @@ export function createDesktopHost(target: Window): HostRuntime | undefined {
   const credentialProtection: DesktopCredentialProtectionCapability | undefined = credentialProtectionBridge
     ? {
         kind: "desktop",
-        getStatus: () => credentialProtectionBridge.getStatus(),
-        protectCredential: (context, secret) => credentialProtectionBridge.protectCredential(context, secret),
-        unprotectCredential: (context, envelope) => credentialProtectionBridge.unprotectCredential(context, envelope),
+        getStatus: async () => unwrapCredentialResult(await credentialProtectionBridge.getStatus()),
+        protectCredential: async (context, secret) => unwrapCredentialResult(await credentialProtectionBridge.protectCredential(context, secret)),
+        unprotectCredential: async (context, envelope) => unwrapCredentialResult(await credentialProtectionBridge.unprotectCredential(context, envelope)),
       }
     : undefined;
 

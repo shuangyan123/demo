@@ -100,6 +100,10 @@ test("凭据保护保持 WebCrypto 与 Desktop Host 分离并拒绝通用 native
     const relativePath = path.relative(APP_ROOT, file).replace(/\\/g, "/");
     if (!relativePath.startsWith("features/") && !relativePath.startsWith("application/") && !relativePath.startsWith("services/")) continue;
     const source = await readFile(file, "utf8");
+    if (relativePath === "services/credential-backend.ts") {
+      assert.doesNotMatch(source, /reviewDesktop(?:Vault|Window|CredentialProtection)/);
+      continue;
+    }
     if (/credentialProtection|protectCredential|unprotectCredential/.test(source)) productionCredentialConsumers.push(relativePath);
   }
   assert.deepEqual(productionCredentialConsumers, []);

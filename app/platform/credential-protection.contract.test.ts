@@ -10,11 +10,11 @@ function windowStub(value: Record<string, unknown>): Window {
 
 function fakeCredentialProtectionBridge(): DesktopCredentialProtectionPreloadBridge {
   return {
-    getStatus: async () => ({ status: "available", backend: "os_protected" }),
-    protectCredential: async (context, secret) => ({ version: "desktop-v1", context, payload: `sentinel:${secret}` }),
+    getStatus: async () => ({ ok: true, value: { status: "available", backend: "os_protected" } }),
+    protectCredential: async (context, secret) => ({ ok: true, value: { version: "desktop-v1", context, payload: `c2VudGluZWw6${btoa(secret)}` } }),
     unprotectCredential: async (context, envelope) => {
-      if (envelope.context !== context || !envelope.payload.startsWith("sentinel:")) throw new Error("context mismatch");
-      return { secret: envelope.payload.slice("sentinel:".length), shouldReProtect: false };
+      if (envelope.context !== context) return { ok: false, error: { code: "host_context_mismatch", message: "context mismatch" } };
+      return { ok: true, value: { secret: "sentinel-secret", shouldReProtect: false } };
     },
   };
 }

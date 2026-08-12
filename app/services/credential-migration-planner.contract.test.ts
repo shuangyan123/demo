@@ -14,7 +14,7 @@ test("纯 Web 模式继续使用 WebCrypto，不产生 Desktop 迁移动作", ()
   assert.equal(plan.reason, "web_mode");
   assert.equal(plan.readStrategy, "web_only");
   assert.equal(plan.writeStrategy, "web_only");
-  assert.equal(plan.destructiveActions, "none_phase_1");
+  assert.equal(plan.destructiveActions, "none_phase_2");
 });
 
 test("Desktop secure host + valid Web v2 inventory is eligible only for a later staging phase", () => {
@@ -28,7 +28,7 @@ test("Desktop secure host + valid Web v2 inventory is eligible only for a later 
   assert.equal(plan.nextState, "preflight");
   assert.equal(plan.retryable, true);
   assert.equal(plan.readStrategy, "desktop_first_web_fallback");
-  assert.equal(plan.writeStrategy, "none_phase_1");
+  assert.equal(plan.writeStrategy, "desktop_preferred");
   assert.deepEqual(plan.items.map((item) => item.action), ["stage", "stage"]);
 });
 
@@ -41,7 +41,7 @@ test("Desktop unavailable blocks migration without deleting the Web source", () 
   assert.equal(plan.decision, "blocked");
   assert.equal(plan.reason, "desktop_host_unavailable");
   assert.equal(plan.retryable, true);
-  assert.equal(plan.destructiveActions, "none_phase_1");
+  assert.equal(plan.destructiveActions, "none_phase_2");
   assert.deepEqual(plan.items.map((item) => item.action), ["retain", "retain"]);
 });
 
@@ -102,6 +102,6 @@ test("blocked or cancelled migrations return to preflight without deleting the W
     assert.equal(plan.decision, "eligible");
     assert.equal(plan.nextState, "preflight");
     assert.equal(plan.retryable, true);
-    assert.equal(plan.destructiveActions, "none_phase_1");
+    assert.equal(plan.destructiveActions, "none_phase_2");
   }
 });

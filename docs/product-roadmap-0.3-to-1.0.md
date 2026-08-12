@@ -388,6 +388,16 @@ Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK
 
 - 新存储必须支持双读、单写和明确回退期限；删除旧材料需要单独确认阶段。
 
+### Phase 2 — Desktop Credential Migration & Controlled Cutover
+
+**COMPLETE (2026-08-12)**
+
+- Implemented structured Main → preload → platform credential errors, real inventory across AI, legacy AI, quota, MCP, Fenbi, Web v2, legacy v1, and Desktop v1 sources, and explicit format detection without decrypt-and-guess.
+- Implemented sequential preflight, stage, verify, ready-to-commit, commit, and post-commit verification with an excluded safe journal. Partial staging and partial commit are resumable and remain recovery-required until verified.
+- Desktop becomes preferred only after all expected records verify. Web sources remain retained for rollback evidence; post-cutover writes are Desktop-only and host failure never downgrades to Web.
+- Added repository integration and regression contracts for AI connections, quota credentials, MCP bearer tokens, and Fenbi Cookie, including denied/disabled zero-unprotect paths.
+- Core `review_workspace` remains v16; Web mode remains WebCrypto-only. Windows installed-app acceptance and cleanup are intentionally NOT COMPLETE and remain outside this phase.
+
 ## 0.8 Windows desktop distribution
 
 ### 目标
