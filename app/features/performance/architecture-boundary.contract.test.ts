@@ -61,7 +61,7 @@ test("业务层只能通过 Host Capability 访问 Electron preload", async () =
     const relativePath = path.relative(APP_ROOT, file).replace(/\\/g, "/");
     if (relativePath === "types/review-desktop.d.ts" || relativePath.startsWith("platform/desktop/")) continue;
     const source = await readFile(file, "utf8");
-    if (/reviewDesktop(?:Vault|Window)/.test(source)) directBridgeReferences.push(relativePath);
+    if (/reviewDesktop(?:Vault|Window|CredentialProtection)/.test(source)) directBridgeReferences.push(relativePath);
   }
   assert.deepEqual(directBridgeReferences, []);
 
@@ -72,6 +72,37 @@ test("业务层只能通过 Host Capability 访问 Electron preload", async () =
     assert.equal(imports.some((target) => /(?:^|\/)(?:application|features|services|db|server)(?:\/|$)/.test(target)), false);
     assert.equal(imports.some((target) => target === "react" || target.startsWith("react/")), false);
   }
+});
+
+test("凭据保护保持 WebCrypto 与 Desktop Host 分离并拒绝通用 native crypto", async () => {
+  const files = await sourceFiles(APP_ROOT);
+  const plannerSource = await readFile(path.join(APP_ROOT, "services/credential-migration-planner.ts"), "utf8");
+  const webCryptoSource = await readFile(path.join(APP_ROOT, "services/crypto-service.ts"), "utf8");
+  const desktopAdapterSource = await readFile(path.join(APP_ROOT, "platform/desktop/desktop-host-adapter.ts"), "utf8");
+  const platformCredentialSource = await readFile(path.join(APP_ROOT, "platform/credential-protection.ts"), "utf8");
+
+  assert.doesNotMatch(plannerSource, /React|Electron|safeStorage|window|document|fetch\s*\(|reviewDb|decryptSecret|localStorage|ipc/i);
+  assert.doesNotMatch(webCryptoSource, /from\s+["']electron["']|safeStorage/);
+  assert.doesNotMatch(desktopAdapterSource, /from\s+["']electron["']|safeStorage/);
+  assert.match(platformCredentialSource, /selectCredentialProtectionBackend/);
+
+  const featureOrServiceNativeImports: string[] = [];
+  for (const file of files) {
+    const relativePath = path.relative(APP_ROOT, file).replace(/\\/g, "/");
+    if (relativePath.startsWith("platform/desktop/") || relativePath === "types/review-desktop.d.ts") continue;
+    const source = await readFile(file, "utf8");
+    if (/safeStorage|from\s+["']electron["']/.test(source)) featureOrServiceNativeImports.push(relativePath);
+  }
+  assert.deepEqual(featureOrServiceNativeImports, []);
+
+  const productionCredentialConsumers: string[] = [];
+  for (const file of files) {
+    const relativePath = path.relative(APP_ROOT, file).replace(/\\/g, "/");
+    if (!relativePath.startsWith("features/") && !relativePath.startsWith("application/") && !relativePath.startsWith("services/")) continue;
+    const source = await readFile(file, "utf8");
+    if (/credentialProtection|protectCredential|unprotectCredential/.test(source)) productionCredentialConsumers.push(relativePath);
+  }
+  assert.deepEqual(productionCredentialConsumers, []);
 });
 
 test("Application Layer 保持纯 TypeScript 且不反向依赖 UI 或宿主全局", async () => {
@@ -90,7 +121,7 @@ test("Application Layer 保持纯 TypeScript 且不反向依赖 UI 或宿主全�
       || /(?:^|\/)features(?:\/|$)/.test(target)
       || /\.css$/i.test(target)
     ));
-    if (forbiddenImport || /reviewDesktop(?:Vault|Window)|\bwindow\b|\bdocument\b/.test(source)) {
+    if (forbiddenImport || /reviewDesktop(?:Vault|Window|CredentialProtection)|\bwindow\b|\bdocument\b/.test(source)) {
       violations.push(path.relative(APP_ROOT, file).replace(/\\/g, "/"));
     }
   }

@@ -20,3 +20,16 @@ contextBridge.exposeInMainWorld("reviewDesktopVault", {
 contextBridge.exposeInMainWorld("reviewDesktopWindow", {
   setTitleBarTheme: (mode: "light" | "dark") => ipcRenderer.invoke("review-titlebar:set-theme", mode),
 });
+
+type DesktopCredentialEnvelope = {
+  version: "desktop-v1";
+  context: string;
+  payload: string;
+};
+
+/** 凭据桥只传递版本化上下文包，不暴露 Electron safeStorage 或通用解密原语。 */
+contextBridge.exposeInMainWorld("reviewDesktopCredentialProtection", {
+  getStatus: () => ipcRenderer.invoke("review-credential-storage:status"),
+  protectCredential: (context: string, secret: string) => ipcRenderer.invoke("review-credential-storage:protect", context, secret),
+  unprotectCredential: (context: string, envelope: DesktopCredentialEnvelope) => ipcRenderer.invoke("review-credential-storage:unprotect", context, envelope),
+});

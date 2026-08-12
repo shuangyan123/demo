@@ -1,4 +1,5 @@
 import type {
+  DesktopCredentialProtectionCapability,
   DesktopVaultCapability,
   HostRuntime,
   NativeWindowCapability,
@@ -8,7 +9,8 @@ import type {
 export function createDesktopHost(target: Window): HostRuntime | undefined {
   const vaultBridge = target.reviewDesktopVault;
   const windowBridge = target.reviewDesktopWindow;
-  if (!vaultBridge && !windowBridge) return undefined;
+  const credentialProtectionBridge = target.reviewDesktopCredentialProtection;
+  if (!vaultBridge && !windowBridge && !credentialProtectionBridge) return undefined;
 
   const vault: DesktopVaultCapability | undefined = vaultBridge
     ? {
@@ -29,8 +31,20 @@ export function createDesktopHost(target: Window): HostRuntime | undefined {
     ? { setTitleBarTheme: (mode) => windowBridge.setTitleBarTheme(mode) }
     : undefined;
 
+  const credentialProtection: DesktopCredentialProtectionCapability | undefined = credentialProtectionBridge
+    ? {
+        kind: "desktop",
+        getStatus: () => credentialProtectionBridge.getStatus(),
+        protectCredential: (context, secret) => credentialProtectionBridge.protectCredential(context, secret),
+        unprotectCredential: (context, envelope) => credentialProtectionBridge.unprotectCredential(context, envelope),
+      }
+    : undefined;
+
+  const capabilities = { vault, nativeWindow } as HostRuntime["capabilities"];
+  if (credentialProtection) capabilities.credentialProtection = credentialProtection;
+
   return {
     kind: "desktop",
-    capabilities: { vault, nativeWindow },
+    capabilities,
   };
 }

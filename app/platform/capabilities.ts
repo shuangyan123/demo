@@ -51,9 +51,33 @@ export interface NativeWindowCapability {
   setTitleBarTheme(mode: "light" | "dark"): Promise<void>;
 }
 
+export type CredentialProtectionStatus =
+  | { status: "available"; backend: "os_protected" }
+  | { status: "unavailable" | "unsupported" | "temporarily_unavailable" };
+
+export type DesktopCredentialEnvelope = {
+  version: "desktop-v1";
+  context: string;
+  payload: string;
+};
+
+export type DesktopCredentialUnprotectResult = {
+  secret: string;
+  shouldReProtect: boolean;
+};
+
+/** 只允许凭据语义的受保护包，不暴露通用 native crypto primitive。 */
+export interface DesktopCredentialProtectionCapability {
+  readonly kind: "desktop";
+  getStatus(): Promise<CredentialProtectionStatus>;
+  protectCredential(context: string, secret: string): Promise<DesktopCredentialEnvelope>;
+  unprotectCredential(context: string, envelope: DesktopCredentialEnvelope): Promise<DesktopCredentialUnprotectResult>;
+}
+
 export type HostCapabilities = {
   vault?: VaultCapability;
   nativeWindow?: NativeWindowCapability;
+  credentialProtection?: DesktopCredentialProtectionCapability;
 };
 
 export type HostRuntime = {
@@ -64,3 +88,4 @@ export type HostRuntime = {
 /** Electron preload 只实现这些中性端口，renderer 不接触 Node.js、IPC 或绝对路径。 */
 export type DesktopVaultPreloadBridge = Omit<DesktopVaultCapability, "kind">;
 export type DesktopWindowPreloadBridge = NativeWindowCapability;
+export type DesktopCredentialProtectionPreloadBridge = Omit<DesktopCredentialProtectionCapability, "kind">;

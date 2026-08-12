@@ -9,11 +9,12 @@ desktop/
 ├─ protocol.ts      review-app 自定义协议与令牌代理
 ├─ preload.ts       context-isolated 最小桌面桥
 ├─ vault.ts         Vault 目录选择、恢复与受限 IPC
+├─ credential-storage.ts 版本化凭据保护 capability 与安全 IPC
 └─ permissions.ts   媒体、文件与屏幕来源权限
 ```
 
 - React controller、Dexie repository 与 Route Handlers 保持 Web/Electron 共用；桌面目录不进入 React 业务依赖图。
-- Electron 主进程只管理应用生命周期、安全边界和本地 Next 子进程，不持有学习状态，不解密业务凭据。
+- Electron 主进程只管理应用生命周期、安全边界和本地 Next 子进程，不持有学习状态；当前生产凭据仍由 WebCrypto repository 解密，Main 仅提供未接入生产迁移的窄化 credential-protection capability。
 - `next.config.ts` 使用 `output: "standalone"`。浏览器开发仍由 `npm run dev` 提供，Electron 开发加载同一 `http://127.0.0.1:3000`。
 - 安装版数据流为 `review-app://workspace → persist:review-workspace session.protocol.handle → 127.0.0.1:随机端口 → Next standalone`。协议处理器必须与窗口使用同一个持久化 session；一次性令牌仅存在于主进程和子进程环境，代理转发到 Next 后由根 `proxy.ts` 校验并移除。
 - 正式包启用 ASAR 完整性、仅从 ASAR 加载、Cookie 加密以及 Node/CLI 环境入口限制；Electron 43 包继续使用标准 V8 snapshot，因为官方 Windows 分发不包含 browser-process-specific snapshot 文件。
@@ -500,6 +501,15 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - Vault service 继续保留 Web File System Access 与 Electron preload 两条原有路径；标题栏主题继续只向受限 preload 传递 `light | dark`。
 - Web 与 Electron 已共享 titlebar spacing、sidebar/content 和 viewport 布局。浏览器不会伪造系统窗口按钮或 IPC，因此本轮不新增 `hostPreview=desktop`；若未来宿主视觉分叉，再增加仅开发环境的样式开关。
 - 本次改造不新增 HTTP API，不修改 IndexedDB、凭据、Vault 文件格式、Provider/MCP/Automation/Plugin 协议，也不改变动态加载边界。
+
+# 0.7 Desktop credential threat model & host boundary Phase 1（2026-08-12）
+
+- 当前生产凭据仍保持 `crypto-service.ts` 的 WebCrypto AES-GCM、不可导出主密钥和 record-specific AAD；AI 连接、额度凭据、MCP Bearer 与粉笔 Cookie 的 v1 → v2 Web 迁移和旧 JWK 删除语义不变。
+- `desktop/credential-storage.ts` 只在 Main Process、`app.whenReady()` 之后使用 Electron 43.2.0 的 async `safeStorage` API。Windows DPAPI 的实际边界是同用户空间内其他应用仍可能访问，不能描述为 TPM、硬件密钥或 zero-trust vault；Linux `basic_text` 明确不作为安全 backend。
+- 新增 `reviewDesktopCredentialProtection` 只包装版本化 `desktop-v1` envelope 和合法 credential context；不暴露通用 `safeStorage`、任意 decrypt blob、文件路径或 OS resource。跨记录 context substitution 在 host 解密后再次校验并 fail closed。
+- `app/platform/credential-protection.ts` 做确定性的 Web/Desktop backend inspection；Web adapter 不伪造 host storage，Desktop 缺少 capability 时返回显式 unsupported/unavailable。现有 credential repositories 本轮不调用该 capability，因此没有 production cutover、dual-write 或 schema migration。
+- `app/services/credential-migration-planner.ts` 是纯 TypeScript、无解密/网络/存储副作用的后续迁移资格 planner。它只允许完整 inventory 驱动 `eligible | blocked | no_op | requires_reentry`，固定 `none_phase_1` destructive action，支持 dual-read/single-write 的后续设计但不执行迁移。
+- 详细凭据清单、浏览器与 Windows threat model、失败矩阵、恢复和 Windows acceptance plan 见 `docs/desktop-credential-threat-model.md`。0.7 overall 仍为 IN PROGRESS；实际 credential cutover、Windows acceptance 与 cleanup confirmation 留在后续阶段。
 
 # 0.4 Application Layer Phase 1：Interview（2026-08-09）
 
