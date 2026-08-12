@@ -314,7 +314,7 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - Chromium Playwright 覆盖内置插件停用与官方主题扩展的安装、启用、停用、主题回滚和 reload。
 - 证据矩阵与兼容/回滚边界见 `docs/permission-model-acceptance.md`。
 
-`0.6 overall`：**COMPLETE**。`0.7 overall`：**IN PROGRESS**；Phase 1 已完成，后续 credential cutover、Windows acceptance 与 cleanup confirmation 仍未开始。
+`0.6 overall`：**COMPLETE**。`0.7 overall`：**IN PROGRESS**；Phase 1 与 Phase 2 已完成，Phase 3 产品迁移入口与自动化证据已实现，Windows installed-app acceptance 与 cleanup confirmation 仍待完成。
 
 ### 目标
 
@@ -397,6 +397,19 @@ Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK
 - Desktop becomes preferred only after all expected records verify. Web sources remain retained for rollback evidence; post-cutover writes are Desktop-only and host failure never downgrades to Web.
 - Added repository integration and regression contracts for AI connections, quota credentials, MCP bearer tokens, and Fenbi Cookie, including denied/disabled zero-unprotect paths.
 - Core `review_workspace` remains v16; Web mode remains WebCrypto-only. Windows installed-app acceptance and cleanup are intentionally NOT COMPLETE and remain outside this phase.
+
+### Phase 3 — Product Migration Entry & Windows Installed-App Acceptance
+
+**IN PROGRESS（产品入口已实现；Windows 安装版验收 PENDING MANUAL ACCEPTANCE，2026-08-12）**
+
+- Settings → AI 连接增加最小显式 `Desktop 凭据保护` 入口；只有真实 Desktop Host 才渲染，Web 不显示伪造迁移能力。
+- 打开 Settings 只读取安全 Host 状态与 migration journal；不会在启动、打开 Settings 或渲染面板时自动迁移。用户明确点击后才调用既有 `migrateDesktopCredentials()`，并继续使用 single-flight、可恢复 journal、Desktop-first authority 和 Desktop-only 写入。
+- UI 只展示 ready、in progress、complete、requires re-entry、blocked、recovery required、Desktop protection unavailable 等固定安全状态，不展示凭据、密文、IV、payload、路径、堆栈或 raw IPC error。
+- 增加 Web 隐藏、显式启动、无启动写入、single-flight、状态映射、状态 reload 和隐私边界 contracts，并增加 deterministic fake-Desktop Browser E2E harness。该 harness 不等同于 Windows DPAPI 或安装版证据。
+- Windows installed-app fresh credential、Web→Desktop migration、failure/recovery、restart/upgrade/userData 生命周期尚未在本轮实际执行，必须按 `docs/release-smoke.md` 记录人工证据后才能改变状态。
+- 本阶段没有删除 retained Web v2 ciphertext、Web secure key、legacy source 或 migration journal；cleanup confirmation 仍是后续独立阶段。
+
+`0.7 overall`：**IN PROGRESS**。Phase 1 与 Phase 2 COMPLETE；Phase 3 的产品入口与自动化证据已实现，Windows installed-app acceptance 和 cleanup confirmation 仍未完成。
 
 ## 0.8 Windows desktop distribution
 

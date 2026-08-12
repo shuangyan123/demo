@@ -1,5 +1,29 @@
 # 发布前手工冒烟清单
 
+## 2026-08-12 · 0.7 Desktop Credential Acceptance Closure
+
+状态：**PENDING MANUAL ACCEPTANCE**。本轮已实现产品入口、自动化 contracts 与 deterministic fake-Desktop Browser harness，但当前执行环境没有真实 Windows 安装版/DPAPI 运行证据，因此不能把以下人工项目标为通过，也不能把 0.7 标记为 COMPLETE。
+
+### Evidence boundary
+
+- 自动化 contract evidence：`npm run test:contracts`、`npm run test:desktop` 与 `e2e/desktop-credential-migration.spec.ts`。fake Desktop bridge 只证明产品 gating、显式动作、journal 读取/写入边界和安全 UI 投影，不证明 Windows DPAPI。
+- Electron integration evidence：`npm run desktop:compile`、`npm run test:desktop` 以及实际 Electron 开发/打包运行；这些检查不能替代安装版生命周期证据。
+- Installed Windows manual evidence：必须记录真实安装器版本、commit SHA、安装/升级步骤、脱敏结果和失败类别。只有实际观察到的项目才可标记 PASS。
+
+### Exact installed-app procedure
+
+1. 在 Windows x64、Node 22 环境从待验 commit 执行 `npm run desktop:make`，保存生成的 Squirrel 安装器文件名、SHA-256、commit SHA 与 package version；使用隔离的非生产测试凭据，绝不把凭据写进记录或截图。
+2. 安装并启动应用，确认 `设置 → AI 连接 → Desktop 凭据保护` 显示真实保护能力可用。确认只打开 Settings/AI 连接不会生成 `review-workspace:credential-migration:v1` journal 写入，也不会开始迁移。
+3. Fresh credential flow：保存一个受控测试凭据，关闭并重新打开安装版，确认凭据仍可用；检查正常 renderer state、diagnostics、备份/导出、日志和 UI 不包含 plaintext、完整 token/API key、ciphertext、IV、Desktop payload、路径或 stack trace。
+4. Existing Web → Desktop flow：在隔离 Desktop profile 准备一个可识别的 Web v2 测试凭据，重启后只通过用户点击 `迁移到 Desktop 保护` 启动；记录 preflight、staging、verification、ready-to-commit、commit 与 complete 的实际可见结果。确认只有全部 expected records verify 后 authority 才改变，重启后仍为 Desktop authority 且凭据可用；Web source 仍保留作恢复证据。
+5. Failure/recovery：分别使用可安全复现的 controlled fixture 或 Host test seam 验证 protection unavailable、commit 前中断、带 resumable journal 重启、requires-reentry、context mismatch/corrupted Desktop envelope 与 partial commit recovery。每项都确认显示安全状态、可恢复路径和 source retention；任何 Desktop authority 失败都不得 silently downgrade 到 Web。
+6. Installed lifecycle：执行 close/reopen、立即相邻版本覆盖升级，记录 `userData` 是否保留及 credential availability 是否保持。只有实际执行过的 install、restart、upgrade 结果可写 PASS；不得把预期行为写成观察结果。
+7. 不要在没有实际执行的情况下声称换机、Windows 账户变化、复制 userData/blob、卸载重装恢复或 DPAPI portability；这些仍是 manual-only residual cases。
+
+### Acceptance record
+
+记录至少包含：`environment`、Windows version、installer/package version、commit SHA、测试 profile、每个 matrix case 的 `PASS/FAIL/PENDING`、安全失败类别和人工观察时间。不得记录 API Key、Cookie、密文、完整 URL、OS 路径或原始错误文本。当前状态保持 **PENDING MANUAL ACCEPTANCE**；cleanup confirmation 另行执行，且本轮没有删除任何 retained Web credential material。
+
 ## 2026-08-09 · Data Reliability Phase 2
 
 1. 在隔离 profile 制造一条无父对话的 `aiConversationRunSteps`，确认 Health 只把它标为“可定向修复”；attempt/message/turn/knowledge dangling、缺密钥与 Vault 问题只能显示手动路径且没有修复按钮。

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-12 — 0.7 Desktop Credential Product Entry
+
+- Added the smallest explicit Desktop credential migration entry under Settings → AI connections. Web does not render a fake Desktop action, and opening Settings performs only safe status/journal reads.
+- Added fixed safe UI states, explicit user initiation, existing single-flight reuse, durable completion reload, privacy-focused state projection, and a deterministic fake-Desktop Browser E2E harness.
+- Windows installed-app acceptance remains **PENDING MANUAL ACCEPTANCE**. No retained Web credential material, secure key, legacy source, or migration journal was deleted; cleanup remains a separate confirmation phase.
+
 ## 2026-08-12 — 0.7 Desktop Credential Migration Phase 2
 
 - Completed controlled Desktop credential cutover with structured IPC errors, explicit source inventory/formats, context binding, staged verification, resumable migration journal, and Desktop-preferred single-write policy.
