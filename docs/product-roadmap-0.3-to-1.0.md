@@ -292,6 +292,7 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - Failed audits retain factual call counts and resource identities without persisting raw arguments, results, full URLs, document content, provider payloads, credentials, or error causes.
 - Authorization-blocked runs remain zero-call `blocked` runs; uncertain external effects remain `manual-only`, with no automatic retry, replay, rollback, schema migration, or per-call journal.
 - Direct contracts cover blocked zero-call behavior, MCP/HTTP failure progress, later-stage failure retention, deterministic merge/no double count, privacy, and unchanged success/partial-success semantics.
+- Persisted `AutomationRun.error` messages are derived from stable category, provider, or authorization product text; raw failure causes remain process-local and the existing `unattendedAudit` boundary is unchanged.
 
 `0.6 Phase 2` is complete. `0.6 overall` remains **IN PROGRESS** because Phase 3 and Acceptance Closure are intentionally deferred.
 

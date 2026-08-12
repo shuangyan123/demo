@@ -1,9 +1,11 @@
 import type { AutomationFailureCategory, AutomationRecoveryAction } from "../types/domains/automation.ts";
+import { AiProviderFailureError } from "./ai-provider-failure.ts";
 import { automationExecutionCause, AutomationAuthorizationError } from "./automation-errors.ts";
 
 export type AutomationFailureDiagnosis = {
   category: AutomationFailureCategory;
   recoveryAction: AutomationRecoveryAction;
+  /** 仅供持久化和用户展示；原始 cause 只在当前进程内用于分类。 */
   message: string;
 };
 
@@ -16,9 +18,23 @@ const CATEGORY_TEXT: Record<AutomationFailureCategory, string> = {
   unknown: "未知错误",
 };
 
+/** 普通错误的稳定产品文案；不能由原始 Error.message 生成。 */
+const CATEGORY_MESSAGE: Record<AutomationFailureCategory, string> = {
+  missing_connection: "缺少默认文本连接",
+  network: "网络不可用或请求中断",
+  permission: "访问权限不足或资源不可用",
+  model: "模型服务返回异常",
+  empty_scope: "暂无可读取的数据",
+  unknown: "自动化执行失败",
+};
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return typeof error === "string" ? error : "自动化执行失败";
+}
+
+function safeFailureMessage(category: AutomationFailureCategory): string {
+  return CATEGORY_MESSAGE[category];
 }
 
 function authorizationFailureMessage(error: AutomationAuthorizationError): string {
@@ -44,36 +60,36 @@ export function classifyAutomationError(inputError: unknown, options: { online?:
     };
   }
   if (error instanceof Error && "recoveryDiagnosis" in error) {
-    const providerFailure = error as Error & {
-      recoveryDiagnosis: Pick<AutomationFailureDiagnosis, "category" | "recoveryAction">;
-    };
-    return {
-      ...providerFailure.recoveryDiagnosis,
-      // AiProviderFailureError 构造器统一写入产品安全文案；Automation 不读取厂商原始错误。
-      message: providerFailure.message,
-    };
+    if (error instanceof AiProviderFailureError) {
+      const providerFailure = error;
+      return {
+        ...providerFailure.recoveryDiagnosis,
+        // AiProviderFailureError 构造器统一写入产品安全文案；Automation 不读取厂商原始错误。
+        message: providerFailure.message,
+      };
+    }
   }
-  const message = errorMessage(error);
-  const normalized = message.toLowerCase();
-  if (message.includes("默认文本连接") || message.includes("AI 连接") || normalized.includes("connection")) {
-    return { category: "missing_connection", recoveryAction: "configure_ai_connection", message };
+  const rawMessage = errorMessage(error);
+  const normalized = rawMessage.toLowerCase();
+  if (rawMessage.includes("默认文本连接") || rawMessage.includes("AI 连接") || normalized.includes("connection")) {
+    return { category: "missing_connection", recoveryAction: "configure_ai_connection", message: safeFailureMessage("missing_connection") };
   }
   if (options.online === false || /failed to fetch|networkerror|network request|offline|断网|网络/.test(normalized)) {
-    return { category: "network", recoveryAction: "check_network", message };
+    return { category: "network", recoveryAction: "check_network", message: safeFailureMessage("network") };
   }
   if (/mcp/.test(normalized) && /授权|权限|server|工具|tool/.test(normalized)) {
-    return { category: "permission", recoveryAction: "configure_mcp", message };
+    return { category: "permission", recoveryAction: "configure_mcp", message: safeFailureMessage("permission") };
   }
   if (/notallowed|permission|security|vault|obsidian|directory|授权|权限/.test(normalized)) {
-    return { category: "permission", recoveryAction: "open_knowledge", message };
+    return { category: "permission", recoveryAction: "open_knowledge", message: safeFailureMessage("permission") };
   }
   if (/api|model|provider|http|json|token|key|quota|rate|模型|密钥|供应商/.test(normalized)) {
-    return { category: "model", recoveryAction: "configure_ai_connection", message };
+    return { category: "model", recoveryAction: "configure_ai_connection", message: safeFailureMessage("model") };
   }
   if (/至少选择|暂无可读取|没有可读取|empty|no data/.test(normalized)) {
-    return { category: "empty_scope", recoveryAction: "open_import", message };
+    return { category: "empty_scope", recoveryAction: "open_import", message: safeFailureMessage("empty_scope") };
   }
-  return { category: "unknown", recoveryAction: "retry", message };
+  return { category: "unknown", recoveryAction: "retry", message: safeFailureMessage("unknown") };
 }
 
 /** 将失败分类展示为详情页中的稳定中文标签。 */

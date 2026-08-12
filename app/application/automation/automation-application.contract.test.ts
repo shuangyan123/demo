@@ -6,6 +6,7 @@ import type { AutomationExternalAuthorizationResult } from "../../services/autom
 import type { AutomationExecutionResult } from "../../services/automation-executor.ts";
 import type { AutomationDefinition, AutomationExternalExecutionSummary, AutomationRun } from "../../types/domains/automation.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
+import { classifyAutomationError } from "../../services/automation-failure.ts";
 import { AutomationApplicationError } from "./automation-application.ts";
 import { executeAutomationRun, type ExecuteAutomationRunDependencies } from "./execute-automation-run.ts";
 
@@ -282,4 +283,26 @@ test("后续 AI 失败时保留采集外部执行摘要且不泄漏 typed error 
   assert.deepEqual(run?.unattendedAudit?.httpOrigins, acquiredExternalExecution.httpOrigins);
   assert.equal(run?.unattendedAudit?.reasonCodes.includes("runtime_failed"), true);
   assert.doesNotMatch(JSON.stringify(run), /secret-token-123|Bearer|raw-result|prompt-secret/);
+});
+
+test("普通 progress cause 在真实 AutomationRun 持久化边界被安全化", async () => {
+  const state = harness({
+    failAt: "execute",
+    authorize: true,
+    executeError: new AutomationExecutionProgressError(
+      new Error("provider-payload-secret raw-proposal-content Bearer secret-token-123 C:\\Users\\Private\\secret.txt https://example.com/path?token=abc"),
+      acquiredExternalExecution,
+    ),
+  });
+  state.dependencies.classifyError = classifyAutomationError;
+  const run = await executeAutomationRun({ ...runInput(state.dependencies), online: true });
+
+  assert.equal(run?.status, "failed");
+  assert.equal(run?.error, "模型服务返回异常");
+  assert.equal(run?.failureCategory, "model");
+  assert.equal(run?.failureRecoveryAction, "configure_ai_connection");
+  assert.equal(run?.unattendedAudit?.externalCallCount, 3);
+  assert.equal(run?.unattendedAudit?.successfulCallCount, 2);
+  assert.equal(run?.unattendedAudit?.failedCallCount, 1);
+  assert.doesNotMatch(JSON.stringify(run), /provider-payload-secret|raw-proposal-content|Bearer|secret-token-123|Private\\secret\.txt|token=abc/);
 });
