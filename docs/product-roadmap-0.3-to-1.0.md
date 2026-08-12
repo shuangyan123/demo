@@ -314,7 +314,7 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - Chromium Playwright 覆盖内置插件停用与官方主题扩展的安装、启用、停用、主题回滚和 reload。
 - 证据矩阵与兼容/回滚边界见 `docs/permission-model-acceptance.md`。
 
-`0.6 overall`：**COMPLETE**。`0.7` 仍为 **NOT STARTED**。
+`0.6 overall`：**COMPLETE**。`0.7 overall`：**IN PROGRESS**；Phase 1 已完成，后续 credential cutover、Windows acceptance 与 cleanup confirmation 仍未开始。
 
 ### 目标
 
@@ -345,6 +345,20 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - 权限模型先以兼容字段和执行边界实施；可禁用新授权路径而不删除任务或插件记录。
 
 ## 0.7 Desktop credential hardening
+
+状态：**IN PROGRESS**。
+
+### Phase 1 — Desktop Credential Threat Model & Host Secure Storage Boundary
+
+**COMPLETE（2026-08-12）**
+
+- 完成 AI provider、旧 AI 设置、额度凭据、MCP Bearer、粉笔 Cookie、legacy JWK 与 Web secure key 的实际 inventory；保持现有 WebCrypto AES-GCM、record-specific AAD、不可导出 key 与缺 key 重新输入语义。
+- 新增浏览器 / Electron Windows threat model，核对安装的 `electron@43.2.0` async `safeStorage` API 与 Windows DPAPI 边界；不把 safeStorage 描述成 TPM、硬件密钥或 zero-trust vault。
+- 建立窄化 `desktop-v1` credential protection Host capability、trusted-sender IPC、版本/context/payload 校验和 fail-closed availability；不暴露 generic native crypto 或文件 API。
+- 建立纯 TypeScript migration planner 与 failure/recovery matrix；支持后续 dual-read / single-write 设计，但本阶段 `none_phase_1`，不写入生产 Desktop credential。
+- 增加 Web/Desktop/backend separation、preload/Main/desktop contracts、context substitution protection、masked-only rejection 与 planner direct tests；未修改 `review_workspace` v16 或 `review_extensions` v1。
+
+Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK/v2 ciphertext/source 删除、durable migration journal、Windows DPAPI 真实 acceptance、0.8 installer/signing/distribution。详见 `docs/desktop-credential-threat-model.md`。
 
 ### 目标
 

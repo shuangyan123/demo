@@ -3,6 +3,7 @@ import path from "node:path";
 import { installPermissionBoundary } from "./permissions.js";
 import { DESKTOP_ENTRY_URL, installDesktopProtocol, registerDesktopScheme } from "./protocol.js";
 import { isPackagedDesktop, showRuntimeFailure, startDesktopRuntime, type DesktopRuntime } from "./runtime.js";
+import { installDesktopCredentialStorageIpc } from "./credential-storage.js";
 import { installDesktopVaultIpc } from "./vault.js";
 
 registerDesktopScheme();
@@ -42,6 +43,7 @@ async function createMainWindow(): Promise<void> {
   const developmentUrl = process.env.ELECTRON_RENDERER_URL;
   const partition = "persist:review-workspace";
   const workspaceSession = session.fromPartition(partition);
+  installDesktopCredentialStorageIpc(developmentUrl);
   installDesktopVaultIpc(developmentUrl);
   if (isPackagedDesktop()) {
     runtime = await startDesktopRuntime();
