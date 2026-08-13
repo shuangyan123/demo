@@ -2,7 +2,7 @@
 
 ## 2026-08-12 · 0.7 Desktop Credential Acceptance Closure
 
-状态：**PENDING MANUAL ACCEPTANCE**。本轮已实现产品入口、自动化 contracts 与 deterministic fake-Desktop Browser harness，但当前执行环境没有真实 Windows 安装版/DPAPI 运行证据，因此不能把以下人工项目标为通过，也不能把 0.7 标记为 COMPLETE。
+状态：**PARTIAL — PENDING ITEMS REMAIN**。核心 real Windows installed-app credential path 已有真实安装版证据，但 recovery、lifecycle 与 portability 仍有待完成；因此不能把 0.7 标记为 COMPLETE。下方保留 2026-08-12 的历史失败记录，并在其后记录当前验收结果。
 
 ### Evidence boundary
 
@@ -14,7 +14,7 @@ The confirmed cause was the packaged `.desktop/preload.js` being emitted as ESM 
 
 The repaired boundary is now `desktop/preload.cts` → `.desktop/preload.cjs` → `.desktop-app/.desktop/preload.cjs` → `app.asar`, with an artifact regression asserting CommonJS format, no runtime local imports, the exact three bridge names, no stale `preload.js`, and hash equality across compiled, staging, and packaged output. A real sandboxed Electron BrowserWindow smoke also checks boolean evidence for the existing credential bridge without sending secrets.
 
-Windows installed-app acceptance remains **PENDING MANUAL ACCEPTANCE** until the repaired installer is installed and executed through the first checkpoint below. Do not mark 0.7 complete from package success or the automated regression alone.
+At that 2026-08-12 checkpoint, Windows installed-app acceptance remained **PENDING MANUAL ACCEPTANCE** until the repaired installer was installed and executed through the first checkpoint below. Do not mark 0.7 complete from package success or the automated regression alone.
 
 - 自动化 contract evidence：`npm run test:contracts`、`npm run test:desktop` 与 `e2e/desktop-credential-migration.spec.ts`。fake Desktop bridge 只证明产品 gating、显式动作、非空测试 credential 的 protect/unprotect round-trip、journal 读取/写入边界和安全 UI 投影，不证明 Windows DPAPI。
 - Electron integration evidence：`npm run desktop:compile`、`npm run test:desktop` 以及实际 Electron 开发/打包运行；这些检查不能替代安装版生命周期证据。
@@ -40,7 +40,72 @@ Windows installed-app acceptance remains **PENDING MANUAL ACCEPTANCE** until the
 
 ### Acceptance record
 
-记录至少包含：`environment`、Windows version、installer/package version、commit SHA、测试 profile、每个 matrix case 的 `PASS/FAIL/PENDING`、安全失败类别和人工观察时间。不得记录 API Key、Cookie、密文、完整 URL、OS 路径或原始错误文本。当前状态保持 **PENDING MANUAL ACCEPTANCE**；cleanup confirmation 另行执行，且本轮没有删除任何 retained Web credential material。
+记录至少包含：`environment`、Windows version、installer/package version、commit SHA、测试 profile、每个 matrix case 的 `PASS/FAIL/PENDING`、安全失败类别和人工观察时间。不得记录 API Key、Cookie、密文、完整 URL、OS 路径或原始错误文本。当前状态为 **PARTIAL — PENDING ITEMS REMAIN**；cleanup confirmation 另行执行，且本轮没有删除任何 retained Web credential material。
+
+## 2026-08-13 · 0.7 Windows Installed-App Acceptance Record
+
+正式 verdict：**0.7 WINDOWS ACCEPTANCE PARTIAL — PENDING ITEMS REMAIN**。
+
+核心 real Windows installed-app credential path：**PASS**。本记录只证明同一台机器、同一 Windows 用户、同一 application profile 中，真实安装版的 Desktop-authoritative credential persistence across restart；不扩展为换机、换账户、复制 `userData`、卸载重装或 general DPAPI portability 通过。
+
+### Environment and build identity
+
+- Windows：Microsoft Windows 11 家庭版 中文版，version `10.0.26200`，build `26200`，x64
+- Test profile boundary：same application profile；记录不包含本机路径或用户名
+- Observed：2026-08-13；latest observed connection at 12:43 was successful
+- Commit：`61aef1e4a4ee3eb316ac81d86b149136ab5855d4`
+- Package：`0.2.2`
+- Installer：`ReviewWorkspace-0.2.2-Windows-x64-Setup.exe`
+- Size：`186,863,616` bytes
+- SHA-256：`8518172ED8D59E903AF849B4E0C7CFC52B55E3FDBE94EABE490A6194D6CFA999`
+
+### Installed-app acceptance matrix
+
+| Case | Status | Evidence / reason |
+| --- | --- | --- |
+| Installation | PASS | installed-app behavioral |
+| First launch | PASS | installed-app behavioral |
+| Packaged preload / Host capability | PASS | installed-app behavioral + packaged artifact regression |
+| Desktop credential protection | PASS | installed-app behavioral |
+| Explicit Web → Desktop migration | PASS | installed-app behavioral |
+| Desktop authority | PASS | installed-app behavioral |
+| Credential usability after restart | PASS | installed-app behavioral |
+| Repeated restart persistence | PASS | installed-app behavioral |
+| DeepSeek connection test | PASS | real installed-app provider operation |
+| Privacy inspection | PASS | manual installed-app observation |
+| Same-version replacement | PASS | installed-app behavioral |
+| Host unavailable | PENDING | automated-only |
+| Requires re-entry | PENDING | automated-only |
+| Context mismatch | PENDING | automated-only |
+| Corrupted envelope | PENDING | automated-only |
+| Interrupted pre-commit | PENDING | no safe installed-app seam |
+| Partial commit recovery | PENDING | automated-only |
+| Adjacent-version upgrade | PENDING | deferred until an isolated Windows environment/device is available |
+| Different machine | PENDING | manual-only |
+| Different Windows account | PENDING | manual-only |
+| Copied `userData` | PENDING | manual-only |
+| Uninstall/reinstall | PENDING | manual-only |
+| Credential cleanup | PENDING | separate phase; not performed |
+
+### Recorded evidence boundary
+
+- Desktop 凭据保护 panel visible：PASS
+- Explicit Web → Desktop migration / cutover：PASS
+- Desktop authority establishment：PASS
+- DeepSeek saved connection exists and authentication state was verified
+- First and second real restart credential usability：PASS
+- Plaintext credential exposure：not observed
+- Silent Web fallback：not observed
+- Retained Web recovery evidence：preserved
+- Credential cleanup：not performed
+
+Recovery contracts：**38 / 38 PASS**。这是 automated evidence，不等同于真实 installed-app failure/recovery evidence。`protection unavailable`、`requires-reentry`、`context mismatch`、`corrupted Desktop envelope`、`interrupted pre-commit` 和 `partial commit recovery` 的 installed-app 状态均保持 **PENDING**；本轮没有执行 random process kill、`userData`/ciphertext/journal editing、DPAPI destruction 或 real credential corruption。
+
+### Adjacent-version and portability boundary
+
+已确认存在 genuine older installer：version `0.2.1`，commit `04e91d03b62de11a4c041e4c8b77961fc6e20e9b`，installer `ReviewWorkspace-0.2.1-Windows-x64-Setup.exe`，size `190,152,192` bytes，SHA-256 `364C169FACAB5DA4C2F6A8CD510E0972F479EF407CA7CDED9927C1EDCA5F501D`。由于当前没有安全隔离的 Windows environment/device，Adjacent-version upgrade：**PENDING — deferred until a separate Windows environment/device is available**。Same-version replacement **不等于** adjacent-version upgrade。
+
+Different machine、different Windows account、copied `userData`、uninstall/reinstall 和 general DPAPI portability 均未验证；这些不是本记录的 PASS。Privacy inspection 的结论仅为 **Secret leakage: not observed**，不是 `proved impossible`。0.7 overall 仍为 **IN PROGRESS**，cleanup 未执行。
 
 ## 2026-08-09 · Data Reliability Phase 2
 

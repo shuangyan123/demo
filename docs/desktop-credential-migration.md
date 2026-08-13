@@ -1,6 +1,6 @@
 # Desktop Credential Migration and Controlled Cutover
 
-Status: Phase 2 COMPLETE; Phase 3 product entry IMPLEMENTED (2026-08-12). The 0.7 effort remains IN PROGRESS until Windows installed-app acceptance and later cleanup confirmation are complete. This document does not claim a Windows DPAPI acceptance run.
+Status: Phase 2 COMPLETE; Phase 3 product entry IMPLEMENTED (2026-08-12). The core real Windows installed-app credential path now has acceptance evidence for the same-machine, same-user, same-profile case, including repeated restart usability. Recovery/lifecycle residual cases remain PENDING, general DPAPI portability is NOT claimed, credential cleanup has NOT occurred, and 0.7 remains IN PROGRESS. This document does not claim general Windows DPAPI portability or complete installed-app failure/recovery acceptance.
 
 ## Decision and security boundary
 
@@ -71,12 +71,12 @@ Repository integration covers AI provider keys, quota credentials, MCP bearer to
 
 The old Web source, Web v2 key, and Desktop envelope remain available for this phase. The inventory entry point first invokes the existing Web v1-to-v2 normalization contract; any legacy-key retirement performed by that pre-existing normalization is not a Desktop cleanup action. Phase 2 itself makes no `deleteSecureKeyStore` call, deletes no source, and runs no cleanup pass. Removing remaining sources requires a separate, verified cleanup phase with an explicit rollback decision.
 
-The implementation does not claim that a copied `userData` directory, an OS account change, a machine change, or an Electron reinstall can recover a protected credential. Those cases remain manual-only until Windows acceptance proves the actual installed-app lifecycle.
+The implementation does not claim that a copied `userData` directory, an OS account change, a machine change, or an Electron reinstall can recover a protected credential. Those cases remain manual-only; the current installed-app evidence is limited to the same-machine, same-user, same-profile persistence boundary.
 
 ## Verification coverage
 
 Contracts cover structured IPC failures, sender/context/payload validation, format detection, multi-source inventory, legacy/missing/masked/unknown states, successful migration, partial staging, resume, inventory changes, commit ordering, source retention, context substitution, no-new-key decrypt behavior, Desktop-first reads, no downgrade after host failure, single-write repository behavior, MCP denied-path zero unprotect calls, Fenbi disabled-path zero unprotect calls, and Web regression behavior.
 
-Required release gates for this phase are typecheck, lint, contracts, Desktop compile/tests, production audit, build, and bundle checks. The automated browser harness covers Web hiding, explicit initiation, no startup migration, safe completion state, and reload from the journal. Windows installed-app acceptance remains **PENDING MANUAL ACCEPTANCE**; signing/distribution and later source cleanup remain outside this phase and outside 0.8 work.
+Required release gates for this phase are typecheck, lint, contracts, Desktop compile/tests, production audit, build, and bundle checks. The automated browser harness covers Web hiding, explicit initiation, no startup migration, safe completion state, and reload from the journal. The 2026-08-13 installed-app record confirms the core same-machine/same-user/same-profile credential path and repeated restart usability; controlled failure/recovery, adjacent-version, portability, and other lifecycle cases remain **PENDING**. Signing/distribution and later source cleanup remain outside this phase and outside 0.8 work.
 
 No cleanup was performed in Phase 2 or this product-entry closure: retained Web v2 ciphertext, the Web secure key, legacy compatibility material, and source records remain subject to the later explicit cleanup confirmation phase.
