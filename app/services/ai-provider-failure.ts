@@ -37,7 +37,8 @@ const failureCodeValues = new Set<string>(aiProviderFailureCodes);
 const retryValues = new Set<AiProviderFailureRetry>(["safe", "after-delay", "manual-only", "no"]);
 
 /** 将稳定失败分类转换成不会泄漏厂商原文的产品提示。 */
-export function aiProviderFailureMessage(code: AiProviderFailureCode): string {
+export function aiProviderFailureMessage(code: AiProviderFailureCode, providerCode?: string): string {
+  if (code === "malformed_response" && providerCode === "empty_visible_output") return "模型未返回可见文本";
   switch (code) {
     case "authentication": return "AI 连接鉴权失败，请检查密钥";
     case "permission": return "当前连接无权访问所选模型";
@@ -76,7 +77,7 @@ export class AiProviderFailureError extends Error {
 
   constructor(failure: AiProviderFailure, _message?: string) {
     // 忽略兼容调用方传入的原始文案，typed failure 的 Error.message 也必须保持可公开安全。
-    super(aiProviderFailureMessage(failure.code));
+    super(aiProviderFailureMessage(failure.code, failure.providerCode));
     void _message;
     this.name = "AiProviderFailureError";
     this.failure = failure;

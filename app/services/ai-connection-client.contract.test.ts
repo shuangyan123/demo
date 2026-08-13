@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
-import { generateWithConnection, synthesizeWithConnection, testConnectionDraft, transcribeWithConnection } from "./ai-connection-client.ts";
+import { buildGenerateProviderRequest } from "../server/ai/provider-adapter.ts";
+import type { AiGenerateRequest } from "./api-client.ts";
+import { CONNECTION_TEST_MAX_OUTPUT_TOKENS, generateWithConnection, synthesizeWithConnection, testConnectionDraft, transcribeWithConnection } from "./ai-connection-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 
 const connection: ApiConnectionProfile = {
@@ -209,4 +211,110 @@ test("编辑连接测试使用当前草稿地址和模型，仅在 Key 留空时
     globalThis.fetch = originalFetch;
     aiConnectionsRepository.resolveSecret = originalResolveSecret;
   }
+});
+
+type ConnectionDraftInput = Parameters<typeof testConnectionDraft>[0];
+
+async function captureConnectionTestRequest(input: ConnectionDraftInput): Promise<AiGenerateRequest> {
+  const originalFetch = globalThis.fetch;
+  let requestBody: AiGenerateRequest | undefined;
+  globalThis.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as AiGenerateRequest;
+    return Response.json({ content: "OK" });
+  };
+  try {
+    await testConnectionDraft(input);
+    if (!requestBody) throw new Error("connection test request was not captured");
+    return requestBody;
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test("DeepSeek connection test disables thinking while normal generation keeps high default", async () => {
+  const connectionTest = await captureConnectionTestRequest({
+    provider: "deepseek",
+    apiKey: "connection-test-key",
+    baseUrl: "https://api.deepseek.com",
+    modelId: "deepseek-v4-flash",
+  });
+  assert.equal(connectionTest.maxOutputTokens, CONNECTION_TEST_MAX_OUTPUT_TOKENS);
+  assert.deepEqual(connectionTest.runtime, { reasoning: "disabled" });
+
+  const request = buildGenerateProviderRequest(connectionTest);
+  const body = request.body as Record<string, unknown>;
+  assert.equal(request.url, "https://api.deepseek.com/chat/completions");
+  assert.equal(request.headers.Authorization, "Bearer connection-test-key");
+  assert.deepEqual(body.messages, [{ role: "user", content: "仅回复 OK" }]);
+  assert.deepEqual(body.thinking, { type: "disabled" });
+  assert.equal("reasoning_effort" in body, false);
+  assert.equal(body.max_tokens, CONNECTION_TEST_MAX_OUTPUT_TOKENS);
+
+  const normalRequest = buildGenerateProviderRequest({
+    provider: "deepseek",
+    apiKey: "connection-test-key",
+    baseUrl: "https://api.deepseek.com",
+    model: "deepseek-v4-flash",
+    maxOutputTokens: 321,
+    messages: [{ role: "user", content: "normal generation" }],
+  });
+  const normalBody = normalRequest.body as Record<string, unknown>;
+  assert.deepEqual(normalBody.thinking, { type: "enabled" });
+  assert.equal(normalBody.reasoning_effort, "high");
+});
+
+test("Gemini connection test uses minimal verified thinking while normal generation keeps medium default", async () => {
+  const connectionTest = await captureConnectionTestRequest({
+    provider: "google",
+    apiKey: "connection-test-key",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    modelId: "gemini-3.5-flash",
+  });
+  assert.equal(connectionTest.maxOutputTokens, CONNECTION_TEST_MAX_OUTPUT_TOKENS);
+  assert.deepEqual(connectionTest.runtime, { reasoning: "minimal" });
+  assert.equal(connectionTest.generationProtocol, "google_interactions");
+
+  const request = buildGenerateProviderRequest(connectionTest);
+  const body = request.body as Record<string, unknown>;
+  const generationConfig = body.generation_config as Record<string, unknown>;
+  assert.equal(request.url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+  assert.equal(request.headers["x-goog-api-key"], "connection-test-key");
+  assert.equal(body.store, false);
+  assert.deepEqual(body.input, [{ type: "text", text: "仅回复 OK" }]);
+  assert.deepEqual(generationConfig, { max_output_tokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS, thinking_level: "minimal" });
+  assert.equal("thinking_budget" in generationConfig, false);
+  assert.equal("service_tier" in body, false);
+  assert.equal("contents" in body, false);
+  assert.equal("generationConfig" in body, false);
+
+  const normalRequest = buildGenerateProviderRequest({
+    provider: "google",
+    apiKey: "connection-test-key",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    model: "gemini-3.5-flash",
+    generationProtocol: "google_interactions",
+    maxOutputTokens: 321,
+    messages: [{ role: "user", content: "normal generation" }],
+  });
+  const normalBody = normalRequest.body as Record<string, unknown>;
+  assert.deepEqual(normalBody.generation_config as Record<string, unknown>, { max_output_tokens: 321, thinking_level: "medium" });
+});
+
+test("unknown and fixed-reasoning connection tests do not invent a disabled runtime", async () => {
+  const unknown = await captureConnectionTestRequest({
+    provider: "custom",
+    apiKey: "connection-test-key",
+    baseUrl: "https://custom.example/v1",
+    modelId: "future-reasoning-model",
+  });
+  assert.equal("runtime" in unknown, false);
+  assert.equal(unknown.maxOutputTokens, CONNECTION_TEST_MAX_OUTPUT_TOKENS);
+
+  const fixed = await captureConnectionTestRequest({
+    provider: "minimax",
+    apiKey: "connection-test-key",
+    baseUrl: "https://api.minimaxi.com/anthropic",
+    modelId: "MiniMax-M2.7",
+  });
+  assert.equal("runtime" in fixed, false);
 });

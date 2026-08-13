@@ -56,7 +56,7 @@ const geminiDescriptors: AiModelRuntimeDescriptor[] = [
   descriptor({
     provider: "google",
     modelId: "gemini-3.5-flash",
-    reasoning: { kind: "effort", options: effortOptions(["minimal", "low", "medium", "high"]), defaultValue: "medium" },
+    reasoning: { kind: "effort", options: effortOptions(["minimal", "low", "medium", "high"]), defaultValue: "medium", connectionTestValue: "minimal" },
     speed: { kind: "service_tier", options: serviceTierOptions, defaultValue: "standard" },
     documentationUrl: GEMINI_THINKING_URL,
   }),
@@ -139,7 +139,7 @@ for (const modelId of ["deepseek-v4-flash", "deepseek-v4-pro"]) {
   register(descriptor({
     provider: "deepseek",
     modelId,
-    reasoning: { kind: "effort", options: [{ id: "disabled", label: "关闭", value: "disabled" }, ...effortOptions(["high", "max"])], defaultValue: "high" },
+    reasoning: { kind: "effort", options: [{ id: "disabled", label: "关闭", value: "disabled" }, ...effortOptions(["high", "max"])], defaultValue: "high", connectionTestValue: "disabled" },
     documentationUrl: DEEPSEEK_THINKING_URL,
   }));
 }
@@ -216,6 +216,16 @@ function supportsReasoningValue(descriptorValue: AiModelRuntimeDescriptor, value
     && Number.isInteger(value)
     && value >= reasoning.customRange.min
     && value <= reasoning.customRange.max;
+}
+
+/** 仅返回 descriptor 明确核验过的低成本推理值；固定推理和未知模型保持原有运行时行为。 */
+export function resolveConnectionTestRuntime(provider: ApiProvider, modelId: string): AiSelectedRuntimeValues | undefined {
+  const descriptorValue = getAiModelRuntimeDescriptor(provider, modelId);
+  const reasoning = descriptorValue?.reasoning;
+  if (!descriptorValue || !reasoning || reasoning.kind === "fixed" || reasoning.connectionTestValue === undefined) return undefined;
+  return supportsReasoningValue(descriptorValue, reasoning.connectionTestValue)
+    ? { reasoning: reasoning.connectionTestValue }
+    : undefined;
 }
 
 /** 显式运行值必须保留、明确拒绝或报告未知；不得在请求路径静默回退。 */

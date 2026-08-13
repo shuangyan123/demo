@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveEffectiveCapability, resolveEffectiveModelCapability, resolveModelCapabilityProfile } from "./ai-capability-resolution.ts";
-import { getAiModelRuntimeDescriptor, validateAiSelectedRuntimeValues } from "./model-runtime-descriptors.ts";
+import { getAiModelRuntimeDescriptor, resolveConnectionTestRuntime, validateAiSelectedRuntimeValues } from "./model-runtime-descriptors.ts";
 import { getProviderProtocolCapabilityProfile } from "./provider-protocol-capabilities.ts";
 
 test("七家 native provider 的精确 catalog entry 形成可验证模型能力 fixture", () => {
@@ -71,4 +71,12 @@ test("runtime contract 保留合法值并稳定拒绝非法、unsupported 与 un
     status: "invalid", code: "runtime-capability-unknown", option: "reasoning", requestedValue: "high",
   });
   assert.deepEqual(validateAiSelectedRuntimeValues(descriptor, { reasoning: 12000, speed: "priority" }), validateAiSelectedRuntimeValues(descriptor, { reasoning: 12000, speed: "priority" }));
+});
+
+test("connection test runtime uses only descriptor-verified low-cost reasoning values", () => {
+  assert.deepEqual(resolveConnectionTestRuntime("deepseek", "deepseek-v4-flash"), { reasoning: "disabled" });
+  assert.deepEqual(resolveConnectionTestRuntime("google", "gemini-3.5-flash"), { reasoning: "minimal" });
+  assert.equal(resolveConnectionTestRuntime("google", "gemini-2.5-pro"), undefined);
+  assert.equal(resolveConnectionTestRuntime("minimax", "MiniMax-M2.7"), undefined);
+  assert.equal(resolveConnectionTestRuntime("custom", "future-reasoning-model"), undefined);
 });
