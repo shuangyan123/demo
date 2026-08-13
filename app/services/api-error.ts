@@ -10,7 +10,10 @@ export type ClientApiErrorPayload = {
   error?: string;
 };
 
-/** 同时兼容结构化错误与历史纯文本错误，避免升级期间丢失可行动提示。 */
+/**
+ * 只接受本机 API 的结构化 JSON 错误。
+ * HTML/纯文本可能是框架错误页、代理响应或上游正文，不能进入 UI、诊断或持久化。
+ */
 export async function readApiErrorPayload(response: Response, fallback: string): Promise<ClientApiErrorPayload> {
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
@@ -21,8 +24,7 @@ export async function readApiErrorPayload(response: Response, fallback: string):
       return { message: fallback };
     }
   }
-  const text = await response.text();
-  return { message: text || fallback };
+  return { message: fallback };
 }
 
 export async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {

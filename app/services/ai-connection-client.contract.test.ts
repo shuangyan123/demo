@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
 import { buildGenerateProviderRequest } from "../server/ai/provider-adapter.ts";
-import type { AiGenerateRequest } from "./api-client.ts";
+import { callAiGenerate, type AiGenerateRequest } from "./api-client.ts";
 import { CONNECTION_TEST_MAX_OUTPUT_TOKENS, generateWithConnection, synthesizeWithConnection, testConnectionDraft, transcribeWithConnection } from "./ai-connection-client.ts";
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 
@@ -317,4 +317,31 @@ test("unknown and fixed-reasoning connection tests do not invent a disabled runt
     modelId: "MiniMax-M2.7",
   });
   assert.equal("runtime" in fixed, false);
+});
+
+test("non-JSON local route failures never expose the HTML response body", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    '<!DOCTYPE html><html><body>framework error with API key: secret-value</body></html>',
+    { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
+  );
+  try {
+    await assert.rejects(
+      callAiGenerate({
+        provider: "deepseek",
+        apiKey: "connection-test-key",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        messages: [{ role: "user", content: "仅回复 OK" }],
+      }),
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : "";
+        assert.equal(message, "本机 AI 服务不可用，请重启应用后重试");
+        assert.doesNotMatch(message, /DOCTYPE|secret-value/);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
