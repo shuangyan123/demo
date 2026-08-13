@@ -18,6 +18,13 @@ import { inferMiniMaxRegion, normalizeMiniMaxAnthropicBaseUrl } from "./minimax-
 import { secretContext } from "./secret-context.ts";
 import { attemptStoredSecretsMigration } from "./secret-migration-service.ts";
 import { isUiReviewRecordId } from "./workspace-data-scope.ts";
+import {
+  assertDesktopCleanupAuthority,
+  cleanupSourceResult,
+  DESKTOP_CLEANUP_MASK,
+  CredentialCleanupSourceError,
+  isCredentialMaterialPresent,
+} from "./credential-cleanup-source.ts";
 
 export type SaveConnectionInput = {
   id?: string;
@@ -38,6 +45,48 @@ const HTML_ERROR_PATTERN = /<(?:!doctype|\/?[a-z][a-z0-9-]*)(?:\s|>|\/)/i;
 const CONNECTION_TEST_FALLBACK = "本机 AI 服务不可用，请重启应用后重试";
 
 /** 历史版本可能保存过框架 HTML 错误页；读取和写入时都收敛为稳定产品文案。 */
+export async function cleanupAiConnectionCredential(profileId: string) {
+  const context = secretContext.aiConnection(profileId);
+  assertDesktopCleanupAuthority(context);
+  const profile = await reviewDb.apiConnectionProfiles.get(profileId);
+  if (!profile || !isCredentialMaterialPresent(profile.encryptedKey, profile.iv, profile.maskedKey)) {
+    return cleanupSourceResult(`${context}:profile`, context, "already_cleaned");
+  }
+  try {
+    await reviewDb.apiConnectionProfiles.update(profileId, {
+      encryptedKey: "",
+      iv: "",
+      maskedKey: DESKTOP_CLEANUP_MASK,
+    });
+  } catch {
+    throw new CredentialCleanupSourceError("source_write_failed");
+  }
+  return cleanupSourceResult(`${context}:profile`, context, "cleaned");
+}
+
+export async function cleanupLegacyAiSettingCredential(canonicalProfileId: string | undefined) {
+  if (!canonicalProfileId) throw new CredentialCleanupSourceError("canonical_profile_missing");
+  const canonicalProfile = await reviewDb.apiConnectionProfiles.get(canonicalProfileId);
+  if (!canonicalProfile) throw new CredentialCleanupSourceError("canonical_profile_missing");
+  assertDesktopCleanupAuthority(secretContext.aiConnection(canonicalProfile.id));
+  const context = secretContext.legacyAiSetting();
+  assertDesktopCleanupAuthority(context);
+  const setting = await reviewDb.apiSettings.get("default");
+  if (!setting || !isCredentialMaterialPresent(setting.encryptedKey, setting.iv, setting.maskedKey)) {
+    return cleanupSourceResult(`${context}:compatibility`, context, "already_cleaned");
+  }
+  try {
+    await reviewDb.apiSettings.update("default", {
+      encryptedKey: "",
+      iv: "",
+      maskedKey: DESKTOP_CLEANUP_MASK,
+    });
+  } catch {
+    throw new CredentialCleanupSourceError("source_write_failed");
+  }
+  return cleanupSourceResult(`${context}:compatibility`, context, "cleaned");
+}
+
 export function sanitizeConnectionTestMessage(message: string): string {
   const normalized = message.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
   if (!normalized || HTML_ERROR_PATTERN.test(normalized)) return CONNECTION_TEST_FALLBACK;

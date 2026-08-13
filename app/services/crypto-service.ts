@@ -1,8 +1,23 @@
 import { getOrCreateSecurePrimaryKey, readSecurePrimaryKey } from "./secure-key-store.ts";
 import { detectCredentialStorageFormat } from "./credential-storage-format.ts";
+import { CredentialCleanupSourceError, cleanupSourceResult } from "./credential-cleanup-source.ts";
 
 export const LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME = "review_workspace_crypto_key_v1";
 const VERSIONED_CIPHERTEXT_PREFIX = "v2:";
+
+export function cleanupLegacyLocalCryptoKey(options: { noLegacySourcesConfirmed: true }) {
+  if (!options.noLegacySourcesConfirmed) throw new CredentialCleanupSourceError("legacy_sources_present");
+  if (typeof window === "undefined") throw new CredentialCleanupSourceError("source_unavailable");
+  const exists = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+    .includes(LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME);
+  if (!exists) return cleanupSourceResult(LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME, "ai-connection:legacy-default:api-key", "already_cleaned");
+  try {
+    window.localStorage.removeItem(LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME);
+  } catch {
+    throw new CredentialCleanupSourceError("source_write_failed");
+  }
+  return cleanupSourceResult(LEGACY_LOCAL_CRYPTO_KEY_STORAGE_NAME, "ai-connection:legacy-default:api-key", "cleaned");
+}
 
 export type CredentialSecurityErrorCode =
   | "legacy_key_missing"

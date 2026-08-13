@@ -156,6 +156,7 @@ test("全部核心表显式分类，安全表保持排除且新 V2 清单与真�
   assert.equal(NON_CORE_DATA_STORE_POLICIES["review_workspace_secure_keys.keys"].backup, "excluded");
   assert.equal(NON_CORE_DATA_STORE_POLICIES["review_workspace_transfer.jobs"].backup, "excluded");
   assert.equal(new Set(LOCAL_STORAGE_DATA_POLICIES.map((policy) => policy.pattern)).size, LOCAL_STORAGE_DATA_POLICIES.length);
+  assert.equal(LOCAL_STORAGE_DATA_POLICIES.some((policy) => policy.pattern === "review-workspace:credential-cleanup:v1" && policy.backup === "excluded"), true);
   assert.equal(LOCAL_STORAGE_DATA_POLICIES.every((policy) => policy.backup === "excluded" && Boolean(policy.reason)), true);
   const exported = JSON.parse(await localDataManagementRepository.exportAll()) as LocalDataExportV2;
   assert.deepEqual(exported.manifest.recordCounts.review_workspace, Object.fromEntries(actualTables.filter((table) => CORE_DATA_STORE_POLICIES[table as keyof typeof CORE_DATA_STORE_POLICIES].backup === "included").map((table) => [table, 0])));

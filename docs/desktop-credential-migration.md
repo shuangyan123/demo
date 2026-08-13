@@ -1,6 +1,6 @@
 # Desktop Credential Migration and Controlled Cutover
 
-Status: Phase 2 COMPLETE; Phase 3 product entry IMPLEMENTED (2026-08-12). The core real Windows installed-app credential path now has acceptance evidence for the same-machine, same-user, same-profile case, including repeated restart usability. Recovery/lifecycle residual cases remain PENDING, general DPAPI portability is NOT claimed, credential cleanup has NOT occurred, and 0.7 remains IN PROGRESS. This document does not claim general Windows DPAPI portability or complete installed-app failure/recovery acceptance.
+Status: Phase 2 COMPLETE; Phase 3 product entry and Credential Cleanup Foundation IMPLEMENTED (2026-08-13). The core real Windows installed-app credential path now has acceptance evidence for the same-machine, same-user, same-profile case, including repeated restart usability. Recovery/lifecycle residual cases remain PENDING, general DPAPI portability is NOT claimed, destructive credential cleanup has NOT occurred, and 0.7 remains IN PROGRESS. This document does not claim general Windows DPAPI portability, cleanup execution, or complete installed-app failure/recovery acceptance.
 
 ## Decision and security boundary
 
@@ -15,7 +15,9 @@ This choice has a known residual risk: the secret exists briefly in the renderer
 
 ## Inventory and formats
 
-`collectCredentialMigrationInventory()` reads the real sources: AI connection profiles and `apiSettings.default`, quota plugin configs, current and legacy MCP settings, Fenbi credential metadata, the legacy JWK marker, the Web v2 key store, and the Desktop envelope store. Contexts come only from `secretContext`.
+`collectCredentialMigrationInventory()` reads the real sources used by the existing migration path: AI connection profiles and `apiSettings.default`, quota plugin configs, current and legacy MCP settings, Fenbi credential metadata, the legacy JWK marker, the Web v2 key store, and the Desktop envelope store. Contexts come only from `secretContext`. That migration inventory may invoke the pre-existing Web compatibility normalization when the migration service explicitly runs.
+
+`collectCredentialCleanupInventory()` is a separate physical cleanup inventory. It reads each durable source directly, records only safe presence/format/count/authority facts, and never invokes migration, normalization, decryption, key generation, journal writes, or source deletion. It intentionally reports retained Web v2, legacy-v1, masked-only, invalid/unknown records, Desktop records, the shared Web key, and legacy JWK presence in one observation so mixed physical state cannot be hidden by migration short-circuiting.
 
 The inventory result contains stable IDs, storage format, safe source version, authority, and an inventory version. It never contains ciphertext, IV, masked value, plaintext, hash, raw error, URL, or path. A short-lived source reader closure is kept only inside the migration operation for the current record.
 
@@ -69,14 +71,16 @@ Repository integration covers AI provider keys, quota credentials, MCP bearer to
 
 ## Recovery and cleanup
 
-The old Web source, Web v2 key, and Desktop envelope remain available for this phase. The inventory entry point first invokes the existing Web v1-to-v2 normalization contract; any legacy-key retirement performed by that pre-existing normalization is not a Desktop cleanup action. Phase 2 itself makes no `deleteSecureKeyStore` call, deletes no source, and runs no cleanup pass. Removing remaining sources requires a separate, verified cleanup phase with an explicit rollback decision.
+The old Web source, Web v2 key, and Desktop envelope remain available for this phase. The migration path may perform its existing Web v1-to-v2 normalization when explicitly invoked; any legacy-key retirement performed by that pre-existing normalization is not a Desktop cleanup action. The new cleanup foundation adds a separate journal (`review-workspace:credential-cleanup:v1`), typed eligibility/reconciliation, idempotent per-source cleanup primitives, and a narrow last-step Web key deletion API. The destructive executor is isolated for future acceptance fixtures only: no production UI imports or calls it, no startup path resumes it, and this phase makes no source deletion or Web key deletion after merge.
+
+Cleanup eligibility remains fail-closed. It requires a complete `desktop_preferred` migration, `desktop_primary` authority for every expected context, an unchanged physical inventory, a verifiable Desktop record for each context before deletion, no unknown/invalid/orphan legacy source, no Web-primary or mixed authority, and no re-entry/new-credential condition. The shared Web key may be deleted only after source reinventory proves that no legitimate retained Web consumer remains; the cleanup path never deletes the Desktop store, resets the migration journal, regenerates a replacement Web key, or silently falls back to Web.
 
 The implementation does not claim that a copied `userData` directory, an OS account change, a machine change, or an Electron reinstall can recover a protected credential. Those cases remain manual-only; the current installed-app evidence is limited to the same-machine, same-user, same-profile persistence boundary.
 
 ## Verification coverage
 
-Contracts cover structured IPC failures, sender/context/payload validation, format detection, multi-source inventory, legacy/missing/masked/unknown states, successful migration, partial staging, resume, inventory changes, commit ordering, source retention, context substitution, no-new-key decrypt behavior, Desktop-first reads, no downgrade after host failure, single-write repository behavior, MCP denied-path zero unprotect calls, Fenbi disabled-path zero unprotect calls, and Web regression behavior.
+Contracts cover structured IPC failures, sender/context/payload validation, format detection, multi-source migration inventory, the separate physical cleanup inventory, legacy/missing/masked/unknown states, cleanup eligibility and reconciliation, source primitive idempotence, isolated source-before-key execution ordering, successful migration, partial staging, resume, inventory changes, commit ordering, source retention, context substitution, no-new-key decrypt behavior, Desktop-first reads, no downgrade after host failure, single-write repository behavior, MCP denied-path zero unprotect calls, Fenbi disabled-path zero unprotect calls, and Web regression behavior.
 
 Required release gates for this phase are typecheck, lint, contracts, Desktop compile/tests, production audit, build, and bundle checks. The automated browser harness covers Web hiding, explicit initiation, no startup migration, safe completion state, and reload from the journal. The 2026-08-13 installed-app record confirms the core same-machine/same-user/same-profile credential path and repeated restart usability; controlled failure/recovery, adjacent-version, portability, and other lifecycle cases remain **PENDING**. Signing/distribution and later source cleanup remain outside this phase and outside 0.8 work.
 
-No cleanup was performed in Phase 2 or this product-entry closure: retained Web v2 ciphertext, the Web secure key, legacy compatibility material, and source records remain subject to the later explicit cleanup confirmation phase.
+No cleanup was performed in Phase 2, product-entry closure, or this Cleanup Foundation phase: retained Web v2 ciphertext, the Web secure key, legacy compatibility material, and source records remain subject to a later explicit cleanup confirmation/acceptance phase. The production UI exposes review/readiness and blocked/deferred impact only; it has no confirm, delete-source, delete-key, or cleanup-resume action.

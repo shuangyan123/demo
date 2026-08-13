@@ -16,6 +16,7 @@ import { ProviderIcon } from "../shared/provider-icon";
 import { ProviderSelect } from "./provider-select";
 import { DefaultCapabilitySelector } from "./default-capability-selector";
 import { DesktopCredentialMigrationPanel } from "./desktop-credential-migration-panel";
+import { DesktopCredentialCleanupPanel } from "./desktop-credential-cleanup-panel";
 import { ModelCatalogSelect } from "./model-catalog-select";
 import compactStyles from "./settings-compact.module.css";
 import { SettingsSectionHeader } from "./settings-section-header";
@@ -409,6 +410,7 @@ function ApiConnectionsSettingsLiveView({ onChanged }: { onChanged?: () => void 
       </div>
 
       <DesktopCredentialMigrationPanel />
+      <DesktopCredentialCleanupPanel />
 
       {editorOpen ? <form ref={formRef} className={`${compactStyles.connectionForm} grid gap-5`} onSubmit={saveConnection}>
         <header className={compactStyles.formEditorHeader}><div><h2>{form.id ? "编辑连接" : "添加连接"}</h2><p>密钥只写入本机加密仓储，不会在详情中回显。</p></div><IconButton icon="close" label="关闭连接编辑器" onClick={() => setEditorOpen(false)} /></header>

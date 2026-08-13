@@ -64,6 +64,7 @@ export const CORE_BACKUP_TABLE_NAMES = Object.entries(CORE_DATA_STORE_POLICIES)
 export const LOCAL_STORAGE_DATA_POLICIES = [
   { pattern: "review-workspace:desktop-credentials:v1", backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "包含 Desktop OS 保护包；不进入备份或跨设备恢复" },
   { pattern: "review-workspace:credential-migration:v1", backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "仅含迁移状态和安全 ID，不含凭据或密文" },
+  { pattern: "review-workspace:credential-cleanup:v1", backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "仅含清理状态和安全 ID；清理结果不进入备份或跨设备恢复" },
   { pattern: "review-workspace:ai-quota-plugin-configs", backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "包含加密额度凭据；恢复后重新配置" },
   { pattern: "review-workspace:mcp-settings:v1|v2", backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "包含加密 Bearer；恢复后重新配置" },
   { pattern: "review-workspace:fenbi-import-credential", backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "包含加密 Cookie；恢复后重新配置" },

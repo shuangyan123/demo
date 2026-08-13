@@ -8,6 +8,13 @@ import { fetchLocalApi } from "./local-runtime-diagnostics.ts";
 import { secretContext } from "./secret-context.ts";
 import { attemptStoredSecretsMigration } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
+import {
+  assertDesktopCleanupAuthority,
+  cleanupSourceResult,
+  DESKTOP_CLEANUP_MASK,
+  CredentialCleanupSourceError,
+  isCredentialMaterialPresent,
+} from "./credential-cleanup-source.ts";
 
 export type SaveQuotaPluginInput = {
   id: ApiProvider | "manual";
@@ -22,6 +29,88 @@ export type SaveQuotaPluginInput = {
 export const AI_QUOTA_CONFIG_STORAGE_KEY = secretStorageLocations.quotaConfigs;
 export const AI_QUOTA_SNAPSHOT_STORAGE_KEY = "review-workspace:ai-quota-snapshots";
 const activeQuotaIds = new Set(aiQuotaProviderPlugins.map((plugin) => plugin.id));
+
+export async function cleanupQuotaCredential(
+  configId: ApiProvider | "manual",
+  credentialKey: Exclude<AiQuotaCredentialKey, "teamId"> | "legacy",
+) {
+  const context = credentialKey === "legacy"
+    ? secretContext.quotaLegacyCredential(configId)
+    : secretContext.quotaCredential(configId, credentialKey);
+  assertDesktopCleanupAuthority(context);
+  const configs = readCleanupQuotaConfigs();
+  const config = configs.find((item) => item.id === configId);
+  if (!config) return cleanupSourceResult(`${context}:${credentialKey}`, context, "already_cleaned");
+
+  if (credentialKey === "legacy") {
+    if (!isCredentialMaterialPresent(config.encryptedKey, config.iv, config.maskedKey)) {
+      return cleanupSourceResult(`${context}:legacy`, context, "already_cleaned");
+    }
+    const next: AiQuotaPluginConfig = {
+      ...config,
+      encryptedKey: undefined,
+      iv: undefined,
+      maskedKey: DESKTOP_CLEANUP_MASK,
+    };
+    try {
+      writeJsonArray(AI_QUOTA_CONFIG_STORAGE_KEY, configs.map((item) => item.id === configId ? next : item));
+    } catch {
+      throw new CredentialCleanupSourceError("source_write_failed");
+    }
+    return cleanupSourceResult(`${context}:legacy`, context, "cleaned");
+  }
+
+  const existing = config.encryptedCredentials?.[credentialKey];
+  if (!existing || !isCredentialMaterialPresent(existing.encryptedKey, existing.iv, existing.maskedKey)) {
+    return cleanupSourceResult(`${context}:credential:${credentialKey}`, context, "already_cleaned");
+  }
+  const encryptedCredentials = { ...(config.encryptedCredentials ?? {}) };
+  delete encryptedCredentials[credentialKey];
+  const next = { ...config, encryptedCredentials };
+  try {
+    writeJsonArray(AI_QUOTA_CONFIG_STORAGE_KEY, configs.map((item) => item.id === configId ? next : item));
+  } catch {
+    throw new CredentialCleanupSourceError("source_write_failed");
+  }
+  return cleanupSourceResult(`${context}:credential:${credentialKey}`, context, "cleaned");
+}
+
+function readCleanupQuotaConfigs(): AiQuotaPluginConfig[] {
+  if (typeof window === "undefined") throw new CredentialCleanupSourceError("source_unavailable");
+  const raw = window.localStorage.getItem(AI_QUOTA_CONFIG_STORAGE_KEY);
+  if (raw === null) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new CredentialCleanupSourceError("source_format_invalid");
+  }
+  if (!Array.isArray(parsed)) throw new CredentialCleanupSourceError("source_format_invalid");
+  for (const item of parsed) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new CredentialCleanupSourceError("source_format_invalid");
+    const record = item as Record<string, unknown>;
+    if (typeof record.id !== "string") throw new CredentialCleanupSourceError("source_format_invalid");
+    for (const field of ["encryptedKey", "iv", "maskedKey"]) {
+      if (record[field] !== undefined && typeof record[field] !== "string") throw new CredentialCleanupSourceError("source_format_invalid");
+    }
+    if (record.encryptedCredentials !== undefined) {
+      if (!record.encryptedCredentials || typeof record.encryptedCredentials !== "object" || Array.isArray(record.encryptedCredentials)) {
+        throw new CredentialCleanupSourceError("source_format_invalid");
+      }
+      for (const [key, value] of Object.entries(record.encryptedCredentials)) {
+        if (!(key === "apiKey" || key === "adminKey" || key === "managementKey")
+          || !value || typeof value !== "object" || Array.isArray(value)) {
+          throw new CredentialCleanupSourceError("source_format_invalid");
+        }
+        const credential = value as Record<string, unknown>;
+        for (const field of ["encryptedKey", "iv", "maskedKey"]) {
+          if (credential[field] !== undefined && typeof credential[field] !== "string") throw new CredentialCleanupSourceError("source_format_invalid");
+        }
+      }
+    }
+  }
+  return parsed as AiQuotaPluginConfig[];
+}
 
 function readJsonArray<T>(key: string): T[] {
   if (typeof window === "undefined") return [];
