@@ -1,8 +1,8 @@
-# Credential Cleanup Foundation
+# Credential Cleanup Foundation and Execution Entry
 
-Status: **IMPLEMENTED foundation; REAL CLEANUP NOT EXECUTED; 0.7 IN PROGRESS** (2026-08-13). Real Credential Cleanup remains **BLOCKING REQUIRED** for 0.7 credential-security closure; no production execution entry exists in the current build.
+Status: **Cleanup Execution Entry IMPLEMENTED / AUTOMATED EVIDENCE ONLY; REAL CLEANUP NOT EXECUTED; 0.7 IN PROGRESS** (2026-08-14). Real Credential Cleanup remains **BLOCKING REQUIRED** for 0.7 credential-security closure. The supported production entry is now explicit and fail-closed, but no installed-app cleanup acceptance has occurred.
 
-This phase establishes the physical inventory, safety gates, journal, reconciliation rules, idempotent source primitives, and a future-only executor for Desktop credential cleanup. It deliberately does not perform cleanup in production UI, startup, migration, build, packaging, or installed-app smoke.
+This phase establishes the physical inventory, safety gates, journal, reconciliation rules, idempotent source primitives, a tested executor, and the narrow production Settings entry for Desktop credential cleanup. It does not perform cleanup during startup, migration, build, packaging, or installed-app smoke; real cleanup remains a separate acceptance activity.
 
 ## Scope and non-goals
 
@@ -14,17 +14,17 @@ The Desktop cutover remains the authority boundary:
 - `review_workspace` stays v16 and `review_extensions` stays v1; no schema or preload/IPC expansion is part of this foundation.
 - No real provider, OS credential, installed-app profile, or user data is used by cleanup tests.
 
-The production Settings surface is review-only. It may show safe counts, impact, readiness, blocked reason class, and the fact that retained Web material remains. It cannot confirm deletion, delete a source, delete the shared Web key, resume a partial cleanup, or invoke the destructive executor.
+The production Settings surface is Desktop-only and explicit. It may show safe counts, impact, readiness, blocked reason class, and the fact that retained Web material remains. It requires a fresh review, an irreversible-impact acknowledgement, and a second confirmation before the narrow execution facade can invoke the existing executor. Web does not render the entry, startup does not resume it, and no real cleanup has been executed.
 
 ## Closure classification and phase ownership
 
-- **IMPLEMENTED / AUTOMATED EVIDENCE** means inventory, eligibility, journal, reconciliation, idempotent primitives, source-before-key ordering, Host revalidation, and review-only UI contracts are present and tested with fake/test fixtures.
+- **IMPLEMENTED / AUTOMATED EVIDENCE** means inventory, eligibility, journal, reconciliation, idempotent primitives, source-before-key ordering, Host revalidation, explicit confirmation, partial/recovery handling, and the production entry boundary are present and tested with fake/test fixtures.
 - **PENDING — NOT EXECUTED** means no real installed profile has had a retained Web source or shared Web key removed. This is not a successful cleanup result.
 - **BLOCKING REQUIRED** means the retained Web v2 ciphertext/source and shared Web key remain a duplicate credential-bearing surface after Desktop cutover; the foundation cannot close that security item.
 - **CONDITIONAL CLEANUP BLOCKER** applies to `legacy-v1`, not to a claim that a real profile currently contains it. If physical preflight finds it, cleanup must return `legacy_source_present`; it must not normalize, delete, skip, or delete the legacy JWK first. The legacy JWK is eligible only after physical inventory proves zero `legacy-v1` sources.
 - Adjacent-version upgrade, uninstall/reinstall, installer/signing, release assets, and distribution-owned `userData` lifecycle are **DEFERRED TO 0.8**. Desktop authority, no Web fallback, fail-closed behavior, and cleanup security ordering remain 0.7 semantics.
 
-The current product UI has no destructive confirmation, source-delete action, Web-key-delete action, partial-resume action, or executor call path. This is an intentional staged-rollout boundary. It means that real cleanup is currently not executable through supported production UX, not that cleanup has passed.
+The current product UI has a narrow destructive execution entry, but it is not evidence that cleanup has passed. The entry cannot run on Web, cannot start from a stale review, cannot bypass fresh Host/Desktop verification, cannot normalize `legacy-v1`, cannot regenerate a Web key, and cannot automatically resume a partial operation.
 
 ## Physical inventory
 
@@ -67,11 +67,28 @@ Destructive cleanup requires all of the following:
 
 Inventory readiness is separate from destructive preflight. A review can report that a future cleanup is eligible without authorizing execution.
 
+## Production execution entry
+
+The supported call chain is:
+
+```text
+Settings panel
+  -> cleanup hook/controller
+  -> credential-cleanup-execution.ts
+  -> executeCredentialCleanup()
+```
+
+The first review is read-only and keeps the inventory version in a private controller ref. The user must acknowledge that deleting retained Web recovery material may require credential re-entry for Web-only, older-version, different-profile, or different-machine use. Only then does the facade pass the confirmed inventory version to the existing executor.
+
+Before the first source deletion, the executor performs a fresh inventory, fresh Host check, physical Desktop-record verification without unprotecting or returning credential plaintext, and final eligibility evaluation. A changed inventory, new credential, unavailable Host, invalid envelope, mixed authority, recovery state, or `legacy-v1` source blocks with zero destructive calls. Source cleanup remains one-by-one; legacy JWK cleanup is guarded by a fresh zero-`legacy-v1` observation; the shared Web key remains last.
+
+If any source has already been deleted, later failure is represented as `partial` or `recovery_required`. Resume is available only from an explicit user action after fresh reconciliation, inventory, Host, and eligibility checks. There is no automatic rollback, fallback, or replacement-key generation. The migration journal and Desktop envelope store remain unchanged by cleanup.
+
 ## Future real cleanup acceptance requirements
 
 These are future acceptance requirements only; none is current `PASS` evidence:
 
-1. Use an installer built from `402fa3ac0d8dc443565442a3612830919ddaf3fd` or a descendant, in an isolated dedicated Windows profile.
+1. Use an installer built from the merged Execution Entry commit or a descendant, in an isolated dedicated Windows profile.
 2. Confirm a complete migration journal with `backendPolicy=desktop_preferred`, all expected IDs `desktop_primary`, and verifiable Desktop records.
 3. Confirm Host availability, no `recovery_required`/`partial`/mixed authority, and no `legacy-v1`, unknown, invalid, or orphan state.
 4. Capture a physical inventory and require it to remain unchanged through explicit irreversible-consequence acknowledgement and confirmation.
@@ -79,7 +96,7 @@ These are future acceptance requirements only; none is current `PASS` evidence:
 6. Delete the shared Web key last, only after no retained Web source or legacy JWK remains and the key-boundary eligibility check passes; never generate a replacement Web key.
 7. Perform final reconciliation, restart the installed app, and pass a minimum credential-backed operation without Web-source regeneration or fallback.
 
-The intended sequence is **foundation implementation → closure contract clarification → future execution entry → current-build installed acceptance → final evidence consolidation → 0.7 closure**. The current foundation phase stops before the execution entry and does not initiate any of these future actions.
+The intended sequence is **foundation and execution entry implementation → current-build installed acceptance → isolated dedicated profile → explicit real cleanup acceptance → final reconciliation/restart credential check → 0.7 closure**. This change stops before installer creation, installation, real cleanup, and 0.8 work.
 
 ## Source primitives
 
@@ -95,8 +112,12 @@ All primitives require the relevant Desktop authority, return typed safe results
 
 ## Validation and acceptance boundary
 
-Automated coverage includes no-write/no-decrypt/no-key-generation inventory tests, format and presence classification, eligibility gates, journal sanitization, crash/reappearance reconciliation, source primitive idempotence, source-before-key ordering, single-flight execution, migration journal preservation, and static production UI checks. Browser E2E covers Web hiding, pre-migration blocking, post-migration readiness review, reload, and proof that review does not change source/key/journal state.
+Automated coverage includes no-write/no-decrypt/no-key-generation inventory tests, format and presence classification, eligibility gates, journal sanitization, crash/reappearance reconciliation, source primitive idempotence, source-before-key ordering, single-flight execution, explicit confirmation, fresh revalidation, partial/resume semantics, migration journal preservation, and static production UI checks. Browser E2E covers Web hiding, pre-migration blocking, explicit acknowledgement, eligible fake cleanup, stale-state blocking, partial recovery, reload without auto-resume, and explicit resume.
 
 Required gates are typecheck, lint, contracts, Desktop compile/tests, production audit, build, bundle check, targeted cleanup E2E, existing migration E2E, and `git diff --check`. No `desktop:make`, real installed-app cleanup, real migration cleanup, provider call, or production credential deletion is evidence for this foundation.
 
-Windows acceptance remains **PARTIAL/PENDING**. This document does not claim DPAPI portability, cleanup success, or `0.7 COMPLETE`.
+Cleanup Execution Entry: **IMPLEMENTED / AUTOMATED EVIDENCE ONLY**.
+
+Real Credential Cleanup: **BLOCKING REQUIRED / PENDING — NOT EXECUTED**.
+
+0.7 Windows acceptance remains **PARTIAL — PENDING ITEMS REMAIN**. This document does not claim DPAPI portability, real deletion success, installed-app cleanup evidence, or `0.7 COMPLETE`.

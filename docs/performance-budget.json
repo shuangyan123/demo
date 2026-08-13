@@ -1,10 +1,10 @@
 {
-  "capturedAt": "2026-08-11",
+  "capturedAt": "2026-08-14",
   "nextVersion": "16.2.12",
   "maxGrowthPercent": 0.1,
   "metrics": {
-    "initialJavaScriptBytes": 1310546,
-    "initialCssBytes": 144587,
+    "initialJavaScriptBytes": 1313296,
+    "initialCssBytes": 144632,
     "largestJavaScriptChunkBytes": 589206
   },
   "forbiddenInitialClientModules": [

@@ -120,13 +120,25 @@ export function reconcileCredentialCleanup(
     : inventory.webKey.presence === "absent"
       ? journal.webKeyState === "deleted" ? "deleted" : "absent"
       : "unknown";
+  // A recovery journal with a complete, unchanged physical observation can be
+  // explicitly resumed. Corrupt journals remain recovery-required until a
+  // separate repair/re-entry flow establishes safe metadata again.
+  const resumableRecovery = journal.state === "recovery_required"
+    && journal.reasonCode !== "journal_inconsistent"
+    && journal.expectedIds.length > 0
+    && Boolean(journal.inventoryVersion);
+  const reconciledState = journal.state === "recovery_required" && !resumableRecovery
+    ? "recovery_required"
+    : journal.state === "recovery_required"
+      ? "partial"
+      : journal.state;
   return {
     state: currentRetained.length === 0 && !inventory.legacyJwk.present && inventory.webKey.presence === "absent"
       ? "complete"
-      : journal.state === "idle" ? "idle" : journal.state,
+      : reconciledState,
     reasonCode: currentRetained.length === 0 && !inventory.legacyJwk.present && inventory.webKey.presence === "absent"
       ? "cleanup_complete"
-      : undefined,
+      : reconciledState === "recovery_required" ? journal.reasonCode : undefined,
     cleanedIds: uniqueSorted(cleaned),
     retainedIds: currentRetained,
     webKeyState: keyState,

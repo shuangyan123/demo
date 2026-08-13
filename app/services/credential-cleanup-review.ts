@@ -13,6 +13,8 @@ export type CredentialCleanupReview = {
   credentialCount: number;
   sourceCount: number;
   webKeyPresent: boolean;
+  /** Internal confirmation binding; never copied into the UI projection. */
+  inventoryVersion: string;
   journalState: ReturnType<typeof readCredentialCleanupJournal>["state"];
   migrationState: "idle" | "preflight" | "staging" | "verifying" | "ready_to_commit" | "committing" | "complete" | "blocked" | "recovery_required" | "cancelled";
 };

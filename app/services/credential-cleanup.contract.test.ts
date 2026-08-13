@@ -29,6 +29,7 @@ import {
   resetCredentialCleanupExecutorForTests,
   type CredentialCleanupExecutorDependencies,
 } from "./credential-cleanup-service.ts";
+import { executeDesktopCredentialCleanup } from "./credential-cleanup-execution.ts";
 import {
   cleanupAiConnectionCredential,
   cleanupLegacyAiSettingCredential,
@@ -348,6 +349,114 @@ test("legacy-v1 physical source blocks cleanup before any destructive call", asy
   assert.equal(journal.state, "blocked");
 });
 
+test("executor requires explicit confirmation before any destructive call", async () => {
+  const expected = secretContext.aiConnection("confirmation-boundary");
+  const inventory = physicalInventory({ expectedIds: [expected], webKey: "present" });
+  let journal = readCredentialCleanupJournal();
+  let verifyCalls = 0;
+  let sourceCalls = 0;
+  let keyDeleteCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmationInventoryVersion: inventory.inventoryVersion,
+    confirmed: false,
+    dependencies: {
+      collectInventory: async () => inventory,
+      getHostStatus: async () => desktopHost,
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async () => {
+        verifyCalls += 1;
+        return { verifiedIds: [expected], failedIds: [] };
+      },
+      cleanSource: async (item) => {
+        sourceCalls += 1;
+        return { sourceId: item.sourceId, credentialId: item.credentialId, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => ({ sourceId: "review_workspace_crypto_key_v1", outcome: "already_cleaned" }),
+      inspectWebKey: async () => "present",
+      deleteWebKey: async () => {
+        keyDeleteCalls += 1;
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "awaiting_confirmation");
+  assert.equal(journal.state, "awaiting_confirmation");
+  assert.equal(verifyCalls, 0);
+  assert.equal(sourceCalls, 0);
+  assert.equal(keyDeleteCalls, 0);
+});
+
+test("explicit resume reconciles a partial journal and does not replay an absent source", async () => {
+  const expected = secretContext.aiConnection("resume-boundary");
+  const sourceId = `${expected}:profile`;
+  const inventory = physicalInventory({ expectedIds: [expected], webKey: "present" });
+  let journal = writeCredentialCleanupJournal({
+    version: 1,
+    state: "partial",
+    expectedIds: [expected],
+    cleanedIds: [expected],
+    retainedIds: [],
+    inventoryVersion: inventory.inventoryVersion,
+    webKeyState: "present",
+    sourceStates: { [sourceId]: "cleaned" },
+    reasonCode: "source_cleanup_failed",
+    updatedAt: timestamp,
+  });
+  let sourceCalls = 0;
+  let keyDeleteCalls = 0;
+  let current = {
+    ...inventory,
+    sources: inventory.sources.filter((item) => item.sourceId !== sourceId),
+    inventoryVersion: inventory.inventoryVersion,
+  };
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    resume: true,
+    confirmationInventoryVersion: current.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => current,
+      getHostStatus: async () => desktopHost,
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async (ids) => ({ verifiedIds: ids, failedIds: [] }),
+      cleanSource: async (item) => {
+        sourceCalls += 1;
+        return { sourceId: item.sourceId, credentialId: item.credentialId, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => ({ sourceId: "review_workspace_crypto_key_v1", outcome: "already_cleaned" }),
+      inspectWebKey: async () => current.webKey.presence,
+      deleteWebKey: async () => {
+        keyDeleteCalls += 1;
+        current = { ...current, webKey: { ...current.webKey, presence: "absent" } };
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "complete");
+  assert.equal(sourceCalls, 0);
+  assert.equal(keyDeleteCalls, 1);
+  assert.equal(journal.state, "complete");
+});
+
+test("production execution facade fails closed without confirmation and hides the Web entry", async () => {
+  const before = localStorage.getItem(CREDENTIAL_CLEANUP_STORAGE_KEY);
+  const awaiting = await executeDesktopCredentialCleanup({
+    confirmationInventoryVersion: "fixture",
+    confirmationAcknowledged: false,
+  });
+  assert.equal(awaiting.status, "awaiting_confirmation");
+  assert.equal(localStorage.getItem(CREDENTIAL_CLEANUP_STORAGE_KEY), before);
+
+  const web = await executeDesktopCredentialCleanup({
+    confirmationInventoryVersion: "fixture",
+    confirmationAcknowledged: true,
+  });
+  assert.equal(web.status, "cancelled");
+  assert.equal(web.reasonCode, "cleanup_deferred");
+  assert.equal(localStorage.getItem(CREDENTIAL_CLEANUP_STORAGE_KEY), before);
+});
+
 test("executor re-reads Desktop Host after verification before the first source delete", async () => {
   const expected = secretContext.aiConnection("stale-host-source-boundary");
   const inventory = physicalInventory({ expectedIds: [expected], webKey: "present" });
@@ -635,7 +744,7 @@ test("shared Web key cleanup is a separate last-step API, idempotent, and never 
   assert.equal(await inspectPrimaryWebCredentialKey(), "absent");
 });
 
-test("production settings only imports the read-only review facade and exposes no destructive cleanup action", async () => {
+test("production settings imports only the narrow execution facade and keeps raw cleanup primitives out of UI", async () => {
   const [settings, panel, hook] = await Promise.all([
     readFile(new URL("../features/settings/api-connections-settings-view.tsx", import.meta.url), "utf8"),
     readFile(new URL("../features/settings/desktop-credential-cleanup-panel.tsx", import.meta.url), "utf8"),
@@ -643,6 +752,9 @@ test("production settings only imports the read-only review facade and exposes n
   ]);
   assert.match(settings, /<DesktopCredentialCleanupPanel \/>/);
   assert.match(hook, /reviewCredentialCleanup/);
-  assert.doesNotMatch(`${settings}\n${panel}\n${hook}`, /executeCredentialCleanup|deletePrimaryWebCredentialKeyForCleanup|deleteSecureKeyStore|confirm.*cleanup|deleting_sources|deleting_web_key/i);
+  assert.match(hook, /executeDesktopCredentialCleanup/);
+  assert.match(panel, /type="checkbox"/);
+  assert.match(panel, /Confirm and clean/);
+  assert.doesNotMatch(`${settings}\n${panel}\n${hook}`, /\bexecuteCredentialCleanup\b|deletePrimaryWebCredentialKeyForCleanup|deleteSecureKeyStore/i);
   assert.doesNotMatch(panel, /sourceId|credentialId|ciphertext|payload|raw|stack|path|url/i);
 });

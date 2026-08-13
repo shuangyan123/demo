@@ -32,7 +32,7 @@ import {
   type CredentialCleanupSourceState,
 } from "./credential-cleanup-state.ts";
 import { reconcileCredentialCleanup } from "./credential-cleanup-reconciliation.ts";
-import { readDesktopCredential } from "./credential-backend.ts";
+import { hasDesktopCredential } from "./credential-backend.ts";
 import { secretContext } from "./secret-context.ts";
 import {
   CredentialCleanupSourceError,
@@ -75,8 +75,11 @@ const defaultDependencies: CredentialCleanupExecutorDependencies = {
     const failedIds: string[] = [];
     for (const id of expectedIds) {
       try {
-        await readDesktopCredential(id);
-        verifiedIds.push(id);
+        // Cleanup must never unprotect and return a user's credential plaintext. The
+        // fresh Host check plus the physical, context-bound envelope is sufficient
+        // for this boundary; credential use remains in the normal backend path.
+        if (hasDesktopCredential(id)) verifiedIds.push(id);
+        else failedIds.push(id);
       } catch {
         failedIds.push(id);
       }
@@ -223,6 +226,7 @@ function executionResultFromJournal(journal: CredentialCleanupJournal, status: C
 async function runCredentialCleanup(
   confirmationInventoryVersion: string | undefined,
   confirmed: boolean,
+  resume: boolean,
   dependencies: CredentialCleanupExecutorDependencies,
 ): Promise<CredentialCleanupExecutionResult> {
   const inventory = await dependencies.collectInventory();
@@ -244,10 +248,16 @@ async function runCredentialCleanup(
     });
     return executionResultFromJournal(recovery, "recovery_required");
   }
+  const resuming = resume
+    && (current.state === "partial" || current.state === "recovery_required")
+    && reconciliation.state === "partial";
+  const eligibilityJournal = resuming
+    ? { ...current, state: "idle" as const, reasonCode: undefined, inventoryVersion: inventory.inventoryVersion }
+    : current;
   const initial = evaluateCredentialCleanupEligibility({
     inventory,
     host,
-    cleanupJournal: current,
+    cleanupJournal: eligibilityJournal,
     confirmationInventoryVersion,
   });
   if (initial.decision !== "eligible") return blockedResult(dependencies, inventory, initial, current);
@@ -384,16 +394,23 @@ async function runCredentialCleanup(
 }
 
 /**
- * Future acceptance-only destructive entrypoint. Production UI deliberately has no import or call path to this function.
+ * Destructive executor kept behind the production-facing cleanup facade. The
+ * Settings UI never imports this executor or its source/key primitives directly.
  */
 export function executeCredentialCleanup(options: {
   confirmationInventoryVersion?: string;
   confirmed?: boolean;
+  resume?: boolean;
   dependencies?: Partial<CredentialCleanupExecutorDependencies>;
 } = {}): Promise<CredentialCleanupExecutionResult> {
   if (executionPromise) return executionPromise;
   const dependencies = { ...defaultDependencies, ...options.dependencies };
-  executionPromise = runCredentialCleanup(options.confirmationInventoryVersion, options.confirmed === true, dependencies)
+  executionPromise = runCredentialCleanup(
+    options.confirmationInventoryVersion,
+    options.confirmed === true,
+    options.resume === true,
+    dependencies,
+  )
     .finally(() => { executionPromise = undefined; });
   return executionPromise;
 }
