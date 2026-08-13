@@ -509,7 +509,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 新增 `reviewDesktopCredentialProtection` 只包装版本化 `desktop-v1` envelope 和合法 credential context；不暴露通用 `safeStorage`、任意 decrypt blob、文件路径或 OS resource。跨记录 context substitution 在 host 解密后再次校验并 fail closed。
 - `app/platform/credential-protection.ts` 做确定性的 Web/Desktop backend inspection；Web adapter 不伪造 host storage，Desktop 缺少 capability 时返回显式 unsupported/unavailable。Phase 1 当时不接入 production repository，也没有 dual-write 或 schema migration；后续 Phase 2/3 通过既有 Host Capability 和独立迁移 service 接入，未改变该边界。
 - `app/services/credential-migration-planner.ts` 是纯 TypeScript、无解密/网络/存储副作用的迁移资格 planner。它只允许完整 inventory 驱动 `eligible | blocked | no_op | requires_reentry`，Phase 1 保持无 destructive action；Phase 2 的实际执行由独立 orchestration service 负责。
-- 详细凭据清单、浏览器与 Windows threat model、失败矩阵、恢复和 Windows acceptance plan 见 `docs/desktop-credential-threat-model.md`。0.7 overall 仍为 IN PROGRESS；实际 credential cutover、Windows acceptance 与 cleanup confirmation 留在后续阶段。
+- 详细凭据清单、浏览器与 Windows threat model、失败矩阵、恢复和 Windows acceptance plan 见 `docs/desktop-credential-threat-model.md`。Phase 1 当时不包含 production credential cutover 或 Windows acceptance；后续 Phase 2 已完成 cutover，Phase 3 的 Windows installed-app 核心路径已有证据，0.7 overall 仍为 IN PROGRESS，cleanup confirmation 留在后续阶段。
 
 # 0.7 Desktop credential migration Phase 2 (2026-08-12)
 
@@ -525,7 +525,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - Settings mount 和应用启动只做只读状态探测；只有用户点击后才调用 `migrateDesktopCredentials()`。UI 使用固定状态投影，不传播 credential IDs、journal reason、ciphertext、IV、payload、路径、堆栈或 raw IPC error。
 - Desktop authority、missing-record hard failure、post-cutover Desktop-only write、Web source retention、backup/export exclusion 和 v16/v1 schema 边界保持不变；本阶段没有 cleanup。
 - `e2e/desktop-credential-migration.spec.ts` 是 deterministic fake-Desktop product harness，证明 Web hiding、explicit action、zero startup journal write 和 durable complete reload。它不证明 Windows DPAPI、Electron `userData`、安装/升级或换机恢复。
-- Windows installed-app acceptance 目前为 **PENDING MANUAL ACCEPTANCE**，具体矩阵与证据分类见 `docs/release-smoke.md`。
+- Windows installed-app acceptance 的核心路径已在真实安装版中取得同一机器、同一用户、同一 application profile 的 Desktop persistence 与重复重启可用性证据；controlled failure/recovery、adjacent-version、portability、其他 lifecycle cases 与 cleanup 仍为 **PENDING**。正式 verdict 为 **PARTIAL — PENDING ITEMS REMAIN**，具体矩阵与证据分类见 `docs/release-smoke.md`。
 
 # 0.4 Application Layer Phase 1：Interview（2026-08-09）
 

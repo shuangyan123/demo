@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-13 — 0.7 Windows Installed-App Acceptance Evidence
+
+- Verified the core real Windows installed-app Desktop credential path and repeated restart credential usability within the same machine, Windows user, and application profile.
+- Recovery/lifecycle evidence remains pending; credential cleanup was not performed and 0.7 remains IN PROGRESS.
+
 ## 2026-08-12 — 0.7 Desktop Credential Acceptance Stabilization
 
 - Corrected the installed-app acceptance order so Desktop authority is established before a non-empty fresh credential is saved and verified after restart; WebCrypto, Desktop `safeStorage`, installed-app persistence, and DPAPI portability remain separate evidence claims.
