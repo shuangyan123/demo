@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-13 — 0.7 Closure Contract Clarification
+
+- Clarified the residual taxonomy without changing any `PASS`/`PENDING` evidence label: automated recovery is distinguished from installed-app evidence, no-safe-seam cases, 0.8 lifecycle ownership, and portability non-claims.
+- Assigned adjacent-version upgrade and uninstall/reinstall to 0.8 Windows desktop distribution while keeping Desktop authority, no Web fallback, fail-closed behavior, context binding, and cleanup ordering in 0.7.
+- Kept real Credential Cleanup **BLOCKING REQUIRED / PENDING — NOT EXECUTED**; `legacy-v1` remains a conditional cleanup blocker with `legacy_source_present` when physically found.
+- Preserved the historical `61aef1e4` installer identity, `v0.2.1` evidence, preload failure record, 38/38 automated recovery result, portability non-claim, and PR #82 evidence. This is a docs-only contract clarification with no production behavior change and no `0.7 COMPLETE` claim.
+
 ## 2026-08-13 — 0.7 Windows Installed-App Acceptance Evidence
 
 - Verified the core real Windows installed-app Desktop credential path and repeated restart credential usability within the same machine, Windows user, and application profile.

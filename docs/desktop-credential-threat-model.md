@@ -118,6 +118,18 @@ Planner 的核心结果为：
 5. 中断、部分 staging、host 暂时不可用都能安全 retry，source credential 不因 retry 被删除；commit 半失败进入 recovery_required；
 6. 旧 JWK、v2 ciphertext、source record 与 secure key 只有在后续独立确认 cleanup 阶段才允许删除。
 
+## Residual closure classification
+
+The recovery matrix intentionally separates four questions: whether deterministic behavior is covered, whether installed-app evidence exists, whether a safe test seam exists, and whether the row blocks 0.7 credential-security closure.
+
+- `host unavailable`, `requires-reentry`, `context mismatch`, and `partial commit recovery` have automated fail-closed/recovery coverage. Their installed-app rows remain `PENDING` and are **DOCUMENTED RESIDUAL** unless a safe installed seam is later provided; automated evidence is not relabeled as installed evidence.
+- `corrupted envelope` and `interrupted pre-commit` are **NO SAFE INSTALLED SEAM** in the current product. Do not inject them by random process kill, editing userData/ciphertext/journal, destroying DPAPI material, corrupting a real credential, or patching ASAR.
+- Adjacent-version overwrite upgrade and uninstall/reinstall are **DEFERRED TO 0.8 Windows desktop distribution**. 0.8 owns installer, signing, release, and distribution lifecycle evidence; 0.7 continues to own credential authority and fail-closed semantics.
+- Different machine/account, copied `userData`, and general DPAPI portability are **MANUAL-ONLY / NON-CLAIM**. Same-machine/same-user/same-profile persistence does not imply portability.
+- Real Credential Cleanup is **BLOCKING REQUIRED / PENDING — NOT EXECUTED**. Cleanup Foundation contracts are automated evidence only and do not remove retained Web sources or the shared Web key.
+
+The labels above do not change any `PASS`/`PENDING` result. They prevent an unexecuted installed-app observation from being treated as either a security defect or a passing test without evidence.
+
 ## Failure / Recovery Matrix
 
 | 情况 | Planner / Host 结果 | 恢复语义 |
@@ -172,6 +184,8 @@ JavaScript 无法提供真正可证明的 secure memory wipe。本轮只限制 p
 6. 删除 `userData` 的卸载/重装；
 7. 复制 userData/blob 到另一账户和另一台机器；
 8. 确认失败时仍保留 source、没有明文回填、没有旧材料误删。
+
+Controlled fixtures or an explicit Host test seam may prove deterministic failure/recovery semantics without claiming installed-app evidence. If no safe seam exists, retain `PENDING` plus **NO SAFE INSTALLED SEAM** and do not manufacture a destructive test profile.
 
 ## Phase 1 non-goals
 
