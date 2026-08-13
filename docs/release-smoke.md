@@ -6,6 +6,16 @@
 
 ### Evidence boundary
 
+#### 2026-08-12 installed-app failure and preload regression boundary
+
+The real Windows 11 x64 installed-app run for commit `c85f2f3f87903d73ca5db4ba07d90d9fc410bb14` passed installation and first launch but did not render the `Desktop 凭据保护` panel under Settings → AI connections. The panel was absent rather than showing the safe unavailable state, so Web → Desktop migration could not begin. This is a failed acceptance observation, not a product or test pass.
+
+The confirmed cause was the packaged `.desktop/preload.js` being emitted as ESM (`import { contextBridge, ipcRenderer } from "electron"`) while the Electron 43.2.0 BrowserWindow used `sandbox: true`. Electron sandboxed preloads run without an ESM context, so preload execution stopped before the three narrow `contextBridge` surfaces were exposed. Existing contracts, fake-Desktop E2E, and Desktop compile tests missed this because they checked source/adapter seams but did not inspect or execute the final staged and ASAR preload artifact.
+
+The repaired boundary is now `desktop/preload.cts` → `.desktop/preload.cjs` → `.desktop-app/.desktop/preload.cjs` → `app.asar`, with an artifact regression asserting CommonJS format, no runtime local imports, the exact three bridge names, no stale `preload.js`, and hash equality across compiled, staging, and packaged output. A real sandboxed Electron BrowserWindow smoke also checks boolean evidence for the existing credential bridge without sending secrets.
+
+Windows installed-app acceptance remains **PENDING MANUAL ACCEPTANCE** until the repaired installer is installed and executed through the first checkpoint below. Do not mark 0.7 complete from package success or the automated regression alone.
+
 - 自动化 contract evidence：`npm run test:contracts`、`npm run test:desktop` 与 `e2e/desktop-credential-migration.spec.ts`。fake Desktop bridge 只证明产品 gating、显式动作、非空测试 credential 的 protect/unprotect round-trip、journal 读取/写入边界和安全 UI 投影，不证明 Windows DPAPI。
 - Electron integration evidence：`npm run desktop:compile`、`npm run test:desktop` 以及实际 Electron 开发/打包运行；这些检查不能替代安装版生命周期证据。
 - Installed Windows manual evidence：必须记录真实安装器版本、commit SHA、安装/升级步骤、脱敏结果和失败类别。只有实际观察到的项目才可标记 PASS。
