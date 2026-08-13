@@ -509,7 +509,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 新增 `reviewDesktopCredentialProtection` 只包装版本化 `desktop-v1` envelope 和合法 credential context；不暴露通用 `safeStorage`、任意 decrypt blob、文件路径或 OS resource。跨记录 context substitution 在 host 解密后再次校验并 fail closed。
 - `app/platform/credential-protection.ts` 做确定性的 Web/Desktop backend inspection；Web adapter 不伪造 host storage，Desktop 缺少 capability 时返回显式 unsupported/unavailable。Phase 1 当时不接入 production repository，也没有 dual-write 或 schema migration；后续 Phase 2/3 通过既有 Host Capability 和独立迁移 service 接入，未改变该边界。
 - `app/services/credential-migration-planner.ts` 是纯 TypeScript、无解密/网络/存储副作用的迁移资格 planner。它只允许完整 inventory 驱动 `eligible | blocked | no_op | requires_reentry`，Phase 1 保持无 destructive action；Phase 2 的实际执行由独立 orchestration service 负责。
-- 详细凭据清单、浏览器与 Windows threat model、失败矩阵、恢复和 Windows acceptance plan 见 `docs/desktop-credential-threat-model.md`。Phase 1 当时不包含 production credential cutover 或 Windows acceptance；后续 Phase 2 已完成 cutover，Phase 3 的 Windows installed-app 核心路径已有证据，0.7 overall 仍为 IN PROGRESS，cleanup confirmation 留在后续阶段。
+- 详细凭据清单、浏览器与 Windows threat model、失败矩阵、恢复和 Windows acceptance plan 见 `docs/desktop-credential-threat-model.md`。Phase 1 当时不包含 production credential cutover；它负责 acceptance contract/recovery matrix，真实 installed-app lifecycle evidence 由后续 acceptance/distribution phase 承担。后续 Phase 2 已完成 cutover，Phase 3 的 Windows installed-app 核心路径已有证据，0.7 overall 仍为 IN PROGRESS，cleanup confirmation 留在后续阶段。
 
 # 0.7 Desktop credential migration Phase 2 (2026-08-12)
 
@@ -525,7 +525,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - Settings mount 和应用启动只做只读状态探测；只有用户点击后才调用 `migrateDesktopCredentials()`。UI 使用固定状态投影，不传播 credential IDs、journal reason、ciphertext、IV、payload、路径、堆栈或 raw IPC error。
 - Desktop authority、missing-record hard failure、post-cutover Desktop-only write、Web source retention、backup/export exclusion 和 v16/v1 schema 边界保持不变；本阶段没有 destructive cleanup。
 - `e2e/desktop-credential-migration.spec.ts` 是 deterministic fake-Desktop product harness，证明 Web hiding、explicit action、zero startup journal write 和 durable complete reload。它不证明 Windows DPAPI、Electron `userData`、安装/升级或换机恢复。
-- Windows installed-app acceptance 的核心路径已在真实安装版中取得同一机器、同一用户、同一 application profile 的 Desktop persistence 与重复重启可用性证据；controlled failure/recovery、adjacent-version、portability、其他 lifecycle cases 与 cleanup 仍为 **PENDING**。正式 verdict 为 **PARTIAL — PENDING ITEMS REMAIN**，具体矩阵与证据分类见 `docs/release-smoke.md`。
+- Windows installed-app acceptance 的核心路径已在真实安装版中取得同一机器、同一用户、同一 application profile 的 Desktop persistence 与重复重启可用性证据；controlled failure/recovery 是 **DOCUMENTED RESIDUAL / PENDING**，corrupted envelope 与 interrupted pre-commit 是 **NO SAFE INSTALLED SEAM / NOT CLAIMED**，adjacent-version 与 uninstall/reinstall **DEFERRED TO 0.8**，portability 是 **MANUAL-ONLY / NON-CLAIM**。Real Credential Cleanup 仍为 **BLOCKING REQUIRED / PENDING — NOT EXECUTED**。正式 verdict 为 **PARTIAL — PENDING ITEMS REMAIN**，具体矩阵与证据分类见 `docs/release-smoke.md`。
 
 # 0.7 Credential Cleanup Foundation（2026-08-13）
 
@@ -534,7 +534,16 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - `credential-cleanup-eligibility.ts` 与 `credential-cleanup-reconciliation.ts` 只允许明确安全事实继续：完整 Desktop-preferred migration、每个 expected ID 的 Desktop authority、稳定 physical inventory、Desktop 可验证、无 Web-primary/mixed authority、无 invalid/unknown/orphan/re-entry state。未知状态 fail closed。
 - 各 repository 的 cleanup primitive 只清理 Web ciphertext/IV/legacy field，保留 profile/config/auth mode/permissions/marker 等非敏感结构，并保证重复执行 no-op。`deletePrimaryWebCredentialKeyForCleanup()` 是与完整 key-store reset 分离的窄 API，只有 source 删除、physical reinventory 且无合法 Web consumer 后才是最后一步；它不会生成 replacement key。
 - `DesktopCredentialCleanupPanel` 与 hook 只调用 `credential-cleanup-review.ts` read-only facade，展示计数、impact 和 blocked/deferred 状态。生产 UI 没有 confirm、delete-source、delete-key、resume 或 executor import/call path；startup 不自动执行 cleanup。Destructive executor 仅供隔离 fake/test fixture 和后续 acceptance phase 使用。
-- Cleanup Foundation 已 IMPLEMENTED；REAL CLEANUP NOT EXECUTED，retained Web material 仍在，Windows installed-app cleanup 仍 **PENDING**，0.7 overall 仍 **IN PROGRESS**。详见 `docs/desktop-credential-migration.md` 与 `docs/credential-cleanup.md`。
+- Cleanup Foundation 已 IMPLEMENTED；REAL CLEANUP NOT EXECUTED，retained Web material 仍在，Windows installed-app cleanup 仍 **BLOCKING REQUIRED / PENDING**，0.7 overall 仍 **IN PROGRESS**。生产 UI 仍是 review/readiness-only，当前没有 supported destructive execution entry。详见 `docs/desktop-credential-migration.md` 与 `docs/credential-cleanup.md`。
+
+# 0.7 Closure Contract Clarification（2026-08-13）
+
+- The recorded real installed-app evidence covers explicit Web-to-Desktop migration, Desktop authority, same-machine/same-user/same-profile persistence, repeated restart, credential-backed operation, privacy observation, and same-version replacement. It does not claim installed failure-path coverage.
+- Host unavailable, requires-reentry, context mismatch, partial commit recovery, context-substitution rejection, and no-fallback-under-failure have deterministic coverage classified as **AUTOMATED PASS / DOCUMENTED RESIDUAL**; their installed-app rows remain `PENDING`. Corrupted envelope and interrupted pre-commit are **NO SAFE INSTALLED SEAM / NOT CLAIMED**. No random process kill, userData/ciphertext/journal edit, DPAPI destruction, real credential corruption, or ASAR patching is an acceptance method.
+- Adjacent-version overwrite upgrade, uninstall/reinstall, clean-machine install, signing, release assets, and distribution-owned userData lifecycle are **DEFERRED TO 0.8**. Different machine/account, copied `userData`, and general DPAPI portability are **MANUAL-ONLY / NON-CLAIM**.
+- 0.7 still owns Desktop authority, no Web fallback, fail-closed semantics, context binding, source retention, and cleanup ordering. Real Credential Cleanup is **BLOCKING REQUIRED / PENDING — NOT EXECUTED** because retained Web credential material and the shared Web key remain after cutover. Cleanup Foundation does not close this gate.
+- `legacy-v1` is a **CONDITIONAL CLEANUP BLOCKER**: future physical preflight must return `legacy_source_present` if found, and a legacy JWK is not eligible before physical inventory proves zero `legacy-v1` sources.
+- The historical `61aef1e4...` installer evidence remains valid for core migration/persistence only; future cleanup acceptance must use `402fa3ac0d8dc443565442a3612830919ddaf3fd` or a descendant build. This clarification changes no runtime behavior, schema, preload, IPC, or acceptance result label.
 
 # 0.4 Application Layer Phase 1：Interview（2026-08-09）
 

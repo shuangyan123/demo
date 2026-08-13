@@ -2,7 +2,17 @@
 
 ## 2026-08-12 · 0.7 Desktop Credential Acceptance Closure
 
-状态：**PARTIAL — PENDING ITEMS REMAIN**。核心 real Windows installed-app credential path 已有真实安装版证据，但 recovery、lifecycle 与 portability 仍有待完成；因此不能把 0.7 标记为 COMPLETE。下方保留 2026-08-12 的历史失败记录，并在其后记录当前验收结果。
+状态：**PARTIAL — PENDING ITEMS REMAIN**。核心 real Windows installed-app credential path 已有真实安装版证据；recovery 的 installed-app observation 是 documented residual，distribution lifecycle deferred，portability explicitly unclaimed，real cleanup 仍 blocking required。因此不能把 0.7 标记为 COMPLETE。下方保留 2026-08-12 的历史失败记录，并在其后记录当前验收结果。
+
+### 0.7 closure interpretation
+
+The installed-app matrix keeps the truthful `PASS` / `PENDING` labels. The additional closure classification answers what a pending row means:
+
+- `AUTOMATED PASS / DOCUMENTED RESIDUAL`: deterministic contracts cover the fail-closed behavior, but no installed-app observation is claimed.
+- `NO SAFE INSTALLED SEAM / NOT CLAIMED`: no safe seam exists for corruption or interruption injection; random process kills, userData/ciphertext/journal editing, DPAPI destruction, real credential corruption, and ASAR patching are prohibited evidence methods.
+- `DEFERRED TO 0.8`: adjacent-version upgrade and uninstall/reinstall are Windows distribution/lifecycle ownership, not a transfer of 0.7 credential-security semantics.
+- `MANUAL-ONLY / NON-CLAIM`: different machine/account, copied userData, and general DPAPI portability remain unverified and unsupported by this record.
+- `BLOCKING REQUIRED / PENDING — NOT EXECUTED`: real Credential Cleanup remains a 0.7 credential-security closure gate. The Cleanup Foundation is automated/readiness evidence only.
 
 ### Evidence boundary
 
@@ -67,31 +77,31 @@ At that 2026-08-12 checkpoint, Windows installed-app acceptance remained **PENDI
 
 ### Installed-app acceptance matrix
 
-| Case | Status | Evidence / reason |
-| --- | --- | --- |
-| Installation | PASS | installed-app behavioral |
-| First launch | PASS | installed-app behavioral |
-| Packaged preload / Host capability | PASS | installed-app behavioral + packaged artifact regression |
-| Desktop credential protection | PASS | installed-app behavioral |
-| Explicit Web → Desktop migration | PASS | installed-app behavioral |
-| Desktop authority | PASS | installed-app behavioral |
-| Credential usability after restart | PASS | installed-app behavioral |
-| Repeated restart persistence | PASS | installed-app behavioral |
-| DeepSeek connection test | PASS | real installed-app provider operation |
-| Privacy inspection | PASS | manual installed-app observation |
-| Same-version replacement | PASS | installed-app behavioral |
-| Host unavailable | PENDING | automated-only |
-| Requires re-entry | PENDING | automated-only |
-| Context mismatch | PENDING | automated-only |
-| Corrupted envelope | PENDING | automated-only |
-| Interrupted pre-commit | PENDING | no safe installed-app seam |
-| Partial commit recovery | PENDING | automated-only |
-| Adjacent-version upgrade | PENDING | deferred until an isolated Windows environment/device is available |
-| Different machine | PENDING | manual-only |
-| Different Windows account | PENDING | manual-only |
-| Copied `userData` | PENDING | manual-only |
-| Uninstall/reinstall | PENDING | manual-only |
-| Credential cleanup | PENDING | separate phase; not performed |
+| Case | Status | Evidence / reason | Closure classification |
+| --- | --- | --- | --- |
+| Installation | PASS | installed-app behavioral | PASS / EVIDENCED |
+| First launch | PASS | installed-app behavioral | PASS / EVIDENCED |
+| Packaged preload / Host capability | PASS | installed-app behavioral + packaged artifact regression | PASS / EVIDENCED |
+| Desktop credential protection | PASS | installed-app behavioral | PASS / EVIDENCED |
+| Explicit Web → Desktop migration | PASS | installed-app behavioral | PASS / EVIDENCED |
+| Desktop authority | PASS | installed-app behavioral | PASS / EVIDENCED |
+| Credential usability after restart | PASS | installed-app behavioral | PASS / EVIDENCED |
+| Repeated restart persistence | PASS | installed-app behavioral | PASS / EVIDENCED |
+| DeepSeek connection test | PASS | real installed-app provider operation | PASS / EVIDENCED |
+| Privacy inspection | PASS | manual installed-app observation | PASS / EVIDENCED |
+| Same-version replacement | PASS | installed-app behavioral | PASS / EVIDENCED |
+| Host unavailable | PENDING | automated-only | AUTOMATED PASS / DOCUMENTED RESIDUAL |
+| Requires re-entry | PENDING | automated-only | AUTOMATED PASS / DOCUMENTED RESIDUAL |
+| Context mismatch | PENDING | automated-only | AUTOMATED PASS / DOCUMENTED RESIDUAL |
+| Corrupted envelope | PENDING | automated-only | NO SAFE INSTALLED SEAM / NOT CLAIMED |
+| Interrupted pre-commit | PENDING | no safe installed-app seam | NO SAFE INSTALLED SEAM / NOT CLAIMED |
+| Partial commit recovery | PENDING | automated-only | AUTOMATED PASS / DOCUMENTED RESIDUAL |
+| Adjacent-version upgrade | PENDING | deferred until an isolated Windows environment/device is available | DEFERRED TO 0.8 |
+| Different machine | PENDING | manual-only | MANUAL-ONLY / NON-CLAIM |
+| Different Windows account | PENDING | manual-only | MANUAL-ONLY / NON-CLAIM |
+| Copied `userData` | PENDING | manual-only | MANUAL-ONLY / NON-CLAIM |
+| Uninstall/reinstall | PENDING | manual-only | DEFERRED TO 0.8 / MANUAL-ONLY |
+| Credential cleanup | PENDING | separate phase; not performed | BLOCKING REQUIRED / PENDING — NOT EXECUTED |
 
 ### Recorded evidence boundary
 
@@ -105,13 +115,15 @@ At that 2026-08-12 checkpoint, Windows installed-app acceptance remained **PENDI
 - Retained Web recovery evidence：preserved
 - Credential cleanup：not performed
 
-Recovery contracts：**38 / 38 PASS**。这是 automated evidence，不等同于真实 installed-app failure/recovery evidence。`protection unavailable`、`requires-reentry`、`context mismatch`、`corrupted Desktop envelope`、`interrupted pre-commit` 和 `partial commit recovery` 的 installed-app 状态均保持 **PENDING**；本轮没有执行 random process kill、`userData`/ciphertext/journal editing、DPAPI destruction 或 real credential corruption。
+Recovery contracts：**38 / 38 PASS**。这是 automated evidence，不等同于真实 installed-app failure/recovery evidence。`protection unavailable`、`requires-reentry`、`context mismatch`、`corrupted Desktop envelope`、`interrupted pre-commit` 和 `partial commit recovery` 的 installed-app 状态均保持 **PENDING**；`protection unavailable`、`requires-reentry`、`context mismatch` 和 `partial commit recovery` 是 documented residual，`corrupted Desktop envelope` 与 `interrupted pre-commit` 明确为 **NO SAFE INSTALLED SEAM**。本轮没有执行 random process kill、`userData`/ciphertext/journal editing、DPAPI destruction 或 real credential corruption。
 
 ### Adjacent-version and portability boundary
 
-已确认存在 genuine older installer：version `0.2.1`，commit `04e91d03b62de11a4c041e4c8b77961fc6e20e9b`，installer `ReviewWorkspace-0.2.1-Windows-x64-Setup.exe`，size `190,152,192` bytes，SHA-256 `364C169FACAB5DA4C2F6A8CD510E0972F479EF407CA7CDED9927C1EDCA5F501D`。由于当前没有安全隔离的 Windows environment/device，Adjacent-version upgrade：**PENDING — deferred until a separate Windows environment/device is available**。Same-version replacement **不等于** adjacent-version upgrade。
+已确认存在 genuine older installer：version `0.2.1`，commit `04e91d03b62de11a4c041e4c8b77961fc6e20e9b`，installer `ReviewWorkspace-0.2.1-Windows-x64-Setup.exe`，size `190,152,192` bytes，SHA-256 `364C169FACAB5DA4C2F6A8CD510E0972F479EF407CA7CDED9927C1EDCA5F501D`。由于当前没有安全隔离的 Windows environment/device，Adjacent-version upgrade：**PENDING — deferred until a separate Windows environment/device is available**，并归属 0.8 Windows desktop distribution。Same-version replacement **不等于** adjacent-version upgrade。
 
-Different machine、different Windows account、copied `userData`、uninstall/reinstall 和 general DPAPI portability 均未验证；这些不是本记录的 PASS。Privacy inspection 的结论仅为 **Secret leakage: not observed**，不是 `proved impossible`。0.7 overall 仍为 **IN PROGRESS**，cleanup 未执行。
+This record uses commit `61aef1e4a4ee3eb316ac81d86b149136ab5855d4`, which predates the merged Cleanup Foundation commit `402fa3ac0d8dc443565442a3612830919ddaf3fd`. It is valid historical evidence for the core migration/persistence path only; it cannot prove `402fa3` cleanup runtime behavior or any future real cleanup acceptance. Historical installer identity and evidence are preserved unchanged.
+
+Different machine、different Windows account、copied `userData`、uninstall/reinstall 和 general DPAPI portability 均未验证；这些不是本记录的 PASS。Privacy inspection 的结论仅为 **Secret leakage: not observed**，不是 `proved impossible`。0.7 overall 仍为 **IN PROGRESS**，real Credential Cleanup 仍为 **BLOCKING REQUIRED / PENDING — NOT EXECUTED**。
 
 ## 2026-08-09 · Data Reliability Phase 2
 
