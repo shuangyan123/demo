@@ -148,6 +148,14 @@ async function throwApiFailure(input: AiGenerateRequest, response: Response, fal
   return throwClientApiFailure(input, response, fallback, knownPayload);
 }
 
+function localGenerateFailureFallback(response: Response): string {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (response.status === 404 && contentType.includes("text/html")) {
+    return "本机 AI 服务不可用，请重启应用后重试";
+  }
+  return `API 请求失败：${response.status}`;
+}
+
 // 调用统一生成路由，客户端不再拼接各厂商 endpoint 或解析厂商响应。
 export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenerateResult> {
   const runId = input.activity?.runId ?? crypto.randomUUID();
@@ -172,8 +180,9 @@ export async function callAiGenerate(input: AiGenerateRequest): Promise<AiGenera
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const payload = await readApiErrorPayload(response, `API 请求失败：${response.status}`);
-    const text = payload.message ?? `API 请求失败：${response.status}`;
+    const fallback = localGenerateFailureFallback(response);
+    const payload = await readApiErrorPayload(response, fallback);
+    const text = payload.message ?? fallback;
     emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
     await throwApiFailure(input, response, text || `API 请求失败：${response.status}`, payload);
   }
@@ -207,8 +216,9 @@ export async function* callAiGenerateStream(input: AiGenerateRequest): AsyncGene
   });
   const streamBody = response.body;
   if (!response.ok || !streamBody) {
-    const payload = await readApiErrorPayload(response, `API 请求失败：${response.status}`);
-    const text = payload.message ?? `API 请求失败：${response.status}`;
+    const fallback = localGenerateFailureFallback(response);
+    const payload = await readApiErrorPayload(response, fallback);
+    const text = payload.message ?? fallback;
     emitAiActivity({ ...activityBase, phase: "error", label: `${input.provider} · ${input.model}`, stepId: "error", text: text || `API 请求失败：${response.status}` });
     await throwApiFailure(input, response, text || `API 请求失败：${response.status}`, payload);
   }

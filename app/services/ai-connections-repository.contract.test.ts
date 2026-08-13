@@ -310,6 +310,40 @@ test("编辑默认文本连接会同步旧表，移除文本能力时会清理�
   assert.equal(await reviewDb.apiSettings.get("default"), undefined);
 });
 
+test("连接测试记录在写入和读取时清理历史 HTML 错误页", async () => {
+  await resetDatabase();
+  const profile: ApiConnectionProfile = {
+    id: "html-test-profile",
+    label: "DeepSeek",
+    provider: "deepseek",
+    apiFormat: "chat_completions",
+    baseUrl: "https://api.deepseek.com",
+    capabilities: ["text"],
+    encryptedKey: "ciphertext",
+    iv: "iv",
+    maskedKey: "****-key",
+    providerOptions: {},
+    createdAt: today.toISOString(),
+    updatedAt: today.toISOString(),
+  };
+  await reviewDb.apiConnectionProfiles.put(profile);
+
+  const html = '<!DOCTYPE html><html><body>framework error with API key: secret-value</body></html>';
+  await aiConnectionsRepository.updateTestStatus(profile.id, "failed", html);
+  const afterWrite = await reviewDb.apiConnectionProfiles.get(profile.id);
+  assert.equal(afterWrite?.testMessage, "本机 AI 服务不可用，请重启应用后重试");
+  assert.equal(afterWrite?.testHistory?.[0]?.message, "本机 AI 服务不可用，请重启应用后重试");
+
+  await reviewDb.apiConnectionProfiles.update(profile.id, {
+    testMessage: html,
+    testHistory: [{ id: "legacy-html", testedAt: today.toISOString(), status: "failed", message: html }],
+  });
+  const loaded = await aiConnectionsRepository.loadSnapshot(today);
+  assert.equal(loaded.profiles[0]?.testMessage, "本机 AI 服务不可用，请重启应用后重试");
+  assert.equal(loaded.profiles[0]?.testHistory?.[0]?.message, "本机 AI 服务不可用，请重启应用后重试");
+  assert.doesNotMatch(JSON.stringify(await reviewDb.apiConnectionProfiles.get(profile.id)), /DOCTYPE|secret-value/);
+});
+
 test("核心业务文件不再依赖旧 apiSetting 或兼容请求器", async () => {
   const files = [
     "../features/review/review-workspace.tsx",

@@ -34,6 +34,16 @@ export type ConnectionCredentialHealth =
   | { status: "ready" }
   | { status: "reentry_required"; code: CredentialSecurityErrorCode | CredentialBackendErrorCode; message: string };
 
+const HTML_ERROR_PATTERN = /<(?:!doctype|\/?[a-z][a-z0-9-]*)(?:\s|>|\/)/i;
+const CONNECTION_TEST_FALLBACK = "本机 AI 服务不可用，请重启应用后重试";
+
+/** 历史版本可能保存过框架 HTML 错误页；读取和写入时都收敛为稳定产品文案。 */
+export function sanitizeConnectionTestMessage(message: string): string {
+  const normalized = message.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized || HTML_ERROR_PATTERN.test(normalized)) return CONNECTION_TEST_FALLBACK;
+  return normalized.slice(0, 240);
+}
+
 // 创建尚未分配任何连接的默认能力映射。
 function emptyDefaults(today: Date): AiConnectionDefaults {
   return { id: "default", updatedAt: toISODate(today) };
@@ -62,12 +72,18 @@ export function normalizeConnectionProfileCapabilities(profile: ApiConnectionPro
     profile.providerOptions.region === providerOptions.region
     && profile.providerOptions.credentialPlan === providerOptions.credentialPlan
   );
+  const testMessage = profile.testMessage === undefined ? undefined : sanitizeConnectionTestMessage(profile.testMessage);
+  const testHistory = profile.testHistory?.map((entry) => ({ ...entry, message: sanitizeConnectionTestMessage(entry.message) }));
+  const testHistoryUnchanged = !testHistory
+    || testHistory.every((entry, index) => entry.message === profile.testHistory?.[index]?.message);
+  const testDataUnchanged = testMessage === profile.testMessage && testHistoryUnchanged;
   return capabilities.length === profile.capabilities.length
     && capabilities.every((capability) => profile.capabilities.includes(capability))
     && baseUrl === profile.baseUrl
     && providerOptionsUnchanged
+    && testDataUnchanged
     ? profile
-    : { ...profile, capabilities, baseUrl, providerOptions };
+    : { ...profile, capabilities, baseUrl, providerOptions, testMessage, testHistory };
 }
 
 // 清理不存在或能力不匹配的默认连接，避免编辑连接能力后继续把错误档案注入业务模块。
@@ -344,11 +360,12 @@ export const aiConnectionsRepository = {
     const profile = await reviewDb.apiConnectionProfiles.get(id);
     if (!profile) return;
     const testedAt = new Date().toISOString();
+    const safeMessage = sanitizeConnectionTestMessage(message);
     await reviewDb.apiConnectionProfiles.update(id, {
       testStatus: status,
-      testMessage: message,
+      testMessage: safeMessage,
       updatedAt: testedAt,
-      testHistory: [{ id: crypto.randomUUID(), testedAt, status, category: "connection-test", message }, ...(profile.testHistory ?? [])].slice(0, 20),
+      testHistory: [{ id: crypto.randomUUID(), testedAt, status, category: "connection-test", message: safeMessage }, ...(profile.testHistory ?? [])].slice(0, 20),
     });
   },
 };
