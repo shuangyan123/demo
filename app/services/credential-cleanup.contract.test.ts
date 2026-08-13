@@ -279,6 +279,173 @@ test("eligibility blocks every unsafe migration or physical condition and never 
   assert.equal(evaluateCredentialCleanupEligibility({ inventory: retained, host: desktopHost, confirmationInventoryVersion: "different" }).reasonCode, "physical_inventory_changed");
 });
 
+test("legacy-v1 physical source blocks cleanup before any destructive call", async () => {
+  const expected = secretContext.aiConnection("legacy-v1-blocker");
+  const inventory = physicalInventory({
+    expectedIds: [expected],
+    sources: [
+      source({
+        sourceId: `${expected}:profile`,
+        credentialId: expected,
+        kind: "ai-connection",
+        storage: "legacy-v1",
+        authority: "desktop_primary",
+      }),
+      source({
+        sourceId: `${expected}:desktop-store`,
+        credentialId: expected,
+        kind: "desktop-store",
+        storage: "desktop-v1",
+        storageLocation: "local-storage:desktop",
+        authority: "desktop_primary",
+      }),
+    ],
+    webKey: "present",
+    legacyJwk: true,
+  });
+  const eligibility = evaluateCredentialCleanupEligibility({ inventory, host: desktopHost });
+  assert.equal(eligibility.decision, "blocked");
+  assert.equal(eligibility.reasonCode, "legacy_source_present");
+
+  let journal = readCredentialCleanupJournal();
+  let verifyCalls = 0;
+  let cleanSourceCalls = 0;
+  let deleteLegacyJwkCalls = 0;
+  let deleteWebKeyCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    confirmationInventoryVersion: inventory.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => inventory,
+      getHostStatus: async () => desktopHost,
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async (ids) => {
+        verifyCalls += 1;
+        return { verifiedIds: ids, failedIds: [] };
+      },
+      cleanSource: async (item) => {
+        cleanSourceCalls += 1;
+        return { sourceId: item.sourceId, credentialId: item.credentialId, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => {
+        deleteLegacyJwkCalls += 1;
+        return { sourceId: "review_workspace_crypto_key_v1", outcome: "cleaned" };
+      },
+      inspectWebKey: async () => "present",
+      deleteWebKey: async () => {
+        deleteWebKeyCalls += 1;
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "blocked");
+  assert.equal(result.reasonCode, "legacy_source_present");
+  assert.equal(verifyCalls, 0);
+  assert.equal(cleanSourceCalls, 0);
+  assert.equal(deleteLegacyJwkCalls, 0);
+  assert.equal(deleteWebKeyCalls, 0);
+  assert.equal(journal.state, "blocked");
+});
+
+test("executor re-reads Desktop Host after verification before the first source delete", async () => {
+  const expected = secretContext.aiConnection("stale-host-source-boundary");
+  const inventory = physicalInventory({ expectedIds: [expected], webKey: "present" });
+  let journal = readCredentialCleanupJournal();
+  let hostCalls = 0;
+  let verifyCalls = 0;
+  let cleanSourceCalls = 0;
+  let deleteLegacyJwkCalls = 0;
+  let deleteWebKeyCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    confirmationInventoryVersion: inventory.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => inventory,
+      getHostStatus: async () => {
+        hostCalls += 1;
+        return hostCalls === 1 ? desktopHost : { kind: "desktop", status: "unavailable" };
+      },
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async (ids) => {
+        verifyCalls += 1;
+        return { verifiedIds: ids, failedIds: [] };
+      },
+      cleanSource: async (item) => {
+        cleanSourceCalls += 1;
+        return { sourceId: item.sourceId, credentialId: item.credentialId, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => {
+        deleteLegacyJwkCalls += 1;
+        return { sourceId: "review_workspace_crypto_key_v1", outcome: "already_cleaned" };
+      },
+      inspectWebKey: async () => "present",
+      deleteWebKey: async () => {
+        deleteWebKeyCalls += 1;
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "blocked");
+  assert.equal(result.reasonCode, "desktop_host_unavailable");
+  assert.equal(hostCalls, 2);
+  assert.equal(verifyCalls, 1);
+  assert.equal(cleanSourceCalls, 0);
+  assert.equal(deleteLegacyJwkCalls, 0);
+  assert.equal(deleteWebKeyCalls, 0);
+  assert.equal(journal.state, "blocked");
+});
+
+test("executor revalidates Host immediately before shared Web key deletion", async () => {
+  const expected = secretContext.aiConnection("stale-host-key-boundary");
+  let current = physicalInventory({ expectedIds: [expected], webKey: "present" });
+  let journal = readCredentialCleanupJournal();
+  let hostCalls = 0;
+  let cleanSourceCalls = 0;
+  let deleteLegacyJwkCalls = 0;
+  let deleteWebKeyCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    confirmationInventoryVersion: current.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => current,
+      getHostStatus: async () => {
+        hostCalls += 1;
+        return hostCalls < 3 ? desktopHost : { kind: "desktop", status: "unavailable" };
+      },
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async (ids) => ({ verifiedIds: ids, failedIds: [] }),
+      cleanSource: async (item) => {
+        cleanSourceCalls += 1;
+        current = {
+          ...current,
+          sources: current.sources.filter((sourceItem) => sourceItem.sourceId !== item.sourceId),
+          inventoryVersion: "cleanup-after-source-removal",
+        };
+        return { sourceId: item.sourceId, credentialId: item.credentialId, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => {
+        deleteLegacyJwkCalls += 1;
+        return { sourceId: "review_workspace_crypto_key_v1", outcome: "already_cleaned" };
+      },
+      inspectWebKey: async () => current.webKey.presence,
+      deleteWebKey: async () => {
+        deleteWebKeyCalls += 1;
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "partial");
+  assert.equal(result.reasonCode, "desktop_host_unavailable");
+  assert.equal(hostCalls, 3);
+  assert.equal(cleanSourceCalls, 1);
+  assert.equal(deleteLegacyJwkCalls, 0);
+  assert.equal(deleteWebKeyCalls, 0);
+  assert.equal(journal.state, "partial");
+});
+
 test("eligibility separates a future eligible cleanup from already-cleaned state", () => {
   const expected = [secretContext.aiConnection("fixture")];
   const sourceSet = [source({ sourceId: `${expected[0]}:profile`, credentialId: expected[0], kind: "ai-connection", authority: "desktop_primary" }), source({ sourceId: `${expected[0]}:desktop-store`, credentialId: expected[0], kind: "desktop-store", storage: "desktop-v1", storageLocation: "local-storage:desktop", authority: "desktop_primary" })];

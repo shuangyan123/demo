@@ -32,7 +32,7 @@ It directly observes:
 
 It does not call `attemptStoredSecretsMigration()`, normalize a legacy source, decrypt, compare secret values, generate a key, write a journal, or delete anything. Inventory values are limited to stable internal source/context identifiers, storage kind/format, authority, presence, safe counts, and typed reason codes. Ciphertext, IV, masked values, plaintext, hashes, raw errors, URLs, paths, provider responses, and payloads are excluded.
 
-The inventory reports both a Web source and a Desktop source when both physically exist. It does not use migration authority as a reason to hide retained Web material. Legacy presence remains `legacy-v1`/`legacy_source_present`; it never triggers automatic migration.
+The inventory reports both a Web source and a Desktop source when both physically exist. It does not use migration authority as a reason to hide retained Web material. A present `legacy-v1` source is an explicit cleanup blocker with reason `legacy_source_present`; it must be normalized or re-entered through a separate explicit flow before cleanup eligibility. Cleanup never calls migration or converts `legacy-v1` into Web v2. A legacy JWK may be deleted only after physical inventory proves zero `legacy-v1` sources.
 
 ## Journal and reconciliation
 
@@ -48,10 +48,10 @@ Destructive cleanup requires all of the following:
 
 1. A present, complete migration journal with `backendPolicy=desktop_preferred`.
 2. Every expected context has `desktop_primary` authority and a physical Desktop record.
-3. The Desktop host is available and each expected Desktop record passes a separate pre-delete verification.
+3. The Desktop host is available and each expected Desktop record passes a separate pre-delete verification. Host availability is read again after Desktop verification and immediately before shared Web key deletion.
 4. The current physical inventory matches the confirmed inventory; new credentials or re-entry states block.
 5. No Web-primary or mixed authority exists.
-6. No invalid/unknown format, orphan legacy source, missing canonical AI profile, ambiguous quota legacy source, or migration recovery/partial state exists.
+6. No `legacy-v1`, invalid/unknown format, orphan legacy source, missing canonical AI profile, ambiguous quota legacy source, or migration recovery/partial state exists.
 7. Source cleanup completes and a fresh physical inventory shows no retained Web source or legacy JWK before the shared Web key step.
 8. The shared Web key is deleted only last, through `deletePrimaryWebCredentialKeyForCleanup()`. Missing key is an idempotent no-op; unavailable or malformed key state fails closed. No replacement key is generated.
 

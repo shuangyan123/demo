@@ -12,6 +12,7 @@ import {
 } from "./credential-cleanup-inventory.ts";
 import {
   evaluateCredentialCleanupEligibility,
+  evaluateCredentialCleanupKeyDeletionEligibility,
   type CredentialCleanupEligibility,
 } from "./credential-cleanup-eligibility.ts";
 import { cleanupFenbiCredential } from "./fenbi-credential-repository.ts";
@@ -258,9 +259,10 @@ async function runCredentialCleanup(
   let journal = dependencies.writeJournal(journalBase(inventory, "preflight", undefined, webKeyState(inventory.webKey.presence), current));
   const verification = await dependencies.verifyDesktop(inventory.migration.expectedIds);
   const verifiedInventory = await dependencies.collectInventory();
+  const verifiedHost = await dependencies.getHostStatus();
   const verifiedEligibility = evaluateCredentialCleanupEligibility({
     inventory: verifiedInventory,
-    host,
+    host: verifiedHost,
     cleanupJournal: journal,
     confirmationInventoryVersion,
     requireDesktopVerification: true,
@@ -327,9 +329,24 @@ async function runCredentialCleanup(
   }
 
   const beforeKey = await dependencies.collectInventory();
-  if (beforeKey.sources.some((source) => isRetainedWebSource(source)) || beforeKey.legacyJwk.present) {
-    const partial = dependencies.writeJournal(journalBase(beforeKey, "partial", "web_key_still_has_consumer", webKeyState(beforeKey.webKey.presence), journal));
-    return executionResultFromJournal(partial, "partial");
+  const beforeKeyHost = await dependencies.getHostStatus();
+  const keyBoundaryEligibility = evaluateCredentialCleanupKeyDeletionEligibility({
+    inventory: beforeKey,
+    host: beforeKeyHost,
+    cleanupJournal: journal,
+  });
+  if (keyBoundaryEligibility.decision === "blocked" || keyBoundaryEligibility.decision === "deferred") {
+    const state = keyBoundaryEligibility.reasonCode === "journal_inconsistent" ? "recovery_required" : "partial";
+    const partial = dependencies.writeJournal({
+      ...journalBase(beforeKey, state, keyBoundaryEligibility.reasonCode, webKeyState(beforeKey.webKey.presence), journal),
+      retainedIds: [...new Set([
+        ...journal.retainedIds,
+        ...beforeKey.sources
+          .filter((source) => isRetainedWebSource(source) && source.credentialId)
+          .map((source) => source.credentialId as string),
+      ])].sort(),
+    });
+    return executionResultFromJournal(partial, state);
   }
 
   journal = dependencies.writeJournal(journalBase(beforeKey, "deleting_web_key", undefined, webKeyState(beforeKey.webKey.presence), journal));

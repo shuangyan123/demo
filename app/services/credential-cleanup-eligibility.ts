@@ -89,6 +89,7 @@ function hasUnsafePhysicalSource(input: CredentialCleanupEligibilityInput): Cred
     if (!source.present) continue;
     if (source.storage === "unknown") return "unknown_storage_format";
     if (source.storage === "invalid") return "invalid_storage_format";
+    if (source.storage === "legacy-v1") return "legacy_source_present";
     if (source.reasonCodes.includes("credential_requires_reentry")) return "credential_requires_reentry";
     if (source.kind === "desktop-store" && source.reasonCodes.length > 0) return "invalid_storage_format";
     if (source.kind !== "desktop-store" && source.kind !== "web-key" && source.kind !== "legacy-jwk"
@@ -196,6 +197,22 @@ export function projectCleanupEligibilityForUi(result: CredentialCleanupEligibil
     webKeyPresent: result.impact.webKeyPresent,
     inventoryVersion: result.inventoryVersion,
   };
+}
+
+/**
+ * Shared Web key deletion has no retained source or legacy JWK left to protect.
+ * Keep this narrower than general cleanup eligibility because Web sources are
+ * expected while the earlier source-cleanup stage is still eligible.
+ */
+export function evaluateCredentialCleanupKeyDeletionEligibility(
+  input: CredentialCleanupEligibilityInput,
+): CredentialCleanupEligibility {
+  const result = evaluateCredentialCleanupEligibility(input);
+  if (result.decision !== "eligible") return result;
+  if (result.retainedWebSourceIds.length > 0 || result.legacyJwkPresent) {
+    return blocked(input, "web_key_still_has_consumer");
+  }
+  return result;
 }
 
 export function cleanupSourceIsPresent(source: CredentialCleanupSource): boolean {
