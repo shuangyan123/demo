@@ -420,8 +420,8 @@ Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK
 
 本合同区分 evidence status、security closure 和 phase ownership；`PENDING` 不再自动等同于同一种 blocker：
 
-- **PASS / EVIDENCED**：当前真实证据已经覆盖的核心 Desktop authority、fail-closed、无 Web fallback、context binding 和同机同用户同 profile restart path。
-- **AUTOMATED PASS**：contracts、fake host 或 deterministic E2E 覆盖的行为；不升级为 installed-app、DPAPI 或真实 cleanup evidence。
+- **PASS / EVIDENCED**：当前真实 installed-app evidence 覆盖 explicit Web→Desktop migration、Desktop authority、same-machine/same-Windows-user/same-profile persistence、repeated restart、credential-backed operation、privacy observation 和 same-version replacement 等实际观察路径。
+- **AUTOMATED PASS**：fail-closed、Host unavailable、requires-reentry、context mismatch、partial recovery、context-substitution rejection、no-fallback-under-failure 等确定性安全语义由 contracts、fake host 或 deterministic E2E 覆盖；这些结果不升级为 installed-app、DPAPI 或真实 cleanup evidence。
 - **DOCUMENTED RESIDUAL**：核心 fail-closed contract 已有自动证据，但对应 installed-app observation 尚未完成；仍保留 matrix 中的 `PENDING`，不把它写成 PASS。
 - **NO SAFE INSTALLED SEAM**：当前没有安全方式注入 corrupted envelope 或 interrupted pre-commit；不得通过随机杀进程、编辑 userData/ciphertext/journal、破坏 DPAPI、真实凭据损坏或 ASAR patching 伪造 PASS。
 - **DEFERRED TO 0.8**：adjacent-version overwrite upgrade、clean-machine install、uninstall/reinstall、signing、release asset 和 distribution-owned userData lifecycle。

@@ -6,8 +6,8 @@ Status: Phase 2 COMPLETE; Phase 3 product entry and Credential Cleanup Foundatio
 
 The following classifications keep evidence status separate from closure meaning:
 
-- **PASS / EVIDENCED**: the current real same-machine/same-user/same-profile Desktop authority and restart path.
-- **AUTOMATED PASS**: deterministic contracts or fake-host evidence only; it is not installed-app, DPAPI, or real-cleanup evidence.
+- **PASS / EVIDENCED**: recorded real installed-app observations for explicit Web→Desktop migration, Desktop authority, same-machine/same-user/same-profile persistence, repeated restart, credential-backed operation, privacy observation, and same-version replacement.
+- **AUTOMATED PASS**: deterministic contracts or fake-host evidence for Host unavailable/fail-closed, requires-reentry, context mismatch, partial recovery, context-substitution rejection, and no-fallback-under-failure; it is not installed-app, DPAPI, or real-cleanup evidence.
 - **DOCUMENTED RESIDUAL**: fail-closed behavior is covered automatically, while installed-app observation remains `PENDING`.
 - **NO SAFE INSTALLED SEAM**: corrupted envelope and interrupted pre-commit cannot be safely injected in the current installed profile. Random process kills, userData/ciphertext/journal edits, DPAPI destruction, real credential corruption, and ASAR patching are not acceptance methods.
 - **DEFERRED TO 0.8**: adjacent-version overwrite upgrade and uninstall/reinstall distribution/lifecycle evidence.
