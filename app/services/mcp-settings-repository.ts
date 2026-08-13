@@ -9,9 +9,59 @@ import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
 import { isUiReviewRecordId } from "./workspace-data-scope.ts";
 import { isUiReviewRuntimeActive } from "./ui-review-runtime-guard.ts";
+import {
+  assertDesktopCleanupAuthority,
+  cleanupSourceResult,
+  CredentialCleanupSourceError,
+  isCredentialMaterialPresent,
+} from "./credential-cleanup-source.ts";
 
 const STORAGE_KEY = secretStorageLocations.mcpSettings;
 const LEGACY_STORAGE_KEY = secretStorageLocations.legacyMcpSettings;
+
+export async function cleanupMcpCredential(profileId: string, storage: "v1" | "v2") {
+  const context = secretContext.mcpToken(profileId);
+  assertDesktopCleanupAuthority(context);
+  if (typeof window === "undefined") throw new CredentialCleanupSourceError("source_unavailable");
+  const storageKey = storage === "v1" ? LEGACY_STORAGE_KEY : STORAGE_KEY;
+  const raw = window.localStorage.getItem(storageKey);
+  if (!raw) return cleanupSourceResult(`${context}:profile:${storage}`, context, "already_cleaned");
+  let snapshot: Record<string, unknown> & { profiles: Array<Record<string, unknown>> };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid MCP snapshot");
+    const record = parsed as Record<string, unknown>;
+    if (!Array.isArray(record.profiles) || (record.discovery !== undefined && (!record.discovery || typeof record.discovery !== "object" || Array.isArray(record.discovery)))) {
+      throw new Error("invalid MCP snapshot");
+    }
+    const profiles = record.profiles.map((profile) => {
+      if (!profile || typeof profile !== "object" || Array.isArray(profile)) throw new Error("invalid MCP profile");
+      const profileRecord = profile as Record<string, unknown>;
+      if (typeof profileRecord.id !== "string" || typeof profileRecord.endpoint !== "string") throw new Error("invalid MCP profile");
+      for (const field of ["encryptedToken", "encryptedTokenIv"]) {
+        if (profileRecord[field] !== undefined && typeof profileRecord[field] !== "string") throw new Error("invalid MCP profile");
+      }
+      return profileRecord;
+    });
+    snapshot = { ...record, profiles };
+  } catch {
+    throw new CredentialCleanupSourceError("source_format_invalid");
+  }
+  const profile = snapshot.profiles.find((item) => item.id === profileId);
+  if (!profile || !isCredentialMaterialPresent(profile.encryptedToken as string | undefined, profile.encryptedTokenIv as string | undefined)) {
+    return cleanupSourceResult(`${context}:profile:${storage}`, context, "already_cleaned");
+  }
+  const nextProfiles = snapshot.profiles.map((item) => item.id === profileId
+    ? { ...item, encryptedToken: undefined, encryptedTokenIv: undefined }
+    : item);
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify({ ...snapshot, profiles: nextProfiles }));
+  } catch {
+    throw new CredentialCleanupSourceError("source_write_failed");
+  }
+  // Only the encrypted token fields are cleared; endpoint, auth mode, permissions and discovery remain.
+  return cleanupSourceResult(`${context}:profile:${storage}`, context, "cleaned");
+}
 
 export type McpSettingsSnapshot = {
   profiles: McpServerProfile[];

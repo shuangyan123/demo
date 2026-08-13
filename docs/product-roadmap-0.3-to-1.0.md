@@ -407,12 +407,23 @@ Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK
 - UI 只展示 ready、in progress、complete、requires re-entry、blocked、recovery required、Desktop protection unavailable 等固定安全状态，不展示凭据、密文、IV、payload、路径、堆栈或 raw IPC error。
 - 增加 Web 隐藏、显式启动、无启动写入、single-flight、状态映射、状态 reload 和隐私边界 contracts，并增加 deterministic fake-Desktop Browser E2E harness。该 harness 不等同于 Windows DPAPI 或安装版证据。
 - 真实 Windows installed-app 记录已确认同一机器、同一用户、同一 application profile 下的 Desktop-authoritative credential persistence、Web→Desktop cutover 与重复重启可用性；证据范围不扩展为 general DPAPI portability。
-- controlled failure/recovery installed evidence、adjacent-version upgrade、different machine/account、copied `userData`、uninstall/reinstall 与 cleanup confirmation 仍为 PENDING；adjacent-version upgrade deferred until a separate Windows environment/device is available。
+- controlled failure/recovery installed evidence、adjacent-version upgrade、different machine/account、copied `userData`、uninstall/reinstall 与 real cleanup confirmation 仍为 PENDING；adjacent-version upgrade deferred until a separate Windows environment/device is available。
 - 本阶段没有删除 retained Web v2 ciphertext、Web secure key、legacy source 或 migration journal；cleanup confirmation 仍是后续独立阶段。
 
 `0.7 WINDOWS ACCEPTANCE`：**PARTIAL — PENDING ITEMS REMAIN**。
 
 `0.7 overall`：**IN PROGRESS**。Phase 1 与 Phase 2 COMPLETE；Phase 3 的产品入口与核心 real Windows installed-app credential path 已有证据，recovery/lifecycle residual、portability 与 cleanup confirmation 仍未完成。不要将本状态解释为 `0.7 overall COMPLETE`。
+
+### Phase 4 — Credential Cleanup Foundation
+
+**FOUNDATION IMPLEMENTED（2026-08-13）；REAL CLEANUP NOT EXECUTED；Windows cleanup PENDING**
+
+- 增加独立 physical cleanup inventory，不调用 migration/normalization、不解密、不生成 key、不写 source/journal；报告 retained Web、legacy、Desktop、shared Web key 与 legacy JWK 的安全 presence/format facts。
+- 增加独立 cleanup journal、fail-closed eligibility、crash/reappearance reconciliation、幂等 AI/quota/MCP/Fenbi/legacy source primitives，以及只允许最后删除 shared Web key 的窄 API。Migration journal、authority、Desktop material、schema 与 backup/export boundary 不变。
+- Settings → AI 连接增加 review/readiness-only projection。Production UI 不包含 confirm、delete source、delete key、resume 或 executor call path；startup 不自动 cleanup。Destructive executor 仅在隔离 fake/test fixture 中验证顺序和幂等。
+- Contracts 与 browser E2E 只证明 automated/fake boundary：inventory no-write/no-decrypt/no-key-generation、source-before-key、journal preservation、Web hiding、pre-migration block、post-migration readiness review 与 reload。它们不证明真实 Windows cleanup、DPAPI 或 installed-app deletion。
+
+详见 `docs/credential-cleanup.md`。本 Phase 完成后 retained Web material 仍在，`0.7 WINDOWS ACCEPTANCE` 仍为 **PARTIAL — PENDING ITEMS REMAIN**，`0.7 overall` 仍为 **IN PROGRESS**。
 
 ## 0.8 Windows desktop distribution
 

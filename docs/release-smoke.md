@@ -42,6 +42,12 @@ At that 2026-08-12 checkpoint, Windows installed-app acceptance remained **PENDI
 
 记录至少包含：`environment`、Windows version、installer/package version、commit SHA、测试 profile、每个 matrix case 的 `PASS/FAIL/PENDING`、安全失败类别和人工观察时间。不得记录 API Key、Cookie、密文、完整 URL、OS 路径或原始错误文本。当前状态为 **PARTIAL — PENDING ITEMS REMAIN**；cleanup confirmation 另行执行，且本轮没有删除任何 retained Web credential material。
 
+### 0.7 Credential Cleanup Foundation boundary
+
+本轮只交付 cleanup foundation：physical inventory、独立 cleanup journal、eligibility/reconciliation、幂等 source primitives、last-step Web key API、隔离 executor 和 review/readiness UI。Settings → AI 连接中的 `Credential cleanup foundation` 在 Desktop 上只做只读 review；Web 不显示 Desktop cleanup surface。它不能确认、删除 source、删除 Web key、恢复 partial cleanup 或自动执行 cleanup。
+
+自动证据必须来自合并后的新 commit，并且只能证明 fake/test fixture 的 no-write/no-decrypt/no-key-generation inventory、source-before-key ordering、journal preservation 和 UI read-only boundary。不得以 `desktop:make`、旧 installed-app build、package 成功、proxy tests 或 fake host E2E 声称真实 Windows cleanup/DPAPI 证据。当前 cleanup 状态为 **FOUNDATION IMPLEMENTED — REAL CLEANUP NOT EXECUTED — WINDOWS PENDING**；0.7 overall 仍为 **IN PROGRESS**。
+
 ## 2026-08-13 · 0.7 Windows Installed-App Acceptance Record
 
 正式 verdict：**0.7 WINDOWS ACCEPTANCE PARTIAL — PENDING ITEMS REMAIN**。

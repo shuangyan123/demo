@@ -6,8 +6,50 @@ import { ensureStoredSecretsMigrated } from "./secret-migration-service.ts";
 import { secretStorageLocations } from "./secret-storage-locations.ts";
 import { normalizeFenbiCookie } from "./fenbi-cookie.ts";
 import { assertSettingsPluginEnabled } from "./settings-plugin-preferences-repository.ts";
+import {
+  assertDesktopCleanupAuthority,
+  cleanupSourceResult,
+  DESKTOP_CLEANUP_MASK,
+  CredentialCleanupSourceError,
+  isCredentialMaterialPresent,
+} from "./credential-cleanup-source.ts";
 
 export const FENBI_CREDENTIAL_STORAGE_KEY = secretStorageLocations.fenbiCredential;
+
+export async function cleanupFenbiCredential() {
+  const context = secretContext.fenbiCookie();
+  assertDesktopCleanupAuthority(context);
+  if (typeof window === "undefined") throw new CredentialCleanupSourceError("source_unavailable");
+  const raw = window.localStorage.getItem(FENBI_CREDENTIAL_STORAGE_KEY);
+  if (!raw) return cleanupSourceResult(`${context}:cookie`, context, "already_cleaned");
+  let credential: FenbiImportCredential;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid Fenbi credential");
+    const record = parsed as Record<string, unknown>;
+    if (typeof record.encryptedCookie !== "string" || typeof record.iv !== "string" || typeof record.maskedCookie !== "string") {
+      throw new Error("invalid Fenbi credential");
+    }
+    credential = record as unknown as FenbiImportCredential;
+  } catch {
+    throw new CredentialCleanupSourceError("source_format_invalid");
+  }
+  if (!isCredentialMaterialPresent(credential.encryptedCookie, credential.iv, credential.maskedCookie)) {
+    return cleanupSourceResult(`${context}:cookie`, context, "already_cleaned");
+  }
+  try {
+    window.localStorage.setItem(FENBI_CREDENTIAL_STORAGE_KEY, JSON.stringify({
+      ...credential,
+      encryptedCookie: "",
+      iv: "",
+      maskedCookie: DESKTOP_CLEANUP_MASK,
+      verifiedAt: undefined,
+    }));
+  } catch {
+    throw new CredentialCleanupSourceError("source_write_failed");
+  }
+  return cleanupSourceResult(`${context}:cookie`, context, "cleaned");
+}
 
 function readCredential(): FenbiImportCredential | undefined {
   if (typeof window === "undefined") return undefined;
