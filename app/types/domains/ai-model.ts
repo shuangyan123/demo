@@ -27,6 +27,8 @@ type AiModelPresetReasoningDescriptor = {
   kind: "effort" | "toggle" | "adaptive" | "fixed";
   options: AiModelRuntimeOption[];
   defaultValue: AiModelRuntimeValue;
+  /** 已核验的低成本连接测试值；缺失表示测试应保留模型默认推理行为。 */
+  connectionTestValue?: AiModelRuntimeValue;
   customRange?: never;
 };
 
@@ -35,6 +37,8 @@ type AiModelBudgetReasoningDescriptor = {
   kind: "budget";
   options: AiModelRuntimeOption[];
   defaultValue: number;
+  /** 已核验的低成本连接测试值；缺失表示测试应保留模型默认推理行为。 */
+  connectionTestValue?: number;
   customRange: AiModelRuntimeCustomRange;
 };
 

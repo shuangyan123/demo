@@ -186,7 +186,7 @@ export function classifyProviderStreamFailure(input: AiGenerateRequest, error: u
 export function providerFailureStreamEvent(failure: AiProviderFailure, routeRequestId: string): Extract<AiGenerateStreamEvent, { type: "error" }> {
   return {
     type: "error",
-    message: aiProviderFailureMessage(failure.code),
+    message: aiProviderFailureMessage(failure.code, failure.providerCode),
     code: failure.code,
     requestId: routeRequestId,
     retryable: failure.retry === "safe" || failure.retry === "after-delay",

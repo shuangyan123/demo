@@ -28,7 +28,7 @@ function encodeSse(event: AiGenerateStreamEvent): Uint8Array {
 }
 
 function providerFailureResponse(failure: AiProviderFailure, routeRequestId: string): Response {
-  const message = aiProviderFailureMessage(failure.code);
+  const message = aiProviderFailureMessage(failure.code, failure.providerCode);
   const retryable = failure.retry === "safe" || failure.retry === "after-delay";
   return apiErrorResponse(
     new RouteSecurityError(failure.code, message, 502, retryable),

@@ -30,7 +30,7 @@ export function readBlobAsDataUrl(file: Blob): Promise<string> {
 
 /** Provider failure 只按稳定 code 展示；普通本地/业务错误仍保留已有安全 message。 */
 export function conversationProviderErrorMessage(error: unknown): string {
-  if (error instanceof AiProviderFailureError) return aiProviderFailureMessage(error.failure.code);
+  if (error instanceof AiProviderFailureError) return aiProviderFailureMessage(error.failure.code, error.failure.providerCode);
   return error instanceof Error ? error.message : "AI 对话失败";
 }
 

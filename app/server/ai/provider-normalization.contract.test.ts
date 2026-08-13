@@ -164,7 +164,8 @@ test("recognized provider response without visible terminal output fails closed"
       () => parseGenerateProviderResponse(fixture.input, fixture.payload, new Headers()),
       (error: unknown) => error instanceof AiProviderFailureError
         && error.failure.code === "malformed_response"
-        && error.failure.providerCode === "empty_visible_output",
+        && error.failure.providerCode === "empty_visible_output"
+        && error.message === "模型未返回可见文本",
       fixture.label,
     );
   }
@@ -286,7 +287,10 @@ test("provider failures normalize status/code/request metadata without raw provi
 test("malformed provider response stays distinct from business JSON validation", () => {
   assert.throws(
     () => parseGenerateProviderResponse(input("custom"), { choices: "not-an-array" }, new Headers()),
-    (error: unknown) => error instanceof AiProviderFailureError && error.failure.code === "malformed_response",
+    (error: unknown) => error instanceof AiProviderFailureError
+      && error.failure.code === "malformed_response"
+      && error.failure.providerCode === "invalid_response_shape"
+      && error.message === "AI 服务返回格式异常",
   );
   assert.throws(() => parseAiJsonObject("{bad"), /AI 返回不是有效 JSON 对象/);
 });

@@ -182,9 +182,11 @@ For streams, completion evidence and visible output are separate requirements:
 
 Usage does not change these rules. A stream with usage and completion but no visible delta is not a successful assistant turn. Business JSON validation remains a later boundary: visible text that is not valid JSON is a business parsing failure, while no visible text is a provider terminal failure.
 
+For a recognized response shape with no visible terminal text, the normalized failure remains `malformed_response` with `providerCode = empty_visible_output`, but the safe consumer message is `模型未返回可见文本`; an invalid provider shape keeps the generic `AI 服务返回格式异常` message. Neither path exposes raw provider payloads or hidden reasoning.
+
 ## Consumer failure presentation
 
-`AiProviderFailureError` and `AiProviderFailure.code` cross the local route, client, connection service, and business consumer unchanged. Its constructor always rebuilds the safe product message, and its typed `recoveryDiagnosis` keeps the network/model recovery mapping at the failure boundary. Conversation presentation uses `aiProviderFailureMessage(code)`; Automation consumes `recoveryDiagnosis` and never reclassifies provider failures from HTTP status text, provider codes, raw provider messages, or `429`/`503`/capacity wording. Ordinary local and business errors may still display their existing safe message.
+`AiProviderFailureError` and `AiProviderFailure.code` cross the local route, client, connection service, and business consumer unchanged. Its constructor rebuilds the safe product message from the failure code and optional provider code, and its typed `recoveryDiagnosis` keeps the network/model recovery mapping at the failure boundary. Conversation presentation uses the same safe mapping; Automation consumes `recoveryDiagnosis` and never reclassifies provider failures from HTTP status text, provider codes, raw provider messages, or `429`/`503`/capacity wording. Ordinary local and business errors may still display their existing safe message.
 
 Conversation persists the user message and an error run step when an external generation fails, but it only appends an assistant message, successful usage, or completed-turn memory after visible terminal content has been validated. There is no fabricated empty assistant answer, automatic retry, provider fallback, usage-success persistence for a failed terminal result, or schema migration.
 

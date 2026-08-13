@@ -16,13 +16,15 @@ import {
 import { aiConnectionsRepository } from "./ai-connections-repository.ts";
 import { AiCapabilityContractError, type ModelCapabilityProfile } from "../types/domains/ai-capability.ts";
 import { assertEffectiveModelCapability, resolveEffectiveModelCapability, resolveModelCapabilityProfile } from "./ai-capability-resolution.ts";
-import { getAiModelRuntimeDescriptor, resolveRuntimeModelId, validateAiSelectedRuntimeValues } from "./model-runtime-descriptors.ts";
+import { getAiModelRuntimeDescriptor, resolveConnectionTestRuntime, resolveRuntimeModelId, validateAiSelectedRuntimeValues } from "./model-runtime-descriptors.ts";
 import { getProviderModelCatalog } from "./provider-contracts.ts";
 import { providerModelCache } from "./provider-model-cache.ts";
 import { isUiReviewRecordId } from "./workspace-data-scope.ts";
 import { isUiReviewRuntimeActive } from "./ui-review-runtime-guard.ts";
 
 export type GenerateConnectionPurpose = "text" | "vision";
+// 为厂商内部推理和最终短文本预留空间，同时保持连接测试为低成本真实调用。
+export const CONNECTION_TEST_MAX_OUTPUT_TOKENS = 128;
 type ConnectionGenerateInput = Omit<AiGenerateRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions" | "runtime"> & { modelId?: string; selectedRuntimeValues?: AiSelectedRuntimeValues };
 type ConnectionSpeechInput = Omit<AiSpeechRequest, "provider" | "apiKey" | "baseUrl" | "model" | "providerOptions"> & {
   model?: string;
@@ -263,6 +265,7 @@ export async function testConnectionDraft(input: {
   const generationProtocol = input.existingConnection
     ? resolveConnectionGenerationProtocol(input.existingConnection, input.modelId)
     : getProviderModelCatalog(input.provider).find((model) => model.id === input.modelId)?.generationProtocol;
+  const runtime = resolveConnectionTestRuntime(input.provider, input.modelId);
   const result = await callAiGenerate({
     provider: input.provider,
     apiKey,
@@ -271,7 +274,8 @@ export async function testConnectionDraft(input: {
     generationProtocol,
     allowProtocolFallback: input.provider === "google" && !generationProtocol,
     messages: [{ role: "user", content: "仅回复 OK" }],
-    maxOutputTokens: 12,
+    maxOutputTokens: CONNECTION_TEST_MAX_OUTPUT_TOKENS,
+    ...(runtime ? { runtime } : {}),
     providerOptions: input.providerOptions ?? input.existingConnection?.providerOptions,
     activity: { connectionLabel: input.label, presentation: "compact-test", purpose: "connection-test" },
   });

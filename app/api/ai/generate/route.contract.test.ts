@@ -157,6 +157,27 @@ test("route separates malformed provider responses from capability contract fail
   }
 });
 
+test("route distinguishes empty visible output from an invalid provider response shape", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ choices: [{ message: {} }] });
+  try {
+    const emptyResponse = await postGenerate();
+    const empty = await emptyResponse.json() as { message?: string; failure?: AiProviderFailure };
+    assert.equal(emptyResponse.status, 502);
+    assert.equal(empty.failure?.providerCode, "empty_visible_output");
+    assert.equal(empty.message, "模型未返回可见文本");
+
+    globalThis.fetch = async () => Response.json({ choices: "malformed" });
+    const malformedResponse = await postGenerate();
+    const malformed = await malformedResponse.json() as { message?: string; failure?: AiProviderFailure };
+    assert.equal(malformedResponse.status, 502);
+    assert.equal(malformed.failure?.providerCode, "invalid_response_shape");
+    assert.equal(malformed.message, "AI 服务返回格式异常");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("client reconstructs typed provider failures and does not treat stream interruption as success", async () => {
   const originalFetch = globalThis.fetch;
   const streamFailureCodes: Array<"stream_interrupted" | "malformed_response"> = ["stream_interrupted", "malformed_response"];
