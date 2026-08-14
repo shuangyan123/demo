@@ -27,8 +27,15 @@ desktop/
 - API：保留原有同源 Route Handler 契约；桌面令牌是 loopback 内部传输头，不属于公开业务 API。
 - 公考开发示例按学习数据、复盘、知识训练和面试模块分别注册；总览不提供示例。匹配场景时仍先于业务 controller 分流到纯内存 fixture。
 - 表格使用显式 `cellStart` / `cellCenter` 语义类，不依赖列序号猜测内容。
-- GitHub 使用共享 Web CI 与独立 Windows 桌面发布工作流：PR 验证同一份业务代码和桌面壳契约，手动触发只上传短期 artifact，`v*` 标签校验 `package.json` 版本后创建带 SHA-256 清单的 Draft Release。
+- GitHub 使用共享 Web CI 与独立 Windows 桌面发布工作流：PR 验证同一份业务代码和桌面壳契约，手动触发只上传短期 artifact，`v*` 标签校验 `package.json` 版本后创建带 SHA-256 清单的 Release。当前没有自动更新或 production signing contract。
 - 桌面发布与 Web 部署只通过 Git commit SHA 关联；安装包、`.desktop-runtime`、Forge `out/` 和签名材料不进入仓库，私人仓库阶段不启用自动更新。
+
+## 0.8 Windows distribution Phase 1（2026-08-14）
+
+- 当前分发链保持 Electron `43.2.0`、Forge `7.11.2`、`MakerSquirrel` `7.11.2` 和 `electron-winstaller` `5.4.4`；Squirrel vendor runtime `Squirrel.exe` 为 `2.0.1+eef37460ae`。
+- Squirrel binary identity 为 `review_workspace`，预期 install root 为 `%LOCALAPPDATA%\\review_workspace\\`；Electron package/product identity 为 `review-workspace` / `错题复盘`，预期 `userData` 为 `%APPDATA%\\错题复盘\\`。两者 ownership 分离，binary replacement 不得自动清理 userData。
+- `desktop/squirrel-lifecycle.ts` 是纯参数分类边界；install/update/uninstall/obsolete invocation 在 lock/window 前退出，`--squirrel-firstrun` 继续正常启动。现有 `contextIsolation`、`nodeIntegration`、`sandbox`、`webSecurity`、ASAR integrity 与 fuses 保持不变。
+- 0.8 Phase 1 的完整 lifecycle matrix、distribution threat model、artifact identity、rollback boundary 和 non-claims 见 `docs/windows-desktop-distribution.md`；真实 adjacent upgrade、uninstall/reinstall、signing、release promotion 仍是后续 0.8 evidence。
 
 
 ## 0.2.0 本机 API 安全边界（2026-07-23）
