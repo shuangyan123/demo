@@ -5,10 +5,10 @@ import test from "node:test";
 const workflow = readFileSync(new URL("../.github/workflows/desktop-release.yml", import.meta.url), "utf8");
 const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archive.mjs", import.meta.url), "utf8");
+const desktopHostPreparation = readFileSync(new URL("../scripts/prepare-desktop-host.mjs", import.meta.url), "utf8");
 const forgeConfig = readFileSync(new URL("../forge.config.ts", import.meta.url), "utf8");
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-const desktopPackageJson = JSON.parse(readFileSync(new URL("../.desktop-app/package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 
 test("PR 共享门禁包含桌面编译与契约", () => {
@@ -46,10 +46,11 @@ test("Electron 官方归档在 runner 缓存缺失时下载并继续校验 check
 test("Forge and package metadata keep the Windows installer identity stable", () => {
   assert.equal(packageJson.name, "review-workspace");
   assert.equal(packageJson.productName, "错题复盘");
-  assert.equal(desktopPackageJson.name, packageJson.name);
-  assert.equal(desktopPackageJson.productName, packageJson.productName);
-  assert.equal(desktopPackageJson.version, packageJson.version);
-  assert.equal(desktopPackageJson.main, ".desktop/main.js");
+  assert.match(desktopHostPreparation, /const hostPackageJson = \{/);
+  assert.match(desktopHostPreparation, /name: packageJson\.name/);
+  assert.match(desktopHostPreparation, /productName: packageJson\.productName/);
+  assert.match(desktopHostPreparation, /version: packageJson\.version/);
+  assert.match(desktopHostPreparation, /main: "\.desktop\/main\.js"/);
 
   assert.match(forgeConfig, /outDir:\s*"\.\.\/out"/);
   assert.match(forgeConfig, /name:\s*"review-workspace"/);
