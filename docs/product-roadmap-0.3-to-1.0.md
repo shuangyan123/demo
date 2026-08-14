@@ -314,7 +314,7 @@ Phase 3 已完成 Acceptance Closure & UX Hardening：同一 derived recommendat
 - Chromium Playwright 覆盖内置插件停用与官方主题扩展的安装、启用、停用、主题回滚和 reload。
 - 证据矩阵与兼容/回滚边界见 `docs/permission-model-acceptance.md`。
 
-`0.6 overall`：**COMPLETE**。`0.7 overall`：**IN PROGRESS**；Phase 1 与 Phase 2 已完成，Phase 3 产品迁移入口与核心 Windows installed-app credential path 已有证据，recovery/lifecycle residual 与 cleanup confirmation 仍待完成。
+`0.6 overall`：**COMPLETE**。`0.7 overall`：**COMPLETE within the 0.7-owned closure contract**；Phase 1、Phase 2、产品迁移入口、核心 Windows installed-app credential path 与 2026-08-14 real cleanup acceptance 已有 scoped evidence。Recovery/lifecycle residual、no-safe-seam、0.8 deferred scope 与 portability non-claims 按下方矩阵保留，不被改写为 PASS。
 
 ### 目标
 
@@ -396,11 +396,11 @@ Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK
 - Implemented sequential preflight, stage, verify, ready-to-commit, commit, and post-commit verification with an excluded safe journal. Partial staging and partial commit are resumable and remain recovery-required until verified.
 - Desktop becomes preferred only after all expected records verify. Web sources remain retained for rollback evidence; post-cutover writes are Desktop-only and host failure never downgrades to Web.
 - Added repository integration and regression contracts for AI connections, quota credentials, MCP bearer tokens, and Fenbi Cookie, including denied/disabled zero-unprotect paths.
-- Core `review_workspace` remains v16; Web mode remains WebCrypto-only. At Phase 2 closure, Windows installed-app acceptance and cleanup were intentionally outside this phase; the current partial acceptance record is maintained in Phase 3 below.
+- Core `review_workspace` remains v16; Web mode remains WebCrypto-only. At Phase 2 closure, Windows installed-app acceptance and cleanup were intentionally outside this phase; the historical partial acceptance record is maintained in Phase 3 below alongside the later closure record.
 
 ### Phase 3 — Product Migration Entry & Windows Installed-App Acceptance
 
-**IN PROGRESS（产品入口已实现；核心 Windows 安装版 credential path ACCEPTED/PASS；residuals 按 closure contract 分类，2026-08-13）**
+**COMPLETE within the 0.7-owned credential-security closure contract（产品入口、核心 Windows credential path 和 2026-08-14 cleanup acceptance 已归档；residuals 按 closure contract 分类）**
 
 - Settings → AI 连接增加最小显式 `Desktop 凭据保护` 入口；只有真实 Desktop Host 才渲染，Web 不显示伪造迁移能力。
 - 打开 Settings 只读取安全 Host 状态与 migration journal；不会在启动、打开 Settings 或渲染面板时自动迁移。用户明确点击后才调用既有 `migrateDesktopCredentials()`，并继续使用 single-flight、可恢复 journal、Desktop-first authority 和 Desktop-only 写入。
@@ -409,12 +409,12 @@ Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK
 - 真实 Windows installed-app 记录已确认同一机器、同一用户、同一 application profile 下的 Desktop-authoritative credential persistence、Web→Desktop cutover 与重复重启可用性；证据范围不扩展为 general DPAPI portability。
 - controlled failure/recovery 的 installed-app evidence 仍为 **PENDING / DOCUMENTED RESIDUAL**；`corrupted envelope` 与 `interrupted pre-commit` 当前没有安全的 installed-app injection seam，因此是 **NO SAFE INSTALLED SEAM / NOT CLAIMED**。
 - adjacent-version upgrade 与 uninstall/reinstall 仍为 **PENDING / DEFERRED TO 0.8**，由 Windows desktop distribution/lifecycle phase 负责；不同 machine/account、copied `userData` 与 general DPAPI portability 仍为 **MANUAL-ONLY / NON-CLAIM**，不写成 supported 或 portable。
-- real Credential Cleanup 仍为 **BLOCKING REQUIRED / PENDING — NOT EXECUTED**。Cleanup Foundation 与 guarded Execution Entry 的 automated evidence 不等于 real Windows cleanup；retained Web material、shared Web key 和适用时的 legacy compatibility material 仍未删除。
-- 本阶段实现了 Desktop-only 的 review → irreversible acknowledgement → confirmation 入口和显式 partial/recovery resume，但没有删除 retained Web v2 ciphertext、Web secure key、legacy source 或 migration journal；真实 installed-app cleanup acceptance 仍是独立后续阶段。
+- Real Credential Cleanup 已由 2026-08-14 operator-attested installed-app record 记录为 **PASS**：`3` retained Web sources → `0`，shared Web key present → absent，Desktop records 和 migration authority 保持，完整重启后 cleanup 仍 complete，DeepSeek/MiniMax credential-backed operation 通过且未观察到 Web material regeneration。
+- 本阶段实现的 Desktop-only review → irreversible acknowledgement → confirmation 入口和显式 partial/recovery resume 仍保持原有安全边界；随后独立的 installed-app acceptance 完成了真实 destructive cleanup。operator evidence 限定为同机、专用 Windows 测试用户/profile、同 application profile，不扩展为 portability 或分发生命周期保证。
 
-`0.7 WINDOWS ACCEPTANCE`：**PARTIAL — PENDING ITEMS REMAIN**。
+`0.7 WINDOWS ACCEPTANCE`：**PASS / COMPLETE within the 0.7-owned closure contract**。
 
-`0.7 overall`：**IN PROGRESS**。Phase 1 与 Phase 2 COMPLETE；Phase 3 的产品入口与核心 real Windows installed-app credential path 已有证据。Recovery 的 installed-app evidence 是 documented residual，distribution lifecycle 已委托 0.8，portability 明确不声明；但 real Credential Cleanup 仍是 0.7 credential-security closure 的 blocking required item。不要将本状态解释为 `0.7 overall COMPLETE`。
+`0.7 overall`：**COMPLETE**。Phase 1、Phase 2、产品入口、核心 real Windows installed-app credential path 和 real Credential Cleanup blocker 均已关闭或有充分 scoped evidence。Recovery 的 installed-app evidence 继续作为 documented residual，corrupted/interrupted cases 继续是 no-safe-seam，distribution lifecycle 继续委托 0.8，portability 继续明确不声明；这些分类不被改写为 PASS。
 
 ### 0.7 Closure Contract Clarification（2026-08-13）
 
@@ -426,23 +426,27 @@ Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK
 - **NO SAFE INSTALLED SEAM**：当前没有安全方式注入 corrupted envelope 或 interrupted pre-commit；不得通过随机杀进程、编辑 userData/ciphertext/journal、破坏 DPAPI、真实凭据损坏或 ASAR patching 伪造 PASS。
 - **DEFERRED TO 0.8**：adjacent-version overwrite upgrade、clean-machine install、uninstall/reinstall、signing、release asset 和 distribution-owned userData lifecycle。
 - **MANUAL-ONLY / NON-CLAIM**：different machine/account、copied `userData` 和 general DPAPI portability；当前只声明 same-machine/same-user/same-profile evidence。
-- **BLOCKING REQUIRED / PENDING — NOT EXECUTED**：real Credential Cleanup。它仍是 0.7 credential-security closure gate，因为 cutover 后 retained Web v2 material 和 shared Web key 仍然存在；Cleanup Foundation 与 guarded Execution Entry 只证明 inventory、eligibility、journal、reconciliation、ordering 和 automated/fake execution boundary。
+- **CLOSED 2026-08-14**：real Credential Cleanup。Operator-attested installed-app evidence records the explicit cleanup, final reconciliation, restart, and post-cleanup credential-backed operation within the stated scope; Cleanup Foundation and guarded Execution Entry remain the deterministic evidence for inventory, eligibility, journal, reconciliation, ordering, and automated/fake execution boundaries.
 - **CONDITIONAL CLEANUP BLOCKER**：`legacy-v1` 不是当前已确认存在的事实；但未来 physical preflight 发现它时，必须以 `legacy_source_present` 阻断 cleanup。只有 physical inventory 确认 zero `legacy-v1` 后，才允许考虑删除 legacy JWK。
 
 0.7 继续拥有 credential-security semantics：Desktop authority、no fallback、fail closed、context binding、source retention 和 cleanup ordering。0.8 只拥有 Windows distribution/lifecycle evidence，不接管这些安全语义。
 
 ### Phase 4 — Credential Cleanup Foundation and Execution Entry
 
-**FOUNDATION AND EXECUTION ENTRY IMPLEMENTED / AUTOMATED EVIDENCE ONLY（2026-08-14）；REAL CLEANUP BLOCKING REQUIRED / NOT EXECUTED；Windows cleanup PENDING**
+**FOUNDATION AND EXECUTION ENTRY IMPLEMENTED；REAL CLEANUP ACCEPTED WITHIN SCOPED WINDOWS EVIDENCE（2026-08-14）；0.7 CLOSED**
 
 - 增加独立 physical cleanup inventory，不调用 migration/normalization、不解密、不生成 key、不写 source/journal；报告 retained Web、legacy、Desktop、shared Web key 与 legacy JWK 的安全 presence/format facts。
 - 增加独立 cleanup journal、fail-closed eligibility、crash/reappearance reconciliation、幂等 AI/quota/MCP/Fenbi/legacy source primitives，以及只允许最后删除 shared Web key 的窄 API。Migration journal、authority、Desktop material、schema 与 backup/export boundary 不变。
 - Settings → AI 连接增加 Desktop-only 的显式 review → acknowledgement → confirmation execution entry。UI 只通过窄 facade 调用既有 executor；destructive facade 只在确认动作动态加载；fresh inventory/Host/Desktop recoverability verification、legacy-v1 blocker、source-before-key、shared Web key last、partial/recovery resume 和 no-auto-resume 继续由 service boundary 保证。Desktop verification 通过既有 Host unprotect boundary 并立即丢弃返回 secret，不持久化或暴露 plaintext。
 - Contracts 与 browser E2E 只证明 automated/fake boundary：inventory no-write/no-decrypt/no-key-generation、explicit confirmation、stale-state block、source-before-key、partial/recovery、journal preservation、Web hiding、pre-migration block、reload without auto-resume 与 explicit resume。它们不证明真实 Windows cleanup、DPAPI deletion 或 installed-app deletion。
 
-详见 `docs/credential-cleanup.md`。本 Phase 完成后 retained Web material 仍在，`0.7 WINDOWS ACCEPTANCE` 仍为 **PARTIAL — PENDING ITEMS REMAIN**，`0.7 overall` 仍为 **IN PROGRESS**；本 foundation 不能单独关闭 0.7。
+详见 `docs/credential-cleanup.md`。本 Phase 的 foundation/entry automated evidence 不能单独关闭 0.7；随后归档的 2026-08-14 installed-app acceptance 记录了真实 cleanup、final reconciliation、restart 和 credential-backed operation，并关闭了 0.7 credential-security gate。
 
-后续 closure sequence 为：**Cleanup Foundation and Execution Entry implemented → current-build Windows installer → isolated dedicated profile → explicit real cleanup acceptance → final reconciliation/restart credential check → `0.7 COMPLETE` → `0.8` distribution/lifecycle work**。本 Phase 不构建 installer、不安装、不执行 real cleanup，也不启动 0.8。
+完成的 closure sequence 为：**Cleanup Foundation and Execution Entry implemented → current-build Windows installer → isolated dedicated profile → explicit real cleanup acceptance → final reconciliation/restart credential check → `0.7 COMPLETE`**。本 Phase implementation 本身不执行 real cleanup；0.8 distribution/lifecycle work 仍未启动。
+
+### 0.7 final closure boundary（2026-08-14）
+
+Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup 后 credential-backed operation 均已记录为 scoped operator-attested installed-app evidence。Source-before-key、fresh revalidation、legacy-v1 blocking、fail-closed、context binding、partial/recovery 和 no-auto-resume 继续由 deterministic contracts 支持。最终 COMPLETE 只关闭 0.7-owned credential-security blockers；adjacent-version、uninstall/reinstall、signing、release assets、distribution-owned lifecycle、different machine/account、copied `userData` 和 general DPAPI portability 仍分别属于 0.8 或 MANUAL-ONLY / NON-CLAIM。
 
 ## 0.8 Windows desktop distribution
 

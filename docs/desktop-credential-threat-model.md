@@ -1,8 +1,12 @@
 # Desktop Credential Threat Model & Host Boundary
 
-状态：0.7 Phase 1 COMPLETE（2026-08-12）；0.7 overall IN PROGRESS。
+状态：0.7 Phase 1 COMPLETE（2026-08-12）；0.7 credential-security closure COMPLETE（2026-08-14）。本文件仍不声明跨机器、跨账户或一般 DPAPI portability。
 
 本文件只定义当前凭据边界、Electron 宿主能力和后续迁移契约。Phase 1 不改写现有用户凭据、不删除旧材料、不升级 Dexie schema，也不宣布 Windows 实际迁移验收完成。
+
+## 2026-08-14 closure boundary
+
+后续独立 Windows acceptance 已由 `docs/release-smoke.md` 归档：在同一台机器、专用 Windows 测试用户/profile 和同一 application profile 中，operator-attested evidence 记录了 Desktop-preferred migration、`3 → 0` retained Web sources、shared Web key removal、Desktop record/migration authority preservation、full restart，以及 cleanup 后 DeepSeek/MiniMax credential-backed operation。该记录关闭 0.7-owned credential-security blockers，但不改变本文件对不同 machine/account、copied `userData`、一般 DPAPI portability、adjacent-version、uninstall/reinstall 和 corruption/interruption no-safe-seam 的边界。
 
 ## 当前 Secret Inventory
 
@@ -126,7 +130,7 @@ The recovery matrix intentionally separates four questions: whether deterministi
 - `corrupted envelope` and `interrupted pre-commit` are **NO SAFE INSTALLED SEAM** in the current product. Do not inject them by random process kill, editing userData/ciphertext/journal, destroying DPAPI material, corrupting a real credential, or patching ASAR.
 - Adjacent-version overwrite upgrade and uninstall/reinstall are **DEFERRED TO 0.8 Windows desktop distribution**. 0.8 owns installer, signing, release, and distribution lifecycle evidence; 0.7 continues to own credential authority and fail-closed semantics.
 - Different machine/account, copied `userData`, and general DPAPI portability are **MANUAL-ONLY / NON-CLAIM**. Same-machine/same-user/same-profile persistence does not imply portability.
-- Real Credential Cleanup is **BLOCKING REQUIRED / PENDING — NOT EXECUTED**. Cleanup Foundation contracts are automated evidence only and do not remove retained Web sources or the shared Web key.
+- Real Credential Cleanup is **PASS within the scoped operator-attested installed-app record**. The deterministic Cleanup Foundation contracts remain the evidence for ordering, fail-closed behavior, and recovery semantics; the 2026-08-14 record supplies the installed-app deletion, reconciliation, restart, and post-cleanup operation evidence.
 
 The labels above do not change any `PASS`/`PENDING` result. They prevent an unexecuted installed-app observation from being treated as either a security defect or a passing test without evidence.
 

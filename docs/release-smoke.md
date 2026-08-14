@@ -1,8 +1,104 @@
 # 发布前手工冒烟清单
 
-## 2026-08-12 · 0.7 Desktop Credential Acceptance Closure
+## Current 2026-08-14 · 0.7 Windows Credential Cleanup Closure
 
-状态：**PARTIAL — PENDING ITEMS REMAIN**。核心 real Windows installed-app credential path 已有真实安装版证据；recovery 的 installed-app observation 是 documented residual，distribution lifecycle deferred，portability explicitly unclaimed，real cleanup 仍 blocking required。因此不能把 0.7 标记为 COMPLETE。下方保留 2026-08-12 的历史失败记录，并在其后记录当前验收结果。
+状态：**0.7 COMPLETE within the 0.7-owned closure contract**。本节归档 2026-08-14 的 operator-attested、human-observed Windows installed-app evidence；证据范围是同一台 Windows 机器、专用本地 Windows 测试用户/profile、同一 application profile，以及由该 profile 执行的同一安装包。它关闭了 real Credential Cleanup 这一 0.7 blocking item，但不扩大为跨机器、跨账户、复制 `userData` 或一般 DPAPI portability 证明。
+
+### Build identity and evidence boundary
+
+- Source commit：`73755341834249b1453ccd57a20787b16c3f3621`
+- Installer：`ReviewWorkspace-0.2.2-Windows-x64-Setup.exe`
+- SHA-256：`80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`
+- Application：`0.2.2`
+- Electron：`43.2.0`
+- Environment：same Windows machine; dedicated local Windows test user/profile; dedicated application profile; no copied existing `userData`
+- Credential：disposable/revocable test credential；未记录 plaintext、token、provider response body、密文或本地用户名/路径
+- Evidence type：operator-attested installed-app observation；本轮没有把聊天内容伪装成 screenshot/log artifact，也没有在仓库提交 installer 或运行数据
+
+### Real Credential Cleanup — operator-attested installed-app evidence
+
+Pre-cleanup physical state and product gate:
+
+- Desktop migration：complete；authority：`desktop_preferred`
+- Desktop credential protection：available/complete；Desktop records：preserved and recoverable
+- Retained Web material：`3` credentials across `3` retained sources；shared Web key：present
+- Cleanup review：fresh review completed；state reached `awaiting_confirmation`
+- Irreversible acknowledgement：unchecked state kept the destructive action unavailable until explicit user acknowledgement
+- DeepSeek and MiniMax saved connections：verified before cleanup
+
+Destructive action and result:
+
+- User completed the irreversible-consequence acknowledgement and clicked the production UI `Confirm and clean` action.
+- No storage, `userData`, journal, ciphertext, key, or test-only executor was manually edited or invoked.
+- Cleanup status：`complete`
+- Final physical reconciliation：`0` credentials across `0` retained sources; no legacy JWK; shared Web key absent
+- Desktop records and migration authority remained unchanged
+- Observed transition: retained Web sources `3 → 0`; shared Web key `present → absent`
+
+### Post-cleanup restart and provider operation
+
+- Same installed app, same Windows test user/profile, same application profile was fully quit and restarted.
+- Cleanup remained `complete`; final reconciliation remained `0` retained sources with the shared Web key absent.
+- DeepSeek connection test：PASS
+- MiniMax connection test：PASS
+- No Web credential source or shared Web key regeneration was observed after restart or either credential-backed operation.
+- This is an observed no-regeneration result within the stated acceptance scope, not a universal runtime guarantee. The broader no-fallback semantics remain jointly supported by the deterministic fail-closed contracts below.
+
+### Supplementary clean first-install evidence
+
+A new local Windows test user/profile was used after the earlier profile had experienced repeated same-version Squirrel Setup attempts. Before installation, the profile had no existing application directory, `SquirrelTemp`, `Update.exe`, or ReviewWorkspace process. The same installer and SHA-256 above were launched once; Squirrel completed normally, the first-run Electron process and children started, and `Update.exe`/`Setup.exe` exited normally.
+
+- Clean first install：PASS — supplementary operator-attested evidence
+- Squirrel installer normal completion：PASS
+- First-run Electron launch：PASS
+- Ownership remains unchanged: clean-machine installation, adjacent-version upgrade, uninstall/reinstall, signing, release assets, and distribution-owned lifecycle remain **DEFERRED TO 0.8**.
+
+Repeated or overlapping execution of the same-version Squirrel Setup in an already-installed profile previously produced file-lock/install-transaction failures. That bounded diagnostic observation was not reproduced in the clean single-run first installation and is not evidence of a clean first-install failure. It does not establish that same-version reinstall or all installer lifecycle flows are universally safe.
+
+### 0.7-owned closure matrix
+
+| 0.7 item | Evidence source | Closure classification |
+| --- | --- | --- |
+| Explicit Web → Desktop migration/cutover | Prior real installed-app record plus 2026-08-14 pre-cleanup state | PASS — real installed evidence |
+| Desktop authority and migration persistence | Desktop-preferred state, preserved authority, preserved Desktop records, restart observation | PASS — real installed evidence within scope |
+| Credential-backed operation before/after cleanup | DeepSeek and MiniMax connection tests | PASS — operator-attested real installed evidence |
+| No Web fallback / fail-closed semantics | Existing deterministic contracts; no material regeneration observed after cleanup | PASS — automated evidence plus scoped real observation; not a global runtime claim |
+| Context binding and substitution rejection | Existing deterministic contracts | PASS — automated/deterministic evidence |
+| Source retention before cleanup | Physical inventory observed 3 retained sources before confirmation | PASS — operator-attested real installed evidence |
+| Fresh inventory, confirmation binding, and Desktop revalidation | Fresh review, acknowledgement gate, completed production UI flow | PASS — operator-attested real installed evidence plus contracts |
+| Legacy-v1 conditional blocker | Cleanup eligibility contracts; completed physical cleanup had zero retained sources and no legacy JWK | PASS — deterministic blocker semantics plus scoped aggregate observation |
+| Source-before-key ordering and shared Web key last | Existing executor/order contracts; final physical reconciliation | PASS — automated/deterministic ordering evidence plus scoped real result |
+| Final physical reconciliation | 3 sources → 0; no legacy JWK; shared Web key absent | PASS — operator-attested real installed evidence |
+| Migration authority and Desktop records preserved | Post-cleanup reconciliation and restart state | PASS — operator-attested real installed evidence |
+| Post-cleanup restart | Full quit/restart with cleanup still complete | PASS — operator-attested real installed evidence |
+| No credential-material regeneration | Restart and DeepSeek/MiniMax operations | PASS — operator-attested within same profile scope |
+| Privacy and secret-handling discipline | No plaintext/secret in evidence; prior privacy contracts/observation | PASS — automated plus operator-attested evidence |
+| Production dependency audit | `high=0`, `critical=0` on merged source baseline | PASS — automated evidence |
+| Required cleanup/migration/architecture contracts | Existing contract suite and desktop gates | PASS — automated evidence |
+
+### Remaining rows and ownership
+
+| Row | Classification | Boundary |
+| --- | --- | --- |
+| Host unavailable, requires re-entry, partial recovery | AUTOMATED PASS / DOCUMENTED RESIDUAL | Fail-closed contracts pass; no unsafe installed injection is claimed |
+| Corrupted Desktop envelope, interrupted pre-commit | NO SAFE INSTALLED SEAM / NOT CLAIMED | No random kill, ciphertext/journal/userData editing, DPAPI destruction, or ASAR patching |
+| Clean first install | PASS — supplementary | Does not transfer 0.8 distribution ownership into 0.7 |
+| Adjacent-version upgrade, uninstall/reinstall, signing, release assets, distribution lifecycle | DEFERRED TO 0.8 | Distribution/lifecycle scope remains in the roadmap's 0.8 phase |
+| Different machine/account, copied `userData`, general DPAPI portability | MANUAL-ONLY / NON-CLAIM | No portability or cross-profile guarantee |
+
+### Final 0.7 verdict
+
+- Real Credential Cleanup：**PASS — operator-attested real installed-app evidence within the stated scope**
+- 0.7 Windows acceptance：**PASS / COMPLETE within the 0.7-owned closure contract**
+- 0.7 overall：**COMPLETE**
+
+The COMPLETE verdict closes the 0.7 credential-security blockers only. It does not mark any deferred, no-safe-seam, or portability row as PASS.
+
+## Historical 2026-08-12 · 0.7 Desktop Credential Acceptance Closure
+
+历史状态：**PARTIAL — PENDING ITEMS REMAIN**。本节保留 2026-08-12/13 当时的失败、验收和未执行 cleanup 事实；当前状态以上方 2026-08-14 closure record 为准。
+
+本历史节中的 `PENDING`、`BLOCKING REQUIRED` 和 `IN PROGRESS` 表述均带有其原始验收时间语境；它们不是对当前 2026-08-14 verdict 的重述。
 
 ### 0.7 closure interpretation
 

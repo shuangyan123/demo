@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-14 — 0.7 Windows Credential Cleanup Acceptance Closure
+
+- Archived operator-attested Windows installed-app evidence from source `73755341834249b1453ccd57a20787b16c3f3621`, installer `ReviewWorkspace-0.2.2-Windows-x64-Setup.exe`, SHA-256 `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`, application `0.2.2`, Electron `43.2.0`.
+- Recorded disposable/revocable credential use, `3 → 0` retained Web sources, shared Web key `present → absent`, preserved Desktop records and migration authority, final physical reconciliation, full restart, and successful DeepSeek/MiniMax credential-backed operations without observed Web-material regeneration.
+- Recorded clean first-install and normal Squirrel first-run completion as supplementary evidence. The bounded diagnostic note for repeated/overlapping same-version Setup execution does not change 0.8 distribution/lifecycle ownership.
+- Closed **Real Credential Cleanup: PASS** and **0.7 overall: COMPLETE** within the same-machine, dedicated-Windows-user/profile, same-application-profile scope. Corrupted/interrupted no-safe-seam cases, adjacent-version and uninstall/reinstall lifecycle, signing/release assets, different machine/account, copied `userData`, and general DPAPI portability remain explicitly non-claims or deferred.
+
 ## 2026-08-14 — 0.7 Credential Cleanup Execution Entry
 
 - Added a Desktop-only production cleanup entry with a read-only review, explicit irreversible-impact acknowledgement, fresh pre-delete inventory/Host/Desktop-record verification, and a second confirmation before the existing cleanup executor can run.
