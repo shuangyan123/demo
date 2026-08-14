@@ -1,8 +1,8 @@
 # Credential Cleanup Foundation and Execution Entry
 
-Status: **Cleanup Execution Entry IMPLEMENTED / AUTOMATED EVIDENCE ONLY; REAL CLEANUP NOT EXECUTED; 0.7 IN PROGRESS** (2026-08-14). Real Credential Cleanup remains **BLOCKING REQUIRED** for 0.7 credential-security closure. The supported production entry is now explicit and fail-closed, but no installed-app cleanup acceptance has occurred.
+Status: **Cleanup Execution Entry IMPLEMENTED; REAL CLEANUP ACCEPTED within the scoped Windows installed-app profile; 0.7 COMPLETE** (2026-08-14). Real Credential Cleanup is **PASS — operator-attested installed-app evidence** for the same-machine, dedicated-Windows-user/profile, same-application-profile boundary. The supported production entry remains explicit and fail-closed; deferred lifecycle and portability claims remain outside this verdict.
 
-This phase establishes the physical inventory, safety gates, journal, reconciliation rules, idempotent source primitives, a tested executor, and the narrow production Settings entry for Desktop credential cleanup. It does not perform cleanup during startup, migration, build, packaging, or installed-app smoke; real cleanup remains a separate acceptance activity.
+This phase establishes the physical inventory, safety gates, journal, reconciliation rules, idempotent source primitives, a tested executor, and the narrow production Settings entry for Desktop credential cleanup. It does not perform cleanup during startup, migration, build, packaging, or installed-app smoke; the separate explicit installed-app acceptance is recorded below.
 
 ## Scope and non-goals
 
@@ -14,7 +14,15 @@ The Desktop cutover remains the authority boundary:
 - `review_workspace` stays v16 and `review_extensions` stays v1; no schema or preload/IPC expansion is part of this foundation.
 - No real provider, OS credential, installed-app profile, or user data is used by cleanup tests.
 
-The production Settings surface is Desktop-only and explicit. It may show safe counts, impact, readiness, blocked reason class, and the fact that retained Web material remains. It requires a fresh review, an irreversible-impact acknowledgement, and a second confirmation before the narrow execution facade can invoke the existing executor. Web does not render the entry, startup does not resume it, and no real cleanup has been executed.
+The production Settings surface is Desktop-only and explicit. It may show safe counts, impact, readiness, blocked reason class, and the fact that retained Web material remains. It requires a fresh review, an irreversible-impact acknowledgement, and a second confirmation before the narrow execution facade can invoke the existing executor. Web does not render the entry, startup does not resume it, and the implementation/test phase does not execute real cleanup automatically. The 2026-08-14 record below documents the separate explicit installed-app execution.
+
+## 2026-08-14 real cleanup acceptance record
+
+The operator-attested Windows acceptance used source commit `73755341834249b1453ccd57a20787b16c3f3621`, installer `ReviewWorkspace-0.2.2-Windows-x64-Setup.exe`, SHA-256 `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`, application `0.2.2`, and Electron `43.2.0`. The environment was a dedicated local Windows test user/profile with a dedicated application profile on the same machine; no existing `userData` was copied. The credential was disposable/revocable and no secret was archived.
+
+Before confirmation, the fresh physical review observed `3` credentials across `3` retained Web sources, a present shared Web key, complete Desktop-preferred migration, recoverable Desktop records, and an available Host. The production UI required the irreversible acknowledgement before `Confirm and clean` became actionable. After explicit confirmation, cleanup reached `complete`; final reconciliation observed `0` retained sources, no legacy JWK, no shared Web key, preserved Desktop records, and preserved migration authority. A full restart retained the complete state, and DeepSeek and MiniMax connection tests passed without observed Web-source or shared-key regeneration.
+
+This closes **Real Credential Cleanup: PASS** and **0.7 overall: COMPLETE** only within the documented 0.7-owned credential-security contract. The evidence is operator-attested rather than independently replayed in this repository checkout. Existing deterministic contracts remain the evidence for source-before-key ordering, fail-closed behavior, context binding, and recovery semantics.
 
 ## Closure classification and phase ownership
 
@@ -84,9 +92,9 @@ Before the first source deletion, the executor performs a fresh inventory, fresh
 
 If any source has already been deleted, later failure is represented as `partial` or `recovery_required`. Resume is available only from an explicit user action after fresh reconciliation, inventory, Host, and eligibility checks. There is no automatic rollback, fallback, or replacement-key generation. The migration journal and Desktop envelope store remain unchanged by cleanup.
 
-## Future real cleanup acceptance requirements
+## Real cleanup acceptance contract
 
-These are future acceptance requirements only; none is current `PASS` evidence:
+These requirements remain the normative acceptance contract; the current operator-attested `PASS` evidence is recorded above rather than inferred from the contract alone:
 
 1. Use an installer built from the merged Execution Entry commit or a descendant, in an isolated dedicated Windows profile.
 2. Confirm a complete migration journal with `backendPolicy=desktop_preferred`, all expected IDs `desktop_primary`, and verifiable Desktop records.
@@ -96,7 +104,7 @@ These are future acceptance requirements only; none is current `PASS` evidence:
 6. Delete the shared Web key last, only after no retained Web source or legacy JWK remains and the key-boundary eligibility check passes; never generate a replacement Web key.
 7. Perform final reconciliation, restart the installed app, and pass a minimum credential-backed operation without Web-source regeneration or fallback.
 
-The intended sequence is **foundation and execution entry implementation → current-build installed acceptance → isolated dedicated profile → explicit real cleanup acceptance → final reconciliation/restart credential check → 0.7 closure**. This change stops before installer creation, installation, real cleanup, and 0.8 work.
+The intended sequence was **foundation and execution entry implementation → current-build installed acceptance → isolated dedicated profile → explicit real cleanup acceptance → final reconciliation/restart credential check → 0.7 closure**. The foundation/execution-entry implementation stopped before installer creation and real cleanup; the 2026-08-14 acceptance record completed the subsequent closure step. 0.8 distribution/lifecycle work remains separate.
 
 ## Source primitives
 
@@ -118,6 +126,6 @@ Required gates are typecheck, lint, contracts, Desktop compile/tests, production
 
 Cleanup Execution Entry: **IMPLEMENTED / AUTOMATED EVIDENCE ONLY**.
 
-Real Credential Cleanup: **BLOCKING REQUIRED / PENDING — NOT EXECUTED**.
+Real Credential Cleanup: **PASS — operator-attested real installed-app evidence within the stated scope**.
 
-0.7 Windows acceptance remains **PARTIAL — PENDING ITEMS REMAIN**. This document does not claim DPAPI portability, real deletion success, installed-app cleanup evidence, or `0.7 COMPLETE`.
+0.7 Windows acceptance is **PASS / COMPLETE within the 0.7-owned closure contract**. This document does not claim different-machine/account portability, copied `userData` portability, general DPAPI portability, adjacent-version upgrade, uninstall/reinstall, signing, release assets, or distribution lifecycle.
