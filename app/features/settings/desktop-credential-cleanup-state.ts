@@ -173,6 +173,13 @@ export function projectDesktopCredentialCleanup(input: {
 }): DesktopCredentialCleanupUiModel {
   if (input.hostKind !== "desktop") return hidden();
   if (input.busy) return model("verifying", { review: input.review, busy: true });
+
+  // A transient executor result never outranks the latest physical Host
+  // observation. Unavailable protection is not a current successful
+  // reconciliation, and it must not leave a stale resume/confirm action.
+  if (input.hostStatus !== "available" || (input.review && input.review.host.status !== "available")) {
+    return model("unavailable", { review: input.review });
+  }
   if (input.executionStatus) {
     return model(statusFromExecution(input.executionStatus), { review: input.review });
   }
@@ -181,12 +188,6 @@ export function projectDesktopCredentialCleanup(input: {
     return model("deferred");
   }
 
-  // A durable completion/partial journal never substitutes for a fresh Host
-  // observation; unavailable protection must not be presented as actionable
-  // or as a current successful reconciliation.
-  if (input.review.host.status !== "available" || input.hostStatus !== "available") {
-    return model("unavailable", { review: input.review });
-  }
   const journalState = input.review.journalState;
   const reviewed = input.reviewed === true;
   if (journalState === "complete") return model("complete", { review: input.review });

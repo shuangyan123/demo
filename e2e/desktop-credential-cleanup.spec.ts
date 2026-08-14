@@ -48,6 +48,7 @@ async function installFakeDesktopCredentialProtection(page: Page, expectedSecret
       value: {
         read: () => ({ protectCalls, unprotectCalls, expectedSecretSeen: [...protectedSecrets.values()].includes(expected) }),
         failAfterChecks: (count: number) => { cleanupHostChecksUntilFailure = count; },
+        recoverHost: () => { cleanupHostChecksUntilFailure = undefined; },
         failUnprotect: (code: "host_payload_invalid" | "host_context_mismatch") => { unprotectFailureCode = code; },
       },
     });
@@ -226,6 +227,12 @@ test("partial cleanup is surfaced after reload and resumes only after an explici
   }).__e2eCleanupEvidence?.failAfterChecks(5));
   await cleanupPanel.getByRole("checkbox").check();
   await cleanupPanel.getByRole("button", { name: "Confirm and clean" }).click();
+  await expect(cleanupPanel).toHaveAttribute("data-status", "unavailable");
+  await expect(cleanupPanel.getByRole("button", { name: "Resume cleanup" })).toHaveCount(0);
+  await page.evaluate(() => (window as Window & {
+    __e2eCleanupEvidence?: { recoverHost: () => void };
+  }).__e2eCleanupEvidence?.recoverHost());
+  await cleanupPanel.getByRole("button", { name: "Review cleanup" }).click();
   await expect(cleanupPanel).toHaveAttribute("data-status", "partial");
 
   await page.reload();

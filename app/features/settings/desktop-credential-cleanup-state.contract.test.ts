@@ -71,6 +71,58 @@ test("Host unavailable never presents a durable completion as actionable", () =>
   assert.equal(model.canConfirm, false);
 });
 
+test("fresh Host unavailability overrides a complete execution result", () => {
+  const model = projectDesktopCredentialCleanup({
+    hostKind: "desktop",
+    hostStatus: "unavailable",
+    review: { ...eligibleReview, host: { kind: "desktop", status: "unavailable" } },
+    executionStatus: "complete",
+  });
+  assert.equal(model.status, "unavailable");
+  assert.equal(model.confirmationRequired, false);
+  assert.equal(model.canConfirm, false);
+  assert.equal(model.canResume, false);
+});
+
+test("fresh outer Host unavailability overrides completion even when review still says available", () => {
+  const model = projectDesktopCredentialCleanup({
+    hostKind: "desktop",
+    hostStatus: "unavailable",
+    review: eligibleReview,
+    executionStatus: "complete",
+  });
+  assert.equal(model.status, "unavailable");
+  assert.equal(model.canConfirm, false);
+  assert.equal(model.canResume, false);
+});
+
+test("fresh Host unavailability never exposes stale execution recovery actions", () => {
+  for (const executionStatus of ["already_cleaned", "partial", "recovery_required", "blocked"] as const) {
+    const model = projectDesktopCredentialCleanup({
+      hostKind: "desktop",
+      hostStatus: "temporarily_unavailable",
+      review: eligibleReview,
+      executionStatus,
+    });
+    assert.equal(model.status, "unavailable");
+    assert.equal(model.confirmationRequired, false);
+    assert.equal(model.canConfirm, false);
+    assert.equal(model.canResume, false);
+  }
+});
+
+test("available Host keeps a complete execution result visible", () => {
+  const model = projectDesktopCredentialCleanup({
+    hostKind: "desktop",
+    hostStatus: "available",
+    review: eligibleReview,
+    executionStatus: "complete",
+  });
+  assert.equal(model.status, "complete");
+  assert.equal(model.canConfirm, false);
+  assert.equal(model.canResume, false);
+});
+
 test("partial cleanup is surfaced after reload and requires an explicit recovery review", () => {
   const partialReview = {
     ...eligibleReview,
