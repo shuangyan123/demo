@@ -13,8 +13,9 @@ async function installFakeDesktopCredentialProtection(page: Page, expectedSecret
     let protectCalls = 0;
     let unprotectCalls = 0;
     let cleanupHostChecksUntilFailure: number | undefined;
+    let unprotectFailureCode: "host_payload_invalid" | "host_context_mismatch" | undefined;
 
-    const failure = () => ({ ok: false as const, error: { code: "host_payload_invalid" as const, message: "safe test failure" } });
+    const failure = (code: "host_payload_invalid" | "host_context_mismatch" = "host_payload_invalid") => ({ ok: false as const, error: { code, message: "safe test failure" } });
     Object.defineProperty(window, "reviewDesktopCredentialProtection", {
       configurable: true,
       value: {
@@ -33,7 +34,10 @@ async function installFakeDesktopCredentialProtection(page: Page, expectedSecret
         },
         unprotectCredential: async (context: string, envelope: { context?: string; payload?: string }) => {
           unprotectCalls += 1;
-          const secret = protectedSecrets.get(context);
+          if (unprotectFailureCode) return failure(unprotectFailureCode);
+          // The fake bridge models OS-protected material surviving a renderer
+          // reload without persisting the synthetic secret in app storage.
+          const secret = protectedSecrets.get(context) ?? expected;
           if (!secret || envelope.context !== context || envelope.payload !== protectedPayload) return failure();
           return { ok: true, value: { secret, shouldReProtect: false } };
         },
@@ -44,6 +48,7 @@ async function installFakeDesktopCredentialProtection(page: Page, expectedSecret
       value: {
         read: () => ({ protectCalls, unprotectCalls, expectedSecretSeen: [...protectedSecrets.values()].includes(expected) }),
         failAfterChecks: (count: number) => { cleanupHostChecksUntilFailure = count; },
+        failUnprotect: (code: "host_payload_invalid" | "host_context_mismatch") => { unprotectFailureCode = code; },
       },
     });
   }, { expectedSecret });
@@ -133,12 +138,40 @@ test("eligible Desktop cleanup requires acknowledgement, preserves migration aut
   expect(before.evidence?.protectCalls ?? 0).toBeGreaterThan(0);
   expect(before.evidence?.unprotectCalls ?? 0).toBeGreaterThan(0);
   expect(evidence?.protectCalls).toBe(before.evidence?.protectCalls);
-  expect(evidence?.unprotectCalls).toBe(before.evidence?.unprotectCalls);
+  const expectedDesktopVerificationCount = JSON.parse(before.migrationJournal ?? "{}").expectedIds?.length ?? 0;
+  expect(evidence?.unprotectCalls).toBe((before.evidence?.unprotectCalls ?? 0) + expectedDesktopVerificationCount);
   expect(evidence?.expectedSecretSeen).toBe(true);
 
   await page.reload();
   await openAiConnectionSettings(page);
   await expect(page.getByRole("region", { name: "Desktop credential cleanup" })).toHaveAttribute("data-status", "complete");
+});
+
+test("Desktop unprotect verification failure blocks cleanup before the first source delete", async ({ page }) => {
+  const expectedSecret = "e2e-unprotect-failure-secret";
+  await installFakeDesktopCredentialProtection(page, expectedSecret);
+  await page.goto("/");
+  await openAiConnectionSettings(page);
+  await configureCustomTextConnection(page, {
+    label: "E2E unprotect failure",
+    baseUrl: "http://127.0.0.1:9999/v1",
+    model: "unused",
+    apiKey: expectedSecret,
+  });
+  const migrationPanel = page.getByRole("region", { name: /Desktop/ }).first();
+  await migrationPanel.getByRole("button", { name: /Desktop/ }).click();
+  await expect(migrationPanel).toHaveAttribute("data-status", "complete");
+
+  const cleanupPanel = page.getByRole("region", { name: "Desktop credential cleanup" });
+  await cleanupPanel.getByRole("button", { name: "Review cleanup" }).click();
+  await page.evaluate(() => (window as Window & {
+    __e2eCleanupEvidence?: { failUnprotect: (code: "host_payload_invalid" | "host_context_mismatch") => void };
+  }).__e2eCleanupEvidence?.failUnprotect("host_payload_invalid"));
+  await cleanupPanel.getByRole("checkbox").check();
+  await cleanupPanel.getByRole("button", { name: "Confirm and clean" }).click();
+  await expect(cleanupPanel).toHaveAttribute("data-status", "blocked");
+  expect(JSON.parse(await page.evaluate(() => window.localStorage.getItem("review-workspace:credential-cleanup:v1") ?? "{}")).reasonCode)
+    .toBe("desktop_verification_failed");
 });
 
 test("stale Desktop state after review blocks cleanup before the first source delete", async ({ page }) => {
@@ -190,7 +223,7 @@ test("partial cleanup is surfaced after reload and resumes only after an explici
   await expect(cleanupPanel).toHaveAttribute("data-status", "awaiting_confirmation");
   await page.evaluate(() => (window as Window & {
     __e2eCleanupEvidence?: { failAfterChecks: (count: number) => void };
-  }).__e2eCleanupEvidence?.failAfterChecks(3));
+  }).__e2eCleanupEvidence?.failAfterChecks(5));
   await cleanupPanel.getByRole("checkbox").check();
   await cleanupPanel.getByRole("button", { name: "Confirm and clean" }).click();
   await expect(cleanupPanel).toHaveAttribute("data-status", "partial");

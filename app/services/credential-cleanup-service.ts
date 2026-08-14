@@ -32,7 +32,7 @@ import {
   type CredentialCleanupSourceState,
 } from "./credential-cleanup-state.ts";
 import { reconcileCredentialCleanup } from "./credential-cleanup-reconciliation.ts";
-import { hasDesktopCredential } from "./credential-backend.ts";
+import { readDesktopCredential } from "./credential-backend.ts";
 import { secretContext } from "./secret-context.ts";
 import {
   CredentialCleanupSourceError,
@@ -41,6 +41,14 @@ import {
 
 const LEGACY_JWK_SOURCE_ID = "review_workspace_crypto_key_v1";
 const WEB_KEY_SOURCE_ID = "primary-aes-gcm-v2";
+const RESUMABLE_CLEANUP_STATES = new Set<CredentialCleanupJournal["state"]>([
+  "preflight",
+  "verifying",
+  "deleting_sources",
+  "deleting_web_key",
+  "partial",
+  "recovery_required",
+]);
 
 export type CredentialCleanupExecutionStatus = "awaiting_confirmation" | "blocked" | "complete" | "partial" | "recovery_required" | "cancelled" | "already_cleaned";
 
@@ -75,11 +83,10 @@ const defaultDependencies: CredentialCleanupExecutorDependencies = {
     const failedIds: string[] = [];
     for (const id of expectedIds) {
       try {
-        // Cleanup must never unprotect and return a user's credential plaintext. The
-        // fresh Host check plus the physical, context-bound envelope is sufficient
-        // for this boundary; credential use remains in the normal backend path.
-        if (hasDesktopCredential(id)) verifiedIds.push(id);
-        else failedIds.push(id);
+        // This is a recoverability probe, not credential use: cross the accepted
+        // Host unprotect boundary, then discard the returned secret immediately.
+        void (await readDesktopCredential(id));
+        verifiedIds.push(id);
       } catch {
         failedIds.push(id);
       }
@@ -237,10 +244,12 @@ async function runCredentialCleanup(
     const recovery = dependencies.writeJournal({
       ...current,
       state: "recovery_required",
-      expectedIds: [...inventory.migration.expectedIds],
       cleanedIds: reconciliation.cleanedIds,
       retainedIds: reconciliation.retainedIds,
-      inventoryVersion: inventory.inventoryVersion,
+      // Preserve the journal's observed baseline. Replacing it with the
+      // unexplained physical observation would erase the evidence needed for
+      // a later explicit recovery decision.
+      inventoryVersion: current.inventoryVersion || inventory.inventoryVersion,
       webKeyState: reconciliation.webKeyState,
       reasonCode: reconciliation.reasonCode ?? "journal_inconsistent",
       sourceStates: reconciliation.sourceStates,
@@ -249,7 +258,7 @@ async function runCredentialCleanup(
     return executionResultFromJournal(recovery, "recovery_required");
   }
   const resuming = resume
-    && (current.state === "partial" || current.state === "recovery_required")
+    && RESUMABLE_CLEANUP_STATES.has(current.state)
     && reconciliation.state === "partial";
   const eligibilityJournal = resuming
     ? { ...current, state: "idle" as const, reasonCode: undefined, inventoryVersion: inventory.inventoryVersion }

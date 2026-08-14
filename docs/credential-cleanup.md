@@ -50,7 +50,7 @@ The cleanup journal is `review-workspace:credential-cleanup:v1`. It contains onl
 
 Normal states are `idle`, `preflight`, `awaiting_confirmation`, `verifying`, `deleting_sources`, `deleting_web_key`, and `complete`. Exceptional states are `blocked`, `partial`, `recovery_required`, and `cancelled`.
 
-Reconciliation never guesses after a crash. A source that reappears after being marked cleaned, a changed inventory, a key that remains after a delete record, a key-delete phase with a retained Web source, or a completed journal with physical material present becomes `recovery_required`. Startup never resumes destructive work automatically.
+Reconciliation never guesses after a crash. A source that reappears after being marked cleaned, an unexplained inventory change, a key that remains after a delete record, a key-delete phase with a retained Web source, or a completed journal with physical material present becomes `recovery_required`. A missing source/key is resumable only when the durable journal's source state and pre-delete inventory facts explain that exact destructive progress. Startup never resumes destructive work automatically.
 
 ## Eligibility gates
 
@@ -58,7 +58,7 @@ Destructive cleanup requires all of the following:
 
 1. A present, complete migration journal with `backendPolicy=desktop_preferred`.
 2. Every expected context has `desktop_primary` authority and a physical Desktop record.
-3. The Desktop host is available and each expected Desktop record passes a separate pre-delete verification. Host availability is read again after Desktop verification and immediately before shared Web key deletion.
+3. The Desktop host is available and each expected Desktop record passes a separate pre-delete recoverability verification through the accepted Host unprotect boundary. The returned secret is immediately discarded and is not persisted, logged, compared, exposed to UI, or used for provider calls. Host availability is read again after Desktop verification and immediately before shared Web key deletion.
 4. The current physical inventory matches the confirmed inventory; new credentials or re-entry states block.
 5. No Web-primary or mixed authority exists.
 6. No `legacy-v1`, invalid/unknown format, orphan legacy source, missing canonical AI profile, ambiguous quota legacy source, or migration recovery/partial state exists.
@@ -80,7 +80,7 @@ Settings panel
 
 The first review is read-only and keeps the inventory version in a private controller ref. The user must acknowledge that deleting retained Web recovery material may require credential re-entry for Web-only, older-version, different-profile, or different-machine use. Only then does the facade pass the confirmed inventory version to the existing executor.
 
-Before the first source deletion, the executor performs a fresh inventory, fresh Host check, physical Desktop-record verification without unprotecting or returning credential plaintext, and final eligibility evaluation. A changed inventory, new credential, unavailable Host, invalid envelope, mixed authority, recovery state, or `legacy-v1` source blocks with zero destructive calls. Source cleanup remains one-by-one; legacy JWK cleanup is guarded by a fresh zero-`legacy-v1` observation; the shared Web key remains last.
+Before the first source deletion, the executor performs a fresh inventory, fresh Host check, true Desktop-envelope recoverability verification through Host unprotect (discarding the returned secret), and final eligibility evaluation. A changed or unexplained inventory, new credential, unavailable Host, invalid envelope, context mismatch, unreadable envelope, recovery state, or `legacy-v1` source blocks with zero destructive calls. Source cleanup remains one-by-one; legacy JWK cleanup is guarded by a fresh zero-`legacy-v1` observation; the shared Web key remains last.
 
 If any source has already been deleted, later failure is represented as `partial` or `recovery_required`. Resume is available only from an explicit user action after fresh reconciliation, inventory, Host, and eligibility checks. There is no automatic rollback, fallback, or replacement-key generation. The migration journal and Desktop envelope store remain unchanged by cleanup.
 

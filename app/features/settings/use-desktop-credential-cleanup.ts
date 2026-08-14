@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCleanupHostStatus } from "../../services/credential-cleanup-inventory.ts";
-import { executeDesktopCredentialCleanup } from "../../services/credential-cleanup-execution.ts";
 import { readCredentialCleanupJournal } from "../../services/credential-cleanup-state.ts";
 import { reviewCredentialCleanup, type CredentialCleanupReview } from "../../services/credential-cleanup-review.ts";
 import {
@@ -34,7 +33,15 @@ const INITIAL_MODEL: DesktopCredentialCleanupUiModel = {
   canCancel: false,
 };
 
-const JOURNAL_REVIEW_STATES = new Set(["partial", "recovery_required", "complete"]);
+const JOURNAL_REVIEW_STATES = new Set([
+  "preflight",
+  "verifying",
+  "deleting_sources",
+  "deleting_web_key",
+  "partial",
+  "recovery_required",
+  "complete",
+]);
 
 function runningModel(current: DesktopCredentialCleanupUiModel): DesktopCredentialCleanupUiModel {
   return {
@@ -160,8 +167,9 @@ export function useDesktopCredentialCleanup(): DesktopCredentialCleanupHookModel
     const resume = model.status === "partial" || model.status === "recovery_required";
     const operation = (async () => {
       setModel((current) => runningModel(current));
-      let executionStatus: Awaited<ReturnType<typeof executeDesktopCredentialCleanup>>["status"] | undefined;
+      let executionStatus: Parameters<typeof projectDesktopCredentialCleanup>[0]["executionStatus"];
       try {
+        const { executeDesktopCredentialCleanup } = await import("../../services/credential-cleanup-execution.ts");
         executionStatus = (await executeDesktopCredentialCleanup({
           confirmationInventoryVersion: inventoryVersion,
           confirmationAcknowledged: true,

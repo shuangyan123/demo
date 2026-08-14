@@ -56,7 +56,7 @@ At that 2026-08-12 checkpoint, Windows installed-app acceptance remained **PENDI
 
 本轮交付 cleanup foundation 上的最小 production entry：physical inventory、独立 cleanup journal、eligibility/reconciliation、幂等 source primitives、last-step Web key API、隔离 executor，以及 Desktop-only 的显式 review → acknowledgement → confirmation UI。Settings → AI 连接中的 `Credential cleanup` 只通过窄 execution facade 调用 executor；Web 不显示 Desktop cleanup surface，mount/startup/reload 不执行 destructive cleanup。
 
-自动证据必须来自合并后的新 commit，并且只能证明 fake/test fixture 的 no-write/no-decrypt/no-key-generation inventory、fresh revalidation、source-before-key ordering、partial/recovery semantics、journal preservation 和 UI execution boundary。Desktop record verification 只检查物理 envelope/record，不解封或返回真实 credential plaintext。不得以 `desktop:make`、旧 installed-app build、package 成功、proxy tests 或 fake host E2E 声称真实 Windows cleanup/DPAPI 证据。当前 cleanup 状态为 **EXECUTION ENTRY IMPLEMENTED / AUTOMATED EVIDENCE ONLY — REAL CLEANUP NOT EXECUTED — WINDOWS PENDING**；0.7 overall 仍为 **IN PROGRESS**。
+自动证据必须来自合并后的新 commit，并且只能证明 fake/test fixture 的 no-write/no-decrypt/no-key-generation inventory、fresh revalidation、Host unprotect recoverability probe、source-before-key ordering、partial/recovery semantics、journal preservation 和 UI execution boundary。Desktop verification 会通过 fake Host unprotect boundary，但只立即丢弃返回 secret，不持久化、记录、比较或暴露 credential plaintext。不得以 `desktop:make`、旧 installed-app build、package 成功、proxy tests 或 fake host E2E 声称真实 Windows cleanup/DPAPI 证据。当前 cleanup 状态为 **EXECUTION ENTRY IMPLEMENTED / AUTOMATED EVIDENCE ONLY — REAL CLEANUP NOT EXECUTED — WINDOWS PENDING**；0.7 overall 仍为 **IN PROGRESS**。
 
 Production entry acceptance contract：
 

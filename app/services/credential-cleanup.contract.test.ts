@@ -107,6 +107,20 @@ function source(overrides: Partial<CredentialCleanupSource> & Pick<CredentialCle
   };
 }
 
+function sourceFingerprintFixture(item: CredentialCleanupSource): string {
+  return [
+    item.sourceId,
+    item.credentialId ?? "",
+    item.kind,
+    item.storage,
+    item.storageLocation,
+    item.authority ?? "none",
+    String(item.present),
+    String(item.recordCount),
+    item.reasonCodes.join(","),
+  ].join("=");
+}
+
 function physicalInventory(options: {
   expectedIds?: string[];
   sources?: CredentialCleanupSource[];
@@ -114,24 +128,25 @@ function physicalInventory(options: {
   legacyJwk?: boolean;
 } = {}): CredentialCleanupInventory {
   const expectedIds = options.expectedIds ?? [secretContext.aiConnection("fixture")];
+  const sources = options.sources ?? [
+    source({
+      sourceId: `${expectedIds[0]}:profile`,
+      credentialId: expectedIds[0],
+      kind: "ai-connection",
+      authority: "desktop_primary",
+    }),
+    source({
+      sourceId: `${expectedIds[0]}:desktop-store`,
+      credentialId: expectedIds[0],
+      kind: "desktop-store",
+      storage: "desktop-v1",
+      storageLocation: "local-storage:desktop",
+      authority: "desktop_primary",
+    }),
+  ];
   return {
     version: "credential-cleanup-physical-v1",
-    sources: options.sources ?? [
-      source({
-        sourceId: `${expectedIds[0]}:profile`,
-        credentialId: expectedIds[0],
-        kind: "ai-connection",
-        authority: "desktop_primary",
-      }),
-      source({
-        sourceId: `${expectedIds[0]}:desktop-store`,
-        credentialId: expectedIds[0],
-        kind: "desktop-store",
-        storage: "desktop-v1",
-        storageLocation: "local-storage:desktop",
-        authority: "desktop_primary",
-      }),
-    ],
+    sources,
     observedCredentialIds: expectedIds,
     desktopCredentialIds: expectedIds,
     canonicalAiCredentialIds: expectedIds,
@@ -159,7 +174,12 @@ function physicalInventory(options: {
       classification: "shared",
       reasonCodes: options.legacyJwk ? ["legacy_source_present"] : [],
     },
-    inventoryVersion: "cleanup-fixture-v1",
+    inventoryVersion: [
+      ...sources.map(sourceFingerprintFixture).sort(),
+      `migration=true:complete:desktop_preferred:${expectedIds.join(",")}:${expectedIds.join(",")}:migration-fixture-v1`,
+      `web-key=${options.webKey ?? "absent"}`,
+      `legacy-jwk=${options.legacyJwk ?? false}`,
+    ].join("|"),
   };
 }
 
@@ -387,6 +407,79 @@ test("executor requires explicit confirmation before any destructive call", asyn
   assert.equal(keyDeleteCalls, 0);
 });
 
+test("Desktop recoverability verification failure blocks before every destructive call", async () => {
+  const expected = secretContext.aiConnection("verification-failure");
+  const inventory = physicalInventory({ expectedIds: [expected], webKey: "present" });
+  let journal = readCredentialCleanupJournal();
+  let sourceCalls = 0;
+  let legacyDeleteCalls = 0;
+  let keyDeleteCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    confirmationInventoryVersion: inventory.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => inventory,
+      getHostStatus: async () => desktopHost,
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async (ids) => ({ verifiedIds: [], failedIds: ids }),
+      cleanSource: async () => {
+        sourceCalls += 1;
+        return { sourceId: `${expected}:profile`, credentialId: expected, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => {
+        legacyDeleteCalls += 1;
+        return { sourceId: "review_workspace_crypto_key_v1", outcome: "cleaned" };
+      },
+      inspectWebKey: async () => "present",
+      deleteWebKey: async () => {
+        keyDeleteCalls += 1;
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "blocked");
+  assert.equal(result.reasonCode, "desktop_verification_failed");
+  assert.equal(sourceCalls, 0);
+  assert.equal(legacyDeleteCalls, 0);
+  assert.equal(keyDeleteCalls, 0);
+});
+
+test("Desktop context mismatch during recoverability verification is fail-closed", async () => {
+  const expected = secretContext.aiConnection("verification-context-mismatch");
+  const inventory = physicalInventory({ expectedIds: [expected], webKey: "present" });
+  let journal = readCredentialCleanupJournal();
+  let sourceCalls = 0;
+  let keyDeleteCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    confirmationInventoryVersion: inventory.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => inventory,
+      getHostStatus: async () => desktopHost,
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      // The fake Host reports a context-mismatch/unreadable envelope through
+      // the same sanitized failed-ID boundary used by the real verifier.
+      verifyDesktop: async (ids) => ({ verifiedIds: [], failedIds: ids }),
+      cleanSource: async () => {
+        sourceCalls += 1;
+        return { sourceId: `${expected}:profile`, credentialId: expected, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => ({ sourceId: "review_workspace_crypto_key_v1", outcome: "cleaned" }),
+      inspectWebKey: async () => "present",
+      deleteWebKey: async () => {
+        keyDeleteCalls += 1;
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "blocked");
+  assert.equal(result.reasonCode, "desktop_verification_failed");
+  assert.equal(sourceCalls, 0);
+  assert.equal(keyDeleteCalls, 0);
+});
+
 test("explicit resume reconciles a partial journal and does not replay an absent source", async () => {
   const expected = secretContext.aiConnection("resume-boundary");
   const sourceId = `${expected}:profile`;
@@ -437,6 +530,288 @@ test("explicit resume reconciles a partial journal and does not replay an absent
   assert.equal(sourceCalls, 0);
   assert.equal(keyDeleteCalls, 1);
   assert.equal(journal.state, "complete");
+});
+
+test("crash after a source delete resumes from the old pre-delete inventory version", async () => {
+  const first = secretContext.aiConnection("crash-first-source");
+  const remaining = secretContext.aiConnection("crash-remaining-source");
+  const expectedIds = [first, remaining];
+  const firstSource = source({
+    sourceId: `${first}:profile`,
+    credentialId: first,
+    kind: "ai-connection",
+    authority: "desktop_primary",
+  });
+  const remainingSource = source({
+    sourceId: `${remaining}:profile`,
+    credentialId: remaining,
+    kind: "ai-connection",
+    authority: "desktop_primary",
+  });
+  const firstDesktop = source({
+    sourceId: `${first}:desktop-store`,
+    credentialId: first,
+    kind: "desktop-store",
+    storage: "desktop-v1",
+    storageLocation: "local-storage:desktop",
+    authority: "desktop_primary",
+  });
+  const remainingDesktop = source({
+    sourceId: `${remaining}:desktop-store`,
+    credentialId: remaining,
+    kind: "desktop-store",
+    storage: "desktop-v1",
+    storageLocation: "local-storage:desktop",
+    authority: "desktop_primary",
+  });
+  const before = physicalInventory({
+    expectedIds,
+    sources: [firstSource, remainingSource, firstDesktop, remainingDesktop],
+    webKey: "present",
+  });
+  let current = physicalInventory({
+    expectedIds,
+    sources: [remainingSource, firstDesktop, remainingDesktop],
+    webKey: "present",
+  });
+  let journal = writeCredentialCleanupJournal({
+    version: 1,
+    state: "partial",
+    expectedIds,
+    cleanedIds: [first],
+    retainedIds: [remaining],
+    inventoryVersion: before.inventoryVersion,
+    webKeyState: "present",
+    sourceStates: {
+      [firstSource.sourceId]: "cleaned",
+      [remainingSource.sourceId]: "pending",
+      "primary-aes-gcm-v2": "pending",
+      "review_workspace_crypto_key_v1": "pending",
+    },
+    reasonCode: "source_cleanup_failed",
+    updatedAt: timestamp,
+  });
+  let sourceCalls = 0;
+  let keyDeleteCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    resume: true,
+    confirmationInventoryVersion: current.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => current,
+      getHostStatus: async () => desktopHost,
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async (ids) => ({ verifiedIds: ids, failedIds: [] }),
+      cleanSource: async (item) => {
+        sourceCalls += 1;
+        current = physicalInventory({
+          expectedIds,
+          sources: [firstDesktop, remainingDesktop],
+          webKey: "present",
+        });
+        return { sourceId: item.sourceId, credentialId: item.credentialId, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => ({ sourceId: "review_workspace_crypto_key_v1", outcome: "already_cleaned" }),
+      inspectWebKey: async () => current.webKey.presence,
+      deleteWebKey: async () => {
+        keyDeleteCalls += 1;
+        current = physicalInventory({
+          expectedIds,
+          sources: current.sources,
+          webKey: "absent",
+        });
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "complete");
+  assert.equal(sourceCalls, 1);
+  assert.equal(keyDeleteCalls, 1);
+  assert.equal(journal.state, "complete");
+  assert.equal(journal.cleanedIds.includes(first), true);
+  assert.equal(journal.cleanedIds.includes(remaining), true);
+});
+
+test("unexplained source drift after a partial cleanup stays recovery-required without more deletes", async () => {
+  const expected = secretContext.aiConnection("drift-cleaned");
+  const unexpected = secretContext.aiConnection("drift-new-source");
+  const expectedSource = source({
+    sourceId: `${expected}:profile`,
+    credentialId: expected,
+    kind: "ai-connection",
+    authority: "desktop_primary",
+  });
+  const desktop = source({
+    sourceId: `${expected}:desktop-store`,
+    credentialId: expected,
+    kind: "desktop-store",
+    storage: "desktop-v1",
+    storageLocation: "local-storage:desktop",
+    authority: "desktop_primary",
+  });
+  const before = physicalInventory({ expectedIds: [expected], sources: [expectedSource, desktop], webKey: "present" });
+  const current = physicalInventory({
+    expectedIds: [expected],
+    sources: [source({
+      sourceId: `${unexpected}:profile`,
+      credentialId: unexpected,
+      kind: "ai-connection",
+      authority: "desktop_primary",
+    }), desktop],
+    webKey: "present",
+  });
+  let journal = writeCredentialCleanupJournal({
+    version: 1,
+    state: "partial",
+    expectedIds: [expected],
+    cleanedIds: [expected],
+    retainedIds: [],
+    inventoryVersion: before.inventoryVersion,
+    webKeyState: "present",
+    sourceStates: {
+      [expectedSource.sourceId]: "cleaned",
+      "primary-aes-gcm-v2": "pending",
+      "review_workspace_crypto_key_v1": "pending",
+    },
+    reasonCode: "source_cleanup_failed",
+    updatedAt: timestamp,
+  });
+  let sourceCalls = 0;
+  let keyDeleteCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    resume: true,
+    confirmationInventoryVersion: current.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => current,
+      getHostStatus: async () => desktopHost,
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async (ids) => ({ verifiedIds: ids, failedIds: [] }),
+      cleanSource: async () => {
+        sourceCalls += 1;
+        return { sourceId: `${unexpected}:profile`, credentialId: unexpected, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => ({ sourceId: "review_workspace_crypto_key_v1", outcome: "already_cleaned" }),
+      inspectWebKey: async () => "present",
+      deleteWebKey: async () => {
+        keyDeleteCalls += 1;
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "recovery_required");
+  assert.equal(result.reasonCode, "physical_inventory_changed");
+  assert.equal(sourceCalls, 0);
+  assert.equal(keyDeleteCalls, 0);
+  assert.equal(journal.inventoryVersion, before.inventoryVersion);
+});
+
+test("source-cleaned crash with the shared Web key remaining resumes at the key boundary", async () => {
+  const expected = secretContext.aiConnection("crash-key-boundary");
+  const retainedSource = source({
+    sourceId: `${expected}:profile`,
+    credentialId: expected,
+    kind: "ai-connection",
+    authority: "desktop_primary",
+  });
+  const desktop = source({
+    sourceId: `${expected}:desktop-store`,
+    credentialId: expected,
+    kind: "desktop-store",
+    storage: "desktop-v1",
+    storageLocation: "local-storage:desktop",
+    authority: "desktop_primary",
+  });
+  const before = physicalInventory({ expectedIds: [expected], sources: [retainedSource, desktop], webKey: "present" });
+  let current = physicalInventory({ expectedIds: [expected], sources: [desktop], webKey: "present" });
+  let journal = writeCredentialCleanupJournal({
+    version: 1,
+    state: "partial",
+    expectedIds: [expected],
+    cleanedIds: [expected],
+    retainedIds: [],
+    inventoryVersion: before.inventoryVersion,
+    webKeyState: "present",
+    sourceStates: {
+      [retainedSource.sourceId]: "cleaned",
+      "primary-aes-gcm-v2": "pending",
+      "review_workspace_crypto_key_v1": "pending",
+    },
+    reasonCode: "source_cleanup_failed",
+    updatedAt: timestamp,
+  });
+  let sourceCalls = 0;
+  let keyDeleteCalls = 0;
+  const result = await executeCredentialCleanup({
+    confirmed: true,
+    resume: true,
+    confirmationInventoryVersion: current.inventoryVersion,
+    dependencies: {
+      collectInventory: async () => current,
+      getHostStatus: async () => desktopHost,
+      readJournal: () => journal,
+      writeJournal: (next) => { journal = next; return next; },
+      verifyDesktop: async (ids) => ({ verifiedIds: ids, failedIds: [] }),
+      cleanSource: async () => {
+        sourceCalls += 1;
+        return { sourceId: retainedSource.sourceId, credentialId: expected, outcome: "cleaned" };
+      },
+      deleteLegacyJwk: () => ({ sourceId: "review_workspace_crypto_key_v1", outcome: "already_cleaned" }),
+      inspectWebKey: async () => current.webKey.presence,
+      deleteWebKey: async () => {
+        keyDeleteCalls += 1;
+        current = physicalInventory({ expectedIds: [expected], sources: [desktop], webKey: "absent" });
+        return "deleted";
+      },
+    },
+  });
+  assert.equal(result.status, "complete");
+  assert.equal(sourceCalls, 0);
+  assert.equal(keyDeleteCalls, 1);
+  assert.equal(journal.state, "complete");
+});
+
+test("key-boundary contradictions remain recovery-required", () => {
+  const expected = secretContext.aiConnection("key-boundary-contradiction");
+  const sourceId = `${expected}:profile`;
+  const sourceItem = source({ sourceId, credentialId: expected, kind: "ai-connection", authority: "desktop_primary" });
+  const desktop = source({
+    sourceId: `${expected}:desktop-store`,
+    credentialId: expected,
+    kind: "desktop-store",
+    storage: "desktop-v1",
+    storageLocation: "local-storage:desktop",
+    authority: "desktop_primary",
+  });
+  const keyPresent = physicalInventory({ expectedIds: [expected], sources: [desktop], webKey: "present" });
+  const keyDeletedJournal = writeCredentialCleanupJournal({
+    version: 1,
+    state: "partial",
+    expectedIds: [expected],
+    cleanedIds: [expected],
+    retainedIds: [],
+    inventoryVersion: keyPresent.inventoryVersion,
+    webKeyState: "deleted",
+    sourceStates: { [sourceId]: "cleaned", "primary-aes-gcm-v2": "cleaned" },
+    updatedAt: timestamp,
+  });
+  assert.equal(reconcileCredentialCleanup(keyDeletedJournal, keyPresent).reasonCode, "web_key_delete_failed");
+
+  const keyAbsentWithSource = physicalInventory({ expectedIds: [expected], sources: [sourceItem, desktop], webKey: "absent" });
+  const sourceJournal = writeCredentialCleanupJournal({
+    version: 1,
+    state: "partial",
+    expectedIds: [expected],
+    cleanedIds: [],
+    retainedIds: [expected],
+    inventoryVersion: keyAbsentWithSource.inventoryVersion,
+    webKeyState: "absent",
+    sourceStates: { [sourceId]: "pending", "primary-aes-gcm-v2": "cleaned" },
+    updatedAt: timestamp,
+  });
+  assert.equal(reconcileCredentialCleanup(sourceJournal, keyAbsentWithSource).reasonCode, "journal_inconsistent");
 });
 
 test("production execution facade fails closed without confirmation and hides the Web entry", async () => {

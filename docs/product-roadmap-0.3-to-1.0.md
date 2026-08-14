@@ -437,7 +437,7 @@ Phase 1 明确不包含：production credential cutover、自动迁移、旧 JWK
 
 - 增加独立 physical cleanup inventory，不调用 migration/normalization、不解密、不生成 key、不写 source/journal；报告 retained Web、legacy、Desktop、shared Web key 与 legacy JWK 的安全 presence/format facts。
 - 增加独立 cleanup journal、fail-closed eligibility、crash/reappearance reconciliation、幂等 AI/quota/MCP/Fenbi/legacy source primitives，以及只允许最后删除 shared Web key 的窄 API。Migration journal、authority、Desktop material、schema 与 backup/export boundary 不变。
-- Settings → AI 连接增加 Desktop-only 的显式 review → acknowledgement → confirmation execution entry。UI 只通过窄 facade 调用既有 executor；fresh inventory/Host/Desktop verification、legacy-v1 blocker、source-before-key、shared Web key last、partial/recovery resume 和 no-auto-resume 继续由 service boundary 保证。Desktop verification 不读取 credential plaintext。
+- Settings → AI 连接增加 Desktop-only 的显式 review → acknowledgement → confirmation execution entry。UI 只通过窄 facade 调用既有 executor；destructive facade 只在确认动作动态加载；fresh inventory/Host/Desktop recoverability verification、legacy-v1 blocker、source-before-key、shared Web key last、partial/recovery resume 和 no-auto-resume 继续由 service boundary 保证。Desktop verification 通过既有 Host unprotect boundary 并立即丢弃返回 secret，不持久化或暴露 plaintext。
 - Contracts 与 browser E2E 只证明 automated/fake boundary：inventory no-write/no-decrypt/no-key-generation、explicit confirmation、stale-state block、source-before-key、partial/recovery、journal preservation、Web hiding、pre-migration block、reload without auto-resume 与 explicit resume。它们不证明真实 Windows cleanup、DPAPI deletion 或 installed-app deletion。
 
 详见 `docs/credential-cleanup.md`。本 Phase 完成后 retained Web material 仍在，`0.7 WINDOWS ACCEPTANCE` 仍为 **PARTIAL — PENDING ITEMS REMAIN**，`0.7 overall` 仍为 **IN PROGRESS**；本 foundation 不能单独关闭 0.7。
