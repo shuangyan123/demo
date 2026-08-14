@@ -476,6 +476,27 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 Phase 1 不声称 adjacent-version real PASS、uninstall/reinstall real PASS、production signing、publisher identity、release promotion 或 interrupted-install recovery。详细状态以 distribution matrix 为准。
 
+### Phase 2A — adjacent-version overwrite upgrade candidate
+
+状态：**CANDIDATE PREPARED；PENDING REAL WINDOWS ACCEPTANCE（2026-08-14）**。
+
+- 已核实当前 package version 为 `0.2.2`，下一合法 patch candidate 为 `0.2.3`；同步 `package.json`、lock root/package root version、Forge Setup fallback 与版本 identity contract。
+- 已补齐真实 `0.2.2 → 0.2.3` acceptance 的文档与 closure matrix，明确 baseline hash、专用 Windows profile、single-run Setup、Squirrel completion、binary/root stub、shortcut、old-version cleanup、实际 `userData`、非敏感 sentinel 和 full restart 的证据边界。
+- 未修改 Electron runtime、Squirrel package identity、userData 路径、credential authority、schema、preload/IPC/security settings；不创建 tag、不发布 GitHub Release、不添加 auto-update 或 signing。
+
+Phase 2A 只有在同一台 Windows 机器、同一专用 Windows profile 中，使用任务指定且重新校验的已知 `0.2.2` installer 完成真实 baseline 与一次关闭应用后的 `0.2.3` overwrite upgrade，并观察所有必需的 binary/data/restart 结果后，才能标为 **COMPLETE**。本 candidate PR 在 operator evidence 返回前保持 OPEN；未执行行继续是 **PENDING**，不同机器/账户、复制 `userData` 与 DPAPI portability 仍是 **NON-CLAIM**。
+
+### Phase 2A 验收标准
+
+- `0.2.3` candidate package、lock identity、Forge installer name、Squirrel outputs、source SHA 和 SHA-256 manifest 可由 exact-head build record 对应；installer binary 不进入 Git。
+- 已知 `0.2.2` baseline 单次安装、正常重启和 production UI sentinel 持久化通过；应用完全关闭后，`0.2.3` Setup 单次运行正常完成且 `Update.exe` 退出。
+- 新版本部署、root execution stub、shortcut current-version launch、old-version cleanup classification、实际 `userData` 路径、产品 sentinel 与 full upgraded restart 均有真实观察记录。
+- Credential row 只在有真实 disposable/revocable credential 的情况下观察 Desktop authority 与既有操作；不重新输入、不导出/复制 DPAPI、不改 ciphertext/journal、不允许 Web fallback，不把 same-profile evidence 扩展为 portability claim。
+
+### Phase 2A 非目标
+
+- 不做同版本 reinstall、uninstall/reinstall、running-app upgrade、生产签名、SmartScreen、GitHub production release、`v0.2.3` tag、auto-update、delta update、不同机器/账户或 destructive interruption injection。
+
 ### 风险
 
 - runner 缓存和上游归档漂移。

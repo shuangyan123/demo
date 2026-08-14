@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-14 — 0.8 Windows Distribution Phase 2A Candidate
+
+- Prepared the genuine adjacent-version candidate `0.2.3` from the verified `0.2.2` package identity, keeping `package.json`, lock root versions, Forge Setup naming and automated identity contracts aligned.
+- Added the real `0.2.2 → 0.2.3` Windows acceptance boundary and closure matrix for Squirrel completion, version deployment, root stub, shortcuts, old-version cleanup, actual `userData`, product sentinel, credential authority observation and full restart.
+- Phase 2A remains **PENDING REAL WINDOWS ACCEPTANCE** until the specified `0.2.2` baseline hash is reverified and a dedicated profile completes the single-run adjacent upgrade. No runtime/security/schema/credential changes, tag, GitHub Release, auto-update or signing was added.
+
 ## 2026-08-14 — 0.8 Windows Distribution Lifecycle Phase 1
 
 - Audited the current Windows x64 distribution chain: Electron `43.2.0`, Forge `7.11.2`, `MakerSquirrel` `7.11.2`, `electron-winstaller` `5.4.4`, and Squirrel vendor runtime `2.0.1+eef37460ae`.

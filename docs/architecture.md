@@ -37,6 +37,12 @@ desktop/
 - `desktop/squirrel-lifecycle.ts` 是纯参数分类边界；install/update/uninstall/obsolete invocation 在 lock/window 前退出，`--squirrel-firstrun` 继续正常启动。现有 `contextIsolation`、`nodeIntegration`、`sandbox`、`webSecurity`、ASAR integrity 与 fuses 保持不变。
 - 0.8 Phase 1 的完整 lifecycle matrix、distribution threat model、artifact identity、rollback boundary 和 non-claims 见 `docs/windows-desktop-distribution.md`；真实 adjacent upgrade、uninstall/reinstall、signing、release promotion 仍是后续 0.8 evidence。
 
+## 0.8 Windows distribution Phase 2A candidate（2026-08-14）
+
+- 当前 candidate 将 package identity 从 `0.2.2` 提升为 `0.2.3`，同步 lock root、Forge Setup 命名 fallback 和版本一致性 contract；Squirrel identity `review_workspace`、Windows x64、Electron `userData` ownership 与 `app-<version>` 生命周期模型保持不变。
+- 本阶段只准备真实相邻版本覆盖升级的 candidate 与 evidence boundary。没有 runtime、schema、credential authority、preload/IPC 或 Electron security setting 变更；没有 tag、GitHub Release、auto-update 或 production signing。
+- 真实 `0.2.2 → 0.2.3` 安装/升级、shortcut、old-version cleanup、`userData`/sentinel、Desktop credential observation 与 full restart 在专用 Windows profile 中完成前，Phase 2A 保持 **PENDING REAL WINDOWS ACCEPTANCE**。详情见 `docs/windows-desktop-distribution.md` 与 `docs/release-smoke.md`。
+
 
 ## 0.2.0 本机 API 安全边界（2026-07-23）
 

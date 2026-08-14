@@ -99,7 +99,7 @@ const config: ForgeConfig = {
       name: "review_workspace",
       authors: "Private",
       description: "本地优先的错题复盘与 AI 学习工作台",
-      setupExe: `ReviewWorkspace-${process.env.npm_package_version ?? "0.2.2"}-Windows-x64-Setup.exe`,
+      setupExe: `ReviewWorkspace-${process.env.npm_package_version ?? "0.2.3"}-Windows-x64-Setup.exe`,
     }),
   ],
 };

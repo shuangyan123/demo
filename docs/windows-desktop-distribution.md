@@ -1,6 +1,6 @@
 # Windows Desktop Distribution / Lifecycle Contract
 
-状态：**0.8 Phase 1 COMPLETE；0.8 overall IN PROGRESS**（2026-08-14）。
+状态：**0.8 Phase 1 COMPLETE；Phase 2A candidate PREPARED / PENDING REAL WINDOWS ACCEPTANCE；0.8 overall IN PROGRESS**（2026-08-14）。
 
 本文件建立 Windows x64 分发、生命周期和 `userData` 的 ownership contract。它不重新设计或削弱 0.7 的 Desktop authority、no Web fallback、fail-closed、context binding、source retention 或 credential cleanup ordering。0.7 的安全语义仍由既有实现、contract 和已归档的 scoped installed-app evidence 所拥有。
 
@@ -16,14 +16,24 @@ Phase 1 交付：
 
 本阶段不实施：installer framework migration、auto-update、destructive uninstall cleanup、schema migration、credential migration/重构、production signing 或正式 release promotion。
 
+## Phase 2A candidate preparation
+
+状态：**candidate PREPARED；PENDING REAL WINDOWS ADJACENT-UPGRADE ACCEPTANCE**（2026-08-14）。
+
+本阶段只把当前 `0.2.2` package identity 提升为真实的下一 patch candidate `0.2.3`，并补齐版本一致性 contract、候选 artifact 记录和人工验收边界。它不修改 Electron runtime、Squirrel identity、`userData` 路径、credential authority、schema 或安全设置，不创建 `v0.2.3` tag，也不发布 GitHub Release。
+
+`0.2.3` candidate 的 PR 在真实 Windows operator 完成以下流程前必须保持 OPEN：已知 `0.2.2` 安装版单次安装与正常重启 → 通过 production UI 创建非敏感 sentinel → 完全关闭 → 单次运行 `0.2.3` Setup → 观察 Squirrel `Update.exe` 完成、new-version deployment、root stub、shortcut、old-version directory、实际 `userData` 和 sentinel → 通过正常入口完整重启。credential row 只能观察既有 Desktop authority，不能重新生成、复制、编辑或降级 credential material。
+
+任务指定的既有 `0.2.2` baseline installer 必须在验收前重新计算 SHA-256，并匹配 `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`；任何 hash 不匹配或来源不明的安装器都不能作为 baseline。真实 adjacent upgrade 在 operator evidence 返回前保持 **PENDING**，不能从 package、contract、UI 启动或 same-version replacement 推断 PASS。
+
 ## Current packaging stack
 
 以下版本和路径来自当前 `package.json`、`package-lock.json`、Forge 配置、安装依赖和本地生成 artifact 的审计；installer binary 不进入 Git。
 
 | 项目 | 当前事实 | 证据 / 分类 |
 | --- | --- | --- |
-| Application package | `review-workspace` / product name `错题复盘` / version `0.2.2` | `package.json`、`.desktop-app/package.json` |
-| Electron | `43.2.0` | locked dependency；当前 Windows artifact 的 file version 为 `0.2.2` |
+| Application package | `review-workspace` / product name `错题复盘` / candidate version `0.2.3` | `package.json`、generated `.desktop-app/package.json` |
+| Electron | `43.2.0` | locked dependency；candidate Windows artifact 的 file version 应为 `0.2.3` |
 | Electron Forge | `7.11.2` | locked `@electron-forge/cli` 与 maker |
 | Maker | `@electron-forge/maker-squirrel` `7.11.2` | `forge.config.ts` 使用 `MakerSquirrel` |
 | Windows generator | `electron-winstaller` `5.4.4` | maker optional dependency，lockfile 已解析 |
@@ -31,9 +41,9 @@ Phase 1 交付：
 | Setup bootstrapper | `Setup.exe` ProductVersion `1.9.1.0` | 当前 `electron-winstaller/vendor/Setup.exe` 资源版本 |
 | Target | Windows x64 | Forge `--arch=x64` 与 `squirrel.windows/x64` |
 | Squirrel package id | `review_workspace` | Forge maker 将 `review-workspace` 的连字符替换为下划线 |
-| Installer name | `ReviewWorkspace-0.2.2-Windows-x64-Setup.exe` | `forge.config.ts` 的 `setupExe` |
+| Installer name | `ReviewWorkspace-0.2.3-Windows-x64-Setup.exe` | `forge.config.ts` 的 `setupExe` |
 | Forge output | `out/make/squirrel.windows/x64/` | Forge `outDir: "../out"` |
-| Package outputs | `RELEASES`、`review_workspace-0.2.2-full.nupkg`、Setup.exe | 当前本地 make artifact shape |
+| Package outputs | `RELEASES`、`review_workspace-0.2.3-full.nupkg`、Setup.exe | candidate make artifact shape |
 | Signing | **PENDING**；没有 production certificate、publisher identity 或 CI signing secret contract | 不声称 signed PASS |
 
 ### Packaging flow
@@ -69,7 +79,7 @@ Squirrel Setup.exe / Update.exe
 ├─ Update.exe
 ├─ RELEASES
 ├─ review-workspace.exe       # Squirrel root execution stub
-└─ app-0.2.2\                 # versioned deployed application
+└─ app-<version>\             # versioned deployed application
 ```
 
 这是当前 package/config 和 Squirrel model 推导出的 install-root contract；clean first-install 记录证明安装完成，但没有把本机绝对路径作为公开 evidence。后续真实 acceptance 必须在专用 profile 中确认 root、stub target、`Update.exe`、`SquirrelTemp` 和 old-version cleanup。
@@ -166,7 +176,7 @@ All real installer procedures require a dedicated Windows x64 user/profile and a
 
 1. Build from a known source SHA with Node 22; record version, installer filename, architecture, maker, Squirrel version, SHA-256 and signing status.
 2. For clean install, confirm no existing app root, `SquirrelTemp`, `Update.exe` or process; launch Setup once; observe normal Squirrel completion, first run and process exit.
-3. For adjacent-version acceptance, install `0.2.2`, fully close the app, then install a separately built `0.2.3`/`0.3.x` candidate. Check new `app-<version>`, root stub, shortcuts, old-version cleanup, launch, data and credential authority. Do not fabricate this row before a real adjacent build exists.
+3. For adjacent-version acceptance, install `0.2.2`, fully close the app, then install the separately built `0.2.3` candidate. Check new `app-<version>`, root stub, shortcuts, old-version cleanup, launch, data and credential authority. Do not fabricate this row before the real adjacent upgrade is observed.
 4. For uninstall/reinstall, record whether only install root or also `userData` is removed. If `userData` remains, verify schema/data handling and keep credential recovery semantics scoped to the same Windows user/machine/profile.
 5. For interruption/corruption, use only a future safe test seam or controlled fixture. Random process kill, manual `userData`/journal/ciphertext edits, DPAPI destruction, ASAR patching and destructive profile surgery are not acceptance methods.
 6. If a candidate fails, preserve the evidence and use the last known installer with the same userData boundary. Rollback must not delete or rewrite userData; no automatic rollback is implied by this document.
