@@ -4,6 +4,7 @@ import {
   projectCleanupEligibilityForUi,
   type CredentialCleanupHostStatus,
 } from "./credential-cleanup-eligibility.ts";
+import { reconcileCredentialCleanup } from "./credential-cleanup-reconciliation.ts";
 import { readCredentialCleanupJournal } from "./credential-cleanup-state.ts";
 
 export type CredentialCleanupReview = {
@@ -13,6 +14,8 @@ export type CredentialCleanupReview = {
   credentialCount: number;
   sourceCount: number;
   webKeyPresent: boolean;
+  /** Internal confirmation binding; never copied into the UI projection. */
+  inventoryVersion: string;
   journalState: ReturnType<typeof readCredentialCleanupJournal>["state"];
   migrationState: "idle" | "preflight" | "staging" | "verifying" | "ready_to_commit" | "committing" | "complete" | "blocked" | "recovery_required" | "cancelled";
 };
@@ -27,12 +30,21 @@ export async function reviewCredentialCleanup(): Promise<CredentialCleanupReview
     getCleanupHostStatus(),
   ]);
   const journal = readCredentialCleanupJournal();
-  const eligibility = evaluateCredentialCleanupEligibility({ inventory, host, cleanupJournal: journal });
+  const reconciliation = reconcileCredentialCleanup(journal, inventory);
+  const shouldNormalizeJournal = journal.state !== "idle"
+    && journal.state !== "awaiting_confirmation"
+    && journal.state !== "cancelled";
+  const reconciledJournal = shouldNormalizeJournal && (reconciliation.state === "complete"
+    || reconciliation.state === "partial"
+    || reconciliation.state === "recovery_required")
+    ? { ...journal, state: reconciliation.state, reasonCode: reconciliation.reasonCode }
+    : journal;
+  const eligibility = evaluateCredentialCleanupEligibility({ inventory, host, cleanupJournal: reconciledJournal });
   const projection = projectCleanupEligibilityForUi(eligibility);
   return {
     host,
     ...projection,
-    journalState: journal.state,
+    journalState: reconciledJournal.state,
     migrationState: inventory.migration.state,
   };
 }

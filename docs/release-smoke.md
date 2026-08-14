@@ -52,11 +52,20 @@ At that 2026-08-12 checkpoint, Windows installed-app acceptance remained **PENDI
 
 记录至少包含：`environment`、Windows version、installer/package version、commit SHA、测试 profile、每个 matrix case 的 `PASS/FAIL/PENDING`、安全失败类别和人工观察时间。不得记录 API Key、Cookie、密文、完整 URL、OS 路径或原始错误文本。当前状态为 **PARTIAL — PENDING ITEMS REMAIN**；cleanup confirmation 另行执行，且本轮没有删除任何 retained Web credential material。
 
-### 0.7 Credential Cleanup Foundation boundary
+### 0.7 Credential Cleanup Execution Entry boundary
 
-本轮只交付 cleanup foundation：physical inventory、独立 cleanup journal、eligibility/reconciliation、幂等 source primitives、last-step Web key API、隔离 executor 和 review/readiness UI。Settings → AI 连接中的 `Credential cleanup foundation` 在 Desktop 上只做只读 review；Web 不显示 Desktop cleanup surface。它不能确认、删除 source、删除 Web key、恢复 partial cleanup 或自动执行 cleanup。
+本轮交付 cleanup foundation 上的最小 production entry：physical inventory、独立 cleanup journal、eligibility/reconciliation、幂等 source primitives、last-step Web key API、隔离 executor，以及 Desktop-only 的显式 review → acknowledgement → confirmation UI。Settings → AI 连接中的 `Credential cleanup` 只通过窄 execution facade 调用 executor；Web 不显示 Desktop cleanup surface，mount/startup/reload 不执行 destructive cleanup。
 
-自动证据必须来自合并后的新 commit，并且只能证明 fake/test fixture 的 no-write/no-decrypt/no-key-generation inventory、source-before-key ordering、journal preservation 和 UI read-only boundary。不得以 `desktop:make`、旧 installed-app build、package 成功、proxy tests 或 fake host E2E 声称真实 Windows cleanup/DPAPI 证据。当前 cleanup 状态为 **FOUNDATION IMPLEMENTED — REAL CLEANUP NOT EXECUTED — WINDOWS PENDING**；0.7 overall 仍为 **IN PROGRESS**。
+自动证据必须来自合并后的新 commit，并且只能证明 fake/test fixture 的 no-write/no-decrypt/no-key-generation inventory、fresh revalidation、Host unprotect recoverability probe、source-before-key ordering、partial/recovery semantics、journal preservation 和 UI execution boundary。Desktop verification 会通过 fake Host unprotect boundary，但只立即丢弃返回 secret，不持久化、记录、比较或暴露 credential plaintext。不得以 `desktop:make`、旧 installed-app build、package 成功、proxy tests 或 fake host E2E 声称真实 Windows cleanup/DPAPI 证据。当前 cleanup 状态为 **EXECUTION ENTRY IMPLEMENTED / AUTOMATED EVIDENCE ONLY — REAL CLEANUP NOT EXECUTED — WINDOWS PENDING**；0.7 overall 仍为 **IN PROGRESS**。
+
+Production entry acceptance contract：
+
+- 未完成 acknowledgement 或 confirmation 时，destructive call 数为零。
+- 确认后重新收集 physical inventory、Host 状态和 Desktop record verification；stale inventory、Host unavailable、invalid envelope、mixed authority、re-entry、unknown/invalid/orphan state 或 `legacy-v1` 都 fail closed。
+- 已删除 source 后的错误只能进入 `partial` 或 `recovery_required`；Resume/Reconcile 必须由用户显式点击，先 reconciliation，再 fresh inventory/Host/eligibility，不自动 rollback、fallback 或生成 replacement Web key。
+- Migration journal、Desktop envelope 和 schema/IPC/preload 边界保持不变；shared Web key 仍是最后 destructive step。
+
+本轮没有执行真实 credential read、真实 Web source 删除、真实 shared Web key 删除、真实 legacy JWK 删除、安装版 cleanup 或 provider operation。Real Credential Cleanup 仍为 **BLOCKING REQUIRED / PENDING — NOT EXECUTED**；`0.7 WINDOWS ACCEPTANCE` 仍为 **PARTIAL — PENDING ITEMS REMAIN**。
 
 ## 2026-08-13 · 0.7 Windows Installed-App Acceptance Record
 

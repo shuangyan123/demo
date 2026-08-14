@@ -170,7 +170,7 @@ test("MCP permission core 与 execution boundary 不被 Feature UI 绕过", asyn
 
   const mutationViolations: string[] = [];
   const clearForTestViolations: string[] = [];
-  const confirmedCallerViolations: string[] = [];
+  const confirmedMcpCallerViolations: string[] = [];
   for (const file of files) {
     const relativePath = path.relative(APP_ROOT, file).replace(/\\/g, "/");
     const source = await readFile(file, "utf8");
@@ -180,13 +180,17 @@ test("MCP permission core 与 execution boundary 不被 Feature UI 绕过", asyn
     if (/clearAllMcpSessionPermissionsForTest\s*\(/.test(source) && relativePath !== "services/mcp-session-permission-store.ts") {
       clearForTestViolations.push(relativePath);
     }
-    if (/confirmed\s*:\s*true/.test(source) && relativePath !== "features/conversation/conversation-mcp-tool-panel.tsx") {
-      confirmedCallerViolations.push(relativePath);
+    // `confirmed` is also a valid field for the separate credential cleanup
+    // facade; keep the existing MCP-specific caller allowlist explicit.
+    if (/confirmed\s*:\s*true/.test(source)
+      && relativePath !== "features/conversation/conversation-mcp-tool-panel.tsx"
+      && relativePath !== "services/credential-cleanup-execution.ts") {
+      confirmedMcpCallerViolations.push(relativePath);
     }
   }
   assert.deepEqual(mutationViolations, []);
   assert.deepEqual(clearForTestViolations, []);
-  assert.deepEqual(confirmedCallerViolations, []);
+  assert.deepEqual(confirmedMcpCallerViolations, []);
 
   const automationExecutorSource = await readFile(path.join(APP_ROOT, "services/automation-executor.ts"), "utf8");
   assert.doesNotMatch(automationExecutorSource, /\/api\/mcp\/call|\/api\/acquisition\/fetch|fetch\s*\(/);

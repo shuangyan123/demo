@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-14 — 0.7 Credential Cleanup Execution Entry
+
+- Added a Desktop-only production cleanup entry with a read-only review, explicit irreversible-impact acknowledgement, fresh pre-delete inventory/Host/Desktop-record verification, and a second confirmation before the existing cleanup executor can run.
+- Added explicit partial/recovery resume semantics with reconciliation-first behavior, no automatic startup/reload resume, no rollback/fallback, no replacement Web key generation, and a shared Web key last-step boundary.
+- Kept migration authority, Desktop envelopes, schema, preload/IPC boundaries, and backup/export exclusions unchanged. Desktop verification on the cleanup path crosses the existing Host unprotect boundary and immediately discards the returned secret; it is not persisted, logged, compared, exposed, or used for provider calls.
+- This is **IMPLEMENTED / AUTOMATED EVIDENCE ONLY**. Real Credential Cleanup remains **BLOCKING REQUIRED / PENDING — NOT EXECUTED**; no real Web source, shared Web key, legacy JWK, installed-app profile, or provider credential was deleted, and 0.7 remains IN PROGRESS.
+
 ## 2026-08-13 — 0.7 Closure Contract Clarification
 
 - Clarified the residual taxonomy without changing any `PASS`/`PENDING` evidence label: automated recovery is distinguished from installed-app evidence, no-safe-seam cases, 0.8 lifecycle ownership, and portability non-claims.

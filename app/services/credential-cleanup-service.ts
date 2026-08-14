@@ -41,6 +41,14 @@ import {
 
 const LEGACY_JWK_SOURCE_ID = "review_workspace_crypto_key_v1";
 const WEB_KEY_SOURCE_ID = "primary-aes-gcm-v2";
+const RESUMABLE_CLEANUP_STATES = new Set<CredentialCleanupJournal["state"]>([
+  "preflight",
+  "verifying",
+  "deleting_sources",
+  "deleting_web_key",
+  "partial",
+  "recovery_required",
+]);
 
 export type CredentialCleanupExecutionStatus = "awaiting_confirmation" | "blocked" | "complete" | "partial" | "recovery_required" | "cancelled" | "already_cleaned";
 
@@ -75,7 +83,9 @@ const defaultDependencies: CredentialCleanupExecutorDependencies = {
     const failedIds: string[] = [];
     for (const id of expectedIds) {
       try {
-        await readDesktopCredential(id);
+        // This is a recoverability probe, not credential use: cross the accepted
+        // Host unprotect boundary, then discard the returned secret immediately.
+        void (await readDesktopCredential(id));
         verifiedIds.push(id);
       } catch {
         failedIds.push(id);
@@ -223,6 +233,7 @@ function executionResultFromJournal(journal: CredentialCleanupJournal, status: C
 async function runCredentialCleanup(
   confirmationInventoryVersion: string | undefined,
   confirmed: boolean,
+  resume: boolean,
   dependencies: CredentialCleanupExecutorDependencies,
 ): Promise<CredentialCleanupExecutionResult> {
   const inventory = await dependencies.collectInventory();
@@ -233,10 +244,12 @@ async function runCredentialCleanup(
     const recovery = dependencies.writeJournal({
       ...current,
       state: "recovery_required",
-      expectedIds: [...inventory.migration.expectedIds],
       cleanedIds: reconciliation.cleanedIds,
       retainedIds: reconciliation.retainedIds,
-      inventoryVersion: inventory.inventoryVersion,
+      // Preserve the journal's observed baseline. Replacing it with the
+      // unexplained physical observation would erase the evidence needed for
+      // a later explicit recovery decision.
+      inventoryVersion: current.inventoryVersion || inventory.inventoryVersion,
       webKeyState: reconciliation.webKeyState,
       reasonCode: reconciliation.reasonCode ?? "journal_inconsistent",
       sourceStates: reconciliation.sourceStates,
@@ -244,10 +257,16 @@ async function runCredentialCleanup(
     });
     return executionResultFromJournal(recovery, "recovery_required");
   }
+  const resuming = resume
+    && RESUMABLE_CLEANUP_STATES.has(current.state)
+    && reconciliation.state === "partial";
+  const eligibilityJournal = resuming
+    ? { ...current, state: "idle" as const, reasonCode: undefined, inventoryVersion: inventory.inventoryVersion }
+    : current;
   const initial = evaluateCredentialCleanupEligibility({
     inventory,
     host,
-    cleanupJournal: current,
+    cleanupJournal: eligibilityJournal,
     confirmationInventoryVersion,
   });
   if (initial.decision !== "eligible") return blockedResult(dependencies, inventory, initial, current);
@@ -384,16 +403,23 @@ async function runCredentialCleanup(
 }
 
 /**
- * Future acceptance-only destructive entrypoint. Production UI deliberately has no import or call path to this function.
+ * Destructive executor kept behind the production-facing cleanup facade. The
+ * Settings UI never imports this executor or its source/key primitives directly.
  */
 export function executeCredentialCleanup(options: {
   confirmationInventoryVersion?: string;
   confirmed?: boolean;
+  resume?: boolean;
   dependencies?: Partial<CredentialCleanupExecutorDependencies>;
 } = {}): Promise<CredentialCleanupExecutionResult> {
   if (executionPromise) return executionPromise;
   const dependencies = { ...defaultDependencies, ...options.dependencies };
-  executionPromise = runCredentialCleanup(options.confirmationInventoryVersion, options.confirmed === true, dependencies)
+  executionPromise = runCredentialCleanup(
+    options.confirmationInventoryVersion,
+    options.confirmed === true,
+    options.resume === true,
+    dependencies,
+  )
     .finally(() => { executionPromise = undefined; });
   return executionPromise;
 }

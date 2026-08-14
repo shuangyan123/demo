@@ -30,6 +30,13 @@ test("ReviewWorkspace 首屏不再静态引入低频视图和重型服务", asyn
   assert.match(knowledgeController, /await import\("\.\.\/\.\.\/services\/obsidian-knowledge-repository"\)/);
 });
 
+test("Desktop cleanup destructive facade loads only after explicit confirmation", async () => {
+  const source = await readSource("../settings/use-desktop-credential-cleanup.ts");
+
+  assert.doesNotMatch(source, /from\s+["']\.\.\/\.\.\/services\/credential-cleanup-execution(?:\.ts)?["']/);
+  assert.match(source, /await import\("\.\.\/\.\.\/services\/credential-cleanup-execution\.ts"\)/);
+});
+
 test("ReviewWorkspace 把健康检查、诊断输入和恢复导航交给专用 hook", async () => {
   const source = await readSource("../review/review-workspace.tsx");
   const controller = await readSource("../review/use-review-workspace-controller.ts");
