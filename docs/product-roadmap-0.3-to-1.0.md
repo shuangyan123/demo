@@ -464,6 +464,18 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 - 不发布脱离 resources 无法运行的裸 EXE。
 - 不启用未经设计的自动更新。
 
+### Phase 1 — Windows distribution lifecycle contract and acceptance foundation
+
+状态：**COMPLETE（2026-08-14）**；`0.8 overall` 仍为 **IN PROGRESS**。
+
+- 已审计当前 Electron `43.2.0`、Forge `7.11.2`、`MakerSquirrel` `7.11.2`、`electron-winstaller` `5.4.4` 和 Squirrel vendor runtime `2.0.1+eef37460ae`；确认 `review_workspace` package identity、Windows x64 输出、Setup/full nupkg/`RELEASES` 形状和现有 Windows release workflow。
+- 已建立 binary install root 与 Electron `userData` 的独立 ownership contract：预期分别为 `%LOCALAPPDATA%\\review_workspace\\` 与 `%APPDATA%\\错题复盘\\`；覆盖升级不自动清理 userData，卸载清理未实现且必须由未来产品语义和用户授权决定。
+- 已建立 lifecycle contract：四类 Squirrel install/update/uninstall invocation 在 single-instance lock 和 BrowserWindow 前 early quit，`--squirrel-firstrun` 保持正常应用启动；新增直接行为 contract 与 package/release identity contract。
+- 已吸收 clean first-install PASS 和 repeated same-version Setup file-lock diagnostic；后者不扩展为同版本 reinstall 安全保证，也不触发 GPU、sandbox、Update.exe 或 shortcut workaround。
+- 已新增 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md) 与 `docs/release-smoke.md` 的 A–W lifecycle matrix、threat model、隔离 acceptance procedure、signing/release boundary 和 non-claims。
+
+Phase 1 不声称 adjacent-version real PASS、uninstall/reinstall real PASS、production signing、publisher identity、release promotion 或 interrupted-install recovery。详细状态以 distribution matrix 为准。
+
 ### 风险
 
 - runner 缓存和上游归档漂移。
@@ -472,9 +484,9 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 ### 验收标准
 
-- clean-machine 安装、覆盖升级、卸载保留/清理边界有人工记录。
-- 安装器、ASAR、runtime manifest、Fuses、大小和 checksum 可验证。
-- GitHub Release 资产状态、大小和 SHA-256 与本地一致。
+- Phase 1：当前 packaging stack、binary/userData ownership、lifecycle process model、installer identity、threat model 和 A–W acceptance matrix 有代码/依赖/文档证据与 automated contracts。
+- Full 0.8：clean-machine 安装、覆盖升级、卸载保留/清理边界、签名、release asset provenance 和 userData lifecycle 仍需真实 Windows evidence；未执行项目不得写成 PASS。
+- 安装器、ASAR、runtime manifest、Fuses、大小和 checksum 可验证；这些 artifact checks 不替代真实 installed-app lifecycle evidence。
 
 ### 回滚边界
 

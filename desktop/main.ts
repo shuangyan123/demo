@@ -5,6 +5,7 @@ import { DESKTOP_ENTRY_URL, installDesktopProtocol, registerDesktopScheme } from
 import { isPackagedDesktop, showRuntimeFailure, startDesktopRuntime, type DesktopRuntime } from "./runtime.js";
 import { installDesktopCredentialStorageIpc } from "./credential-storage.js";
 import { installDesktopVaultIpc } from "./vault.js";
+import { isSquirrelLifecycleInvocation } from "./squirrel-lifecycle.js";
 
 registerDesktopScheme();
 
@@ -24,10 +25,6 @@ function installTitleBarIpc(): void {
       height: TITLE_BAR_HEIGHT,
     });
   });
-}
-
-function isSquirrelLifecycleInvocation(): boolean {
-  return process.argv.some((argument) => /^--squirrel-(install|updated|uninstall|obsolete)$/.test(argument));
 }
 
 function isAllowedExternalUrl(value: string): boolean {
@@ -113,7 +110,7 @@ async function launchMainWindowWithRecovery(): Promise<void> {
   }
 }
 
-if (isSquirrelLifecycleInvocation()) {
+if (isSquirrelLifecycleInvocation(process.argv)) {
   app.quit();
 } else {
   const singleInstance = app.requestSingleInstanceLock();

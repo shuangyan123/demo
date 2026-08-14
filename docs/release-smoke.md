@@ -94,6 +94,90 @@ Repeated or overlapping execution of the same-version Squirrel Setup in an alrea
 
 The COMPLETE verdict closes the 0.7 credential-security blockers only. It does not mark any deferred, no-safe-seam, or portability row as PASS.
 
+## 2026-08-14 · 0.8 Windows Distribution / Lifecycle Phase 1
+
+状态：**Phase 1 COMPLETE；0.8 overall IN PROGRESS**。本节只建立 distribution contract、自动化 foundation 和真实 Windows acceptance 方法；它不把尚未执行的 adjacent upgrade、uninstall/reinstall、签名或 release promotion 写成 PASS。详细 ownership、threat model、路径和 rollback contract 见 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md)。
+
+### Current packaging evidence
+
+- Application: `review-workspace` / product name `错题复盘` / version `0.2.2`
+- Electron: `43.2.0`
+- Electron Forge: `7.11.2`
+- Maker: `@electron-forge/maker-squirrel@7.11.2`
+- Generator: `electron-winstaller@5.4.4`
+- Squirrel runtime: vendor `Squirrel.exe` ProductVersion `2.0.1+eef37460ae`，FileVersion `2.0.1.1`
+- Expected install root: `%LOCALAPPDATA%\review_workspace\`; expected Electron userData: `%APPDATA%\错题复盘\`
+- Expected artifact: `out\make\squirrel.windows\x64\ReviewWorkspace-0.2.2-Windows-x64-Setup.exe`
+- Current signing state: **PENDING** — no production certificate/publisher/CI signing identity is configured.
+
+`%LOCALAPPDATA%\review_workspace\` and `%APPDATA%\错题复盘\` are ownership expectations derived from the current package/product identity and Squirrel configuration, with the latter matching prior same-profile observation. A future real acceptance record must confirm the actual paths without publishing local usernames or absolute paths.
+
+### 0.8 lifecycle matrix
+
+Status vocabulary is intentionally strict: `CURRENTLY PASS`, `AUTOMATED PASS`, `MANUAL PASS`, `PENDING`, `DEFERRED`, `NOT SAFE TO INJECT`, and `NON-CLAIM`. A theory or package build is not a manual lifecycle PASS.
+
+| ID | Acceptance case | Status | Evidence / next safe method |
+| --- | --- | --- | --- |
+| A | Clean install | CURRENTLY PASS | Supplementary operator-attested 0.2.2 clean-profile first install; repeat on a future candidate |
+| B | First run | CURRENTLY PASS | `--squirrel-firstrun` started the normal Electron app after clean install |
+| C | Normal second launch | CURRENTLY PASS | Same installed app full close/reopen observed within the same profile; not a portability claim |
+| D | Same-version Setup while app closed | PENDING | Repeated/overlapping same-version Setup previously hit file-lock/transaction failures; no safe reinstall claim |
+| E | Same-version Setup while app running | PENDING | Only an isolated disposable profile may be used; do not repeat on developer profile |
+| F | Adjacent-version overwrite upgrade | PENDING | Requires real `0.2.2 → 0.2.3`/`0.3.x` candidate and fully closed base app |
+| G | Upgrade while app running | PENDING | Separate isolated manual case; no forced process kill or shortcut workaround |
+| H | Full app close/reopen after upgrade | PENDING | Must observe the new version after a real adjacent upgrade |
+| I | `userData` preservation after upgrade | PENDING | Compare safe non-secret core data and actual `app.getPath("userData")` before/after |
+| J | Credential availability after upgrade | PENDING | Observe existing 0.7 authority after real upgrade; do not infer from same-version restart |
+| K | Uninstall while app closed | PENDING | Record install-root, `Update.exe`, `SquirrelTemp` and `userData` behavior in a dedicated profile |
+| L | Uninstall while app running | PENDING | Real Squirrel case only; no random process kill or data editing |
+| M | Uninstall + reinstall same version | PENDING | Historical same-version lock diagnostic makes this an explicit unresolved case |
+| N | Uninstall + reinstall newer version | PENDING | Must separately verify data, schema compatibility and credential boundary |
+| O | Stale shortcut / execution stub behavior | PENDING | Current custom main has no explicit shortcut create/remove code; observe actual targets |
+| P | Previous `app-<version>` directory cleanup | PENDING | Check old-version retention/deletion after adjacent upgrade, not from unpacked artifact |
+| Q | Installer interrupted before app launch | NOT SAFE TO INJECT | No safe installed seam; random kill is prohibited acceptance evidence |
+| R | Installer interrupted after files deployed | NOT SAFE TO INJECT | No safe installed seam; do not edit Squirrel transaction/userData state |
+| S | Squirrel lifecycle args behavior | AUTOMATED PASS | Direct contract covers install/updated/uninstall/obsolete and rejects `--squirrel-firstrun` as lifecycle quit |
+| T | Signing / publisher identity | PENDING | Requires production Authenticode identity, timestamping and post-sign verification |
+| U | Release asset identity | AUTOMATED PASS | Workflow contract checks tag/version, Windows x64, installer naming and SHA-256 manifest; remote promotion remains follow-up evidence |
+| V | Installer hash evidence | CURRENTLY PASS | Existing 0.2.2 record: `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`; future candidate must record its own hash |
+| W | Corrupted / partial install recovery | NOT SAFE TO INJECT | No safe seam; ASAR patching, DPAPI destruction and profile surgery are prohibited |
+
+### Current Squirrel diagnostic boundary
+
+An older already-installed profile repeatedly launching the same `0.2.2` Setup produced `Update.exe --install .`, file-lock errors, and failures removing an existing directory/full package. The clean dedicated profile launched the same installer once and completed normally. The bounded conclusion is:
+
+> Repeated or overlapping same-version Setup execution can conflict with an existing installation and locked files. Clean single-run first install passed. Same-version reinstall and all lifecycle flows remain unproven.
+
+This observation is not a GPU/renderer diagnosis and does not justify `--no-sandbox`, disabling GPU/sandbox, deleting `Update.exe`, bypassing the root execution stub, or changing `BrowserWindow` show behavior.
+
+### Phase 1 automated coverage
+
+- `desktop/squirrel-lifecycle.ts` classifies only `--squirrel-install`, `--squirrel-updated`, `--squirrel-uninstall` and `--squirrel-obsolete`.
+- `--squirrel-firstrun` is covered as a normal launch, and the source contract verifies lifecycle exit precedes single-instance lock and window creation.
+- `desktop/desktop-release.contract.test.ts` locks package/product identity, Forge/MakerSquirrel setup naming, Electron/Forge/winstaller versions, and the absence of a Main-process `userData` redirect.
+- Existing `desktop/desktop.contract.test.ts` and `scripts/desktop-preload-artifact.contract.test.mjs` continue to guard context isolation, sandbox, web security, ASAR/preload shape and bridge surface.
+- `desktop-release.yml` remains the only Windows release workflow; it does not add auto-update, certificate secrets or user/profile data to artifacts.
+
+### Real acceptance procedure
+
+Use a dedicated Windows x64 user/profile and a disposable/revocable test credential. Record only package version, source SHA, status, sanitized observations and timestamps.
+
+1. Build from a known SHA with Node 22; record installer name, architecture, maker, Squirrel runtime, SHA-256 and signing state.
+2. For A–C, start from a profile without install root, `SquirrelTemp`, `Update.exe` or app process; launch Setup once and observe process/lifecycle completion.
+3. For F–J, install `0.2.2`, fully close the app, then install a separately built adjacent candidate. Verify new version, root stub, old directory, shortcuts, actual `userData`, core data and credential availability.
+4. For K–N, record whether Squirrel removes only binaries or also `userData`; no destructive cleanup is added by Phase 1.
+5. For Q–W, stop at the first unsafe boundary and record `NOT SAFE TO INJECT` / `NON-CLAIM`; do not create evidence by killing processes or mutating profile files.
+
+### 0.8 Phase 1 verdict
+
+- Packaging stack, identity and lifecycle ownership: **AUDITED**
+- Binary/userData separation contract: **DOCUMENTED**
+- Lifecycle and packaging automated foundation: **AUTOMATED PASS**
+- 0.7 credential-security regression: **not observed; existing security contracts unchanged**
+- Phase 1: **COMPLETE**
+- 0.8 overall: **IN PROGRESS**
+- Still pending for later 0.8 phases: adjacent-version real PASS, uninstall/reinstall real PASS, shortcut/old-directory observations, production signing, signed publisher verification, release asset promotion/provenance and any safe interrupted-install recovery seam.
+
 ## Historical 2026-08-12 · 0.7 Desktop Credential Acceptance Closure
 
 历史状态：**PARTIAL — PENDING ITEMS REMAIN**。本节保留 2026-08-12/13 当时的失败、验收和未执行 cleanup 事实；当前状态以上方 2026-08-14 closure record 为准。

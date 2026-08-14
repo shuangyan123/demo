@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-14 — 0.8 Windows Distribution Lifecycle Phase 1
+
+- Audited the current Windows x64 distribution chain: Electron `43.2.0`, Forge `7.11.2`, `MakerSquirrel` `7.11.2`, `electron-winstaller` `5.4.4`, and Squirrel vendor runtime `2.0.1+eef37460ae`.
+- Established the binary install-root versus Electron `userData` ownership contract, Squirrel lifecycle process model, installer identity fields, signing/release boundaries, rollback limits, and the complete A–W acceptance matrix in `docs/windows-desktop-distribution.md` and `docs/release-smoke.md`.
+- Added direct lifecycle classification contracts. `--squirrel-firstrun` remains a normal launch; the four installer lifecycle invocations exit before the single-instance lock and BrowserWindow.
+- Preserved all 0.7 credential-security semantics and Electron security settings. Adjacent-version upgrade, uninstall/reinstall, production signing, release promotion, and safe interrupted-install recovery remain pending for later 0.8 work.
+
 ## 2026-08-14 — 0.7 Windows Credential Cleanup Acceptance Closure
 
 - Archived operator-attested Windows installed-app evidence from source `73755341834249b1453ccd57a20787b16c3f3621`, installer `ReviewWorkspace-0.2.2-Windows-x64-Setup.exe`, SHA-256 `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`, application `0.2.2`, Electron `43.2.0`.

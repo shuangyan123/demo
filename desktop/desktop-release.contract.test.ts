@@ -5,6 +5,11 @@ import test from "node:test";
 const workflow = readFileSync(new URL("../.github/workflows/desktop-release.yml", import.meta.url), "utf8");
 const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archive.mjs", import.meta.url), "utf8");
+const forgeConfig = readFileSync(new URL("../forge.config.ts", import.meta.url), "utf8");
+const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const desktopPackageJson = JSON.parse(readFileSync(new URL("../.desktop-app/package.json", import.meta.url), "utf8"));
+const packageLock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 
 test("PR 共享门禁包含桌面编译与契约", () => {
   assert.match(ci, /npm run desktop:compile/);
@@ -36,4 +41,34 @@ test("Electron 官方归档在 runner 缓存缺失时下载并继续校验 check
   assert.match(electronArchive, /checksums/);
   assert.match(electronArchive, /isVerifiedArchive\(archivePath\)/);
   assert.doesNotMatch(electronArchive, /请先完成 npm install/);
+});
+
+test("Forge and package metadata keep the Windows installer identity stable", () => {
+  assert.equal(packageJson.name, "review-workspace");
+  assert.equal(packageJson.productName, "错题复盘");
+  assert.equal(desktopPackageJson.name, packageJson.name);
+  assert.equal(desktopPackageJson.productName, packageJson.productName);
+  assert.equal(desktopPackageJson.version, packageJson.version);
+  assert.equal(desktopPackageJson.main, ".desktop/main.js");
+
+  assert.match(forgeConfig, /outDir:\s*"\.\.\/out"/);
+  assert.match(forgeConfig, /name:\s*"review-workspace"/);
+  assert.match(forgeConfig, /executableName:\s*"review-workspace"/);
+  assert.match(forgeConfig, /new MakerSquirrel\(/);
+  assert.match(forgeConfig, /name:\s*"review_workspace"/);
+  assert.match(
+    forgeConfig,
+    /setupExe: `ReviewWorkspace-\$\{process\.env\.npm_package_version \?\? "0\.2\.2"\}-Windows-x64-Setup\.exe`/,
+  );
+
+  assert.equal(packageLock.packages["node_modules/electron"].version, "43.2.0");
+  assert.equal(packageLock.packages["node_modules/@electron-forge/maker-squirrel"].version, "7.11.2");
+  assert.equal(packageLock.packages["node_modules/electron-winstaller"].version, "5.4.4");
+});
+
+test("userData remains separate from the Squirrel binary root", () => {
+  assert.match(main, /const partition = "persist:review-workspace"/);
+  assert.doesNotMatch(main, /app\.setPath\(\s*["']userData["']/);
+  assert.doesNotMatch(main, /app\.setName\(/);
+  assert.equal(packageJson.productName, "错题复盘");
 });
