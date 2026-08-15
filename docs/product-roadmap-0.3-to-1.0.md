@@ -500,6 +500,28 @@ Phase 2A 已在同一台 Windows 机器、同一专用 Windows profile 中，使
 
 - 不做同版本 reinstall、uninstall/reinstall、running-app upgrade、生产签名、SmartScreen、GitHub production release、`v0.2.3` tag、auto-update、delta update、不同机器/账户或 destructive interruption injection。
 
+### Phase 2B — real uninstall/reinstall lifecycle acceptance
+
+状态：**COMPLETE within the scoped closed-app uninstall → same-version `0.2.3` reinstall → same-userData/product-data persistence → full-restart acceptance（2026-08-15）**；`0.8 overall` 仍为 **IN PROGRESS**。
+
+- 本阶段 scope 是专用 Windows profile 中的 `0.2.3` clean install → production UI ordinary sentinel → fully closed normal Windows uninstall → completed same-version `0.2.3` reinstall → original sentinel visibility → full ordinary restart。以下真实 lifecycle facts 是用户提供的 **operator-attested evidence**，不是 Codex 在本轮独立重放的 destructive sequence。
+- Fresh preflight、既有 installer identity、clean install、baseline root-stub restart、production UI sentinel、closed-app uninstall、registry removal、root-stub removal、`packages` removal、userData preservation、same-version reinstall、`.dead` recovery、`app-0.2.3` redeployment、stub recreation、same userData reuse、original sentinel restoration 和 full ordinary restart 均按 scoped matrix 分类为 PASS/OBSERVED；完整 matrix 见 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md) 与 [`docs/release-smoke.md`](release-smoke.md)。
+- Uninstall registration 中 `DisplayName=review-workspace`、`DisplayVersion=0.2.3` 和 standard/quiet `Update.exe --uninstall` commands 存在，但 `DisplayIcon` 为空；该 uninstall-icon/network warning 记录为 **OBSERVED / UX RESIDUAL**，不是安装失败。
+- 标准 closed-app uninstall 没有物理删除整个 install root：`.dead`、`Update.exe` 和一个很小的 `app-0.2.3` binary residual 保留。因此 **complete physical install-root deletion: NOT OBSERVED**、**physical binary cleanup: PARTIAL RESIDUAL OBSERVED**；本阶段不写 clean uninstall PASS。
+- 当前 vendor 为 `electron-winstaller@5.4.4` 的 Squirrel `2.0.1+eef37460ae` / FileVersion `2.0.1.1`。上游 2.0.1 的 `FullUninstall` / `DeleteDirectoryOrJustGiveUp` / registry-removal 顺序与 `.dead` marker/residual-tolerant behavior 的 source-backed interpretation 已记录在 distribution contract；不把未直接观察的内部 call stack 或完美 binary deletion 写成事实。
+- Candidate identity 未变：`ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`、source SHA `da46193de710fa11b638793eb34401b305a713ae`、SHA-256 `FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`；本轮只做 evidence/status closure，不修改 runtime/package/Forge identity，不生成新 installer。
+- Credential availability after reinstall 保持 **PENDING / NOT EXECUTED**，0.7 credential closure 保持 COMPLETE/unchanged；running-app uninstall 保持 **PENDING — SEPARATE MANUAL CASE**；shortcut 保持 **NO PRODUCT SHORTCUT OBSERVED / N/A**。不同机器/账户、复制 userData、general same-version safety、DPAPI portability、signing、publisher、SmartScreen、auto-update、release promotion 和 interrupted-install recovery 继续为 PENDING/NON-CLAIM。
+
+#### Phase 2B scoped completion criteria
+
+- verified `0.2.3` installer identity、fresh dedicated profile、clean install and baseline sentinel restart all pass;
+- one closed-app standard Windows uninstall completed with registry/root-stub/packages/userData and physical residual classified without manual storage surgery;
+- same-version post-uninstall reinstall consumed the residual state, removed `.dead`, redeployed `app-0.2.3`, reused the same userData and restored the original sentinel;
+- a full ordinary root-stub restart launched without lifecycle arguments and retained the original sentinel;
+- credential, running-app uninstall, shortcut, portability and signing rows retain their explicit `PENDING`/`N/A`/`NON-CLAIM` classification.
+
+Static contracts and build/package success cannot replace the operator-attested Windows evidence. Phase 2B is therefore **COMPLETE only within the scoped lifecycle above**; complete physical install-root deletion, clean uninstall, credential persistence and the remaining 0.8 distribution claims are not closed.
+
 ### 风险
 
 - runner 缓存和上游归档漂移。
@@ -509,7 +531,7 @@ Phase 2A 已在同一台 Windows 机器、同一专用 Windows profile 中，使
 ### 验收标准
 
 - Phase 1：当前 packaging stack、binary/userData ownership、lifecycle process model、installer identity、threat model 和 A–W acceptance matrix 有代码/依赖/文档证据与 automated contracts。
-- Full 0.8：clean-machine 安装、覆盖升级、卸载保留/清理边界、签名、release asset provenance 和 userData lifecycle 仍需真实 Windows evidence；未执行项目不得写成 PASS。
+- Full 0.8：clean-machine 安装、覆盖升级、Phase 2B scoped 卸载/重装边界、签名、release asset provenance 和其余 userData lifecycle 仍需按各自 scope 的真实 Windows evidence；未执行项目不得写成 PASS。
 - 安装器、ASAR、runtime manifest、Fuses、大小和 checksum 可验证；这些 artifact checks 不替代真实 installed-app lifecycle evidence。
 
 ### 回滚边界

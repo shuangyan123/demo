@@ -1,5 +1,66 @@
 # 发布前手工冒烟清单
 
+## Current 2026-08-15 · 0.8 Windows Distribution Phase 2B scoped closure
+
+状态：**COMPLETE within the scoped closed-app uninstall → same-version `0.2.3` reinstall → same-userData/product-data persistence → full-restart acceptance**；`0.8 overall` 仍为 **IN PROGRESS**。以下真实 Windows lifecycle facts 是用户提供的 **operator-attested evidence**，不是 Codex 在本轮独立重放的 destructive uninstall/reinstall。详细 audit、Squirrel source interpretation 和边界见 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md)。
+
+### Candidate identity
+
+- Package：`0.2.3`；Squirrel identity：`review_workspace`；Windows x64。
+- Installer：`ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`。
+- Artifact source SHA：`da46193de710fa11b638793eb34401b305a713ae`；installer SHA-256：`FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`。
+- Vendor runtime recheck：`electron-winstaller@5.4.4` 的 `Squirrel.exe` ProductVersion `2.0.1+eef37460ae`、FileVersion `2.0.1.1`；本轮未修改 runtime/package/Forge identity，不生成新 installer。
+
+### Phase 2B final closure matrix
+
+| Row | Final status |
+| --- | --- |
+| Fresh dedicated profile | PASS |
+| Verified `0.2.3` installer hash | PASS |
+| `0.2.3` clean install | PASS |
+| Production sentinel creation | PASS |
+| Baseline full restart | PASS |
+| Baseline sentinel persistence | PASS |
+| Closed-app standard uninstall | PASS / OBSERVED |
+| Uninstall registration removal | PASS / OBSERVED |
+| Root execution stub removal | PASS |
+| Packages removal | PASS |
+| UserData preservation | PASS |
+| Complete physical install-root deletion | NOT OBSERVED |
+| Squirrel `.dead` marker | OBSERVED |
+| Partial binary residual | OBSERVED |
+| Same-version post-uninstall reinstall | PASS |
+| `.dead` residual recovery | PASS |
+| `app-0.2.3` redeployment | PASS |
+| Root stub recreation | PASS |
+| Same userData path reuse | PASS |
+| Original sentinel restored | PASS |
+| Full ordinary post-reinstall restart | PASS |
+| Original sentinel after restart | PASS |
+| Uninstall registration recreated | PASS |
+| `DisplayIcon` | MISSING / UX RESIDUAL |
+| Credential availability | PENDING / NOT EXECUTED |
+| Running-app uninstall | PENDING — SEPARATE MANUAL CASE |
+| Shortcut | NO PRODUCT SHORTCUT OBSERVED / N/A |
+| Different account/machine | NON-CLAIM |
+| Copied userData | NON-CLAIM |
+| General DPAPI portability | NON-CLAIM |
+
+### Operator-attested evidence notes
+
+- Fresh preflight found no `%LOCALAPPDATA%\review_workspace\`, `%LOCALAPPDATA%\SquirrelTemp\`, `%APPDATA%\错题复盘\` or product/Update process; the exact installer hash matched.
+- One clean Setup completed with `Starting Squirrel Updater: --install .`, `Writing files to app directory ... app-0.2.3`, root-stub rigging, `cleanDeadVersions` and `Program: Finished Squirrel Updater`; the first-run process used `--squirrel-firstrun` and the child used `--user-data-dir="%APPDATA%\错题复盘"`.
+- The production UI created `uninstall-reinstall-acceptance-2026-08-15`; the original sentinel survived the baseline root-stub restart, the closed-app uninstall, same-version reinstall and the later full ordinary restart without recreation.
+- Two installs observed `Couldn't write uninstall icon, don't care` plus a connection-timeout exception; both finished. The uninstall entry was present with standard/quiet commands, but `DisplayIcon` was empty.
+- The standard closed-app uninstall removed the product registration and root execution stub, and removed `packages`, while preserving userData. It left the physical root with `app-0.2.3`, `.dead` and `Update.exe`; small binary residual was observed. This is **NOT** a clean uninstall or complete root deletion claim.
+- The same verified Setup then logged `Install path ... already exists, burning it to the ground`, removed `.dead`, redeployed `app-0.2.3`, recreated the root stub and reused the same userData. A full ordinary restart launched without lifecycle arguments and restored the original sentinel.
+
+### Safe evidence boundary
+
+The accepted sequence was one fresh-profile Setup, one closed-app normal Windows uninstall, one same-version Setup and one full restart. Do not manually delete residual files, registry, shortcuts, AppData or credentials, and do not rerun the destructive case as part of this docs closure. Credential availability remains `PENDING / NOT EXECUTED`; running-app uninstall remains `PENDING — SEPARATE MANUAL CASE`; different account/machine, copied userData and general DPAPI portability remain `NON-CLAIM`.
+
+Any future failure must preserve sanitized process/log/root/userData/timestamp/hash facts and stop. A runtime fix for the observed Squirrel residual would require a separate PR.
+
 ## Current 2026-08-14 · 0.7 Windows Credential Cleanup Closure
 
 状态：**0.7 COMPLETE within the 0.7-owned closure contract**。本节归档 2026-08-14 的 operator-attested、human-observed Windows installed-app evidence；证据范围是同一台 Windows 机器、专用本地 Windows 测试用户/profile、同一 application profile，以及由该 profile 执行的同一安装包。它关闭了 real Credential Cleanup 这一 0.7 blocking item，但不扩大为跨机器、跨账户、复制 `userData` 或一般 DPAPI portability 证明。
