@@ -46,6 +46,10 @@ test("Electron 官方归档在 runner 缓存缺失时下载并继续校验 check
 test("Forge and package metadata keep the Windows installer identity stable", () => {
   assert.equal(packageJson.name, "review-workspace");
   assert.equal(packageJson.productName, "错题复盘");
+  assert.equal(packageJson.version, "0.2.3");
+  assert.equal(packageLock.name, packageJson.name);
+  assert.equal(packageLock.version, packageJson.version);
+  assert.equal(packageLock.packages[""].version, packageJson.version);
   assert.match(desktopHostPreparation, /const hostPackageJson = \{/);
   assert.match(desktopHostPreparation, /name: packageJson\.name/);
   assert.match(desktopHostPreparation, /productName: packageJson\.productName/);
@@ -59,7 +63,7 @@ test("Forge and package metadata keep the Windows installer identity stable", ()
   assert.match(forgeConfig, /name:\s*"review_workspace"/);
   assert.match(
     forgeConfig,
-    /setupExe: `ReviewWorkspace-\$\{process\.env\.npm_package_version \?\? "0\.2\.2"\}-Windows-x64-Setup\.exe`/,
+    /setupExe: `ReviewWorkspace-\$\{process\.env\.npm_package_version \?\? "0\.2\.3"\}-Windows-x64-Setup\.exe`/,
   );
 
   assert.equal(packageLock.packages["node_modules/electron"].version, "43.2.0");
