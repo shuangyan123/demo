@@ -500,6 +500,27 @@ Phase 2A 已在同一台 Windows 机器、同一专用 Windows profile 中，使
 
 - 不做同版本 reinstall、uninstall/reinstall、running-app upgrade、生产签名、SmartScreen、GitHub production release、`v0.2.3` tag、auto-update、delta update、不同机器/账户或 destructive interruption injection。
 
+### Phase 2B — real uninstall/reinstall lifecycle acceptance preparation
+
+状态：**PREPARATION ONLY — PENDING REAL WINDOWS UNINSTALL/REINSTALL ACCEPTANCE（2026-08-15）**；`0.8 overall` 仍为 **IN PROGRESS**。
+
+- 本阶段 scope 是专用 Windows profile 中的 `0.2.3` clean install → production UI ordinary sentinel → fully closed normal uninstall → completed same-version `0.2.3` reinstall → original sentinel visibility → full restart。
+- 本轮完成了当前 `desktop/main.ts`/Squirrel lifecycle、package/Forge identity 和 userData ownership audit，补充了 lifecycle early-quit 与 Main-process non-destructive-userData static contract，并建立了 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md) 与 [`docs/release-smoke.md`](release-smoke.md) 的 Phase 2B matrix/procedure。
+- 当前 implementation 只在 `--squirrel-uninstall` 等 lifecycle args 下 early quit；不创建 renderer/runtime，不调用 `Update.exe --uninstall`、`removeShortcut` 或 `electron-squirrel-startup`，也不执行 app-side userData/credential deletion 或 uninstall/reinstall migration。Windows 实际 install-root removal、userData preservation、Squirrel completion 和 sentinel restoration 仍只能由实机观察关闭。
+- Candidate identity 保持 `0.2.3` / `review_workspace` / Windows x64；可复用已有 installer `ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`，source SHA `da46193de710fa11b638793eb34401b305a713ae`、SHA-256 `FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`。Source SHA 与当前 docs/contract 分支 SHA 是不同 provenance 字段。
+- Credential availability after reinstall 保持 **PENDING / NOT EXECUTED**，除非另行使用 disposable/revocable credential 完成真实观察；running-app uninstall 保持 **PENDING — SEPARATE MANUAL CASE**。不同机器/账户、复制 `userData`、general same-version safety、DPAPI portability、signing、publisher、SmartScreen、auto-update、release promotion 和 interrupted-install recovery 继续是 non-claims。
+
+#### Phase 2B scoped completion criteria
+
+- verified `0.2.3` installer identity、fresh dedicated profile、clean install and baseline sentinel restart all pass;
+- app is fully closed before a single normal Windows uninstall, and actual Squirrel/Setup/Update completion is recorded;
+- actual install-root and userData result/path are classified without manual storage surgery;
+- same-version post-uninstall reinstall completes normally, launches `app-0.2.3`, and has no residual transaction;
+- the original sentinel is visible after reinstall and remains visible after a full root-stub restart;
+- credential, running-app uninstall, shortcut, portability and signing rows retain their explicit `PENDING`/`N/A`/`NON-CLAIM` classification where not observed.
+
+Static contracts and build/package success cannot close these criteria. The first Phase 2B delivery stops at **REAL WINDOWS UNINSTALL / REINSTALL ACCEPTANCE REQUIRED**; no Phase 2B `COMPLETE` claim is valid until sanitized operator evidence returns.
+
 ### 风险
 
 - runner 缓存和上游归档漂移。

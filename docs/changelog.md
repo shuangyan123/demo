@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-15 — 0.8 Windows Distribution Phase 2B Preparation
+
+- Audited the current `0.2.3` Squirrel uninstall path: lifecycle arguments early-quit before normal app readiness; no renderer/runtime launch, explicit uninstall hook, `electron-squirrel-startup`, `Update.exe --uninstall`, shortcut removal bridge, app-side userData deletion or uninstall/reinstall migration was added or observed in Main.
+- Added a static desktop contract for lifecycle non-launch and Main-process non-destructive `userData` handling, plus a scoped closed-app uninstall → same-version reinstall acceptance matrix and sanitized Windows procedure.
+- Reverified the existing candidate installer identity `ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`, source SHA `da46193de710fa11b638793eb34401b305a713ae` and SHA-256 `FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`; no package/runtime/Forge identity changed.
+- Phase 2B remains **PENDING REAL WINDOWS UNINSTALL/REINSTALL ACCEPTANCE**. Credential reinstall, running-app uninstall, signing, release promotion, portability and interrupted recovery remain explicitly pending or non-claims; no real Windows uninstall was performed by this delivery.
+
 ## 2026-08-15 — 0.8 Windows Distribution Phase 2A Acceptance Closure
 
 - Recorded operator-attested same-machine/dedicated-profile `0.2.2` baseline hash match and the closed-app single-run `0.2.2 → 0.2.3` adjacent upgrade.

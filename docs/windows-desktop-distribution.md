@@ -1,6 +1,6 @@
 # Windows Desktop Distribution / Lifecycle Contract
 
-状态：**0.8 Phase 1 COMPLETE；Phase 2A COMPLETE within scoped adjacent-version acceptance；0.8 overall IN PROGRESS**（2026-08-15）。
+状态：**0.8 Phase 1 COMPLETE；Phase 2A COMPLETE within scoped adjacent-version acceptance；Phase 2B PREPARATION ONLY / PENDING REAL WINDOWS UNINSTALL/REINSTALL ACCEPTANCE；0.8 overall IN PROGRESS**（2026-08-15）。
 
 本文件建立 Windows x64 分发、生命周期和 `userData` 的 ownership contract。它不重新设计或削弱 0.7 的 Desktop authority、no Web fallback、fail-closed、context binding、source retention 或 credential cleanup ordering。0.7 的安全语义仍由既有实现、contract 和已归档的 scoped installed-app evidence 所拥有。
 
@@ -36,6 +36,86 @@ Phase 1 交付：
 - Binary/lifecycle：root execution stub 仍存在并启动 `app-0.2.3`；旧 `app-0.2.2` 不再存在；`userData` 路径保持 `%APPDATA%\\错题复盘`；sentinel 在升级后和完整关闭/重启后均存在。
 - Shortcut：搜索 current-user Start Menu、current-user Desktop、ProgramData Start Menu 和 Public Desktop，以及 Review/错题/review_workspace/review-workspace 名称与 target，未观察到产品 `.lnk`。因此分类为 **NO PRODUCT SHORTCUT OBSERVED / N/A FOR THIS PHASE 2A RECORD**，不是 shortcut PASS，也不是仅因不存在就判 FAIL；shortcut creation/UX 保留为独立 0.8 distribution residual。已验证的 supported launch path 是 Squirrel root execution stub。
 - Credential：本轮没有重新输入、测试或修改 credential；Phase 2A credential availability row 保持 **PENDING / NOT EXECUTED**，不冒充 credential upgrade PASS。0.7 Desktop authority、no Web fallback、fail-closed 和 cleanup semantics 保持 COMPLETE/unchanged；该未执行 credential row 不阻塞本次 scoped binary/userData/restart closure。
+
+## Phase 2B preparation — real uninstall/reinstall acceptance
+
+状态：**PREPARATION ONLY — PENDING REAL WINDOWS UNINSTALL/REINSTALL ACCEPTANCE**（2026-08-15）。本轮只增加验收边界、closure matrix、手工程序和静态 contract；没有执行真实 Windows uninstall/reinstall，不把 package、contract 或历史 Phase 2A evidence 写成 Phase 2B PASS。
+
+### Candidate identity and scope
+
+- Package version：`0.2.3`。
+- Installer：`ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`。
+- Existing candidate artifact source SHA：`da46193de710fa11b638793eb34401b305a713ae`；这是 installer bytes 的 provenance，不是本轮文档分支的 current `main` SHA。
+- Candidate installer SHA-256：`FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`；本地现有 `out/make` artifact 已重新计算并匹配该值，手工验收前仍须对实际携带的 installer 再计算一次。
+- Current preparation baseline：`679babea003227b96db12cd9bda988093141f45c`；本轮不修改 package/runtime/Forge identity，因此不生成新的 installer bytes。
+- Scope：专用 Windows profile 中，`0.2.3` clean install → production UI sentinel → closed-app normal uninstall → same-version `0.2.3` reinstall → sentinel visibility → full restart。
+- Explicitly out of scope：credential-backed reinstall observation、running-app uninstall、newer-version reinstall、signing、SmartScreen、publisher identity、auto-update、GitHub Release 和 destructive interrupted-install injection。
+
+### Current uninstall implementation audit
+
+| Audit item | Current code fact | Evidence boundary |
+| --- | --- | --- |
+| `--squirrel-uninstall` | `desktop/main.ts` classifies it through `squirrel-lifecycle.ts` and calls `app.quit()` | Automated source contract; actual Windows uninstall remains manual |
+| Early quit order | Lifecycle branch is before `requestSingleInstanceLock()`, `app.whenReady()` and `BrowserWindow` creation | Automated PASS |
+| Renderer / packaged runtime | Lifecycle branch does not create a window or call `startDesktopRuntime()`; `app.whenReady()` is only in the normal-launch branch | Automated PASS |
+| Protocol registration | `registerDesktopScheme()` runs at module load before classification; it registers the privileged scheme only and does not start renderer/runtime or touch product data | Source audit; no lifecycle result inferred |
+| Explicit uninstall hook | No app-side uninstall hook is present | Source audit |
+| `electron-squirrel-startup` | Not imported or used | Source audit |
+| `Update.exe --uninstall` | Main process does not invoke it; normal Squirrel/Windows uninstall owns that external transaction | Source audit; actual command/process behavior remains manual |
+| Shortcut removal | No explicit `removeShortcut`/shortcut bridge is present | Source audit; actual shortcut state is manual/N/A if absent |
+| `userData` redirect | No `app.setPath("userData", ...)` or `app.setName(...)`; Electron keeps the existing product identity path | Automated identity contract plus manual path confirmation |
+| Uninstall-time data/credential cleanup | Main has no destructive `userData` cleanup or uninstall/reinstall migration path; 0.7 credential cleanup is not called from lifecycle handling | Automated Main-source contract; no claim about Windows filesystem behavior |
+| Package/Squirrel identity | `review-workspace` / `错题复盘` / `0.2.3` / `review_workspace` remains stable | Automated package/Forge contract |
+
+默认 ownership contract 仍是：卸载 binary 不等价于删除用户数据。Phase 2B 不增加任何删除 `%APPDATA%\错题复盘`、IndexedDB、Vault、credential record、migration journal、secure key 或 profile 的代码。
+
+### Phase 2B closure matrix
+
+| Row | Initial classification | Closure evidence required |
+| --- | --- | --- |
+| `0.2.3` clean install | PENDING — exact Phase 2B baseline required | Dedicated clean profile, one Setup run, normal Squirrel completion and first launch |
+| Production sentinel created | PENDING | Created through product UI; no raw IndexedDB, DevTools, script injection, API key or personal data |
+| Sentinel survives baseline restart | PENDING | Full close, root stub launch, sentinel visible before uninstall |
+| Uninstall while app closed | PENDING | No `review-workspace`/`Update.exe` process; normal Windows uninstall entry used once |
+| Setup/Update uninstall completion | PENDING | Normal UI/process exit, Squirrel completion and no fatal result |
+| Install root after uninstall | PENDING | Actual `%LOCALAPPDATA%\review_workspace\` state and version directory observed |
+| `userData` after uninstall | PENDING | Actual `%APPDATA%\错题复盘\` state/path classified; no manual deletion |
+| Product sentinel during uninstall | NOT INSPECTABLE UNTIL REINSTALL | Do not infer data loss from lack of an app while uninstalled |
+| Same-version `0.2.3` reinstall | PENDING | Completed uninstall transaction, one verified Setup run, no active app/Update process |
+| Reinstall Squirrel completion | PENDING | `Update.exe`/Setup normal completion and Squirrel `Finished` evidence |
+| App launches after reinstall | PENDING | Root stub launches `app-0.2.3` without fatal error |
+| `userData` path stable | PENDING | Reinstall resolves the same actual product userData path; classify any new profile before stopping |
+| Existing sentinel visible after reinstall | PENDING | Find the original sentinel through production UI; do not recreate it |
+| Full restart after reinstall | PENDING | Full quit, root stub restart, no residual transaction |
+| Sentinel after full restart | PENDING | Original sentinel remains visible after the second launch |
+| Credential availability after reinstall | PENDING / NOT EXECUTED | Only close with a separate real disposable/revocable credential observation |
+| Uninstall while app running | PENDING — SEPARATE MANUAL CASE | Do not mix with the closed-app PASS flow; no random kill or forced deletion |
+| Shortcut removal/recreation | PENDING / N/A | Observe only what exists; if no product shortcut exists, record `NO PRODUCT SHORTCUT OBSERVED / N/A` |
+| General same-version reinstall safety | NON-CLAIM | Only the exact observed sequence can be classified |
+| Different machine/account, copied `userData`, DPAPI portability | NON-CLAIM | No evidence is collected by this phase |
+
+### Precise Windows manual acceptance procedure
+
+Use a new disposable local Windows profile such as `ReviewWorkspace-Uninstall`; do not reuse developer, prior upgrade, repeated-Setup or credential-cleanup profiles, and do not copy existing AppData/userData. Record only sanitized facts, status and timestamps.
+
+1. **Preflight.** Record `whoami` and the profile category, then confirm the install root, `SquirrelTemp` and expected product userData are absent and no `review-workspace`/`Update` process is running. Do not publish the username, machine name or full absolute paths.
+2. **Verify the artifact.** Run `Get-FileHash ReviewWorkspace-0.2.3-Windows-x64-Setup.exe -Algorithm SHA256` and require the exact candidate hash above. Run Setup once; do not double-click it, kill `Update.exe`, edit `SquirrelTemp`, delete directories or change shortcuts. Wait for first launch, Setup/Update exit and sanitized Squirrel `Finished` evidence.
+3. **Create the baseline sentinel.** Through the production UI create the ordinary non-sensitive record `uninstall-reinstall-acceptance-2026-08-15`, with test-only content. Fully close the app, launch through the root stub, and confirm the original sentinel remains visible.
+4. **Take the uninstall snapshot.** With the app fully closed and no active Update transaction, record non-sensitive facts: `app-0.2.3`, root stub, `Update.exe`, actual userData existence, sentinel visibility and observable shortcut state. Do not copy userData or read raw IndexedDB/credentials.
+5. **Run a normal closed-app uninstall.** Use Windows Settings → Apps → Installed apps → `ReviewWorkspace`/`错题复盘` → Uninstall, or the registered standard Squirrel command. Invoke it once. Observe lifecycle args, Setup/Update processes, root/version directory removal, exit/completion and fatal errors. Do not manually remove the root, registry keys, Update.exe, shortcuts or AppData.
+6. **Classify the uninstall result.** After the transaction completes, inspect install-root and userData existence with `Test-Path` and record the actual result. If the root remains, first classify pending Update, incomplete uninstall, stale directory or fatal error; do not clean it up. If userData is absent, stop and treat it as a significant product-data contract finding.
+7. **Reinstall the same version.** Only after all app/Update processes exit, run the same verified `0.2.3` Setup once. This is post-uninstall same-version reinstall, not Setup over an existing installation. Record deployment, root stub, `Finished`, Setup/Update exit, first launch and fatal errors.
+8. **Verify preserved data.** In the production UI find the existing sentinel; do not create a replacement. If missing, classify actual userData path, possible second profile, product identity and initialization/schema error before stopping. Never copy old data back.
+9. **Verify full restart.** Fully quit, confirm processes exit, relaunch through the root stub, and confirm `app-0.2.3`, the same userData path, the original sentinel and no residual Update transaction.
+10. **Close only observed rows.** Keep credential availability `PENDING / NOT EXECUTED` unless a separate disposable/revocable credential test was truly performed. Keep running-app uninstall as `PENDING — SEPARATE MANUAL CASE` unless safely tested in another fresh profile. Preserve all portability and signing non-claims.
+
+If any critical step fails, preserve sanitized process/log/root/userData/timestamp/hash facts and stop. Do not retry Setup or uninstall, kill Update, delete roots or userData, rebuild the profile, edit registry, copy data or alter credentials. A runtime fix must be a separate PR from evidence closure.
+
+### Automation boundary and stop point
+
+The new desktop lifecycle contract proves only source-level properties: explicit lifecycle classification, early quit before normal app readiness, no renderer/runtime launch from the lifecycle branch, no Main-process destructive `userData` cleanup, and stable package/Forge identity. It cannot prove Windows removal of the install root, preservation of userData, Squirrel transaction completion or sentinel restoration after reinstall.
+
+This first Phase 2B delivery therefore stops at **REAL WINDOWS UNINSTALL / REINSTALL ACCEPTANCE REQUIRED**. Phase 2B remains **IN PROGRESS / PENDING** and the PR must remain open until sanitized operator evidence is returned.
 
 ## Current packaging stack
 
