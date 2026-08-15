@@ -35,13 +35,13 @@ desktop/
 - 当前分发链保持 Electron `43.2.0`、Forge `7.11.2`、`MakerSquirrel` `7.11.2` 和 `electron-winstaller` `5.4.4`；Squirrel vendor runtime `Squirrel.exe` 为 `2.0.1+eef37460ae`。
 - Squirrel binary identity 为 `review_workspace`，预期 install root 为 `%LOCALAPPDATA%\\review_workspace\\`；Electron package/product identity 为 `review-workspace` / `错题复盘`，预期 `userData` 为 `%APPDATA%\\错题复盘\\`。两者 ownership 分离，binary replacement 不得自动清理 userData。
 - `desktop/squirrel-lifecycle.ts` 是纯参数分类边界；install/update/uninstall/obsolete invocation 在 lock/window 前退出，`--squirrel-firstrun` 继续正常启动。现有 `contextIsolation`、`nodeIntegration`、`sandbox`、`webSecurity`、ASAR integrity 与 fuses 保持不变。
-- 0.8 Phase 1 的完整 lifecycle matrix、distribution threat model、artifact identity、rollback boundary 和 non-claims 见 `docs/windows-desktop-distribution.md`；真实 adjacent upgrade、uninstall/reinstall、signing、release promotion 仍是后续 0.8 evidence。
+- 0.8 Phase 1 checkpoint 的完整 lifecycle matrix、distribution threat model、artifact identity、rollback boundary 和当时的 non-claims 见 `docs/windows-desktop-distribution.md`；当时真实 adjacent upgrade、uninstall/reinstall、signing、release promotion 仍是后续 0.8 evidence，当前 Phase 2A closure 见下方。
 
-## 0.8 Windows distribution Phase 2A candidate（2026-08-14）
+## 0.8 Windows distribution Phase 2A acceptance closure（2026-08-15）
 
 - 当前 candidate 将 package identity 从 `0.2.2` 提升为 `0.2.3`，同步 lock root、Forge Setup 命名 fallback 和版本一致性 contract；Squirrel identity `review_workspace`、Windows x64、Electron `userData` ownership 与 `app-<version>` 生命周期模型保持不变。
 - 本阶段只准备真实相邻版本覆盖升级的 candidate 与 evidence boundary。没有 runtime、schema、credential authority、preload/IPC 或 Electron security setting 变更；没有 tag、GitHub Release、auto-update 或 production signing。
-- 真实 `0.2.2 → 0.2.3` 安装/升级、shortcut、old-version cleanup、`userData`/sentinel、Desktop credential observation 与 full restart 在专用 Windows profile 中完成前，Phase 2A 保持 **PENDING REAL WINDOWS ACCEPTANCE**。详情见 `docs/windows-desktop-distribution.md` 与 `docs/release-smoke.md`。
+- 真实 operator-attested `0.2.2 → 0.2.3` 安装/升级已在专用 Windows profile 中完成：指定 baseline hash 匹配，Squirrel `Finished`、`Update.exe`/Setup 退出、`app-0.2.3`/root stub、old-version cleanup、`userData`/sentinel 与 full restart 均通过；Phase 2A 在 scoped binary/userData/restart contract 内 **COMPLETE**。未观察到产品 shortcut `.lnk`，记录为 **NO PRODUCT SHORTCUT OBSERVED / N/A**，不是 shortcut PASS/FAIL；Desktop credential observation 为 **PENDING / NOT EXECUTED**，0.7 credential closure 不变。详情见 `docs/windows-desktop-distribution.md` 与 `docs/release-smoke.md`。
 
 
 ## 0.2.0 本机 API 安全边界（2026-07-23）

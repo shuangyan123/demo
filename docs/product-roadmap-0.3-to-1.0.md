@@ -476,21 +476,24 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 Phase 1 不声称 adjacent-version real PASS、uninstall/reinstall real PASS、production signing、publisher identity、release promotion 或 interrupted-install recovery。详细状态以 distribution matrix 为准。
 
-### Phase 2A — adjacent-version overwrite upgrade candidate
+### Phase 2A — adjacent-version overwrite upgrade acceptance closure
 
-状态：**CANDIDATE PREPARED；PENDING REAL WINDOWS ACCEPTANCE（2026-08-14）**。
+状态：**COMPLETE within scoped adjacent-version binary/userData/restart acceptance（2026-08-15）**；0.8 overall **IN PROGRESS**。
 
-- 已核实当前 package version 为 `0.2.2`，下一合法 patch candidate 为 `0.2.3`；同步 `package.json`、lock root/package root version、Forge Setup fallback 与版本 identity contract。
+- 已核实 baseline package version 为 `0.2.2`，下一合法 patch candidate 为 `0.2.3`；同步 `package.json`、lock root/package root version、Forge Setup fallback 与版本 identity contract。
 - 已补齐真实 `0.2.2 → 0.2.3` acceptance 的文档与 closure matrix，明确 baseline hash、专用 Windows profile、single-run Setup、Squirrel completion、binary/root stub、shortcut、old-version cleanup、实际 `userData`、非敏感 sentinel 和 full restart 的证据边界。
+- 已记录 operator-attested 的真实 Windows acceptance：指定 `0.2.2` baseline hash 匹配，clean install/restart 与 sentinel 通过；应用完全关闭后单次 `0.2.3` Setup 完成，Squirrel 输出 `Finished`、`Update.exe`/Setup 正常退出、`app-0.2.3` 与 root execution stub 可启动、`app-0.2.2` 清理、实际 `userData`/sentinel 保留，且升级后完整重启仍解析到 `0.2.3`。
+- 未观察到产品 shortcut `.lnk`；该结果记录为 **NO PRODUCT SHORTCUT OBSERVED / N/A FOR THIS PHASE 2A RECORD**，不是 shortcut PASS/FAIL，root stub launch 独立通过；属于后续 0.8 distribution UX residual。
+- 13:02 的同版本 `0.2.2` Setup 是一次 incidental successful same-version observation，不扩展为 general reinstall safety 或本阶段的 same-version PASS；runtime/security/schema/credential authority 保持不变。
 - 未修改 Electron runtime、Squirrel package identity、userData 路径、credential authority、schema、preload/IPC/security settings；不创建 tag、不发布 GitHub Release、不添加 auto-update 或 signing。
 
-Phase 2A 只有在同一台 Windows 机器、同一专用 Windows profile 中，使用任务指定且重新校验的已知 `0.2.2` installer 完成真实 baseline 与一次关闭应用后的 `0.2.3` overwrite upgrade，并观察所有必需的 binary/data/restart 结果后，才能标为 **COMPLETE**。本 candidate PR 在 operator evidence 返回前保持 OPEN；未执行行继续是 **PENDING**，不同机器/账户、复制 `userData` 与 DPAPI portability 仍是 **NON-CLAIM**。
+Phase 2A 已在同一台 Windows 机器、同一专用 Windows profile 中，使用重新校验的已知 `0.2.2` installer 完成真实 baseline 与一次关闭应用后的 `0.2.3` overwrite upgrade，并观察到 scoped binary/data/restart 结果，因此标为 **COMPLETE**。Credential availability row 本轮为 **PENDING / NOT EXECUTED**，不构成本阶段已声明 binary/userData/restart closure 的阻断项；0.7 credential-security closure 不变。未执行行继续是 **PENDING**，不同机器/账户、复制 `userData` 与 DPAPI portability 仍是 **NON-CLAIM**。
 
 ### Phase 2A 验收标准
 
 - `0.2.3` candidate package、lock identity、Forge installer name、Squirrel outputs、source SHA 和 SHA-256 manifest 可由 exact-head build record 对应；installer binary 不进入 Git。
 - 已知 `0.2.2` baseline 单次安装、正常重启和 production UI sentinel 持久化通过；应用完全关闭后，`0.2.3` Setup 单次运行正常完成且 `Update.exe` 退出。
-- 新版本部署、root execution stub、shortcut current-version launch、old-version cleanup classification、实际 `userData` 路径、产品 sentinel 与 full upgraded restart 均有真实观察记录。
+- 新版本部署、root execution stub、old-version cleanup classification、实际 `userData` 路径、产品 sentinel 与 full upgraded restart 均有真实观察记录；未观察到产品 shortcut `.lnk`，因此 shortcut 记录为 **NO PRODUCT SHORTCUT OBSERVED / N/A**，不标记 PASS/FAIL。
 - Credential row 只在有真实 disposable/revocable credential 的情况下观察 Desktop authority 与既有操作；不重新输入、不导出/复制 DPAPI、不改 ciphertext/journal、不允许 Web fallback，不把 same-profile evidence 扩展为 portability claim。
 
 ### Phase 2A 非目标

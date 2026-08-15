@@ -1,6 +1,6 @@
 # Windows Desktop Distribution / Lifecycle Contract
 
-状态：**0.8 Phase 1 COMPLETE；Phase 2A candidate PREPARED / PENDING REAL WINDOWS ACCEPTANCE；0.8 overall IN PROGRESS**（2026-08-14）。
+状态：**0.8 Phase 1 COMPLETE；Phase 2A COMPLETE within scoped adjacent-version acceptance；0.8 overall IN PROGRESS**（2026-08-15）。
 
 本文件建立 Windows x64 分发、生命周期和 `userData` 的 ownership contract。它不重新设计或削弱 0.7 的 Desktop authority、no Web fallback、fail-closed、context binding、source retention 或 credential cleanup ordering。0.7 的安全语义仍由既有实现、contract 和已归档的 scoped installed-app evidence 所拥有。
 
@@ -16,15 +16,26 @@ Phase 1 交付：
 
 本阶段不实施：installer framework migration、auto-update、destructive uninstall cleanup、schema migration、credential migration/重构、production signing 或正式 release promotion。
 
-## Phase 2A candidate preparation
+## Phase 2A candidate and acceptance closure
 
-状态：**candidate PREPARED；PENDING REAL WINDOWS ADJACENT-UPGRADE ACCEPTANCE**（2026-08-14）。
+状态：**COMPLETE within the scoped binary/userData/restart contract**（2026-08-15）。
 
 本阶段只把当前 `0.2.2` package identity 提升为真实的下一 patch candidate `0.2.3`，并补齐版本一致性 contract、候选 artifact 记录和人工验收边界。它不修改 Electron runtime、Squirrel identity、`userData` 路径、credential authority、schema 或安全设置，不创建 `v0.2.3` tag，也不发布 GitHub Release。
 
-`0.2.3` candidate 的 PR 在真实 Windows operator 完成以下流程前必须保持 OPEN：已知 `0.2.2` 安装版单次安装与正常重启 → 通过 production UI 创建非敏感 sentinel → 完全关闭 → 单次运行 `0.2.3` Setup → 观察 Squirrel `Update.exe` 完成、new-version deployment、root stub、shortcut、old-version directory、实际 `userData` 和 sentinel → 通过正常入口完整重启。credential row 只能观察既有 Desktop authority，不能重新生成、复制、编辑或降级 credential material。
+`0.2.3` candidate 的 PR 在真实 Windows operator 完成以下流程前保持 OPEN：已知 `0.2.2` 安装版单次安装与正常重启 → 通过 production UI 创建非敏感 sentinel → 完全关闭 → 单次运行 `0.2.3` Setup → 观察 Squirrel `Update.exe` 完成、new-version deployment、root stub、shortcut、old-version directory、实际 `userData` 和 sentinel → 通过正常入口完整重启。该流程现已由专用 profile 完成；credential row 仍只允许观察既有 Desktop authority，不能重新生成、复制、编辑或降级 credential material。
 
-任务指定的既有 `0.2.2` baseline installer 必须在验收前重新计算 SHA-256，并匹配 `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`；任何 hash 不匹配或来源不明的安装器都不能作为 baseline。真实 adjacent upgrade 在 operator evidence 返回前保持 **PENDING**，不能从 package、contract、UI 启动或 same-version replacement 推断 PASS。
+任务指定的既有 `0.2.2` baseline installer 已重新计算并匹配 SHA-256 `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`。真实 adjacent upgrade 的结论只来自下方 operator-attested installed-app evidence，不来自 package、contract、UI 启动或 same-version replacement。
+
+### Phase 2A real acceptance record（2026-08-15）
+
+证据范围：同一台 Windows 机器、专用本地 Windows test user/profile、从 clean profile 安装、同一 application profile；没有复制 `userData`、换账户、换机器或 DPAPI/credential material 操作。记录只保留非敏感版本、生命周期、路径类别和状态事实。
+
+- Known `0.2.2` baseline：clean install、`Program: Finished Squirrel Updater`、`app-0.2.2` launch、实际 `%APPDATA%\\错题复盘` userData 和 production UI sentinel `upgrade-acceptance-2026-08-15` 持久化通过。
+- 同一 baseline sequence 中 13:02 发生了一次额外的 same-version `0.2.2` Setup；Squirrel 观察到 existing install、`app-0.2.2` redeployment 和 Finished。该事件记录为 **INCIDENTAL SUCCESSFUL SAME-VERSION REINSTALL OBSERVATION**，不属于 Phase 2A PASS，也不证明一般 same-version reinstall 安全。
+- Adjacent upgrade：在 `review-workspace.exe` 与 `Update.exe` 完全退出后，candidate SHA 匹配，`0.2.3` Setup 只运行一次；未杀进程、删目录、改 shortcut、改 userData/journal/ciphertext。Squirrel 检测 existing install、部署 `app-0.2.3`、运行 `cleanDeadVersions`、记录 `Program: Finished Squirrel Updater`，Setup 与 Update 正常退出。
+- Binary/lifecycle：root execution stub 仍存在并启动 `app-0.2.3`；旧 `app-0.2.2` 不再存在；`userData` 路径保持 `%APPDATA%\\错题复盘`；sentinel 在升级后和完整关闭/重启后均存在。
+- Shortcut：搜索 current-user Start Menu、current-user Desktop、ProgramData Start Menu 和 Public Desktop，以及 Review/错题/review_workspace/review-workspace 名称与 target，未观察到产品 `.lnk`。因此分类为 **NO PRODUCT SHORTCUT OBSERVED / N/A FOR THIS PHASE 2A RECORD**，不是 shortcut PASS，也不是仅因不存在就判 FAIL；shortcut creation/UX 保留为独立 0.8 distribution residual。已验证的 supported launch path 是 Squirrel root execution stub。
+- Credential：本轮没有重新输入、测试或修改 credential；Phase 2A credential availability row 保持 **PENDING / NOT EXECUTED**，不冒充 credential upgrade PASS。0.7 Desktop authority、no Web fallback、fail-closed 和 cleanup semantics 保持 COMPLETE/unchanged；该未执行 credential row 不阻塞本次 scoped binary/userData/restart closure。
 
 ## Current packaging stack
 
@@ -183,11 +194,12 @@ All real installer procedures require a dedicated Windows x64 user/profile and a
 
 ## Current non-claims
 
-- adjacent-version overwrite upgrade is not yet a real PASS;
-- uninstall while closed/running and uninstall + reinstall are not yet real PASS;
-- stale shortcut, execution-stub retargeting and old `app-<version>` cleanup are not yet real PASS;
+- adjacent-version overwrite upgrade is **PASS within the same-machine, same-Windows-user, same-application-profile scope** recorded above; it is not portability evidence;
+- the incidental same-version `0.2.2` Setup observation is not a general same-version reinstall safety claim;
+- no product shortcut was observed; shortcut creation/UX remains a separate distribution residual, while the root execution stub path passed;
+- running-app upgrade, uninstall while closed/running and uninstall + reinstall are not yet real PASS;
 - production code signing, publisher identity and signed SmartScreen behavior are not PASS;
-- formal release asset identity beyond current filename/checksum workflow is not PASS;
+- formal release asset promotion/provenance beyond current filename/checksum workflow is not PASS;
 - copied `userData`, changed Windows account/machine and general DPAPI portability are NON-CLAIM;
 - corrupted/partial/interrupted installed-app recovery is NOT SAFE TO INJECT / NON-CLAIM until a safe seam exists;
-- no installer behavior is evidence that 0.7 credential security has changed.
+- Phase 2A credential availability after upgrade was not executed and remains PENDING; no installer behavior is evidence that 0.7 credential security has changed.

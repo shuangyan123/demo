@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-15 — 0.8 Windows Distribution Phase 2A Acceptance Closure
+
+- Recorded operator-attested same-machine/dedicated-profile `0.2.2` baseline hash match and the closed-app single-run `0.2.2 → 0.2.3` adjacent upgrade.
+- Recorded Squirrel `Finished`, normal `Update.exe`/Setup exit, `app-0.2.3` deployment, root execution stub launch, old `app-0.2.2` cleanup, preserved `userData`/sentinel and full upgraded restart.
+- Recorded **NO PRODUCT SHORTCUT OBSERVED / N/A**; the incidental same-version Setup observation is not a general reinstall claim. Credential operation was not executed and remains **PENDING**; running-app upgrade, uninstall/reinstall, signing, release promotion, portability and interrupted recovery remain non-claims.
+- Closed Phase 2A within the scoped binary/userData/restart contract; 0.8 overall remains **IN PROGRESS**.
+
 ## 2026-08-14 — 0.8 Windows Distribution Phase 2A Candidate
 
 - Prepared the genuine adjacent-version candidate `0.2.3` from the verified `0.2.2` package identity, keeping `package.json`, lock root versions, Forge Setup naming and automated identity contracts aligned.

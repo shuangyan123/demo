@@ -94,9 +94,11 @@ Repeated or overlapping execution of the same-version Squirrel Setup in an alrea
 
 The COMPLETE verdict closes the 0.7 credential-security blockers only. It does not mark any deferred, no-safe-seam, or portability row as PASS.
 
-## 2026-08-14 · 0.8 Windows Distribution / Lifecycle Phase 1
+## 2026-08-14 · 0.8 Windows Distribution / Lifecycle Phase 1 baseline checkpoint
 
 状态：**Phase 1 COMPLETE；0.8 overall IN PROGRESS**。本节只建立 distribution contract、自动化 foundation 和真实 Windows acceptance 方法；它不把尚未执行的 adjacent upgrade、uninstall/reinstall、签名或 release promotion 写成 PASS。详细 ownership、threat model、路径和 rollback contract 见 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md)。
+
+本节的 A–W matrix 保留 Phase 1 checkpoint 的历史状态；2026-08-15 的 Phase 2A operator evidence 和当前 closure verdict 见下方。
 
 ### Current packaging evidence
 
@@ -178,42 +180,65 @@ Use a dedicated Windows x64 user/profile and a disposable/revocable test credent
 - 0.8 overall: **IN PROGRESS**
 - Still pending for later 0.8 phases: adjacent-version real PASS, uninstall/reinstall real PASS, shortcut/old-directory observations, production signing, signed publisher verification, release asset promotion/provenance and any safe interrupted-install recovery seam.
 
-## 2026-08-14 · 0.8 Windows Distribution Phase 2A candidate preparation
+## 2026-08-15 · 0.8 Windows Distribution Phase 2A acceptance closure
 
-状态：**candidate PREPARED；PENDING REAL WINDOWS ADJACENT-UPGRADE ACCEPTANCE**。本节只准备真实 `0.2.2 → 0.2.3` overwrite-upgrade 的 candidate 和 evidence boundary；在 operator 返回真实安装过程、Squirrel completion、version deployment、shortcut、数据及重启结果前，不能关闭 Phase 2A，也不能合并 candidate PR。
+状态：**Phase 2A COMPLETE within scoped binary/userData/restart acceptance；0.8 overall IN PROGRESS**。本节记录真实 `0.2.2 → 0.2.3` overwrite-upgrade operator evidence；credential operation、shortcut creation/UX、uninstall/reinstall、signing 和 portability 不被冒充为 PASS。
 
 ### Candidate identity
 
 - Candidate package version: `0.2.3`（`package.json`、`package-lock.json` root 与 `packages[""].version` 一致）
 - Installer identity: `ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`
+- Candidate artifact source SHA (existing build record): `da46193de710fa11b638793eb34401b305a713ae`
+- Candidate installer SHA-256: `FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`
 - Squirrel package identity: `review_workspace`; architecture: Windows x64
 - Electron / Forge / Maker / generator / Squirrel runtime: `43.2.0` / `7.11.2` / `7.11.2` / `5.4.4` / `2.0.1+eef37460ae`
 - Signing: **PENDING**；本 candidate 不创建 tag、不发布 GitHub Release、不声称 production publisher
-- Candidate source SHA、installer SHA-256、`RELEASES` 和 `review_workspace-0.2.3-full.nupkg` 的最终 identity 只接受 exact-head build record；安装器不提交 Git
+- Candidate artifact source SHA、installer SHA-256、`RELEASES` 和 `review_workspace-0.2.3-full.nupkg` 的 identity 保留既有 exact-head candidate build record；本轮只追加 operator evidence 文档，不重建或重跑 installer/Setup，正式 release provenance 仍为 **PENDING**。安装器不提交 Git
 
-任务指定的已知 `0.2.2` baseline installer 必须重新计算并匹配 SHA-256 `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`。如果 operator 没有该来源明确的安装器，或 hash 不匹配，必须停止在 baseline preflight，不得使用其他本地重建文件替代。
+任务指定的已知 `0.2.2` baseline installer 已重新计算并匹配 SHA-256 `80DAA2073B655D22265FFCED5B3D501EE0592E588F4E27D665BACDA3CB7E2932`；它完成了 clean install、normal restart 和 sentinel persistence preflight。
 
 ### Phase 2A closure matrix
 
 | Row | Verdict | Evidence boundary |
 | --- | --- | --- |
-| Known `0.2.2` baseline install/restart | PENDING | Requires the specified installer and clean dedicated profile |
-| Pre-upgrade production sentinel | PENDING | Must be created through product UI and observed after a normal restart |
+| Known `0.2.2` baseline install/restart | PASS | Specified hash matched; clean dedicated-profile install, Finished Squirrel Updater and normal restart observed |
+| Pre-upgrade production sentinel | PASS | `upgrade-acceptance-2026-08-15` created through production UI and persisted through baseline restart |
 | Candidate identity / artifact shape | AUTOMATED CONTRACT | Version, lock root, Forge naming and artifact tests; not installed-app evidence |
-| Adjacent-version overwrite upgrade | PENDING | One closed-app `0.2.2 → 0.2.3` Setup run only |
-| New `app-0.2.3` deployment / root stub | PENDING | Observe the real Squirrel install root |
-| Shortcut current-version launch | PENDING | Do not edit shortcuts; stale `app-0.2.2` target is a blocker |
-| Old app-version cleanup | PENDING | Record removed/retained/delayed/unknown; do not delete manually |
-| `userData` path and product data preservation | PENDING | Confirm actual `app.getPath("userData")` and sentinel in the product |
-| Desktop credential authority / existing operation | PENDING | Observe only; no re-entry, fallback, ciphertext or DPAPI edits |
-| Post-upgrade full restart | PENDING | Close all child processes, then launch through shortcut/root stub |
-| Same-version reinstall / uninstall-reinstall | PENDING / NON-CLAIM | Out of Phase 2A |
+| Adjacent-version overwrite upgrade | PASS | One closed-app `0.2.2 → 0.2.3` Setup run; no process kill or profile surgery |
+| Running-app upgrade | PENDING / NON-CLAIM | Not executed; only the fully closed-app adjacent upgrade is in scope |
+| Squirrel normal completion / Update exit | PASS | `Program: Finished Squirrel Updater`; Setup and Update exited normally |
+| New `app-0.2.3` deployment / root stub | PASS | Real install root deployed `app-0.2.3`; root stub launched it |
+| Shortcut current-version launch | NO PRODUCT SHORTCUT OBSERVED / N/A | No product `.lnk` found in searched Start Menu/Desktop locations; root stub launch passed; shortcut UX remains residual |
+| Old app-version cleanup | PASS | `app-0.2.2` absent after `cleanDeadVersions` |
+| `userData` path and product data preservation | PASS | Actual `%APPDATA%\\错题复盘` path and production sentinel preserved after upgrade and restart |
+| Desktop credential authority / existing operation | PENDING / NOT EXECUTED | No credential re-entry or operation in this closure; do not infer PASS; 0.7 remains unchanged |
+| Post-upgrade full restart | PASS | All app processes exited, root stub relaunched `app-0.2.3`, sentinel remained |
+| Same-version reinstall / uninstall-reinstall | PENDING / NON-CLAIM | Incidental 13:02 same-version observation is not a general safety claim; uninstall/reinstall is out of Phase 2A |
 | Signing / publisher / release promotion | PENDING | Later distribution work |
 | Different machine/account or copied `userData` | NON-CLAIM | Not a portability test |
 
-### Operator stop point
+### Real operator evidence
+
+Evidence scope was one Windows machine, one dedicated local test user/profile and one application profile, starting clean with no copied `userData`; no credential/plaintext/DPAPI manipulation occurred.
+
+- Baseline `0.2.2` launched from `app-0.2.2`, completed `Program: Finished Squirrel Updater`, used `%APPDATA%\\错题复盘`, and preserved `upgrade-acceptance-2026-08-15` across the baseline restart sequence.
+- An additional same-version `0.2.2` Setup ran at 13:02 during the baseline sequence. It detected the existing install, redeployed `app-0.2.2`, and finished successfully. This is **INCIDENTAL SUCCESSFUL SAME-VERSION REINSTALL OBSERVATION**, not a general reinstall-safety PASS and not part of Phase 2A closure.
+- Before the adjacent run, `review-workspace.exe` and `Update.exe` were exited. The candidate hash matched, `0.2.3` Setup ran once, no process was killed, and no directory, shortcut, userData, journal or ciphertext was edited.
+- Squirrel detected the existing root, deployed `app-0.2.3`, ran `cleanDeadVersions`, recorded `Program: Finished Squirrel Updater`, and exited Setup/Update normally. The root execution stub launched `app-0.2.3`; `app-0.2.2` was absent afterward.
+- The actual userData path remained `%APPDATA%\\错题复盘`; the sentinel survived the upgrade, full close, and normal root-stub restart. No product shortcut was found after searching current-user Start Menu/Desktop, ProgramData Start Menu and Public Desktop for the relevant names/targets. This is **NO PRODUCT SHORTCUT OBSERVED / N/A**, not shortcut PASS or FAIL.
+- No credential operation was performed for this closure. Credential availability remains **PENDING / NOT EXECUTED** and is not a portability or 0.7 authority claim.
+
+### Operator stop point for future candidates
 
 Use a new dedicated Windows profile with no `review_workspace` root, `SquirrelTemp`, `Update.exe` or app process. Recalculate the specified baseline hash, run its Setup once, wait for Setup/Update/app first-run completion, and create a non-sensitive sentinel through the production UI. Close and normally reopen `0.2.2` to prove the sentinel persists, then close every app process and run `ReviewWorkspace-0.2.3-Windows-x64-Setup.exe` exactly once. Do not double-click, kill `Update.exe`, delete version directories, clear `SquirrelTemp`, edit shortcuts/userData/journal/ciphertext, or run the candidate in parallel. Record only sanitized version/process/lifecycle/path-category/status facts and timestamps; stop on the first failure and preserve logs.
+
+### Phase 2A verdict
+
+- Phase 2A: **COMPLETE within scoped adjacent-version binary/userData/product-data/restart acceptance**
+- Shortcut: **NO PRODUCT SHORTCUT OBSERVED / N/A**; shortcut creation/UX remains a separate distribution residual
+- Credential availability after upgrade: **PENDING / NOT EXECUTED**; no credential PASS is claimed
+- 0.7 credential-security closure: **COMPLETE / unchanged**
+- 0.8 overall: **IN PROGRESS**
 
 ## Historical 2026-08-12 · 0.7 Desktop Credential Acceptance Closure
 
