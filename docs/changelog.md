@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-15 — 0.8 Windows Distribution Phase 2B Evidence Closure
+
+- Recorded user-supplied **operator-attested** Windows evidence for the scoped `0.2.3` fresh-profile install → production UI sentinel → fully closed standard uninstall → same-version reinstall → same-userData/product-data persistence → full ordinary restart sequence. Codex did not independently replay the destructive uninstall/reinstall.
+- Recorded PASS/OBSERVED for clean deployment, baseline restart/sentinel persistence, uninstall registration/root-stub/packages removal, userData preservation, same-version residual recovery, `.dead` removal, `app-0.2.3` redeployment, root-stub recreation, original sentinel restoration and post-reinstall ordinary restart.
+- Recorded the retained Squirrel `2.0.1+eef37460ae` physical residual after uninstall: complete physical install-root deletion is **NOT OBSERVED**; `.dead`, `Update.exe` and a small `app-0.2.3` binary residual remained. This is not a clean-uninstall PASS and does not trigger a runtime change in this evidence-closure PR.
+- Recorded the observed non-fatal uninstall-icon warning and empty `DisplayIcon` as a distribution-UX residual; the standard and quiet uninstall registrations were present and recreated.
+- Kept credential availability **PENDING / NOT EXECUTED**, running-app uninstall **PENDING — SEPARATE MANUAL CASE**, shortcut **NO PRODUCT SHORTCUT OBSERVED / N/A**, and different account/machine, copied userData and general DPAPI portability as **NON-CLAIM**. `0.8 Phase 2B` is complete only within the scoped lifecycle; `0.8 overall` remains **IN PROGRESS**. Artifact source SHA and installer SHA-256 remain unchanged.
+
 ## 2026-08-15 — 0.8 Windows Distribution Phase 2B Preparation
 
 - Audited the current `0.2.3` Squirrel uninstall path: lifecycle arguments early-quit before normal app readiness; no renderer/runtime launch, explicit uninstall hook, `electron-squirrel-startup`, `Update.exe --uninstall`, shortcut removal bridge, app-side userData deletion or uninstall/reinstall migration was added or observed in Main.
