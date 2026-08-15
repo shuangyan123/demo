@@ -61,6 +61,74 @@ The accepted sequence was one fresh-profile Setup, one closed-app normal Windows
 
 Any future failure must preserve sanitized process/log/root/userData/timestamp/hash facts and stop. A runtime fix for the observed Squirrel residual would require a separate PR.
 
+## Current 2026-08-15 · 0.8 Windows Distribution Phase 2C preparation
+
+状态：**PREPARED / PENDING REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE**；`0.8 overall` 仍为 **IN PROGRESS**。本节只准备真实 running-app uninstall 的人工验收，不在 Codex 环境中执行 destructive Windows uninstall。静态 audit、Squirrel vendor path 和完整 ownership 说明见 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md)。
+
+### Phase 2C candidate boundary
+
+- Package：`0.2.3`；installer：`ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`；Windows x64；Squirrel identity：`review_workspace`。
+- Existing artifact source SHA：`da46193de710fa11b638793eb34401b305a713ae`。
+- Existing installer SHA-256：`FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`。
+- Reverified vendor chain：Electron `43.2.0`、Forge/MakerSquirrel `7.11.2`、`electron-winstaller` `5.4.4`、Squirrel `2.0.1+eef37460ae` / FileVersion `2.0.1.1`。
+- Runtime/artifact decision：**NO RUNTIME CHANGE** and **NO ARTIFACT REBUILD**. Do not bump `0.2.4`, create a tag, publish a release, sign, add a publisher or enable auto-update.
+
+### Phase 2C matrix
+
+| Row | Preparation status |
+| --- | --- |
+| Fresh dedicated Windows profile | PENDING |
+| Verified `0.2.3` installer hash | PENDING |
+| Clean `0.2.3` baseline install | PENDING |
+| Production sentinel | PENDING |
+| Baseline ordinary restart | PENDING |
+| App confirmed running before uninstall | PENDING |
+| Main process from `app-0.2.3` | PENDING |
+| Same `%APPDATA%\错题复盘` | PENDING |
+| Standard Windows uninstall invoked once while app running | PENDING |
+| Running Electron main terminated | PENDING |
+| Electron child processes terminated | PENDING |
+| `Update.exe` eventually exits | PENDING |
+| No orphan `review-workspace` process | PENDING |
+| Uninstall registration removal | PENDING |
+| Root execution stub removal | PENDING |
+| Packages removal | PENDING |
+| Squirrel `.dead` marker | PENDING / OBSERVE |
+| Physical binary residual | PENDING / OBSERVE |
+| Complete install-root removal | NOT PRECLAIMED |
+| UserData preservation | PENDING |
+| Post-uninstall same-version reinstall | PENDING |
+| Residual-state recovery | PENDING |
+| Original sentinel restoration | PENDING |
+| Post-reinstall full ordinary restart | PENDING |
+| Original sentinel after restart | PENDING |
+| Uninstall registration recreation | PENDING |
+| Credential availability | PENDING / NOT EXECUTED |
+| Different account/machine | NON-CLAIM |
+| Copied `userData` | NON-CLAIM |
+| General DPAPI portability | NON-CLAIM |
+
+Phase 2B's observed `.dead`, `Update.exe` and small `app-0.2.3` residual is historical evidence only. Do not prefill the running-app result from that closed-app observation.
+
+### Safe running-app operator sequence
+
+Use a new dedicated local Windows profile; do not reuse the Phase 2B profile or copy AppData, `userData`, IndexedDB, credentials or installer state. Keep all records sanitized.
+
+1. Confirm `%LOCALAPPDATA%\review_workspace`, `%LOCALAPPDATA%\SquirrelTemp` and `%APPDATA%\错题复盘` are absent, and confirm no `review-workspace` or `Update.exe` process is running.
+2. Recalculate the candidate hash and require the exact value above. Run the verified Setup once. Do not double-click, retry, kill `Update.exe`, close an active installer or delete `SquirrelTemp`.
+3. Confirm the baseline `app-0.2.3` install, root stub, expected child `--user-data-dir="%APPDATA%\错题复盘"`, normal Squirrel completion and process exit.
+4. Create `running-app-uninstall-acceptance-2026-08-15` only through the production UI with non-sensitive test content. Fully quit, relaunch through the root stub and verify it remains visible. Never edit IndexedDB directly.
+5. Relaunch normally and keep the app running. Capture a sanitized snapshot showing the main under `app-0.2.3`, the child with the expected userData argument, `Update.exe` not running and the sentinel visible.
+6. Invoke exactly one uninstall through Windows Settings → Apps → Installed apps → `review-workspace`/`错题复盘`. Do not call `Update.exe --uninstall`, quiet uninstall, a second uninstall, process kills or manual filesystem/registry cleanup.
+7. Observe immediately and again after at most about 30 seconds. Record main/child termination, `Update.exe` appearance and eventual exit, orphan processes, registration, root stub, packages, `.dead`, versioned binaries, physical root and userData. Never kill a process to rescue the transaction.
+8. If any product process remains, stop as **RUNNING-APP UNINSTALL FAILURE / HUNG PROCESS**. If registration disappears while a product process remains, preserve evidence. If userData is deleted, stop as a **RELEASE-BLOCKING FINDING** and do not reinstall.
+9. Reinstall only after all processes exit, registration removal is understood, userData remains, residual state is recorded and no destructive anomaly is unresolved. Keep residual files in place and run the same verified Setup once.
+10. Verify residual recovery, original sentinel restoration, same userData and a full ordinary root-stub restart with no lifecycle argument. Credential availability remains **PENDING / NOT EXECUTED**.
+
+### Phase 2C stop point
+
+This is a preparation record, not a running-app acceptance result. The PR remains Draft/Open after CI and review checks. Final status is **REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE REQUIRED**; credentials, portability, interrupted uninstall, forced termination, antivirus/elevated-admin behavior, signing, publisher, SmartScreen, release promotion, auto-update and delta update remain non-claims.
+
 ## Current 2026-08-14 · 0.7 Windows Credential Cleanup Closure
 
 状态：**0.7 COMPLETE within the 0.7-owned closure contract**。本节归档 2026-08-14 的 operator-attested、human-observed Windows installed-app evidence；证据范围是同一台 Windows 机器、专用本地 Windows 测试用户/profile、同一 application profile，以及由该 profile 执行的同一安装包。它关闭了 real Credential Cleanup 这一 0.7 blocking item，但不扩大为跨机器、跨账户、复制 `userData` 或一般 DPAPI portability 证明。

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-15 — 0.8 Windows Distribution Phase 2C Preparation
+
+- Prepared the scoped running-app uninstall acceptance for `0.2.3`: the app must be running when the standard Windows Installed Apps uninstall is invoked, and the procedure records main/child/`Update.exe` termination, uninstall registration, root/stub/packages, `.dead`, physical residual, userData preservation, same-version reinstall and full ordinary restart.
+- Re-audited the existing `--squirrel-uninstall` lifecycle branch and confirmed the existing contracts are sufficient: early exit precedes single-instance lock, app readiness, renderer, Desktop runtime and credential/vault IPC, with no app-owned recursive userData cleanup. No production runtime or dependency change was made.
+- Rechecked the Squirrel 2.0.1 vendor path and recorded the source-backed process-termination, Squirrel-aware hook, deletion-attempt, `.dead` marker and registry-removal sequence. Phase 2B's closed-app residual remains historical evidence only and is not prefilled for Phase 2C.
+- Added the Phase 2C matrix, sanitized operator procedure, stop conditions and non-claims to the Windows distribution and release-smoke records, and aligned the roadmap status. Existing artifact provenance remains `da46193de710fa11b638793eb34401b305a713ae` / `FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`; no installer rebuild, tag, release, signing, publisher or auto-update was performed.
+- Final status: **0.8 Phase 2C PREPARED / PENDING REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE**; **REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE REQUIRED**. Credential availability remains **PENDING / NOT EXECUTED** and portability rows remain **NON-CLAIM**.
+
 ## 2026-08-15 — 0.8 Windows Distribution Phase 2B Evidence Closure
 
 - Recorded user-supplied **operator-attested** Windows evidence for the scoped `0.2.3` fresh-profile install → production UI sentinel → fully closed standard uninstall → same-version reinstall → same-userData/product-data persistence → full ordinary restart sequence. Codex did not independently replay the destructive uninstall/reinstall.

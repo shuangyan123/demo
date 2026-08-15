@@ -522,6 +522,24 @@ Phase 2A 已在同一台 Windows 机器、同一专用 Windows profile 中，使
 
 Static contracts and build/package success cannot replace the operator-attested Windows evidence. Phase 2B is therefore **COMPLETE only within the scoped lifecycle above**; complete physical install-root deletion, clean uninstall, credential persistence and the remaining 0.8 distribution claims are not closed.
 
+### Phase 2C — running-app uninstall lifecycle acceptance preparation
+
+状态：**PREPARED / PENDING REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE（2026-08-15）**；`0.8 overall` 仍为 **IN PROGRESS**。
+
+- 本阶段回答一个限定问题：`0.2.3` 正常运行时，Windows Installed Apps 的标准卸载入口如何处理 running Electron process、Squirrel `Update.exe`、uninstall registration、binary root、`.dead` 和既有 `%APPDATA%\错题复盘` userData。
+- 已重新审计现有 `desktop/main.ts`、`desktop/squirrel-lifecycle.ts` 和 lifecycle contracts。`--squirrel-uninstall` 在 single-instance lock、`app.whenReady()`、BrowserWindow、renderer、Desktop runtime 和 credential/vault IPC 之前进入 `app.quit()` 分支；Main 没有 app-owned recursive userData cleanup。现有 contract 已覆盖这些静态不变式，不新增重复 snapshot test。
+- 已核对 Squirrel 2.0.1 vendor path：`Update.exe --uninstall` → `FullUninstall()` → package-process termination attempt → Squirrel-aware `--squirrel-uninstall` hook → deletion attempt → root recreation/`.dead` marker → uninstall registry removal。该 source-backed interpretation 解释 vendor ownership，但不等于真实 running-app 进程退出、无 orphan 或 residual acceptance。
+- Preparation 只增加 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md) 与 [`docs/release-smoke.md`](release-smoke.md) 的 matrix/procedure/status 记录，并保留 Phase 2B 的 residual 为历史证据；不修改 runtime/package/Forge identity，不 bump `0.2.4`，不重建 installer、不创建 tag/release、不 signing、不 publisher、不 auto-update。
+- Existing candidate provenance 保持：`ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`，artifact source SHA `da46193de710fa11b638793eb34401b305a713ae`，SHA-256 `FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`。
+
+#### Phase 2C acceptance boundary
+
+真实验收必须使用全新 dedicated Windows profile，单次 baseline Setup、production UI ordinary sentinel、应用保持运行时单次 Windows Settings uninstall、最多约 30 秒的 process/root/registry/userData observation、解释清楚的 residual state、同一已核验 `0.2.3` Setup reinstall 和完整普通 restart。不得复制 AppData/userData/IndexedDB/credentials，不得手工运行 `Update.exe --uninstall`、kill process、删除 residual、删 registry 或重复 Setup。
+
+所有 running-app rows 初始为 **PENDING REAL WINDOWS ACCEPTANCE**；`.dead`、physical residual 和 complete install-root deletion 必须观察后分类。app/hung/orphan、registration 与 process 状态矛盾或 userData 删除都必须停止并保留脱敏证据。Credential availability 保持 **PENDING / NOT EXECUTED**；different account/machine、copied userData 和 general DPAPI portability 保持 **NON-CLAIM**。
+
+最终状态必须保持：**0.8 Phase 2C PREPARED / PENDING REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE**；本阶段停止于 **REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE REQUIRED**，不得写成 Phase 2C COMPLETE。
+
 ### 风险
 
 - runner 缓存和上游归档漂移。
@@ -531,7 +549,7 @@ Static contracts and build/package success cannot replace the operator-attested 
 ### 验收标准
 
 - Phase 1：当前 packaging stack、binary/userData ownership、lifecycle process model、installer identity、threat model 和 A–W acceptance matrix 有代码/依赖/文档证据与 automated contracts。
-- Full 0.8：clean-machine 安装、覆盖升级、Phase 2B scoped 卸载/重装边界、签名、release asset provenance 和其余 userData lifecycle 仍需按各自 scope 的真实 Windows evidence；未执行项目不得写成 PASS。
+- Full 0.8：clean-machine 安装、覆盖升级、Phase 2B scoped 卸载/重装边界、Phase 2C running-app uninstall、签名、release asset provenance 和其余 userData lifecycle 仍需按各自 scope 的真实 Windows evidence；未执行项目不得写成 PASS。
 - 安装器、ASAR、runtime manifest、Fuses、大小和 checksum 可验证；这些 artifact checks 不替代真实 installed-app lifecycle evidence。
 
 ### 回滚边界

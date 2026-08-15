@@ -1,6 +1,6 @@
 # Windows Desktop Distribution / Lifecycle Contract
 
-状态：**0.8 Phase 1 COMPLETE；Phase 2A COMPLETE within scoped adjacent-version acceptance；Phase 2B COMPLETE within scoped closed-app uninstall → same-version reinstall → userData/product-data persistence → full-restart acceptance；0.8 overall IN PROGRESS**（2026-08-15）。
+状态：**0.8 Phase 1 COMPLETE；Phase 2A COMPLETE within scoped adjacent-version acceptance；Phase 2B COMPLETE within scoped closed-app uninstall → same-version reinstall → userData/product-data persistence → full-restart acceptance；Phase 2C PREPARED / PENDING REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE；0.8 overall IN PROGRESS**（2026-08-15）。
 
 本文件建立 Windows x64 分发、生命周期和 `userData` 的 ownership contract。它不重新设计或削弱 0.7 的 Desktop authority、no Web fallback、fail-closed、context binding、source retention 或 credential cleanup ordering。0.7 的安全语义仍由既有实现、contract 和已归档的 scoped installed-app evidence 所拥有。
 
@@ -118,6 +118,115 @@ Phase 1 交付：
 | Different account/machine | NON-CLAIM |
 | Copied userData | NON-CLAIM |
 | General DPAPI portability | NON-CLAIM |
+
+## Phase 2C — running-app uninstall lifecycle acceptance preparation
+
+状态：**PREPARED / PENDING REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE**（2026-08-15）；`0.8 overall` 仍为 **IN PROGRESS**。
+
+本阶段只准备并审计“应用正在正常运行时，通过 Windows Installed Apps 执行一次标准卸载”的验收。Codex 环境不执行真实 destructive running-app uninstall，不重建 profile、不重复运行 Setup、不修改 `userData`，也不把静态 contract 或 Phase 2B 的 closed-app residual 当作本阶段实机结果。
+
+### Candidate identity and preparation boundary
+
+- Package：`0.2.3`；installer：`ReviewWorkspace-0.2.3-Windows-x64-Setup.exe`；Squirrel identity：`review_workspace`。
+- Existing artifact source SHA：`da46193de710fa11b638793eb34401b305a713ae`；installer SHA-256：`FBC9D0553926BCFBB8634E31E2108FE3BA555FF999389CBB8403BB1A6B084B22`。
+- Audited stack：Electron `43.2.0`、Forge/MakerSquirrel `7.11.2`、`electron-winstaller` `5.4.4`、vendor Squirrel `2.0.1+eef37460ae` / FileVersion `2.0.1.1`。
+- Preparation result：**NO RUNTIME CHANGE**；不 bump `0.2.4`，不重建 installer，不创建 tag/GitHub Release，不 signing、不 publisher、不 auto-update。
+
+### Static lifecycle audit
+
+| Audit item | Current code/vendor fact | Evidence boundary |
+| --- | --- | --- |
+| `--squirrel-uninstall` classification | `squirrel-lifecycle.ts` maps it to `uninstall` and `main.ts` treats it as a lifecycle exit | Automated contract; not running-app evidence |
+| Detection order | `app.quit()` is in the lifecycle branch before `requestSingleInstanceLock()`, `app.whenReady()` and normal window launch | Automated PASS |
+| Renderer launch | Lifecycle branch does not call `createMainWindow()` or load a URL | Automated PASS |
+| Desktop runtime / credential path | Lifecycle branch does not call `startDesktopRuntime()`, credential IPC installation or vault IPC installation; those remain inside normal window creation | Source/contract audit; no Windows process claim |
+| `userData` handling | Main does not redirect `userData` and has no lifecycle-time product-data cleanup | Automated PASS; no Windows preservation claim for this phase |
+| Application recursive deletion | Main has no app-owned uninstall cleanup or recursive directory deletion path | Automated source contract; vendor cleanup remains outside product code |
+| Normal vs lifecycle path | The lifecycle branch exits before the normal `else` branch; `--squirrel-firstrun` remains a normal launch | Automated PASS |
+
+The existing `desktop/squirrel-lifecycle.contract.test.ts` already covers these requested invariants; this preparation does not add a duplicate or brittle whole-file snapshot.
+
+### Squirrel 2.0.1 vendor path interpretation
+
+The installed vendor source and binary version were rechecked. The upstream 2.0.1 path is:
+
+```text
+Update.exe --uninstall
+  → Program.Uninstall()
+  → UpdateManager.FullUninstall()
+  → acquire update lock
+  → KillAllExecutablesBelongingToPackage()
+  → ApplyReleasesImpl.FullUninstall()
+  → invoke Squirrel-aware app(s) with --squirrel-uninstall (bounded hook)
+  → DeleteDirectoryOrJustGiveUp(root)
+  → recreate root when absent and write .dead
+  → RemoveUninstallerRegistryEntry()
+```
+
+The source shows that package-owned processes under the install root may be terminated before the Squirrel-aware uninstall hook is invoked; this is a vendor process-termination path, not proof of a graceful product shutdown. The source also shows that directory deletion can give up, after which Squirrel deliberately recreates the root and writes `.dead`. These are interpretation facts only. Whether the real `0.2.3` main/child processes terminate without a hung, zombie or orphan state, whether `Update.exe` exits, and what physical residual remains are **PENDING / NOT YET OBSERVED**.
+
+The reviewed source locations are [`UpdateManager.FullUninstall`](https://github.com/Squirrel/Squirrel.Windows/blob/2.0.1/src/Squirrel/UpdateManager.cs#L78-L85), [`KillAllProcessesBelongingToPackage`](https://github.com/Squirrel/Squirrel.Windows/blob/2.0.1/src/Squirrel/UpdateManager.InstallHelpers.cs#L94-L119), [`FullUninstall` and `.dead` creation](https://github.com/Squirrel/Squirrel.Windows/blob/2.0.1/src/Squirrel/UpdateManager.ApplyReleases.cs#L96-L143), and [`Update.exe` uninstall/registry removal](https://github.com/Squirrel/Squirrel.Windows/blob/2.0.1/src/Update/Program.cs#L2343-L2357).
+
+### Phase 2C acceptance matrix
+
+Every row below starts as **PENDING REAL WINDOWS ACCEPTANCE**. `OBSERVE` means the result must be recorded without preclassifying it as pass or failure.
+
+| Row | Preparation status |
+| --- | --- |
+| Fresh dedicated Windows profile | PENDING |
+| Verified `0.2.3` installer hash | PENDING |
+| Clean `0.2.3` baseline install | PENDING |
+| Production sentinel | PENDING |
+| Baseline ordinary restart | PENDING |
+| App confirmed running before uninstall | PENDING |
+| Main process from `app-0.2.3` | PENDING |
+| Same `%APPDATA%\错题复盘` | PENDING |
+| Standard Windows uninstall invoked once while app running | PENDING |
+| Running Electron main terminated | PENDING |
+| Electron child processes terminated | PENDING |
+| `Update.exe` eventually exits | PENDING |
+| No orphan `review-workspace` process | PENDING |
+| Uninstall registration removal | PENDING |
+| Root execution stub removal | PENDING |
+| Packages removal | PENDING |
+| Squirrel `.dead` marker | PENDING / OBSERVE |
+| Physical binary residual | PENDING / OBSERVE |
+| Complete install-root removal | NOT PRECLAIMED |
+| UserData preservation | PENDING |
+| Post-uninstall same-version reinstall | PENDING |
+| Residual-state recovery | PENDING |
+| Original sentinel restoration | PENDING |
+| Post-reinstall full ordinary restart | PENDING |
+| Original sentinel after restart | PENDING |
+| Uninstall registration recreation | PENDING |
+| Credential availability | PENDING / NOT EXECUTED |
+| Different account/machine | NON-CLAIM |
+| Copied `userData` | NON-CLAIM |
+| General DPAPI portability | NON-CLAIM |
+
+Phase 2B's observed `.dead`, `Update.exe` and small `app-0.2.3` residual is historical evidence only. Phase 2C may have the same or a different residual shape; it must be recorded from the running-app case and must not be prefilled from Phase 2B.
+
+### Sanitized operator procedure
+
+Use a new dedicated local Windows profile. Do not reuse the Phase 2B profile and do not copy AppData, `userData`, IndexedDB, credentials or installer state. Record only sanitized process, version, path-category, registry-status, timestamp and hash facts.
+
+1. **Clean preflight.** Confirm `%LOCALAPPDATA%\review_workspace`, `%LOCALAPPDATA%\SquirrelTemp` and `%APPDATA%\错题复盘` are absent. Confirm no `review-workspace` or `Update.exe` process is running.
+2. **Verify and install once.** Recalculate the exact candidate SHA-256 above. Run `ReviewWorkspace-0.2.3-Windows-x64-Setup.exe` once. Do not double-click, retry, kill `Update.exe`, close an active install, or manually delete `SquirrelTemp`.
+3. **Baseline.** Confirm the installed main comes from `app-0.2.3`, the first-run path may use `--squirrel-firstrun`, the child uses `--user-data-dir="%APPDATA%\错题复盘"`, the root stub and `Update.exe` exist as expected, and Squirrel reports normal completion.
+4. **Sentinel.** Through the production UI create only the ordinary non-sensitive sentinel `running-app-uninstall-acceptance-2026-08-15` with test-only content. Fully quit, relaunch through the root stub and confirm the sentinel remains visible. Do not edit IndexedDB directly.
+5. **Running snapshot.** Relaunch normally and keep the app running. Capture a sanitized process snapshot showing the main executable under `app-0.2.3`, the child with the expected userData argument, `Update.exe` not running, and the sentinel visible. Do not manually quit the app before uninstall.
+6. **Invoke uninstall once.** Use only Windows Settings → Apps → Installed apps → `review-workspace`/`错题复盘` → Uninstall, and confirm the normal product prompt once. Do not run `Update.exe --uninstall`, quiet uninstall, a second uninstall, process kills, manual registry deletion or manual directory deletion.
+7. **Observe without rescue.** Record process state immediately after invocation and again after at most about 30 seconds: main/child exit, `Update.exe` appearance and eventual exit, orphan processes, uninstall registration, root stub, packages, `.dead`, versioned binaries, physical root and userData. Do not kill anything to force completion.
+8. **Stop on anomalies.** If the app remains alive, classify **RUNNING-APP UNINSTALL FAILURE / HUNG PROCESS** and preserve evidence. If registration disappears while a product process remains, stop and preserve evidence. If userData is deleted, classify **RELEASE-BLOCKING FINDING** and do not reinstall.
+9. **Reinstall gate.** Proceed only when all product and Update processes have exited, registration removal is understood, userData is preserved, residual state is recorded and no destructive anomaly remains unresolved. Keep every residual in place.
+10. **Same-version reinstall.** Run the same verified Setup once. Observe whether it consumes residual state, removes `.dead`, redeploys `app-0.2.3`, recreates the root stub, reuses the same userData and restores the original sentinel.
+11. **Full restart.** After all processes exit, launch the root stub and confirm no lifecycle argument, the same userData path, the original sentinel and recreated uninstall registration. Do not create a replacement sentinel.
+
+No credential is created or tested in this phase. Sentinel persistence is not credential persistence and is not DPAPI portability evidence.
+
+### Phase 2C stop point and non-claims
+
+This preparation PR must remain **OPEN/DRAFT** even if all automated and remote checks pass. It stops at **REAL WINDOWS RUNNING-APP UNINSTALL ACCEPTANCE REQUIRED**. It does not claim credential reinstall behavior, another account or machine, copied `userData`, general DPAPI portability, interrupted/power-loss uninstall, forced `Update.exe` termination, antivirus interference, elevated-admin uninstall, signing, publisher, SmartScreen, release promotion, auto-update or delta update.
 
 ### Precise Windows manual acceptance procedure
 
@@ -302,7 +411,7 @@ All real installer procedures require a dedicated Windows x64 user/profile and a
 - adjacent-version overwrite upgrade is **PASS within the same-machine, same-Windows-user, same-application-profile scope** recorded above; it is not portability evidence;
 - the incidental same-version `0.2.2` Setup observation is not a general same-version reinstall safety claim;
 - no product shortcut was observed; shortcut creation/UX remains a separate distribution residual, while the root execution stub path passed;
-- running-app upgrade, uninstall while closed/running and uninstall + reinstall are not yet real PASS;
+- closed-app uninstall/reinstall is **PASS only within the scoped Phase 2B evidence**; running-app upgrade and running-app uninstall remain **PENDING / NON-CLAIM**;
 - production code signing, publisher identity and signed SmartScreen behavior are not PASS;
 - formal release asset promotion/provenance beyond current filename/checksum workflow is not PASS;
 - copied `userData`, changed Windows account/machine and general DPAPI portability are NON-CLAIM;
