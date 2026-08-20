@@ -186,7 +186,7 @@ Squirrel Setup.exe / Update.exe
 
 ## 0.8 Squirrel no-remote-icon bridge（2026-08-20）
 
-状态：**SOURCE FIX IMPLEMENTED；GENERATED PACKAGE AND REAL WINDOWS OFFLINE ACCEPTANCE REQUIRED；installer migration feasibility remains ACTIVE**。
+状态：**SOURCE FIX IMPLEMENTED；0.2.4 REAL WINDOWS OFFLINE CLEAN-INSTALL BASELINE PASS WITHIN SCOPED OPERATOR EVIDENCE；installer migration feasibility remains ACTIVE**。
 
 ### Root cause
 
@@ -211,7 +211,7 @@ Squirrel.Windows `2.0.1` 的 `CreateUninstallerRegistryEntry()` 先创建 uninst
 - 静态 contract 和 generated nupkg metadata 可以证明 source/package 不含 `<iconUrl>`；它们不能证明真实 Windows offline install、running-app uninstall、credential availability、DPAPI portability 或 Phase 2C。
 - 历史 `0.2.3` candidate 仅保留既有 lifecycle evidence，不再作为 no-remote-icon bridge 验收候选；它受 installer-time remote icon retrieval 影响而失效。
 - `0.2.4` 是新的 bridge acceptance candidate，目标仅为真实 Windows fresh/offline/GitHub-unreachable clean-install baseline；source-level/generated-package evidence 不能替代真实 Windows acceptance。
-- 真实 Windows acceptance 仍为 **PENDING**；本候选不声称 clean install、offline install、running-app uninstall、credential/DPAPI、signing 或 production readiness PASS。
+- 该窄范围 baseline 已由下方用户提供的 **operator-attested** real Windows evidence 标记为 PASS；这不是 Codex 在本轮重新执行 Setup 的 independent replay，也不扩展为 running-app uninstall、credential/DPAPI、signing 或 production readiness PASS。
 
 ### 0.2.4 bridge acceptance candidate and operator procedure
 
@@ -233,7 +233,28 @@ Source contracts 和 generated `.nupkg` metadata 只能证明 checked-in bridge 
 7. 首次启动应用，确认 child runtime 使用预期 `%APPDATA%\错题复盘`。
 8. 通过 production UI 创建一个 sanitized、非敏感 sentinel；完成一次普通完整关闭和重新启动，确认 sentinel 仍存在。
 
-任一步失败都必须停止并保留脱敏的 installer hash、Squirrel log、进程退出和路径类别证据；不得重试 Setup、手工清理 install root/userData/registry、修改 shortcut 或执行 destructive uninstall。该首轮候选不包含 running-app uninstall；结论仍为 **REAL WINDOWS OFFLINE CLEAN-INSTALL ACCEPTANCE REQUIRED**。
+任一步失败都必须停止并保留脱敏的 installer hash、Squirrel log、进程退出和路径类别证据；不得重试 Setup、手工清理 install root/userData/registry、修改 shortcut 或执行 destructive uninstall。该首轮候选不包含 running-app uninstall；只有下方全部步骤均被实际观察到时，才可将窄范围 baseline 标记为 PASS。
+
+### 0.2.4 real Windows offline clean-install acceptance record（2026-08-20）
+
+证据类型：用户提供的 **operator-attested** real Windows observation；Codex 本轮没有重新运行 Setup、执行 uninstall 或做 credential/DPAPI 操作。记录只保留本候选所需的脱敏版本、生命周期、路径类别和状态事实。
+
+- Candidate identity：`0.2.4`；`ReviewWorkspace-0.2.4-Windows-x64-Setup.exe`；source SHA `1c41e53488fe8b4427d1c78831e3b524a114a2da`；installer SHA-256 `2A28CB47E3485DC2D67CEE80ED2208E705607452372A0C34B1FC323E186626EE`。
+- Fresh profile preflight：**PASS**。安装 root、`SquirrelTemp`、`%APPDATA%\\错题复盘`、Review Workspace/Update/Squirrel processes 和 HKCU uninstall registration 均不存在。
+- Offline boundary：**PASS**。`raw.githubusercontent.com` 与 `github.com` DNS resolution failed；安装、首启和重启期间机器保持 offline。
+- Setup execution：**PASS**。Setup 只运行一次；未重试、未手工 kill、未 uninstall，也未做 destructive recovery。
+- Squirrel transaction：**PASS**。90 秒后只剩正常 application/runtime processes；Setup、Update.exe、Squirrel.exe 均已退出，log 到达 `Program: Finished Squirrel Updater`，并完成 `app-0.2.4` deployment。
+- Uninstall registration：**PASS**。`DisplayName=review-workspace`、`DisplayVersion=0.2.4`、`InstallLocation`、标准 `Update.exe --uninstall` 和 quiet `Update.exe --uninstall -s` 均存在；`DisplayIcon` 为空，分类为 **EMPTY / EXPECTED BRIDGE UX RESIDUAL**，不作为安装失败。
+- Install root：**PASS**。预期的 `app-0.2.4`、`packages`、root `review-workspace.exe` 和 `Update.exe` 存在。
+- First launch/runtime/userData：**PASS**。首次启动使用 `--squirrel-firstrun`，bundled `.desktop-runtime` 与 `server.js` 来自 `app-0.2.4`，Electron child 使用 `%APPDATA%\\错题复盘`，该 userData 存在。
+- Production sentinel and close：**PASS**。通过 normal production UI 创建 sanitized sentinel `offline-clean-install-acceptance-2026-08-20`；正常关闭后 Review Workspace application/runtime processes 均退出。无关的 Adobe Creative Cloud `node.exe` 不属于本产品范围。
+- Ordinary restart and persistence：**PASS**。从安装 root execution stub 重启时无 `--squirrel-firstrun`，runtime 和 userData 路径保持不变，production UI 仍显示原 sentinel。
+
+最终窄范围结论：**0.2.4 REAL WINDOWS OFFLINE CLEAN-INSTALL BASELINE: PASS**。
+
+该 PASS 只覆盖 fresh disposable profile、精确 candidate identity、GitHub Raw/general network unreachable、单次 Setup、Squirrel transaction completion、uninstall registration、first launch、bundled runtime、预期 userData、production-UI sentinel、normal close、ordinary root-stub restart 和 sentinel persistence。不能推广为所有网络失败模式均安全。
+
+以下项目继续保持 **PENDING / NON-CLAIM**：running-app uninstall、closed-app uninstall、reinstall、Squirrel → NSIS migration、credential availability、DPAPI portability、signing、SmartScreen、production readiness、auto-update、different Windows account/machine 和 copied userData。
 
 ## Install root and userData ownership
 
