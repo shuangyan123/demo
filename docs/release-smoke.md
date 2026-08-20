@@ -1,5 +1,16 @@
 # 发布前手工冒烟清单
 
+## Current 2026-08-20 · 0.8 Squirrel no-remote-icon bridge candidate
+
+状态：**REAL WINDOWS OFFLINE CLEAN-INSTALL ACCEPTANCE REQUIRED**。历史 `0.2.3` candidate 因 installer-time remote icon retrieval 失效，仅保留既有 operator-attested lifecycle evidence；PR #90 已关闭且未合并，PR #91 的 checked-in no-remote-icon bridge 已合并。新的 `0.2.4` candidate 只用于 real-Windows fresh/offline/GitHub-unreachable clean-install baseline；source-level/generated-package evidence 不能写成安装 PASS。
+
+- Installer：`ReviewWorkspace-0.2.4-Windows-x64-Setup.exe`；full package：`review_workspace-0.2.4-full.nupkg`；Squirrel identity：`review_workspace`；Windows x64。
+- 生成前记录 clean committed task-branch HEAD 的 exact source SHA；生成后记录 Setup.exe、full `.nupkg` 和 `RELEASES` 的 byte size/SHA-256。
+- 必须确认 generated `.nupkg` 无 `<iconUrl>` 且无旧 Electron GitHub icon URL；不得以 `iconUrl` 空值、`file:` 或其他 URL 代替 bridge。
+- 下一轮人工 procedure 仅包含 fresh profile、精确 hash、network disabled/Raw unreachable、单次 Setup、Setup/Update 完全退出、`Program: Finished Squirrel Updater`、uninstall registration、首启、`%APPDATA%\错题复盘` runtime、一个 sanitized UI sentinel 和完整关闭/重启后的 sentinel 保留。
+- Running-app uninstall、credential/DPAPI、signing、production readiness 和 NSIS/electron-builder M0 不在本候选中；installer migration feasibility 仍 ACTIVE，Squirrel 仍是 temporary bridge。
+- 任何失败都停止并保留脱敏证据，不重试 Setup，不执行 destructive uninstall；完整 operator procedure 见 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md)。
+
 ## Current 2026-08-15 · 0.8 Windows Distribution Phase 2B scoped closure
 
 状态：**COMPLETE within the scoped closed-app uninstall → same-version `0.2.3` reinstall → same-userData/product-data persistence → full-restart acceptance**；`0.8 overall` 仍为 **IN PROGRESS**。以下真实 Windows lifecycle facts 是用户提供的 **operator-attested evidence**，不是 Codex 在本轮独立重放的 destructive uninstall/reinstall。详细 audit、Squirrel source interpretation 和边界见 [`docs/windows-desktop-distribution.md`](windows-desktop-distribution.md)。
