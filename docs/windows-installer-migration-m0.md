@@ -133,7 +133,7 @@ it was read back and allowed as the second Electron resource entry.
   existing Squirrel artifact contract passed `3/3`.
 - `git diff --check`: PASS.
 
-## Explicit non-claims and next boundary
+## Explicit non-claims and staged migration boundary
 
 No NSIS installer was installed, launched, upgraded, uninstalled, or used with
 a real user profile. Therefore the following remain pending and are not implied
@@ -143,7 +143,17 @@ replacement, adjacent-version upgrade, uninstall cleanup, running-app safety,
 and recovery after interruption. Portability and cross-machine credential
 claims remain untested.
 
-**One next task recommendation:** design and separately approve an M1 real
-Windows installed-app acceptance plan, including a disposable profile and
-explicit shortcut, userData, credential/DPAPI, upgrade, uninstall, and
-running-app safety gates; do not execute it as part of M0.
+The staged migration plan is:
+
+| Phase | Boundary |
+| --- | --- |
+| M0 | Artifact compatibility proof — **COMPLETE / PASS**. |
+| M1 | Production-quality candidate packaging infrastructure plus independent Windows GitHub Actions rebuild/readback. |
+| M2 | Fresh-profile real Windows NSIS installed-app acceptance: install, launch, expected userData, production UI sentinel, ordinary restart, and shortcut/shell/AUMID observations. |
+| M3 | Existing Squirrel 0.2.4 → NSIS migration: existing-user path, userData continuity, credential/safeStorage/DPAPI continuity, and legacy Squirrel cleanup semantics. |
+| M4 | NSIS uninstall, reinstall, and running-app lifecycle. |
+| M5 | Signing, release, and updater work kept separately scoped. |
+
+The immediate next task after M0 is **M1 candidate packaging plus independent
+Windows CI rebuild/readback**. Real Windows NSIS installer execution is M2 and
+remains pending; it is not the next task and is not implied by this M0 proof.
