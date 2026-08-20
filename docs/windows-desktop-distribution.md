@@ -148,8 +148,8 @@ Static contracts and build/package success do not independently prove Windows li
 
 | 项目 | 当前事实 | 证据 / 分类 |
 | --- | --- | --- |
-| Application package | `review-workspace` / product name `错题复盘` / candidate version `0.2.3` | `package.json`、generated `.desktop-app/package.json` |
-| Electron | `43.2.0` | locked dependency；candidate Windows artifact 的 file version 应为 `0.2.3` |
+| Application package | `review-workspace` / product name `错题复盘` / candidate version `0.2.4` | `package.json`、generated `.desktop-app/package.json` |
+| Electron | `43.2.0` | locked dependency；candidate Windows artifact 的 file version 应为 `0.2.4` |
 | Electron Forge | `7.11.2` | locked `@electron-forge/cli` 与 maker |
 | Maker | `@electron-forge/maker-squirrel` `7.11.2` | `forge.config.ts` 使用 `MakerSquirrel` |
 | Windows generator | `electron-winstaller` `5.4.4` | maker optional dependency，lockfile 已解析 |
@@ -157,9 +157,9 @@ Static contracts and build/package success do not independently prove Windows li
 | Setup bootstrapper | `Setup.exe` ProductVersion `1.9.1.0` | 当前 `electron-winstaller/vendor/Setup.exe` 资源版本 |
 | Target | Windows x64 | Forge `--arch=x64` 与 `squirrel.windows/x64` |
 | Squirrel package id | `review_workspace` | Forge maker 将 `review-workspace` 的连字符替换为下划线 |
-| Installer name | `ReviewWorkspace-0.2.3-Windows-x64-Setup.exe` | `forge.config.ts` 的 `setupExe` |
+| Installer name | `ReviewWorkspace-0.2.4-Windows-x64-Setup.exe` | `forge.config.ts` 的 `setupExe` |
 | Forge output | `out/make/squirrel.windows/x64/` | Forge `outDir: "../out"` |
-| Package outputs | `RELEASES`、`review_workspace-0.2.3-full.nupkg`、Setup.exe | candidate make artifact shape |
+| Package outputs | `RELEASES`、`review_workspace-0.2.4-full.nupkg`、Setup.exe | candidate make artifact shape |
 | Signing | **PENDING**；没有 production certificate、publisher identity 或 CI signing secret contract | 不声称 signed PASS |
 
 ### Packaging flow
@@ -186,11 +186,11 @@ Squirrel Setup.exe / Update.exe
 
 ## 0.8 Squirrel no-remote-icon bridge（2026-08-20）
 
-状态：**SOURCE FIX IMPLEMENTED；GENERATED PACKAGE AND REAL WINDOWS OFFLINE ACCEPTANCE REQUIRED；installer migration feasibility remains ACTIVE**。
+状态：**SOURCE FIX IMPLEMENTED；0.2.4 REAL WINDOWS OFFLINE CLEAN-INSTALL BASELINE PASS WITHIN SCOPED OPERATOR EVIDENCE；installer migration feasibility remains ACTIVE**。
 
 ### Root cause
 
-`electron-winstaller@5.4.4` 在没有显式覆盖时会把 Electron GitHub 的远程 `iconUrl` 写入默认 nuspec template。当前 `0.2.3` nupkg 因此包含：
+`electron-winstaller@5.4.4` 在没有显式覆盖时会把 Electron GitHub 的远程 `iconUrl` 写入默认 nuspec template。历史 `0.2.3` nupkg 因此包含，现已因该 installer-time remote icon retrieval 问题失效：
 
 ```text
 https://raw.githubusercontent.com/electron/electron/main/shell/browser/resources/win/electron.ico
@@ -200,7 +200,7 @@ Squirrel.Windows `2.0.1` 的 `CreateUninstallerRegistryEntry()` 先创建 uninst
 
 ### Source fix
 
-本 bridge 在 [scripts/squirrel.nuspec.template](../scripts/squirrel.nuspec.template) 中逐项保留当前已安装 `electron-winstaller@5.4.4` 模板的 metadata/files 行为，但完全省略 `<iconUrl>`；[forge.config.ts](../forge.config.ts) 通过受支持的 `nuspecTemplate` 选项引用该 checked-in template。
+本 bridge 已由 PR #91 合并到当前 `main`（source baseline `4a08bf2…`）。它在 [scripts/squirrel.nuspec.template](../scripts/squirrel.nuspec.template) 中逐项保留当前已安装 `electron-winstaller@5.4.4` 模板的 metadata/files 行为，但完全省略 `<iconUrl>`；[forge.config.ts](../forge.config.ts) 通过受支持的 `nuspecTemplate` 选项引用该 checked-in template。PR #90 已关闭且未合并；本候选不复用其分支或结论。
 
 这不是 `iconUrl: ""`、`iconUrl: null`、`file:` URL、另一个远程 URL 或 vendor fork。预期结果是 Squirrel 的 `IconUrl` 为空/缺失，从而跳过 installer-time icon download；卸载注册中的 `DisplayIcon` 不再作为产品保证，普通 uninstall registry values 不应再被该远程请求阻塞。
 
@@ -209,7 +209,52 @@ Squirrel.Windows `2.0.1` 的 `CreateUninstallerRegistryEntry()` 先创建 uninst
 - 这是一个 **short-term Squirrel bridge**，不是 installer framework migration；NSIS/electron-builder 不在本任务中实现。
 - 不修改 package/application identity、版本、runtime、userData、Dexie、credential authority/storage/cleanup、preload/IPC、protocol、single-instance、Electron fuses/security、signing、release/tag 或 auto-update。
 - 静态 contract 和 generated nupkg metadata 可以证明 source/package 不含 `<iconUrl>`；它们不能证明真实 Windows offline install、running-app uninstall、credential availability、DPAPI portability 或 Phase 2C。
-- 当前 `0.2.3` candidate 不因该 source fix 获得新的安装或 Phase 2C 结论；需要后续专门 candidate/真实 Windows acceptance。
+- 历史 `0.2.3` candidate 仅保留既有 lifecycle evidence，不再作为 no-remote-icon bridge 验收候选；它受 installer-time remote icon retrieval 影响而失效。
+- `0.2.4` 是新的 bridge acceptance candidate，目标仅为真实 Windows fresh/offline/GitHub-unreachable clean-install baseline；source-level/generated-package evidence 不能替代真实 Windows acceptance。
+- 该窄范围 baseline 已由下方用户提供的 **operator-attested** real Windows evidence 标记为 PASS；这不是 Codex 在本轮重新执行 Setup 的 independent replay，也不扩展为 running-app uninstall、credential/DPAPI、signing 或 production readiness PASS。
+
+### 0.2.4 bridge acceptance candidate and operator procedure
+
+候选必须从 clean、已提交的 task-branch HEAD 生成，并记录该 exact source SHA。预期 artifact identity 为：
+
+- Installer：`ReviewWorkspace-0.2.4-Windows-x64-Setup.exe`。
+- Full package：`review_workspace-0.2.4-full.nupkg`。
+- Package identity：`review_workspace`；Electron：`43.2.0`；Windows target：x64。
+- `RELEASES`、full `.nupkg` 和 Setup.exe 的实际 byte size/SHA-256 必须从生成文件记录。
+
+Source contracts 和 generated `.nupkg` metadata 只能证明 checked-in bridge 与生成包不含 `<iconUrl>` 及旧 Electron GitHub icon URL；它们不是 real-Windows acceptance。下一轮人工验收只执行以下窄范围：
+
+1. 使用全新的 disposable Windows local user/profile；预检没有 `review_workspace` install root、`SquirrelTemp`、`Update.exe`、应用进程或既有产品数据。
+2. 对实际携带的 `ReviewWorkspace-0.2.4-Windows-x64-Setup.exe` 重新计算 SHA-256，并与候选记录一致。
+3. 在运行 Setup 前禁用网络，或明确验证 `raw.githubusercontent.com` 不可达；保留只含非敏感目标/状态的网络证据。
+4. Setup **只运行一次**。等待 Setup、`Update.exe`、Squirrel transaction 和相关子进程全部退出；Squirrel log 必须达到 `Program: Finished Squirrel Updater`。
+5. 验证 uninstall registration 已完成：`DisplayName`、`DisplayVersion=0.2.4`、`InstallLocation`、`UninstallString`、`QuietUninstallString`。
+6. 通过网络/进程观察确认安装期间没有连接旧的 Electron GitHub icon URL；不得用 package metadata 把此项写成 real-Windows PASS。
+7. 首次启动应用，确认 child runtime 使用预期 `%APPDATA%\错题复盘`。
+8. 通过 production UI 创建一个 sanitized、非敏感 sentinel；完成一次普通完整关闭和重新启动，确认 sentinel 仍存在。
+
+任一步失败都必须停止并保留脱敏的 installer hash、Squirrel log、进程退出和路径类别证据；不得重试 Setup、手工清理 install root/userData/registry、修改 shortcut 或执行 destructive uninstall。该首轮候选不包含 running-app uninstall；只有下方全部步骤均被实际观察到时，才可将窄范围 baseline 标记为 PASS。
+
+### 0.2.4 real Windows offline clean-install acceptance record（2026-08-20）
+
+证据类型：用户提供的 **operator-attested** real Windows observation；Codex 本轮没有重新运行 Setup、执行 uninstall 或做 credential/DPAPI 操作。记录只保留本候选所需的脱敏版本、生命周期、路径类别和状态事实。
+
+- Candidate identity：`0.2.4`；`ReviewWorkspace-0.2.4-Windows-x64-Setup.exe`；source SHA `1c41e53488fe8b4427d1c78831e3b524a114a2da`；installer SHA-256 `2A28CB47E3485DC2D67CEE80ED2208E705607452372A0C34B1FC323E186626EE`。
+- Fresh profile preflight：**PASS**。安装 root、`SquirrelTemp`、`%APPDATA%\\错题复盘`、Review Workspace/Update/Squirrel processes 和 HKCU uninstall registration 均不存在。
+- Offline boundary：**PASS**。`raw.githubusercontent.com` 与 `github.com` DNS resolution failed；安装、首启和重启期间机器保持 offline。
+- Setup execution：**PASS**。Setup 只运行一次；未重试、未手工 kill、未 uninstall，也未做 destructive recovery。
+- Squirrel transaction：**PASS**。90 秒后只剩正常 application/runtime processes；Setup、Update.exe、Squirrel.exe 均已退出，log 到达 `Program: Finished Squirrel Updater`，并完成 `app-0.2.4` deployment。
+- Uninstall registration：**PASS**。`DisplayName=review-workspace`、`DisplayVersion=0.2.4`、`InstallLocation`、标准 `Update.exe --uninstall` 和 quiet `Update.exe --uninstall -s` 均存在；`DisplayIcon` 为空，分类为 **EMPTY / EXPECTED BRIDGE UX RESIDUAL**，不作为安装失败。
+- Install root：**PASS**。预期的 `app-0.2.4`、`packages`、root `review-workspace.exe` 和 `Update.exe` 存在。
+- First launch/runtime/userData：**PASS**。首次启动使用 `--squirrel-firstrun`，bundled `.desktop-runtime` 与 `server.js` 来自 `app-0.2.4`，Electron child 使用 `%APPDATA%\\错题复盘`，该 userData 存在。
+- Production sentinel and close：**PASS**。通过 normal production UI 创建 sanitized sentinel `offline-clean-install-acceptance-2026-08-20`；正常关闭后 Review Workspace application/runtime processes 均退出。无关的 Adobe Creative Cloud `node.exe` 不属于本产品范围。
+- Ordinary restart and persistence：**PASS**。从安装 root execution stub 重启时无 `--squirrel-firstrun`，runtime 和 userData 路径保持不变，production UI 仍显示原 sentinel。
+
+最终窄范围结论：**0.2.4 REAL WINDOWS OFFLINE CLEAN-INSTALL BASELINE: PASS**。
+
+该 PASS 只覆盖 fresh disposable profile、精确 candidate identity、GitHub Raw/general network unreachable、单次 Setup、Squirrel transaction completion、uninstall registration、first launch、bundled runtime、预期 userData、production-UI sentinel、normal close、ordinary root-stub restart 和 sentinel persistence。不能推广为所有网络失败模式均安全。
+
+以下项目继续保持 **PENDING / NON-CLAIM**：running-app uninstall、closed-app uninstall、reinstall、Squirrel → NSIS migration、credential availability、DPAPI portability、signing、SmartScreen、production readiness、auto-update、different Windows account/machine 和 copied userData。
 
 ## Install root and userData ownership
 

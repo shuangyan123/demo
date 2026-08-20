@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-20 — 0.8 Squirrel no-remote-icon bridge acceptance closure
+
+- Invalidated the historical `0.2.3` bridge candidate because installer-time Squirrel uninstall-icon retrieval could reach the Electron GitHub icon URL; retained its prior lifecycle evidence only as historical, scoped evidence.
+- Recorded PR #90 as closed without merge and PR #91 as the merged checked-in no-remote-icon bridge using the custom Squirrel nuspec template.
+- Prepared the new `0.2.4` Windows x64 Squirrel acceptance candidate while preserving package/product/Squirrel/executable/userData/protocol/session/runtime/security/credential identities.
+- Closed PR #92's narrow real-Windows evidence with the user-provided operator-attested `0.2.4` fresh disposable profile → GitHub Raw/general network unreachable → one Setup → completed Squirrel transaction → first launch → production-UI sentinel → normal close/restart sequence. Final classification: **0.2.4 REAL WINDOWS OFFLINE CLEAN-INSTALL BASELINE: PASS**.
+- Candidate identity was `1c41e53488fe8b4427d1c78831e3b524a114a2da` with installer SHA-256 `2A28CB47E3485DC2D67CEE80ED2208E705607452372A0C34B1FC323E186626EE`; `DisplayIcon` empty remains the expected bridge UX residual, not an install failure.
+- Kept the evidence operator-attested and scoped: closed-app/running-app uninstall, reinstall, credentials/DPAPI, signing, SmartScreen, production readiness, auto-update, portability and copied `userData` remain **PENDING / NON-CLAIM**. NSIS/electron-builder migration feasibility remains active and Squirrel remains a temporary bridge.
+
 ## 2026-08-15 — 0.8 Windows Distribution Phase 2B Evidence Closure
 
 - Recorded user-supplied **operator-attested** Windows evidence for the scoped `0.2.3` fresh-profile install → production UI sentinel → fully closed standard uninstall → same-version reinstall → same-userData/product-data persistence → full ordinary restart sequence. Codex did not independently replay the destructive uninstall/reinstall.

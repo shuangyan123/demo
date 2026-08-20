@@ -3,7 +3,7 @@
   "productName": "错题复盘",
   "description": "本地优先的错题复盘与 AI 学习工作台",
   "author": "Private",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "type": "module",
   "main": ".desktop/main.js",
