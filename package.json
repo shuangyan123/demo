@@ -50,7 +50,7 @@
     "test:model-catalog-live": "node --test --experimental-strip-types app/server/ai/model-directory-live.test.ts",
     "test:e2e": "playwright test",
     "test:desktop": "npm run desktop:compile && node --test --experimental-strip-types desktop/desktop.contract.test.ts desktop/credential-storage.contract.test.ts desktop/desktop-release.contract.test.ts scripts/desktop-preload-artifact.contract.test.mjs",
-    "test:desktop:artifact": "cross-env DESKTOP_ARTIFACT_REQUIRED=1 node --test scripts/desktop-preload-artifact.contract.test.mjs",
+    "test:desktop:artifact": "cross-env DESKTOP_ARTIFACT_REQUIRED=1 node --test scripts/desktop-preload-artifact.contract.test.mjs scripts/squirrel-package.contract.test.mjs",
     "test:desktop:integration": "npm run desktop:compile && electron desktop/preload-integration.smoke.cjs",
     "start:standalone": "node scripts/start-next-standalone.mjs",
     "start": "next start",

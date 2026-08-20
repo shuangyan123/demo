@@ -25,6 +25,8 @@ const execFileAsync = (file: string, args: string[]): Promise<void> => (
   })
 );
 
+const squirrelNuspecTemplate = join(process.cwd(), "scripts", "squirrel.nuspec.template");
+
 async function embedWindowsAsarIntegrity(buildPath: string): Promise<void> {
   const executablePath = join(buildPath, "review-workspace.exe");
   const asarPath = join(buildPath, "resources", "app.asar");
@@ -99,6 +101,7 @@ const config: ForgeConfig = {
       name: "review_workspace",
       authors: "Private",
       description: "本地优先的错题复盘与 AI 学习工作台",
+      nuspecTemplate: squirrelNuspecTemplate,
       setupExe: `ReviewWorkspace-${process.env.npm_package_version ?? "0.2.3"}-Windows-x64-Setup.exe`,
     }),
   ],

@@ -7,6 +7,8 @@ const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url),
 const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archive.mjs", import.meta.url), "utf8");
 const desktopHostPreparation = readFileSync(new URL("../scripts/prepare-desktop-host.mjs", import.meta.url), "utf8");
 const forgeConfig = readFileSync(new URL("../forge.config.ts", import.meta.url), "utf8");
+const squirrelNuspecTemplate = readFileSync(new URL("../scripts/squirrel.nuspec.template", import.meta.url), "utf8");
+const electronWinstallerNuspecTemplate = readFileSync(new URL("../node_modules/electron-winstaller/template.nuspectemplate", import.meta.url), "utf8");
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
@@ -69,6 +71,33 @@ test("Forge and package metadata keep the Windows installer identity stable", ()
   assert.equal(packageLock.packages["node_modules/electron"].version, "43.2.0");
   assert.equal(packageLock.packages["node_modules/@electron-forge/maker-squirrel"].version, "7.11.2");
   assert.equal(packageLock.packages["node_modules/electron-winstaller"].version, "5.4.4");
+});
+
+test("checked-in Squirrel nuspec preserves the installed template except for icon metadata", () => {
+  const normalize = (value: string) => value.replace(/^\uFEFF/, "").replaceAll("\r\n", "\n");
+  const expectedTemplate = normalize(electronWinstallerNuspecTemplate).replace(
+    /^\s*<iconUrl>.*<\/iconUrl>\n/m,
+    "",
+  );
+
+  assert.equal(normalize(squirrelNuspecTemplate), expectedTemplate);
+  assert.doesNotMatch(squirrelNuspecTemplate, /<iconUrl\b/i);
+  assert.doesNotMatch(
+    squirrelNuspecTemplate,
+    /raw\.githubusercontent\.com\/electron\/electron\/.*electron\.ico/i,
+  );
+});
+
+test("Forge uses the checked-in no-icon Squirrel nuspec template", () => {
+  assert.match(
+    forgeConfig,
+    /const squirrelNuspecTemplate = join\(process\.cwd\(\), "scripts", "squirrel\.nuspec\.template"\)/,
+  );
+  assert.match(forgeConfig, /nuspecTemplate:\s*squirrelNuspecTemplate/);
+});
+
+test("desktop artifact gate includes the generated Squirrel package metadata regression", () => {
+  assert.match(packageJson.scripts["test:desktop:artifact"], /scripts\/squirrel-package\.contract\.test\.mjs/);
 });
 
 test("userData remains separate from the Squirrel binary root", () => {
