@@ -1,3 +1,4 @@
+import packageJson from "./package.json" with { type: "json" };
 import type { NextConfig } from "next";
 
 const scriptSources = [
@@ -28,6 +29,9 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  env: {
+    NEXT_PUBLIC_REVIEW_WORKSPACE_VERSION: packageJson.version,
+  },
   // 隐藏 Next 开发期左下角指示器，避免它遮挡应用自己的底部设置入口；错误覆盖层仍会正常显示。
   devIndicators: false,
   async headers() {

@@ -1,4 +1,4 @@
-import packageJson from "../../package.json" with { type: "json" };
+import { REVIEW_WORKSPACE_VERSION } from "../config/app-metadata.ts";
 
 export type LocalDataClass = "authoritative" | "configuration" | "credential-security" | "derived" | "ephemeral" | "external-user-owned";
 export type LocalDataRecoveryLevel = "R0" | "R1" | "R2" | "R3" | "R4";
@@ -108,7 +108,7 @@ export type LocalDataExportManifestV2 = {
 export function createLocalDataExportManifest(core: Record<string, unknown[]>, extensionCount: number): LocalDataExportManifestV2 {
   const coreCounts = Object.fromEntries(Object.entries(core).map(([table, records]) => [table, records.length]));
   return {
-    app: { name: "review-workspace", version: packageJson.version },
+    app: { name: "review-workspace", version: REVIEW_WORKSPACE_VERSION },
     excludedCategories: ["credentials", "master-keys", "provider-raw-events", "runtime-media", "vault-content", "vault-handles", "versioned-local-storage"],
     includedStores: { review_extensions: ["extensions"], review_workspace: [...CORE_BACKUP_TABLE_NAMES] },
     recordCounts: {
