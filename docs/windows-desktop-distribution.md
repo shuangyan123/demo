@@ -182,7 +182,34 @@ Squirrel Setup.exe / Update.exe
 
 `out\review-workspace-win32-x64\` 是 Forge 的 unpacked application artifact，不是用户安装后的 Squirrel root。安装后的 root、versioned `app-<version>` directory、root execution stub、`Update.exe`、`SquirrelTemp` 和 shortcuts 必须在隔离的真实 Windows profile 中分别观察，不能从 unpacked artifact 推断。
 
-当前 `desktop-release.yml` 只在 Windows x64 runner 上执行 make、preload artifact regression 和 SHA-256 manifest；手动运行上传短期 workflow artifact，`v*` tag 运行还会发布 installer 与 `SHA256SUMS.txt`。当前没有自动更新入口，也没有把裸 `review-workspace.exe` 作为 release asset 发布。
+当前 `desktop-release.yml` 只在 Windows x64 runner 上执行 make、preload artifact regression、Squirrel package metadata regression 和 SHA-256 manifest；手动运行上传短期 workflow artifact，`v*` tag 运行还会发布 installer 与 `SHA256SUMS.txt`。当前没有自动更新入口，也没有把裸 `review-workspace.exe` 作为 release asset 发布。
+
+## 0.8 Squirrel no-remote-icon bridge（2026-08-20）
+
+状态：**SOURCE FIX IMPLEMENTED；GENERATED PACKAGE AND REAL WINDOWS OFFLINE ACCEPTANCE REQUIRED；installer migration feasibility remains ACTIVE**。
+
+### Root cause
+
+`electron-winstaller@5.4.4` 在没有显式覆盖时会把 Electron GitHub 的远程 `iconUrl` 写入默认 nuspec template。当前 `0.2.3` nupkg 因此包含：
+
+```text
+https://raw.githubusercontent.com/electron/electron/main/shell/browser/resources/win/electron.ico
+```
+
+Squirrel.Windows `2.0.1` 的 `CreateUninstallerRegistryEntry()` 先创建 uninstall registry key，然后在 `IconUrl != null` 时等待下载和转换图标，之后才写入 `DisplayName`、`DisplayVersion`、`InstallLocation`、`UninstallString` 和其他普通值。2026-08-20 的真实 Windows 记录观察到 `Update.exe --install` 在该路径长期存活、拥有外部 HTTPS 连接，且 `Program: Finished Squirrel Updater` 未出现；此前 Phase 2B 也观察到 `Couldn't write uninstall icon, don't care`、HTTP timeout 和空 `DisplayIcon`。
+
+### Source fix
+
+本 bridge 在 [scripts/squirrel.nuspec.template](../scripts/squirrel.nuspec.template) 中逐项保留当前已安装 `electron-winstaller@5.4.4` 模板的 metadata/files 行为，但完全省略 `<iconUrl>`；[forge.config.ts](../forge.config.ts) 通过受支持的 `nuspecTemplate` 选项引用该 checked-in template。
+
+这不是 `iconUrl: ""`、`iconUrl: null`、`file:` URL、另一个远程 URL 或 vendor fork。预期结果是 Squirrel 的 `IconUrl` 为空/缺失，从而跳过 installer-time icon download；卸载注册中的 `DisplayIcon` 不再作为产品保证，普通 uninstall registry values 不应再被该远程请求阻塞。
+
+### Scope and non-claims
+
+- 这是一个 **short-term Squirrel bridge**，不是 installer framework migration；NSIS/electron-builder 不在本任务中实现。
+- 不修改 package/application identity、版本、runtime、userData、Dexie、credential authority/storage/cleanup、preload/IPC、protocol、single-instance、Electron fuses/security、signing、release/tag 或 auto-update。
+- 静态 contract 和 generated nupkg metadata 可以证明 source/package 不含 `<iconUrl>`；它们不能证明真实 Windows offline install、running-app uninstall、credential availability、DPAPI portability 或 Phase 2C。
+- 当前 `0.2.3` candidate 不因该 source fix 获得新的安装或 Phase 2C 结论；需要后续专门 candidate/真实 Windows acceptance。
 
 ## Install root and userData ownership
 
