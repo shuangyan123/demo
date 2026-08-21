@@ -65,6 +65,57 @@ jobs:
       - name: Audit production dependencies
         run: npm run audit:prod
 
+  windows-m3:
+    name: Windows M3 Migration Contracts
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      M3_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Verify exact PR head
+        shell: pwsh
+        run: |
+          $head = (git rev-parse HEAD).Trim()
+          if ($head -ne $env:M3_SOURCE_COMMIT) {
+            throw "Checked out $head instead of exact PR head $env:M3_SOURCE_COMMIT"
+          }
+
+      - name: Setup Node 22.23.1
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22.23.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: M3 migration helper contracts
+        shell: pwsh
+        run: |
+          $output = @(& npm run test:desktop:installer:m3 2>&1)
+          $exitCode = $LASTEXITCODE
+          $output | ForEach-Object { Write-Output $_ }
+          $summary = $output -join "`n"
+          if ($exitCode -ne 0) {
+            throw "M3 contract command failed with exit code $exitCode"
+          }
+          if ($summary -notmatch '(?m)^\s*(?:ℹ\s+|#\s*)?fail\s+0\s*$') {
+            throw "M3 contract summary did not prove fail = 0"
+          }
+          if ($summary -notmatch '(?m)^\s*(?:ℹ\s+|#\s*)?skipped\s+0\s*$') {
+            throw "M3 contract summary did not prove skipped = 0"
+          }
+
   build:
     name: Production Build
     needs: static

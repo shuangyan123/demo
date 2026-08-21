@@ -17,6 +17,60 @@ $script:LegacyStubName = "review-workspace.exe"
 $script:LegacyVersionDirectoryName = "app-0.2.4"
 $script:LegacyRootName = "review_workspace"
 $script:ShortcutName = $script:ProductNameZh + ".lnk"
+$script:ElectronBuilderVersion = "26.15.3"
+$script:ElectronBuilderAppId = "com.squirrel.review_workspace.review-workspace"
+$script:ElectronBuilderNsisNamespace = "50e065bc-3134-11e6-9bab-38c9862bdaf3"
+
+# electron-builder 26.15.3 calls UUID.v5(appId, ELECTRON_BUILDER_NS_UUID).
+# Keep the derivation compatible with builder-util-runtime: hash the raw
+# namespace UUID bytes followed by the UTF-8 appId, then apply RFC 4122 v5
+# version/variant bits. This is intentionally derived, not a new nsis.guid.
+function Convert-UuidStringToBytes {
+  param([Parameter(Mandatory = $true)][string]$Uuid)
+  $hex = ($Uuid -replace "-", "").ToLowerInvariant()
+  if ($hex -notmatch '^[0-9a-f]{32}$') { throw "UUID_INVALID" }
+  $bytes = New-Object byte[] 16
+  for ($index = 0; $index -lt 16; $index++) {
+    $bytes[$index] = [Convert]::ToByte($hex.Substring($index * 2, 2), 16)
+  }
+  return ,$bytes
+}
+
+function Convert-BytesToUuidString {
+  param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+  if ($Bytes.Length -lt 16) { throw "UUID_BYTES_INVALID" }
+  $segments = @(
+    (($Bytes[0..3] | ForEach-Object { $_.ToString("x2") }) -join ""),
+    (($Bytes[4..5] | ForEach-Object { $_.ToString("x2") }) -join ""),
+    (($Bytes[6..7] | ForEach-Object { $_.ToString("x2") }) -join ""),
+    (($Bytes[8..9] | ForEach-Object { $_.ToString("x2") }) -join ""),
+    (($Bytes[10..15] | ForEach-Object { $_.ToString("x2") }) -join "")
+  )
+  return ($segments -join "-")
+}
+
+function Get-ElectronBuilderNsisGuid {
+  param(
+    [Parameter(Mandatory = $true)][string]$AppId,
+    [Parameter(Mandatory = $true)][string]$NamespaceUuid
+  )
+  $namespaceBytes = Convert-UuidStringToBytes $NamespaceUuid
+  $nameBytes = [System.Text.Encoding]::UTF8.GetBytes($AppId)
+  $inputBytes = New-Object byte[] ($namespaceBytes.Length + $nameBytes.Length)
+  [System.Buffer]::BlockCopy($namespaceBytes, 0, $inputBytes, 0, $namespaceBytes.Length)
+  [System.Buffer]::BlockCopy($nameBytes, 0, $inputBytes, $namespaceBytes.Length, $nameBytes.Length)
+  $sha1 = [System.Security.Cryptography.SHA1]::Create()
+  try {
+    $hash = $sha1.ComputeHash($inputBytes)
+  } finally {
+    $sha1.Dispose()
+  }
+  $hash[6] = [byte](($hash[6] -band 0x0f) -bor 0x50)
+  $hash[8] = [byte](($hash[8] -band 0x3f) -bor 0x80)
+  return Convert-BytesToUuidString $hash
+}
+
+$script:ElectronBuilderNsisGuid = Get-ElectronBuilderNsisGuid $script:ElectronBuilderAppId $script:ElectronBuilderNsisNamespace
 
 function Get-Val {
   param([AllowNull()]$Object, [Parameter(Mandatory = $true)][string]$Name, $Default = $null)
@@ -77,6 +131,9 @@ function Get-ExpectedPaths {
     legacyVersionDirectory = Normalize-PathString (Join-Path $legacyRoot $script:LegacyVersionDirectoryName)
     nsisRoot = $nsisRoot
     nsisExecutable = Normalize-PathString (Join-Path $nsisRoot $script:LegacyStubName)
+    nsisUninstaller = Normalize-PathString (Join-Path $nsisRoot "Uninstall review-workspace.exe")
+    nsisInstallRegistryKey = "HKCU:\Software\$script:ElectronBuilderNsisGuid"
+    nsisUninstallRegistryKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$script:ElectronBuilderNsisGuid"
     userData = Normalize-PathString (Join-Path $env:APPDATA $script:ProductNameZh)
     desktopShortcut = Normalize-PathString (Join-Path $desktopRoot $script:ShortcutName)
     startMenuShortcut = Normalize-PathString (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\$script:ShortcutName")
@@ -222,62 +279,241 @@ function Test-ExpectedSquirrelCommand {
   return $Value -match $pattern
 }
 
+function Get-ExpectedRegistryIdentity {
+  param([Parameter(Mandatory = $true)]$Paths)
+  $nsisRoot = [string](Get-Val $Paths "nsisRoot" "")
+  $installKey = [string](Get-Val $Paths "nsisInstallRegistryKey" "")
+  $uninstallKey = [string](Get-Val $Paths "nsisUninstallRegistryKey" "")
+  if ([string]::IsNullOrWhiteSpace($installKey)) { $installKey = "HKCU:\Software\$script:ElectronBuilderNsisGuid" }
+  if ([string]::IsNullOrWhiteSpace($uninstallKey)) { $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$script:ElectronBuilderNsisGuid" }
+  $uninstaller = [string](Get-Val $Paths "nsisUninstaller" "")
+  if ([string]::IsNullOrWhiteSpace($uninstaller)) { $uninstaller = Normalize-PathString (Join-Path $nsisRoot "Uninstall review-workspace.exe") }
+  return [pscustomobject][ordered]@{
+    appId = $script:ElectronBuilderAppId
+    electronBuilderVersion = $script:ElectronBuilderVersion
+    namespace = $script:ElectronBuilderNsisNamespace
+    guid = $script:ElectronBuilderNsisGuid
+    installRegistryKey = $installKey
+    uninstallRegistryKey = $uninstallKey
+    installLocation = $nsisRoot
+    uninstaller = $uninstaller
+    displayName = $script:ProductNameZh
+    displayVersion = $script:LegacyVersion
+  }
+}
+
+function Test-RegistryKeyEqual {
+  param([AllowNull()][string]$Left, [Parameter(Mandatory = $true)][string]$Right)
+  return (-not [string]::IsNullOrWhiteSpace($Left)) -and [string]::Equals($Left, $Right, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function New-SafeRegistryFact {
+  param(
+    [Parameter(Mandatory = $true)][string]$Key,
+    [AllowNull()]$Properties,
+    [string]$Status = "PRESENT",
+    [AllowNull()][string]$Reason
+  )
+  $source = $Properties
+  $nestedProperties = Get-Val $Properties "properties" $null
+  if ($null -ne $nestedProperties) { $source = $nestedProperties }
+  $statusValue = ([string]$Status).ToUpperInvariant()
+  if ($statusValue -eq "FOUND") { $statusValue = "PRESENT" }
+  if ($statusValue -ne "PRESENT" -and $statusValue -ne "ABSENT" -and $statusValue -ne "INVALID") { $statusValue = "INVALID" }
+  $hive = [string](Get-Val $Properties "hive" "")
+  if ([string]::IsNullOrWhiteSpace($hive) -and $Key -match '^HKCU:\\') { $hive = "HKCU" }
+  if ([string]::IsNullOrWhiteSpace($hive) -and $Key -match '^HKLM:\\') { $hive = "HKLM" }
+  return [pscustomobject][ordered]@{
+    key = $Key
+    hive = $hive
+    status = $statusValue
+    displayName = [string](Get-Val $source "DisplayName" "")
+    displayVersion = [string](Get-Val $source "DisplayVersion" "")
+    installLocation = [string](Get-Val $source "InstallLocation" "")
+    uninstallString = [string](Get-Val $source "UninstallString" "")
+    quietUninstallString = [string](Get-Val $source "QuietUninstallString" "")
+    reason = $Reason
+  }
+}
+
+function Get-LiveRegistryFact {
+  param([Parameter(Mandatory = $true)][string]$Key)
+  if (-not (Test-Path -LiteralPath $Key)) {
+    return New-SafeRegistryFact $Key $null -Status "ABSENT" -Reason "REGISTRY_KEY_ABSENT"
+  }
+  try {
+    return New-SafeRegistryFact $Key (Get-ItemProperty -LiteralPath $Key -ErrorAction Stop)
+  } catch {
+    return New-SafeRegistryFact $Key $null -Status "INVALID" -Reason "REGISTRY_VALUE_INSPECTION_FAILED"
+  }
+}
+
+function Test-ExpectedNsisCommand {
+  param([AllowNull()][string]$Value, [Parameter(Mandatory = $true)][string]$UninstallerPath, [switch]$Quiet)
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+  $pattern = '^\s*"?'+[regex]::Escape((Normalize-PathString $UninstallerPath))+'"?\s+/currentuser'
+  if ($Quiet) { $pattern += '\s+/S' }
+  $pattern += '\s*$'
+  return $Value -match $pattern
+}
+
+function Test-CurrentUserRegistryFact {
+  param([Parameter(Mandatory = $true)]$Fact)
+  return ([string](Get-Val $Fact "hive" "") -ieq "HKCU") -and ([string](Get-Val $Fact "key" "") -match '^HKCU:\\')
+}
+
+function Test-ExpectedSquirrelRegistryFact {
+  param([Parameter(Mandatory = $true)]$Fact, [Parameter(Mandatory = $true)]$Paths)
+  if ([string](Get-Val $Fact "status" "") -ne "PRESENT") { return $false }
+  if (-not (Test-CurrentUserRegistryFact $Fact)) { return $false }
+  if (-not (Test-RegistryKeyEqual ([string](Get-Val $Fact "key" "")) ([string](Get-Val $Paths "legacyRegistryKey" "")))) { return $false }
+  $displayValid = $script:ProductNames -contains ([string](Get-Val $Fact "displayName" ""))
+  $versionValid = [string](Get-Val $Fact "displayVersion" "") -eq $script:LegacyVersion
+  $location = [string](Get-Val $Fact "installLocation" "")
+  $locationValid = [string]::IsNullOrWhiteSpace($location) -or (Test-PathEqual $location ([string](Get-Val $Paths "legacyRoot" "")))
+  $commandsValid = (Test-ExpectedSquirrelCommand ([string](Get-Val $Fact "uninstallString" "")) ([string](Get-Val $Paths "legacyUpdate" ""))) -and (Test-ExpectedSquirrelCommand ([string](Get-Val $Fact "quietUninstallString" "")) ([string](Get-Val $Paths "legacyUpdate" "")) -Quiet)
+  return $displayValid -and $versionValid -and $locationValid -and $commandsValid
+}
+
+function Test-ExpectedNsisInstallRegistryFact {
+  param([Parameter(Mandatory = $true)]$Fact, [Parameter(Mandatory = $true)]$Identity)
+  if ([string](Get-Val $Fact "status" "") -ne "PRESENT") { return $false }
+  if (-not (Test-CurrentUserRegistryFact $Fact)) { return $false }
+  if (-not (Test-RegistryKeyEqual ([string](Get-Val $Fact "key" "")) ([string](Get-Val $Identity "installRegistryKey" "")))) { return $false }
+  $location = [string](Get-Val $Fact "installLocation" "")
+  return (-not [string]::IsNullOrWhiteSpace($location)) -and (Test-PathEqual $location ([string](Get-Val $Identity "installLocation" "")))
+}
+
+function Test-ExpectedNsisUninstallRegistryFact {
+  param([Parameter(Mandatory = $true)]$Fact, [Parameter(Mandatory = $true)]$Identity)
+  if ([string](Get-Val $Fact "status" "") -ne "PRESENT") { return $false }
+  if (-not (Test-CurrentUserRegistryFact $Fact)) { return $false }
+  if (-not (Test-RegistryKeyEqual ([string](Get-Val $Fact "key" "")) ([string](Get-Val $Identity "uninstallRegistryKey" "")))) { return $false }
+  if ([string](Get-Val $Fact "displayName" "") -cne [string](Get-Val $Identity "displayName" "")) { return $false }
+  if ([string](Get-Val $Fact "displayVersion" "") -cne [string](Get-Val $Identity "displayVersion" "")) { return $false }
+  $uninstallValid = Test-ExpectedNsisCommand ([string](Get-Val $Fact "uninstallString" "")) ([string](Get-Val $Identity "uninstaller" ""))
+  $quietUninstallValid = Test-ExpectedNsisCommand ([string](Get-Val $Fact "quietUninstallString" "")) ([string](Get-Val $Identity "uninstaller" "")) -Quiet
+  return $uninstallValid -and $quietUninstallValid
+}
+
+function Get-RegistryIdentityInspection {
+  param([Parameter(Mandatory = $true)]$Facts, [Parameter(Mandatory = $true)]$Paths)
+  $identity = Get-ExpectedRegistryIdentity $Paths
+  $safeFacts = @()
+  foreach ($fact in @($Facts)) {
+    if ($null -eq $fact) { continue }
+    $key = [string](Get-Val $fact "key" (Get-Val $fact "keyPath" ""))
+    if ([string]::IsNullOrWhiteSpace($key)) {
+      $safeFacts += New-SafeRegistryFact "<missing-key>" $null -Status "INVALID" -Reason "REGISTRY_KEY_MISSING"
+    } else {
+      $factStatus = [string](Get-Val $fact "status" "PRESENT")
+      if ([string]::IsNullOrWhiteSpace($factStatus)) { $factStatus = "PRESENT" }
+      $safeFacts += New-SafeRegistryFact $key $fact -Status $factStatus -Reason ([string](Get-Val $fact "reason" $null))
+    }
+  }
+  $installFacts = @($safeFacts | Where-Object { Test-RegistryKeyEqual ([string](Get-Val $_ "key" "")) ([string](Get-Val $identity "installRegistryKey" "")) })
+  $installIdentityValid = ($installFacts.Count -eq 1) -and (Test-ExpectedNsisInstallRegistryFact $installFacts[0] $identity)
+  $classified = @()
+  foreach ($fact in $safeFacts) {
+    $key = [string](Get-Val $fact "key" "")
+    $classification = "UNRELATED"
+    $reason = "KEY_NOT_PRODUCT_IDENTITY"
+    if (Test-RegistryKeyEqual $key ([string](Get-Val $Paths "legacyRegistryKey" ""))) {
+      if (Test-ExpectedSquirrelRegistryFact $fact $Paths) { $classification = "SQUIRREL_EXPECTED"; $reason = "EXACT_SQUIRREL_IDENTITY" } else { $classification = "INVALID"; $reason = "SQUIRREL_IDENTITY_INVALID" }
+    } elseif (Test-RegistryKeyEqual $key ([string](Get-Val $identity "installRegistryKey" ""))) {
+      if (Test-ExpectedNsisInstallRegistryFact $fact $identity) { $classification = "NSIS_EXPECTED"; $reason = "EXACT_NSIS_INSTALL_IDENTITY" } else { $classification = "INVALID"; $reason = "NSIS_INSTALL_IDENTITY_INVALID" }
+    } elseif (Test-RegistryKeyEqual $key ([string](Get-Val $identity "uninstallRegistryKey" ""))) {
+      if (Test-ExpectedNsisUninstallRegistryFact $fact $identity) { $classification = "NSIS_EXPECTED"; $reason = "EXACT_NSIS_UNINSTALL_IDENTITY" } else { $classification = "INVALID"; $reason = "NSIS_UNINSTALL_IDENTITY_INVALID" }
+    } elseif ($script:ProductNames -contains ([string](Get-Val $fact "displayName" ""))) {
+      $classification = "UNKNOWN_SAME_PRODUCT"
+      $reason = "SAME_PRODUCT_UNEXPECTED_REGISTRY_KEY"
+    }
+    $classified += [pscustomobject][ordered]@{
+      classification = $classification
+      key = $key
+      hive = [string](Get-Val $fact "hive" "")
+      displayName = [string](Get-Val $fact "displayName" "")
+      displayVersion = [string](Get-Val $fact "displayVersion" "")
+      installLocation = [string](Get-Val $fact "installLocation" "")
+      reason = $reason
+    }
+  }
+  $legacyMatches = @($classified | Where-Object { (Test-RegistryKeyEqual ([string](Get-Val $_ "key" "")) ([string](Get-Val $Paths "legacyRegistryKey" ""))) })
+  $legacyExpected = @($classified | Where-Object { $_.classification -eq "SQUIRREL_EXPECTED" })
+  $unknownCandidates = @($classified | Where-Object { $_.classification -eq "UNKNOWN_SAME_PRODUCT" })
+  $invalidCandidates = @($classified | Where-Object { $_.classification -eq "INVALID" })
+  $blockingInvalidCandidates = @($invalidCandidates | Where-Object {
+    -not (Test-RegistryKeyEqual ([string](Get-Val $_ "key" "")) ([string](Get-Val $identity "installRegistryKey" ""))) -and
+    -not (Test-RegistryKeyEqual ([string](Get-Val $_ "key" "")) ([string](Get-Val $identity "uninstallRegistryKey" "")))
+  })
+  $legacyStatus = "INVALID"
+  if ($legacyMatches.Count -eq 0) {
+    $legacyStatus = "ABSENT"
+  } elseif ($unknownCandidates.Count -gt 0) {
+    $legacyStatus = "AMBIGUOUS"
+  } elseif ($blockingInvalidCandidates.Count -gt 0) {
+    $legacyStatus = "INVALID"
+  } elseif ($legacyExpected.Count -eq 1) {
+    $legacyStatus = "VALID"
+  }
+  $legacyFact = $null
+  if ($legacyMatches.Count -eq 1) { $legacyFact = $safeFacts | Where-Object { Test-RegistryKeyEqual ([string](Get-Val $_ "key" "")) ([string](Get-Val $Paths "legacyRegistryKey" "")) } | Select-Object -First 1 }
+  $legacyRegistration = [pscustomobject][ordered]@{
+    status = $legacyStatus
+    key = [string](Get-Val $Paths "legacyRegistryKey" "")
+    identity = ($legacyStatus -eq "VALID")
+    displayName = [string](Get-Val $legacyFact "displayName" "")
+    displayVersion = [string](Get-Val $legacyFact "displayVersion" "")
+    installLocationPresent = (-not [string]::IsNullOrWhiteSpace([string](Get-Val $legacyFact "installLocation" "")))
+    uninstallCommandsValid = ($legacyExpected.Count -eq 1)
+    ambiguousCandidates = @($unknownCandidates | ForEach-Object { $_.key })
+    invalidCandidates = @($invalidCandidates | ForEach-Object { $_.key })
+  }
+  return [pscustomobject][ordered]@{
+    identity = $identity
+    classifications = $classified
+    legacyRegistration = $legacyRegistration
+    nsisInstallRegistry = [pscustomobject][ordered]@{ key = [string](Get-Val $identity "installRegistryKey" ""); status = if ($installIdentityValid) { "NSIS_EXPECTED" } else { "INVALID" }; installLocation = [string](Get-Val $identity "installLocation" "") }
+    nsisUninstallRegistry = [pscustomobject][ordered]@{ key = [string](Get-Val $identity "uninstallRegistryKey" ""); status = if (@($classified | Where-Object { (Test-RegistryKeyEqual ([string](Get-Val $_ "key" "")) ([string](Get-Val $identity "uninstallRegistryKey" ""))) -and $_.classification -eq "NSIS_EXPECTED" }).Count -eq 1) { "NSIS_EXPECTED" } else { "INVALID" } }
+    unknownSameProduct = @($unknownCandidates | ForEach-Object { $_.key })
+    invalid = @($invalidCandidates | ForEach-Object { $_.key })
+  }
+}
+
 function Get-LegacyRegistrationFact {
   param([Parameter(Mandatory = $true)]$Paths)
   $registryBase = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall"
-  $keyPath = $Paths.legacyRegistryKey
-  $otherCandidates = @()
+  $facts = @(
+    (Get-LiveRegistryFact ([string](Get-Val $Paths "legacyRegistryKey" "")))
+    (Get-LiveRegistryFact ([string](Get-Val $Paths "nsisInstallRegistryKey" "")))
+    (Get-LiveRegistryFact ([string](Get-Val $Paths "nsisUninstallRegistryKey" "")))
+  )
   try {
     foreach ($key in @(Get-ChildItem -LiteralPath $registryBase -ErrorAction Stop)) {
-      if ($key.PSChildName -ieq "review_workspace") { continue }
+      $candidateKey = "$registryBase\$($key.PSChildName)"
+      if ((Test-RegistryKeyEqual $candidateKey ([string](Get-Val $Paths "legacyRegistryKey" ""))) -or (Test-RegistryKeyEqual $candidateKey ([string](Get-Val $Paths "nsisUninstallRegistryKey" "")))) { continue }
       try {
-        $candidate = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction Stop
-          $displayName = [string](Get-Val $candidate "DisplayName" "")
-          if ($script:ProductNames -contains $displayName) {
-            $location = [string](Get-Val $candidate "InstallLocation" "")
-            $isNsis = (
-            (-not [string]::IsNullOrWhiteSpace($location)) -and (Test-PathEqual $location $Paths.nsisRoot)
-          )
-          if (-not $isNsis) { $otherCandidates += $key.PSChildName }
-        }
+        $facts += New-SafeRegistryFact $candidateKey (Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction Stop)
       } catch {
-        $otherCandidates += $key.PSChildName
+        $facts += New-SafeRegistryFact $candidateKey $null -Status "INVALID" -Reason "REGISTRY_VALUE_INSPECTION_FAILED"
       }
     }
   } catch {
-    return [pscustomobject][ordered]@{ status = "INVALID"; key = $keyPath; identity = $false; ambiguousCandidates = @(); reason = "REGISTRY_ENUMERATION_FAILED" }
+    return [pscustomobject][ordered]@{ status = "INVALID"; key = [string](Get-Val $Paths "legacyRegistryKey" ""); identity = $false; ambiguousCandidates = @(); invalidCandidates = @(); reason = "REGISTRY_ENUMERATION_FAILED" }
   }
-  if (-not (Test-Path -LiteralPath $keyPath)) {
-    $missingStatus = "ABSENT"
-    if ($otherCandidates.Count -gt 0) { $missingStatus = "AMBIGUOUS" }
-    return [pscustomobject][ordered]@{ status = $missingStatus; key = $keyPath; identity = $false; ambiguousCandidates = $otherCandidates }
-  }
-  try {
-    $properties = Get-ItemProperty -LiteralPath $keyPath -ErrorAction Stop
-    $displayName = [string](Get-Val $properties "DisplayName" "")
-    $displayVersion = [string](Get-Val $properties "DisplayVersion" "")
-    $location = [string](Get-Val $properties "InstallLocation" "")
-    $uninstall = [string](Get-Val $properties "UninstallString" "")
-    $quietUninstall = [string](Get-Val $properties "QuietUninstallString" "")
-    $displayValid = $script:ProductNames -contains $displayName
-    $versionValid = $displayVersion -eq $script:LegacyVersion
-    $locationValid = [string]::IsNullOrWhiteSpace($location) -or (Test-PathEqual $location $Paths.legacyRoot)
-    $commandsValid = (Test-ExpectedSquirrelCommand $uninstall $Paths.legacyUpdate) -and (Test-ExpectedSquirrelCommand $quietUninstall $Paths.legacyUpdate -Quiet)
-    $identityValid = $displayValid -and $versionValid -and $locationValid -and $commandsValid
-    $registrationStatus = "INVALID"
-    if ($otherCandidates.Count -gt 0) { $registrationStatus = "AMBIGUOUS" } elseif ($identityValid) { $registrationStatus = "VALID" }
-    return [pscustomobject][ordered]@{
-      status = $registrationStatus
-      key = $keyPath
-      identity = $identityValid
-      displayName = $displayName
-      displayVersion = $displayVersion
-      installLocationPresent = (-not [string]::IsNullOrWhiteSpace($location))
-      uninstallCommandsValid = $commandsValid
-      ambiguousCandidates = $otherCandidates
-    }
-  } catch {
-    return [pscustomobject][ordered]@{ status = "INVALID"; key = $keyPath; identity = $false; ambiguousCandidates = $otherCandidates; reason = "REGISTRY_VALUE_INSPECTION_FAILED" }
+  $inspection = Get-RegistryIdentityInspection $facts $Paths
+  $legacy = $inspection.legacyRegistration
+  return [pscustomobject][ordered]@{
+    status = [string](Get-Val $legacy "status" "INVALID")
+    key = [string](Get-Val $legacy "key" "")
+    identity = [bool](Get-Val $legacy "identity" $false)
+    displayName = [string](Get-Val $legacy "displayName" "")
+    displayVersion = [string](Get-Val $legacy "displayVersion" "")
+    installLocationPresent = [bool](Get-Val $legacy "installLocationPresent" $false)
+    uninstallCommandsValid = [bool](Get-Val $legacy "uninstallCommandsValid" $false)
+    ambiguousCandidates = @((Get-Val $legacy "ambiguousCandidates" @()))
+    invalidCandidates = @((Get-Val $legacy "invalidCandidates" @()))
+    registryIdentity = $inspection
   }
 }
 
@@ -337,10 +573,12 @@ function Get-LiveSnapshot {
   $paths = Get-ExpectedPaths
   $root = Get-LegacyRootFact $paths
   $userData = Get-PathFact $paths.userData
+  $legacyRegistration = Get-LegacyRegistrationFact $paths
   return [pscustomobject][ordered]@{
     paths = $paths
     legacyRoot = $root
-    legacyRegistration = Get-LegacyRegistrationFact $paths
+    legacyRegistration = $legacyRegistration
+    registryIdentity = Get-Val $legacyRegistration "registryIdentity" $null
     legacyProcesses = Get-LegacyProcessFact $paths.legacyRoot
     desktopShortcut = Get-ShortcutFact $paths.desktopShortcut $paths.legacyRoot $paths.nsisRoot
     startMenuShortcut = Get-ShortcutFact $paths.startMenuShortcut $paths.legacyRoot $paths.nsisRoot
@@ -357,6 +595,12 @@ function Read-SnapshotFixture {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "SNAPSHOT_NOT_FOUND" }
   $fixture = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
   if ($null -eq (Get-Val $fixture "paths" $null)) { throw "SNAPSHOT_PATHS_MISSING" }
+  $registryFacts = Get-Val $fixture "registryFacts" $null
+  if ($null -ne $registryFacts) {
+    $inspection = Get-RegistryIdentityInspection @($registryFacts) (Get-Val $fixture "paths" $null)
+    $fixture | Add-Member -MemberType NoteProperty -Name registryIdentity -Value $inspection -Force
+    $fixture | Add-Member -MemberType NoteProperty -Name legacyRegistration -Value $inspection.legacyRegistration -Force
+  }
   return $fixture
 }
 
@@ -410,6 +654,11 @@ function Get-CleanupPlan {
     if ([bool](Get-Val (Get-Val $root "versionDirectory" $null) "isReparsePoint" $false)) { Add-Reason $reasons "LEGACY_VERSION_DIRECTORY_REPARSE_POINT" }
     if ([string](Get-Val (Get-Val $root "versionExecutable" $null) "status" "") -ne "VALID") { Add-Reason $reasons "LEGACY_VERSION_IDENTITY_INVALID" }
     if ([string](Get-Val $registration "status" "") -ne "VALID") { Add-Reason $reasons "LEGACY_REGISTRATION_INVALID" }
+    $registryIdentity = Get-Val $Snapshot "registryIdentity" $null
+    if ($null -ne $registryIdentity) {
+      if ([string](Get-Val (Get-Val $registryIdentity "nsisInstallRegistry" $null) "status" "") -ne "NSIS_EXPECTED") { Add-Reason $reasons "NSIS_INSTALL_REGISTRY_IDENTITY_INVALID" }
+      if ([string](Get-Val (Get-Val $registryIdentity "nsisUninstallRegistry" $null) "status" "") -ne "NSIS_EXPECTED") { Add-Reason $reasons "NSIS_UNINSTALL_REGISTRY_IDENTITY_INVALID" }
+    }
     if ([string](Get-Val (Get-Val $Snapshot "legacyProcesses" $null) "status" "") -ne "VALID") { Add-Reason $reasons "LEGACY_PROCESS_INSPECTION_INVALID" }
     if ([int](Get-Val (Get-Val $Snapshot "legacyProcesses" $null) "count" 0) -gt 0) { Add-Reason $reasons "LEGACY_APP_RUNNING" }
     $userDataFact = Get-Val $Snapshot "userData" $null
@@ -496,6 +745,7 @@ function Get-Result {
     legacyRoot = if ([string](Get-Val $root "status" "INVALID") -eq "VALID") { "FOUND" } else { [string](Get-Val $root "status" "INVALID") }
     legacyRootPath = [string](Get-Val $root "path" "")
     legacyRegistration = if ([string](Get-Val (Get-Val $Snapshot "legacyRegistration" $null) "status" "INVALID") -eq "VALID") { "FOUND" } else { [string](Get-Val (Get-Val $Snapshot "legacyRegistration" $null) "status" "INVALID") }
+    registryIdentity = Get-Val $Snapshot "registryIdentity" $null
     legacyVersion = $legacyVersionValue
     legacyProcesses = [ordered]@{ count = [int](Get-Val $processes "count" 0); entries = @((Get-Val $processes "entries" @())) }
     desktopShortcut = [string](Get-Val (Get-Val $Snapshot "desktopShortcut" $null) "status" "INVALID")
@@ -554,7 +804,10 @@ function Invoke-ValidatedCleanup {
         }
         "remove-registry-key" {
           if (-not [string]::Equals([string]$action.path, [string]$paths.legacyRegistryKey, [System.StringComparison]::OrdinalIgnoreCase)) { throw "REGISTRY_DELETION_TARGET_NOT_ALLOWLISTED" }
-          if ((Get-LegacyRegistrationFact $paths).status -ne "VALID") { throw "LEGACY_REGISTRATION_CHANGED" }
+          $liveRegistration = Get-LegacyRegistrationFact $paths
+          if ($liveRegistration.status -ne "VALID") { throw "LEGACY_REGISTRATION_CHANGED" }
+          $liveRegistryIdentity = Get-Val $liveRegistration "registryIdentity" $null
+          if ($null -eq $liveRegistryIdentity -or [string](Get-Val (Get-Val $liveRegistryIdentity "nsisInstallRegistry" $null) "status" "") -ne "NSIS_EXPECTED" -or [string](Get-Val (Get-Val $liveRegistryIdentity "nsisUninstallRegistry" $null) "status" "") -ne "NSIS_EXPECTED") { throw "NSIS_REGISTRY_IDENTITY_CHANGED" }
           Remove-Item -LiteralPath $paths.legacyRegistryKey -Recurse -Force -Confirm:$false
         }
         default { throw "UNKNOWN_CLEANUP_ACTION" }

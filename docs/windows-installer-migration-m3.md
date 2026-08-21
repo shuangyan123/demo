@@ -51,6 +51,7 @@ Inspect output is JSON and reports only non-secret state:
 - Desktop and Start Menu shortcut target classification;
 - userData existence and path only;
 - NSIS root existence;
+- Squirrel versus electron-builder registry identity classification;
 - cleanupEligible, blocking reasons, and a narrow cleanup plan;
 - active legacy state versus known inert residuals.
 
@@ -72,6 +73,48 @@ The expected NSIS root is:
 %LOCALAPPDATA%\Programs\review-workspace
 ~~~
 
+The registry model keeps the legacy Squirrel uninstall identity separate from
+the two electron-builder NSIS identities. The accepted legacy registration is
+only:
+
+~~~text
+HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\review_workspace
+~~~
+
+For the pinned electron-builder `26.15.3` implementation, the current appId is
+`com.squirrel.review_workspace.review-workspace`. electron-builder derives the
+NSIS GUID with UUIDv5 using namespace
+`50e065bc-3134-11e6-9bab-38c9862bdaf3`; the deterministic result is
+`6e1e4cd2-13e9-52d1-a05a-25028be9da88`. The helper implements and contracts
+that derivation, rather than introducing a new explicit `nsis.guid`.
+
+The resulting current-user NSIS keys are:
+
+~~~text
+install-registry key:
+HKCU\Software\6e1e4cd2-13e9-52d1-a05a-25028be9da88
+
+uninstall-registry key:
+HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\6e1e4cd2-13e9-52d1-a05a-25028be9da88
+~~~
+
+These keys have different responsibilities in electron-builder 26.15.3. The
+install-registry key carries `InstallLocation`, which must equal the expected
+NSIS root. The uninstall-registry key independently carries the exact builder
+key identity, configured display name `错题复盘`, version `0.2.4`, and
+`UninstallString`/`QuietUninstallString` pointing to the expected
+`Uninstall review-workspace.exe` with the `/currentuser` semantics. The
+electron-builder template does not require `InstallLocation` on the uninstall
+entry; requiring it there would misclassify a legitimate NSIS installation.
+
+An exact Squirrel registration plus both positively identified NSIS keys is
+valid coexistence, not ambiguity. Any additional same-product uninstall entry
+that is not one of these exact identities remains ambiguous and blocks
+cleanup. Invalid expected NSIS values also block cleanup. The identity logic
+is fixture-tested from sanitized registry facts. Fixture contracts do not prove
+live HKCU enumeration, CIM process discovery, or Shell.Application `.lnk`
+resolution; those remain part of later real Windows M3 acceptance.
+
 The existing NSIS identity remains unchanged: package `review-workspace`,
 product name `错题复盘`, version `0.2.4`, executable
 `review-workspace.exe`, appId `com.squirrel.review_workspace.review-workspace`,
@@ -91,6 +134,10 @@ Only these active legacy targets may be removed:
 - Desktop/Start Menu .lnk whose resolved target is inside the exact legacy
   root;
 - the exact legacy Squirrel uninstall registry key.
+
+The NSIS install-registry key and NSIS uninstall-registry key are preservation
+identities only and can never enter the deletion plan. No registry-provided
+uninstall command is executed.
 
 Shortcuts are never deleted by filename, display name, AppID, or product name.
 An NSIS-target shortcut is preserved. Known inert Squirrel residuals such as
