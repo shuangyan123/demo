@@ -1,8 +1,9 @@
 # Windows installer migration M1 — NSIS candidate packaging
 
-Status: **M1 candidate path implemented; final result is pending an exact-head
-Windows GitHub Actions build/readback.** This document does not declare NSIS
-production-ready and does not authorize installer execution.
+Status: **M1 CANDIDATE PACKAGING: PASS.** The M1 hard gate was satisfied by an
+independent Windows GitHub Actions exact-head rebuild/readback. This document
+does not declare NSIS production-ready and does not authorize installer
+execution.
 
 ## Scope and prerequisite
 
@@ -146,11 +147,30 @@ review-workspace-nsis-m1-<exact-pr-head-sha>
 ```
 
 Retention is seven days. No tag, GitHub Release, public upload, or updater
-feed is created. The terminal run ID, job ID, exact head, artifact identity,
-and evidence result are recorded in the final PR delivery report and in the
-CI evidence JSON.
+feed is created. The final mergeable M1 HEAD must have a successful exact-head
+`Windows NSIS Candidate` job. Run-specific CI evidence—the run ID, job ID,
+exact head, artifact identity, and evidence result—is recorded in PR #94
+metadata/body and in the CI evidence JSON. This document intentionally does
+not hardcode a transient Actions run ID or job ID, which would become stale
+when a documentation-only commit creates a new exact-head build.
 
 ## Evidence boundary
+
+### Evidence classification
+
+Actual artifact readback proves:
+
+- Electron version and final `app.asar` contents;
+- runtime manifest and bundled Node version;
+- compiled/packaged preload equality;
+- complete fuse state and embedded ASAR integrity;
+- absence of `latest.yml` and `.blockmap` updater metadata.
+
+Bundled NSIS, `nsis` rather than `nsis-web`, the absence of `appPackageUrl`,
+and the `installTimeWebPayload: ABSENT` evidence field are source/config/build-
+target evidence. The field does not claim that PE inspection independently
+discovered installation-time network behavior. Actual installer execution and
+its network behavior remain outside M1 and are PENDING REAL WINDOWS.
 
 ### PROVEN by M1 source/artifact contracts and exact-head CI
 
@@ -161,8 +181,8 @@ CI evidence JSON.
 - current app.asar contents, preload equality, runtime manifest, and bundled
   Node version;
 - current PE embedded ASAR integrity equality;
-- no updater metadata, install-time web payload, signing, or Squirrel path
-  replacement;
+- no updater metadata in the candidate artifact; signing is intentionally not
+  executed and the Squirrel production/default path remains unchanged;
 - exact source SHA and independent CI artifact evidence.
 
 ### CONFIGURED / INFERRED
