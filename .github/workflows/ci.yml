@@ -39,6 +39,9 @@ jobs:
       - name: Contract tests
         run: npm run test:contracts
 
+      - name: M3 migration helper contracts
+        run: npm run test:desktop:installer:m3
+
       - name: Desktop TypeScript
         run: npm run desktop:compile
 

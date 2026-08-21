@@ -55,6 +55,7 @@
     "test:model-catalog-live": "node --test --experimental-strip-types app/server/ai/model-directory-live.test.ts",
     "test:e2e": "playwright test",
     "test:desktop": "npm run desktop:compile && node --test --experimental-strip-types desktop/desktop.contract.test.ts desktop/credential-storage.contract.test.ts desktop/desktop-release.contract.test.ts scripts/desktop-preload-artifact.contract.test.mjs",
+    "test:desktop:installer:m3": "node --test scripts/windows-squirrel-m3-migration.contract.test.mjs",
     "test:desktop:artifact": "cross-env DESKTOP_ARTIFACT_REQUIRED=1 node --test scripts/desktop-preload-artifact.contract.test.mjs scripts/squirrel-package.contract.test.mjs",
     "test:desktop:builder:m0": "cross-env DESKTOP_BUILDER_M0_ARTIFACT_REQUIRED=1 node --test scripts/electron-builder-m0.contract.test.mjs scripts/electron-builder-m0-artifact.contract.test.mjs",
     "test:desktop:builder:nsis:source": "node --test --experimental-strip-types scripts/electron-builder-m0.contract.test.mjs scripts/electron-builder-nsis.contract.test.mjs scripts/electron-builder-nsis-ci.contract.test.mjs scripts/review-workspace-version.contract.test.mjs",
