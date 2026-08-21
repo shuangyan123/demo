@@ -1,21 +1,22 @@
 # Windows installer migration M2 — fresh-profile real Windows NSIS acceptance
 
-Status: **M2 FRESH-PROFILE NSIS ACCEPTANCE: PENDING REAL WINDOWS EXECUTION**
+Status: **M2 FRESH-PROFILE NSIS ACCEPTANCE: PASS**
 
 ## Purpose and boundary
 
-M2 prepares the accepted bundled NSIS candidate for a later, manually
-controlled real-Windows acceptance run. It asks whether the accepted NSIS
-candidate can install and run correctly in a genuinely fresh disposable
-Windows user profile while the machine is network-isolated.
+M2 closes the accepted bundled NSIS candidate against a supplied,
+operator-attested real-Windows acceptance run. The run used a genuinely fresh
+disposable Windows user profile and remained network-isolated through
+installation, first launch, sentinel creation, ordinary close, ordinary
+restart, and persistence observation.
 
-This preparation task does not execute the installer, install NSIS into the
-developer profile, launch an installed application, uninstall anything,
-implement migration logic, or begin M3. The local builder and artifact
-readback prove packaging properties only. They do not prove installed-app
-behavior.
+This documentation closure does not execute the installer, install NSIS into
+the developer profile, launch an installed application, uninstall anything,
+implement migration logic, or begin M3. The real-Windows result below is
+operator-attested evidence supplied for this closure; it was not independently
+replayed in Codex.
 
-The later M2 result must be exactly one of:
+The M2 result must be exactly one of:
 
 ~~~text
 M2 FRESH-PROFILE NSIS ACCEPTANCE: PASS
@@ -23,7 +24,9 @@ M2 FRESH-PROFILE NSIS ACCEPTANCE: FAIL
 M2 FRESH-PROFILE NSIS ACCEPTANCE: BLOCKED / INCONCLUSIVE
 ~~~
 
-No result is declared by this document.
+The accepted final result is recorded below as operator-attested evidence for
+this exact candidate and the test-m2-final profile. It is not a universal
+portability, migration, uninstall, signing, or updater claim.
 
 ## Baseline and candidate provenance
 
@@ -50,6 +53,10 @@ PR #94. The verified remote starting point for this preparation task was:
 The candidate was built before this documentation change from the exact M2
 candidate source SHA above. The later documentation commit is not the source
 SHA that generated the already-built candidate.
+
+The final real-Windows run used this exact candidate provenance. The supplied
+run evidence is classified as operator-attested and does not convert the later
+documentation commit into the candidate's source SHA.
 
 ## Candidate artifact and readback
 
@@ -112,7 +119,7 @@ The builder reported the default Electron icon because no approved repository
 ICO is configured. This is retained as a known candidate fact and is not
 converted into an installed-app UX claim.
 
-## Preparation validation
+## Candidate validation
 
 The following commands were executed from the candidate source SHA using
 Node v22.23.1. The repository-specific production audit returned zero
@@ -151,12 +158,149 @@ Observed results:
 - fresh artifact evidence readback: PASS, 1/1.
 
 The desktop integration smoke is not installed-app acceptance. It does not
-replace the later Start Menu launch or fresh-profile evidence.
+replace the operator-attested Start Menu launch or fresh-profile evidence.
+
+## Operator-attested final real-Windows M2 evidence
+
+This section records the supplied final run, not a new Codex execution.
+
+| Item | Operator-attested result |
+| --- | --- |
+| Evidence classification | OPERATOR-ATTESTED; not independently replayed |
+| Fresh profile | test-m2-final |
+| Windows | Windows 11 x64 |
+| Candidate source SHA | 561db11040def4071771944afa35c505590fbd11 |
+| Candidate filename | ReviewWorkspace-0.2.4-Windows-x64-NSIS-M1-Candidate.exe |
+| Candidate size | 122661636 bytes |
+| Candidate SHA-256 | 35299acc20a28709c7469b118d7ef7bbf522686f0416a3a5a686bb3cad1cb5a0 |
+
+### Continuous network-isolated run
+
+Network isolation was maintained through fresh-profile preflight,
+installation, first launch, production-UI sentinel creation, ordinary close,
+ordinary restart, and sentinel persistence observation.
+
+Final post-restart TCP checks were:
+
+~~~text
+github.com: TCP/443 UNREACHABLE / PASS
+raw.githubusercontent.com: TCP/443 UNREACHABLE / PASS
+~~~
+
+This supports the scoped claim that the accepted candidate did not require
+those public endpoints for the offline install/launch/restart path. It is not
+packet-level proof that no DNS or network request was attempted.
+
+### Installed layout and userData
+
+Observed NSIS installation root:
+
+~~~text
+C:\Users\test-m2-final\AppData\Local\Programs\review-workspace
+~~~
+
+Observed installed executable:
+
+~~~text
+C:\Users\test-m2-final\AppData\Local\Programs\review-workspace\review-workspace.exe
+~~~
+
+Observed bundled Node:
+
+~~~text
+C:\Users\test-m2-final\AppData\Local\Programs\review-workspace\resources\.desktop-runtime\node\node.exe
+~~~
+
+Observed bundled runtime server:
+
+~~~text
+C:\Users\test-m2-final\AppData\Local\Programs\review-workspace\resources\.desktop-runtime\app\server.js
+~~~
+
+Observed userData:
+
+~~~text
+C:\Users\test-m2-final\AppData\Roaming\错题复盘
+~~~
+
+Electron child process command lines explicitly contained:
+
+~~~text
+--user-data-dir="C:\Users\test-m2-final\AppData\Roaming\错题复盘"
+~~~
+
+UserData compatibility: **PASS**.
+
+### Install, registration, shortcuts, and shell
+
+The supplied final run observed:
+
+- per-user installation: PASS;
+- runAfterFinish=false: PASS;
+- installer transaction completion: PASS;
+- no unexpected installer/helper residual: PASS;
+- Desktop shortcut: PASS;
+- Start Menu shortcut: PASS.
+
+Both shortcut targets resolved to:
+
+~~~text
+C:\Users\test-m2-final\AppData\Local\Programs\review-workspace\review-workspace.exe
+~~~
+
+The current-user uninstall registration was observed read-only. The supplied
+closure does not enumerate each registry value, so this document claims the
+observation only and does not invent DisplayIcon, Publisher, or uninstall
+command values.
+
+Windows shell observation:
+
+~~~text
+Name: 错题复盘
+AppID: com.squirrel.review_workspace.review-workspace
+Configured compatibility proposal: com.squirrel.review_workspace.review-workspace
+Shell AppID/AUMID: OBSERVED
+Compatibility: MATCH
+~~~
+
+No app.setAppUserModelId() was added.
+
+### Production data, ordinary close, and restart
+
+The following sanitized sentinel was created through normal production UI:
+
+~~~text
+nsis-m2-final-acceptance-2026-08-21
+~~~
+
+The supplied evidence states that no DevTools, IndexedDB manual mutation,
+filesystem injection, test-only API, or database script was used. The
+sentinel was visibly present in the production UI before close.
+
+After ordinary user-facing close:
+
+- no installed Review Workspace Electron processes: PASS;
+- no installed bundled Node runtime: PASS.
+
+The application was restarted normally through the installed Start Menu
+shortcut while still offline. After restart:
+
+- installed app/runtime: PASS;
+- same userData: PASS;
+- no conflicting --user-data-dir: PASS;
+- shell AppID/AUMID: MATCH;
+- sentinel visible in normal production UI: PASS;
+- sentinel persistence after ordinary close/restart: PASS.
+
+An earlier diagnostic run used another fresh profile but had an interruption
+in network isolation. It is not used as the final acceptance and is
+superseded by the continuous-offline test-m2-final run; it is not classified
+as a product failure.
 
 ## Fresh disposable profile requirement
 
-The later manual run must use a genuinely fresh disposable local Windows
-account/profile. The account must never have launched or installed:
+The accepted final run used a genuinely fresh disposable local Windows
+account/profile. The account had never launched or installed:
 
 - Review Workspace;
 - 错题复盘;
@@ -178,8 +322,8 @@ no Review Workspace Start Menu shortcut
 ~~~
 
 Do not reuse an old installer test account containing Squirrel, userData, or
-shortcut evidence. The future NSIS install directory is deliberately not
-assumed. It must be observed after installation.
+shortcut evidence. The NSIS install directory was observed during the final
+run and is recorded in the operator-attested evidence above.
 
 ## Network-isolated acceptance design
 
@@ -199,10 +343,12 @@ This is an offline-environment acceptance, not packet-level proof that no DNS
 or network request was attempted. Do not overclaim request absence. Do not
 disable Windows security products globally.
 
-## Manual acceptance procedure
+## Manual acceptance procedure reference
 
-The following checklist is intentionally written for the later manual run.
-All real-Windows rows remain PENDING until the operator records evidence.
+The following checklist is the procedural reference used for the final
+operator run. The result of that run is recorded in the operator-attested
+section above and in the acceptance matrix below. No independent replay is
+claimed.
 
 ### 1. Baseline and isolation
 
@@ -240,11 +386,11 @@ Run the candidate Setup manually only after the baseline is preserved.
 Record the actual values, without assuming the old Squirrel directory:
 
 ~~~text
-actual installation root: PENDING
-actual installed executable path: PENDING
-actual resources path: PENDING
-actual bundled Node path: PENDING
-actual uninstaller path: PENDING
+actual installation root: C:\Users\test-m2-final\AppData\Local\Programs\review-workspace
+actual installed executable path: C:\Users\test-m2-final\AppData\Local\Programs\review-workspace\review-workspace.exe
+actual resources path: C:\Users\test-m2-final\AppData\Local\Programs\review-workspace\resources
+actual bundled Node path: C:\Users\test-m2-final\AppData\Local\Programs\review-workspace\resources\.desktop-runtime\node\node.exe
+actual uninstaller path: observed in current-user registration; exact value not enumerated in supplied closure
 ~~~
 
 ### 3. Uninstall registration observation only
@@ -341,7 +487,7 @@ Using the normal production UI, create one sanitized unique sentinel in a
 normal local workspace or study-data field already supported by the product:
 
 ~~~text
-nsis-m2-fresh-install-acceptance-2026-08-21
+nsis-m2-final-acceptance-2026-08-21
 ~~~
 
 - [ ] Sentinel was entered through normal production UI.
@@ -422,82 +568,88 @@ After M2 evidence is complete:
 
 ## M2 acceptance matrix
 
-| Acceptance item | Current preparation status | Later evidence required |
+| Acceptance item | Final status | Evidence boundary |
 | --- | --- | --- |
-| Fresh disposable profile | PENDING | baseline account/profile transcript |
-| Network-isolated installation | PENDING | preflight reachability transcript |
-| Wizard and per-user intent | PENDING | installer UI evidence |
-| No unexpected administrator-only install | PENDING | installer interaction evidence |
-| Finish does not auto-launch | PENDING | post-Setup process snapshot |
-| Installer transaction completion | PENDING | Setup/helper exit and file evidence |
-| Actual NSIS installation root | PENDING | observed absolute paths |
-| Actual resources and bundled Node paths | PENDING | filesystem/process evidence |
-| Current-user uninstall registration | PENDING | read-only registry values |
-| Desktop shortcut | PENDING | .lnk existence and resolved target |
-| Start Menu shortcut | PENDING | .lnk existence and resolved target |
-| First installed launch | PENDING | installed process tree and UI |
-| Expected userData path | PENDING | process command line and filesystem |
-| Production-UI sentinel | PENDING | visible sanitized sentinel |
-| Full ordinary close | PENDING | filtered zero-residual process check |
-| Ordinary restart | PENDING | Start Menu launch evidence |
-| Sentinel persistence | PENDING | visible sentinel after restart |
-| Shell/AppID/AUMID | PENDING | OBSERVED/NOT OBSERVABLE plus compatibility classification |
-| Narrow single-instance observation | PENDING | one controlled invocation, if applicable |
+| Fresh disposable profile | PASS (operator-attested) | test-m2-final, Windows 11 x64 |
+| Network-isolated installation | PASS (operator-attested) | continuous run; final endpoint checks unreachable |
+| Wizard and per-user intent | PASS (operator-attested) | per-user installation observed |
+| No unexpected administrator-only install | PASS (operator-attested) | no machine-wide elevation requirement observed |
+| Finish does not auto-launch | PASS (operator-attested) | runAfterFinish=false observed |
+| Installer transaction completion | PASS (operator-attested) | Setup/helper completion and no residual observed |
+| Actual NSIS installation root | PASS (operator-attested) | observed test-m2-final install root |
+| Actual resources and bundled Node paths | PASS (operator-attested) | installed filesystem/process paths recorded above |
+| Current-user uninstall registration | PASS (observation only) | registration observed; individual values not enumerated here |
+| Desktop shortcut | PASS (operator-attested) | .lnk target resolved to installed executable |
+| Start Menu shortcut | PASS (operator-attested) | .lnk target resolved to installed executable |
+| First installed launch | PASS (operator-attested) | Start Menu launch and installed process layout |
+| Expected userData path | PASS (operator-attested) | explicit --user-data-dir matched %APPDATA%\错题复盘 |
+| Production-UI sentinel | PASS (operator-attested) | nsis-m2-final-acceptance-2026-08-21 |
+| Full ordinary close | PASS (operator-attested) | no installed app/runtime residual |
+| Ordinary restart | PASS (operator-attested) | Start Menu restart while offline |
+| Sentinel persistence | PASS (operator-attested) | sentinel visible after close/restart |
+| Shell/AppID/AUMID | OBSERVED / MATCH | Name 错题复盘; AppID matched proposal |
+| Narrow single-instance observation | NOT REPORTED / OPTIONAL | no new requirement inferred |
 | Credentials / DPAPI | NOT IN SCOPE | no credentials entered or evaluated |
 
 ## Evidence boundary and non-claims
 
-Packaging evidence proves the artifact, unpacked application layout, strict
-fuses, ASAR integrity, bundled runtime, and absence of updater metadata. It
-does not prove:
+The accepted M2 result combines the M1 packaging/readback evidence with the
+supplied operator-attested final run. The real-Windows observations are scoped
+to the exact candidate provenance, the test-m2-final profile, and the same
+Windows 11 x64 environment. They are not independently replayed in Codex.
 
-- actual Windows installation path;
-- clean per-user installation behavior;
-- installation-time network behavior;
-- Desktop or Start Menu shortcut creation;
-- shortcut target correctness;
-- installed userData identity;
-- production sentinel persistence;
-- ordinary close or restart;
-- shell/AppID/AUMID continuity;
-- Squirrel to NSIS migration;
-- coexistence with an existing Squirrel installation;
-- credentials, safeStorage, DPAPI, or portability;
-- uninstall, reinstall, rollback, updater, signing, publisher, or SmartScreen
-  behavior.
+### PROVEN REAL WINDOWS M2 — OPERATOR-ATTESTED
 
-Preparation evidence must retain the following labels until the later manual
-run produces direct evidence:
+- fresh disposable per-user installation;
+- continuous offline install, launch, close, restart, and persistence path;
+- actual NSIS installation layout and bundled runtime paths;
+- current-user uninstall registration observation only;
+- Desktop and Start Menu shortcuts resolving to the installed executable;
+- shell AppID/AUMID OBSERVED and MATCHING the configured proposal;
+- first installed launch;
+- expected userData path;
+- production-UI sentinel creation;
+- ordinary close with no installed app/runtime residual;
+- ordinary restart;
+- sentinel persistence after close/restart.
 
-~~~text
-real Windows install: PENDING
-actual install path: PENDING
-shortcut creation and targets: PENDING
-userData: PENDING
-production sentinel: PENDING
-ordinary close: PENDING
-restart persistence: PENDING
-shell/AUMID: PENDING
-~~~
+### STILL NOT EXECUTED / NOT PROVEN
+
+- existing Squirrel 0.2.4 -> NSIS migration;
+- coexistence or cleanup of a legacy Squirrel installation;
+- credentials, safeStorage, or DPAPI;
+- different-machine or copied-userData portability;
+- NSIS uninstall;
+- reinstall;
+- running-app uninstall;
+- rollback;
+- signing;
+- publisher identity;
+- SmartScreen reputation mitigation;
+- updater or electron-updater;
+- production NSIS cutover;
+- byte-for-byte reproducibility across rebuilds;
+- universal network-request absence or general portability.
+
+The operator-attested run does not establish the individual uninstall
+registration field values that were not included in the supplied closure, and
+the optional single-instance observation was not reported.
 
 ## Explicit phase boundaries
 
 ~~~text
-M3: Squirrel -> NSIS migration: PENDING
-M4: uninstall/reinstall/running-app lifecycle: PENDING
-M5: signing/release/updater: PENDING
+M3: PENDING
+M4: PENDING
+M5: PENDING
 ~~~
 
-M2 does not test or implement migration, coexistence, credential migration,
-safeStorage portability, DPAPI portability, copied userData, another Windows
-machine, uninstall, reinstall, running-app uninstall, closed-app uninstall,
-rollback, updater, electron-updater, signing, publisher certificates,
-SmartScreen mitigation, custom NSIS migration macros, or production cutover.
+M3 owns existing Squirrel -> NSIS migration and coexistence acceptance. M4
+owns uninstall, reinstall, rollback, and running-app lifecycle acceptance. M5
+owns signing, publisher/SmartScreen release readiness, updater, and production
+cutover. None was executed or implemented by this closure.
 
-## Preparation conclusion
+## Final result
 
-M2 real Windows execution remains pending. The candidate, source binding,
-artifact evidence, and manual acceptance checklist are ready for an operator
-to perform the separately controlled fresh-profile run.
+The final result is scoped to the operator-attested M2 evidence above:
 
-**M2 ACCEPTANCE KIT: READY FOR REAL WINDOWS EXECUTION**
+M2 FRESH-PROFILE NSIS ACCEPTANCE: PASS
