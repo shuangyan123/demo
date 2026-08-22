@@ -1,12 +1,23 @@
 # Windows installer migration M3 - guarded Squirrel 0.2.4 to NSIS bridge
 
-Status: **M3 SQUIRREL -> NSIS MIGRATION: PENDING REAL WINDOWS ACCEPTANCE**
+Status: **M3 SQUIRREL -> NSIS MIGRATION: PASS (operator-attested real Windows acceptance)**
 
 This phase implements only the separately invoked legacy-Squirrel cleanup
-bridge and its safety contracts. Codex does not execute an installer, uninstall
-a real installation, launch an installed application, perform destructive
-cleanup, or begin M4. A disposable-account real Windows inspection reached the
-pre-NSIS boundary and is recorded below; it did not complete M3 acceptance.
+bridge and its safety contracts. The completed acceptance recorded below is
+operator-attested evidence from one real Windows machine and one disposable
+account; it is not an automated test or an independent Codex replay. Codex did
+not rerun the installer or cleanup during this documentation closure. M4 and M5
+remain separate phases.
+
+## Current M3 closure state
+
+- Implementation and accepted NSIS candidate source: `31c0ec5c52352058bae1d3c61e6e685cc404b5cb`.
+- Helper blob used for the guarded live cleanup: `9154d547a6874976eccc7b3065739e03e46e5516`.
+- Final classification: `M3 SQUIRREL -> NSIS MIGRATION: PASS`.
+- The pass is limited to same-account, same-machine continuity, preservation of
+  shared userData and the Desktop-protected credential, and controlled active
+  legacy cleanup. Portability, signing, updater, and later lifecycle claims are
+  intentionally excluded.
 
 ## M3A decision and two-stage contract
 
@@ -119,7 +130,8 @@ that is not one of these exact identities remains ambiguous and blocks
 cleanup. Invalid expected NSIS values also block cleanup. The identity logic
 is fixture-tested from sanitized registry facts. Fixture contracts do not prove
 live HKCU enumeration, CIM process discovery, or Shell.Application `.lnk`
-resolution; those remain part of later real Windows M3 acceptance.
+resolution; the operator-attested live evidence below covers those M3
+boundaries without converting it into automated or independent proof.
 
 The existing NSIS identity remains unchanged: package `review-workspace`,
 product name `错题复盘`, version `0.2.4`, executable
@@ -174,8 +186,8 @@ state.
 
 ## Credential continuity evidence
 
-The helper does not implement credential checks. For the later real Windows
-M3 run, the operator must use the normal application UI to:
+The helper does not implement credential checks. The recorded operator-
+attested M3 run used the normal application UI to:
 
 1. configure a disposable credential in the old Squirrel app;
 2. complete Desktop credential migration;
@@ -213,9 +225,9 @@ source:   1c41e53488fe8b4427d1c78831e3b524a114a2da
 
 M3 ACCEPTED SQUIRREL ARTIFACT: RECOVERED
 
-The exact accepted installer was recovered and is the only artifact permitted
-for real M3 execution. The previously found same-name local artifact remains
-rejected and must not be substituted:
+The exact accepted installer was recovered and was the only artifact used for
+the recorded real M3 execution. The previously found same-name local artifact
+remains rejected and must not be substituted:
 
 ~~~text
 size:    190381056
@@ -234,8 +246,22 @@ Therefore:
 
 ~~~text
 REAL M3 WINDOWS ACCEPTANCE:
-PENDING AFTER CODE CORRECTION
+PASS (OPERATOR-ATTESTED, SAME ACCOUNT AND MACHINE)
 ~~~
+
+The exact NSIS candidate used for the recorded side-by-side run was:
+
+~~~text
+source commit: 31c0ec5c52352058bae1d3c61e6e685cc404b5cb
+file:          ReviewWorkspace-0.2.4-Windows-x64-NSIS-M1-Candidate.exe
+size:          125443533
+SHA-256:       61F5699D5075474B3631C55889DA0F15DC7BF4C488DD9CAD6355C61E94A1484A
+~~~
+
+The candidate provenance was manually verified before execution. It is
+unsigned; SmartScreen warning and reputation/signing readiness remain M5
+risks. The evidence below does not claim production signing or release
+readiness.
 
 ## Real-Windows pre-NSIS inspection finding
 
@@ -280,14 +306,184 @@ modified. This PR corrects the classification by requiring the independent
 Squirrel facts, especially the exact package identity, while keeping PE
 metadata informational.
 
-Execution was intentionally stopped before NSIS installation and before
-cleanup. Full real Windows M3 acceptance remains pending after this code
-correction; same-account credential continuity and legacy cleanup are not yet
-proven.
+This was the historical first real-Windows finding. Execution was intentionally
+stopped before NSIS installation and before cleanup, so that failed-closed
+inspect caused no destructive action. The corrected source was then used for
+the completed operator-attested run recorded below.
 
-## Real-Windows M3 checklist
+## Operator-attested real-Windows M3 acceptance
 
-Use a new disposable Windows x64 account, not test or test-m2-final.
+The following evidence was supplied from Windows account `test-m3-final` on
+one machine. It is the final M3 acceptance record, not a claim that the
+workflow was automated or independently replayed by CI.
+
+### Closure chronology
+
+1. The guarded M3 helper and its contract boundaries were implemented.
+2. The first real-Windows inspect failed closed on the incorrect PE-version
+   identity comparison and performed no cleanup.
+3. Source `31c0ec5` corrected the historical Squirrel identity to the pinned
+   package facts and kept Electron PE metadata informational.
+4. Corrected pre-NSIS inspect passed the historical package gate and reported
+   only the expected absence of NSIS state.
+5. The exact NSIS candidate was installed side-by-side with Squirrel.
+6. The old Squirrel application baseline and restart continuity passed.
+7. The first NSIS launch preserved the sentinel, Desktop protection, credential
+   usability, and connection health.
+8. NSIS restart continuity passed before cleanup.
+9. The helper reported a cleanup-eligible state with an empty blocking-reason
+   list and a three-action plan.
+10. Explicit guarded cleanup removed only the validated active legacy payload,
+    root stub, and Squirrel registration.
+11. Post-cleanup structure preserved NSIS, shortcuts, registry identity,
+    userData, and recorded the known inert residuals.
+12. Final post-cleanup NSIS application continuity passed.
+13. The final classification was `M3 SQUIRREL -> NSIS MIGRATION: PASS`.
+
+### Run identity and corrected pre-NSIS validation
+
+The historical Squirrel source and roots were:
+
+- Installer: `ReviewWorkspace-0.2.4-Windows-x64-Setup.exe`, size `186909184`,
+  SHA-256 `2A28CB47E3485DC2D67CEE80ED2208E705607452372A0C34B1FC323E186626EE`.
+- Package: `review_workspace-0.2.4-full.nupkg`, size `186836771`, SHA-256
+  `8FD1F7B5BF12E95778476E85EFF6A96980AC952D090BB19C80AAFBED108D9EB4`.
+- Shared userData: `%APPDATA%\错题复盘`.
+- Squirrel root: `%LOCALAPPDATA%\review_workspace`.
+- NSIS root: `%LOCALAPPDATA%\Programs\review-workspace`.
+
+After source `31c0ec5`, corrected inspect validation exited 0 in `inspect` mode with
+`cleanupPerformed: false`, `legacyRoot: FOUND`, `legacyRegistration: FOUND`,
+`legacyVersion: 0.2.4`, and `historicalPackage: VALID` with the exact package
+length and hash above. Electron runtime `43.2.0` was reported as informational
+metadata. Historical Desktop and Start Menu shortcuts were both `ABSENT`,
+NSIS root was `ABSENT`, and `cleanupEligible` was `false`. The only blockers
+before NSIS were the expected absence of NSIS registry identity, NSIS root, and
+NSIS executable; the old incorrect PE-version blockers were gone.
+
+The only blocking reasons at that point were:
+
+~~~text
+NSIS_INSTALL_REGISTRY_IDENTITY_INVALID
+NSIS_UNINSTALL_REGISTRY_IDENTITY_INVALID
+NSIS_ROOT_NOT_PRESENT
+NSIS_EXECUTABLE_NOT_PRESENT
+~~~
+
+### Side-by-side install and continuity
+
+NSIS was installed per-user while the Squirrel installation remained present.
+Before the NSIS launch, the Squirrel `app-0.2.4` payload, NSIS root and
+executable, `resources\app.asar`, `.desktop-runtime`, and bundled Node were
+present. The live registry and shortcut checks recorded:
+
+- NSIS install `InstallLocation` exactly equal to
+  `C:\Users\test-m3-final\AppData\Local\Programs\review-workspace`.
+- Uninstall identity with DisplayName `错题复盘`, DisplayVersion `0.2.4`, and
+  the expected `UninstallString`/`QuietUninstallString` pointing to the NSIS
+  uninstaller with `/currentuser` and `/S` semantics.
+- Desktop and Start Menu shortcuts both targeted the NSIS executable, not the
+  Squirrel executable.
+
+The exact old Squirrel executable was launched first:
+
+~~~text
+C:\Users\test-m3-final\AppData\Local\review_workspace\app-0.2.4\review-workspace.exe
+~~~
+
+The normal UI showed the
+sentinel, completed Desktop protection migration, ready/verified credential
+health, and a successful connection without credential re-entry. Closing and
+restarting the same legacy executable preserved those facts:
+
+~~~text
+OLD SQUIRREL RESTART CONTINUITY: PASS
+~~~
+
+The exact NSIS executable was then launched:
+
+~~~text
+C:\Users\test-m3-final\AppData\Local\Programs\review-workspace\review-workspace.exe
+~~~
+
+All product processes were under the NSIS path. The sentinel, Desktop
+protection, credential usability without re-entry, health, and connection test
+all passed:
+
+~~~text
+NSIS FIRST-LAUNCH CONTINUITY: PASS
+~~~
+
+NSIS was normally closed and restarted before cleanup. UI state persisted and
+the connection remained successful:
+
+~~~text
+NSIS RESTART CONTINUITY: PASS
+~~~
+
+### Guarded cleanup and post-cleanup continuity
+
+Before cleanup, all product processes were closed. The helper blob was exactly
+`9154d547a6874976eccc7b3065739e03e46e5516`. Inspect exited 0 with
+`cleanupPerformed: false`, both legacy identities `FOUND`, historical version
+`0.2.4`, historical package `VALID`, NSIS install/uninstall identities
+`NSIS_EXPECTED`, both shortcuts `NSIS_TARGET`, process count `0`,
+`cleanupEligible: true`, and no blocking reasons.
+
+The only planned cleanup actions were:
+
+1. Remove `%LOCALAPPDATA%\review_workspace\app-0.2.4`.
+2. Remove `%LOCALAPPDATA%\review_workspace\review-workspace.exe`.
+3. Remove the exact Squirrel uninstall key
+   `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\review_workspace`.
+
+The plan did not include the NSIS root or executable, NSIS registry identities,
+shortcuts, `%APPDATA%\错题复盘`, or any credential action. The explicit
+`-ExecuteCleanup -Stage1Verified` run exited 0 with empty stderr,
+`cleanupPerformed: true`, no blockers, and outcome
+`ACTIVE_REMOVED_INERT_RESIDUAL_RECORDED`. The active legacy payload, root stub,
+and Squirrel uninstall registration were removed. Known inert residuals
+`packages` and `Update.exe` intentionally remained; `unknownResiduals` was
+empty. This is not a claim that every historical Squirrel-root file was
+deleted.
+
+Post-cleanup structure retained the NSIS root, executable, `resources\app.asar`,
+`.desktop-runtime`, bundled runtime, NSIS install/uninstall identities, both
+NSIS-target shortcuts, and shared userData. The final NSIS launch again ran
+only from the NSIS path; sentinel, Desktop protection, credential usability
+without re-entry, and the DeepSeek connection/verification all passed:
+
+The post-cleanup readback recorded `activeLegacyState.present: false`,
+`NSIS root/exe: FOUND`, `userData: PRESENT`, `NSIS install/uninstall: NSIS_EXPECTED`,
+`Desktop/Start Menu: NSIS_TARGET`, and `unknownResiduals: []`.
+
+~~~text
+M3 PRE-CLEANUP INSPECTION: PASS
+M3 VALIDATED LEGACY CLEANUP: PASS
+M3 POST-CLEANUP STRUCTURE: PASS
+M3 POST-CLEANUP APPLICATION CONTINUITY: PASS
+M3 SQUIRREL -> NSIS MIGRATION: PASS
+~~~
+
+### Acceptance boundary and non-claims
+
+This PASS is limited to Windows, the same machine, the same account, the
+accepted historical Squirrel 0.2.4 installation, the exact NSIS candidate from
+source `31c0ec5`, shared `%APPDATA%\错题复盘`, Desktop-protected credential
+continuity, and controlled target-aware active legacy cleanup. It does not
+claim:
+
+- DPAPI credential portability across accounts or machines;
+- portability of copied userData;
+- production signing or SmartScreen/reputation readiness;
+- updater or release cutover readiness;
+- M4 uninstall/reinstall or running-app lifecycle acceptance; or
+- M5 signing/release acceptance.
+
+## Real-Windows M3 checklist and stop conditions
+
+The recorded acceptance used a new disposable Windows x64 account and followed
+these stop conditions:
 
 - Establish a clean profile and record the absence of old roots, processes,
   shortcuts, registrations, and userData.
