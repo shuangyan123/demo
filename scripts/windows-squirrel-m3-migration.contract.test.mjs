@@ -12,6 +12,9 @@ const electronBuilderAppId = "com.squirrel.review_workspace.review-workspace";
 const electronBuilderVersion = "26.15.3";
 const electronBuilderNsisGuid = "6e1e4cd2-13e9-52d1-a05a-25028be9da88";
 const electronBuilderNsisNamespace = "50e065bc-3134-11e6-9bab-38c9862bdaf3";
+const historicalPackageName = "review_workspace-0.2.4-full.nupkg";
+const historicalPackageLength = 186836771;
+const historicalPackageSha256 = "8FD1F7B5BF12E95778476E85EFF6A96980AC952D090BB19C80AAFBED108D9EB4";
 
 function baseFixture() {
   const legacyRoot = "C:\\fixture\\review_workspace";
@@ -21,11 +24,20 @@ function baseFixture() {
   const startMenuShortcut = "C:\\fixture\\StartMenu\\错题复盘.lnk";
   const legacyStub = legacyRoot + "\\review-workspace.exe";
   const legacyVersionDirectory = legacyRoot + "\\app-0.2.4";
+  const historicalPackagePath = legacyRoot + "\\packages\\" + historicalPackageName;
   const nsisExecutable = nsisRoot + "\\review-workspace.exe";
   const nsisUninstaller = nsisRoot + "\\Uninstall review-workspace.exe";
   const legacyRegistryKey = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\review_workspace";
   const nsisInstallRegistryKey = `HKCU:\\Software\\${electronBuilderNsisGuid}`;
   const nsisUninstallRegistryKey = `HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${electronBuilderNsisGuid}`;
+  const electronPeMetadata = {
+    productName: "Electron",
+    fileDescription: "Electron",
+    internalName: "electron.exe",
+    originalFilename: "electron.exe",
+    productVersion: "43.2.0",
+    fileVersion: "43.2.0",
+  };
   return {
     paths: {
       legacyRoot,
@@ -46,10 +58,22 @@ function baseFixture() {
       status: "VALID",
       path: legacyRoot,
       isReparsePoint: false,
-      stub: { status: "VALID", path: legacyStub, isDirectory: false, isReparsePoint: false },
+      stub: { status: "VALID", path: legacyStub, isDirectory: false, isReparsePoint: false, ...electronPeMetadata },
       update: { status: "FOUND", path: legacyRoot + "\\Update.exe", isReparsePoint: false },
       versionDirectory: { status: "FOUND", path: legacyVersionDirectory, isReparsePoint: false },
-      versionExecutable: { status: "VALID", path: legacyVersionDirectory + "\\review-workspace.exe" },
+      versionExecutable: { status: "VALID", path: legacyVersionDirectory + "\\review-workspace.exe", ...electronPeMetadata },
+      historicalPackage: {
+        status: "VALID",
+        path: historicalPackagePath,
+        fileName: historicalPackageName,
+        expectedFileName: historicalPackageName,
+        length: historicalPackageLength,
+        expectedLength: historicalPackageLength,
+        sha256: historicalPackageSha256,
+        expectedSha256: historicalPackageSha256,
+        isDirectory: false,
+        isReparsePoint: false,
+      },
       residuals: [{ name: ".dead", path: legacyRoot + "\\.dead", kind: "INERT", isReparsePoint: false }],
       unknownResiduals: [],
     },
@@ -140,6 +164,56 @@ test("M3 helper source contains exact identity and never-touch boundaries", () =
   assert.match(helperSource, /NSIS_ROOT_NOT_PRESENT/);
   assert.match(helperSource, /REPARSE_POINT/);
   assert.match(helperSource, /LEGACY_APP_RUNNING/);
+});
+
+test("M3 uses the exact historical nupkg as the Squirrel release anchor", () => {
+  assert.match(helperSource, new RegExp(historicalPackageName.replaceAll(".", "\\.")));
+  assert.match(helperSource, new RegExp(String(historicalPackageLength)));
+  assert.match(helperSource, new RegExp(historicalPackageSha256));
+  assert.match(helperSource, /Get-HistoricalPackageValidationReason/);
+  assert.doesNotMatch(helperSource, /\$versionPattern/);
+  assert.doesNotMatch(helperSource, /\$info\.ProductVersion\s*-match/);
+  assert.doesNotMatch(helperSource, /\$info\.FileVersion\s*-match/);
+});
+
+test("M3 accepts Electron PE 43.2.0 metadata for a verified Squirrel 0.2.4 fixture", (t) => {
+  if (process.platform !== "win32") {
+    t.skip("PowerShell fixture execution is a Windows contract");
+    return;
+  }
+
+  const result = runFixture(baseFixture());
+  assert.equal(result.legacyRoot, "FOUND");
+  assert.equal(result.legacyVersion, "0.2.4");
+  assert.equal(result.historicalPackage.status, "VALID");
+  assert.equal(result.electronRuntimeVersion, "43.2.0");
+  assert.equal(result.executableMetadata.versionExecutable.productName, "Electron");
+  assert.equal(result.executableMetadata.versionExecutable.internalName, "electron.exe");
+  assert.equal(result.executableMetadata.versionExecutable.originalFilename, "electron.exe");
+  assert.equal(result.executableMetadata.versionExecutable.fileVersion, "43.2.0");
+  assert.equal(result.cleanupEligible, true);
+});
+
+test("M3 historical nupkg identity mutations fail closed", (t) => {
+  if (process.platform !== "win32") {
+    t.skip("PowerShell fixture execution is a Windows contract");
+    return;
+  }
+
+  const cases = [
+    ["missing", (fixture) => { delete fixture.legacyRoot.historicalPackage; }],
+    ["wrong filename/version", (fixture) => { fixture.legacyRoot.historicalPackage.fileName = "review_workspace-0.2.3-full.nupkg"; }],
+    ["wrong size", (fixture) => { fixture.legacyRoot.historicalPackage.length = historicalPackageLength - 1; }],
+    ["wrong SHA256", (fixture) => { fixture.legacyRoot.historicalPackage.sha256 = "0".repeat(64); }],
+  ];
+
+  for (const [label, mutate] of cases) {
+    const fixture = baseFixture();
+    mutate(fixture);
+    const result = runFixture(fixture);
+    assert.equal(result.cleanupEligible, false, label);
+    assert.ok(result.blockingReasons.includes("LEGACY_HISTORICAL_PACKAGE_INVALID"), `${label}: ${JSON.stringify(result.blockingReasons)}`);
+  }
 });
 
 test("M3 registry identity uses the pinned electron-builder UUIDv5 derivation", (t) => {
@@ -286,6 +360,9 @@ test("M3 snapshot contracts are fixture-only and non-destructive", (t) => {
   assert.equal(result.cleanupPerformed, false);
   assert.equal(result.cleanupEligible, true);
   assert.deepEqual(result.blockingReasons, []);
+  assert.equal(result.legacyVersion, "0.2.4");
+  assert.equal(result.historicalPackage.status, "VALID");
+  assert.equal(result.electronRuntimeVersion, "43.2.0");
   assert.equal(result.desktopShortcut, "LEGACY_TARGET");
   assert.equal(result.startMenuShortcut, "NSIS_TARGET");
   assert.equal(result.userData.status, "PRESENT");
@@ -426,4 +503,22 @@ test("M3 shortcut authorization is target-aware, not name-based", (t) => {
   result = runFixture(unknownPath);
   assert.ok(result.blockingReasons.includes("UNKNOWN_PATH_STATE"));
   assert.deepEqual(result.cleanupPlan, []);
+});
+
+test("M3 allows both historical shortcuts to be absent", (t) => {
+  if (process.platform !== "win32") {
+    t.skip("PowerShell fixture execution is a Windows contract");
+    return;
+  }
+
+  const fixture = baseFixture();
+  fixture.desktopShortcut = { status: "ABSENT", path: fixture.paths.desktopShortcut, targetPath: null };
+  fixture.startMenuShortcut = { status: "ABSENT", path: fixture.paths.startMenuShortcut, targetPath: null };
+  const result = runFixture(fixture);
+  assert.equal(result.desktopShortcut, "ABSENT");
+  assert.equal(result.startMenuShortcut, "ABSENT");
+  assert.deepEqual(result.blockingReasons, []);
+  assert.equal(result.cleanupEligible, true);
+  assert.equal(result.cleanupPlan.some((action) => action.path === fixture.paths.desktopShortcut), false);
+  assert.equal(result.cleanupPlan.some((action) => action.path === fixture.paths.startMenuShortcut), false);
 });

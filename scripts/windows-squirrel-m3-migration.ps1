@@ -15,6 +15,9 @@ $script:ProductNames = @("review-workspace", $script:ProductNameZh)
 $script:LegacyVersion = "0.2.4"
 $script:LegacyStubName = "review-workspace.exe"
 $script:LegacyVersionDirectoryName = "app-0.2.4"
+$script:LegacyHistoricalPackageName = "review_workspace-0.2.4-full.nupkg"
+$script:LegacyHistoricalPackageLength = [int64]186836771
+$script:LegacyHistoricalPackageSha256 = "8FD1F7B5BF12E95778476E85EFF6A96980AC952D090BB19C80AAFBED108D9EB4"
 $script:LegacyRootName = "review_workspace"
 $script:ShortcutName = $script:ProductNameZh + ".lnk"
 $script:ElectronBuilderVersion = "26.15.3"
@@ -189,28 +192,92 @@ function Get-ProductExecutableFact {
   }
   try {
     $info = (Get-Item -LiteralPath $pathFact.path -Force).VersionInfo
-    $identity = $false
-    foreach ($value in @([string]$info.InternalName, [string]$info.OriginalFilename, [string]$info.ProductName, [string]$info.FileDescription)) {
-      if ($value -ieq "review-workspace" -or $value -ieq "review-workspace.exe" -or $value -ieq $script:ProductNameZh) { $identity = $true }
-    }
-    $versionPattern = '^' + [regex]::Escape($script:LegacyVersion) + '(?:\.0)?$'
-    $version = ([string]$info.ProductVersion -match $versionPattern) -or ([string]$info.FileVersion -match $versionPattern)
-    $identityStatus = "INVALID"
-    if ($identity -and $version) { $identityStatus = "VALID" }
     return [pscustomobject][ordered]@{
-      status = $identityStatus
+      # Electron owns the PE metadata. It is informational and cannot identify
+      # the Squirrel application release; the exact path and package anchor do.
+      status = "VALID"
       path = $pathFact.path
-      identity = ($identity -and $version)
+      identity = $true
+      identityBasis = "EXPECTED_PATH_AND_FILE_TYPE"
+      metadataSource = "INFORMATIONAL_PE"
       isDirectory = [bool]$pathFact.isDirectory
       isReparsePoint = [bool]$pathFact.isReparsePoint
       productName = [string]$info.ProductName
       internalName = [string]$info.InternalName
       originalFilename = [string]$info.OriginalFilename
       productVersion = [string]$info.ProductVersion
+      fileVersion = [string]$info.FileVersion
+      fileDescription = [string]$info.FileDescription
     }
   } catch {
     return [pscustomobject][ordered]@{ status = "INVALID"; path = $pathFact.path; identity = $false; reason = "EXECUTABLE_METADATA_UNAVAILABLE" }
   }
+}
+
+function Get-HistoricalPackageFact {
+  param([Parameter(Mandatory = $true)][string]$LegacyRoot)
+  $packagePath = Normalize-PathString (Join-Path $LegacyRoot ("packages\{0}" -f $script:LegacyHistoricalPackageName))
+  $pathFact = Get-PathFact $packagePath
+  $base = [ordered]@{
+    path = $pathFact.path
+    fileName = [System.IO.Path]::GetFileName($pathFact.path)
+    expectedFileName = $script:LegacyHistoricalPackageName
+    length = $null
+    expectedLength = $script:LegacyHistoricalPackageLength
+    sha256 = $null
+    expectedSha256 = $script:LegacyHistoricalPackageSha256
+    isDirectory = [bool]$pathFact.isDirectory
+    isReparsePoint = [bool]$pathFact.isReparsePoint
+  }
+  if ($pathFact.status -eq "ABSENT") {
+    $base.status = "ABSENT"
+    $base.reason = "NOT_PRESENT"
+    return [pscustomobject]$base
+  }
+  if ($pathFact.status -ne "FOUND" -or $pathFact.isDirectory -or $pathFact.isReparsePoint) {
+    $base.status = "INVALID"
+    $base.reason = "NOT_REGULAR_FILE"
+    return [pscustomobject]$base
+  }
+  try {
+    $item = Get-Item -LiteralPath $pathFact.path -Force
+    $base.length = [int64]$item.Length
+    $base.sha256 = ([string](Get-FileHash -LiteralPath $pathFact.path -Algorithm SHA256 -ErrorAction Stop).Hash).ToUpperInvariant()
+    if ($base.length -ne $script:LegacyHistoricalPackageLength) {
+      $base.status = "INVALID"
+      $base.reason = "SIZE_MISMATCH"
+    } elseif (-not [string]::Equals($base.sha256, $script:LegacyHistoricalPackageSha256, [System.StringComparison]::OrdinalIgnoreCase)) {
+      $base.status = "INVALID"
+      $base.reason = "SHA256_MISMATCH"
+    } else {
+      $base.status = "VALID"
+      $base.reason = $null
+    }
+  } catch {
+    $base.status = "INVALID"
+    $base.reason = "INSPECTION_FAILED"
+  }
+  return [pscustomobject]$base
+}
+
+function Get-HistoricalPackageValidationReason {
+  param([AllowNull()]$Fact, [Parameter(Mandatory = $true)][string]$LegacyRoot)
+  if ($null -eq $Fact) { return "NOT_PRESENT" }
+  if ([string](Get-Val $Fact "status" "") -eq "ABSENT") { return "NOT_PRESENT" }
+  if ([string](Get-Val $Fact "status" "") -ne "VALID") {
+    $factReason = [string](Get-Val $Fact "reason" "STATUS_INVALID")
+    if (-not [string]::IsNullOrWhiteSpace($factReason)) { return $factReason }
+    return "STATUS_INVALID"
+  }
+  $expectedPath = Normalize-PathString (Join-Path $LegacyRoot ("packages\{0}" -f $script:LegacyHistoricalPackageName))
+  if (-not (Test-PathEqual ([string](Get-Val $Fact "path" "")) $expectedPath)) { return "PATH_MISMATCH" }
+  if (-not [string]::Equals([string](Get-Val $Fact "fileName" ""), $script:LegacyHistoricalPackageName, [System.StringComparison]::OrdinalIgnoreCase)) { return "FILENAME_MISMATCH" }
+  if ([int64](Get-Val $Fact "length" -1) -ne $script:LegacyHistoricalPackageLength) { return "SIZE_MISMATCH" }
+  $observedSha256 = ([string](Get-Val $Fact "sha256" "")).ToUpperInvariant()
+  if (-not [string]::Equals($observedSha256, $script:LegacyHistoricalPackageSha256, [System.StringComparison]::OrdinalIgnoreCase)) { return "SHA256_MISMATCH" }
+  if ([bool](Get-Val $Fact "isDirectory" $false)) { return "NOT_REGULAR_FILE" }
+  if ([bool](Get-Val $Fact "isReparsePoint" $false)) { return "REPARSE_POINT" }
+  return $null
 }
 
 function Get-RootResidualFacts {
@@ -244,6 +311,7 @@ function Get-LegacyRootFact {
   $update = Get-PathFact $Paths.legacyUpdate
   $versionDirectory = Get-PathFact $Paths.legacyVersionDirectory
   $versionExecutable = Get-ProductExecutableFact (Join-Path $Paths.legacyVersionDirectory $script:LegacyStubName)
+  $historicalPackage = Get-HistoricalPackageFact $Paths.legacyRoot
   $residuals = @()
   if ($root.status -eq "FOUND" -and $root.isDirectory) { $residuals = @(Get-RootResidualFacts $root.path) }
   $rootSafe = $false
@@ -253,7 +321,8 @@ function Get-LegacyRootFact {
     $stub.status -eq "VALID" -and -not $stub.isDirectory -and -not $stub.isReparsePoint -and
     $update.status -eq "FOUND" -and -not $update.isDirectory -and -not $update.isReparsePoint -and
     $versionDirectory.status -eq "FOUND" -and $versionDirectory.isDirectory -and -not $versionDirectory.isReparsePoint -and
-    $versionExecutable.status -eq "VALID"
+    $versionExecutable.status -eq "VALID" -and
+    $historicalPackage.status -eq "VALID"
   )
   $rootStatus = "INVALID"
   if ($root.status -eq "ABSENT") { $rootStatus = "ABSENT" } elseif ($valid) { $rootStatus = "VALID" }
@@ -265,6 +334,7 @@ function Get-LegacyRootFact {
     update = $update
     versionDirectory = $versionDirectory
     versionExecutable = $versionExecutable
+    historicalPackage = $historicalPackage
     residuals = $residuals
     unknownResiduals = @($residuals | Where-Object { $_.kind -eq "UNKNOWN" })
   }
@@ -653,6 +723,9 @@ function Get-CleanupPlan {
     if ([string](Get-Val (Get-Val $root "versionDirectory" $null) "status" "") -ne "FOUND") { Add-Reason $reasons "LEGACY_VERSION_DIRECTORY_INVALID" }
     if ([bool](Get-Val (Get-Val $root "versionDirectory" $null) "isReparsePoint" $false)) { Add-Reason $reasons "LEGACY_VERSION_DIRECTORY_REPARSE_POINT" }
     if ([string](Get-Val (Get-Val $root "versionExecutable" $null) "status" "") -ne "VALID") { Add-Reason $reasons "LEGACY_VERSION_IDENTITY_INVALID" }
+    $historicalPackage = Get-Val $root "historicalPackage" $null
+    $historicalPackageReason = Get-HistoricalPackageValidationReason $historicalPackage $legacyRoot
+    if ($null -ne $historicalPackageReason) { Add-Reason $reasons "LEGACY_HISTORICAL_PACKAGE_INVALID"; Add-Reason $reasons ("LEGACY_HISTORICAL_PACKAGE_{0}" -f $historicalPackageReason) }
     if ([string](Get-Val $registration "status" "") -ne "VALID") { Add-Reason $reasons "LEGACY_REGISTRATION_INVALID" }
     $registryIdentity = Get-Val $Snapshot "registryIdentity" $null
     if ($null -ne $registryIdentity) {
@@ -729,14 +802,22 @@ function Get-CleanupPlan {
 
 function Get-Result {
   param([Parameter(Mandatory = $true)]$Snapshot, [Parameter(Mandatory = $true)]$Plan, [Parameter(Mandatory = $true)][string]$Mode)
+  $paths = Get-Val $Snapshot "paths" $null
   $root = Get-Val $Snapshot "legacyRoot" $null
   $processes = Get-Val $Snapshot "legacyProcesses" $null
   $residuals = @((Get-Val $root "residuals" @()))
   $activeState = Get-ActiveState $Snapshot
   $inertResiduals = @()
   if (-not $activeState.present) { $inertResiduals = @($residuals | Where-Object { $_.kind -eq "INERT" }) }
+  $historicalPackage = Get-Val $root "historicalPackage" $null
+  $historicalPackageReason = $null
+  if ($null -ne $paths) { $historicalPackageReason = Get-HistoricalPackageValidationReason $historicalPackage ([string](Get-Val $paths "legacyRoot" "")) }
+  $legacyRegistration = Get-Val $Snapshot "legacyRegistration" $null
   $legacyVersionValue = "unexpected"
-  if ([string](Get-Val (Get-Val $root "versionExecutable" $null) "status" "") -eq "VALID") { $legacyVersionValue = $script:LegacyVersion }
+  if ([string](Get-Val $root "status" "") -eq "VALID" -and $null -eq $historicalPackageReason -and [string](Get-Val $legacyRegistration "status" "") -eq "VALID") {
+    $legacyVersionValue = $script:LegacyVersion
+  }
+  $versionExecutable = Get-Val $root "versionExecutable" $null
   return [ordered]@{
     schemaVersion = "m3-squirrel-nsis-migration-1"
     mode = $Mode
@@ -744,9 +825,15 @@ function Get-Result {
     cleanupPerformed = $false
     legacyRoot = if ([string](Get-Val $root "status" "INVALID") -eq "VALID") { "FOUND" } else { [string](Get-Val $root "status" "INVALID") }
     legacyRootPath = [string](Get-Val $root "path" "")
-    legacyRegistration = if ([string](Get-Val (Get-Val $Snapshot "legacyRegistration" $null) "status" "INVALID") -eq "VALID") { "FOUND" } else { [string](Get-Val (Get-Val $Snapshot "legacyRegistration" $null) "status" "INVALID") }
+    legacyRegistration = if ([string](Get-Val $legacyRegistration "status" "INVALID") -eq "VALID") { "FOUND" } else { [string](Get-Val $legacyRegistration "status" "INVALID") }
     registryIdentity = Get-Val $Snapshot "registryIdentity" $null
     legacyVersion = $legacyVersionValue
+    historicalPackage = $historicalPackage
+    electronRuntimeVersion = [string](Get-Val $versionExecutable "productVersion" "")
+    executableMetadata = [ordered]@{
+      rootStub = Get-Val $root "stub" $null
+      versionExecutable = $versionExecutable
+    }
     legacyProcesses = [ordered]@{ count = [int](Get-Val $processes "count" 0); entries = @((Get-Val $processes "entries" @())) }
     desktopShortcut = [string](Get-Val (Get-Val $Snapshot "desktopShortcut" $null) "status" "INVALID")
     startMenuShortcut = [string](Get-Val (Get-Val $Snapshot "startMenuShortcut" $null) "status" "INVALID")
@@ -780,6 +867,8 @@ function Invoke-ValidatedCleanup {
   $paths = $Snapshot.paths
   $performed = @()
   try {
+    $liveHistoricalPackage = Get-HistoricalPackageFact ([string]$paths.legacyRoot)
+    if ($null -ne (Get-HistoricalPackageValidationReason $liveHistoricalPackage ([string]$paths.legacyRoot))) { throw "LEGACY_HISTORICAL_PACKAGE_CHANGED" }
     foreach ($action in @($Plan.actions)) {
       switch ([string]$action.type) {
         "remove-directory" {

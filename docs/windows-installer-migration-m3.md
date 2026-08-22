@@ -1,11 +1,12 @@
 # Windows installer migration M3 - guarded Squirrel 0.2.4 to NSIS bridge
 
-Status: **M3 SQUIRREL -> NSIS MIGRATION: PENDING REAL WINDOWS EXECUTION**
+Status: **M3 SQUIRREL -> NSIS MIGRATION: PENDING REAL WINDOWS ACCEPTANCE**
 
 This phase implements only the separately invoked legacy-Squirrel cleanup
-bridge and its safety contracts. It does not execute an installer, uninstall a
-real installation, launch an installed application, perform the real M3
-migration, or begin M4.
+bridge and its safety contracts. Codex does not execute an installer, uninstall
+a real installation, launch an installed application, perform destructive
+cleanup, or begin M4. A disposable-account real Windows inspection reached the
+pre-NSIS boundary and is recorded below; it did not complete M3 acceptance.
 
 ## M3A decision and two-stage contract
 
@@ -52,6 +53,8 @@ Inspect output is JSON and reports only non-secret state:
 - userData existence and path only;
 - NSIS root existence;
 - Squirrel versus electron-builder registry identity classification;
+- exact historical Squirrel package identity (filename, length, and SHA-256);
+- Electron PE metadata as informational runtime metadata, never as the release identity;
 - cleanupEligible, blocking reasons, and a narrow cleanup plan;
 - active legacy state versus known inert residuals.
 
@@ -65,6 +68,9 @@ registry:    HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\review_wor
 version:     0.2.4
 stub:        review-workspace.exe
 version dir: app-0.2.4
+package:     packages\review_workspace-0.2.4-full.nupkg
+package size: 186836771
+package SHA-256: 8FD1F7B5BF12E95778476E85EFF6A96980AC952D090BB19C80AAFBED108D9EB4
 ~~~
 
 The expected NSIS root is:
@@ -122,10 +128,12 @@ and the existing `persist:review-workspace` session partition. M3B adds no
 installer hook and changes no application identity, userData location, schema,
 or credential implementation.
 
-The helper validates canonical paths, exact root identity, executable
-metadata, registry values, process executable paths, shortcut targets, and
-reparse points. Sibling roots, path traversal, conflicting registrations,
-unexpected residuals, and ambiguous state refuse cleanup.
+The helper validates canonical paths, exact root identity, the pinned
+historical package, registry values, process executable paths, shortcut
+targets, and reparse points. PE ProductVersion/FileVersion and other Electron
+metadata are reported only as informational facts; they do not prove the
+Squirrel release version. Sibling roots, path traversal, conflicting
+registrations, unexpected residuals, and ambiguous state refuse cleanup.
 
 Only these active legacy targets may be removed:
 
@@ -140,9 +148,12 @@ identities only and can never enter the deletion plan. No registry-provided
 uninstall command is executed.
 
 Shortcuts are never deleted by filename, display name, AppID, or product name.
-An NSIS-target shortcut is preserved. Known inert Squirrel residuals such as
-.dead, Update.exe, RELEASES, and packages are reported separately and are not
-deleted merely to make the directory empty.
+An absent historical Desktop or Start Menu shortcut is valid and creates no
+cleanup action. An NSIS-target shortcut is preserved; a shortcut is deleted
+only when it exists and its resolved target is inside the exact validated
+legacy root. Known inert Squirrel residuals such as .dead, Update.exe,
+RELEASES, and packages are reported separately and are not deleted merely to
+make the directory empty.
 
 ## Never-touch boundaries
 
@@ -200,21 +211,79 @@ SHA-256:  2A28CB47E3485DC2D67CEE80ED2208E705607452372A0C34B1FC323E186626EE
 source:   1c41e53488fe8b4427d1c78831e3b524a114a2da
 ~~~
 
-M3 ACCEPTED SQUIRREL ARTIFACT: NOT RECOVERED
+M3 ACCEPTED SQUIRREL ARTIFACT: RECOVERED
 
-The same-name local artifact is not accepted and must not be substituted:
+The exact accepted installer was recovered and is the only artifact permitted
+for real M3 execution. The previously found same-name local artifact remains
+rejected and must not be substituted:
 
 ~~~text
 size:    190381056
 SHA-256: 87966A61FBC23F5124F7568319CDFABFCAE6C922BDEF2B8A0F661103674A4233
 ~~~
 
+The recovered installer contains the exact installed Squirrel package anchor:
+
+~~~text
+name:     review_workspace-0.2.4-full.nupkg
+size:     186836771
+SHA-256:  8FD1F7B5BF12E95778476E85EFF6A96980AC952D090BB19C80AAFBED108D9EB4
+~~~
+
 Therefore:
 
 ~~~text
 REAL M3 WINDOWS ACCEPTANCE:
-BLOCKED ON EXACT HISTORICAL SQUIRREL ARTIFACT
+PENDING AFTER CODE CORRECTION
 ~~~
+
+## Real-Windows pre-NSIS inspection finding
+
+The first real M3 execution began on the disposable same-machine Windows
+account `test-m3-final`. The exact accepted installer
+`ReviewWorkspace-0.2.4-Windows-x64-Setup.exe` (size `186909184`, SHA-256
+`2A28CB47E3485DC2D67CEE80ED2208E705607452372A0C34B1FC323E186626EE`) installed
+the historical Squirrel application successfully.
+
+The observed legacy root was `%LOCALAPPDATA%\review_workspace`, with root
+stub `review-workspace.exe` length `292864` and SHA-256
+`E8D5964F78412D441A859F6B077852A44A1CF97928EF30EDEF9B1D8D7C61A087`. The
+`app-0.2.4\review-workspace.exe` payload was length `225613824` and SHA-256
+`A4EE7D8D94CF23606576955793D1A3EF26DC0D1A899140D481E7AB1315DCB98B`. Both
+executables reported Electron PE metadata: `FileVersion` and `ProductVersion`
+`43.2.0`, `ProductName` and `FileDescription` `Electron`, and
+`InternalName`/`OriginalFilename` `electron.exe`. This is runtime metadata, not
+the Squirrel application release identity. The installed package anchor was
+`packages\review_workspace-0.2.4-full.nupkg`, length `186836771`, SHA-256
+`8FD1F7B5BF12E95778476E85EFF6A96980AC952D090BB19C80AAFBED108D9EB4`.
+
+No Review Workspace Desktop shortcut and no Review Workspace Start Menu
+shortcut were observed, and the Squirrel log contained no shortcut creation
+record. Shortcut `ABSENT` is therefore a legitimate historical state and is
+not an identity failure.
+
+The first helper invocation was inspect mode and was non-destructive:
+
+~~~text
+mode:               inspect
+cleanupPerformed:   false
+legacyRoot:         INVALID
+legacyRegistration: VALID
+legacyVersion:      unexpected
+cleanupEligible:    false
+~~~
+
+It safely failed closed because the helper incorrectly compared the Electron
+PE version `43.2.0` with the application release `0.2.4`. No NSIS installer was
+installed, no cleanup was executed, and no userData or credential state was
+modified. This PR corrects the classification by requiring the independent
+Squirrel facts, especially the exact package identity, while keeping PE
+metadata informational.
+
+Execution was intentionally stopped before NSIS installation and before
+cleanup. Full real Windows M3 acceptance remains pending after this code
+correction; same-account credential continuity and legacy cleanup are not yet
+proven.
 
 ## Real-Windows M3 checklist
 
