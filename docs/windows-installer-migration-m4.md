@@ -1,10 +1,13 @@
 # Windows installer migration M4A — NSIS application lifecycle audit
 
-Status: **M4 NSIS LIFECYCLE AUDIT: READY FOR REAL WINDOWS ACCEPTANCE**
+Status: **M4 NSIS APPLICATION LIFECYCLE ACCEPTANCE: PASS**
 
-M4 acceptance status: **PENDING**. This document records a source/template audit
-only. No installer, uninstaller, running-app transition, registry mutation,
-live userData access, or credential operation was performed during M4A.
+M4 acceptance status: **PASS (operator-attested real-Windows acceptance)**. This
+closure records the controlled Windows run on the exact candidate below. The
+tested candidate was built from source `0aa7988a25523745e3b5e2bc6af0ce5717dce6c1`;
+the later docs-only closure commit and final PR HEAD are intentionally different
+and are not presented as the binary's build source. No secret, raw credential
+envelope, provider payload, or complete userData dump was recorded.
 
 ## Scope and ownership
 
@@ -63,9 +66,9 @@ createDesktopShortcut:     true
 createStartMenuShortcut:   true
 ```
 
-The assisted installer exposes an install-mode page. The real M4 run must
-explicitly select and verify the current-user path; the configuration's
-per-user intent is not a substitute for live registry and path readback.
+The assisted installer exposes an install-mode page. The accepted M4 run
+explicitly selected and verified the current-user path; the configuration's
+per-user intent was confirmed by live registry and path readback.
 
 ## Evidence boundary
 
@@ -82,25 +85,26 @@ checked-out repository and the installed dependency tree:
 - `desktop/main.ts` and `desktop/runtime.ts` were read for application and
   child-process shutdown behavior.
 
-The existing M3 document records a prior operator-attested real-Windows
-side-by-side candidate. Its recorded candidate provenance is:
+The accepted M4 candidate provenance is:
 
 ```text
-source commit: 31c0ec5c52352058bae1d3c61e6e685cc404b5cb
+source commit: 0aa7988a25523745e3b5e2bc6af0ce5717dce6c1
 filename:      ReviewWorkspace-0.2.4-Windows-x64-NSIS-M1-Candidate.exe
-byte size:     125443533
-SHA-256:       61F5699D5075474B3631C55889DA0F15DC7BF4C488DD9CAD6355C61E94A1484A
+byte size:     125440440
+SHA-256:       B984A7130786D5A109F8CC0D2EF4017110E89EA7E5FCAF2B5FBD6CF4FE4515B9
 ```
 
-This is recorded provenance, not a claim that the file is currently available
-to the M4 operator or that it has passed M4. Every M4 destructive stage must
-pin one exact candidate by source SHA, filename, byte size, and SHA-256 and
-reuse that same binary for the uninstall/reinstall transitions. A rebuilt
-same-name executable is not the same candidate.
+The operator independently reverified the name, byte size, and SHA-256 before
+the reinstall and final recovery stages. Every destructive transition used this
+same byte-identical candidate; a rebuilt same-name executable would not be the
+same acceptance subject.
 
-The prior M3 continuity result remains limited to the same account and
-machine. It does not prove NSIS uninstall, reinstall, running-app behavior, or
-M4 credential continuity.
+The accepted environment was disposable Windows account
+`DESKTOP-7J3BLKU\test-m4-final` with profile `C:\Users\test-m4-final`. The claim
+scope is Windows, one machine, one Windows account/profile, current-user NSIS,
+version `0.2.4`, and the exact candidate above. It does not claim credential
+portability to another account or machine, copied-userData DPAPI portability,
+signing/SmartScreen readiness, updater readiness, or release cutover.
 
 ## Current NSIS lifecycle behavior
 
@@ -160,10 +164,9 @@ The source-level expected behavior is:
 - the unchanged `persist:review-workspace` partition and Desktop credential
   envelope remain in the same user-scoped storage boundary.
 
-These are source-derived expectations, not an M4 acceptance result. The live
-run must prove that the existing sentinel remains visible and that a normal UI
-connection/health check succeeds without credential re-entry after the exact
-same candidate is reinstalled.
+The operator-attested Stage 7 and Stage 8 record below confirms the expected
+payload, registry, shortcut, sentinel, and same-account credential continuity
+after the exact same candidate was reinstalled.
 
 ### Uninstall while the application is running
 
@@ -185,13 +188,15 @@ running-process mechanism:
 
 The PowerShell path is broader than the application image name and is intended
 to catch Electron renderer/utility processes and the bundled Node process
-because their executable paths are below the install root. The real run must
-record the process paths and distinguish the active product processes from the
-uninstaller/NSIS helper that is performing the operation.
+because their executable paths are below the install root. The accepted
+snapshots distinguished the active product processes from the uninstaller/NSIS
+helper; the Stage 9 observer limitation is recorded explicitly below.
 
-The template behavior is known from source, but the outcome of a live
-running-app uninstall is **PENDING**. M4A did not start an application, invoke
-an uninstaller, close a window, or terminate a process.
+The operator-attested Stage 9 record below confirms running-app detection,
+installer-assisted application close, and completed uninstall. The intended
+PowerShell transition observer was not actually active, so this closure does
+not claim the internal `CHECK_APP_RUNNING` branch, transition timing, or
+whether the PowerShell/CIM or fallback path was selected.
 
 ### Install/reinstall while the application is running
 
@@ -209,10 +214,10 @@ the template's atomic rename/restore logic for the old install, which is
 intended to avoid silently leaving a mixed payload when a file is locked.
 
 `runAfterFinish: false` means the current assisted installer does not
-automatically restart the application after the transition. Whether a
-same-version install actually completes with no locked-file residuals and
-whether the application can be relaunched cleanly remains **PENDING** for real
-Windows acceptance.
+automatically restart the application after the transition. This closure
+accepts the exact-candidate reinstall after closed-app and running-app
+uninstall. It does not add a separate live in-place same-version install-while-
+running claim because that observation was not captured.
 
 ## UserData and Desktop credential boundary
 
@@ -298,17 +303,22 @@ an acceptance failure.
 
 ### Exact lifecycle table
 
+This table records the operator-attested closed-app uninstall and exact-candidate
+reinstall path. The separate running-app and final-recovery readback is recorded
+in the acceptance stages below.
+
 | Item | Before normal uninstall | After normal uninstall | After reinstall of the same candidate |
 | --- | --- | --- | --- |
 | NSIS install key | Present under exact HKCU GUID; `InstallLocation` is the NSIS root | Absent | Present under the same exact HKCU GUID with the same location |
 | NSIS uninstall key | Present under exact HKCU uninstall GUID; display/version/commands match | Absent | Present under the same exact HKCU uninstall GUID with refreshed commands |
-| Install root | Present at `%LOCALAPPDATA%\Programs\review-workspace` | Absent if no locked residual remains; otherwise residual is recorded and not deleted manually | Present at the same root |
-| `review-workspace.exe`, `resources\app.asar`, `.desktop-runtime` | Present below the install root | Absent with the root; any locked active executable is an unexpected residual | Present and read back from the same candidate |
+| Install root | Present at `%LOCALAPPDATA%\Programs\review-workspace` | Absent | Present at the same root |
+| `review-workspace.exe`, `resources\app.asar`, `.desktop-runtime` | Present below the install root | Absent with the root | Present and read back from the same candidate |
 | Desktop shortcut | Present and targets the exact NSIS executable | Absent | Present and targets the exact NSIS executable |
 | Start Menu shortcut | Present and targets the exact NSIS executable | Absent | Present and targets the exact NSIS executable |
-| `%APPDATA%\错题复盘` | Present; sentinel and non-secret credential state are readable through the UI | Present and unchanged; disappearance is a destructive failure | Present at the same path; sentinel and credential continuity are rechecked |
-| `persist:review-workspace` state | Present in the persisted Electron session boundary | Preserved with userData | Reused; ordinary restart must remain continuous |
-| `%LOCALAPPDATA%\review-workspace-updater\installer.exe` candidate cache | May be present because the embedded NSIS template copies the installer there | May remain as an installer cache; do not classify it as active product payload or delete it to force an empty profile | May be refreshed by install; record rather than use as an updater/M5 claim |
+| `%APPDATA%\错题复盘` | Absent before first launch; then present with sentinel and non-secret UI state | Present and unchanged | Present at the same path; sentinel and credential continuity rechecked |
+| `persist:review-workspace` state | Created under the persisted Electron session boundary | Preserved with userData | Reused; restart remained continuous |
+| Product processes | `0` before launch / uninstall preflight | `0` | `0` before launch; native launch produced `4` Electron + `1` bundled Node |
+| `%LOCALAPPDATA%\review-workspace-updater\installer.exe` candidate cache | May be present because the embedded NSIS template copies the installer there | Present as an installer-cache residual | Present or refreshed by install; not treated as active product or M5 updater evidence |
 
 ## Process lifecycle model
 
@@ -330,8 +340,11 @@ application-side `spawn`/`fork` path was found under `desktop/`.
 The source does not create a Windows Job Object or an explicit process-tree
 kill for descendants of the bundled Node process. The default NSIS PowerShell
 path is the broader path-scoped safety net; the fallback is image-name based.
-This is why M4 must collect a process snapshot before and after each
-transition. A successful browser close alone is insufficient evidence.
+The operator-attested snapshots observed four `review-workspace.exe` processes
+and one bundled Node process after launch, zero product processes after normal
+close, five processes after native Start Menu restart, and zero after the final
+normal close. The running-app uninstall observer was not active during the
+transition, so no internal process-termination branch or timing claim is added.
 
 ## Residual policy
 
@@ -349,126 +362,262 @@ The old Squirrel residual policy remains M3-owned. M4 must not silently reuse
 or extend the M3 cleanup helper to remove unrelated files, registry entries, or
 shortcuts.
 
-## Real-Windows acceptance matrix
+## Real-Windows acceptance record
 
-One fresh disposable Windows account is sufficient. The same account and
-machine should be reused because continuity, not cross-account portability,
-is the subject. The operator must preserve the exact evidence after each stage;
-Codex must not run the destructive stages.
+The following record is operator-attested evidence from disposable Windows
+account `DESKTOP-7J3BLKU\test-m4-final` (`C:\Users\test-m4-final`). It is limited
+to one Windows machine, one Windows account/profile, current-user NSIS, version
+`0.2.4`, and the exact candidate identified above. Codex did not execute the
+installer, uninstaller, process termination, registry mutation, or live
+credential operation.
 
-### M4 Stage 1 — candidate and disposable-profile preflight
+### M4 Stage 1 — clean profile and candidate provenance: PASS
 
-Record the exact installer source SHA, filename, byte size, SHA-256, Electron,
-electron-builder, Node, architecture, appId, and current-user intent. Confirm a
-clean disposable account/profile: no target install root, no product processes,
-no target shortcuts, no exact NSIS keys, and no `%APPDATA%\错题复盘`.
+The fresh profile initially had no NSIS install root, userData, legacy Squirrel
+root, NSIS install or uninstall registry key, legacy Squirrel uninstall key,
+Desktop shortcut, Start Menu shortcut, or product process.
 
-Stop on any identity mismatch, dirty profile, extra same-product registration,
-or inability to distinguish the current-user account.
+The candidate was verified as:
 
-### M4 Stage 2 — fresh NSIS install and structural baseline
+```text
+source SHA:  0aa7988a25523745e3b5e2bc6af0ce5717dce6c1
+filename:    ReviewWorkspace-0.2.4-Windows-x64-NSIS-M1-Candidate.exe
+size:        125440440 bytes
+SHA-256:     B984A7130786D5A109F8CC0D2EF4017110E89EA7E5FCAF2B5FBD6CF4FE4515B9
+```
 
-Install the pinned candidate without running a different installer. Select
-current-user mode and record the install root, executable, `resources/app.asar`,
-`.desktop-runtime`, bundled Node, registry values, shortcut target paths/AUMI,
-and absence of unrelated roots. Confirm the application was not auto-started by
-the installer.
+Result: `M4 STAGE 1 CLEAN PROFILE: PASS`; `M4 CANDIDATE PROVENANCE: PASS`.
 
-Stop on per-machine installation, root mismatch, registry mismatch, shortcut
-filename-only evidence, or missing packaged runtime resources.
+### M4 Stage 2 — fresh current-user NSIS install: PASS
 
-### M4 Stage 3 — production sentinel and disposable credential baseline
+The fresh install read back:
 
-Use the normal production UI to create a non-secret sentinel. Configure only a
-disposable credential through the UI, complete Desktop protection/migration,
-confirm protection is complete and health is ready/verified, and confirm a
-normal UI connection without recording the credential value.
+```text
+NsisRootPresent       : True
+NsisExePresent        : True
+AppAsarPresent        : True
+DesktopRuntimePresent : True
+RuntimeNodePresent    : True
+UserDataStillAbsent   : True
+InstallKeyPresent     : True
+UninstallKeyPresent   : True
+```
 
-Stop on plaintext fallback, missing protection, credential re-entry before the
-baseline is complete, or any secret appearing in evidence.
+The install location was:
 
-### M4 Stage 4 — normal application restart continuity
+```text
+C:\Users\test-m4-final\AppData\Local\Programs\review-workspace
+```
 
-Close the application normally, verify the Electron and bundled Node process
-set is empty, relaunch the installed executable, and recheck the sentinel,
-protection state, health, and connection without credential re-entry.
+The uninstall registration matched `错题复盘`, version `0.2.4`, the exact
+installed executable icon, and the expected `/currentuser` plus quiet `/S`
+commands:
 
-Stop if any same-root process survives a normal close or if restart continuity
-requires destructive profile repair or credential re-entry.
+```text
+DisplayName:           错题复盘
+DisplayVersion:        0.2.4
+DisplayIcon:            C:\Users\test-m4-final\AppData\Local\Programs\review-workspace\review-workspace.exe,0
+UninstallString:       "C:\Users\test-m4-final\AppData\Local\Programs\review-workspace\Uninstall review-workspace.exe" /currentuser
+QuietUninstallString:  "C:\Users\test-m4-final\AppData\Local\Programs\review-workspace\Uninstall review-workspace.exe" /currentuser /S
+```
 
-### M4 Stage 5 — normal NSIS uninstall with the application closed
+Both Desktop and Start Menu shortcuts existed and targeted exactly:
 
-After a final normal close, invoke the current-user uninstaller through the
-recorded normal path. Do not pass `--delete-app-data`; do not manually kill a
-process, edit the registry, delete a shortcut, or remove a residual during the
-run. Record whether the uninstaller prompts, completes, or reports a locked
-file.
+```text
+C:\Users\test-m4-final\AppData\Local\Programs\review-workspace\review-workspace.exe
+```
 
-Stop immediately if the uninstaller command is not the expected NSIS command,
-if the app is still running, or if the operation requests deletion of
-`%APPDATA%\错题复盘`.
+No product process remained after installation; userData remained absent until
+the application was first launched.
 
-### M4 Stage 6 — post-uninstall structure and protected-state readback
+Result: `M4 STAGE 2 FRESH NSIS INSTALL STRUCTURE: PASS`.
 
-Read back, without modifying state:
+### M4 Stage 3 — first-launch baseline: PASS
 
-- no product process and no active same-root executable;
-- install root and payload state;
-- both exact HKCU NSIS keys;
-- Desktop and Start Menu shortcut existence, target, and AUMI;
-- `%APPDATA%\错题复盘` existence and sentinel visibility;
-- non-secret credential protection/health state; and
-- installer-cache and any other residual classification.
+After normal first launch, userData existed and the observed product tree was
+four `review-workspace.exe` processes plus one bundled `node.exe`, all below
+the exact NSIS root. `UnexpectedSameRootProcesses` was `0`.
 
-Expected result is the lifecycle table above. A missing userData directory,
-missing sentinel, or changed credential state is a destructive failure even if
-the install root is absent.
+The production UI sentinel was:
 
-### M4 Stage 7 — reinstall the exact same candidate
+```text
+nsis-m4-final-acceptance-2026-08-22
+```
 
-Reinstall the byte-identical candidate from Stage 1 in current-user mode. Do
-not rebuild it, substitute a same-name file, or use an updater. Record recreated
-payload, registry identities, shortcut target/AUMI, and the preserved userData
-path before launching the application.
+A disposable DeepSeek connection was configured through the normal UI. The
+operator verified the sentinel, complete Desktop credential protection,
+ready/verified connection health, and a successful live connection test. No
+secret, API key, encrypted envelope, storage dump, or provider payload was
+recorded.
 
-Stop on candidate hash drift, mixed files, wrong registry hive, wrong root, or
-shortcut target drift.
+Result: `M4 STAGE 3 FIRST-LAUNCH BASELINE: PASS`.
 
-### M4 Stage 8 — post-reinstall continuity and restart
+### M4 Stage 4 — normal close and Start Menu restart: PASS
 
-Launch the reinstalled executable and verify the sentinel, Desktop protection,
-ready/verified health, and normal UI connection without credential re-entry.
-Close and restart once more, then repeat the same non-secret checks.
+After ordinary close, the readback was:
 
-Stop on any continuity loss, credential re-entry, or surviving product process
-after close.
+```text
+SameRootProcessCount         : 0
+ReviewWorkspaceProcessCount  : 0
+BundledNodeProcessCount      : 0
+UserDataStillPresent         : True
+StartMenuShortcutPresent     : True
+```
 
-### M4 Stage 9 — running-application uninstall behavior
+Launching from the actual Start Menu shortcut produced four Electron processes
+and one bundled Node process. The sentinel, Desktop protection, ready/verified
+health, and live connection remained intact without API-key re-entry.
 
-Run the two relevant current-user paths as two controlled subpasses when the
-operator is able to preserve the same evidence:
+Result: `M4 STAGE 4 NORMAL CLOSE: PASS`; `M4 STAGE 4 RESTART CONTINUITY: PASS`.
 
-1. Start the application and bundled runtime, invoke the normal
-   `UninstallString`, and record the generated prompt/close/force/abort
-   behavior and every product executable path observed.
-2. Reinstall the exact same candidate with the application closed, recheck the
-   sentinel and credential baseline, start the application again, and invoke
-   the recorded `QuietUninstallString` (`/S`). Record whether the same process
-   safety behavior occurs and whether the uninstaller completes.
+### M4 Stage 5/6 — closed-app ordinary NSIS uninstall: PASS
 
-If the first subpass cannot complete cleanly, stop; do not improvise a process
-kill or continue to the second subpass. If PowerShell/CIM is unavailable, the
-fallback must be explicitly classified and cannot claim bundled-Node cleanup
-without independent process-tree evidence.
+Before uninstall, the application was closed and the install root, userData,
+both NSIS keys, and both shortcuts were present. The registered ordinary
+uninstall command contained `/currentuser` and did not contain
+`--delete-app-data`.
 
-### M4 Stage 10 — recovery/reinstall after running-app lifecycle testing
+Windows Settings was used to uninstall the closed application. Afterward:
 
-Reinstall the exact candidate once more after the running-app uninstall path,
-then repeat structural, sentinel, Desktop protection, health, connection, and
-normal restart checks. This is the final continuity checkpoint and is the
-minimum evidence needed before any M4 classification can change from PENDING.
+```text
+ProductProcessCount      : 0
+InstallRootPresent       : False
+UserDataPresent          : True
+InstallKeyPresent        : False
+UninstallKeyPresent      : False
+DesktopShortcutPresent   : False
+StartMenuShortcutPresent : False
+```
 
-## Stop conditions and deferred destructive work
+`%LOCALAPPDATA%\review-workspace-updater` remained. This is classified only as
+an installer-cache residual, not active product state or M5 updater evidence;
+it was not manually deleted.
+
+Results: `M4 STAGE 5 CLOSED-APP UNINSTALL PREFLIGHT: PASS`; `M4 STAGE 6
+CLOSED-APP NSIS UNINSTALL: PASS`.
+
+### M4 Stage 7 — exact same-candidate reinstall: PASS
+
+The same candidate was reverified before reinstall with size `125440440` and
+SHA-256 `B984A7130786D5A109F8CC0D2EF4017110E89EA7E5FCAF2B5FBD6CF4FE4515B9`.
+Before reinstall the install root was absent and userData was present. After
+reinstall, the payload, both NSIS keys, and both shortcuts returned with the
+same expected identities and no product process running. Both shortcuts
+targeted the NSIS executable exactly.
+
+Result: `M4 STAGE 7 EXACT-CANDIDATE REINSTALL PREFLIGHT: PASS`; `M4 STAGE 7
+EXACT-SAME-CANDIDATE REINSTALL: PASS`.
+
+### M4 Stage 8 — userData, safeStorage/DPAPI, and native shortcut continuity: PASS
+
+After reinstall, the sentinel remained present, Desktop credential protection
+remained complete, the connection remained ready/verified, the DeepSeek API key
+did not need re-entry, and a live connection test succeeded.
+
+An intermediate terminal-launched observation saw an incomplete snapshot and
+the application later appeared to exit. The operator clarified that the
+PowerShell/terminal used in that test had been closed. Matching Windows
+Application Error/WER events were `0`, product-related Application events were
+`0`, and no confirmed product crash was found. A controlled passive observation
+then confirmed the product and bundled Node appeared and remained running; after
+214.65 seconds the final tree was four Electron processes plus one bundled Node.
+`desktop-runtime.log` was absent.
+
+This terminal observation is a harness artifact, not a product regression. The
+accepted lifecycle evidence is the native Start Menu launch, which remained
+running normally after the observation terminal was closed.
+
+Results: `M4 NATIVE SHORTCUT PROCESS INDEPENDENCE: PASS`; `M4 STAGE 8
+REINSTALL CONTINUITY: PASS`; `M4 STAGE 8 SAFESTORAGE / DPAPI CONTINUITY: PASS`.
+
+### M4 Stage 9 — running-app detection, assisted close, and uninstall: PASS
+
+The application was launched through native Windows UI and kept running. The
+operator then used Windows Settings → Installed apps → `错题复盘` → Uninstall.
+The NSIS uninstaller detected the running application, presented the continuation
+prompt, and closed the application on the normal Continue/confirm path before
+completing uninstall. The operator did not manually close the app, use Task
+Manager, use `Stop-Process`/`taskkill`, or manually delete files.
+
+The intended PowerShell transition observer did not execute because its
+interactive terminal was waiting at the multi-line `>>` prompt. Therefore this
+record does not claim intermediate transition timing, the internal
+`CHECK_APP_RUNNING` branch, or whether the PowerShell/CIM or fallback path was
+selected.
+
+Post-uninstall readback was:
+
+```text
+ProductProcessCount      : 0
+InstallRootPresent       : False
+UserDataPresent          : True
+InstallKeyPresent        : False
+UninstallKeyPresent      : False
+DesktopShortcutPresent   : False
+StartMenuShortcutPresent : False
+UpdaterCachePresent      : True
+```
+
+`UpdaterCachePresent` is the same installer-cache residual classification only.
+
+Results: `M4 STAGE 9 RUNNING-APP DETECTION: PASS`; `M4 STAGE 9 INSTALLER-
+ASSISTED APP CLOSE: PASS`; `M4 STAGE 9 RUNNING-APP UNINSTALL: PASS`.
+
+### M4 Stage 10 — final recovery after running-app uninstall: PASS
+
+The exact candidate provenance was verified again before reinstall. The final
+reinstall restored the install root, executable, bundled runtime, userData,
+both NSIS keys, and both shortcuts with the expected identities and zero product
+processes before launch.
+
+Native Windows UI launch produced four Electron processes plus one bundled Node
+process. The sentinel, Desktop credential protection, no-reentry condition, and
+functional DeepSeek connection remained intact. After final normal close, the
+product process count was `0`.
+
+Result: `M4 STAGE 10 FINAL RECOVERY: PASS`.
+
+### Overall M4 classification
+
+**M4 NSIS APPLICATION LIFECYCLE ACCEPTANCE: PASS**
+
+Supported claims are limited to the accepted environment and candidate above:
+
+- fresh current-user NSIS install works and does not create userData merely by
+  installing;
+- normal application close terminates the observed Electron plus bundled Node
+  tree, and Start Menu restart works;
+- ordinary closed-app uninstall removes the active NSIS payload, registry
+  identity, and shortcuts while preserving application userData;
+- the exact same candidate reinstalls cleanly and the sentinel survives;
+- Desktop-protected credentials survive uninstall/reinstall on the same machine
+  and same Windows account without credential re-entry;
+- the live DeepSeek connection remained ready and succeeded;
+- running-app uninstall detects the running application and the uninstaller
+  closes it successfully;
+- running-app uninstall leaves no active product process or install root; and
+- final reinstall restores a healthy application and final normal close leaves
+  zero product processes.
+
+Explicit nonclaims and residual boundaries:
+
+- no different-account DPAPI credential portability claim;
+- no different-machine or copied-userData portability claim;
+- no claim about the exact internal running-app detection branch or transition
+  timing because the intended observer was not active;
+- no separate in-place same-version install-while-running claim beyond the
+  accepted uninstall/reinstall and recovery paths recorded here;
+- the updater cache is not active product state and is not updater readiness;
+- no signing, SmartScreen, release, update, rollback, or production cutover
+  readiness claim; and
+- M5 continues to own signing, SmartScreen, updater/release/cutover, and related
+  production readiness.
+
+The candidate remains unsigned. Any SmartScreen warning during this controlled
+internal acceptance is an M5 concern, not an M4 lifecycle failure or signing
+readiness result.
+
+## Stop conditions and remaining boundaries
 
 The following are hard stops:
 
@@ -488,40 +637,38 @@ The following are hard stops:
 - evidence would require recording a secret, raw credential envelope, cookie,
   provider payload, or complete userData dump.
 
-All installation, uninstall, running-app, reinstall, registry/shortcut
-readback, and credential-continuity stages above are deferred to an operator on
-real Windows. M4A does not execute them. No residual may be deleted merely to
-make a test green, and no automatic retry/rollback/profile recreation is
-allowed after an ambiguous destructive outcome.
+These hard-stop criteria governed the operator run; none was triggered for the
+accepted stages. The installer-cache residual was preserved and classified, not
+deleted to manufacture a clean result. The intended running-app transition
+observer was not active, so the closure intentionally retains the corresponding
+branch/timing nonclaim. Codex did not execute or simulate any destructive
+Windows lifecycle operation.
 
 ## Implementation decision
 
-**M4 AUDIT: READY FOR REAL ACCEPTANCE WITHOUT CODE CHANGES.**
+**M4 NSIS APPLICATION LIFECYCLE ACCEPTANCE: PASS.**
 
-The current source/configuration provides an observable lifecycle contract for
-the planned acceptance: ordinary uninstall removes the NSIS payload,
-shortcuts, and registry identities without an application-data delete flag;
-the application preserves the existing userData/session/credential identity;
-and the generated NSIS template has explicit running-process handling before
-file deletion/replacement. The remaining claims are live Windows outcomes,
-not evidence that a new installer hook or application implementation is
-required.
+The current source/configuration and unchanged builder identity passed the
+operator-attested lifecycle cases without application, Electron, builder,
+credential, registry, shortcut, or installer-hook changes. The observed result
+covered fresh current-user install, native launch/restart, closed-app uninstall
+and exact-candidate reinstall, same-account safeStorage/DPAPI continuity,
+running-app detection and installer-assisted close, running-app uninstall, and
+final recovery.
 
 The PowerShell/CIM versus fallback process behavior and the template's
-best-effort handling of locked files are recorded risks. If real M4 acceptance
-shows a surviving bundled Node process, mixed-version files, uninstaller
-self-interference, userData deletion, or credential continuity loss, the next
-task must be a narrowly scoped implementation change based on that observed
-failure. M4A does not preemptively change the builder config, product identity,
-fuses, security settings, or application lifecycle code.
+best-effort handling of locked files remain source-level implementation context;
+the accepted running-app result does not identify which internal branch ran.
+The updater-cache residual remains M5-owned installer-cache state. No
+preemptive change to builder config, product identity, fuses, security settings,
+or application lifecycle code is warranted by this acceptance.
 
 ## M5 boundary
 
-Even a future M4 real-Windows pass would not establish signing, SmartScreen or
-reputation readiness, updater behavior, release artifact publication,
-production cutover, rollback policy, cross-machine portability, or
-cross-account DPAPI portability. Those claims remain M5 or explicitly out of
-scope.
+This M4 pass does not establish signing, SmartScreen or reputation readiness,
+updater behavior, release artifact publication, production cutover, rollback
+policy, cross-machine portability, copied-userData portability, or cross-account
+DPAPI portability. Those claims remain M5 or explicitly out of scope.
 
 ## Audit sources
 
