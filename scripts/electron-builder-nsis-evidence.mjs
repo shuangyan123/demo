@@ -65,7 +65,7 @@ export async function collectNsisCandidateEvidence() {
   assertEqual(executableInfo.InternalName, "review-workspace", "PE InternalName");
   assertMatch(executableInfo.FileVersion, /^0\.2\.4(?:\.0)?$/, "PE FileVersion");
   assertMatch(executableInfo.ProductVersion, /^0\.2\.4(?:\.0)?$/, "PE ProductVersion");
-  assertEqual(readFileSync(path.join(artifactRoot, "version"), "utf8").trim(), "43.2.0", "packaged Electron version");
+  assertEqual(readFileSync(path.join(artifactRoot, "version"), "utf8").trim(), "43.4.1", "packaged Electron version");
 
   const packageFiles = asar.listPackage(asarPath)
     .map((file) => file.replaceAll("\\", "/").replace(/^\/+/, ""));
@@ -143,7 +143,7 @@ export async function collectNsisCandidateEvidence() {
     packageVersion: packageJson.version,
     productName: packageJson.productName,
     packageName: packageJson.name,
-    electronVersion: "43.2.0",
+    electronVersion: "43.4.1",
     electronBuilderVersion: packageJson.devDependencies["electron-builder"],
     target: "nsis",
     architecture: "x64",
@@ -209,7 +209,7 @@ export function assertNsisCandidateEvidence(evidence) {
   assertEqual(evidence.packageVersion, "0.2.4", "evidence package version");
   assertEqual(evidence.productName, "错题复盘", "evidence product name");
   assertEqual(evidence.packageName, "review-workspace", "evidence package name");
-  assertEqual(evidence.electronVersion, "43.2.0", "evidence Electron version");
+  assertEqual(evidence.electronVersion, "43.4.1", "evidence Electron version");
   assertEqual(evidence.electronBuilderVersion, "26.15.3", "evidence electron-builder version");
   assertEqual(evidence.target, "nsis", "evidence target");
   assertEqual(evidence.architecture, "x64", "evidence architecture");

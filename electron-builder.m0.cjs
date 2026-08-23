@@ -3,7 +3,7 @@ const path = require("node:path");
 const { flipFuses, FuseV1Options, FuseVersion } = require("@electron/fuses");
 
 const projectRoot = __dirname;
-const electronVersion = "43.2.0";
+const electronVersion = "43.4.1";
 
 /**
  * M0 is an additive packaging proof of concept. It consumes the host and
