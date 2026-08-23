@@ -22,7 +22,7 @@ test("M1 builder config is an opt-in bundled NSIS candidate path", () => {
   assert.equal(config.appId, "com.squirrel.review_workspace.review-workspace");
   assert.equal(config.productName, "错题复盘");
   assert.equal(config.executableName, "review-workspace");
-  assert.equal(config.electronVersion, "43.2.0");
+  assert.equal(config.electronVersion, "43.4.1");
   assert.equal(config.asar, true);
   assert.deepEqual(config.files, [".desktop/**/*"]);
   assert.equal(config.directories.app, resolve(workspaceRoot, ".desktop-app"));

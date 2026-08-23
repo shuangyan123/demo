@@ -24,7 +24,7 @@ test("M0 builder config is additive and targets bundled NSIS only", () => {
   assert.equal(builderConfig.appId, "com.squirrel.review_workspace.review-workspace");
   assert.equal(builderConfig.productName, "错题复盘");
   assert.equal(builderConfig.executableName, "review-workspace");
-  assert.equal(builderConfig.electronVersion, "43.2.0");
+  assert.equal(builderConfig.electronVersion, "43.4.1");
   assert.equal(builderConfig.asar, true);
   assert.deepEqual(builderConfig.files, [".desktop/**/*"]);
   assert.equal(builderConfig.directories.app, resolve(workspaceRoot, ".desktop-app"));
@@ -79,7 +79,7 @@ test("M0 leaves the accepted Forge Squirrel production contract intact", () => {
 
   assert.match(packageJson.scripts["desktop:make"], /@electron-forge\/cli\/dist\/electron-forge-make\.js/);
   assert.match(packageJson.scripts["desktop:package"], /@electron-forge\/cli\/dist\/electron-forge-package\.js/);
-  assert.equal(packageJson.devDependencies["electron"], "43.2.0");
+  assert.equal(packageJson.devDependencies["electron"], "43.4.1");
   assert.equal(packageJson.devDependencies["@electron-forge/maker-squirrel"], "7.11.2");
   assert.equal(packageJson.dependencies["electron-updater"], undefined);
   assert.doesNotMatch(JSON.stringify(packageJson), /autoUpdater|latest\.yml/);
