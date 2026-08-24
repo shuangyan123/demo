@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { load, JSON_SCHEMA } from "js-yaml";
 
-const workflow = readFileSync(new URL("../.github/workflows/desktop-release.yml", import.meta.url), "utf8");
+const workflow = readFileSync(new URL("../.github/workflows/trusted-desktop-release.yml", import.meta.url), "utf8");
 const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+const releaseAuthorization = readFileSync(new URL("../docs/security/desktop-release-authorization.md", import.meta.url), "utf8");
+const legacyWorkflowUrl = new URL("../.github/workflows/desktop-release.yml", import.meta.url);
+const releaseGuardSource = readFileSync(new URL("../scripts/verify-desktop-release-provenance.mjs", import.meta.url), "utf8");
 const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archive.mjs", import.meta.url), "utf8");
 const desktopHostPreparation = readFileSync(new URL("../scripts/prepare-desktop-host.mjs", import.meta.url), "utf8");
 const forgeConfig = readFileSync(new URL("../forge.config.ts", import.meta.url), "utf8");
@@ -28,6 +31,7 @@ function workflowContract() {
   const document = record(load(workflow, { schema: JSON_SCHEMA }), "workflow");
   const jobs = record(document.jobs, "workflow jobs");
   return {
+    authorize: record(jobs["authorize-release"], "authorization job"),
     build: record(jobs["build-windows-x64"], "build job"),
     document,
     release: record(jobs.release, "release job"),
@@ -86,10 +90,16 @@ function runReleaseGuard(
     env: {
       ...process.env,
       GITHUB_OUTPUT: outputPath,
-      RELEASE_EVENT_NAME: "push",
-      RELEASE_REF: `refs/tags/${fixture.tagName}`,
-      RELEASE_REF_NAME: fixture.tagName,
+      RELEASE_DEFAULT_REF: "refs/heads/main",
+      RELEASE_DEFAULT_SHA: fixture.mainSha,
+      RELEASE_EVENT_NAME: "workflow_run",
       RELEASE_SHA: fixture.sha,
+      RELEASE_TRIGGER_CONCLUSION: "success",
+      RELEASE_TRIGGER_EVENT: "push",
+      RELEASE_TRIGGER_HEAD_BRANCH: "main",
+      RELEASE_TRIGGER_WORKFLOW: "CI",
+      RELEASE_WORKFLOW_REF: "shuangyan123/demo/.github/workflows/trusted-desktop-release.yml@refs/heads/main",
+      RELEASE_WORKFLOW_SHA: fixture.mainSha,
       ...overrides,
     },
   });
@@ -105,64 +115,70 @@ test("PR 共享门禁包含桌面编译与契约", () => {
   assert.match(ci, /npm run test:desktop/);
 });
 
-test("desktop release build runs the provenance guard before dependency installation", () => {
-  const { build, document } = workflowContract();
+test("production release authority is anchored to successful main CI workflow_run", () => {
+  const { authorize, build, document } = workflowContract();
   const triggers = record(document.on, "workflow triggers");
-  const push = record(triggers.push, "push trigger");
-  assert.ok("workflow_dispatch" in triggers);
-  assert.deepEqual(push.tags, ["v*"]);
-  assert.equal(build["runs-on"], "windows-latest");
-  const steps = build.steps as Array<Record<string, unknown>>;
-  const guardIndex = steps.findIndex((step) => step.name === "Verify release provenance and version");
-  const installIndex = steps.findIndex((step) => step.name === "Install dependencies");
-  assert.ok(guardIndex >= 0 && guardIndex < installIndex);
-  assert.equal(steps[guardIndex].run, "node scripts/verify-desktop-release-provenance.mjs");
-  assert.ok(steps.some((step) => step.run === "npm run desktop:make"));
-  assert.ok(steps.some((step) => step.run === "npm run test:desktop:integration"));
-  assert.ok(steps.some((step) => step.run === "npm run test:desktop:artifact"));
+  const workflowRun = record(triggers.workflow_run, "workflow_run trigger");
+  assert.deepEqual(workflowRun.workflows, ["CI"]);
+  assert.deepEqual(workflowRun.types, ["completed"]);
+  assert.deepEqual(workflowRun.branches, ["main"]);
+  assert.equal(triggers.push, undefined);
+  assert.equal(triggers.workflow_dispatch, undefined);
+  assert.equal(triggers.repository_dispatch, undefined);
+  assert.equal(authorize["runs-on"], "ubuntu-latest");
+  assert.match(String(authorize.if), /workflow_run\.conclusion == 'success'/);
+  assert.match(String(authorize.if), /workflow_run\.event == 'push'/);
+  assert.match(String(authorize.if), /workflow_run\.head_branch == 'main'/);
+  const authorizationSteps = authorize.steps as Array<Record<string, unknown>>;
+  const checkout = authorizationSteps.find((step) => step.name === "Checkout exact successful main CI commit and trusted refs");
+  const checkoutInputs = record(checkout?.with, "release checkout inputs");
+  assert.match(String(checkoutInputs.ref), /workflow_run\.head_sha/);
+  assert.equal(checkoutInputs["fetch-depth"], 0);
+  assert.equal(checkoutInputs["persist-credentials"], false);
+  const guard = authorizationSteps.find((step) => step.name === "Verify trusted release provenance and version");
+  assert.equal(guard?.run, "node scripts/verify-desktop-release-provenance.mjs");
+  assert.match(String(build.if), /needs\.authorize-release\.outputs\.publish_authorized == 'true'/);
+  const buildSteps = build.steps as Array<Record<string, unknown>>;
+  assert.ok(buildSteps.some((step) => step.run === "npm run desktop:make"));
+  assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:integration"));
+  assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:artifact"));
 });
 
-test("release publication authority is job-scoped and manual dispatch cannot publish", () => {
-  const { build, document, release } = workflowContract();
+test("release publication authority is job-scoped and consumes only guard authorization", () => {
+  const { authorize, build, document, release } = workflowContract();
   assert.equal(record(document.permissions, "workflow permissions").contents, "read");
   assert.equal(build.permissions, undefined);
   assert.equal(record(release.permissions, "release permissions").contents, "write");
-  assert.match(String(release.if), /github\.event_name == 'push'/);
-  assert.match(String(release.if), /refs\/tags\//);
-  assert.match(String(release.if), /needs\.build-windows-x64\.outputs\.publish_authorized == 'true'/);
-  assert.equal(release.needs, "build-windows-x64");
+  assert.match(String(release.if), /needs\.authorize-release\.outputs\.publish_authorized == 'true'/);
+  assert.deepEqual(release.needs, ["authorize-release", "build-windows-x64"]);
+  assert.equal(authorize.permissions, undefined);
 });
 
 test("release artifact upload and download are bound to the verified release SHA", () => {
   const { build, release } = workflowContract();
   const buildSteps = build.steps as Array<Record<string, unknown>>;
   const releaseSteps = release.steps as Array<Record<string, unknown>>;
-  const upload = record(buildSteps.find((step) => step.name === "Upload workflow artifact")?.with, "upload inputs");
+  const upload = record(buildSteps.find((step) => step.name === "Upload exact-SHA workflow artifact")?.with, "upload inputs");
   const download = record(releaseSteps.find((step) => step.name === "Download exact-SHA release artifact")?.with, "download inputs");
-  assert.match(String(upload.name), /steps\.release_guard\.outputs\.release_sha/);
-  assert.match(String(download.name), /needs\.build-windows-x64\.outputs\.release_sha/);
+  assert.match(String(upload.name), /needs\.authorize-release\.outputs\.release_sha/);
+  assert.match(String(download.name), /needs\.authorize-release\.outputs\.release_sha/);
   assert.match(String(upload.path), /ReviewWorkspace-.*package_version.*-Windows-x64-Setup\.exe/);
   assert.match(String(upload.path), /SHA256SUMS\.txt/);
-  const releaseCommand = String(releaseSteps.find((step) => step.name === "Create GitHub Release")?.run);
+  const releaseCommand = String(releaseSteps.find((step) => step.name === "Create draft GitHub Release")?.run);
   assert.match(releaseCommand, /gh release create/);
+  assert.match(releaseCommand, /needs\.authorize-release\.outputs\.release_tag/);
   assert.match(releaseCommand, /--draft/);
   assert.doesNotMatch(JSON.stringify(build), /gh release create/);
   assert.doesNotMatch(workflow, /autoUpdater|update-electron-app/);
 });
 
-test("main release tag provenance passes with an annotated tag SHA", (t) => {
+test("trusted main CI commit with an annotated matching tag passes", (t) => {
   const fixture = createReleaseFixture(t, "main");
   const result = runReleaseGuard(fixture);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.output, new RegExp(`release_sha=${fixture.mainSha}`));
+  assert.match(result.output, /release_tag=v1\.2\.3/);
   assert.match(result.output, /publish_authorized=true/);
-});
-
-test("tag target differing from the event commit fails closed", (t) => {
-  const fixture = createReleaseFixture(t, "candidate");
-  const result = runReleaseGuard(fixture, { RELEASE_SHA: fixture.mainSha });
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /does not match event commit/);
 });
 
 test("matching package version cannot authorize a non-main release commit", (t) => {
@@ -172,18 +188,62 @@ test("matching package version cannot authorize a non-main release commit", (t) 
   assert.match(result.stderr, /is not an ancestor of origin\/main/);
 });
 
-test("tag and package version mismatch fails closed", (t) => {
+test("missing expected package-version tag skips publication", (t) => {
   const fixture = createReleaseFixture(t, "main", "v1.2.4");
   const result = runReleaseGuard(fixture);
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /does not match package\.json version v1\.2\.3/);
-});
-
-test("workflow dispatch remains build-only even when dispatched from a tag ref", (t) => {
-  const fixture = createReleaseFixture(t, "candidate");
-  const result = runReleaseGuard(fixture, { RELEASE_EVENT_NAME: "workflow_dispatch" });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.output, /publish_authorized=false/);
+});
+
+test("expected tag targeting another commit skips publication", (t) => {
+  const fixture = createReleaseFixture(t, "candidate");
+  const result = runReleaseGuard(fixture, { RELEASE_SHA: fixture.mainSha });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.output, /publish_authorized=false/);
+});
+
+test("untrusted event or workflow identity fails closed", async (t) => {
+  const cases: Array<[string, Partial<NodeJS.ProcessEnv>, RegExp]> = [
+    ["manual dispatch", { RELEASE_EVENT_NAME: "workflow_dispatch" }, /requires workflow_run/],
+    ["wrong workflow", { RELEASE_TRIGGER_WORKFLOW: "Attacker CI" }, /successful CI push run on main/],
+    ["pull request run", { RELEASE_TRIGGER_EVENT: "pull_request" }, /successful CI push run on main/],
+    ["non-main run", { RELEASE_TRIGGER_HEAD_BRANCH: "candidate" }, /successful CI push run on main/],
+    ["failed CI", { RELEASE_TRIGGER_CONCLUSION: "failure" }, /successful CI push run on main/],
+    ["non-main workflow ref", { RELEASE_WORKFLOW_REF: "shuangyan123/demo/.github/workflows/trusted-desktop-release.yml@refs/heads/candidate" }, /not anchored to the trusted main workflow/],
+  ];
+
+  for (const [name, overrides, expected] of cases) {
+    await t.test(name, (child) => {
+      const fixture = createReleaseFixture(child, "main");
+      const result = runReleaseGuard(fixture, overrides);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, expected);
+    });
+  }
+});
+
+test("private checkout contract fetches trusted refs before removing credentials", () => {
+  const ciDocument = record(load(ci, { schema: JSON_SCHEMA }), "CI workflow");
+  const ciJobs = record(ciDocument.jobs, "CI jobs");
+  const job = record(ciJobs["private-release-checkout"], "private checkout job");
+  assert.equal(record(job.permissions, "private checkout permissions").contents, "read");
+  const steps = job.steps as Array<Record<string, unknown>>;
+  const checkoutInputs = record(steps[0].with, "private checkout inputs");
+  assert.equal(checkoutInputs["fetch-depth"], 0);
+  assert.equal(checkoutInputs["persist-credentials"], false);
+  assert.match(String(steps[1].run), /refs\/remotes\/origin\/main/);
+  assert.match(String(steps[1].run), /extraheader/);
+  assert.doesNotMatch(releaseGuardSource, /\bfetch\b/);
+});
+
+test("historical self-versioned workflow bypass remains explicit platform acceptance", () => {
+  assert.equal(existsSync(legacyWorkflowUrl), false);
+  assert.match(releaseAuthorization, /CODE MITIGATION COMPLETE/);
+  assert.match(releaseAuthorization, /PLATFORM CONTROL PENDING/);
+  assert.match(releaseAuthorization, /historical workflow revisions are disabled/);
+  assert.match(releaseAuthorization, /disable the legacy GitHub Actions workflow ID/i);
+  assert.match(releaseAuthorization, /same-repository write capability must be treated as workflow-code/i);
+  assert.doesNotMatch(releaseAuthorization, /^SEC-04 REMEDIATION: FIXED$/m);
 });
 
 test("Electron 官方归档在 runner 缓存缺失时下载并继续校验 checksum", () => {

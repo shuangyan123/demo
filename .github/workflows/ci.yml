@@ -11,6 +11,30 @@ permissions:
   contents: read
 
 jobs:
+  private-release-checkout:
+    name: Private release checkout contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Authenticated full-history checkout without persisted credentials
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify trusted refs are local and credentials are absent
+        shell: bash
+        run: |
+          git rev-parse --verify 'refs/remotes/origin/main^{commit}'
+          if git config --local --get-regexp '^http\..*\.extraheader$'; then
+            echo 'checkout credential unexpectedly persisted in local Git config' >&2
+            exit 1
+          fi
+
   static:
     name: Type Check, ESLint, Contracts
     runs-on: ubuntu-latest
