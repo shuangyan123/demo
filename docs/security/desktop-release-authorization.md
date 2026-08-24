@@ -2,48 +2,63 @@
 
 ## Security status
 
-The repository-side SEC-04 mitigation moves the production release job to
-`.github/workflows/trusted-desktop-release.yml`. It is triggered only by a
-successful `CI` `workflow_run` for a `push` on `main`. GitHub documents that a
-`workflow_run` workflow must exist on the default branch and runs with the
-default-branch `GITHUB_SHA` and `GITHUB_REF`.
-
-This code change is **not sufficient by itself** to close the historical
-self-versioned workflow attack. GitHub also documents that `push` runs workflow
-files which are not merged into the default branch, and that a repository write
-actor can change a workflow's requested `GITHUB_TOKEN` permissions. A tag or
-branch commit can therefore retain the legacy workflow or introduce another
-workflow with release write authority.
-
-Until the platform controls below are applied and independently read back, the
-correct classification is:
-
 ```text
-CODE MITIGATION COMPLETE
-PLATFORM CONTROL PENDING
-SEC-04 REMEDIATION PARTIAL
+SEC-04: PASS WITH RESIDUAL RISK
 ```
 
-Repository contract tests prove only the current-tree workflow architecture.
-They do not claim that historical workflow revisions are disabled on GitHub.
+The repository code mitigation and platform acceptance are complete under the
+current single-owner trusted-writer model. The production release path is now
+defined by `.github/workflows/trusted-desktop-release.yml`, and PR #100 is
+eligible for merge from the SEC-04 perspective. This status does not claim that
+the repository has no residual security risk.
+
+## Trust model
+
+- `shuangyan123` is the sole human maintainer and is **TRUSTED TO PUBLISH**.
+- Owner-authorized OpenAI, ChatGPT, and Codex tooling is **TRUSTED DELEGATED
+  TOOLING**. Its repository write capability is intentional.
+- No other human collaborator, repository team, pending invitation, deploy key,
+  write-enabled deploy key, webhook, or positively identified untrusted writer
+  was found during platform acceptance.
+- The global GitHub App installation inventory is incomplete with the current
+  API token. This is residual evidence uncertainty, not evidence that an
+  untrusted App exists and not proof that no other App exists.
+
+## Legacy workflow closure
+
+The historical `Desktop Release` workflow at
+`.github/workflows/desktop-release.yml` is workflow ID `323491496`. Its previous
+state was `active`; the repository workflow disable API returned HTTP 204, and
+the subsequent independent readback returned `disabled_manually`.
+
+That repository-level disabled state is the primary evidence that ordinary tag
+or event triggers can no longer start the historical workflow. The current-tree
+deletion in PR #100 is additional defense in depth and is not the sole proof of
+historical authority closure.
+
+No runtime tag acceptance is required. Re-enabling the legacy workflow or
+creating a production-like tag would mutate the accepted control and would not
+provide stronger evidence than the authoritative disabled-state readback.
 
 ## Trusted current-tree release path
 
-1. Protected `main` receives an approved commit.
+1. The trusted owner places an approved commit on `main`.
 2. The `CI` workflow runs for the `main` push.
 3. GitHub starts `Trusted Desktop Release` from the default-branch workflow
    revision after `CI` completes successfully.
 4. `actions/checkout` performs the authenticated private-repository fetch with
    `fetch-depth: 0`, then removes checkout credentials because
    `persist-credentials: false` is set.
-5. The authorization job's guard uses only local refs. It verifies the triggering workflow identity,
-   conclusion, event, branch, trusted workflow ref/SHA, `origin/main` ancestry,
-   and `v${package.version}` tag target before `npm ci`.
+5. The authorization job's guard uses only local refs. It verifies the
+   triggering workflow identity, conclusion, event, branch, trusted workflow
+   ref/SHA, `origin/main` ancestry, and `v${package.version}` tag target before
+   `npm ci`.
    A missing expected tag or a tag targeting another commit returns
    `publish_authorized=false` and skips the build without treating an ordinary
    main CI run as a release failure.
-6. The read-only build job runs only after authorization and produces an exact-SHA artifact. Only the final draft
-   release job receives `contents: write` and consumes that exact artifact.
+6. The read-only build job runs only after authorization and produces an
+   exact-SHA artifact. Only the final draft release job receives
+   `contents: write` and consumes that exact artifact.
 
 There is intentionally no tag `push`, `workflow_dispatch`, or
 `repository_dispatch` trigger in the privileged workflow. A release tag must
@@ -51,41 +66,46 @@ already point at the successful main CI commit. If the tag is created after its
 CI run completed, a new successful main CI run is required; tag push alone does
 not authorize publication.
 
-## Required platform controls and acceptance
+## Main protection and rulesets
 
-All items are mandatory before claiming `SEC-04 REMEDIATION: FIXED`:
+The private repository currently reports `main.protected=false`. Branch
+protection and repository rulesets are unavailable on the current private plan;
+their APIs return HTTP 403 with GitHub's upgrade-or-public message. No branch or
+tag protection is claimed to exist.
 
-1. Merge the trusted workflow through the protected `main` review path.
-2. Disable the legacy GitHub Actions workflow ID for
-   `.github/workflows/desktop-release.yml`, then read back `state=disabled`.
-   Deleting or renaming the file in the current tree is not evidence that a
-   historical tag revision cannot run.
-3. Remove same-repository write/tag-push capability from every actor who is not
-   trusted to publish releases, or disable GitHub Actions for the repository and
-   move publication to a separately controlled system. With GitHub Actions
-   enabled, same-repository write capability must be treated as workflow-code
-   and token-permission control, not merely branch-content control.
-4. Keep `main` protected so those actors cannot place a release workflow or
-   release candidate on `main` without the approved review path.
-5. If the repository is moved to a plan supporting private-repository rulesets,
-   add active rules restricting creation, update, and deletion of release tags;
-   read back the ruleset and bypass actors. Tag rules are defense in depth and
-   do not replace item 3 because a write actor can introduce a non-tag workflow.
-6. Perform a non-publishing platform acceptance: attempt the historical V1
-   matching-tag scenario with an actor that has the intended post-remediation
-   role and verify that no write-capable legacy workflow run starts. Do not
-   create a real production Release for this test.
+Under the current single-owner model, unprotected `main` and unavailable branch
+or tag rulesets are defense-in-depth limitations rather than a demonstrated
+untrusted-writer publication path. If a future untrusted writer, or any writer
+outside **TRUSTED TO PUBLISH** and **TRUSTED DELEGATED TOOLING**, receives
+repository write access, SEC-04 must be reassessed and branch/tag protection or
+an equivalent independent publication boundary should be enabled first.
 
-Current repository evidence at the time this document was written:
+## Attack-path closure
 
-- default workflow permission is `read`;
-- the legacy `Desktop Release` workflow is still active;
-- the private repository's current plan does not expose repository rulesets via
-  the API.
+- **Path A — arbitrary branch/tag to historical Desktop Release:** cut at the
+  platform trigger boundary by the `disabled_manually` workflow state.
+- **Path B — malicious self-versioned workflow:** no positively identified
+  untrusted writer currently has repository workflow-write capability.
+- **Path C — direct main push to trusted `workflow_run`:** only the trusted owner
+  and trusted delegated tooling were identified with write authority.
+- **Path D — delegated tooling compromise or misuse:** retained as a
+  trusted-principal compromise risk, not an authorization escalation by an
+  actor outside the trusted set.
 
-These observations keep platform acceptance pending. The restricted default
-token setting is useful least privilege, but it is not the required control in
-item 3 because workflow YAML can request different job permissions.
+**NO positively identified actor outside the trusted set can currently cause
+arbitrary code to reach production publication.**
+
+## Residual risks
+
+- `main` is unprotected, and no branch or tag rulesets are available.
+- The trusted owner and delegated tooling retain broad repository write
+  authority.
+- GitHub App installation inventory remains an evidence gap.
+- All third-party Actions are allowed, and full commit-SHA pinning is not
+  required by repository policy.
+- Code signing, SmartScreen reputation, updater behavior, rollback, and
+  production installer cutover remain later M5 concerns and are not established
+  by this SEC-04 acceptance.
 
 ## Official GitHub semantics used
 

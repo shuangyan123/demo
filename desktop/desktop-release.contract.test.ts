@@ -236,14 +236,21 @@ test("private checkout contract fetches trusted refs before removing credentials
   assert.doesNotMatch(releaseGuardSource, /\bfetch\b/);
 });
 
-test("historical self-versioned workflow bypass remains explicit platform acceptance", () => {
+test("SEC-04 documentation records completed platform acceptance with residual risk", () => {
   assert.equal(existsSync(legacyWorkflowUrl), false);
-  assert.match(releaseAuthorization, /CODE MITIGATION COMPLETE/);
-  assert.match(releaseAuthorization, /PLATFORM CONTROL PENDING/);
-  assert.match(releaseAuthorization, /historical workflow revisions are disabled/);
-  assert.match(releaseAuthorization, /disable the legacy GitHub Actions workflow ID/i);
-  assert.match(releaseAuthorization, /same-repository write capability must be treated as workflow-code/i);
-  assert.doesNotMatch(releaseAuthorization, /^SEC-04 REMEDIATION: FIXED$/m);
+  assert.match(releaseAuthorization, /SEC-04: PASS WITH RESIDUAL RISK/);
+  assert.match(releaseAuthorization, /workflow ID `323491496`/);
+  assert.match(releaseAuthorization, /disabled_manually/);
+  assert.match(releaseAuthorization, /TRUSTED TO PUBLISH/);
+  assert.match(releaseAuthorization, /TRUSTED DELEGATED TOOLING/);
+  assert.match(releaseAuthorization, /main\.protected=false/);
+  assert.match(releaseAuthorization, /rulesets are unavailable on the current private plan/i);
+  assert.match(releaseAuthorization, /GitHub App installation inventory is incomplete/i);
+  assert.match(releaseAuthorization, /future untrusted writer[\s\S]*SEC-04 must be reassessed/i);
+  assert.match(releaseAuthorization, /current-tree[\s\S]*not the sole proof/i);
+  assert.doesNotMatch(releaseAuthorization, /PLATFORM CONTROL PENDING/);
+  assert.doesNotMatch(releaseAuthorization, /SEC-04 REMEDIATION PARTIAL/);
+  assert.doesNotMatch(releaseAuthorization, /legacy Desktop Release workflow is still active/i);
 });
 
 test("Electron 官方归档在 runner 缓存缺失时下载并继续校验 checksum", () => {
