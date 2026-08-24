@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-24 — M5 intentionally unsigned production-v1 policy
+
+- Established `PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED`; certificate procurement, signing providers, Authenticode, RFC3161 timestamping, publisher identity, signing-key rotation and SmartScreen reputation are no longer M5 production-v1 blockers.
+- Retained every SEC-04 release-provenance control and defined the production-v1 security model as trusted source provenance plus exact artifact SHA-256, including checksum-after-final-bytes and Draft Release re-download verification requirements.
+- Recorded Unknown Publisher/SmartScreen warnings and no auto-updater as accepted product residuals, preserved all historical `0.2.x` M3/M4 evidence, and left builder upgrade, NSIS production cutover, `0.3.0`, exact-SHA Draft pipeline and Level 3 Windows acceptance unimplemented.
+
 ## 2026-08-20 — 0.8 Squirrel no-remote-icon bridge acceptance closure
 
 - Invalidated the historical `0.2.3` bridge candidate because installer-time Squirrel uninstall-icon retrieval could reach the Electron GitHub icon URL; retained its prior lifecycle evidence only as historical, scoped evidence.

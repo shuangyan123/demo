@@ -610,12 +610,16 @@ Explicit nonclaims and residual boundaries:
 - the updater cache is not active product state and is not updater readiness;
 - no signing, SmartScreen, release, update, rollback, or production cutover
   readiness claim; and
-- M5 continues to own signing, SmartScreen, updater/release/cutover, and related
-  production readiness.
+- M5 continues to own the explicit production-v1 unsigned policy,
+  SmartScreen/Unknown Publisher residual, updater/release/cutover, and related
+  production readiness. Code signing and publisher identity are deferred future
+  capabilities, not production-v1 blockers.
 
-The candidate remains unsigned. Any SmartScreen warning during this controlled
-internal acceptance is an M5 concern, not an M4 lifecycle failure or signing
-readiness result.
+The candidate remains unsigned. M4 did not decide the production policy; the
+later production-v1 decision intentionally remains unsigned. An expected
+SmartScreen/Unknown Publisher warning is an accepted production-v1 residual,
+not an M4 lifecycle failure. See
+[`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md).
 
 ## Stop conditions and remaining boundaries
 
@@ -665,10 +669,12 @@ or application lifecycle code is warranted by this acceptance.
 
 ## M5 boundary
 
-This M4 pass does not establish signing, SmartScreen or reputation readiness,
+This M4 pass does not establish Authenticode signing, SmartScreen reputation,
 updater behavior, release artifact publication, production cutover, rollback
 policy, cross-machine portability, copied-userData portability, or cross-account
-DPAPI portability. Those claims remain M5 or explicitly out of scope.
+DPAPI portability. The later production-v1 policy intentionally accepts the
+unsigned/Unknown Publisher boundary and defers signing; all other unproven claims
+remain M5 or explicitly out of scope.
 
 ## Audit sources
 

@@ -103,9 +103,16 @@ arbitrary code to reach production publication.**
 - GitHub App installation inventory remains an evidence gap.
 - All third-party Actions are allowed, and full commit-SHA pinning is not
   required by repository policy.
-- Code signing, SmartScreen reputation, updater behavior, rollback, and
-  production installer cutover remain later M5 concerns and are not established
-  by this SEC-04 acceptance.
+- Production-v1 is intentionally unsigned. Code signing, publisher identity,
+  certificate timestamping/rotation, and SmartScreen reputation are deferred
+  future capabilities rather than M5 blockers. Unknown Publisher or SmartScreen
+  warnings are accepted product residuals; this SEC-04 acceptance does not claim
+  Authenticode-backed identity or integrity.
+- Updater behavior, rollback, exact-artifact checksum readback, and production
+  NSIS cutover remain M5 concerns. The unsigned production security model keeps
+  every SEC-04 control and relies on trusted source provenance plus the exact
+  artifact SHA-256. See
+  [`windows-production-v1-release-policy.md`](../windows-production-v1-release-policy.md).
 
 ## Official GitHub semantics used
 

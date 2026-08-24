@@ -1,5 +1,12 @@
 # 发布前手工冒烟清单
 
+> **Current M5 policy:** Windows production-v1 is intentionally unsigned.
+> Code signing, publisher identity, certificate timestamping/rotation, and
+> SmartScreen reputation are not production-v1 blockers. Historical matrices
+> below retain their original unsigned/non-claim evidence boundaries. The
+> current release policy and remaining blockers are defined in
+> [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md).
+
 ## Current 2026-08-20 · 0.8 Squirrel no-remote-icon bridge acceptance closure
 
 状态：**0.2.4 REAL WINDOWS OFFLINE CLEAN-INSTALL BASELINE: PASS**（用户提供的 operator-attested evidence，限于本节 scope）。历史 `0.2.3` candidate 因 installer-time remote icon retrieval 失效，仅保留既有 operator-attested lifecycle evidence；PR #90 已关闭且未合并，PR #91 的 checked-in no-remote-icon bridge 已合并。该 PASS 不来自 source/package 自动证据，也不是 Codex 本轮重新执行的 independent replay。

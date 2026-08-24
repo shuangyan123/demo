@@ -1,5 +1,12 @@
 # Windows Desktop Distribution / Lifecycle Contract
 
+> **Current M5 policy:** Windows production-v1 is intentionally unsigned.
+> Code signing, publisher identity, certificate timestamping/rotation, and
+> SmartScreen reputation are deferred future capabilities rather than
+> production-v1 blockers. Historical 0.2.x evidence and non-claims below remain
+> unchanged. See
+> [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md).
+
 状态：**0.8 Phase 1 COMPLETE；Phase 2A COMPLETE within scoped adjacent-version acceptance；Phase 2B COMPLETE within scoped closed-app uninstall → same-version reinstall → userData/product-data persistence → full-restart acceptance；0.8 overall IN PROGRESS**（2026-08-15）。
 
 本文件建立 Windows x64 分发、生命周期和 `userData` 的 ownership contract。它不重新设计或削弱 0.7 的 Desktop authority、no Web fallback、fail-closed、context binding、source retention 或 credential cleanup ordering。0.7 的安全语义仍由既有实现、contract 和已归档的 scoped installed-app evidence 所拥有。
