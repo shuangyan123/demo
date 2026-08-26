@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AppearanceSettings } from "../../types/domains/appearance.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import { LocalDiagnosticsPanel } from "../diagnostics/local-diagnostics-panel";
@@ -27,6 +27,9 @@ type SettingsWorkspaceProps = {
   onOpenDiagnosticsTarget: (action: Exclude<LocalDiagnosticAction, "ai-connections">) => void;
   onPersonalizationChange?: (settings: PersonalizationSettings) => void;
   onSectionChange: (section: SettingsSectionKey) => void;
+  profileContent: ReactNode;
+  importContent: ReactNode;
+  installedPluginsContent: ReactNode;
 };
 
 /** 设置内容只负责分区渲染，各分区的表单与数据状态由独立组件维护。 */
@@ -41,6 +44,9 @@ export function SettingsWorkspace({
   onOpenDiagnosticsTarget,
   onPersonalizationChange,
   onSectionChange,
+  profileContent,
+  importContent,
+  installedPluginsContent,
 }: SettingsWorkspaceProps) {
   const [toast, setToast] = useState("");
   const { diagnostics, refresh: refreshDiagnostics, refreshing: diagnosticsRefreshing } = useLocalDiagnostics(diagnosticsInput);
@@ -52,6 +58,7 @@ export function SettingsWorkspace({
   }, [toast]);
 
   function renderSection() {
+    if (activeSection === "profile") return profileContent;
     if (activeSection === "appearance") {
       return <AppearanceSettingsView settings={appearanceSettings} onChange={onAppearanceChange} onNotify={setToast} />;
     }
@@ -64,6 +71,8 @@ export function SettingsWorkspace({
     if (activeSection === "quota") {
       return <AiQuotaSettingsPanel developmentExample={developmentExample} />;
     }
+    if (activeSection === "import") return importContent;
+    if (activeSection === "installed-plugins") return installedPluginsContent;
     if (activeSection === "mcp") {
       return <McpSettingsView developmentExample={developmentExample} onNotice={setToast} />;
     }

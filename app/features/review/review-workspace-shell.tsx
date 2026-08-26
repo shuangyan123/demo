@@ -5,6 +5,7 @@ import { toISODate } from "../../lib/review-utils";
 import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import { Button } from "../shared/ui-primitives";
+import { MainContentShell, type MainContentWidth } from "../shared/main-content-shell";
 import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
 import { ReviewWorkspaceAppSidebar } from "./review-workspace-app-sidebar";
 import { preloadReviewView } from "./review-workspace-preload.ts";
@@ -47,11 +48,17 @@ const viewTitles: Record<ViewKey, string> = {
   stats: "薄弱分析",
   knowledge: "知识库",
   automation: "已安排",
-  import: "粉笔导入",
+  import: "导入",
   entry: "手动录入",
-  plugins: "插件",
+  plugins: "插件与技能",
   settings: "设置",
 };
+
+function contentWidth(view: ViewKey): MainContentWidth {
+  if (view === "settings") return "medium";
+  if (["conversation", "dashboard", "library", "plugins", "import", "automation"].includes(view)) return "wide";
+  return "medium";
+}
 
 /** 渲染全站唯一工作台外壳，页面只替换侧栏内容与主内容插槽。 */
 export function ReviewWorkspaceShell({
@@ -103,8 +110,8 @@ export function ReviewWorkspaceShell({
       contentClassName={contentClassName ?? (view === "conversation"
         ? "conversation-shell-content"
         : view === "automation"
-          ? "review-view-automation px-7 pt-4 pb-7 max-sm:px-4"
-          : `review-view-${view} px-7 py-7 max-sm:px-4`)}
+          ? "review-view-automation pt-4 pb-7"
+          : `review-view-${view} py-7`)}
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName={sidebarOverride
         ? "flex flex-col overflow-y-auto px-3 py-4 text-settings-sidebar-text max-lg:px-3 max-lg:py-2"
@@ -114,6 +121,10 @@ export function ReviewWorkspaceShell({
       onToggleSidebar={onToggleSidebar}
       sidebar={sidebarOverride ?? applicationSidebar}
     >
+      <MainContentShell
+        className={view === "conversation" ? "conversation-main-content flex min-h-full flex-1 flex-col !px-0" : undefined}
+        width={contentWidth(view)}
+      >
       {["library", "import", "entry", "plugins"].includes(view) && notice !== "本地题库已同步" ? (
         <div className="mb-3 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted" role="status">{notice}</div>
       ) : null}
@@ -132,6 +143,7 @@ export function ReviewWorkspaceShell({
         />
       ) : null}
       {children}
+      </MainContentShell>
     </WorkspaceShell>
   );
 }

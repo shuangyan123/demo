@@ -147,6 +147,7 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
 
       {view === "plugins" ? (
         <SettingsPluginsView
+          initialMode="browse"
           appearanceSettings={workspace.appearanceSettings}
           entries={data.knowledgeEntries}
           importJobs={data.importJobs}

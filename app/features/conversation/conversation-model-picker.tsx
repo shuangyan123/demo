@@ -21,7 +21,7 @@ import { ProviderIcon } from "../shared/provider-icon";
 import { UiTooltip } from "../shared/ui-tooltip";
 import { ConversationModelRuntimeControls } from "./conversation-model-runtime-controls";
 import { useConnectionModelCatalog } from "./use-connection-model-catalog.ts";
-import { useConversationModelNavigation } from "./use-conversation-model-navigation.ts";
+import { useConversationModelNavigation, type ConversationModelRuntimeDimension, type ConversationModelPickerView } from "./use-conversation-model-navigation.ts";
 import { useModelPickerOverflow } from "./use-model-picker-overflow.ts";
 import styles from "./conversation-model-picker.module.css";
 
@@ -33,6 +33,7 @@ export type ConversationModelSelection = {
 
 export type ConversationModelPickerProps = {
   id?: string;
+  initialRuntimeDimension?: ConversationModelRuntimeDimension;
   connections: ApiConnectionProfile[];
   purpose: AiConnectionPurpose;
   selectedConnectionId?: string;
@@ -74,6 +75,7 @@ function handleProviderArrowNavigation(event: KeyboardEvent<HTMLElement>) {
  */
 export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationModelPickerProps>(function ConversationModelPicker({
   id,
+  initialRuntimeDimension,
   connections,
   purpose,
   selectedConnectionId,
@@ -86,19 +88,24 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const modelRadioName = useId();
   const [manualModelId, setManualModelId] = useState("");
-  const { back, changeConnection, showModels, showRuntime, view } = useConversationModelNavigation({ pickerRef });
   const eligible = useMemo(() => connections.filter((connection) => connection.capabilities.includes(purpose)), [connections, purpose]);
   const selectedConnection = eligible.find((connection) => connection.id === selectedConnectionId);
+  const initialView: ConversationModelPickerView = initialRuntimeDimension && selectedConnection && selectedModelId
+    ? { kind: "runtime", provider: selectedConnection.provider, connectionId: selectedConnection.id, dimension: initialRuntimeDimension }
+    : { kind: "controls" };
+  const { back, changeConnection, showAdvanced, showModels, showProviders, showRuntime, view } = useConversationModelNavigation({ initialView, pickerRef });
   const providers = useMemo(() => Array.from(new Set(eligible.map((connection) => connection.provider))).sort((left, right) => {
     if (left === selectedConnection?.provider) return -1;
     if (right === selectedConnection?.provider) return 1;
     return providerCollator.compare(getProviderContract(left).label, getProviderContract(right).label);
   }), [eligible, selectedConnection?.provider]);
-  const activeProvider = view.kind === "providers" ? undefined : view.provider;
+  const activeProvider = view.kind === "models" || view.kind === "runtime" ? view.provider : undefined;
   const providerConnections = activeProvider ? eligible.filter((connection) => connection.provider === activeProvider) : [];
-  const activeConnection = view.kind === "providers"
-    ? undefined
-    : providerConnections.find((connection) => connection.id === view.connectionId) ?? providerConnections[0];
+  const activeConnection = view.kind === "controls" || view.kind === "advanced"
+    ? selectedConnection
+    : view.kind === "models" || view.kind === "runtime"
+      ? providerConnections.find((connection) => connection.id === view.connectionId) ?? providerConnections[0]
+      : undefined;
   const catalog = useConnectionModelCatalog(activeConnection, purpose);
   const activeSelectedModelId = activeConnection?.id === selectedConnectionId ? selectedModelId : undefined;
   const manualSelectedModel = activeConnection && activeSelectedModelId && !catalog.some((model) => model.id === activeSelectedModelId)
@@ -137,6 +144,11 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     showModels(provider, nextConnection.id);
   }
 
+  function openSelectedRuntime(dimension: ConversationModelRuntimeDimension) {
+    if (!selectedConnection || !selectedModelId) return;
+    showRuntime(selectedConnection.provider, selectedConnection.id, dimension);
+  }
+
   function chooseModel(nextModelId: string) {
     if (!activeConnection) return;
     const descriptor = getAiModelRuntimeDescriptor(activeConnection.provider, nextModelId);
@@ -173,8 +185,26 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
       role="dialog"
     >
       <div ref={viewportRef} className={styles.scrollViewport} data-scrollable="false">
+      {view.kind === "controls" ? (
+        <nav key="controls" aria-label="模型配置" className={styles.layer} onKeyDown={handleProviderArrowNavigation}>
+          <button className={styles.controlRow} data-picker-default-focus="true" data-picker-focus-key="control-entry:model" type="button" onClick={showProviders}>
+            <span>模型</span><span>{selectedModelId ?? "选择模型"}<AppIcon name="chevronRight" size={16} /></span>
+          </button>
+          <button className={styles.controlRow} data-picker-focus-key="runtime-entry:reasoning" disabled={!selectedDescriptor?.reasoning} type="button" onClick={() => openSelectedRuntime("reasoning")}>
+            <span>推理强度</span><span>{selectedDescriptor?.reasoning?.options.find((option) => option.value === runtimeValues.reasoning)?.label ?? "不可用"}<AppIcon name="chevronRight" size={16} /></span>
+          </button>
+          <button className={styles.controlRow} data-picker-focus-key="runtime-entry:speed" disabled={!selectedDescriptor?.speed} type="button" onClick={() => openSelectedRuntime("speed")}>
+            <span>速度</span><span>{selectedDescriptor?.speed?.options.find((option) => option.value === runtimeValues.speed)?.label ?? "不可用"}<AppIcon name="chevronRight" size={16} /></span>
+          </button>
+          <button className={styles.controlRow} data-picker-focus-key="control-entry:advanced" type="button" onClick={showAdvanced}>
+            <span>高级</span><span><AppIcon name="chevronRight" size={16} /></span>
+          </button>
+        </nav>
+      ) : null}
+
       {view.kind === "providers" ? (
         <nav key="providers" aria-label="厂商" className={styles.layer} onKeyDown={handleProviderArrowNavigation}>
+          <header className={styles.header}><button aria-label="返回模型配置" className={styles.backButton} type="button" onClick={back}><AppIcon name="back" size={16} /></button><strong>模型</strong></header>
           {providers.length ? providers.map((provider, index) => {
             const contract = getProviderContract(provider);
             return (
@@ -247,15 +277,13 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
               );
             })}
           </div>
-          {activeSelectedModelId && selectedDescriptor ? (
-            <ConversationModelRuntimeControls
-              descriptor={selectedDescriptor}
-              entries={["speed"]}
-              values={runtimeValues}
-              onChange={chooseRuntime}
-              onOpen={(dimension) => showRuntime(activeProvider, activeConnection.id, dimension)}
-            />
-          ) : null}
+          <button className={styles.manageRow} type="button" onClick={onOpenConnections}>管理 AI 连接</button>
+        </section>
+      ) : null}
+
+      {view.kind === "advanced" ? (
+        <section key="advanced" className={styles.layer} aria-label="高级模型配置">
+          <header className={styles.header}><button aria-label="返回模型配置" className={styles.backButton} type="button" onClick={back}><AppIcon name="back" size={16} /></button><strong>高级</strong></header>
           <div className={styles.manualRow}>
             <label htmlFor={`${id ?? modelRadioName}-manual-model`}>手动模型 ID</label>
             <div>

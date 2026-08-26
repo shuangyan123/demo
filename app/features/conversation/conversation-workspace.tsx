@@ -471,12 +471,12 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
           activeConversation={Boolean(activeConversation)} attachments={attachments}
           busy={busy || recording.busy} connections={connections} draft={draft}
           purpose={requiresVision ? "vision" : "text"} recording={recording.recording}
-          runtimeDescriptor={runtimeDescriptor} selectedConnection={effectiveConnection}
+          selectedConnection={effectiveConnection}
           selectedModelId={selectedModelId} selectedRuntimeValues={selectedRuntimeValues}
           modelSelectionError={selectionError}
-          contextBudget={conversationContext.budget}
-          contextCompressing={conversationContext.compressing}
+          contextBudget={conversationContext.budget} contextCompressing={conversationContext.compressing}
           contextCompaction={activeConversation?.contextCompaction}
+          conversationSummary={activeConversation?.contextCompaction?.summary ?? activeConversation?.summary ?? activeConversation?.title ?? "新对话"}
           contextCompressionAvailable={Boolean(activeConversation && effectiveConnection && selectedModelId && conversationContext.candidate && !sampleMode)}
           onAttachmentsAdd={(nextAttachments) => setAttachments((current) => [...current, ...nextAttachments])}
           onAttachmentRemove={(attachmentId) => setAttachments((current) => current.filter((item) => item.id !== attachmentId))}

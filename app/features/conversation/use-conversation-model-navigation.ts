@@ -7,11 +7,14 @@ export type ConversationModelRuntimeDimension = "reasoning" | "speed";
 
 /** 模型菜单当前唯一可见的钻取层。 */
 export type ConversationModelPickerView =
+  | { kind: "controls" }
   | { kind: "providers" }
   | { kind: "models"; provider: ApiProvider; connectionId: string }
-  | { kind: "runtime"; provider: ApiProvider; connectionId: string; dimension: ConversationModelRuntimeDimension };
+  | { kind: "runtime"; provider: ApiProvider; connectionId: string; dimension: ConversationModelRuntimeDimension }
+  | { kind: "advanced" };
 
 type UseConversationModelNavigationOptions = {
+  initialView?: ConversationModelPickerView;
   pickerRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -21,8 +24,8 @@ const FOCUSABLE_SELECTOR = "button:not([disabled]), input:not([disabled]), selec
  * 管理菜单钻取与跨层焦点。前进时聚焦新层的当前选项，返回时恢复触发钻取的入口行，
  * 不把已卸载层留在 Tab 顺序里。
  */
-export function useConversationModelNavigation({ pickerRef }: UseConversationModelNavigationOptions) {
-  const [view, setView] = useState<ConversationModelPickerView>({ kind: "providers" });
+export function useConversationModelNavigation({ initialView = { kind: "controls" }, pickerRef }: UseConversationModelNavigationOptions) {
+  const [view, setView] = useState<ConversationModelPickerView>(initialView);
   const pendingFocusKeyRef = useRef<string | undefined>(undefined);
 
   const navigate = useCallback((nextView: ConversationModelPickerView, focusKey?: string) => {
@@ -54,6 +57,9 @@ export function useConversationModelNavigation({ pickerRef }: UseConversationMod
     navigate({ kind: "models", provider, connectionId });
   }, [navigate]);
 
+  const showProviders = useCallback(() => navigate({ kind: "providers" }), [navigate]);
+  const showAdvanced = useCallback(() => navigate({ kind: "advanced" }), [navigate]);
+
   const showRuntime = useCallback((provider: ApiProvider, connectionId: string, dimension: ConversationModelRuntimeDimension) => {
     navigate({ kind: "runtime", provider, connectionId, dimension });
   }, [navigate]);
@@ -64,16 +70,16 @@ export function useConversationModelNavigation({ pickerRef }: UseConversationMod
 
   const back = useCallback(() => {
     if (view.kind === "runtime") {
-      navigate(
-        { kind: "models", provider: view.provider, connectionId: view.connectionId },
-        `runtime-entry:${view.dimension}`,
-      );
+      navigate({ kind: "controls" }, `runtime-entry:${view.dimension}`);
       return;
     }
     if (view.kind === "models") {
       navigate({ kind: "providers" }, `provider:${view.provider}`);
+      return;
     }
+    if (view.kind === "providers") navigate({ kind: "controls" }, "control-entry:model");
+    if (view.kind === "advanced") navigate({ kind: "controls" }, "control-entry:advanced");
   }, [navigate, view]);
 
-  return { back, changeConnection, showModels, showRuntime, view };
+  return { back, changeConnection, showAdvanced, showModels, showProviders, showRuntime, view };
 }

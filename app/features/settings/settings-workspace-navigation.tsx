@@ -4,14 +4,17 @@ import { SidebarNav } from "../shared/workspace-shell";
 import { SettingsNavIcon, type SettingsIconName } from "./appearance-settings-view";
 
 /** 设置页可切换的稳定分区键，由工作台控制器统一持有当前值。 */
-export type SettingsSectionKey = "appearance" | "configuration" | "personalization" | "quota" | "mcp" | "diagnostics";
+export type SettingsSectionKey = "profile" | "appearance" | "configuration" | "personalization" | "quota" | "import" | "installed-plugins" | "mcp" | "diagnostics";
 
 /** 设置导航定义同时供桌面侧栏和移动端选择器复用。 */
 export const settingsSections = [
+  { key: "profile", label: "个人资料", icon: "personalization" },
   { key: "appearance", label: "外观", icon: "appearance" },
   { key: "configuration", label: "AI 连接", icon: "configuration" },
   { key: "personalization", label: "个性化", icon: "personalization" },
   { key: "quota", label: "额度", icon: "plugins" },
+  { key: "import", label: "导入", icon: "import" },
+  { key: "installed-plugins", label: "已安装插件", icon: "plugins" },
   { key: "mcp", label: "MCP", icon: "mcp" },
   { key: "diagnostics", label: "诊断", icon: "diagnostics" },
 ] satisfies Array<{ key: SettingsSectionKey; label: string; icon: SettingsIconName }>;

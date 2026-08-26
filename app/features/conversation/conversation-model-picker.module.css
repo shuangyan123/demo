@@ -63,7 +63,9 @@
   scrollbar-gutter: stable;
 }
 
-.picker[data-model-picker-view="providers"] {
+.picker[data-model-picker-view="controls"],
+.picker[data-model-picker-view="providers"],
+.picker[data-model-picker-view="advanced"] {
   width: min(13rem, calc(100vw - 1.25rem));
 }
 
@@ -97,6 +99,7 @@
 }
 
 .providerRow,
+.controlRow,
 .emptyRow,
 .manageRow,
 .runtimeEntries > button {
@@ -118,6 +121,42 @@
   font-size: 0.75rem;
   text-align: left;
 }
+
+.controlRow {
+  display: flex;
+  width: calc(100% - 0.5rem);
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin: 0.25rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  padding: 0.35rem 0.5rem;
+  color: inherit;
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.controlRow > span:last-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controlRow:hover,
+.controlRow:focus-visible {
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.controlRow:disabled { opacity: 0.48; }
 
 .providerRow:hover,
 .providerRow:focus-visible,
@@ -386,6 +425,11 @@
     width: min(20rem, calc(100vw - 1.25rem));
   }
 
+  .picker[data-model-picker-view="controls"],
+  .picker[data-model-picker-view="advanced"] {
+    width: min(20rem, calc(100vw - 1.25rem));
+  }
+
   .picker[data-model-picker-view="models"] {
     width: min(22rem, calc(100vw - 1.25rem));
   }
@@ -406,6 +450,7 @@
   }
 
   .providerRow,
+  .controlRow,
   .emptyRow,
   .manageRow,
   .radioRow,

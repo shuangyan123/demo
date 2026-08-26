@@ -22,12 +22,12 @@
 :global(.conversation-topic-drawer > header),
 :global(.conversation-topic-drawer > header > div),
 :global(.conversation-thread-actions) { display: flex; align-items: center; }
-:global(.conversation-topic-list) { display: grid; max-height: inherit; gap: 0.2rem; overflow-y: auto; padding: 0.1rem 0; scrollbar-width: none; }
+:global(.conversation-topic-list) { display: grid; max-height: inherit; gap: 0.05rem; overflow-y: auto; padding: 0.1rem 0; scrollbar-width: none; }
 :global(.conversation-topic-list::-webkit-scrollbar) { display: none; }
 :global(.conversation-topic-list button) {
   display: grid;
   width: 1.75rem;
-  min-height: 1.75rem;
+  min-height: 1.4rem;
   place-items: center;
   border-radius: 0.4rem;
   padding: 0;
@@ -38,7 +38,7 @@
 :global(.conversation-topic-list button:focus-visible) { color: var(--foreground); outline: none; }
 :global(.conversation-topic-list button.is-latest) { color: var(--foreground); }
 :global(.topic-mark) {
-  width: 0.5rem;
+  width: 0.42rem;
   height: 2px;
   flex: none;
   border-radius: 999px;
@@ -46,12 +46,12 @@
 }
 :global(.conversation-topic-list button:hover .topic-mark),
 :global(.conversation-topic-list button:focus-visible .topic-mark),
-:global(.conversation-topic-list button.is-latest .topic-mark) { width: 0.75rem; background: currentColor; }
+:global(.conversation-topic-list button.is-latest .topic-mark) { width: 0.65rem; background: currentColor; }
 :global(.conversation-topic-preview) {
   position: fixed;
   z-index: 45;
   display: grid;
-  width: min(30rem, calc(100vw - 2rem));
+  width: min(22rem, calc(100vw - 2rem));
   gap: 0.45rem;
   transform: translateY(-50%);
   border: 1px solid var(--line);
@@ -62,7 +62,7 @@
   pointer-events: none;
 }
 :global(.conversation-topic-preview > strong) { max-height: 2.9em; overflow: hidden; font-size: 0.84rem; line-height: 1.45; }
-:global(.conversation-topic-preview > p) { max-height: 4.95em; overflow: hidden; color: var(--muted); font-size: 0.78rem; line-height: 1.65; }
+:global(.conversation-topic-preview > p) { display: -webkit-box; max-height: 4.65em; overflow: hidden; color: var(--muted); font-size: 0.78rem; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 :global(.conversation-topic-preview > div) { display: flex; min-width: 0; align-items: center; gap: 0.75rem; color: var(--muted); font-size: 0.72rem; }
 :global(.conversation-topic-preview > div span) { display: flex; align-items: center; gap: 0.35rem; }
 :global(.conversation-topic-trigger) {

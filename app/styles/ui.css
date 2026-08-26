@@ -1116,7 +1116,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 0;
+  border-bottom: 1px solid var(--line);
   padding: 0.55rem 0;
 }
 
@@ -1137,7 +1137,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 .conversation-turn {
   width: min(100%, 50rem);
-  margin: 0 auto 1.35rem;
+  margin: 0 auto 1rem;
 }
 
 .conversation-message {
@@ -1519,14 +1519,34 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   gap: 0.1rem;
 }
 
+.conversation-composer-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: auto;
+}
+
 .conversation-composer-toolbar .conversation-send {
   margin-left: 0;
 }
 
-.conversation-context-budget { position: relative; margin-left: auto; }
-.conversation-context-budget > summary { min-height: 2rem; cursor: pointer; list-style: none; border-radius: 0.45rem; padding: 0.4rem 0.5rem; color: var(--muted); font-family: var(--app-code-font); font-size: 0.68rem; }
+.conversation-context-budget { position: relative; flex: none; }
+.conversation-context-budget > summary { display: grid; min-height: 2.25rem; min-width: 2.25rem; cursor: pointer; list-style: none; place-items: center; border-radius: 999px; color: var(--muted); }
+.conversation-context-budget > summary::-webkit-details-marker { display: none; }
 .conversation-context-budget[open] > summary { background: var(--surface-muted); color: var(--foreground); }
+.conversation-context-ring { position: relative; display: grid; width: 2.05rem; height: 2.05rem; place-items: center; border-radius: 999px; background: conic-gradient(currentColor var(--context-usage), color-mix(in srgb, var(--line) 72%, transparent) 0); }
+.conversation-context-ring::before { content: ""; position: absolute; width: 1.65rem; height: 1.65rem; border-radius: inherit; background: var(--surface); }
+.conversation-context-ring > span { position: relative; z-index: 1; font-family: var(--app-code-font); font-size: 0.57rem; font-weight: 650; }
+.conversation-context-budget[data-context-warning="true"] { color: color-mix(in srgb, #b45309 82%, var(--foreground)); }
 .conversation-context-budget > section { position: absolute; z-index: 62; right: 0; bottom: calc(100% + 0.5rem); display: grid; width: min(22rem, calc(100vw - 2rem)); gap: 0.75rem; border: 1px solid var(--line); border-radius: 0.8rem; background: var(--surface); padding: 0.85rem; box-shadow: 0 14px 34px rgb(0 0 0 / 12%); }
+.conversation-context-budget > section header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.conversation-context-budget > section header span, .conversation-context-budget > section small, .conversation-context-compaction-state { color: var(--muted); font-size: 0.7rem; }
+.conversation-context-budget > section dl { display: grid; gap: 0.45rem; font-size: 0.74rem; }
+.conversation-context-budget > section dl div { display: flex; justify-content: space-between; gap: 1rem; }
+.conversation-context-budget > section dt, .conversation-context-summary > span { color: var(--muted); }
+.conversation-context-summary { border-block: 1px solid var(--line); padding: 0.6rem 0; font-size: 0.72rem; }
+.conversation-context-summary p { display: -webkit-box; margin-top: 0.25rem; overflow: hidden; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 
 .conversation-composer-menu {
   position: relative;
@@ -1994,6 +2014,38 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 .conversation-send:disabled {
   opacity: 0.35;
+}
+
+.conversation-voice { background: transparent; border: 1px solid color-mix(in srgb, var(--foreground) 72%, var(--line)); color: var(--foreground); }
+
+.profile-usage-settings { display: grid; gap: 2rem; }
+.profile-usage-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-block: 1px solid var(--line); }
+.profile-usage-grid dl { padding: 0.5rem 0; }
+.profile-usage-grid dl + dl { border-left: 1px solid var(--line); padding-left: 1.5rem; }
+.profile-usage-grid dl:first-child { padding-right: 1.5rem; }
+.profile-usage-grid dl div { display: flex; min-height: 2.6rem; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid color-mix(in srgb, var(--line) 62%, transparent); font-size: 0.8rem; }
+.profile-usage-grid dl div:last-child { border-bottom: 0; }
+.profile-usage-grid dt, .profile-provider-links header p { color: var(--muted); }
+.profile-usage-grid dd { font-weight: 650; text-align: right; }
+.profile-provider-links { display: grid; gap: 0.9rem; }
+.profile-provider-links header h2 { font-size: 1rem; font-weight: 680; }
+.profile-provider-links header p { margin-top: 0.2rem; font-size: 0.75rem; }
+.profile-provider-links > div { border-top: 1px solid var(--line); }
+.profile-provider-links article { display: flex; min-height: 3.4rem; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); }
+.profile-provider-links article > span, .profile-provider-links nav, .profile-provider-links a { display: flex; align-items: center; }
+.profile-provider-links article > span { gap: 0.55rem; }
+.profile-provider-links nav { flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem 0.9rem; }
+.profile-provider-links a { gap: 0.2rem; color: var(--muted); font-size: 0.74rem; }
+.profile-provider-links a:hover { color: var(--foreground); text-decoration: underline; text-underline-offset: 3px; }
+.settings-disabled-feature { display: grid; min-height: 45vh; place-content: center; justify-items: center; gap: 0.6rem; text-align: center; }
+.settings-disabled-feature p { color: var(--muted); font-size: 0.8rem; }
+
+@media (max-width: 720px) {
+  .profile-usage-grid { grid-template-columns: 1fr; }
+  .profile-usage-grid dl + dl { border-top: 1px solid var(--line); border-left: 0; padding-left: 0; }
+  .profile-usage-grid dl:first-child { padding-right: 0; }
+  .profile-provider-links article { align-items: flex-start; flex-direction: column; padding: 0.8rem 0; }
+  .profile-provider-links nav { justify-content: flex-start; }
 }
 
 .command-palette-backdrop {
@@ -2507,7 +2559,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
     min-height: 4.75rem;
     align-items: center;
     flex-direction: row;
-    border-bottom: 0;
+    border-bottom: 1px solid var(--border);
     padding: 1rem 1.25rem;
   }
 

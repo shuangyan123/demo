@@ -268,6 +268,14 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - Application 在 lease 后、凭据和外部请求前执行任务级 preflight；Executor 与 Acquisition service 仍保留 defense-in-depth 的 MCP scheduled、origin、SSRF 和内容边界。每次真实运行都重新解析当前 definition、MCP discovery/tool、`allow_scheduled` 与 origin 交集。
 - `AutomationRun.unattendedAudit` 复用既有运行记录保存最小授权与外部调用摘要；不新增审计表、不保存 secrets、完整 args、raw result、完整 URL 路径、文档正文或模型上下文。授权阻断保留任务/配置/历史，并以 blocked terminal 进入收件箱。
 
+## Chat Workbench 主内容壳层（2026-08-26）
+
+- `MainContentShell` 统一右侧内容的居中 gutter，并提供 narrow / medium / wide 三档宽度；`ReviewWorkspaceShell` 只按视图选择预设，对话继续占满可用高度并由消息区独立滚动。
+- Composer 的空输入主操作是实时语音，存在文本或附件时切换为发送；按住录音保留为右侧次级操作。模型、推理强度、速度和高级设置共用单一可回退菜单，手动模型 ID 只在高级层出现。
+- `ConversationContextIndicator` 只消费结构化预算、当前摘要和既有压缩记录。72% / 84% 是未来告警与自动压缩的策略契约；`autoCompactionEnabled` 当前为 `false`，不会新增后台压缩、隐式重放或持久化。
+- 粉笔不再作为公考项目主导航模块，导入统一进入“设置 → 导入”，粉笔仅是当前来源。主侧栏“插件与技能”负责发现，设置“已安装插件”负责启停、权限和卸载管理。
+- 个人资料使用现有本地计数、连接和默认模型事实；厂商快捷入口只来自代码内官方 HTTPS allowlist 与 provider contract 文档地址，绝不使用自定义 Base URL、模型输出或对话内容生成外链。
+
 ## 扩展点
 
 - 新学习专项注册 `StudyDomainDefinition`，不得在 shell 中新增专项分支。
