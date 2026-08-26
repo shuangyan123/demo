@@ -6,7 +6,6 @@ import {
   useId,
   useMemo,
   useRef,
-  useState,
   type KeyboardEvent,
   type MutableRefObject,
 } from "react";
@@ -87,13 +86,12 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const modelRadioName = useId();
-  const [manualModelId, setManualModelId] = useState("");
   const eligible = useMemo(() => connections.filter((connection) => connection.capabilities.includes(purpose)), [connections, purpose]);
   const selectedConnection = eligible.find((connection) => connection.id === selectedConnectionId);
   const initialView: ConversationModelPickerView = initialRuntimeDimension && selectedConnection && selectedModelId
     ? { kind: "runtime", provider: selectedConnection.provider, connectionId: selectedConnection.id, dimension: initialRuntimeDimension }
     : { kind: "controls" };
-  const { back, changeConnection, showAdvanced, showModels, showProviders, showRuntime, view } = useConversationModelNavigation({ initialView, pickerRef });
+  const { back, changeConnection, showModels, showProviders, showRuntime, view } = useConversationModelNavigation({ initialView, pickerRef });
   const providers = useMemo(() => Array.from(new Set(eligible.map((connection) => connection.provider))).sort((left, right) => {
     if (left === selectedConnection?.provider) return -1;
     if (right === selectedConnection?.provider) return 1;
@@ -101,25 +99,14 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   }), [eligible, selectedConnection?.provider]);
   const activeProvider = view.kind === "models" || view.kind === "runtime" ? view.provider : undefined;
   const providerConnections = activeProvider ? eligible.filter((connection) => connection.provider === activeProvider) : [];
-  const activeConnection = view.kind === "controls" || view.kind === "advanced"
+  const activeConnection = view.kind === "controls"
     ? selectedConnection
     : view.kind === "models" || view.kind === "runtime"
       ? providerConnections.find((connection) => connection.id === view.connectionId) ?? providerConnections[0]
       : undefined;
   const catalog = useConnectionModelCatalog(activeConnection, purpose);
   const activeSelectedModelId = activeConnection?.id === selectedConnectionId ? selectedModelId : undefined;
-  const manualSelectedModel = activeConnection && activeSelectedModelId && !catalog.some((model) => model.id === activeSelectedModelId)
-    ? {
-        id: activeSelectedModelId,
-        label: activeSelectedModelId,
-        provider: activeConnection.provider,
-        purposes: [purpose],
-        capabilities: [purpose],
-        status: "manual" as const,
-        source: "manual" as const,
-      }
-    : undefined;
-  const models = manualSelectedModel ? [manualSelectedModel, ...catalog] : catalog;
+  const models = catalog;
   const selectedDescriptor = activeConnection && activeSelectedModelId
     ? getAiModelRuntimeDescriptor(activeConnection.provider, activeSelectedModelId)
     : undefined;
@@ -140,7 +127,6 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     const connectionsForProvider = eligible.filter((connection) => connection.provider === provider);
     const nextConnection = connectionsForProvider.find((connection) => connection.id === selectedConnectionId) ?? connectionsForProvider[0];
     if (!nextConnection) return;
-    setManualModelId("");
     showModels(provider, nextConnection.id);
   }
 
@@ -168,12 +154,6 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     });
   }
 
-  function submitManualModel() {
-    const nextModelId = manualModelId.trim();
-    if (!nextModelId) return;
-    chooseModel(nextModelId);
-  }
-
   return (
     <div
       ref={assignPickerRef}
@@ -195,9 +175,6 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           </button>
           <button className={styles.controlRow} data-picker-focus-key="runtime-entry:speed" disabled={!selectedDescriptor?.speed} type="button" onClick={() => openSelectedRuntime("speed")}>
             <span>速度</span><span>{selectedDescriptor?.speed?.options.find((option) => option.value === runtimeValues.speed)?.label ?? "不可用"}<AppIcon name="chevronRight" size={16} /></span>
-          </button>
-          <button className={styles.controlRow} data-picker-focus-key="control-entry:advanced" type="button" onClick={showAdvanced}>
-            <span>高级</span><span><AppIcon name="chevronRight" size={16} /></span>
           </button>
         </nav>
       ) : null}
@@ -241,7 +218,6 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                 aria-label="连接"
                 value={activeConnection.id}
                 onChange={(event) => {
-                  setManualModelId("");
                   changeConnection(activeProvider, event.currentTarget.value);
                 }}
               >
@@ -276,33 +252,6 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                 </UiTooltip>
               );
             })}
-          </div>
-          <button className={styles.manageRow} type="button" onClick={onOpenConnections}>管理 AI 连接</button>
-        </section>
-      ) : null}
-
-      {view.kind === "advanced" ? (
-        <section key="advanced" className={styles.layer} aria-label="高级模型配置">
-          <header className={styles.header}><button aria-label="返回模型配置" className={styles.backButton} type="button" onClick={back}><AppIcon name="back" size={16} /></button><strong>高级</strong></header>
-          <div className={styles.manualRow}>
-            <label htmlFor={`${id ?? modelRadioName}-manual-model`}>手动模型 ID</label>
-            <div>
-              <input
-                id={`${id ?? modelRadioName}-manual-model`}
-                aria-label="手动模型 ID"
-                placeholder="输入模型 ID"
-                value={manualModelId}
-                onChange={(event) => setManualModelId(event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") return;
-                  event.preventDefault();
-                  submitManualModel();
-                }}
-              />
-              <button aria-label="使用手动模型" disabled={!manualModelId.trim()} type="button" onClick={submitManualModel}>
-                <AppIcon name="check" size={16} />
-              </button>
-            </div>
           </div>
           <button className={styles.manageRow} type="button" onClick={onOpenConnections}>管理 AI 连接</button>
         </section>

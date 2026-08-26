@@ -229,8 +229,7 @@
 }
 
 .profileRow select:focus-visible,
-.budgetRow input:focus-visible,
-.manualRow input:focus-visible {
+.budgetRow input:focus-visible {
   outline: 1px solid color-mix(in srgb, var(--foreground) 58%, transparent);
   outline-offset: 1px;
 }
@@ -346,48 +345,6 @@
   font-size: 0.7rem;
 }
 
-.manualRow {
-  display: grid;
-  gap: 0.25rem;
-  border-top: 1px solid var(--line);
-  padding: 0.35rem 0.45rem;
-  color: var(--muted);
-  font-size: 0.68rem;
-}
-
-.manualRow > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 1.8rem;
-  align-items: stretch;
-}
-
-.manualRow input {
-  min-width: 0;
-  height: 1.875rem;
-  border: 1px solid var(--line);
-  border-right: 0;
-  border-radius: 0.4rem 0 0 0.4rem;
-  background: var(--surface);
-  padding: 0.25rem 0.4rem;
-  color: var(--foreground);
-}
-
-.manualRow button {
-  display: grid;
-  width: 1.8rem;
-  height: 1.875rem;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 0 0.4rem 0.4rem 0;
-  background: var(--surface-muted);
-  color: var(--foreground);
-}
-
-.manualRow button:disabled {
-  color: var(--muted);
-  opacity: 0.45;
-}
-
 .emptyRow,
 .manageRow {
   width: 100%;
@@ -425,8 +382,7 @@
     width: min(20rem, calc(100vw - 1.25rem));
   }
 
-  .picker[data-model-picker-view="controls"],
-  .picker[data-model-picker-view="advanced"] {
+  .picker[data-model-picker-view="controls"] {
     width: min(20rem, calc(100vw - 1.25rem));
   }
 
@@ -478,18 +434,8 @@
     min-height: 44px;
   }
 
-  .budgetRow input,
-  .manualRow input,
-  .manualRow button {
+  .budgetRow input {
     height: 44px;
-  }
-
-  .manualRow > div {
-    grid-template-columns: minmax(0, 1fr) 44px;
-  }
-
-  .manualRow button {
-    width: 2.75rem;
   }
 }
 

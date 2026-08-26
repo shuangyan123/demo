@@ -67,7 +67,7 @@ export function ReviewWorkspaceAppSidebar({
       onClick: () => onSelectView(scheduledWorkspaceDefinition.viewKey),
       preload: "automation",
     },
-    { id: "plugins", label: "插件与技能", icon: "plugins", active: view === "plugins", onClick: () => onSelectView("plugins"), preload: "plugins" },
+    { id: "plugins", label: "插件", icon: "plugins", active: view === "plugins", onClick: () => onSelectView("plugins"), preload: "plugins" },
   ];
 
   return (

@@ -3,13 +3,14 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { darkThemePresets, lightThemePresets } from "./theme-presets.ts";
 
-test("设置导航独立展示个人资料、导入、已安装插件并兼容旧角色入口", async () => {
+test("设置导航独立展示个人资料、导入、插件并兼容旧角色入口", async () => {
   const [source, navigation, sectionNavigation] = await Promise.all([
     readFile(new URL("./settings-workspace.tsx", import.meta.url), "utf8"),
     readFile(new URL("../review/use-review-workspace-recovery-navigation.ts", import.meta.url), "utf8"),
     readFile(new URL("./settings-workspace-navigation.tsx", import.meta.url), "utf8"),
   ]);
-  for (const label of ["个人资料", "导入", "已安装插件"]) assert.match(sectionNavigation, new RegExp(label));
+  for (const label of ["个人资料", "导入", "插件"]) assert.match(sectionNavigation, new RegExp(label));
+  assert.doesNotMatch(sectionNavigation, /label: "已安装插件"/);
   assert.match(source, /"personalization"/);
   assert.match(source, /"quota"/);
   assert.match(navigation, /section === "roles" \? "personalization"/);
@@ -26,7 +27,8 @@ test("粉笔导入从项目主导航移到通用导入设置，插件发现与�
     readFile(new URL("./plugins/settings-plugins-view.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(registry, /\["import", "knowledge", "stats", "tutoring"\]/);
-  assert.match(sidebar, /label: "插件与技能"/);
+  assert.match(sidebar, /label: "插件"/);
+  assert.doesNotMatch(sidebar, /label: "插件与技能"/);
   assert.match(importView, /<h1>导入<\/h1>[\s\S]*来源：粉笔/);
   assert.match(secondaryViews, /initialMode="browse"/);
   assert.match(pluginView, /initialMode\?: "manage" \| "browse"/);

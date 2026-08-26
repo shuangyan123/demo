@@ -31,6 +31,25 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
   ]);
   await page.reload();
   await selectMobileWorkspaceEntry(page, "移动 GLM 菜单");
+  const conversationGeometry = await page.evaluate(() => {
+    const frame = document.querySelector<HTMLElement>(".chrome-content-frame")!.getBoundingClientRect();
+    const workspace = document.querySelector<HTMLElement>(".conversation-workspace")!.getBoundingClientRect();
+    const messageList = document.querySelector<HTMLElement>(".conversation-message-list")!;
+    const composer = document.querySelector<HTMLElement>(".conversation-composer")!.getBoundingClientRect();
+    return {
+      composerBottom: composer.bottom,
+      frameBottom: frame.bottom,
+      listOverflowY: getComputedStyle(messageList).overflowY,
+      viewportHeight: window.innerHeight,
+      workspaceBottom: workspace.bottom,
+    };
+  });
+  expect(conversationGeometry.frameBottom).toBeLessThanOrEqual(conversationGeometry.viewportHeight + 1);
+  expect(conversationGeometry.workspaceBottom).toBeLessThanOrEqual(conversationGeometry.viewportHeight + 1);
+  expect(conversationGeometry.composerBottom).toBeLessThanOrEqual(conversationGeometry.viewportHeight);
+  expect(conversationGeometry.composerBottom).toBeGreaterThan(conversationGeometry.viewportHeight - 32);
+  expect(conversationGeometry.listOverflowY).toBe("auto");
+  await expectNoDocumentHorizontalOverflow(page);
   await page.locator('[data-conversation-composer] input[type="file"]').setInputFiles(
     Array.from({ length: 6 }, (_, index) => ({
       name: `移动端多行附件-${index + 1}-用于验证动态浮层定位.txt`,

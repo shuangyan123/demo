@@ -10,6 +10,7 @@ const draftInput = readFileSync(new URL("./conversation-draft-input.tsx", import
 const slashCommands = readFileSync(new URL("./conversation-slash-commands.tsx", import.meta.url), "utf8");
 const contextIndicator = readFileSync(new URL("./conversation-context-indicator.tsx", import.meta.url), "utf8");
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
+const popover = readFileSync(new URL("../shared/ui-popover.tsx", import.meta.url), "utf8");
 const mainContentShell = readFileSync(new URL("../shared/main-content-shell.tsx", import.meta.url), "utf8");
 const reviewShell = readFileSync(new URL("../review/review-workspace-shell.tsx", import.meta.url), "utf8");
 
@@ -37,11 +38,11 @@ test("斜杠菜单提供四个提示词和四个工具命令", () => {
   assert.doesNotMatch(composer, /onAppendShortcut/);
 });
 
-test("模型、推理、速度和高级设置收敛到同一个可键盘操作的菜单", () => {
+test("模型、推理和速度收敛到同一个可键盘操作的目录菜单", () => {
   assert.match(composer, /openModelSelector: \(\) => modelSelectorRef\.current\?\.open\(\)/);
   assert.match(composer, /openRuntime\("reasoning"\)/);
-  for (const label of ["模型", "推理强度", "速度", "高级"]) assert.match(modelPicker, new RegExp(`>${label}<`));
-  assert.match(modelPicker, /手动模型 ID/);
+  for (const label of ["模型", "推理强度", "速度"]) assert.match(modelPicker, new RegExp(`>${label}<`));
+  assert.doesNotMatch(modelPicker, /手动模型 ID|高级模型配置|showAdvanced|manualModelId/);
   assert.match(modelPicker, /event\.key !== "ArrowDown" && event\.key !== "ArrowUp"/);
   assert.doesNotMatch(composer, /ConversationReasoningControl/);
 });
@@ -58,7 +59,11 @@ test("上下文环只展示结构化用量和截断摘要，并保留手动压�
   assert.match(composer, /ConversationContextIndicator/);
   assert.match(contextIndicator, /budget\.usedTokens \/ budget\.contextWindow/);
   assert.match(contextIndicator, /slice\(0, 120\)/);
-  assert.match(contextIndicator, /event\.key !== "Escape"/);
+  assert.match(contextIndicator, /UiPopover/);
+  assert.match(popover, /createPortal/);
+  assert.match(popover, /event\.key !== "Escape"/);
+  assert.match(popover, /document\.addEventListener\("pointerdown", closeOnOutside\)/);
+  assert.match(popover, /triggerRef\.current\?\.focus\(\)/);
   assert.match(contextIndicator, /压缩上下文/);
   assert.match(composer, /onCompressContext/);
   assert.deepEqual(conversationContextUsagePolicy, { warningPercent: 72, autoCompactionPercent: 84, autoCompactionEnabled: false });
@@ -69,4 +74,6 @@ test("右侧内容统一使用居中宽度预设且对话保留宽屏工作区",
   for (const width of ["max-w-3xl", "max-w-5xl", "max-w-7xl"]) assert.match(mainContentShell, new RegExp(width));
   assert.match(mainContentShell, /mx-auto min-h-full w-full/);
   assert.match(reviewShell, /<MainContentShell[\s\S]*width=\{contentWidth\(view\)\}/);
+  assert.match(reviewShell, /contentSurface=\{view === "conversation" \? "plain" : "raised-surface"\}/);
+  assert.match(reviewShell, /conversation-main-content flex !h-full !min-h-0/);
 });

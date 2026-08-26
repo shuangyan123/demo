@@ -328,15 +328,19 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     pointer-events: auto;
   }
 
-  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] {
+  /* plain 与 raised surface 都必须继承移动工作区的确定高度，避免内容把 composer 推出视口。 */
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame,
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame > .chrome-content {
     height: 100%;
+  }
+
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] {
     padding-left: 0;
     overflow: hidden;
     border-top-left-radius: 0;
   }
 
   .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
-    height: 100%;
     border: 0;
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;

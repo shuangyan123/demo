@@ -451,7 +451,7 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.doesNotMatch(shellSource, /integrationMode|data-integration-mode/);
   assert.doesNotMatch(shellSource, /chrome-topbar[^"]*border-b/);
   assert.doesNotMatch(shellSource, /chrome-sidebar[^"]*border-r/);
-  assert.doesNotMatch(reviewShellSource, /contentSurface=\{view === "conversation"/);
+  assert.match(reviewShellSource, /contentSurface=\{view === "conversation" \? "plain" : "raised-surface"\}/);
   assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
   assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
   assert.match(shellStyles, /--chrome-workspace-top-inset:\s*12px/);
@@ -486,6 +486,7 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.match(baseStyles, /input\.font-mono,[\s\S]*?font-family: var\(--app-code-font\);/);
   assert.match(shellStyles, /@media \(min-width: 1025px\)[\s\S]*?\.chrome-layout\.is-sidebar-expanded \.chrome-sidebar[\s\S]*?border-right-width: 0;/);
   assert.match(shellStyles, /\.chrome-layout\[data-mobile-sidebar\][\s\S]*?> \.chrome-content[\s\S]*?box-shadow: none !important;/);
+  assert.match(shellStyles, /\.chrome-layout\[data-mobile-sidebar\] \.chrome-content-frame,[\s\S]*?\.chrome-content-frame > \.chrome-content\s*\{\s+height: 100%;/);
   assert.doesNotMatch(shellStyles, /padding-left: 18px;/);
   assert.match(uiStyles, /\.conversation-workspace\s*\{[\s\S]*?height: 100%;/);
   assert.doesNotMatch(uiStyles, /\.conversation-workspace\s*\{[\s\S]*?height: calc\(100dvh - var\(--chrome-topbar-height\)\)/);

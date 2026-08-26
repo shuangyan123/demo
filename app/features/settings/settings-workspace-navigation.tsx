@@ -14,7 +14,7 @@ export const settingsSections = [
   { key: "personalization", label: "个性化", icon: "personalization" },
   { key: "quota", label: "额度", icon: "plugins" },
   { key: "import", label: "导入", icon: "import" },
-  { key: "installed-plugins", label: "已安装插件", icon: "plugins" },
+  { key: "installed-plugins", label: "插件", icon: "plugins" },
   { key: "mcp", label: "MCP", icon: "mcp" },
   { key: "diagnostics", label: "诊断", icon: "diagnostics" },
 ] satisfies Array<{ key: SettingsSectionKey; label: string; icon: SettingsIconName }>;

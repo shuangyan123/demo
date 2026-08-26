@@ -50,7 +50,7 @@ const viewTitles: Record<ViewKey, string> = {
   automation: "已安排",
   import: "导入",
   entry: "手动录入",
-  plugins: "插件与技能",
+  plugins: "插件",
   settings: "设置",
 };
 
@@ -107,6 +107,7 @@ export function ReviewWorkspaceShell({
 
   return (
     <WorkspaceShell
+      contentSurface={view === "conversation" ? "plain" : "raised-surface"}
       contentClassName={contentClassName ?? (view === "conversation"
         ? "conversation-shell-content"
         : view === "automation"
@@ -122,7 +123,7 @@ export function ReviewWorkspaceShell({
       sidebar={sidebarOverride ?? applicationSidebar}
     >
       <MainContentShell
-        className={view === "conversation" ? "conversation-main-content flex min-h-full flex-1 flex-col !px-0" : undefined}
+        className={view === "conversation" ? "conversation-main-content flex !h-full !min-h-0 flex-1 flex-col !px-0" : undefined}
         width={contentWidth(view)}
       >
       {["library", "import", "entry", "plugins"].includes(view) && notice !== "本地题库已同步" ? (

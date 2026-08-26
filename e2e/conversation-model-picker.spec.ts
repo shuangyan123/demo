@@ -131,28 +131,23 @@ test("桌面模型菜单按层紧凑变宽，并保持键盘、tooltip 与焦点
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("手动模型支持行尾提交与 Enter，普通选择无需全局确认", async ({ page }) => {
+test("聊天模型菜单只展示目录模型，不提供手动模型或空高级入口", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.goto("/");
   await seedConversationModelFixtures(page, [
     { id: "picker-custom", label: "E2E Custom", provider: "custom", apiFormat: "chat_completions" },
   ], [
-    { id: "picker-custom-chat", title: "手动模型提交", connectionId: "picker-custom", modelId: "manual-initial" },
+    { id: "picker-custom-chat", title: "目录模型边界", connectionId: "picker-custom", modelId: "legacy-manual-model" },
   ]);
   await page.reload();
 
   const picker = await openConversationModelPicker(page, "picker-custom-chat");
+  await expect(picker.getByRole("button", { name: "高级", exact: true })).toHaveCount(0);
+  await expect(picker.getByRole("textbox", { name: "手动模型 ID" })).toHaveCount(0);
   await picker.getByRole("button", { name: "Local / Custom OpenAI compatible" }).click();
-  const input = picker.getByRole("textbox", { name: "手动模型 ID" });
-  await input.fill("manual-by-button");
-  await picker.getByRole("button", { name: "使用手动模型" }).click();
-  await expect(picker).toBeVisible();
-  await expect.poll(async () => (await readConversationModelSelection(page, "picker-custom-chat")).modelId).toBe("manual-by-button");
-
-  await input.fill("manual-by-enter");
-  await input.press("Enter");
-  await expect.poll(async () => (await readConversationModelSelection(page, "picker-custom-chat")).modelId).toBe("manual-by-enter");
-  await expect(picker.getByText("使用此模型", { exact: true })).toHaveCount(0);
+  await expect(picker.getByRole("textbox", { name: "手动模型 ID" })).toHaveCount(0);
+  await expect(picker.getByRole("radio", { name: "legacy-manual-model" })).toHaveCount(0);
+  await expect.poll(async () => (await readConversationModelSelection(page, "picker-custom-chat")).modelId).toBe("legacy-manual-model");
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

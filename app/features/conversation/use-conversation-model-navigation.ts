@@ -10,8 +10,7 @@ export type ConversationModelPickerView =
   | { kind: "controls" }
   | { kind: "providers" }
   | { kind: "models"; provider: ApiProvider; connectionId: string }
-  | { kind: "runtime"; provider: ApiProvider; connectionId: string; dimension: ConversationModelRuntimeDimension }
-  | { kind: "advanced" };
+  | { kind: "runtime"; provider: ApiProvider; connectionId: string; dimension: ConversationModelRuntimeDimension };
 
 type UseConversationModelNavigationOptions = {
   initialView?: ConversationModelPickerView;
@@ -58,7 +57,6 @@ export function useConversationModelNavigation({ initialView = { kind: "controls
   }, [navigate]);
 
   const showProviders = useCallback(() => navigate({ kind: "providers" }), [navigate]);
-  const showAdvanced = useCallback(() => navigate({ kind: "advanced" }), [navigate]);
 
   const showRuntime = useCallback((provider: ApiProvider, connectionId: string, dimension: ConversationModelRuntimeDimension) => {
     navigate({ kind: "runtime", provider, connectionId, dimension });
@@ -78,8 +76,7 @@ export function useConversationModelNavigation({ initialView = { kind: "controls
       return;
     }
     if (view.kind === "providers") navigate({ kind: "controls" }, "control-entry:model");
-    if (view.kind === "advanced") navigate({ kind: "controls" }, "control-entry:advanced");
   }, [navigate, view]);
 
-  return { back, changeConnection, showAdvanced, showModels, showProviders, showRuntime, view };
+  return { back, changeConnection, showModels, showProviders, showRuntime, view };
 }

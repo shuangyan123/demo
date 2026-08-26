@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { AppIcon } from "../shared/app-icon";
+import { computeUiOverlayPosition } from "../shared/ui-overlay-position";
 import type { ConversationTopic } from "./use-conversation-navigation";
 
 type ConversationTopicNavigationProps = {
@@ -11,7 +13,7 @@ type ConversationTopicNavigationProps = {
   topics: ConversationTopic[];
 };
 
-type TopicPreview = { topic: ConversationTopic; left: number; top: number };
+type TopicPreview = { anchor: HTMLButtonElement; topic: ConversationTopic };
 
 function topicAccessibleName(topic: ConversationTopic, latest: boolean): string {
   return `${latest ? "最新主题，" : ""}主题 ${topic.ordinal}：${topic.label}${topic.summary ? `。摘要：${topic.summary}` : ""}${topic.attachments.length ? `。${topic.attachments.length} 个附件` : ""}`;
@@ -58,9 +60,34 @@ function TopicList({ drawer = false, onPreview, onSelect, topics }: {
 }
 
 function TopicPreviewCard({ preview }: { preview: TopicPreview }) {
+  const cardRef = useRef<HTMLElement | null>(null);
+  const [position, setPosition] = useState({ left: 0, top: 0, visible: false });
   const visibleAttachments = preview.topic.attachments.slice(0, 2);
-  return (
-    <aside className="conversation-topic-preview" style={{ left: preview.left, top: preview.top }} role="tooltip">
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const update = () => setPosition({
+      ...computeUiOverlayPosition({
+        anchor: preview.anchor.getBoundingClientRect(),
+        overlay: card.getBoundingClientRect(),
+        placement: "right",
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+        gap: 10,
+      }),
+      visible: true,
+    });
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [preview]);
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <aside ref={cardRef} className="conversation-topic-preview" style={{ left: position.left, top: position.top, visibility: position.visible ? "visible" : "hidden" }} role="tooltip">
       <strong>{preview.topic.ordinal}. {preview.topic.label}</strong>
       {preview.topic.summary ? <p>{preview.topic.summary}</p> : null}
       {visibleAttachments.length ? (
@@ -69,7 +96,8 @@ function TopicPreviewCard({ preview }: { preview: TopicPreview }) {
           {preview.topic.attachments.length > 2 ? <em>+{preview.topic.attachments.length - 2}</em> : null}
         </div>
       ) : null}
-    </aside>
+    </aside>,
+    document.body,
   );
 }
 
@@ -81,14 +109,8 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
 
   function showPreview(topic: ConversationTopic, target: HTMLButtonElement, delay = 180) {
     if (previewTimerRef.current !== undefined) window.clearTimeout(previewTimerRef.current);
-    const rect = target.getBoundingClientRect();
     previewTimerRef.current = window.setTimeout(() => {
-      const cardHalfHeight = 86;
-      setPreview({
-        topic,
-        left: Math.min(window.innerWidth - 500, rect.right + 10),
-        top: Math.max(cardHalfHeight + 12, Math.min(window.innerHeight - cardHalfHeight - 12, rect.top + rect.height / 2)),
-      });
+      setPreview({ anchor: target, topic });
     }, delay);
   }
 
@@ -138,7 +160,13 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
   if (!topics.length) return null;
   return (
     <>
-      <aside className="conversation-topic-rail" onMouseLeave={() => setPreview(undefined)}>
+      <aside
+        className="conversation-topic-rail"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPreview(undefined);
+        }}
+        onMouseLeave={() => setPreview(undefined)}
+      >
         <TopicList topics={topics} onSelect={onSelect} onPreview={(topic, target, immediate) => showPreview(topic, target, immediate ? 0 : 180)} />
       </aside>
       {preview ? <TopicPreviewCard preview={preview} /> : null}
