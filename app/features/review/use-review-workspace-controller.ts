@@ -180,6 +180,7 @@ export function useReviewWorkspaceController(scope: WorkspaceDataScope) {
       openApiSettings,
       openConfigurationHealthAction,
       openDiagnosticsTarget,
+      openMcpSettings,
       refreshAfterDataManagement,
       resetSettingsSection,
       setNotice,

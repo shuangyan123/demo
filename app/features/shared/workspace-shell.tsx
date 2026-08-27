@@ -20,7 +20,7 @@ export function WindowMenuBar({
       <div className="chrome-topbar-safe-area flex h-full min-w-0 items-center gap-3 px-3">
         <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
         {onBack && (
-          <UiHint content="返回" placement="bottom">{({ describedBy }) => <button
+          <UiHint label="返回" placement="bottom">{({ describedBy }) => <button
               className="chrome-titlebar-control hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
               type="button"
               aria-describedby={describedBy}

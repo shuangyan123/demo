@@ -178,7 +178,7 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
           <section ref={drawerRef} className="conversation-topic-drawer" role="dialog" aria-modal="true" aria-labelledby="conversation-topic-title">
             <header>
               <div><AppIcon name="topics" size={18} /><h2 id="conversation-topic-title">主题目录</h2><span>{topics.length}</span></div>
-              <UiHint content="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭主题目录" onClick={onCloseDrawer}><AppIcon name="close" size={18} /></button>}</UiHint>
+              <UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭主题目录" onClick={onCloseDrawer}><AppIcon name="close" size={18} /></button>}</UiHint>
             </header>
             <TopicList drawer topics={topics} onSelect={(turnId) => {
               onSelect(turnId);

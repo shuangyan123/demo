@@ -9,22 +9,26 @@ const addMenu = readFileSync(new URL("./conversation-add-menu.tsx", import.meta.
 const draftInput = readFileSync(new URL("./conversation-draft-input.tsx", import.meta.url), "utf8");
 const slashCommands = readFileSync(new URL("./conversation-slash-commands.tsx", import.meta.url), "utf8");
 const contextIndicator = readFileSync(new URL("./conversation-context-indicator.tsx", import.meta.url), "utf8");
+const modelSelector = readFileSync(new URL("./conversation-model-selector.tsx", import.meta.url), "utf8");
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
 const modelPickerStyles = readFileSync(new URL("./conversation-model-picker.module.css", import.meta.url), "utf8");
 const popover = readFileSync(new URL("../shared/ui-popover.tsx", import.meta.url), "utf8");
 const hint = readFileSync(new URL("../shared/ui-tooltip.tsx", import.meta.url), "utf8");
+const infoHoverCard = readFileSync(new URL("../shared/ui-info-hover-card.tsx", import.meta.url), "utf8");
 const overlay = readFileSync(new URL("../shared/ui-overlay-position.ts", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../shared/workspace-shell.tsx", import.meta.url), "utf8");
 const shellStyles = readFileSync(new URL("../../styles/shell.css", import.meta.url), "utf8");
 const mainContentShell = readFileSync(new URL("../shared/main-content-shell.tsx", import.meta.url), "utf8");
 const reviewShell = readFileSync(new URL("../review/review-workspace-shell.tsx", import.meta.url), "utf8");
 
-test("Composer 一级保持紧凑且按输入状态切换语音与发送主操作", () => {
-  assert.match(composer, /aria-haspopup="menu"[\s\S]*aria-label="添加"/);
-  assert.match(composer, /aria-label=\{recording \? "松开后转写" : "按住录音"\}/);
+test("Composer 一级保持紧凑、语义化分组并按输入状态切换语音与发送主操作", () => {
+  assert.match(composer, /aria-haspopup="menu"[\s\S]*aria-label="添加文件等内容"/);
+  assert.match(composer, /aria-label="更改权限"[\s\S]*>工具权限</);
+  assert.match(composer, /aria-label=\{recording \? "停止听写" : "点击开始听写"\}/);
   assert.match(composer, /ConversationModelSelector/);
+  assert.match(composer, /<ConversationContextIndicator[\s\S]*<ConversationModelSelector/);
   assert.match(composer, /draft\.trim\(\) \|\| attachments\.length/);
-  assert.match(composer, /aria-label="开始语音聊天"/);
+  assert.match(composer, /aria-label="开启语音聊天"/);
   assert.match(composer, /aria-label="发送"/);
   for (const label of ["文件和文件夹", "摄像头", "屏幕共享", "截图分析", "知识库检索", "MCP 工具", "Obsidian 提案", "历史辅导记录"]) {
     assert.match(addMenu, new RegExp(label));
@@ -60,17 +64,21 @@ test("添加菜单保留 Escape、外部点击、焦点恢复与首条消息阻�
   assert.match(addMenu, /请先发送首条消息，再生成 Obsidian 提案/);
 });
 
-test("上下文环只展示紧凑用量，并把手动压缩收敛到 slash command", () => {
+test("上下文环使用只读信息卡，并把手动压缩收敛到 slash command", () => {
   assert.match(composer, /ConversationContextIndicator/);
   assert.match(contextIndicator, /budget\.usedTokens \/ budget\.contextWindow/);
-  assert.match(contextIndicator, /上下文窗口/);
+  assert.match(contextIndicator, /背景信息窗口/);
   assert.match(contextIndicator, /formatContextTokenCount\(budget\.usedTokens\)/);
   assert.doesNotMatch(contextIndicator, /压缩上下文|当前对话|上次压缩|conversation-context-summary/);
-  assert.match(contextIndicator, /UiPopover/);
-  assert.match(popover, /createPortal/);
-  assert.match(popover, /event\.key !== "Escape"/);
-  assert.match(popover, /document\.addEventListener\("pointerdown", closeOnOutside\)/);
-  assert.match(popover, /triggerRef\.current\?\.focus\(\)/);
+  assert.match(contextIndicator, /UiInfoHoverCard/);
+  assert.doesNotMatch(contextIndicator, /UiPopover|aria-haspopup="dialog"/);
+  assert.match(infoHoverCard, /createPortal/);
+  assert.match(infoHoverCard, /CLOSE_GRACE_MS = 160/);
+  assert.match(infoHoverCard, /event\.key !== "Escape"/);
+  assert.match(infoHoverCard, /document\.addEventListener\("pointerdown", closeOnOutside\)/);
+  assert.match(infoHoverCard, /lastPointerTypeRef\.current !== "touch"/);
+  assert.match(infoHoverCard, /computeUiOverlayPosition/);
+  assert.match(popover, /computeUiOverlayPosition/);
   assert.match(composer, /onCompressContext/);
   assert.match(draftInput, /command\.action === "compact"/);
   assert.match(draftInput, /disabledActions=\{contextCompressionAvailable && !contextCompressing \? \[\] : \["compact"\]\}/);
@@ -134,7 +142,10 @@ test("Workbench chrome removes browser product topbar while preserving native ho
 });
 
 test("UiHint is the shared non-interactive overlay and migrated controls avoid native title conflicts", () => {
-  assert.match(hint, /export const UiHint = UiTooltip/);
+  assert.match(hint, /export function UiHint/);
+  assert.match(hint, /label: string/);
+  assert.match(hint, /badge\?: string/);
+  assert.match(hint, /UiHintBadge/);
   assert.match(hint, /createPortal/);
   assert.match(hint, /computeUiOverlayPosition/);
   assert.match(hint, /activeTooltipId/);
@@ -148,4 +159,10 @@ test("UiHint is the shared non-interactive overlay and migrated controls avoid n
     assert.match(source, /UiHint/);
   }
   assert.doesNotMatch(composer, /title=/);
+  assert.doesNotMatch(modelSelector, /title=/);
+  assert.match(composer, /label="添加文件等内容" badge="@"/);
+  assert.match(modelSelector, /label="选择模型" badge="Ctrl\+Shift\+M"/);
+  assert.match(composer, /label="点击开始听写" badge="Ctrl\+Shift\+D"/);
+  assert.match(composer, /event\.key\.toLowerCase\(\) === "m"/);
+  assert.match(composer, /event\.key\.toLowerCase\(\) === "d"/);
 });

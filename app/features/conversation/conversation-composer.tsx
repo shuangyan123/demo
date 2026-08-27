@@ -42,6 +42,7 @@ type ConversationComposerProps = {
   onNotice: (message: string) => void;
   onOpenConnections: () => void;
   onOpenMcp: () => void;
+  onOpenPermissions: () => void;
   onOpenProposal: () => void;
   onOpenRealtimeVoice: () => void;
   onOpenTutoringRecords: () => void;
@@ -103,6 +104,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   onNotice,
   onOpenConnections,
   onOpenMcp,
+  onOpenPermissions,
   onOpenProposal,
   onOpenRealtimeVoice,
   onOpenTutoringRecords,
@@ -144,6 +146,23 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
     };
   }, [toolMenuOpen]);
 
+  useEffect(() => {
+    function handleComposerShortcut(event: KeyboardEvent) {
+      if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
+      if (event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        modelSelectorRef.current?.open();
+      }
+      if (event.key.toLowerCase() === "d" && !busy) {
+        event.preventDefault();
+        if (recording) onStopRecording();
+        else onStartRecording();
+      }
+    }
+    document.addEventListener("keydown", handleComposerShortcut);
+    return () => document.removeEventListener("keydown", handleComposerShortcut);
+  }, [busy, onStartRecording, onStopRecording, recording]);
+
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
     const prepared = await prepareAttachments(files, onNotice);
@@ -158,7 +177,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
           {attachments.map((attachment) => (
             <span key={attachment.id}>
               <span className="truncate">{attachment.file.name}</span>
-              <UiHint content="移除附件" placement="top">{({ describedBy }) => <button
+              <UiHint label="移除附件" placement="top">{({ describedBy }) => <button
                 type="button"
                 aria-describedby={describedBy}
                 aria-label={`移除 ${attachment.file.name}`}
@@ -194,14 +213,14 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
           onChange={(event) => void handleFiles(event.currentTarget.files)}
         />
         <div ref={addMenuRef} className="conversation-composer-menu">
-          <UiHint content="添加" placement="top">{({ describedBy }) => <button
+          <UiHint label="添加文件等内容" badge="@" placement="top">{({ describedBy }) => <button
             ref={addTriggerRef}
             aria-controls={toolMenuOpen ? "conversation-add-menu" : undefined}
             aria-expanded={toolMenuOpen}
             aria-haspopup="menu"
             aria-describedby={describedBy}
-            aria-label="添加"
-            className="conversation-composer-icon"
+            aria-label="添加文件等内容"
+            className="conversation-composer-icon conversation-composer-add"
             type="button"
             onClick={() => setToolMenuOpen((value) => !value)}
           >
@@ -223,7 +242,20 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
             />
           ) : null}
         </div>
+        <UiHint label="更改权限" placement="top">{({ describedBy }) => <button
+          aria-describedby={describedBy}
+          aria-label="更改权限"
+          className="conversation-composer-permission"
+          type="button"
+          onClick={onOpenPermissions}
+        >
+          <AppIcon name="tool" size={16} />
+          <span>工具权限</span>
+        </button>}</UiHint>
         <div className="conversation-composer-actions">
+          <ConversationContextIndicator
+            budget={contextBudget}
+          />
           <ConversationModelSelector
             ref={modelSelectorRef}
             connections={connections}
@@ -235,25 +267,20 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
             onOpenConnections={onOpenConnections}
             onSelect={onSelectModel}
           />
-          <ConversationContextIndicator
-            budget={contextBudget}
-          />
-          <UiHint content={recording ? "松开后转写" : "按住录音"} placement="top">{({ describedBy }) => <button
-            aria-label={recording ? "松开后转写" : "按住录音"}
+          <UiHint label="点击开始听写" badge="Ctrl+Shift+D" placement="top">{({ describedBy }) => <button
+            aria-label={recording ? "停止听写" : "点击开始听写"}
             aria-describedby={describedBy}
-            className={cx("conversation-composer-icon", recording && "is-recording")}
+            className={cx("conversation-composer-icon", "conversation-composer-mic", recording && "is-recording")}
             disabled={busy}
             type="button"
-            onPointerDown={onStartRecording}
-            onPointerUp={onStopRecording}
-            onPointerCancel={onStopRecording}
+            onClick={recording ? onStopRecording : onStartRecording}
           >
             <AppIcon name="mic" size={20} />
           </button>}</UiHint>
           {draft.trim() || attachments.length ? (
-            <UiHint content="发送" placement="top">{({ describedBy }) => <button className="conversation-send" disabled={busy} type="submit" aria-describedby={describedBy} aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>}</UiHint>
+            <UiHint label="发送" placement="top">{({ describedBy }) => <button className="conversation-send" disabled={busy} type="submit" aria-describedby={describedBy} aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>}</UiHint>
           ) : (
-            <UiHint content="开始语音聊天" placement="top">{({ describedBy }) => <button className="conversation-send conversation-voice" disabled={busy} type="button" aria-describedby={describedBy} aria-label="开始语音聊天" onClick={onOpenRealtimeVoice}>
+            <UiHint label="开启语音聊天" placement="top">{({ describedBy }) => <button className="conversation-send conversation-voice" disabled={busy} type="button" aria-describedby={describedBy} aria-label="开启语音聊天" onClick={onOpenRealtimeVoice}>
               <AppIcon name="voice" size={20} />
             </button>}</UiHint>
           )}

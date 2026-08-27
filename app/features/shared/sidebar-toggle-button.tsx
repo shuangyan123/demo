@@ -16,7 +16,7 @@ export function SidebarToggleButton({
   placement?: UiOverlayPlacement | readonly UiOverlayPlacement[];
 }) {
   const label = collapsed ? "展开侧边栏" : "收起侧边栏";
-  return <UiHint content={label} placement={placement}>{({ describedBy }) => (
+  return <UiHint label={label} placement={placement}>{({ describedBy }) => (
     <button
       ref={buttonRef}
       className="sidebar-toggle-button grid h-7 w-7 place-items-center rounded-lg border border-line text-muted hover:bg-chrome-hover hover:text-foreground max-lg:h-11 max-lg:w-11"

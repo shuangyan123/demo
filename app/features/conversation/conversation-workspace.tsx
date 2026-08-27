@@ -37,7 +37,7 @@ const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({ activeConversationId, connections, defaultSelections, knowledgeEntries, launchContext, personalization,
   scheduledCount, snapshot, transcriptionConnection, sampleMode = false, onCreateConversation, onConversationSelected, onOpenConnections,
-  onOpenKnowledge, onOpenTutoringRecords, onRefresh, onNotice, onPersonalizationChange, onClearLaunchContext }: ConversationWorkspaceProps) {
+  onOpenKnowledge, onOpenPermissions, onOpenTutoringRecords, onRefresh, onNotice, onPersonalizationChange, onClearLaunchContext }: ConversationWorkspaceProps) {
   const [draft, setDraft] = useState(() => launchContext?.suggestedPrompt ?? "");
   const [assistantDraft, setAssistantDraft] = useState("");
   const [activeTurnId, setActiveTurnId] = useState<string>();
@@ -400,7 +400,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
           <div className="min-w-0"><h1 className="truncate text-base font-semibold">{activeConversation?.title ?? "新对话"}</h1></div>
           <div className="conversation-thread-actions">
             {conversationNavigation.topics.length ? <button className="conversation-topic-trigger" type="button" aria-haspopup="dialog" onClick={() => setTopicDrawerOpen(true)}><AppIcon name="topics" size={16} /><span>主题 {conversationNavigation.topics.length}</span></button> : null}
-            {activeConversation ? <UiHint content="移动到文件夹" placement="bottom">{({ describedBy }) => <button className="conversation-header-action" type="button" aria-describedby={describedBy} aria-label="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button>}</UiHint> : null}
+            {activeConversation ? <UiHint label="移动到文件夹" placement="bottom">{({ describedBy }) => <button className="conversation-header-action" type="button" aria-describedby={describedBy} aria-label="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button>}</UiHint> : null}
           </div>
         </header>
         {launchContext && !activeConversation ? (
@@ -456,7 +456,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
         {mcpPanelOpen ? <ConversationMcpToolPanel onClose={() => setMcpPanelOpen(false)} onExecuted={recordMcpExecution} onNotice={onNotice} /> : null}
         <div className="conversation-composer-dock" data-conversation-layer="composer-dock"><div className="conversation-composer-stack">
           {conversationNavigation.showJumpToLatest ? (
-            <UiHint content="跳到最新消息" placement="top">{({ describedBy }) => <button
+            <UiHint label="跳到最新消息" placement="top">{({ describedBy }) => <button
               className="conversation-jump-latest"
               data-conversation-layer="jump-to-latest"
               type="button"
@@ -481,7 +481,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
           onCaptureScreen={() => void captureScreenForAnalysis()}
           onCompressContext={() => void conversationContext.compress()}
           onDraftChange={setDraft} onNotice={onNotice} onOpenConnections={onOpenConnections}
-          onOpenMcp={() => setMcpPanelOpen(true)} onOpenProposal={() => setProposalPanelOpen(true)}
+          onOpenMcp={() => setMcpPanelOpen(true)} onOpenPermissions={onOpenPermissions} onOpenProposal={() => setProposalPanelOpen(true)}
           onOpenRealtimeVoice={() => setRealtimeVoiceOpen(true)} onOpenTutoringRecords={onOpenTutoringRecords}
           onSearchKnowledge={() => void runInternalTool("knowledge")}
           onSelectModel={({ connection, modelId, selectedRuntimeValues: runtimeValues }) => selectModel({ connectionId: connection.id, modelId, selectedRuntimeValues: runtimeValues })}
@@ -491,7 +491,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
         </div></div>
         {realtimeVoiceOpen ? <RealtimeVoicePanel connections={connections} onClose={() => setRealtimeVoiceOpen(false)} onFinalTranscript={persistRealtimeTranscript} /> : null}
       </div>
-      {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到文件夹</h2><UiHint content="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button>}</UiHint></div><button type="button" onClick={() => void moveConversation()}>根目录</button>{snapshot.folders.filter((folder) => folder.projectId === activeConversation.projectId).map((folder) => <button key={folder.id} type="button" onClick={() => void moveConversation(folder.id)}>{folder.parentId ? "↳ " : ""}{folder.label}</button>)}</section></div> : null}
+      {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到文件夹</h2><UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button>}</UiHint></div><button type="button" onClick={() => void moveConversation()}>根目录</button>{snapshot.folders.filter((folder) => folder.projectId === activeConversation.projectId).map((folder) => <button key={folder.id} type="button" onClick={() => void moveConversation(folder.id)}>{folder.parentId ? "↳ " : ""}{folder.label}</button>)}</section></div> : null}
     </section>
   );
 }

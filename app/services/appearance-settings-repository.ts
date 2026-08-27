@@ -346,6 +346,8 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--chrome-composer-shadow", `0 12px 28px ${rgba({ r: 0, g: 0, b: 0 }, composerShadowAlpha)}`);
   root.style.setProperty("--chrome-hint-surface", "#252525");
   root.style.setProperty("--chrome-hint-foreground", "#f8fafc");
+  root.style.setProperty("--chrome-hint-badge-surface", "rgba(255, 255, 255, 0.14)");
+  root.style.setProperty("--chrome-hint-badge-foreground", "#f8fafc");
   root.style.setProperty("--chrome-hint-outline", `rgba(255, 255, 255, ${hintOutlineAlpha.toFixed(3)})`);
   root.style.setProperty("--chrome-hint-shadow", `0 10px 24px rgba(0, 0, 0, ${hintShadowAlpha.toFixed(3)})`);
   root.style.setProperty("--chrome-context-popover-surface", contextPopoverSurface);

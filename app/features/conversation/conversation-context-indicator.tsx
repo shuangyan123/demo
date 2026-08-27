@@ -2,7 +2,7 @@
 
 import { type CSSProperties } from "react";
 import { conversationContextUsagePolicy, formatContextTokenCount, type ConversationContextBudget } from "../../services/conversation-context-budget.ts";
-import { UiPopover } from "../shared/ui-popover";
+import { UiInfoHoverCard } from "../shared/ui-info-hover-card";
 
 export function contextUsagePercent(budget: ConversationContextBudget): number | undefined {
   if (!budget.contextWindow) return undefined;
@@ -16,25 +16,24 @@ export function ConversationContextIndicator({ budget }: { budget: ConversationC
   const warning = usagePercent !== undefined && usagePercent >= conversationContextUsagePolicy.warningPercent;
   const panel = (
     <section className="conversation-context-popover-content">
-      <header><strong>上下文窗口</strong><span>{warning ? "接近上限" : usagePercent === undefined ? "上限未知" : "当前用量"}</span></header>
+      <header><strong>背景信息窗口</strong><span>{warning ? "接近上限" : usagePercent === undefined ? "上限未知" : "当前用量"}</span></header>
       <p className="conversation-context-usage">{usagePercent === undefined ? "用量未知" : `${usagePercent}% 已用`}</p>
       <p className="conversation-context-tokens">
-        {formatContextTokenCount(budget.usedTokens)} 标记{budget.contextWindow ? `，共 ${formatContextTokenCount(budget.contextWindow)} 标记` : "，上限未知"}
+        已用 {formatContextTokenCount(budget.usedTokens)} 标记{budget.contextWindow ? `，共 ${formatContextTokenCount(budget.contextWindow)} 标记` : "，上限未知"}
       </p>
     </section>
   );
   return (
-    <UiPopover content={panel} contentClassName="conversation-context-popover" contentLabel="上下文窗口">
-      {({ contentId, expanded, toggle, triggerRef }) => <button
+    <UiInfoHoverCard content={panel} contentClassName="conversation-context-popover" contentLabel="背景信息窗口" placement="top">
+      {({ contentId, expanded, toggleForTouch, triggerRef }) => <button
         ref={triggerRef}
-        aria-controls={contentId}
+        aria-describedby={contentId}
         aria-expanded={expanded}
-        aria-haspopup="dialog"
         aria-label={usagePercent === undefined ? "查看对话上下文用量，上限未知" : `查看对话上下文用量，已使用 ${usagePercent}%`}
         className="conversation-context-budget"
         data-context-warning={warning ? "true" : undefined}
         type="button"
-        onClick={toggle}
+        onClick={toggleForTouch}
       >
         <span
           className="conversation-context-ring"
@@ -43,6 +42,6 @@ export function ConversationContextIndicator({ budget }: { budget: ConversationC
           <span>{usagePercent === undefined ? "—" : `${usagePercent}%`}</span>
         </span>
       </button>}
-    </UiPopover>
+    </UiInfoHoverCard>
   );
 }

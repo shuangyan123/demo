@@ -24,6 +24,13 @@ type UiTooltipProps = {
   placement?: UiOverlayPlacement | readonly UiOverlayPlacement[];
 };
 
+type UiHintProps = {
+  badge?: string;
+  children: (props: TooltipRenderProps) => ReactNode;
+  label: string;
+  placement?: UiOverlayPlacement | readonly UiOverlayPlacement[];
+};
+
 type TooltipPosition = {
   left: number;
   top: number;
@@ -41,6 +48,15 @@ let activeTooltipId: string | undefined;
 function setActiveTooltip(id?: string): void {
   activeTooltipId = id;
   activeTooltipListeners.forEach((listener) => listener(id));
+}
+
+/** 信息卡或交互浮层打开前关闭短提示，确保工作台同一时刻只有一个解释层。 */
+export function dismissUiHints(): void {
+  setActiveTooltip(undefined);
+}
+
+export function UiHintBadge({ children }: { children: string }) {
+  return <kbd className="ui-hint-badge">{children}</kbd>;
 }
 
 /** 菜单钻取时的程序化焦点只负责键盘定位，不应创建遮挡内容的提示。 */
@@ -151,12 +167,12 @@ export function UiTooltip({ children, content, placement = DEFAULT_TOOLTIP_PLACE
       onPointerLeave={closeTooltip}
       onPointerDown={(event) => {
         lastPointerTypeRef.current = event.pointerType;
-        if (event.pointerType === "touch") closeTooltip();
+        closeTooltip();
       }}
       onKeyDownCapture={() => { lastPointerTypeRef.current = undefined; }}
       onFocusCapture={(event) => {
         if (isProgrammaticPickerFocus(event)) return;
-        if (lastPointerTypeRef.current === "touch") {
+        if (lastPointerTypeRef.current) {
           lastPointerTypeRef.current = undefined;
           return;
         }
@@ -186,5 +202,14 @@ export function UiTooltip({ children, content, placement = DEFAULT_TOOLTIP_PLACE
   );
 }
 
-/** 新名称用于新代码；UiTooltip 保留为兼容出口。 */
-export const UiHint = UiTooltip;
+/** 新代码使用明确的短文本/快捷键接口；UiTooltip 只为已有富文本描述保留兼容出口。 */
+export function UiHint({ badge, children, label, placement }: UiHintProps) {
+  return (
+    <UiTooltip
+      content={<><span className="ui-hint-label">{label}</span>{badge ? <UiHintBadge>{badge}</UiHintBadge> : null}</>}
+      placement={placement}
+    >
+      {children}
+    </UiTooltip>
+  );
+}

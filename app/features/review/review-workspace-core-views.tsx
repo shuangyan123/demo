@@ -39,6 +39,7 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           onClearLaunchContext={() => conversation.setLaunchContext(null)}
           onOpenConnections={() => workspace.openApiSettings("请先配置默认文本连接，再继续使用对话")}
           onOpenKnowledge={() => workspace.switchView("knowledge")}
+          onOpenPermissions={() => workspace.openMcpSettings("已打开工具权限设置")}
           onOpenTutoringRecords={() => workspace.switchView("tutoring")}
           onRefresh={conversation.refresh}
         />

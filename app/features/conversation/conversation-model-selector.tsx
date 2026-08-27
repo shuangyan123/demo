@@ -5,6 +5,7 @@ import { getAiModelRuntimeDescriptor } from "../../services/model-runtime-descri
 import type { ConversationModelRuntimeDimension } from "./use-conversation-model-navigation.ts";
 import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
+import { UiHint } from "../shared/ui-tooltip";
 import { ConversationModelPicker, type ConversationModelPickerProps } from "./conversation-model-picker";
 import { useConversationModelMenu } from "./use-conversation-model-menu.ts";
 import styles from "./conversation-model-picker.module.css";
@@ -42,7 +43,6 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
   const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
   const descriptor = useMemo(() => selectedConnection && selectedModelId ? getAiModelRuntimeDescriptor(selectedConnection.provider, selectedModelId) : undefined, [selectedConnection, selectedModelId]);
   const reasoningLabel = descriptor?.reasoning?.options.find((option) => option.value === (selectedRuntimeValues?.reasoning ?? descriptor.reasoning?.defaultValue))?.label;
-  const triggerTitle = selectedConnection && selectedModelId ? `${selectedConnection.label} · ${selectedModelId}${reasoningLabel ? ` · ${reasoningLabel}` : ""}` : "选择模型";
 
   useImperativeHandle(ref, () => ({
     focus: () => triggerRef.current?.focus(),
@@ -106,31 +106,31 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
       }}
       onKeyDownCapture={(event) => { tabbingRef.current = event.key === "Tab"; }}
     >
-      <button
-        ref={triggerRef}
-        aria-controls={open ? menuId : undefined}
-        aria-expanded={open && !disabled}
-        aria-haspopup="dialog"
-        aria-label="选择模型"
-        className={styles.trigger}
-        disabled={disabled}
-        title={triggerTitle}
-        type="button"
-        onClick={() => { setInitialRuntimeDimension(undefined); toggle(); }}
-      >
-        {selectedConnection && selectedModelId ? (
-          <>
-            <ProviderIcon provider={selectedConnection.provider} size={18} />
-            <span>{selectedModelId}{reasoningLabel ? ` · ${reasoningLabel}` : ""}</span>
-            <AppIcon name="chevronDown" size={16} />
-          </>
-        ) : (
-          <>
-            <AppIcon name="sparkles" size={18} />
-            <span>选择模型</span>
-          </>
-        )}
-      </button>
+      <UiHint label="选择模型" badge="Ctrl+Shift+M" placement="top">{({ describedBy }) => <button
+          ref={triggerRef}
+          aria-controls={open ? menuId : undefined}
+          aria-describedby={describedBy}
+          aria-expanded={open && !disabled}
+          aria-haspopup="dialog"
+          aria-label="选择模型"
+          className={styles.trigger}
+          disabled={disabled}
+          type="button"
+          onClick={() => { setInitialRuntimeDimension(undefined); toggle(); }}
+        >
+          {selectedConnection && selectedModelId ? (
+            <>
+              <ProviderIcon provider={selectedConnection.provider} size={18} />
+              <span>{selectedModelId}{reasoningLabel ? ` · ${reasoningLabel}` : ""}</span>
+              <AppIcon name="chevronDown" size={16} />
+            </>
+          ) : (
+            <>
+              <AppIcon name="sparkles" size={18} />
+              <span>选择模型</span>
+            </>
+          )}
+        </button>}</UiHint>
       {open && !disabled ? (
         <ConversationModelPicker
           ref={menuRef}
