@@ -74,14 +74,12 @@ export function ReviewWorkspaceViewRouter({
       notice={workspace.notice}
       contentClassName={settingsMode ? "settings-content settings-main-scroll py-8 max-lg:py-6" : undefined}
       sidebarOverride={settingsMode ? (
-        <>
-          <SettingsWorkspaceSidebar
-            activeSection={workspace.settingsSection}
-            onBack={leaveSettings}
-            onSectionChange={workspace.setSettingsSection}
-          />
-          <div className="review-workspace-sidebar mt-auto pt-4">{reviewControls}</div>
-        </>
+        <SettingsWorkspaceSidebar
+          activeSection={workspace.settingsSection}
+          footer={reviewControls}
+          onBack={leaveSettings}
+          onSectionChange={workspace.setSettingsSection}
+        />
       ) : undefined}
       sidebarCollapsed={workspace.sidebarCollapsed}
       today={workspace.today}

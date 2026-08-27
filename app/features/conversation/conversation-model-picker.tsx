@@ -179,38 +179,39 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
         </nav>
       ) : null}
 
-      {view.kind === "providers" ? (
-        <nav key="providers" aria-label="厂商" className={styles.layer} onKeyDown={handleProviderArrowNavigation}>
-          <header className={styles.header}><button aria-label="返回模型配置" className={styles.backButton} type="button" onClick={back}><AppIcon name="back" size={16} /></button><strong>模型</strong></header>
-          {providers.length ? providers.map((provider, index) => {
-            const contract = getProviderContract(provider);
-            return (
-              <button
-                key={provider}
-                className={styles.providerRow}
-                data-picker-default-focus={index === 0 ? "true" : undefined}
-                data-picker-focus-key={`provider:${provider}`}
-                type="button"
-                onClick={() => openProvider(provider)}
-              >
-                <ProviderIcon provider={provider} size={16} />
-                <span>{contract.label}</span>
-                <AppIcon name="chevronRight" size={16} />
-              </button>
-            );
-          }) : (
-            <button className={styles.emptyRow} type="button" onClick={onOpenConnections}>配置支持当前能力的连接</button>
-          )}
-        </nav>
-      ) : null}
+      {view.kind === "providers" || view.kind === "models" ? (
+        <div className={view.kind === "models" ? styles.flyout : undefined}>
+          <nav key="providers" aria-label="厂商" className={`${styles.layer} ${view.kind === "models" ? styles.providerPane : ""}`} onKeyDown={handleProviderArrowNavigation}>
+            <button aria-label="返回模型配置" className={styles.flyoutBack} type="button" onClick={back}><AppIcon name="back" size={16} /></button>
+            {providers.length ? providers.map((provider, index) => {
+              const contract = getProviderContract(provider);
+              return (
+                <button
+                  key={provider}
+                  className={styles.providerRow}
+                  data-picker-default-focus={view.kind === "providers" && index === 0 ? "true" : undefined}
+                  data-picker-focus-key={`provider:${provider}`}
+                  data-provider-active={provider === activeProvider ? "true" : undefined}
+                  type="button"
+                  onFocus={(event) => {
+                    if (event.currentTarget.dataset.pickerProgrammaticFocus !== "true") openProvider(provider);
+                  }}
+                  onMouseEnter={() => openProvider(provider)}
+                  onClick={() => openProvider(provider)}
+                >
+                  <ProviderIcon provider={provider} size={16} />
+                  <span>{contract.label}</span>
+                  <AppIcon name="chevronRight" size={16} />
+                </button>
+              );
+            }) : (
+              <button className={styles.emptyRow} type="button" onClick={onOpenConnections}>配置支持当前能力的连接</button>
+            )}
+          </nav>
 
       {view.kind === "models" && activeProvider && activeConnection ? (
-        <section key={`models:${activeConnection.id}`} className={styles.layer} aria-label={`${getProviderContract(activeProvider).label} 模型`}>
-          <header className={styles.header}>
-            <button aria-label="返回厂商" className={styles.backButton} type="button" onClick={back}><AppIcon name="back" size={16} /></button>
-            <ProviderIcon provider={activeProvider} size={18} />
-            <strong>{getProviderContract(activeProvider).label}</strong>
-          </header>
+        <section key={`models:${activeConnection.id}`} className={`${styles.layer} ${styles.modelPane}`} aria-label={`${getProviderContract(activeProvider).label} 模型`}>
+          <button aria-label="返回厂商" className={styles.flyoutBack} type="button" onClick={back}><AppIcon name="back" size={16} /></button>
           {providerConnections.length > 1 ? (
             <label className={styles.profileRow}>
               <span className="sr-only">连接</span>
@@ -255,6 +256,8 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           </div>
           <button className={styles.manageRow} type="button" onClick={onOpenConnections}>管理 AI 连接</button>
         </section>
+      ) : null}
+        </div>
       ) : null}
 
       {view.kind === "runtime" && selectedDescriptor ? (

@@ -52,7 +52,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
   const [conversationProposals, setConversationProposals] = useState<KnowledgeEvolutionProposal[]>([]);
   const [knowledgeContext, setKnowledgeContext] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const messageListRef = useRef<HTMLDivElement | null>(null);
+  const conversationScrollRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<ConversationComposerHandle | null>(null);
   const realtimeConversationIdRef = useRef<string | undefined>(undefined);
   const runStepOrdinalsRef = useRef(new Map<string, number>());
@@ -86,7 +86,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
   const conversationAttachments = useMemo(() => snapshot.attachments.filter((attachment) => attachment.conversationId === activeConversation?.id), [activeConversation?.id, snapshot.attachments]);
   const runSteps = useMemo(() => snapshot.runSteps.filter((step) => step.conversationId === activeConversation?.id).slice(-100), [activeConversation?.id, snapshot.runSteps]);
   const timeline = useMemo(() => buildConversationTurnTimeline(messages, runSteps), [messages, runSteps]);
-  const conversationNavigation = useConversationNavigation({ assistantDraft, attachments: conversationAttachments, scrollContainerRef: messageListRef, timeline });
+  const conversationNavigation = useConversationNavigation({ assistantDraft, attachments: conversationAttachments, scrollContainerRef: conversationScrollRef, timeline });
   const diagnostics = useMemo(() => {
     const groups = new Map<string, typeof runSteps>();
     for (const step of runSteps) if (step.visibility === "diagnostic" && step.turnId) groups.set(step.turnId, [...(groups.get(step.turnId) ?? []), step]);
@@ -395,7 +395,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
   return (
     <section className="conversation-workspace" aria-label="AI 对话工作台">
       <div className="conversation-main">
-        <header className="conversation-thread-header">
+        <header className="workspace-topbar conversation-thread-header">
           <div className="min-w-0"><h1 className="truncate text-base font-semibold">{activeConversation?.title ?? "新对话"}</h1></div>
           <div className="conversation-thread-actions">
             {conversationNavigation.topics.length ? <button className="conversation-topic-trigger" type="button" aria-haspopup="dialog" onClick={() => setTopicDrawerOpen(true)}><AppIcon name="topics" size={16} /><span>主题 {conversationNavigation.topics.length}</span></button> : null}
@@ -415,8 +415,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
             onCloseDrawer={() => setTopicDrawerOpen(false)}
             onSelect={conversationNavigation.scrollToTopic}
           />
-          <div ref={messageListRef} className={conversationEmpty && !tutoringMode ? "conversation-message-list is-empty" : "conversation-message-list"}>
-            <div className="conversation-message-content">
+          <div ref={conversationScrollRef} className="conversation-canvas-scroll" data-scroll-owner="conversation-canvas"><div className={conversationEmpty && !tutoringMode ? "conversation-message-list is-empty" : "conversation-message-list"}><div className="conversation-message-content">
           {tutoringMode ? (
             <ConversationTutoringExperience
               activeTurnId={activeTurnId}
@@ -437,9 +436,8 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
             </>
           )}
           {conversationProposals.map((proposal) => <ConversationProposalBlock key={proposal.id} proposal={proposal} busy={proposalBusy} onAccept={() => void updateConversationProposal(proposal, "accept")} onReject={() => void updateConversationProposal(proposal, "reject")} />)}
-            <div ref={bottomRef} />
-            </div>
-          </div>
+                <div ref={bottomRef} />
+              </div></div></div>
         </div>
         {visionMode ? (
           <section className="conversation-vision-card" aria-label={visionMode === "camera" ? "摄像头工具" : "屏幕共享工具"}>

@@ -46,8 +46,12 @@ export function useConversationModelNavigation({ initialView = { kind: "controls
       const target = keyedTarget ?? defaultTarget ?? fallbackTarget;
       if (!target) return;
       target.dataset.tooltipProgrammaticFocus = "true";
+      target.dataset.pickerProgrammaticFocus = "true";
       target.focus();
-      window.requestAnimationFrame(() => delete target.dataset.tooltipProgrammaticFocus);
+      window.requestAnimationFrame(() => {
+        delete target.dataset.tooltipProgrammaticFocus;
+        delete target.dataset.pickerProgrammaticFocus;
+      });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [pickerRef, view]);

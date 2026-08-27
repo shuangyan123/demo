@@ -171,15 +171,15 @@ export function WorkspaceShell({
           inert={effectiveCollapsed}
           aria-label={isMobile ? "应用导航" : undefined}
           aria-modal={isMobile && mobileSidebarOpen ? true : undefined}
-          className={`chrome-sidebar diffuse-sidebar settings-sidebar-scroll relative z-30 min-h-0 ${sidebarClassName}`}
+          className={`chrome-sidebar diffuse-sidebar relative z-30 min-h-0 ${sidebarClassName}`}
           role={isMobile ? "dialog" : undefined}
           onClickCapture={handleMobileSidebarAction}
         >
           {sidebar}
         </aside>
+        <div className="chrome-sidebar-boundary" data-sidebar-boundary="true" aria-hidden="true" />
         <div className="chrome-content-frame" data-content-surface={contentSurface}><main className={`chrome-content min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main></div>
-      </div>
-    </div>
+      </div></div>
   );
 }
 
@@ -210,7 +210,7 @@ export function SidebarNav<T extends string>({
           key={item.key}
           data-mobile-sidebar-close="true"
           ref={activeKey === item.key ? activeItemRef : undefined}
-          className={`grid min-h-8 grid-cols-[18px_1fr_auto] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 max-lg:px-3 ${
+          className={`grid min-h-8 grid-cols-[18px_1fr_auto] items-center gap-2 rounded-[var(--ui-radius-row)] px-2.5 text-left text-sm font-medium max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 max-lg:px-3 ${
             activeKey === item.key ? "bg-chrome-selected" : "hover:bg-chrome-hover"
           }`}
           type="button"

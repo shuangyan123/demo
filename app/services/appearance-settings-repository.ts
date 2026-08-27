@@ -129,12 +129,16 @@ function rgbHex(color: RgbColor): string {
   return `#${[color.r, color.g, color.b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
-// 公开侧栏底色解析供迁移契约验证；所有主题遵循同一套中性混合规则。
-export function resolveSidebarBackground(theme: ThemeConfig, key: "light" | "dark"): string {
+// 公开侧栏底色解析供迁移契约验证；对比度只调整颜色混合比例，不改变任何几何值。
+export function resolveSidebarBackground(theme: ThemeConfig, key: "light" | "dark", contrast = theme.contrast): string {
   const isDark = key === "dark";
   const background = hexToRgb(theme.background, isDark ? { r: 24, g: 24, b: 24 } : { r: 255, g: 255, b: 255 });
   const foreground = hexToRgb(theme.foreground, isDark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 });
-  return rgbHex(mixRgb(background, foreground, isDark ? 0.055 : 0.035));
+  const contrastRatio = clampPercent(contrast) / 100;
+  const foregroundRatio = isDark
+    ? 0.025 + contrastRatio * 0.045
+    : 0.012 + contrastRatio * 0.025;
+  return rgbHex(mixRgb(background, foreground, foregroundRatio));
 }
 
 // 返回截图规格中的浅色主题默认值，避免调用方直接修改共享对象。
@@ -254,10 +258,17 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   const diffAlpha = isDark ? 0.2 + contrastRatio * 0.2 : 0.14 + contrastRatio * 0.12;
   const neutralColor = isDark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 };
   const chromeSelectedColor = accent;
-  const chromeBorderAlpha = 0.1 + contrastRatio * 0.16;
-  // 通用工作区与侧栏使用同一中性表面，主题背景只负责抬升面下方的窗口底层。
+  const chromeBorderAlpha = 0.045 + contrastRatio * 0.14;
+  const workspaceSeparatorAlpha = 0.035 + contrastRatio * 0.12;
+  const cardOutlineAlpha = 0.045 + contrastRatio * 0.13;
+  const composerOutlineAlpha = 0.08 + contrastRatio * 0.14;
+  const popoverOutlineAlpha = 0.1 + contrastRatio * 0.15;
+  const topicInactiveAlpha = 0.25 + contrastRatio * 0.2;
+  const topicActiveAlpha = 0.62 + contrastRatio * 0.2;
+  const shadowAlpha = 0.025 + contrastRatio * 0.025;
+  // 通用工作区与侧栏使用相邻但不透明的中性表面；对比度只改变它们的色差。
   const workspaceSurface = isDark ? "#202020" : "#ffffff";
-  const sidebarBg = workspaceSurface;
+  const sidebarBg = resolveSidebarBackground({ ...theme, background: workspaceSurface }, key, contrast);
   const diffuseEnabled = theme.diffuseGradient;
   const diffuseCompanionOne = shiftHue(accent, 46);
   const diffuseCompanionTwo = shiftHue(accent, -58);
@@ -277,6 +288,7 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   const scrollbarHoverAlpha = 0.44 + contrastRatio * 0.28;
 
   body.dataset.theme = key;
+  body.dataset.appearanceContrast = String(contrast);
   body.dataset.diffuseGradient = diffuseEnabled ? "true" : "false";
   body.dataset.pointerCursor = settings.pointerCursor ? "true" : "false";
   body.dataset.reducedMotion = resolveReducedMotion(settings) ? "true" : "false";
@@ -293,7 +305,9 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--app-ui-font-size", `${settings.uiFontSize}px`);
   root.style.setProperty("--app-code-font-size", `${settings.codeFontSize}px`);
   root.style.setProperty("--chrome-sidebar-width", "248px");
+  root.style.setProperty("--chrome-sidebar-boundary-width", "1px");
   root.style.setProperty("--chrome-topbar-height", "52px");
+  root.style.setProperty("--chrome-workspace-topbar-height", "48px");
   root.style.setProperty("--chrome-window-bg", theme.background);
   root.style.setProperty("--chrome-window-diffuse", windowDiffuseBackground);
   root.style.setProperty("--chrome-topbar-bg", theme.background);
@@ -302,6 +316,15 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--chrome-workspace-surface", workspaceSurface);
   root.style.setProperty("--chrome-sidebar-diffuse", sidebarDiffuseBackground);
   root.style.setProperty("--chrome-sidebar-border", rgba(neutralColor, chromeBorderAlpha));
+  root.style.setProperty("--chrome-sidebar-divider", rgba(neutralColor, workspaceSeparatorAlpha));
+  root.style.setProperty("--chrome-workspace-separator", rgba(neutralColor, workspaceSeparatorAlpha));
+  root.style.setProperty("--chrome-sidebar-footer-separator", rgba(neutralColor, workspaceSeparatorAlpha));
+  root.style.setProperty("--chrome-card-outline", rgba(neutralColor, cardOutlineAlpha));
+  root.style.setProperty("--chrome-composer-outline", rgba(neutralColor, composerOutlineAlpha));
+  root.style.setProperty("--chrome-popover-outline", rgba(neutralColor, popoverOutlineAlpha));
+  root.style.setProperty("--chrome-subtle-shadow", `0 8px 22px ${rgba({ r: 0, g: 0, b: 0 }, shadowAlpha)}`);
+  root.style.setProperty("--chrome-topic-rail-inactive", rgba(neutralColor, topicInactiveAlpha));
+  root.style.setProperty("--chrome-topic-rail-active", rgba(neutralColor, topicActiveAlpha));
   root.style.setProperty("--chrome-selected-bg", rgba(chromeSelectedColor, selectedAlpha));
   root.style.setProperty("--chrome-hover-bg", rgba(chromeSelectedColor, hoverAlpha));
   root.style.setProperty("--settings-sidebar-bg", sidebarBg);

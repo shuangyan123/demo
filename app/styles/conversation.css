@@ -1,6 +1,6 @@
 /* 对话树与模型选择器保持独立样式边界，避免继续扩大通用 UI 样式表。 */
 .conversation-tree {
-  margin-top: 1.25rem;
+  margin-top: 0.5rem;
 }
 
 .conversation-tree-heading,
@@ -22,7 +22,7 @@
 .conversation-tree-chat {
   grid-template-columns: 1.8rem minmax(0, 1fr) 1.8rem;
   min-height: 2rem;
-  border-radius: 0.45rem;
+  border-radius: var(--ui-radius-row);
 }
 
 .conversation-tree-heading button,
@@ -33,7 +33,7 @@
   min-height: 1.8rem;
   min-width: 1.8rem;
   place-items: center;
-  border-radius: 0.4rem;
+  border-radius: var(--ui-radius-row);
   color: var(--muted);
 }
 
@@ -78,6 +78,10 @@
 
 .conversation-tree-chat.is-active {
   background: var(--chrome-selected);
+}
+
+.app-sidebar-shell .conversation-tree-heading {
+  padding-inline: 0.65rem;
 }
 
 /* 子树每层只增加一次固定缩进，根文件与根文件夹始终共享同一图标列。 */

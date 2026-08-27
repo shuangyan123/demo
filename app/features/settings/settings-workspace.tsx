@@ -105,7 +105,7 @@ export function SettingsWorkspace({
       >
         {settingsSections.map((section) => <option key={section.key} value={section.key}>{section.label}</option>)}
       </select>
-      <div key={activeSection} className="settings-section-enter settings-section-layout">{renderSection()}</div>
+      <div key={activeSection} className="settings-section-enter settings-section-layout centered-settings-column" data-settings-column="true">{renderSection()}</div>
       {toast ? <div className="ui-toast fixed left-1/2 top-14 z-50 -translate-x-1/2 border border-line bg-surface px-4 py-2 text-sm">{toast}</div> : null}
     </>
   );

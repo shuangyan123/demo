@@ -114,10 +114,8 @@ export function ReviewWorkspaceShell({
           ? "review-view-automation pt-4 pb-7"
           : `review-view-${view} py-7`)}
       sidebarCollapsed={sidebarCollapsed}
-      sidebarClassName={sidebarOverride
-        ? "flex flex-col overflow-y-auto px-3 py-4 text-settings-sidebar-text max-lg:px-3 max-lg:py-2"
-        : "review-workspace-sidebar flex flex-col overflow-hidden px-3 py-4 text-app-sidebar-text max-lg:px-3 max-lg:py-2"}
-      title={titleOverride ?? (view === "dashboard" || view === "conversation" ? "错题复盘" : viewTitles[view])}
+      sidebarClassName={sidebarOverride ? "workspace-sidebar-host text-settings-sidebar-text" : "workspace-sidebar-host text-app-sidebar-text"}
+      title={titleOverride ?? viewTitles[view]}
       onBack={onBack}
       onToggleSidebar={onToggleSidebar}
       sidebar={sidebarOverride ?? applicationSidebar}

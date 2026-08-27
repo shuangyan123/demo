@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { SidebarNav } from "../shared/workspace-shell";
 import { SettingsNavIcon, type SettingsIconName } from "./appearance-settings-view";
 
@@ -22,30 +23,40 @@ export const settingsSections = [
 /** 设置模式只替换共享侧栏的内容，不创建新的应用外壳。 */
 export function SettingsWorkspaceSidebar({
   activeSection,
+  footer,
   onBack,
   onSectionChange,
 }: {
   activeSection: SettingsSectionKey;
+  footer?: ReactNode;
   onBack: () => void;
   onSectionChange: (section: SettingsSectionKey) => void;
 }) {
   return (
-    <>
-      <button
-        data-mobile-sidebar-close="true"
-        className="mb-1 grid min-h-8 grid-cols-[18px_1fr] items-center gap-2 rounded-md px-2.5 text-left text-sm text-muted hover:bg-chrome-hover max-lg:min-h-11 max-lg:grid-cols-[20px_1fr] max-lg:gap-2.5 max-lg:px-3"
-        type="button"
-        onClick={onBack}
-      >
-        <SettingsNavIcon name="back" small />
-        <span>返回应用</span>
-      </button>
-      <SidebarNav
-        activeKey={activeSection}
-        items={settingsSections}
-        renderIcon={(icon) => <SettingsNavIcon name={icon as SettingsIconName} small />}
-        onSelect={onSectionChange}
-      />
-    </>
+    <div className="workspace-sidebar-shell settings-sidebar-shell" data-sidebar-kind="settings">
+      <header className="workspace-sidebar-header">
+        <button
+          data-mobile-sidebar-close="true"
+          className="grid min-h-8 w-full grid-cols-[18px_1fr] items-center gap-2 rounded-[var(--ui-radius-row)] px-2.5 text-left text-sm text-muted hover:bg-chrome-hover max-lg:min-h-11 max-lg:grid-cols-[20px_1fr] max-lg:gap-2.5 max-lg:px-3"
+          type="button"
+          onClick={onBack}
+        >
+          <SettingsNavIcon name="back" small />
+          <span>返回应用</span>
+        </button>
+      </header>
+      <div className="workspace-sidebar-scroll" data-sidebar-scroll-region="true">
+        <div className="workspace-sidebar-section">
+          <div className="workspace-sidebar-section-heading"><span>设置</span></div>
+          <SidebarNav
+            activeKey={activeSection}
+            items={settingsSections}
+            renderIcon={(icon) => <SettingsNavIcon name={icon as SettingsIconName} small />}
+            onSelect={onSectionChange}
+          />
+        </div>
+      </div>
+      {footer ? <footer className="workspace-sidebar-footer" aria-label="设置辅助操作">{footer}</footer> : null}
+    </div>
   );
 }

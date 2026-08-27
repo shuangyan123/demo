@@ -4,9 +4,9 @@ import { cx } from "./ui-primitives";
 export type MainContentWidth = "narrow" | "medium" | "wide";
 
 const widthClasses: Record<MainContentWidth, string> = {
-  narrow: "max-w-3xl",
-  medium: "max-w-5xl",
-  wide: "max-w-7xl",
+  narrow: "content-width-narrow",
+  medium: "content-width-medium",
+  wide: "content-width-wide",
 };
 
 /** 统一右侧页面的视觉中心；业务页面只选择阅读宽度，不重复维护 gutter。 */

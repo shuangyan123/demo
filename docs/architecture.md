@@ -276,6 +276,13 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 粉笔不再作为公考项目主导航模块，导入统一进入“设置 → 导入”，粉笔仅是当前来源。主侧栏“插件与技能”负责发现，设置“已安装插件”负责启停、权限和卸载管理。
 - 个人资料使用现有本地计数、连接和默认模型事实；厂商快捷入口只来自代码内官方 HTTPS allowlist 与 provider contract 文档地址，绝不使用自定义 Base URL、模型输出或对话内容生成外链。
 
+## Chat Workbench 最终 Shell 坐标系（2026-08-27）
+
+- `WorkspaceShell` 在侧栏与内容之间提供唯一 `chrome-sidebar-boundary`；应用和设置侧栏都采用固定 header、独立 `workspace-sidebar-scroll` 与固定 footer，footer 不再随项目/对话列表滚动。
+- `MainContentShell` 的 narrow / medium / wide 与对话 `--conversation-content-max-width` 由 tokens 统一维护。对话 canvas 由 `conversation-canvas-scroll` 独占纵向滚动，正文、工具结果和 Composer 共用同一中心轴；Topic Rail 锚定 canvas 而不是居中正文列。
+- 对比度只派生边界、surface、选中态、rail 和阴影 token；`--chrome-sidebar-width`、topbar 高度、内容宽度、半径和间距保持固定。`contrast = 0` 与 `contrast = 100` 不改变布局几何。
+- 设置继续复用同一个 `ReviewWorkspaceShell`，正文通过 `centered-settings-column` 保持中等阅读宽度；模型厂商层在桌面以整行 hover/focus 打开右侧模型 flyout，移动端保留点击回退。
+
 ## 扩展点
 
 - 新学习专项注册 `StudyDomainDefinition`，不得在 shell 中新增专项分支。

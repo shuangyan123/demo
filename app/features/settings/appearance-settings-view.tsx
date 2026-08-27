@@ -61,7 +61,7 @@ export function AppearanceSettingsView({ settings, onChange, onNotify }: Appeara
     <section>
       <SettingsSectionHeader title="外观" description="统一管理主题、字体、弥散效果和动态偏好。" />
 
-      <div className="mt-6 overflow-hidden rounded-lg border border-line bg-surface">
+      <div className="settings-group mt-6 overflow-hidden">
         <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-4 max-md:flex-col max-md:items-stretch">
           <div>
             <h2 className="text-base font-semibold">主题</h2>
@@ -177,7 +177,7 @@ function ThemeEditor({ label, presets, theme, themeKey, onChange, onNotify, onRe
   }
 
   return (
-    <section className="border-t border-line px-5 py-4">
+    <section className="settings-theme-editor border-t border-line px-5 py-4">
       <div className="flex items-center justify-between gap-4 max-md:flex-col max-md:items-stretch">
         <h3 className="text-lg font-semibold">{label}</h3>
         <div className="flex flex-wrap items-center gap-3">
@@ -228,7 +228,7 @@ function ThemeEditor({ label, presets, theme, themeKey, onChange, onNotify, onRe
 // 渲染通用设置行，左侧为说明，右侧为具体控件。
 function SettingsRow({ control, description, title }: { control: ReactNode; description?: string; title: string }) {
   return (
-    <div className="grid min-h-14 grid-cols-[1fr_minmax(220px,300px)] items-center gap-5 border-t border-line px-5 py-2.5 max-md:grid-cols-1 max-md:items-stretch">
+    <div className="settings-row grid min-h-14 grid-cols-[1fr_minmax(220px,300px)] items-center gap-5 border-t border-line px-5 py-2.5 max-md:grid-cols-1 max-md:items-stretch">
       <div>
         <div className="font-medium">{title}</div>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
