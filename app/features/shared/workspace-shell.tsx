@@ -165,7 +165,7 @@ export function WorkspaceShell({
           {sidebar}
         </aside>
         <div className="chrome-sidebar-boundary" data-sidebar-boundary="true" aria-hidden="true" />
-        <div className="chrome-content-frame" data-content-surface={contentSurface}><main className={`chrome-content min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main></div>
+        <div className="chrome-content-frame" data-content-surface={contentSurface} data-workspace-frame="true"><main className={`chrome-content min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main></div>
       </div></div>
   );
 }

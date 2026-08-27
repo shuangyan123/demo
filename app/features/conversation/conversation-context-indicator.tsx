@@ -16,7 +16,7 @@ export function ConversationContextIndicator({ budget }: { budget: ConversationC
   const warning = usagePercent !== undefined && usagePercent >= conversationContextUsagePolicy.warningPercent;
   const panel = (
     <section className="conversation-context-popover-content">
-      <header><strong>背景信息窗口</strong><span>{warning ? "接近上限" : usagePercent === undefined ? "上限未知" : "当前用量"}</span></header>
+      <strong>背景信息窗口：</strong>
       <p className="conversation-context-usage">{usagePercent === undefined ? "用量未知" : `${usagePercent}% 已用`}</p>
       <p className="conversation-context-tokens">
         已用 {formatContextTokenCount(budget.usedTokens)} 标记{budget.contextWindow ? `，共 ${formatContextTokenCount(budget.contextWindow)} 标记` : "，上限未知"}

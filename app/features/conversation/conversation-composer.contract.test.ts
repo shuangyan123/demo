@@ -20,10 +20,14 @@ const shell = readFileSync(new URL("../shared/workspace-shell.tsx", import.meta.
 const shellStyles = readFileSync(new URL("../../styles/shell.css", import.meta.url), "utf8");
 const mainContentShell = readFileSync(new URL("../shared/main-content-shell.tsx", import.meta.url), "utf8");
 const reviewShell = readFileSync(new URL("../review/review-workspace-shell.tsx", import.meta.url), "utf8");
+const mcpPermission = readFileSync(new URL("../../services/mcp-permission.ts", import.meta.url), "utf8");
+const shellStylesForEdges = readFileSync(new URL("../../styles/shell.css", import.meta.url), "utf8");
+const uiStylesForEdges = readFileSync(new URL("../../styles/ui.css", import.meta.url), "utf8");
 
 test("Composer 一级保持紧凑、语义化分组并按输入状态切换语音与发送主操作", () => {
   assert.match(composer, /aria-haspopup="menu"[\s\S]*aria-label="添加文件等内容"/);
-  assert.match(composer, /aria-label="更改权限"[\s\S]*>工具权限</);
+  assert.match(composer, /aria-label={`更改权限：\$\{permissionLabel\}`}[\s\S]*data-permission-state={permissionLabel}[\s\S]*>\{permissionLabel\}</);
+  assert.doesNotMatch(composer, />工具权限</);
   assert.match(composer, /aria-label=\{recording \? "停止听写" : "点击开始听写"\}/);
   assert.match(composer, /ConversationModelSelector/);
   assert.match(composer, /<ConversationContextIndicator[\s\S]*<ConversationModelSelector/);
@@ -68,6 +72,8 @@ test("上下文环使用只读信息卡，并把手动压缩收敛到 slash comm
   assert.match(composer, /ConversationContextIndicator/);
   assert.match(contextIndicator, /budget\.usedTokens \/ budget\.contextWindow/);
   assert.match(contextIndicator, /背景信息窗口/);
+  assert.match(contextIndicator, /背景信息窗口：/);
+  assert.doesNotMatch(contextIndicator, /当前用量|接近上限/);
   assert.match(contextIndicator, /formatContextTokenCount\(budget\.usedTokens\)/);
   assert.doesNotMatch(contextIndicator, /压缩上下文|当前对话|上次压缩|conversation-context-summary/);
   assert.match(contextIndicator, /UiInfoHoverCard/);
@@ -86,6 +92,18 @@ test("上下文环使用只读信息卡，并把手动压缩收敛到 slash comm
   assert.match(slashCommands, /disabledActions\?: readonly ConversationSlashCommandAction\[\]/);
   assert.deepEqual(conversationContextUsagePolicy, { warningPercent: 72, autoCompactionPercent: 84, autoCompactionEnabled: false });
   assert.doesNotMatch(contextIndicator, /messages\.map|conversation\.messages|ConversationContextCompaction/);
+});
+
+test("WorkspaceFrame、Composer 和用户消息各自只保留一个权威外缘", () => {
+  assert.match(shell, /data-workspace-frame="true"/);
+  assert.match(shellStylesForEdges, /is-sidebar-expanded \.chrome-content-frame\[data-content-surface="raised-surface"\][\s\S]*border-top: 1px solid var\(--chrome-workspace-frame-edge\);[\s\S]*border-left: 1px solid var\(--chrome-workspace-frame-edge\);/);
+  assert.match(shellStylesForEdges, /is-sidebar-expanded \.chrome-sidebar-boundary\s*\{\s*background: transparent;/);
+  assert.match(shellStylesForEdges, /is-sidebar-collapsed \.chrome-content-frame\[data-content-surface="raised-surface"\][\s\S]*border: 0;/);
+  assert.match(uiStylesForEdges, /\.conversation-composer:focus-within\s*\{[\s\S]*border-color: var\(--chrome-composer-focus-outline\);[\s\S]*box-shadow: var\(--chrome-composer-focus-shadow\);/);
+  assert.doesNotMatch(uiStylesForEdges, /\.conversation-composer:focus-within\s*\{[\s\S]*outline:\s*2px[\s\S]*outline-offset/);
+  assert.match(uiStylesForEdges, /\.conversation-message\.is-user \.conversation-message-bubble\s*\{[\s\S]*box-shadow: none;/);
+  assert.match(mcpPermission, /export function summarizeMcpPermission/);
+  assert.match(mcpPermission, /未发现工具|未配置/);
 });
 
 test("右侧内容统一使用居中宽度预设且对话保留宽屏工作区", () => {

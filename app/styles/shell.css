@@ -260,10 +260,13 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   padding-left: 0;
   overflow: hidden;
   border-top-left-radius: var(--ui-radius-workspace-shoulder);
-  box-shadow: var(--chrome-workspace-shadow);
+  border-top: 1px solid var(--chrome-workspace-frame-edge);
+  border-left: 1px solid var(--chrome-workspace-frame-edge);
+  background-color: var(--chrome-workspace-frame-surface);
+  box-shadow: var(--chrome-workspace-frame-shadow);
 }
 
-/* 主区独占绘制与顶栏、侧栏共用的两条边；不叠加阴影或高光，避免圆角伪影。 */
+/* Frame 独占连续的顶部、左侧和肩部外缘；内部内容只负责各自的 separator。 */
 .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
   border: 0;
   border-top-left-radius: 0;
@@ -277,18 +280,14 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 
 /* 垂直接缝只在肩部下方出现，避免 1px 直线穿过左上圆角。 */
 .chrome-layout.is-sidebar-expanded .chrome-sidebar-boundary {
-  background: linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent var(--ui-radius-workspace-shoulder),
-    var(--chrome-sidebar-divider) var(--ui-radius-workspace-shoulder)
-  );
+  background: transparent;
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
   padding-left: 0;
   overflow: hidden;
   border-top-left-radius: 0;
+  border: 0;
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-sidebar-boundary {
@@ -535,6 +534,7 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     padding-left: 0;
     overflow: hidden;
     border-top-left-radius: 0;
+    border: 0;
     box-shadow: none;
   }
 

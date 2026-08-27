@@ -1,9 +1,11 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent } from "react";
 import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
 import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { ConversationContextBudget } from "../../services/conversation-context-budget.ts";
+import { mcpSettingsRepository } from "../../services/mcp-settings-repository.ts";
+import { summarizeMcpPermission } from "../../services/mcp-permission.ts";
 import { AppIcon } from "../shared/app-icon";
 import { cx } from "../shared/ui-primitives";
 import type { DraftAttachment } from "./conversation-attachment-utils.ts";
@@ -122,6 +124,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   const addTriggerRef = useRef<HTMLButtonElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modelSelectorRef = useRef<ConversationModelSelectorHandle | null>(null);
+  const permissionLabel = useMemo(() => summarizeMcpPermission(mcpSettingsRepository.load()), []);
 
   useImperativeHandle(ref, () => ({
     openModelSelector: () => modelSelectorRef.current?.open(),
@@ -244,13 +247,14 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
         </div>
         <UiHint label="更改权限" placement="top">{({ describedBy }) => <button
           aria-describedby={describedBy}
-          aria-label="更改权限"
+          aria-label={`更改权限：${permissionLabel}`}
           className="conversation-composer-permission"
+          data-permission-state={permissionLabel}
           type="button"
           onClick={onOpenPermissions}
         >
           <AppIcon name="tool" size={16} />
-          <span>工具权限</span>
+          <span>{permissionLabel}</span>
         </button>}</UiHint>
         <div className="conversation-composer-actions">
           <ConversationContextIndicator

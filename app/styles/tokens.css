@@ -54,10 +54,15 @@
   --chrome-card-outline: var(--line);
   --chrome-composer-outline: var(--line);
   --chrome-composer-focus-ring: var(--focus-ring);
+  --chrome-composer-focus-outline: var(--chrome-composer-focus-ring);
+  --chrome-composer-focus-shadow: var(--chrome-composer-shadow);
   --chrome-popover-outline: var(--line);
   --chrome-subtle-shadow: 0 8px 22px rgb(15 23 42 / 0.04);
   --chrome-workspace-edge: var(--chrome-sidebar-divider);
   --chrome-workspace-shadow: 0 12px 28px rgb(15 23 42 / 0.045);
+  --chrome-workspace-frame-edge: var(--chrome-workspace-edge);
+  --chrome-workspace-frame-surface: var(--chrome-workspace-surface);
+  --chrome-workspace-frame-shadow: var(--chrome-workspace-shadow);
   --chrome-thread-surface: var(--chrome-workspace-surface);
   --chrome-conversation-surface: var(--chrome-workspace-surface);
   --chrome-thread-separator: var(--chrome-workspace-separator);
