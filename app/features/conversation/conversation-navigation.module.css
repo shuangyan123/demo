@@ -9,6 +9,7 @@
 :global(.conversation-shell-content) { display: flex; flex-direction: column; }
 :global(.conversation-main) { grid-column: 1; grid-row: 1; }
 :global(.conversation-message-region) { position: relative; display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; overflow: hidden; }
+:global(.conversation-canvas) { isolation: isolate; background: var(--chrome-conversation-surface); }
 :global(.conversation-topic-rail) {
   position: absolute;
   z-index: 12;
@@ -121,18 +122,27 @@
 :global(.conversation-canvas-scroll::-webkit-scrollbar-thumb) { border: 3px solid transparent; border-radius: 999px; background: var(--settings-scrollbar-thumb); background-clip: content-box; }
 :global(.conversation-canvas-scroll::-webkit-scrollbar-thumb:hover) { background: var(--settings-scrollbar-thumb-hover); background-clip: content-box; }
 :global(.conversation-message-content) { width: 100%; max-width: var(--conversation-content-max-width); min-height: 100%; margin: 0 auto; }
+:global(.conversation-reading-column)::before {
+  content: "";
+  display: block;
+  height: 1px;
+  margin: 0 0 1rem;
+  background: linear-gradient(90deg, var(--chrome-content-separator-strong) 0%, var(--chrome-content-separator-soft) 58%, transparent 100%);
+  pointer-events: none;
+}
 :global(.conversation-message-list.is-empty .conversation-message-content) {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
 }
-:global(.conversation-composer-stack) { position: relative; width: min(calc(100% - (2 * var(--conversation-content-gutter))), var(--conversation-content-max-width)); margin: 0 auto; }
+:global(.conversation-composer-dock) { flex: none; width: 100%; padding: 0 var(--conversation-content-gutter) max(1rem, env(safe-area-inset-bottom)); background: var(--chrome-conversation-surface); }
+:global(.conversation-composer-stack) { position: relative; width: min(100%, var(--conversation-content-max-width)); margin: 0 auto; }
 :global(.conversation-composer-stack .conversation-composer) { width: 100%; }
 :global(.conversation-jump-latest) {
   position: absolute;
-  z-index: 6;
+  z-index: 8;
   left: 50%;
-  top: -2.9rem;
+  top: -1.1rem;
   display: grid;
   height: 2.25rem;
   width: 2.25rem;
@@ -141,7 +151,7 @@
   border: 1px solid var(--chrome-card-outline);
   border-radius: 999px;
   background: var(--surface);
-  box-shadow: var(--chrome-subtle-shadow);
+  box-shadow: var(--chrome-composer-shadow);
 }
 :global(.conversation-jump-latest:hover) { background: var(--surface-muted); }
 :global(.conversation-jump-latest:focus-visible) { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
@@ -154,5 +164,5 @@
 }
 
 @media (max-width: 720px) {
-  :global(.conversation-composer-stack) { width: calc(100% - (2 * var(--conversation-content-gutter))); }
+  :global(.conversation-composer-dock) { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 }

@@ -3,7 +3,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from "react";
 import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
 import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
-import type { ConversationContextCompaction } from "../../types/domains/conversation.ts";
 import type { ConversationContextBudget } from "../../services/conversation-context-budget.ts";
 import { AppIcon } from "../shared/app-icon";
 import { cx } from "../shared/ui-primitives";
@@ -25,10 +24,8 @@ type ConversationComposerProps = {
   busy: boolean;
   connections: ApiConnectionProfile[];
   contextBudget: ConversationContextBudget;
-  contextCompaction?: ConversationContextCompaction;
   contextCompressing: boolean;
   contextCompressionAvailable: boolean;
-  conversationSummary: string;
   draft: string;
   modelSelectionError?: string;
   purpose: AiConnectionPurpose;
@@ -88,10 +85,8 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   busy,
   connections,
   contextBudget,
-  contextCompaction,
   contextCompressing,
   contextCompressionAvailable,
-  conversationSummary,
   draft,
   modelSelectionError,
   purpose,
@@ -156,7 +151,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   }
 
   return (
-    <form className="conversation-composer" data-conversation-composer onSubmit={onSubmit}>
+    <form className="conversation-composer conversation-composer-card" data-conversation-composer data-conversation-layer="composer-card" onSubmit={onSubmit}>
       {attachments.length ? (
         <div className="conversation-attachment-chips">
           {attachments.map((attachment) => (
@@ -177,8 +172,11 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
       {modelSelectionError || toolNotice ? <p className="conversation-composer-notice" role="status">{modelSelectionError ?? toolNotice}</p> : null}
       <ConversationDraftInput
         activeConversation={activeConversation}
+        contextCompressionAvailable={contextCompressionAvailable && !busy}
+        contextCompressing={contextCompressing}
         draft={draft}
         onChange={(value) => { setToolNotice(undefined); onDraftChange(value); }}
+        onCompressContext={onCompressContext}
         onNotice={(message) => { setToolNotice(message); onNotice(message); }}
         onOpenMcp={onOpenMcp}
         onOpenModel={() => modelSelectorRef.current?.open()}
@@ -238,12 +236,6 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
           />
           <ConversationContextIndicator
             budget={contextBudget}
-            busy={busy}
-            compaction={contextCompaction}
-            compressing={contextCompressing}
-            compressionAvailable={contextCompressionAvailable}
-            conversationSummary={conversationSummary}
-            onCompress={onCompressContext}
           />
           <button
             aria-label={recording ? "松开后转写" : "按住录音"}

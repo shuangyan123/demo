@@ -272,16 +272,18 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 
 - `MainContentShell` 统一右侧内容的居中 gutter，并提供 narrow / medium / wide 三档宽度；`ReviewWorkspaceShell` 只按视图选择预设，对话继续占满可用高度并由消息区独立滚动。
 - Composer 的空输入主操作是实时语音，存在文本或附件时切换为发送；按住录音保留为右侧次级操作。模型、推理强度、速度和高级设置共用单一可回退菜单，手动模型 ID 只在高级层出现。
-- `ConversationContextIndicator` 只消费结构化预算、当前摘要和既有压缩记录。72% / 84% 是未来告警与自动压缩的策略契约；`autoCompactionEnabled` 当前为 `false`，不会新增后台压缩、隐式重放或持久化。
+- `ConversationContextIndicator` 只消费结构化预算并以紧凑暗色弹层展示用量；手动压缩复用既有 `useConversationContext.compress()`，从 `/压缩` slash command 进入并显式处理 unavailable/loading。72% / 84% 是未来告警与自动压缩的策略契约；`autoCompactionEnabled` 当前为 `false`，不会新增后台压缩、隐式重放或持久化。
 - 粉笔不再作为公考项目主导航模块，导入统一进入“设置 → 导入”，粉笔仅是当前来源。主侧栏“插件与技能”负责发现，设置“已安装插件”负责启停、权限和卸载管理。
 - 个人资料使用现有本地计数、连接和默认模型事实；厂商快捷入口只来自代码内官方 HTTPS allowlist 与 provider contract 文档地址，绝不使用自定义 Base URL、模型输出或对话内容生成外链。
 
 ## Chat Workbench 最终 Shell 坐标系（2026-08-27）
 
 - `WorkspaceShell` 在侧栏与内容之间提供唯一 `chrome-sidebar-boundary`；应用和设置侧栏都采用固定 header、独立 `workspace-sidebar-scroll` 与固定 footer，footer 不再随项目/对话列表滚动。
+- 桌面展开态的 `chrome-content-frame[data-content-surface="raised-surface"]` 是唯一 workspace shoulder surface：使用 16px 语义左上圆角、轻微 elevation 和对比度派生 edge；折叠态与移动端清零，不向 conversation/settings card 复制肩部或重复边界。
+- 对话主区固定为 `MainWorkspace → ThreadHeader → ConversationCanvas → ReadingColumn → ComposerDock → ComposerCard`。ThreadHeader 是独立紧凑条带，Canvas 保持全宽且由 `conversation-canvas-scroll` 独占滚动；ReadingColumn 内部只绘制左强右淡的内容分隔线，ComposerDock 非滚动并让 JumpToLatest 以 Composer 中轴叠放。
 - `MainContentShell` 的 narrow / medium / wide 与对话 `--conversation-content-max-width` 由 tokens 统一维护。对话 canvas 由 `conversation-canvas-scroll` 独占纵向滚动，正文、工具结果和 Composer 共用同一中心轴；Topic Rail 锚定 canvas 而不是居中正文列。
 - 对比度只派生边界、surface、选中态、rail 和阴影 token；`--chrome-sidebar-width`、topbar 高度、内容宽度、半径和间距保持固定。`contrast = 0` 与 `contrast = 100` 不改变布局几何。
-- 设置继续复用同一个 `ReviewWorkspaceShell`，正文通过 `centered-settings-column` 保持中等阅读宽度；模型厂商层在桌面以整行 hover/focus 打开右侧模型 flyout，移动端保留点击回退。
+- 上下文弹层保持 2–3 行结构化用量，不回显摘要/时间/大按钮；模型厂商层在桌面以整行 hover/focus 打开无 back/chevron chrome 的右侧 flyout，移动端保留点击回退与 disclosure。设置继续复用同一个 `ReviewWorkspaceShell`，正文通过 `centered-settings-column` 保持中等阅读宽度。
 
 ## 扩展点
 

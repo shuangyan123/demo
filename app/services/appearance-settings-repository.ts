@@ -268,6 +268,14 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   const shadowAlpha = 0.025 + contrastRatio * 0.025;
   // 通用工作区与侧栏使用相邻但不透明的中性表面；对比度只改变它们的色差。
   const workspaceSurface = isDark ? "#202020" : "#ffffff";
+  const workspaceSurfaceRgb = hexToRgb(workspaceSurface, isDark ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 });
+  const threadSurface = rgbHex(mixRgb(workspaceSurfaceRgb, neutralColor, isDark ? 0.018 + contrastRatio * 0.022 : 0.018 + contrastRatio * 0.028));
+  const workspaceEdgeAlpha = 0.06 + contrastRatio * 0.12;
+  const contentSeparatorStrongAlpha = 0.12 + contrastRatio * 0.18;
+  const contentSeparatorSoftAlpha = 0.045 + contrastRatio * 0.075;
+  const composerShadowAlpha = 0.045 + contrastRatio * 0.055;
+  const contextPopoverOutlineAlpha = 0.16 + contrastRatio * 0.12;
+  const contextPopoverSurface = isDark ? "#252525" : "#1f2937";
   const sidebarBg = resolveSidebarBackground({ ...theme, background: workspaceSurface }, key, contrast);
   const diffuseEnabled = theme.diffuseGradient;
   const diffuseCompanionOne = shiftHue(accent, 46);
@@ -323,6 +331,19 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--chrome-composer-outline", rgba(neutralColor, composerOutlineAlpha));
   root.style.setProperty("--chrome-popover-outline", rgba(neutralColor, popoverOutlineAlpha));
   root.style.setProperty("--chrome-subtle-shadow", `0 8px 22px ${rgba({ r: 0, g: 0, b: 0 }, shadowAlpha)}`);
+  root.style.setProperty("--chrome-workspace-edge", rgba(neutralColor, workspaceEdgeAlpha));
+  root.style.setProperty("--chrome-workspace-shadow", `0 12px 28px ${rgba({ r: 0, g: 0, b: 0 }, composerShadowAlpha)}`);
+  root.style.setProperty("--chrome-thread-surface", threadSurface);
+  root.style.setProperty("--chrome-conversation-surface", workspaceSurface);
+  root.style.setProperty("--chrome-thread-separator", rgba(neutralColor, workspaceSeparatorAlpha));
+  root.style.setProperty("--chrome-content-separator-strong", rgba(neutralColor, contentSeparatorStrongAlpha));
+  root.style.setProperty("--chrome-content-separator-soft", rgba(neutralColor, contentSeparatorSoftAlpha));
+  root.style.setProperty("--chrome-composer-shadow", `0 12px 28px ${rgba({ r: 0, g: 0, b: 0 }, composerShadowAlpha)}`);
+  root.style.setProperty("--chrome-context-popover-surface", contextPopoverSurface);
+  root.style.setProperty("--chrome-context-popover-foreground", "#f8fafc");
+  root.style.setProperty("--chrome-context-popover-muted", "#cbd5e1");
+  root.style.setProperty("--chrome-context-popover-outline", `rgba(255, 255, 255, ${contextPopoverOutlineAlpha.toFixed(3)})`);
+  root.style.setProperty("--chrome-context-popover-shadow", `0 14px 32px rgba(0, 0, 0, ${(0.2 + contrastRatio * 0.12).toFixed(3)})`);
   root.style.setProperty("--chrome-topic-rail-inactive", rgba(neutralColor, topicInactiveAlpha));
   root.style.setProperty("--chrome-topic-rail-active", rgba(neutralColor, topicActiveAlpha));
   root.style.setProperty("--chrome-selected-bg", rgba(chromeSelectedColor, selectedAlpha));

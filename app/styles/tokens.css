@@ -55,6 +55,19 @@
   --chrome-composer-outline: var(--line);
   --chrome-popover-outline: var(--line);
   --chrome-subtle-shadow: 0 8px 22px rgb(15 23 42 / 0.04);
+  --chrome-workspace-edge: var(--chrome-sidebar-divider);
+  --chrome-workspace-shadow: 0 12px 28px rgb(15 23 42 / 0.045);
+  --chrome-thread-surface: var(--chrome-workspace-surface);
+  --chrome-conversation-surface: var(--chrome-workspace-surface);
+  --chrome-thread-separator: var(--chrome-workspace-separator);
+  --chrome-content-separator-strong: var(--chrome-card-outline);
+  --chrome-content-separator-soft: color-mix(in srgb, var(--chrome-card-outline) 44%, transparent);
+  --chrome-composer-shadow: var(--chrome-subtle-shadow);
+  --chrome-context-popover-surface: #252525;
+  --chrome-context-popover-foreground: #f8fafc;
+  --chrome-context-popover-muted: #cbd5e1;
+  --chrome-context-popover-outline: rgb(255 255 255 / 0.16);
+  --chrome-context-popover-shadow: 0 14px 32px rgb(0 0 0 / 0.24);
   --chrome-topic-rail-inactive: color-mix(in srgb, var(--foreground) 36%, transparent);
   --chrome-topic-rail-active: color-mix(in srgb, var(--foreground) 76%, transparent);
   --chrome-selected-bg: var(--interactive-selected-bg);
@@ -73,6 +86,7 @@
   --ui-radius-group: 0.75rem;
   --ui-radius-composer: 1rem;
   --ui-radius-popover: 0.75rem;
+  --ui-radius-workspace-shoulder: 1rem;
   --ui-control-height: 2.625rem;
   --study-flow-teal: #159aa3;
   --study-flow-blue: #3b8edb;

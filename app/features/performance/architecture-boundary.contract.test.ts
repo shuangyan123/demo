@@ -451,7 +451,7 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.doesNotMatch(shellSource, /integrationMode|data-integration-mode/);
   assert.doesNotMatch(shellSource, /chrome-topbar[^"]*border-b/);
   assert.doesNotMatch(shellSource, /chrome-sidebar[^"]*border-r/);
-  assert.match(reviewShellSource, /contentSurface=\{view === "conversation" \? "plain" : "raised-surface"\}/);
+  assert.match(reviewShellSource, /contentSurface="raised-surface"/);
   assert.doesNotMatch(settingsShellSource, /contentSurface="plain"/);
   assert.match(shellStyles, /\.chrome-content-frame\[data-content-surface="raised-surface"\]/);
   assert.match(shellStyles, /--chrome-workspace-top-inset:\s*12px/);
@@ -459,7 +459,9 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.match(shellStyles, /\.chrome-topbar\s*\{[\s\S]*?app-region: drag;/);
   assert.match(shellStyles, /\.chrome-topbar button,[\s\S]*?app-region: no-drag;/);
   assert.match(shellStyles, /\.chrome-shell::before\s*\{[\s\S]*?background-color: var\(--chrome-sidebar-bg\);[\s\S]*?background-image: var\(--chrome-sidebar-diffuse\);/);
-  assert.match(shellStyles, /padding-left: 0;\s+overflow: visible;/);
+  assert.match(shellStyles, /is-sidebar-expanded \.chrome-content-frame\[data-content-surface="raised-surface"\][\s\S]*?overflow: hidden;[\s\S]*?border-top-left-radius: var\(--ui-radius-workspace-shoulder\);[\s\S]*?box-shadow: var\(--chrome-workspace-shadow\);/);
+  assert.match(shellStyles, /is-sidebar-expanded \.chrome-sidebar-boundary[\s\S]*?linear-gradient\([\s\S]*?transparent var\(--ui-radius-workspace-shoulder\)/);
+  assert.match(shellStyles, /is-sidebar-collapsed \.chrome-content-frame\[data-content-surface="raised-surface"\][\s\S]*?box-shadow: none;/);
   assert.doesNotMatch(shellStyles, /content-frame\[data-content-surface="raised-surface"\]::after/);
   assert.match(shellStyles, /\.chrome-topbar\s*\{[\s\S]*?background-image: var\(--chrome-topbar-diffuse\);/);
   assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-topbar\s*\{[\s\S]*?transparent calc\(100% - 12px\),[\s\S]*?var\(--chrome-topbar-bg\) 100%[\s\S]*?var\(--chrome-topbar-diffuse\);/);
@@ -482,7 +484,7 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-content-frame\[data-content-surface\]\s*\{[\s\S]*?background-image: var\(--chrome-window-diffuse\);/);
   assert.match(shellStyles, /body\[data-diffuse-gradient="true"\] \.chrome-layout \.chrome-content-frame\[data-content-surface\] > \.chrome-content\s*\{[\s\S]*?background-color: transparent;/);
   assert.match(tokensStyles, /--chrome-topbar-diffuse: none;/);
-  for (const token of ["--chrome-sidebar-divider", "--chrome-workspace-separator", "--chrome-card-outline", "--chrome-composer-outline", "--chrome-popover-outline", "--chrome-topic-rail-inactive", "--content-width-narrow", "--content-width-medium", "--content-width-wide", "--conversation-content-max-width"]) {
+  for (const token of ["--chrome-sidebar-divider", "--chrome-workspace-separator", "--chrome-card-outline", "--chrome-composer-outline", "--chrome-popover-outline", "--chrome-workspace-edge", "--chrome-workspace-shadow", "--chrome-thread-surface", "--chrome-conversation-surface", "--chrome-thread-separator", "--chrome-content-separator-strong", "--chrome-content-separator-soft", "--chrome-composer-shadow", "--chrome-context-popover-surface", "--chrome-context-popover-outline", "--chrome-topic-rail-inactive", "--content-width-narrow", "--content-width-medium", "--content-width-wide", "--conversation-content-max-width", "--ui-radius-workspace-shoulder"]) {
     assert.match(tokensStyles, new RegExp(`${token}:`));
   }
   assert.match(appearanceSource, /setProperty\("--chrome-sidebar-width", "248px"\)/);
@@ -490,6 +492,9 @@ test("WorkspaceShell 默认向所有宿主提供通用外层边界", async () =>
   assert.match(appearanceSource, /dataset\.appearanceContrast/);
   assert.doesNotMatch(appearanceSource, /contrast[\s\S]{0,120}setProperty\("--chrome-sidebar-width"/);
   assert.match(appearanceSource, /setProperty\("--chrome-topbar-diffuse", topbarDiffuseBackground\)/);
+  assert.match(appearanceSource, /setProperty\("--chrome-workspace-edge",/);
+  assert.match(appearanceSource, /setProperty\("--chrome-thread-surface", threadSurface\)/);
+  assert.match(appearanceSource, /setProperty\("--chrome-context-popover-surface", contextPopoverSurface\)/);
   assert.match(layoutSource, /import \{ GeistMono \} from "geist\/font\/mono"/);
   assert.match(layoutSource, /\$\{GeistMono\.variable\}/);
   assert.match(fenbiStyles, /font-family: var\(--app-code-font\)/);

@@ -201,7 +201,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                 >
                   <ProviderIcon provider={provider} size={16} />
                   <span>{contract.label}</span>
-                  <AppIcon name="chevronRight" size={16} />
+                  <span className={styles.mobileDisclosure} aria-hidden="true"><AppIcon name="chevronRight" size={16} /></span>
                 </button>
               );
             }) : (

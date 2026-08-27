@@ -10,6 +10,7 @@ const draftInput = readFileSync(new URL("./conversation-draft-input.tsx", import
 const slashCommands = readFileSync(new URL("./conversation-slash-commands.tsx", import.meta.url), "utf8");
 const contextIndicator = readFileSync(new URL("./conversation-context-indicator.tsx", import.meta.url), "utf8");
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
+const modelPickerStyles = readFileSync(new URL("./conversation-model-picker.module.css", import.meta.url), "utf8");
 const popover = readFileSync(new URL("../shared/ui-popover.tsx", import.meta.url), "utf8");
 const mainContentShell = readFileSync(new URL("../shared/main-content-shell.tsx", import.meta.url), "utf8");
 const reviewShell = readFileSync(new URL("../review/review-workspace-shell.tsx", import.meta.url), "utf8");
@@ -28,8 +29,8 @@ test("Composer 一级保持紧凑且按输入状态切换语音与发送主操�
   assert.doesNotMatch(composer, /triggerVariant="menu"/);
 });
 
-test("斜杠菜单提供四个提示词和四个工具命令", () => {
-  for (const label of ["/解释", "/出题", "/复盘", "/总结", "/模型", "/推理", "/知识", "/mcp"]) {
+test("斜杠菜单提供四个提示词和五个工具命令", () => {
+  for (const label of ["/解释", "/出题", "/复盘", "/总结", "/模型", "/推理", "/知识", "/mcp", "/压缩"]) {
     assert.match(slashCommands, new RegExp(label.replace("/", "\\/")));
   }
   assert.match(slashCommands, /findConversationSlashMatch/);
@@ -55,19 +56,24 @@ test("添加菜单保留 Escape、外部点击、焦点恢复与首条消息阻�
   assert.match(addMenu, /请先发送首条消息，再生成 Obsidian 提案/);
 });
 
-test("上下文环只展示结构化用量和截断摘要，并保留手动压缩边界", () => {
+test("上下文环只展示紧凑用量，并把手动压缩收敛到 slash command", () => {
   assert.match(composer, /ConversationContextIndicator/);
   assert.match(contextIndicator, /budget\.usedTokens \/ budget\.contextWindow/);
-  assert.match(contextIndicator, /slice\(0, 120\)/);
+  assert.match(contextIndicator, /上下文窗口/);
+  assert.match(contextIndicator, /formatContextTokenCount\(budget\.usedTokens\)/);
+  assert.doesNotMatch(contextIndicator, /压缩上下文|当前对话|上次压缩|conversation-context-summary/);
   assert.match(contextIndicator, /UiPopover/);
   assert.match(popover, /createPortal/);
   assert.match(popover, /event\.key !== "Escape"/);
   assert.match(popover, /document\.addEventListener\("pointerdown", closeOnOutside\)/);
   assert.match(popover, /triggerRef\.current\?\.focus\(\)/);
-  assert.match(contextIndicator, /压缩上下文/);
   assert.match(composer, /onCompressContext/);
+  assert.match(draftInput, /command\.action === "compact"/);
+  assert.match(draftInput, /disabledActions=\{contextCompressionAvailable && !contextCompressing \? \[\] : \["compact"\]\}/);
+  assert.match(draftInput, /pendingActions=\{contextCompressing \? \["compact"\] : \[\]\}/);
+  assert.match(slashCommands, /disabledActions\?: readonly ConversationSlashCommandAction\[\]/);
   assert.deepEqual(conversationContextUsagePolicy, { warningPercent: 72, autoCompactionPercent: 84, autoCompactionEnabled: false });
-  assert.doesNotMatch(contextIndicator, /messages\.map|conversation\.messages/);
+  assert.doesNotMatch(contextIndicator, /messages\.map|conversation\.messages|ConversationContextCompaction/);
 });
 
 test("右侧内容统一使用居中宽度预设且对话保留宽屏工作区", () => {
@@ -76,7 +82,7 @@ test("右侧内容统一使用居中宽度预设且对话保留宽屏工作区",
   assert.match(mainContentShell, /data-main-content-width/);
   assert.match(readFileSync(new URL("../../styles/tokens.css", import.meta.url), "utf8"), /--conversation-content-max-width/);
   assert.match(reviewShell, /<MainContentShell[\s\S]*width=\{contentWidth\(view\)\}/);
-  assert.match(reviewShell, /contentSurface=\{view === "conversation" \? "plain" : "raised-surface"\}/);
+  assert.match(reviewShell, /contentSurface="raised-surface"/);
   assert.match(reviewShell, /conversation-main-content flex !h-full !min-h-0/);
 });
 
@@ -88,9 +94,17 @@ test("对话画布拥有唯一滚动容器并让正文与 Composer 共用坐标�
   assert.match(workspace, /scrollContainerRef: conversationScrollRef/);
   assert.match(navigationStyles, /conversation-canvas-scroll[\s\S]*overflow-y: auto/);
   assert.match(navigationStyles, /conversation-message-content[\s\S]*max-width: var\(--conversation-content-max-width\)/);
+  assert.match(navigationStyles, /conversation-reading-column[\s\S]*linear-gradient\(90deg/);
   assert.match(navigationStyles, /conversation-composer-stack[\s\S]*var\(--conversation-content-max-width\)/);
+  assert.match(navigationStyles, /conversation-composer-dock[\s\S]*safe-area-inset-bottom/);
   assert.match(uiStyles, /\.conversation-composer[\s\S]*var\(--conversation-content-max-width\)/);
   assert.match(workspace, /className="workspace-topbar conversation-thread-header"/);
+  assert.match(workspace, /data-conversation-layer="thread-header"/);
+  assert.match(workspace, /data-conversation-layer="conversation-canvas"/);
+  assert.match(workspace, /data-conversation-layer="reading-column"/);
+  assert.match(workspace, /conversation-composer-dock" data-conversation-layer="composer-dock"/);
+  assert.match(workspace, /data-conversation-layer="jump-to-latest"/);
+  assert.match(composer, /data-conversation-layer="composer-card"/);
 });
 
 test("模型厂商整行支持悬停和键盘聚焦打开右侧模型层", () => {
@@ -98,5 +112,9 @@ test("模型厂商整行支持悬停和键盘聚焦打开右侧模型层", () =>
   assert.match(modelPicker, /onFocus=\{\(event\) => \{/);
   assert.match(modelPicker, /styles\.flyout/);
   assert.match(modelPicker, /className=\{`\$\{styles\.layer\} \$\{styles\.modelPane\}`\}/);
+  assert.match(modelPicker, /styles\.mobileDisclosure/);
+  assert.match(modelPickerStyles, /\.flyoutBack\s*\{\s*display: none;/);
+  assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.flyoutBack\s*\{\s*display: grid;/);
+  assert.match(modelPickerStyles, /\.mobileDisclosure\s*\{\s*display: inline-flex;/);
   assert.doesNotMatch(modelPicker, /<strong>模型<\/strong>/);
 });

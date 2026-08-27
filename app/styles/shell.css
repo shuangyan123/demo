@@ -250,11 +250,12 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   display: none;
 }
 
-/* 桌面展开态让工作区直接贴合侧栏，仅保留圆角与共边。 */
+/* 桌面展开态让工作区保持唯一肩部表面；圆角、边缘和阴影都归 frame 所有。 */
 .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] {
   padding-left: 0;
-  overflow: visible;
-  border-top-left-radius: 0;
+  overflow: hidden;
+  border-top-left-radius: var(--ui-radius-workspace-shoulder);
+  box-shadow: var(--chrome-workspace-shadow);
 }
 
 /* 主区独占绘制与顶栏、侧栏共用的两条边；不叠加阴影或高光，避免圆角伪影。 */
@@ -267,6 +268,16 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   background-color: var(--chrome-workspace-surface);
   background-image: none;
   box-shadow: none;
+}
+
+/* 垂直接缝只在肩部下方出现，避免 1px 直线穿过左上圆角。 */
+.chrome-layout.is-sidebar-expanded .chrome-sidebar-boundary {
+  background: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent var(--ui-radius-workspace-shoulder),
+    var(--chrome-sidebar-divider) var(--ui-radius-workspace-shoulder)
+  );
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
@@ -348,6 +359,10 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   .chrome-shell .chrome-layout.is-sidebar-collapsed .chrome-content-frame,
   .chrome-shell .chrome-layout.is-sidebar-collapsed .chrome-content {
     border-radius: 0;
+  }
+
+  .chrome-shell .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
+    box-shadow: none;
   }
 
   .chrome-layout.is-sidebar-expanded .chrome-sidebar {
@@ -473,6 +488,7 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     padding-left: 0;
     overflow: hidden;
     border-top-left-radius: 0;
+    box-shadow: none;
   }
 
   .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {

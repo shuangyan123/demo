@@ -107,7 +107,7 @@ export function ReviewWorkspaceShell({
 
   return (
     <WorkspaceShell
-      contentSurface={view === "conversation" ? "plain" : "raised-surface"}
+      contentSurface="raised-surface"
       contentClassName={contentClassName ?? (view === "conversation"
         ? "conversation-shell-content"
         : view === "automation"

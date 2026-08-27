@@ -51,6 +51,11 @@ test("conversation navigation keeps scrolling local and exposes accessible contr
   const hook = readFileSync(new URL("./use-conversation-navigation.ts", import.meta.url), "utf8");
 
   assert.match(workspace, /aria-label="跳到最新消息"/);
+  assert.match(workspace, /data-conversation-layer="conversation-canvas"/);
+  assert.match(workspace, /data-conversation-layer="canvas-scroll"/);
+  assert.match(workspace, /conversation-reading-column/);
+  assert.match(workspace, /data-conversation-layer="composer-dock"/);
+  assert.match(workspace, /data-conversation-layer="jump-to-latest"/);
   assert.match(navigation, /aria-label="对话主题目录"/);
   assert.match(navigation, /aria-modal="true"/);
   assert.match(hook, /overflowing && !atBottom/);
@@ -64,6 +69,9 @@ test("conversation navigation keeps scrolling local and exposes accessible contr
   assert.match(navigation, /topic\.attachments\.slice\(0, 2\)/);
   assert.match(navigationStyles, /left: clamp\(1rem, 1\.5vw, 1\.5rem\)/);
   assert.match(navigationStyles, /height: 100%/);
+  assert.match(navigationStyles, /conversation-canvas/);
+  assert.match(navigationStyles, /conversation-composer-dock/);
+  assert.match(navigationStyles, /conversation-reading-column/);
   assert.doesNotMatch(navigationStyles, /calc\(50% -/);
   assert.match(overlayPosition, /placement === "right"/);
   assert.match(overlayPosition, /preferredTop >= gutter \? preferredTop : flippedTop/);
