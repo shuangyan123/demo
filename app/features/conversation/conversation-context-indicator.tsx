@@ -19,7 +19,7 @@ export function ConversationContextIndicator({ budget }: { budget: ConversationC
       <header><strong>上下文窗口</strong><span>{warning ? "接近上限" : usagePercent === undefined ? "上限未知" : "当前用量"}</span></header>
       <p className="conversation-context-usage">{usagePercent === undefined ? "用量未知" : `${usagePercent}% 已用`}</p>
       <p className="conversation-context-tokens">
-        {formatContextTokenCount(budget.usedTokens)} tokens{budget.contextWindow ? `，共 ${formatContextTokenCount(budget.contextWindow)} tokens` : "，上限未知"}
+        {formatContextTokenCount(budget.usedTokens)} 标记{budget.contextWindow ? `，共 ${formatContextTokenCount(budget.contextWindow)} 标记` : "，上限未知"}
       </p>
     </section>
   );

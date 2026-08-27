@@ -1,29 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
+import { host } from "../../platform/host";
 import { AppIcon } from "./app-icon";
+import { UiHint } from "./ui-tooltip";
+import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { useDesktopTitlebarTheme } from "./use-desktop-titlebar-theme.ts";
-// 渲染左上角侧栏切换按钮，使用按钮语义让键盘和屏幕阅读器都能识别当前折叠状态。
-export function SidebarToggleButton({
-  buttonRef,
-  collapsed,
-  onToggle,
-}: {
-  buttonRef?: Ref<HTMLButtonElement>;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      ref={buttonRef}
-      className="sidebar-toggle-button grid h-7 w-7 place-items-center rounded-lg border border-line text-muted hover:bg-chrome-hover hover:text-foreground max-lg:h-11 max-lg:w-11"
-      type="button"
-      aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
-      aria-pressed={collapsed}
-      onClick={onToggle}
-    >
-      <AppIcon name="sidebar" size={18} />
-    </button>
-  );
-}
 export function WindowMenuBar({
   sidebarButtonRef,
   sidebarCollapsed,
@@ -40,16 +20,17 @@ export function WindowMenuBar({
       <div className="chrome-topbar-safe-area flex h-full min-w-0 items-center gap-3 px-3">
         <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
         {onBack && (
-          <button
-            className="chrome-titlebar-control hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
-            type="button"
-            aria-label="返回"
-            onClick={onBack}
-          >
-            <AppIcon name="back" size={18} />
-          </button>
+          <UiHint content="返回" placement="bottom">{({ describedBy }) => <button
+              className="chrome-titlebar-control hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
+              type="button"
+              aria-describedby={describedBy}
+              aria-label="返回"
+              onClick={onBack}
+            >
+              <AppIcon name="back" size={18} />
+            </button>}</UiHint>
         )}
-        <strong className="truncate text-foreground">{title}</strong>
+        <span className="chrome-product-title" data-product-title={title} aria-hidden="true" />
       </div>
     </header>
   );
@@ -78,6 +59,11 @@ export function WorkspaceShell({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const mobileSidebarRef = useRef<HTMLElement>(null);
   const sidebarButtonRef = useRef<HTMLButtonElement>(null);
+  const nativeWindowAvailable = useSyncExternalStore(
+    () => () => undefined,
+    () => Boolean(host.capabilities.nativeWindow),
+    () => false,
+  );
   const sidebarStateClass = sidebarCollapsed ? "is-sidebar-collapsed" : "is-sidebar-expanded";
   const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;
   useDesktopTitlebarTheme();
@@ -145,6 +131,7 @@ export function WorkspaceShell({
     <div
       className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground"
       data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
+      data-native-window={nativeWindowAvailable ? "true" : "false"}
     >
       <WindowMenuBar
         sidebarButtonRef={sidebarButtonRef}

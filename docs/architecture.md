@@ -521,7 +521,14 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 声明式扩展权限由 `declarative-extension-permissions.ts` 纯决策核解释，`enabled` 不等于授权；主题/人设执行入口与 `setEnabled(true)` 都在实际回调/事务前重新读取当前声明、能力和底层设置。学习路径、模板和评分标准包暂时没有 runtime，保持阻断。
 - 内置 Obsidian/Fenbi 的真实 repository、provider、网络和应用级监听边界分别复核当前插件偏好；停用只阻止下一次执行，不删除历史数据，也不创建第二套 MCP 权限系统。详见 `docs/declarative-extension-permissions.md`。
 - Electron 窗口使用 `titleBarStyle: "hidden"` 与 52px `titleBarOverlay`。`.chrome-topbar` 是拖动区，全部按钮标记为 `app-region: no-drag`；受限 IPC 只接受 `light | dark` 并仅调整系统窗口按钮对比色。
-- 顶部栏横跨整个窗口，侧栏和工作区从 52px 标题栏下方开始；`<main>` 仍独占顶部/左侧共边和 18px 左上圆角，浏览器模式不伪造系统窗口按钮。
+- Electron 的 renderer 顶部区仍横跨窗口并作为 52px 拖动/标题栏集成区；侧栏和工作区从 native/menu chrome 下方开始。浏览器模式不伪造系统窗口按钮，也不保留这条产品级 renderer 顶栏。
+
+## Workbench chrome 与统一短提示收口（2026-08-27）
+
+- `WorkspaceShell` 在 Browser 中把仅用于 Electron 集成的 `.chrome-topbar` 收敛为零高度边界，`SidebarHeader` 继续在侧栏内部显示“错题复盘”；Electron 仍保留 native/menu chrome、拖动区和受限 `nativeWindow` capability。
+- 桌面展开时 `chrome-sidebar-boundary` 保持 1px 与 16px workspace shoulder；折叠时 sidebar 与 boundary 均为 0 列，`MainWorkspace` 从 x=0 开始。`ThreadHeader` 仍是 MainWorkspace 的全宽顶沿，只用单条 separator 与 Canvas 分层，不再绘制第二张卡片的阴影/渐变。
+- `UiHint`（兼容出口 `UiTooltip`）只承载短文本、portal 到 `document.body`，使用 `computeUiOverlayPosition` 的候选/翻转/夹紧、450ms hover/focus、Escape/blur/leave、touch 抑制和单例可见性；`UiPopover` 继续承载 context usage、模型选择和结构化操作菜单等交互内容。对话上下文的用户可见单位使用“标记”，底层 token 变量与 `/压缩` 契约不变。
+- 本轮只调整 renderer chrome、提示 primitive、对话树/Composer 的 icon-only hint 接入与轻量纵向留白，不修改 Electron IPC、Provider、MCP、IndexedDB v16 或业务数据结构。
 
 # 0.3 Host Capability Layer（2026-08-09）
 

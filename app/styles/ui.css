@@ -1124,12 +1124,6 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   overflow: hidden;
 }
 
-.workspace-topbar {
-  flex: none;
-  min-height: var(--chrome-workspace-topbar-height);
-  border-bottom: 1px solid var(--chrome-workspace-separator);
-}
-
 .conversation-thread-header {
   display: flex;
   width: 100%;
@@ -1142,11 +1136,13 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   z-index: 3;
   border-bottom: 1px solid var(--chrome-thread-separator);
   background: var(--chrome-thread-surface);
+  background-image: none;
+  box-shadow: none;
 }
 
 .conversation-message-list {
   min-height: 100%;
-  padding: 1.25rem var(--conversation-content-gutter);
+  padding: 1.35rem var(--conversation-content-gutter) 1.15rem;
 }
 
 .conversation-message-list.is-empty {
@@ -1160,7 +1156,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .conversation-turn {
   width: 100%;
   max-width: var(--conversation-content-max-width);
-  margin: 0 auto 1rem;
+  margin: 0 auto 1.2rem;
 }
 
 .conversation-message {
@@ -1427,8 +1423,8 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 }
 
 .conversation-composer:focus-within {
-  outline: 1px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: 2px solid var(--chrome-composer-focus-ring);
+  outline-offset: 2px;
   box-shadow: var(--chrome-composer-shadow);
 }
 
@@ -2598,7 +2594,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   }
 
   .conversation-message-list {
-    padding: 1rem var(--conversation-content-gutter);
+    padding: 1.1rem var(--conversation-content-gutter) 1rem;
   }
 
   .conversation-message-bubble {
@@ -2771,16 +2767,16 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .ui-tooltip-content {
   position: fixed;
   z-index: 90;
-  max-width: min(12.5rem, calc(100vw - 1rem));
-  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
-  border-radius: 0.4rem;
-  background: color-mix(in srgb, var(--foreground) 94%, var(--surface));
-  padding: 0.3rem 0.45rem;
-  color: var(--surface);
-  font-size: 0.68rem;
+  max-width: min(15rem, calc(100vw - 1rem));
+  border: 1px solid var(--chrome-hint-outline);
+  border-radius: var(--ui-radius-hint);
+  background: var(--chrome-hint-surface);
+  padding: 0.35rem 0.55rem;
+  color: var(--chrome-hint-foreground);
+  font-size: 0.72rem;
   line-height: 1.4;
   pointer-events: none;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 16%);
+  box-shadow: var(--chrome-hint-shadow);
   animation: ui-tooltip-enter 100ms ease-out;
 }
 

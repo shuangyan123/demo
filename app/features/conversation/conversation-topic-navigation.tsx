@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "../shared/app-icon";
+import { UiHint } from "../shared/ui-tooltip";
 import { computeUiOverlayPosition } from "../shared/ui-overlay-position";
 import type { ConversationTopic } from "./use-conversation-navigation";
 
@@ -177,7 +178,7 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
           <section ref={drawerRef} className="conversation-topic-drawer" role="dialog" aria-modal="true" aria-labelledby="conversation-topic-title">
             <header>
               <div><AppIcon name="topics" size={18} /><h2 id="conversation-topic-title">主题目录</h2><span>{topics.length}</span></div>
-              <button type="button" aria-label="关闭主题目录" title="关闭" onClick={onCloseDrawer}><AppIcon name="close" size={18} /></button>
+              <UiHint content="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭主题目录" onClick={onCloseDrawer}><AppIcon name="close" size={18} /></button>}</UiHint>
             </header>
             <TopicList drawer topics={topics} onSelect={(turnId) => {
               onSelect(turnId);

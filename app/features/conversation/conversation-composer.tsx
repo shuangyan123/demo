@@ -12,6 +12,7 @@ import { ConversationDraftInput } from "./conversation-draft-input";
 import { ConversationModelSelector, type ConversationModelSelectorHandle } from "./conversation-model-selector";
 import type { ConversationModelSelection } from "./conversation-model-picker";
 import { ConversationContextIndicator } from "./conversation-context-indicator";
+import { UiHint } from "../shared/ui-tooltip";
 
 /** 工作台只需要通过句柄请求打开模型菜单，不接管菜单内部状态。 */
 export type ConversationComposerHandle = {
@@ -157,14 +158,14 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
           {attachments.map((attachment) => (
             <span key={attachment.id}>
               <span className="truncate">{attachment.file.name}</span>
-              <button
+              <UiHint content="移除附件" placement="top">{({ describedBy }) => <button
                 type="button"
+                aria-describedby={describedBy}
                 aria-label={`移除 ${attachment.file.name}`}
-                title="移除附件"
                 onClick={() => onAttachmentRemove(attachment.id)}
               >
                 <AppIcon name="close" size={16} />
-              </button>
+              </button>}</UiHint>
             </span>
           ))}
         </div>
@@ -193,19 +194,19 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
           onChange={(event) => void handleFiles(event.currentTarget.files)}
         />
         <div ref={addMenuRef} className="conversation-composer-menu">
-          <button
+          <UiHint content="添加" placement="top">{({ describedBy }) => <button
             ref={addTriggerRef}
             aria-controls={toolMenuOpen ? "conversation-add-menu" : undefined}
             aria-expanded={toolMenuOpen}
             aria-haspopup="menu"
+            aria-describedby={describedBy}
             aria-label="添加"
             className="conversation-composer-icon"
-            title="添加"
             type="button"
             onClick={() => setToolMenuOpen((value) => !value)}
           >
             <AppIcon name="newChat" size={20} />
-          </button>
+          </button>}</UiHint>
           {toolMenuOpen ? (
             <ConversationAddMenu
               activeConversation={activeConversation}
@@ -237,24 +238,24 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
           <ConversationContextIndicator
             budget={contextBudget}
           />
-          <button
+          <UiHint content={recording ? "松开后转写" : "按住录音"} placement="top">{({ describedBy }) => <button
             aria-label={recording ? "松开后转写" : "按住录音"}
+            aria-describedby={describedBy}
             className={cx("conversation-composer-icon", recording && "is-recording")}
             disabled={busy}
-            title={recording ? "松开后转写" : "按住录音"}
             type="button"
             onPointerDown={onStartRecording}
             onPointerUp={onStopRecording}
             onPointerCancel={onStopRecording}
           >
             <AppIcon name="mic" size={20} />
-          </button>
+          </button>}</UiHint>
           {draft.trim() || attachments.length ? (
-            <button className="conversation-send" disabled={busy} type="submit" aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>
+            <UiHint content="发送" placement="top">{({ describedBy }) => <button className="conversation-send" disabled={busy} type="submit" aria-describedby={describedBy} aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>}</UiHint>
           ) : (
-            <button className="conversation-send conversation-voice" disabled={busy} type="button" aria-label="开始语音聊天" title="开始语音聊天" onClick={onOpenRealtimeVoice}>
+            <UiHint content="开始语音聊天" placement="top">{({ describedBy }) => <button className="conversation-send conversation-voice" disabled={busy} type="button" aria-describedby={describedBy} aria-label="开始语音聊天" onClick={onOpenRealtimeVoice}>
               <AppIcon name="voice" size={20} />
-            </button>
+            </button>}</UiHint>
           )}
         </div>
       </div>

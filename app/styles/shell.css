@@ -39,6 +39,11 @@
   user-select: none;
 }
 
+/* 产品标题不再重复占用 renderer chrome；Electron 的窗口标题/菜单仍由宿主负责。 */
+.chrome-product-title {
+  display: none;
+}
+
 .chrome-topbar-safe-area {
   width: env(titlebar-area-width, 100%);
   margin-left: env(titlebar-area-x, 0);
@@ -75,7 +80,7 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 
 .chrome-layout[data-sidebar="collapsed"],
 .chrome-layout.is-sidebar-collapsed {
-  grid-template-columns: 0 var(--chrome-sidebar-boundary-width) minmax(0, 1fr);
+  grid-template-columns: 0 0 minmax(0, 1fr);
 }
 
 /* 侧栏本体承载不透明底色、装饰层、内容和边框。 */
@@ -102,7 +107,7 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   width: var(--chrome-sidebar-boundary-width);
   background: var(--chrome-sidebar-divider);
   pointer-events: none;
-  transition: background-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease);
+  transition: width var(--motion-structure) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease);
 }
 
 /* 应用与设置共用的侧栏坐标系：只有中间 scroll region 可滚动。 */
@@ -288,6 +293,7 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 
 .chrome-layout.is-sidebar-collapsed .chrome-sidebar-boundary {
   opacity: 0;
+  width: 0;
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
@@ -365,6 +371,46 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
     box-shadow: none;
   }
 
+  /* Browser 没有 native titlebar：renderer chrome 退化为零高度边界，workspace 从视口顶端开始。 */
+  .chrome-shell[data-native-window="false"] > .chrome-topbar {
+    height: 0;
+    overflow: visible;
+    border-bottom: 0;
+    background: transparent;
+    background-image: none;
+    app-region: none;
+    -webkit-app-region: none;
+  }
+
+  .chrome-shell[data-native-window="false"] > .chrome-topbar .chrome-topbar-safe-area {
+    position: static;
+    height: 0;
+    padding: 0;
+  }
+
+  .chrome-shell[data-native-window="false"] > .chrome-topbar .ui-tooltip-anchor {
+    position: fixed;
+    z-index: 80;
+    top: 0.75rem;
+    left: calc(var(--chrome-sidebar-width) - 2.5rem);
+  }
+
+  .chrome-shell[data-native-window="false"][data-sidebar="collapsed"] > .chrome-topbar .ui-tooltip-anchor {
+    left: 0.75rem;
+  }
+
+  .chrome-shell[data-native-window="false"] > .chrome-layout {
+    height: 100%;
+  }
+
+  .chrome-shell[data-native-window="false"]::before {
+    inset: 0 auto 0 0;
+  }
+
+  .chrome-shell[data-native-window="false"][data-sidebar="collapsed"]::before {
+    width: 0;
+  }
+
   .chrome-layout.is-sidebar-expanded .chrome-sidebar {
     border-inline-end-width: 0;
     border-right-width: 0;
@@ -387,6 +433,7 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar-boundary,
 .chrome-layout.is-sidebar-collapsed .chrome-sidebar-boundary {
   opacity: 0;
+  width: 0;
 }
 
 .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar::before,
@@ -497,6 +544,11 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     border-bottom-left-radius: 0;
     background-image: none;
     box-shadow: none !important;
+  }
+
+  /* 移动端保留可操作的抽屉触发区，但不再显示重复的产品标题。 */
+  .chrome-shell > .chrome-topbar .chrome-product-title {
+    display: none;
   }
 }
 

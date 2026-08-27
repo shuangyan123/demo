@@ -1,4 +1,17 @@
-export type UiOverlayPlacement = "right" | "top-end";
+export type UiOverlayPlacement =
+  | "auto"
+  | "top"
+  | "top-start"
+  | "top-end"
+  | "bottom"
+  | "bottom-start"
+  | "bottom-end"
+  | "left"
+  | "left-start"
+  | "left-end"
+  | "right"
+  | "right-start"
+  | "right-end";
 
 type RectLike = Pick<DOMRect, "bottom" | "height" | "left" | "right" | "top" | "width">;
 
@@ -14,7 +27,7 @@ export function computeUiOverlayPosition({
 }: {
   anchor: RectLike;
   overlay: RectLike;
-  placement: UiOverlayPlacement;
+  placement: UiOverlayPlacement | readonly UiOverlayPlacement[];
   viewportHeight: number;
   viewportWidth: number;
   gap?: number;
@@ -29,21 +42,39 @@ export function computeUiOverlayPosition({
     Math.max(gutter, top),
   );
 
-  if (placement === "right") {
-    const preferredLeft = anchor.right + gap;
-    const flippedLeft = anchor.left - overlay.width - gap;
-    const left = preferredLeft + overlay.width <= viewportWidth - gutter ? preferredLeft : flippedLeft;
-    return {
-      left: clampLeft(left),
-      top: clampTop(anchor.top + (anchor.height - overlay.height) / 2),
-    };
-  }
+  const preferredPlacements = (Array.isArray(placement) ? placement : [placement]).flatMap((item) => {
+    if (item === "auto") return ["right", "left", "top", "bottom"] as const;
+    const [side, alignment] = item.split("-") as ["top" | "bottom" | "left" | "right", "start" | "end" | undefined];
+    const opposite = side === "right" ? "left" : side === "left" ? "right" : side === "top" ? "bottom" : "top";
+    return [item, alignment ? `${opposite}-${alignment}` as UiOverlayPlacement : opposite] as const;
+  });
 
-  const preferredTop = anchor.top - overlay.height - gap;
-  const flippedTop = anchor.bottom + gap;
-  const top = preferredTop >= gutter ? preferredTop : flippedTop;
-  return {
-    left: clampLeft(anchor.right - overlay.width),
-    top: clampTop(top),
+  const candidate = (item: Exclude<UiOverlayPlacement, "auto">): { left: number; top: number } => {
+    const [side, alignment] = item.split("-") as ["top" | "bottom" | "left" | "right", "start" | "end" | undefined];
+    if (side === "right" || side === "left") {
+      const left = side === "right" ? anchor.right + gap : anchor.left - overlay.width - gap;
+      const top = alignment === "start"
+        ? anchor.top
+        : alignment === "end"
+          ? anchor.bottom - overlay.height
+          : anchor.top + (anchor.height - overlay.height) / 2;
+      return { left, top };
+    }
+    const top = side === "top" ? anchor.top - overlay.height - gap : anchor.bottom + gap;
+    const left = alignment === "start"
+      ? anchor.left
+      : alignment === "end"
+        ? anchor.right - overlay.width
+        : anchor.left + (anchor.width - overlay.width) / 2;
+    return { left, top };
   };
+
+  const fits = ({ left, top }: { left: number; top: number }) => (
+    left >= gutter
+    && top >= gutter
+    && left + overlay.width <= viewportWidth - gutter
+    && top + overlay.height <= viewportHeight - gutter
+  );
+  const selected = preferredPlacements.map(candidate).find(fits) ?? candidate(preferredPlacements[0] ?? "top");
+  return { left: clampLeft(selected.left), top: clampTop(selected.top) };
 }

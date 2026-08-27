@@ -73,8 +73,11 @@ test("conversation navigation keeps scrolling local and exposes accessible contr
   assert.match(navigationStyles, /conversation-composer-dock/);
   assert.match(navigationStyles, /conversation-reading-column/);
   assert.doesNotMatch(navigationStyles, /calc\(50% -/);
-  assert.match(overlayPosition, /placement === "right"/);
-  assert.match(overlayPosition, /preferredTop >= gutter \? preferredTop : flippedTop/);
+  assert.match(overlayPosition, /placement: UiOverlayPlacement \| readonly UiOverlayPlacement\[\]/);
+  assert.match(overlayPosition, /item === "auto"/);
+  assert.match(overlayPosition, /const \[side, alignment\] = item\.split\("-"\)/);
+  assert.match(overlayPosition, /const fits = \(\{ left, top \}/);
+  assert.match(overlayPosition, /candidate\(preferredPlacements\[0\] \?\? "top"\)/);
 });
 
 test("topic navigation auto-scroll effect never exposes the scroll return value as cleanup", () => {

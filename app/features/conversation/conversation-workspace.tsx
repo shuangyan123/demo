@@ -13,6 +13,7 @@ import { conversationRepository } from "../../services/conversation-repository.t
 import { buildConversationTurnTimeline } from "../../services/conversation-turns.ts";
 import type { KnowledgeEvolutionProposal } from "../../types/domains/obsidian.ts";
 import { AppIcon } from "../shared/app-icon";
+import { UiHint } from "../shared/ui-tooltip";
 import { persistDraftAttachmentSummaries, type DraftAttachment } from "./conversation-attachment-utils.ts";
 import { conversationProviderErrorMessage, readBlobAsDataUrl, requireConversationAssistantContent } from "./conversation-message-utils.ts";
 import { useConversationVisionTools } from "./use-conversation-vision-tools.ts";
@@ -395,11 +396,11 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
   return (
     <section className="conversation-workspace" aria-label="AI 对话工作台">
       <div className="conversation-main" data-conversation-layer="workspace">
-        <header className="workspace-topbar conversation-thread-header" data-conversation-layer="thread-header">
+        <header className="conversation-thread-header" data-conversation-layer="thread-header">
           <div className="min-w-0"><h1 className="truncate text-base font-semibold">{activeConversation?.title ?? "新对话"}</h1></div>
           <div className="conversation-thread-actions">
             {conversationNavigation.topics.length ? <button className="conversation-topic-trigger" type="button" aria-haspopup="dialog" onClick={() => setTopicDrawerOpen(true)}><AppIcon name="topics" size={16} /><span>主题 {conversationNavigation.topics.length}</span></button> : null}
-            {activeConversation ? <button className="conversation-header-action" type="button" title="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button> : null}
+            {activeConversation ? <UiHint content="移动到文件夹" placement="bottom">{({ describedBy }) => <button className="conversation-header-action" type="button" aria-describedby={describedBy} aria-label="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button>}</UiHint> : null}
           </div>
         </header>
         {launchContext && !activeConversation ? (
@@ -455,16 +456,16 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
         {mcpPanelOpen ? <ConversationMcpToolPanel onClose={() => setMcpPanelOpen(false)} onExecuted={recordMcpExecution} onNotice={onNotice} /> : null}
         <div className="conversation-composer-dock" data-conversation-layer="composer-dock"><div className="conversation-composer-stack">
           {conversationNavigation.showJumpToLatest ? (
-            <button
+            <UiHint content="跳到最新消息" placement="top">{({ describedBy }) => <button
               className="conversation-jump-latest"
               data-conversation-layer="jump-to-latest"
               type="button"
+              aria-describedby={describedBy}
               aria-label="跳到最新消息"
-              title="跳到最新消息"
               onClick={() => conversationNavigation.jumpToLatest()}
             >
               <AppIcon name="down" size={18} />
-            </button>
+            </button>}</UiHint>
           ) : null}
         <ConversationComposer ref={composerRef}
           activeConversation={Boolean(activeConversation)} attachments={attachments}
@@ -490,7 +491,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
         </div></div>
         {realtimeVoiceOpen ? <RealtimeVoicePanel connections={connections} onClose={() => setRealtimeVoiceOpen(false)} onFinalTranscript={persistRealtimeTranscript} /> : null}
       </div>
-      {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到文件夹</h2><button type="button" aria-label="关闭移动菜单" title="关闭" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button></div><button type="button" onClick={() => void moveConversation()}>根目录</button>{snapshot.folders.filter((folder) => folder.projectId === activeConversation.projectId).map((folder) => <button key={folder.id} type="button" onClick={() => void moveConversation(folder.id)}>{folder.parentId ? "↳ " : ""}{folder.label}</button>)}</section></div> : null}
+      {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到文件夹</h2><UiHint content="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button>}</UiHint></div><button type="button" onClick={() => void moveConversation()}>根目录</button>{snapshot.folders.filter((folder) => folder.projectId === activeConversation.projectId).map((folder) => <button key={folder.id} type="button" onClick={() => void moveConversation(folder.id)}>{folder.parentId ? "↳ " : ""}{folder.label}</button>)}</section></div> : null}
     </section>
   );
 }

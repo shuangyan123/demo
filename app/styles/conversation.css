@@ -37,6 +37,27 @@
   color: var(--muted);
 }
 
+/* UiHint 的 anchor 作为 grid item，保持对话树原有三列几何不变。 */
+.conversation-tree-heading > .ui-tooltip-anchor,
+.conversation-tree-folder-row > .ui-tooltip-anchor,
+.conversation-tree-chat > .ui-tooltip-anchor {
+  display: grid;
+  min-height: 1.8rem;
+  min-width: 1.8rem;
+  place-items: center;
+}
+
+.conversation-tree-heading > .ui-tooltip-anchor > button,
+.conversation-tree-folder-row > .ui-tooltip-anchor > button,
+.conversation-tree-chat > .ui-tooltip-anchor > button {
+  display: grid;
+  min-height: 1.8rem;
+  min-width: 1.8rem;
+  place-items: center;
+  border-radius: var(--ui-radius-row);
+  color: var(--muted);
+}
+
 .conversation-tree-heading button:hover,
 .conversation-tree-folder-row button:hover,
 .conversation-tree-chat button:hover {

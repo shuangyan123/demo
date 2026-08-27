@@ -12,6 +12,10 @@ const contextIndicator = readFileSync(new URL("./conversation-context-indicator.
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
 const modelPickerStyles = readFileSync(new URL("./conversation-model-picker.module.css", import.meta.url), "utf8");
 const popover = readFileSync(new URL("../shared/ui-popover.tsx", import.meta.url), "utf8");
+const hint = readFileSync(new URL("../shared/ui-tooltip.tsx", import.meta.url), "utf8");
+const overlay = readFileSync(new URL("../shared/ui-overlay-position.ts", import.meta.url), "utf8");
+const shell = readFileSync(new URL("../shared/workspace-shell.tsx", import.meta.url), "utf8");
+const shellStyles = readFileSync(new URL("../../styles/shell.css", import.meta.url), "utf8");
 const mainContentShell = readFileSync(new URL("../shared/main-content-shell.tsx", import.meta.url), "utf8");
 const reviewShell = readFileSync(new URL("../review/review-workspace-shell.tsx", import.meta.url), "utf8");
 
@@ -98,7 +102,8 @@ test("对话画布拥有唯一滚动容器并让正文与 Composer 共用坐标�
   assert.match(navigationStyles, /conversation-composer-stack[\s\S]*var\(--conversation-content-max-width\)/);
   assert.match(navigationStyles, /conversation-composer-dock[\s\S]*safe-area-inset-bottom/);
   assert.match(uiStyles, /\.conversation-composer[\s\S]*var\(--conversation-content-max-width\)/);
-  assert.match(workspace, /className="workspace-topbar conversation-thread-header"/);
+  assert.match(workspace, /className="conversation-thread-header"/);
+  assert.doesNotMatch(workspace, /workspace-topbar/);
   assert.match(workspace, /data-conversation-layer="thread-header"/);
   assert.match(workspace, /data-conversation-layer="conversation-canvas"/);
   assert.match(workspace, /data-conversation-layer="reading-column"/);
@@ -117,4 +122,30 @@ test("模型厂商整行支持悬停和键盘聚焦打开右侧模型层", () =>
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.flyoutBack\s*\{\s*display: grid;/);
   assert.match(modelPickerStyles, /\.mobileDisclosure\s*\{\s*display: inline-flex;/);
   assert.doesNotMatch(modelPicker, /<strong>模型<\/strong>/);
+});
+
+test("Workbench chrome removes browser product topbar while preserving native host boundary", () => {
+  assert.match(shell, /<WindowMenuBar/);
+  assert.match(shell, /data-native-window=\{nativeWindowAvailable \? "true" : "false"\}/);
+  assert.match(shellStyles, /data-native-window="false"\][\s\S]*?\.chrome-topbar[\s\S]*?height: 0/);
+  assert.match(shellStyles, /\.chrome-layout\.is-sidebar-collapsed[\s\S]*?grid-template-columns: 0 0 minmax\(0, 1fr\)/);
+  assert.match(shellStyles, /\.chrome-layout\.is-sidebar-collapsed \.chrome-sidebar-boundary[\s\S]*?width: 0/);
+  assert.match(readFileSync(new URL("../review/review-workspace-app-sidebar.tsx", import.meta.url), "utf8"), /<strong>错题复盘<\/strong>/);
+});
+
+test("UiHint is the shared non-interactive overlay and migrated controls avoid native title conflicts", () => {
+  assert.match(hint, /export const UiHint = UiTooltip/);
+  assert.match(hint, /createPortal/);
+  assert.match(hint, /computeUiOverlayPosition/);
+  assert.match(hint, /activeTooltipId/);
+  assert.match(hint, /TOOLTIP_DELAY_MS = 450/);
+  assert.match(hint, /event\.key !== "Escape"/);
+  assert.match(hint, /event\.pointerType === "touch"/);
+  assert.match(hint, /onPointerLeave=\{closeTooltip\}/);
+  assert.match(hint, /role="tooltip"/);
+  assert.match(overlay, /const opposite =/);
+  for (const source of [shell, composer, readFileSync(new URL("./conversation-workspace.tsx", import.meta.url), "utf8"), readFileSync(new URL("./conversation-topic-navigation.tsx", import.meta.url), "utf8"), readFileSync(new URL("./conversation-folder-tree.tsx", import.meta.url), "utf8")]) {
+    assert.match(source, /UiHint/);
+  }
+  assert.doesNotMatch(composer, /title=/);
 });

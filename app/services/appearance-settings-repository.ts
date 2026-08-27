@@ -261,7 +261,7 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   const chromeBorderAlpha = 0.045 + contrastRatio * 0.14;
   const workspaceSeparatorAlpha = 0.035 + contrastRatio * 0.12;
   const cardOutlineAlpha = 0.045 + contrastRatio * 0.13;
-  const composerOutlineAlpha = 0.08 + contrastRatio * 0.14;
+  const composerOutlineAlpha = 0.055 + contrastRatio * 0.095;
   const popoverOutlineAlpha = 0.1 + contrastRatio * 0.15;
   const topicInactiveAlpha = 0.25 + contrastRatio * 0.2;
   const topicActiveAlpha = 0.62 + contrastRatio * 0.2;
@@ -269,11 +269,15 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   // 通用工作区与侧栏使用相邻但不透明的中性表面；对比度只改变它们的色差。
   const workspaceSurface = isDark ? "#202020" : "#ffffff";
   const workspaceSurfaceRgb = hexToRgb(workspaceSurface, isDark ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 });
-  const threadSurface = rgbHex(mixRgb(workspaceSurfaceRgb, neutralColor, isDark ? 0.018 + contrastRatio * 0.022 : 0.018 + contrastRatio * 0.028));
+  // ThreadHeader 属于 workspace 顶沿；保持同一 surface，边界只由 separator 表达。
+  const threadSurface = rgbHex(workspaceSurfaceRgb);
   const workspaceEdgeAlpha = 0.06 + contrastRatio * 0.12;
   const contentSeparatorStrongAlpha = 0.12 + contrastRatio * 0.18;
   const contentSeparatorSoftAlpha = 0.045 + contrastRatio * 0.075;
-  const composerShadowAlpha = 0.045 + contrastRatio * 0.055;
+  const composerShadowAlpha = 0.035 + contrastRatio * 0.045;
+  const composerFocusAlpha = 0.12 + contrastRatio * 0.08;
+  const hintOutlineAlpha = 0.12 + contrastRatio * 0.08;
+  const hintShadowAlpha = 0.18 + contrastRatio * 0.08;
   const contextPopoverOutlineAlpha = 0.16 + contrastRatio * 0.12;
   const contextPopoverSurface = isDark ? "#252525" : "#1f2937";
   const sidebarBg = resolveSidebarBackground({ ...theme, background: workspaceSurface }, key, contrast);
@@ -329,6 +333,7 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--chrome-sidebar-footer-separator", rgba(neutralColor, workspaceSeparatorAlpha));
   root.style.setProperty("--chrome-card-outline", rgba(neutralColor, cardOutlineAlpha));
   root.style.setProperty("--chrome-composer-outline", rgba(neutralColor, composerOutlineAlpha));
+  root.style.setProperty("--chrome-composer-focus-ring", rgba(neutralColor, composerFocusAlpha));
   root.style.setProperty("--chrome-popover-outline", rgba(neutralColor, popoverOutlineAlpha));
   root.style.setProperty("--chrome-subtle-shadow", `0 8px 22px ${rgba({ r: 0, g: 0, b: 0 }, shadowAlpha)}`);
   root.style.setProperty("--chrome-workspace-edge", rgba(neutralColor, workspaceEdgeAlpha));
@@ -339,6 +344,10 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   root.style.setProperty("--chrome-content-separator-strong", rgba(neutralColor, contentSeparatorStrongAlpha));
   root.style.setProperty("--chrome-content-separator-soft", rgba(neutralColor, contentSeparatorSoftAlpha));
   root.style.setProperty("--chrome-composer-shadow", `0 12px 28px ${rgba({ r: 0, g: 0, b: 0 }, composerShadowAlpha)}`);
+  root.style.setProperty("--chrome-hint-surface", "#252525");
+  root.style.setProperty("--chrome-hint-foreground", "#f8fafc");
+  root.style.setProperty("--chrome-hint-outline", `rgba(255, 255, 255, ${hintOutlineAlpha.toFixed(3)})`);
+  root.style.setProperty("--chrome-hint-shadow", `0 10px 24px rgba(0, 0, 0, ${hintShadowAlpha.toFixed(3)})`);
   root.style.setProperty("--chrome-context-popover-surface", contextPopoverSurface);
   root.style.setProperty("--chrome-context-popover-foreground", "#f8fafc");
   root.style.setProperty("--chrome-context-popover-muted", "#cbd5e1");
