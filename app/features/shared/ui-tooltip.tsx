@@ -13,6 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { computeUiOverlayPosition, type UiOverlayPlacement } from "./ui-overlay-position";
+import { INTERACTIVE_OVERLAY_OPEN_EVENT } from "./ui-overlay-events";
 
 type TooltipRenderProps = {
   describedBy: string;
@@ -110,6 +111,11 @@ export function UiTooltip({ children, content, placement = DEFAULT_TOOLTIP_PLACE
       if (activeTooltipId === tooltipId) setActiveTooltip(undefined);
     };
   }, [clearOpenTimer, tooltipId]);
+
+  useEffect(() => {
+    window.addEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, closeTooltip);
+    return () => window.removeEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, closeTooltip);
+  }, [closeTooltip]);
 
   useEffect(() => {
     if (!open) return;

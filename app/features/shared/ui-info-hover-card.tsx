@@ -14,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { computeUiOverlayPosition, type UiOverlayPlacement } from "./ui-overlay-position";
+import { INTERACTIVE_OVERLAY_OPEN_EVENT } from "./ui-overlay-events";
 import { dismissUiHints } from "./ui-tooltip";
 
 type UiInfoHoverCardRenderProps = {
@@ -120,6 +121,11 @@ export function UiInfoHoverCard({
       document.removeEventListener("pointerdown", closeOnOutside);
     };
   }, [close, expanded]);
+
+  useEffect(() => {
+    window.addEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, close);
+    return () => window.removeEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, close);
+  }, [close]);
 
   useEffect(() => () => clearCloseTimer(), [clearCloseTimer]);
 

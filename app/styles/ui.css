@@ -1661,7 +1661,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   border: 1px solid var(--line);
   border-radius: 0.8rem;
   background: var(--surface);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--chrome-subtle-shadow);
 }
 
 .conversation-popover > button {

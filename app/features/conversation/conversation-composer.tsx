@@ -8,6 +8,7 @@ import { mcpSettingsRepository } from "../../services/mcp-settings-repository.ts
 import { summarizeMcpPermission } from "../../services/mcp-permission.ts";
 import { AppIcon } from "../shared/app-icon";
 import { cx } from "../shared/ui-primitives";
+import { announceInteractiveOverlayOpen } from "../shared/ui-overlay-events";
 import type { DraftAttachment } from "./conversation-attachment-utils.ts";
 import { ConversationAddMenu } from "./conversation-add-menu";
 import { ConversationDraftInput } from "./conversation-draft-input";
@@ -148,7 +149,6 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [toolMenuOpen]);
-
   useEffect(() => {
     function handleComposerShortcut(event: KeyboardEvent) {
       if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
@@ -171,6 +171,10 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
     const prepared = await prepareAttachments(files, onNotice);
     onAttachmentsAdd(prepared);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+  function toggleToolMenu() {
+    if (!toolMenuOpen) announceInteractiveOverlayOpen();
+    setToolMenuOpen((current) => !current);
   }
 
   return (
@@ -225,7 +229,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
             aria-label="添加文件等内容"
             className="conversation-composer-icon conversation-composer-add"
             type="button"
-            onClick={() => setToolMenuOpen((value) => !value)}
+            onClick={toggleToolMenu}
           >
             <AppIcon name="newChat" size={20} />
           </button>}</UiHint>
@@ -251,7 +255,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
           className="conversation-composer-permission"
           data-permission-state={permissionLabel}
           type="button"
-          onClick={onOpenPermissions}
+          onClick={() => { announceInteractiveOverlayOpen(); onOpenPermissions(); }}
         >
           <AppIcon name="tool" size={16} />
           <span>{permissionLabel}</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { announceInteractiveOverlayOpen } from "../shared/ui-overlay-events";
 
 /** 管理模型菜单的外部关闭、Escape、初始聚焦和触发器焦点恢复。 */
 export function useConversationModelMenu() {
@@ -13,6 +14,16 @@ export function useConversationModelMenu() {
     setOpen(false);
     if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus());
   }, []);
+
+  const openMenu = useCallback(() => {
+    announceInteractiveOverlayOpen();
+    setOpen(true);
+  }, []);
+
+  const toggle = useCallback(() => {
+    if (!open) announceInteractiveOverlayOpen();
+    setOpen((current) => !current);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,8 +50,8 @@ export function useConversationModelMenu() {
     menuId,
     menuRef,
     open,
-    openMenu: () => setOpen(true),
+    openMenu,
     triggerRef,
-    toggle: () => setOpen((current) => !current),
+    toggle,
   };
 }

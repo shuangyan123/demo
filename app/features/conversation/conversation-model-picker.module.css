@@ -53,6 +53,7 @@
 }
 
 .scrollViewport {
+  height: 100%;
   max-height: inherit;
   overflow: hidden;
   overscroll-behavior: contain;
@@ -69,15 +70,19 @@
   width: min(13rem, calc(100vw - 1.25rem));
 }
 
-.picker[data-model-picker-view="models"] {
-  width: auto;
-}
-
 @media (min-width: 641px) {
-  /* 右侧触发器靠近窗口边缘时，整组飞出层向左收口，避免模型列被裁切。 */
+  /* 厂商与模型浏览共用固定双栏外框，provider hover 只更新右栏内容。 */
+  .picker[data-model-picker-view="providers"],
   .picker[data-model-picker-view="models"] {
+    width: min(28rem, calc(100vw - 1.25rem));
+    height: min(26rem, calc(100dvh - 8rem - env(safe-area-inset-top, 0px)));
     left: auto;
     right: 0;
+  }
+
+  .picker[data-model-picker-view="providers"] .modelPane,
+  .picker[data-model-picker-view="models"] .modelPane {
+    display: block;
   }
 }
 
@@ -98,7 +103,9 @@
 
 .flyout {
   display: flex;
-  min-width: 28rem;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
   align-items: stretch;
   gap: 0.25rem;
 }
@@ -432,6 +439,7 @@
     left: 50%;
     max-height: calc(100dvh - var(--model-picker-mobile-bottom, 7.75rem) - 0.75rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
+    height: auto;
   }
 
   .picker[data-model-picker-view="providers"] {
@@ -448,15 +456,26 @@
 
   .flyout {
     display: block;
-    min-width: 0;
+    height: auto;
   }
 
-  .providerPane {
+  .picker[data-model-picker-view="providers"] .providerPane {
+    display: block;
+    width: 100%;
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .picker[data-model-picker-view="models"] .providerPane {
     display: none;
   }
 
   .modelPane {
     width: 100%;
+  }
+
+  .picker[data-model-picker-view="providers"] .modelPane {
+    display: none;
   }
 
   .flyoutBack {

@@ -21,6 +21,7 @@ test("对话树使用可访问的 dnd-kit 传感器并保留根目录目标", as
   assert.doesNotMatch(source, /AppIcon name="drag"/);
   assert.doesNotMatch(source, /title=\{`拖动/);
   assert.match(source, /onContextMenu=/);
+  assert.match(source, /announceInteractiveOverlayOpen\(\)/);
   assert.match(source, /conversation-tree-inline-rename/);
   assert.match(source, /conversation-tree-disclosure-slot/);
   assert.match(source, /AppIcon name="edit"/);

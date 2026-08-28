@@ -12,6 +12,7 @@ const contextIndicator = readFileSync(new URL("./conversation-context-indicator.
 const modelSelector = readFileSync(new URL("./conversation-model-selector.tsx", import.meta.url), "utf8");
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
 const modelPickerStyles = readFileSync(new URL("./conversation-model-picker.module.css", import.meta.url), "utf8");
+const overlayEvents = readFileSync(new URL("../shared/ui-overlay-events.ts", import.meta.url), "utf8");
 const popover = readFileSync(new URL("../shared/ui-popover.tsx", import.meta.url), "utf8");
 const hint = readFileSync(new URL("../shared/ui-tooltip.tsx", import.meta.url), "utf8");
 const infoHoverCard = readFileSync(new URL("../shared/ui-info-hover-card.tsx", import.meta.url), "utf8");
@@ -139,15 +140,29 @@ test("对话画布拥有唯一滚动容器并让正文与 Composer 共用坐标�
 });
 
 test("模型厂商整行支持悬停和键盘聚焦打开右侧模型层", () => {
-  assert.match(modelPicker, /onMouseEnter=\{\(\) => openProvider\(provider\)\}/);
-  assert.match(modelPicker, /onFocus=\{\(event\) => \{/);
+  assert.match(modelPicker, /onMouseEnter=\{\(\) => activateProvider\(provider\)\}/);
+  assert.match(modelPicker, /onFocus=\{\(\) => activateProvider\(provider\)\}/);
+  assert.match(modelPicker, /event\.key !== "ArrowRight"/);
+  assert.match(modelPicker, /event\.key !== "ArrowLeft"/);
   assert.match(modelPicker, /styles\.flyout/);
+  assert.match(modelPicker, /className=\{`\$\{styles\.layer\} \$\{styles\.providerPane\}`\}/);
   assert.match(modelPicker, /className=\{`\$\{styles\.layer\} \$\{styles\.modelPane\}`\}/);
   assert.match(modelPicker, /styles\.mobileDisclosure/);
+  assert.match(modelPickerStyles, /data-model-picker-view="providers"[\s\S]*width: min\(28rem/);
+  assert.match(modelPickerStyles, /data-model-picker-view="models"[\s\S]*height: min\(26rem/);
   assert.match(modelPickerStyles, /\.flyoutBack\s*\{\s*display: none;/);
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.flyoutBack\s*\{\s*display: grid;/);
   assert.match(modelPickerStyles, /\.mobileDisclosure\s*\{\s*display: inline-flex;/);
   assert.doesNotMatch(modelPicker, /<strong>模型<\/strong>/);
+});
+
+test("交互式菜单打开时关闭 Topic Preview、UiHint 和信息卡", () => {
+  assert.match(composer, /announceInteractiveOverlayOpen\(\)/);
+  assert.match(modelSelector, /openMenu/);
+  assert.match(hint, /INTERACTIVE_OVERLAY_OPEN_EVENT/);
+  assert.match(infoHoverCard, /INTERACTIVE_OVERLAY_OPEN_EVENT/);
+  assert.match(popover, /announceInteractiveOverlayOpen/);
+  assert.match(overlayEvents, /announceInteractiveOverlayOpen/);
 });
 
 test("Workbench chrome removes browser product topbar while preserving native host boundary", () => {

@@ -48,6 +48,7 @@ test("conversation navigation keeps scrolling local and exposes accessible contr
   const navigation = readFileSync(new URL("./conversation-topic-navigation.tsx", import.meta.url), "utf8");
   const navigationStyles = readFileSync(new URL("./conversation-navigation.module.css", import.meta.url), "utf8");
   const overlayPosition = readFileSync(new URL("../shared/ui-overlay-position.ts", import.meta.url), "utf8");
+  const overlayEvents = readFileSync(new URL("../shared/ui-overlay-events.ts", import.meta.url), "utf8");
   const hook = readFileSync(new URL("./use-conversation-navigation.ts", import.meta.url), "utf8");
 
   assert.match(workspace, /aria-label="跳到最新消息"/);
@@ -67,6 +68,13 @@ test("conversation navigation keeps scrolling local and exposes accessible contr
   assert.match(navigation, /createPortal/);
   assert.match(navigation, /computeUiOverlayPosition/);
   assert.match(navigation, /topic\.attachments\.slice\(0, 2\)/);
+  assert.match(navigation, /function closePreview|const closePreview/);
+  assert.match(navigation, /previewTimerRef\.current = undefined/);
+  assert.match(navigation, /window\.addEventListener\(INTERACTIVE_OVERLAY_OPEN_EVENT, closePreview\)/);
+  assert.match(navigation, /onMouseLeave=\{closePreview\}/);
+  assert.match(navigation, /closePreview\(\);\s*onSelect\(turnId\)/);
+  assert.match(navigationStyles, /conversation-topic-preview[\s\S]*pointer-events: none/);
+  assert.match(overlayEvents, /workspace:interactive-overlay-open/);
   assert.match(navigationStyles, /left: clamp\(1rem, 1\.5vw, 1\.5rem\)/);
   assert.match(navigationStyles, /height: 100%/);
   assert.match(navigationStyles, /conversation-canvas/);

@@ -8,6 +8,7 @@ import { conversationRepository } from "../../services/conversation-repository";
 import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
 import { useConversationTreeController } from "./use-conversation-tree-controller.ts";
 import { AppIcon } from "../shared/app-icon";
+import { announceInteractiveOverlayOpen } from "../shared/ui-overlay-events";
 import { UiHint } from "../shared/ui-tooltip";
 
 type TreeDragItem = { kind: "folder" | "conversation"; id: string; label: string };
@@ -91,6 +92,7 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
 
   /** 右键与省略号统一读取当前行操作按钮的位置，避免同一菜单出现两套坐标语义。 */
   function openAction(kind: "folder" | "conversation", id: string, label: string, anchor: HTMLElement | null) {
+    announceInteractiveOverlayOpen();
     setActionLabel(label);
     setActionLevel("root");
     actionTriggerRef.current = anchor;

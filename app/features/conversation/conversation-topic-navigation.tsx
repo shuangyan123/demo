@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "../shared/app-icon";
+import { INTERACTIVE_OVERLAY_OPEN_EVENT } from "../shared/ui-overlay-events";
 import { UiHint } from "../shared/ui-tooltip";
 import { computeUiOverlayPosition } from "../shared/ui-overlay-position";
 import type { ConversationTopic } from "./use-conversation-navigation";
@@ -108,23 +109,49 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
   const previewTimerRef = useRef<number | undefined>(undefined);
   const [preview, setPreview] = useState<TopicPreview>();
 
-  function showPreview(topic: ConversationTopic, target: HTMLButtonElement, delay = 180) {
-    if (previewTimerRef.current !== undefined) window.clearTimeout(previewTimerRef.current);
+  const clearPreviewTimer = useCallback(() => {
+    if (previewTimerRef.current === undefined) return;
+    window.clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = undefined;
+  }, []);
+
+  const closePreview = useCallback(() => {
+    clearPreviewTimer();
+    setPreview(undefined);
+  }, [clearPreviewTimer]);
+
+  const showPreview = useCallback((topic: ConversationTopic, target: HTMLButtonElement, delay = 180) => {
+    clearPreviewTimer();
+    if (delay <= 0) {
+      setPreview({ anchor: target, topic });
+      return;
+    }
     previewTimerRef.current = window.setTimeout(() => {
+      previewTimerRef.current = undefined;
       setPreview({ anchor: target, topic });
     }, delay);
-  }
+  }, [clearPreviewTimer]);
 
   useEffect(() => {
-    const close = () => setPreview(undefined);
-    window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", closePreview);
+    window.addEventListener("scroll", closePreview, true);
+    window.addEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, closePreview);
     return () => {
-      window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
-      if (previewTimerRef.current !== undefined) window.clearTimeout(previewTimerRef.current);
+      window.removeEventListener("resize", closePreview);
+      window.removeEventListener("scroll", closePreview, true);
+      window.removeEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, closePreview);
+      clearPreviewTimer();
     };
-  }, []);
+  }, [clearPreviewTimer, closePreview]);
+
+  useEffect(() => {
+    if (!preview) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closePreview();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [closePreview, preview]);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -164,11 +191,11 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
       <aside
         className="conversation-topic-rail"
         onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPreview(undefined);
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closePreview();
         }}
-        onMouseLeave={() => setPreview(undefined)}
+        onMouseLeave={closePreview}
       >
-        <TopicList topics={topics} onSelect={onSelect} onPreview={(topic, target, immediate) => showPreview(topic, target, immediate ? 0 : 180)} />
+        <TopicList topics={topics} onSelect={(turnId) => { closePreview(); onSelect(turnId); }} onPreview={(topic, target, immediate) => showPreview(topic, target, immediate ? 0 : 180)} />
       </aside>
       {preview ? <TopicPreviewCard preview={preview} /> : null}
       {drawerOpen ? (
@@ -181,6 +208,7 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
               <UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭主题目录" onClick={onCloseDrawer}><AppIcon name="close" size={18} /></button>}</UiHint>
             </header>
             <TopicList drawer topics={topics} onSelect={(turnId) => {
+              closePreview();
               onSelect(turnId);
               onCloseDrawer();
             }} />

@@ -6,6 +6,7 @@ import {
   useId,
   useMemo,
   useRef,
+  useState,
   type KeyboardEvent,
   type MutableRefObject,
 } from "react";
@@ -60,7 +61,7 @@ function modelTooltip(model: AiModelCatalogEntry): string {
 /** 厂商层没有选择语义，只让方向键在当前按钮组内循环，不干扰 select 和数字输入。 */
 function handleProviderArrowNavigation(event: KeyboardEvent<HTMLElement>) {
   if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-  const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+  const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-picker-focus-key]:not([disabled])"));
   if (!items.length) return;
   event.preventDefault();
   const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
@@ -69,8 +70,8 @@ function handleProviderArrowNavigation(event: KeyboardEvent<HTMLElement>) {
 }
 
 /**
- * 单栏模型选择器：任何时刻只挂载厂商、模型或一个运行档位层，避免覆盖层继续占据
- * Tab 顺序。普通模型和档位使用原生 radio，选择后立即保存且菜单保持打开。
+ * 模型选择器：桌面厂商/模型浏览保持双栏外框，移动端继续按步骤进入模型层；
+ * 普通模型和档位使用原生 radio，选择后立即保存且菜单保持打开。
  */
 export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationModelPickerProps>(function ConversationModelPicker({
   id,
@@ -97,13 +98,17 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     if (right === selectedConnection?.provider) return 1;
     return providerCollator.compare(getProviderContract(left).label, getProviderContract(right).label);
   }), [eligible, selectedConnection?.provider]);
-  const activeProvider = view.kind === "models" || view.kind === "runtime" ? view.provider : undefined;
+  const [hoveredProvider, setHoveredProvider] = useState<ApiProvider>();
+  const activeProvider = view.kind === "models" || view.kind === "runtime"
+    ? view.provider
+    : hoveredProvider && providers.includes(hoveredProvider)
+      ? hoveredProvider
+      : selectedConnection?.provider ?? providers[0];
   const providerConnections = activeProvider ? eligible.filter((connection) => connection.provider === activeProvider) : [];
+  const preferredConnectionId = view.kind === "models" || view.kind === "runtime" ? view.connectionId : selectedConnectionId;
   const activeConnection = view.kind === "controls"
     ? selectedConnection
-    : view.kind === "models" || view.kind === "runtime"
-      ? providerConnections.find((connection) => connection.id === view.connectionId) ?? providerConnections[0]
-      : undefined;
+    : providerConnections.find((connection) => connection.id === preferredConnectionId) ?? providerConnections[0];
   const catalog = useConnectionModelCatalog(activeConnection, purpose);
   const activeSelectedModelId = activeConnection?.id === selectedConnectionId ? selectedModelId : undefined;
   const models = catalog;
@@ -123,11 +128,22 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     else if (forwardedRef) (forwardedRef as MutableRefObject<HTMLDivElement | null>).current = node;
   }, [forwardedRef]);
 
-  function openProvider(provider: ApiProvider) {
+  function activateProvider(provider: ApiProvider) {
+    if (providers.includes(provider)) setHoveredProvider(provider);
+  }
+
+  function enterProvider(provider: ApiProvider) {
     const connectionsForProvider = eligible.filter((connection) => connection.provider === provider);
     const nextConnection = connectionsForProvider.find((connection) => connection.id === selectedConnectionId) ?? connectionsForProvider[0];
     if (!nextConnection) return;
+    setHoveredProvider(provider);
     showModels(provider, nextConnection.id);
+  }
+
+  function handleModelPaneKeyNavigation(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    back();
   }
 
   function openSelectedRuntime(dimension: ConversationModelRuntimeDimension) {
@@ -180,8 +196,8 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
       ) : null}
 
       {view.kind === "providers" || view.kind === "models" ? (
-        <div className={view.kind === "models" ? styles.flyout : undefined}>
-          <nav key="providers" aria-label="厂商" className={`${styles.layer} ${view.kind === "models" ? styles.providerPane : ""}`} onKeyDown={handleProviderArrowNavigation}>
+        <div className={styles.flyout}>
+          <nav key="providers" aria-label="厂商" className={`${styles.layer} ${styles.providerPane}`} onKeyDown={handleProviderArrowNavigation}>
             <button aria-label="返回模型配置" className={styles.flyoutBack} type="button" onClick={back}><AppIcon name="back" size={16} /></button>
             {providers.length ? providers.map((provider, index) => {
               const contract = getProviderContract(provider);
@@ -193,11 +209,14 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                   data-picker-focus-key={`provider:${provider}`}
                   data-provider-active={provider === activeProvider ? "true" : undefined}
                   type="button"
-                  onFocus={(event) => {
-                    if (event.currentTarget.dataset.pickerProgrammaticFocus !== "true") openProvider(provider);
+                  onFocus={() => activateProvider(provider)}
+                  onMouseEnter={() => activateProvider(provider)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "ArrowRight") return;
+                    event.preventDefault();
+                    enterProvider(provider);
                   }}
-                  onMouseEnter={() => openProvider(provider)}
-                  onClick={() => openProvider(provider)}
+                  onClick={() => enterProvider(provider)}
                 >
                   <ProviderIcon provider={provider} size={16} />
                   <span>{contract.label}</span>
@@ -209,8 +228,8 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
             )}
           </nav>
 
-      {view.kind === "models" && activeProvider && activeConnection ? (
-        <section key={`models:${activeConnection.id}`} className={`${styles.layer} ${styles.modelPane}`} aria-label={`${getProviderContract(activeProvider).label} 模型`}>
+      {(view.kind === "providers" || view.kind === "models") && activeProvider && activeConnection ? (
+        <section key={`models:${activeConnection.id}`} className={`${styles.layer} ${styles.modelPane}`} aria-label={`${getProviderContract(activeProvider).label} 模型`} onKeyDown={handleModelPaneKeyNavigation}>
           <button aria-label="返回厂商" className={styles.flyoutBack} type="button" onClick={back}><AppIcon name="back" size={16} /></button>
           {providerConnections.length > 1 ? (
             <label className={styles.profileRow}>

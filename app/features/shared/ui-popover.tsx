@@ -12,6 +12,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { computeUiOverlayPosition, type UiOverlayPlacement } from "./ui-overlay-position";
+import { announceInteractiveOverlayOpen } from "./ui-overlay-events";
 
 type UiPopoverRenderProps = {
   contentId: string;
@@ -96,9 +97,14 @@ export function UiPopover({
     };
   }, [close, expanded]);
 
+  const toggle = useCallback(() => {
+    if (!expanded) announceInteractiveOverlayOpen();
+    setExpanded((current) => !current);
+  }, [expanded]);
+
   return (
     <>
-      {children({ contentId, expanded, toggle: () => setExpanded((current) => !current), triggerRef })}
+      {children({ contentId, expanded, toggle, triggerRef })}
       {expanded && typeof document !== "undefined" ? createPortal(
         <div
           ref={contentRef}

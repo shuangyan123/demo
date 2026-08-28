@@ -23,6 +23,7 @@ import { ConversationProposalBlock } from "./conversation-proposal-block";
 import { ConversationTurnList } from "./conversation-turn-list";
 import { ConversationEmptyState } from "./conversation-empty-state";
 import { ConversationTopicNavigation } from "./conversation-topic-navigation";
+import { announceInteractiveOverlayOpen } from "../shared/ui-overlay-events";
 import type { ConversationWorkspaceProps } from "./conversation-workspace-types.ts";
 import { useConversationModelSelection } from "./use-conversation-model-selection.ts";
 import { useConversationNavigation } from "./use-conversation-navigation";
@@ -399,7 +400,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
         <header className="conversation-thread-header" data-conversation-layer="thread-header">
           <div className="min-w-0"><h1 className="truncate text-base font-semibold">{activeConversation?.title ?? "新对话"}</h1></div>
           <div className="conversation-thread-actions">
-            {conversationNavigation.topics.length ? <button className="conversation-topic-trigger" type="button" aria-haspopup="dialog" onClick={() => setTopicDrawerOpen(true)}><AppIcon name="topics" size={16} /><span>主题 {conversationNavigation.topics.length}</span></button> : null}
+            {conversationNavigation.topics.length ? <button className="conversation-topic-trigger" type="button" aria-haspopup="dialog" onClick={() => { announceInteractiveOverlayOpen(); setTopicDrawerOpen(true); }}><AppIcon name="topics" size={16} /><span>主题 {conversationNavigation.topics.length}</span></button> : null}
             {activeConversation ? <UiHint label="移动到文件夹" placement="bottom">{({ describedBy }) => <button className="conversation-header-action" type="button" aria-describedby={describedBy} aria-label="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button>}</UiHint> : null}
           </div>
         </header>
