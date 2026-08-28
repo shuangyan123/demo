@@ -25,21 +25,24 @@ const FOCUSABLE_SELECTOR = "button:not([disabled]), input:not([disabled]), selec
  */
 export function useConversationModelNavigation({ initialView = { kind: "controls" }, pickerRef }: UseConversationModelNavigationOptions) {
   const [view, setView] = useState<ConversationModelPickerView>(initialView);
-  const pendingFocusKeyRef = useRef<string | undefined>(undefined);
+  const [focusRevision, setFocusRevision] = useState(0);
+  const pendingFocusRef = useRef<{ key?: string } | undefined>(undefined);
 
-  const navigate = useCallback((nextView: ConversationModelPickerView, focusKey?: string) => {
-    pendingFocusKeyRef.current = focusKey;
+  const navigate = useCallback((nextView: ConversationModelPickerView, focus?: { key?: string }) => {
+    pendingFocusRef.current = focus;
+    if (focus) setFocusRevision((revision) => revision + 1);
     setView(nextView);
   }, []);
 
   useLayoutEffect(() => {
+    const pendingFocus = pendingFocusRef.current;
+    if (!pendingFocus) return;
+    pendingFocusRef.current = undefined;
     const frame = window.requestAnimationFrame(() => {
       const picker = pickerRef.current;
       if (!picker) return;
-      const focusKey = pendingFocusKeyRef.current;
-      pendingFocusKeyRef.current = undefined;
-      const keyedTarget = focusKey
-        ? Array.from(picker.querySelectorAll<HTMLElement>("[data-picker-focus-key]")).find((item) => item.dataset.pickerFocusKey === focusKey)
+      const keyedTarget = pendingFocus.key
+        ? Array.from(picker.querySelectorAll<HTMLElement>("[data-picker-focus-key]")).find((item) => item.dataset.pickerFocusKey === pendingFocus.key)
         : undefined;
       const defaultTarget = picker.querySelector<HTMLElement>("[data-picker-default-focus]");
       const fallbackTarget = picker.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
@@ -54,16 +57,16 @@ export function useConversationModelNavigation({ initialView = { kind: "controls
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [pickerRef, view]);
+  }, [focusRevision, pickerRef, view]);
 
-  const showModels = useCallback((provider: ApiProvider, connectionId: string) => {
-    navigate({ kind: "models", provider, connectionId });
+  const showModels = useCallback((provider: ApiProvider, connectionId: string, focusModels = false) => {
+    navigate({ kind: "models", provider, connectionId }, focusModels ? {} : undefined);
   }, [navigate]);
 
-  const showProviders = useCallback(() => navigate({ kind: "providers" }), [navigate]);
+  const showProviders = useCallback((focusProviders = false) => navigate({ kind: "providers" }, focusProviders ? {} : undefined), [navigate]);
 
-  const showRuntime = useCallback((provider: ApiProvider, connectionId: string, dimension: ConversationModelRuntimeDimension) => {
-    navigate({ kind: "runtime", provider, connectionId, dimension });
+  const showRuntime = useCallback((provider: ApiProvider, connectionId: string, dimension: ConversationModelRuntimeDimension, focusOptions = false) => {
+    navigate({ kind: "runtime", provider, connectionId, dimension }, focusOptions ? {} : undefined);
   }, [navigate]);
 
   const changeConnection = useCallback((provider: ApiProvider, connectionId: string) => {
@@ -72,14 +75,14 @@ export function useConversationModelNavigation({ initialView = { kind: "controls
 
   const back = useCallback(() => {
     if (view.kind === "runtime") {
-      navigate({ kind: "controls" }, `runtime-entry:${view.dimension}`);
+      navigate({ kind: "controls" }, { key: `runtime-entry:${view.dimension}` });
       return;
     }
     if (view.kind === "models") {
-      navigate({ kind: "providers" }, `provider:${view.provider}`);
+      navigate({ kind: "providers" }, { key: `provider:${view.provider}` });
       return;
     }
-    if (view.kind === "providers") navigate({ kind: "controls" }, "control-entry:model");
+    if (view.kind === "providers") navigate({ kind: "controls" }, { key: "control-entry:model" });
   }, [navigate, view]);
 
   return { back, changeConnection, showModels, showProviders, showRuntime, view };

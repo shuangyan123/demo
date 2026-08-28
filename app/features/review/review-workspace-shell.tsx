@@ -121,7 +121,7 @@ export function ReviewWorkspaceShell({
       sidebar={sidebarOverride ?? applicationSidebar}
     >
       <MainContentShell
-        className={view === "conversation" ? "conversation-main-content flex !h-full !min-h-0 flex-1 flex-col !px-0" : undefined}
+        className={view === "conversation" ? "conversation-main-content flex !h-full !min-h-0 !max-w-none flex-1 flex-col !px-0" : undefined}
         width={contentWidth(view)}
       >
       {["library", "import", "entry", "plugins"].includes(view) && notice !== "本地题库已同步" ? (

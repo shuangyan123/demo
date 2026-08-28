@@ -14,9 +14,9 @@ import { UiHint } from "../shared/ui-tooltip";
 type TreeDragItem = { kind: "folder" | "conversation"; id: string; label: string };
 
 /** 名称区域直接承担拖拽，不再额外占用六点手柄列。 */
-function TreeDragSurface({ item, className, onClick, children }: { item: TreeDragItem; className: string; onClick?: () => void; children: ReactNode }) {
+function TreeDragSurface({ item, className, active, onClick, children }: { item: TreeDragItem; className: string; active?: boolean; onClick?: () => void; children: ReactNode }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: `drag:${item.kind}:${item.id}`, data: item });
-  return <button ref={setNodeRef} className={className} type="button" onClick={onClick} {...attributes} {...listeners}>{children}</button>;
+  return <button ref={setNodeRef} aria-current={active ? "page" : undefined} className={className} type="button" onClick={onClick} {...attributes} {...listeners}>{children}</button>;
 }
 
 /** 文件夹与根目录共用的放置边界。 */
@@ -167,9 +167,10 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   }
 
   function renderConversation(conversation: AiConversation): ReactNode {
-    return <div key={conversation.id} data-conversation-id={conversation.id} data-mobile-sidebar-close="true" className={`conversation-tree-chat ${activeConversationId === conversation.id ? "is-active" : ""}`} onContextMenu={(event) => { event.preventDefault(); openAction("conversation", conversation.id, conversation.title, event.currentTarget.querySelector<HTMLElement>("[data-tree-action-trigger]")); }}>
+    const active = activeConversationId === conversation.id;
+    return <div key={conversation.id} data-conversation-active={active ? "true" : undefined} data-conversation-id={conversation.id} data-mobile-sidebar-close="true" className={`conversation-tree-chat ${active ? "is-active" : ""}`} onContextMenu={(event) => { event.preventDefault(); openAction("conversation", conversation.id, conversation.title, event.currentTarget.querySelector<HTMLElement>("[data-tree-action-trigger]")); }}>
       <span className="conversation-tree-disclosure-slot" aria-hidden="true" />
-      {renaming?.kind === "conversation" && renaming.id === conversation.id ? <input autoFocus aria-label={`重命名${conversation.title}`} className="conversation-tree-inline-rename" value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} onBlur={() => void finishRename("conversation", conversation.id)} onKeyDown={handleRenameKeyDown} /> : <TreeDragSurface className="conversation-tree-chat-label" item={{ kind: "conversation", id: conversation.id, label: conversation.title }} onClick={() => onConversationSelected(conversation.id)}><AppIcon name="message" size={16} /><span className="truncate">{conversation.title}</span></TreeDragSurface>}
+      {renaming?.kind === "conversation" && renaming.id === conversation.id ? <input autoFocus aria-label={`重命名${conversation.title}`} className="conversation-tree-inline-rename" value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} onBlur={() => void finishRename("conversation", conversation.id)} onKeyDown={handleRenameKeyDown} /> : <TreeDragSurface active={active} className="conversation-tree-chat-label" item={{ kind: "conversation", id: conversation.id, label: conversation.title }} onClick={() => onConversationSelected(conversation.id)}><AppIcon name="message" size={16} /><span className="truncate">{conversation.title}</span></TreeDragSurface>}
       <UiHint label="更多操作" placement="right">{({ describedBy }) => <button data-tree-action-trigger type="button" aria-describedby={describedBy} aria-label={`${conversation.title} 操作`} onClick={(event) => openAction("conversation", conversation.id, conversation.title, event.currentTarget)}><AppIcon name="more" size={16} /></button>}</UiHint>
     </div>;
   }

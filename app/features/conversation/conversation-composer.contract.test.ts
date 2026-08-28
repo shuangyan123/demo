@@ -21,6 +21,9 @@ const shell = readFileSync(new URL("../shared/workspace-shell.tsx", import.meta.
 const shellStyles = readFileSync(new URL("../../styles/shell.css", import.meta.url), "utf8");
 const mainContentShell = readFileSync(new URL("../shared/main-content-shell.tsx", import.meta.url), "utf8");
 const reviewShell = readFileSync(new URL("../review/review-workspace-shell.tsx", import.meta.url), "utf8");
+const reviewSidebar = readFileSync(new URL("../review/review-workspace-app-sidebar.tsx", import.meta.url), "utf8");
+const conversationTree = readFileSync(new URL("./conversation-folder-tree.tsx", import.meta.url), "utf8");
+const conversationStyles = readFileSync(new URL("../../styles/conversation.css", import.meta.url), "utf8");
 const mcpPermission = readFileSync(new URL("../../services/mcp-permission.ts", import.meta.url), "utf8");
 const shellStylesForEdges = readFileSync(new URL("../../styles/shell.css", import.meta.url), "utf8");
 const uiStylesForEdges = readFileSync(new URL("../../styles/ui.css", import.meta.url), "utf8");
@@ -137,23 +140,60 @@ test("对话画布拥有唯一滚动容器并让正文与 Composer 共用坐标�
   assert.match(workspace, /conversation-composer-dock" data-conversation-layer="composer-dock"/);
   assert.match(workspace, /data-conversation-layer="jump-to-latest"/);
   assert.match(composer, /data-conversation-layer="composer-card"/);
+  assert.match(reviewShell, /conversation-main-content[^"]*!max-w-none/);
+  assert.match(navigationStyles, /conversation-message-content[\s\S]*margin: 0 auto/);
 });
 
-test("模型厂商整行支持悬停和键盘聚焦打开右侧模型层", () => {
+test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键盘进入", () => {
+  assert.match(modelPicker, /onMouseEnter=\{\(\) => openModelBrowser\(\)\}/);
+  assert.match(modelPicker, /onFocus=\{\(\) => \{ if \(usesDesktopFlyout\(\)\) openModelBrowser\(\); \}\}/);
+  assert.match(modelPicker, /openSelectedRuntime\("reasoning"\)/);
+  assert.match(modelPicker, /openSelectedRuntime\("speed"\)/);
+  assert.match(modelPicker, /event\.key !== "ArrowRight" && event\.key !== "Enter"/);
   assert.match(modelPicker, /onMouseEnter=\{\(\) => activateProvider\(provider\)\}/);
   assert.match(modelPicker, /onFocus=\{\(\) => activateProvider\(provider\)\}/);
-  assert.match(modelPicker, /event\.key !== "ArrowRight"/);
   assert.match(modelPicker, /event\.key !== "ArrowLeft"/);
+  assert.match(modelPicker, /styles\.controlFlyout/);
+  assert.match(modelPicker, /styles\.controlPane/);
+  assert.match(modelPicker, /styles\.detailPane/);
   assert.match(modelPicker, /styles\.flyout/);
   assert.match(modelPicker, /className=\{`\$\{styles\.layer\} \$\{styles\.providerPane\}`\}/);
   assert.match(modelPicker, /className=\{`\$\{styles\.layer\} \$\{styles\.modelPane\}`\}/);
   assert.match(modelPicker, /styles\.mobileDisclosure/);
-  assert.match(modelPickerStyles, /data-model-picker-view="providers"[\s\S]*width: min\(28rem/);
+  assert.match(modelPickerStyles, /data-model-picker-view="providers"[\s\S]*width: min\(41rem/);
   assert.match(modelPickerStyles, /data-model-picker-view="models"[\s\S]*height: min\(26rem/);
+  assert.match(modelPickerStyles, /\.picker:not\(\[data-model-picker-view="controls"\]\) \.controlPane[\s\S]*display: none/);
   assert.match(modelPickerStyles, /\.flyoutBack\s*\{\s*display: none;/);
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.flyoutBack\s*\{\s*display: grid;/);
   assert.match(modelPickerStyles, /\.mobileDisclosure\s*\{\s*display: inline-flex;/);
   assert.doesNotMatch(modelPicker, /<strong>模型<\/strong>/);
+});
+
+test("模型目录按 active provider key 原子切换且连接入口只存在于零连接状态", () => {
+  const catalog = readFileSync(new URL("./use-connection-model-catalog.ts", import.meta.url), "utf8");
+  assert.match(modelPicker, /const activeProviderId =/);
+  assert.match(modelPicker, /eligible\.filter\(\(connection\) => connection\.provider === activeProviderId\)/);
+  assert.match(modelPicker, /key=\{catalog\.key\}/);
+  assert.match(catalog, /loaded\?\.key === catalogKey \? loaded\.models : fallbackModels/);
+  assert.match(catalog, /let active = true/);
+  assert.match(catalog, /if \(active\) setLoaded/);
+  assert.doesNotMatch(modelPicker, /管理 AI 连接/);
+  assert.match(modelPicker, /尚未配置 AI 连接/);
+  assert.match(modelPicker, /配置 AI 服务后即可选择模型/);
+  assert.match(modelPicker, /前往设置/);
+  assert.match(modelPicker, /暂无可用模型/);
+});
+
+test("Sidebar 将项目选中、当前对话和键盘焦点表达为独立状态", () => {
+  assert.match(reviewSidebar, /data-project-selected=\{projectActive \? "true"/);
+  assert.match(reviewSidebar, /workspace-project-row/);
+  assert.match(reviewSidebar, /is-selected/);
+  assert.match(conversationTree, /data-conversation-active=\{active \? "true"/);
+  assert.match(conversationTree, /aria-current=\{active \? "page"/);
+  assert.match(conversationStyles, /workspace-project-row\.is-selected/);
+  assert.match(conversationStyles, /conversation-tree-chat\.is-active/);
+  assert.match(conversationStyles, /conversation-tree-chat-label:focus-visible/);
+  assert.match(conversationStyles, /workspace-project-row:focus-visible/);
 });
 
 test("交互式菜单打开时关闭 Topic Preview、UiHint 和信息卡", () => {

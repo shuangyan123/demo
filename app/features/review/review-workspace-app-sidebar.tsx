@@ -103,8 +103,8 @@ export function ReviewWorkspaceAppSidebar({
             <span>项目</span>
             <span>专项学习</span>
           </div>
-          <details className="group rounded-[var(--ui-radius-row)] bg-chrome-selected/60 p-0.5">
-            <summary className={`grid min-h-8 cursor-pointer list-none grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2 text-left text-[0.8rem] font-semibold max-lg:min-h-11 [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground" : "hover:bg-chrome-hover"}`}>
+          <details className="workspace-project-group group rounded-[var(--ui-radius-row)] p-0.5" data-project-selected={projectActive ? "true" : undefined}>
+            <summary aria-current={projectActive ? "true" : undefined} className={`workspace-project-row grid min-h-8 cursor-pointer list-none grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2 text-left text-[0.8rem] font-semibold max-lg:min-h-11 [&::-webkit-details-marker]:hidden ${projectActive ? "is-selected text-foreground" : "text-muted"}`}>
               <AppIcon name="project" size={16} />
               <span className="truncate">{civilServiceDomain.label}</span>
               <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { seedConversationModelFixtures } from "./helpers/conversation-model-fixtures";
+import { readConversationModelSelection, seedConversationModelFixtures } from "./helpers/conversation-model-fixtures";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
 /** 移动视口不得出现页面级横向滚动。 */
@@ -31,11 +31,12 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
   ]);
   await page.reload();
   await selectMobileWorkspaceEntry(page, "移动 GLM 菜单");
+  await expect(page.locator('[data-conversation-layer="workspace"]')).toBeVisible();
   const conversationGeometry = await page.evaluate(() => {
-    const frame = document.querySelector<HTMLElement>(".chrome-content-frame")!.getBoundingClientRect();
-    const workspace = document.querySelector<HTMLElement>(".conversation-workspace")!.getBoundingClientRect();
-    const messageList = document.querySelector<HTMLElement>(".conversation-message-list")!;
-    const composer = document.querySelector<HTMLElement>(".conversation-composer")!.getBoundingClientRect();
+    const frame = document.querySelector<HTMLElement>('[data-workspace-frame="true"]')!.getBoundingClientRect();
+    const workspace = document.querySelector<HTMLElement>('[data-conversation-layer="workspace"]')!.getBoundingClientRect();
+    const messageList = document.querySelector<HTMLElement>('[data-conversation-layer="canvas-scroll"]')!;
+    const composer = document.querySelector<HTMLElement>('[data-conversation-layer="composer-card"]')!.getBoundingClientRect();
     return {
       composerBottom: composer.bottom,
       frameBottom: frame.bottom,
@@ -62,25 +63,24 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
   const trigger = page.getByRole("button", { name: "选择模型" });
   await trigger.click();
   const picker = page.getByRole("dialog", { name: "选择对话模型" });
+  await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
+  await picker.getByRole("button", { name: /^模型 / }).click();
   await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
   await picker.getByRole("button", { name: "GLM / 智谱" }).click();
   await expect(picker).toHaveAttribute("data-model-picker-view", "models");
   await expect(picker.getByRole("button", { name: /推理/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
-  const reasoningTrigger = page.getByRole("button", { name: /调整推理强度/ });
+  await trigger.click();
+  const reasoningTrigger = picker.getByRole("button", { name: /^推理强度 / });
   const triggerBox = await reasoningTrigger.boundingBox();
   expect(triggerBox?.height ?? 0).toBeGreaterThanOrEqual(43.9);
   await reasoningTrigger.click();
-  const reasoningDialog = page.getByRole("dialog", { name: "推理强度" });
-  const reasoningSlider = reasoningDialog.getByRole("slider", { name: "推理档位" });
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
-  await expect(reasoningSlider).toBeFocused();
-  const sliderBox = await reasoningSlider.boundingBox();
+  const reasoningDialog = picker.getByRole("region", { name: "选择推理档位" });
+  const xhighOption = reasoningDialog.getByRole("radio", { name: "xhigh", exact: true });
+  const sliderBox = await xhighOption.locator("xpath=..").boundingBox();
   expect(sliderBox?.height ?? 0).toBeGreaterThanOrEqual(43.9);
-  await reasoningSlider.fill("5");
-  await reasoningSlider.dispatchEvent("pointerup");
-  await expect(page.getByRole("button", { name: /调整推理强度，当前 xhigh/ })).toBeVisible();
+  await xhighOption.locator("xpath=..").click();
+  await expect.poll(async () => (await readConversationModelSelection(page, "mobile-glm-chat")).runtime?.reasoning).toBe("xhigh");
   await expect(page.locator('body > [role="tooltip"]')).toHaveCount(0);
 
   const pickerBox = await reasoningDialog.boundingBox();
@@ -93,22 +93,26 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
 
   await page.keyboard.press("Escape");
   await trigger.click();
+  await picker.getByRole("button", { name: /^模型 / }).click();
   await picker.getByRole("button", { name: "GLM / 智谱" }).click();
   await picker.getByRole("radio", { name: /^glm-5\.1/ }).locator("xpath=..").click();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: /调整推理强度/ }).click();
-  await expect(reasoningDialog.getByRole("slider", { name: "推理档位" })).toHaveAttribute("max", "1");
+  await trigger.click();
+  await picker.getByRole("button", { name: /^推理强度 / }).click();
+  await expect(reasoningDialog.getByRole("radio")).toHaveCount(2);
   await expect.poll(async () => (await reasoningDialog.boundingBox())?.height).toBeLessThanOrEqual(190);
 
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-mobile-two-levels.png"), fullPage: false });
 
   await page.keyboard.press("Escape");
   await selectMobileWorkspaceEntry(page, "设置");
+  await selectMobileWorkspaceEntry(page, "外观");
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
   await selectMobileWorkspaceEntry(page, "返回应用");
   await selectMobileWorkspaceEntry(page, "移动 GLM 菜单");
-  await page.getByRole("button", { name: /调整推理强度/ }).click();
+  await page.getByRole("button", { name: "选择模型" }).click();
+  await page.getByRole("dialog", { name: "选择对话模型" }).getByRole("button", { name: /^推理强度 / }).click();
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-mobile-dark.png"), fullPage: false });
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);

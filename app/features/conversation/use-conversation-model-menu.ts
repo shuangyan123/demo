@@ -27,7 +27,7 @@ export function useConversationModelMenu() {
 
   useEffect(() => {
     if (!open) return;
-    window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>("button:not([disabled]), select, input")?.focus());
+    window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>("[data-picker-default-focus], button:not([disabled]), select, input")?.focus());
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
       if (!menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) close(false);

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
+  enableConversationModelDirectoryRequest,
   readConversationModelSelection,
   seedConversationModelFixtures,
 } from "./helpers/conversation-model-fixtures";
@@ -14,6 +15,29 @@ async function loadReviewConversation(page: Page): Promise<void> {
   await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: 80_000 });
   await page.reload();
   await page.getByRole("button", { name: "必要条件与充分条件", exact: true }).click();
+  await expect(page.locator('[data-conversation-layer="workspace"]')).toBeVisible();
+}
+
+type WorkspaceGeometry = Record<"sidebar" | "boundary" | "main" | "header" | "title" | "reading" | "composer", { x: number; y: number; width: number; height: number }>;
+
+async function readWorkspaceGeometry(page: Page): Promise<WorkspaceGeometry> {
+  return page.evaluate(() => {
+    const rect = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`缺少几何节点：${selector}`);
+      const value = element.getBoundingClientRect();
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+    return {
+      sidebar: rect(".chrome-sidebar"),
+      boundary: rect(".chrome-sidebar-boundary"),
+      main: rect('[data-conversation-layer="workspace"]'),
+      header: rect('[data-conversation-layer="thread-header"]'),
+      title: rect('[data-conversation-layer="thread-header"] h1'),
+      reading: rect('[data-conversation-layer="reading-column"]'),
+      composer: rect('[data-conversation-layer="composer-card"]'),
+    };
+  });
 }
 
 test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留", async ({ page }) => {
@@ -39,11 +63,13 @@ test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留
   await firstTopic.click();
   await expect(preview).toHaveCount(0);
 
+  await page.getByRole("button", { name: "选择模型" }).focus();
   await firstTopic.focus();
   await expect(preview).toBeVisible();
   await page.getByRole("button", { name: "选择模型" }).focus();
   await expect(preview).toHaveCount(0);
 
+  await header.hover({ position: { x: 8, y: 8 } });
   await firstTopic.hover();
   await expect(preview).toBeVisible();
   const addTrigger = page.getByRole("button", { name: "添加文件等内容" });
@@ -52,6 +78,7 @@ test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留
   await expect(page.getByRole("menu", { name: "添加与工具" })).toBeVisible();
   await page.keyboard.press("Escape");
 
+  await header.hover({ position: { x: 8, y: 8 } });
   await firstTopic.hover();
   await expect(preview).toBeVisible();
   const modelTrigger = page.getByRole("button", { name: "选择模型" });
@@ -64,37 +91,118 @@ test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("桌面模型厂商 hover 使用固定双栏外框且不转移焦点", async ({ page }) => {
+test("ThreadHeader 使用 MainWorkspace 坐标且 Sidebar 状态层级互不混淆", async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await loadReviewConversation(page);
+
+  const project = page.locator('[data-project-selected="true"]');
+  const activeConversation = page.locator('[data-conversation-active="true"]');
+  const activeConversationButton = activeConversation.locator(".conversation-tree-chat-label");
+  await expect(project).toBeVisible();
+  await expect(activeConversation).toBeVisible();
+  await expect(activeConversationButton).toHaveAttribute("aria-current", "page");
+  expect(await activeConversationButton.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
+  await page.keyboard.press("Tab");
+  expect(await page.locator(":focus").evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+
+  const expanded = await readWorkspaceGeometry(page);
+  expect(expanded.header.width).toBeGreaterThan(expanded.main.width - 2);
+  expect(expanded.title.x - expanded.main.x).toBeLessThanOrEqual(32);
+  expect(expanded.reading.x - expanded.title.x).toBeGreaterThan(100);
+  expect(Math.abs((expanded.composer.x + expanded.composer.width / 2) - (expanded.main.x + expanded.main.width / 2))).toBeLessThanOrEqual(6);
+
+  let collapsed: WorkspaceGeometry | undefined;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await page.getByRole("button", { name: "收起侧边栏" }).click();
+    await page.waitForTimeout(220);
+    const currentCollapsed = await readWorkspaceGeometry(page);
+    collapsed ??= currentCollapsed;
+    expect(currentCollapsed.sidebar.width).toBeLessThanOrEqual(1);
+    expect(currentCollapsed.boundary.width).toBeLessThanOrEqual(1);
+    expect(currentCollapsed.main.x).toBeLessThanOrEqual(2);
+    expect(currentCollapsed.main.width).toBeGreaterThanOrEqual(1532);
+    expect(currentCollapsed.header.width).toBeGreaterThan(currentCollapsed.main.width - 2);
+    expect(currentCollapsed.title.x - currentCollapsed.main.x).toBeLessThanOrEqual(32);
+    expect(currentCollapsed.reading.x - currentCollapsed.title.x).toBeGreaterThan(200);
+    expect(Math.abs((currentCollapsed.composer.x + currentCollapsed.composer.width / 2) - (currentCollapsed.main.x + currentCollapsed.main.width / 2))).toBeLessThanOrEqual(6);
+
+    await page.getByRole("button", { name: "展开侧边栏" }).click();
+    await page.waitForTimeout(220);
+    const currentExpanded = await readWorkspaceGeometry(page);
+    expect(currentExpanded.sidebar.width).toBeGreaterThan(240);
+    expect(currentExpanded.title.x - currentExpanded.main.x).toBeLessThanOrEqual(32);
+  }
+  expect(collapsed).toBeDefined();
+  expect(collapsed!.header.width).toBeGreaterThan(collapsed!.reading.width + 300);
+
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});
+
+test("桌面运行行与厂商 hover 保持固定外框、原子模型列表且不转移焦点", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
   await seedConversationModelFixtures(page, [
-    { id: "stable-openai", label: "稳定 OpenAI", provider: "openai", apiFormat: "responses" },
+    { id: "stable-minimax", label: "稳定 MiniMax", provider: "minimax", apiFormat: "anthropic_messages" },
+    { id: "stable-deepseek", label: "稳定 DeepSeek", provider: "deepseek", apiFormat: "chat_completions" },
     { id: "stable-google", label: "稳定 Gemini", provider: "google", apiFormat: "google_generate_content" },
-    { id: "stable-zhipu", label: "稳定 GLM", provider: "zhipu", apiFormat: "chat_completions" },
   ], [
-    { id: "stable-chat", title: "模型选择稳定性", connectionId: "stable-openai", modelId: "gpt-5.5" },
+    { id: "stable-chat", title: "模型选择稳定性", connectionId: "stable-minimax", modelId: "MiniMax-M3" },
   ]);
   await page.reload();
   await page.locator('[data-conversation-id="stable-chat"] .conversation-tree-chat-label').click();
 
-  const picker = page.getByRole("button", { name: "选择模型" }).locator("..")
-    .getByRole("dialog", { name: "选择对话模型" });
   await page.getByRole("button", { name: "选择模型" }).click();
-  await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
-  await picker.getByRole("button", { name: "模型", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "选择对话模型" });
   await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
 
+  const modelControl = picker.getByRole("button", { name: /^模型 / });
+  const reasoningControl = picker.getByRole("button", { name: /^推理强度 / });
+  const speedControl = picker.getByRole("button", { name: /^速度 / });
+  const controlRows = [modelControl, reasoningControl, speedControl, reasoningControl, modelControl];
+  const controlRects: Array<{ x: number; y: number; width: number; height: number }> = [];
+  await modelControl.focus();
+  for (const [index, row] of controlRows.entries()) {
+    await row.hover();
+    await expect(picker).toHaveAttribute("data-model-picker-view", index === 0 || index === 4 ? "providers" : index === 2 ? "speed" : "reasoning");
+    await expect(modelControl).toBeFocused();
+    const rect = await picker.boundingBox();
+    if (!rect) throw new Error("模型选择器没有可见边界");
+    controlRects.push(rect);
+  }
+  const controlInitial = controlRects[0];
+  for (const rect of controlRects.slice(1)) {
+    expect(Math.abs(rect.x - controlInitial.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(rect.y - controlInitial.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(rect.width - controlInitial.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(rect.height - controlInitial.height)).toBeLessThanOrEqual(1);
+  }
+
+  await reasoningControl.focus();
+  await expect(reasoningControl).toBeFocused();
+  await expect(picker).toHaveAttribute("data-model-picker-view", "reasoning");
+  await reasoningControl.press("ArrowRight");
+  await expect(picker.getByRole("radio", { name: "关闭" })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(reasoningControl).toBeFocused();
+  await modelControl.hover();
+  await expect(reasoningControl).toBeFocused();
+
   const providerRows = [
-    picker.getByRole("button", { name: "OpenAI", exact: true }),
-    picker.getByRole("button", { name: "Google Gemini", exact: true }),
-    picker.getByRole("button", { name: "GLM / 智谱", exact: true }),
-    picker.getByRole("button", { name: "OpenAI", exact: true }),
+    { row: picker.getByRole("button", { name: "MiniMax", exact: true }), model: /MiniMax-M3/, absent: /gemini-|deepseek-v/ },
+    { row: picker.getByRole("button", { name: "Google Gemini", exact: true }), model: /gemini-3\.5-flash/, absent: /MiniMax-|deepseek-v/ },
+    { row: picker.getByRole("button", { name: "DeepSeek", exact: true }), model: /deepseek-v4-flash/, absent: /MiniMax-|gemini-/ },
+    { row: picker.getByRole("button", { name: "MiniMax", exact: true }), model: /MiniMax-M3/, absent: /gemini-|deepseek-v/ },
   ];
   const rects: Array<{ x: number; y: number; width: number; height: number }> = [];
-  for (const row of providerRows) {
+  for (const { row, model, absent } of providerRows) {
     await row.hover();
     await expect(row).toHaveAttribute("data-provider-active", "true");
+    await expect(picker.getByRole("radio", { name: model }).first()).toBeVisible();
+    await expect(picker.getByRole("radio", { name: absent })).toHaveCount(0);
+    await expect(reasoningControl).toBeFocused();
     const rect = await picker.boundingBox();
     if (!rect) throw new Error("模型选择器没有可见边界");
     rects.push(rect);
@@ -107,7 +215,7 @@ test("桌面模型厂商 hover 使用固定双栏外框且不转移焦点", asyn
     expect(Math.abs(rect.height - initial.height)).toBeLessThanOrEqual(1);
   }
 
-  const gemini = providerRows[1];
+  const gemini = providerRows[1].row;
   await gemini.focus();
   await expect(gemini).toBeFocused();
   await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
@@ -118,12 +226,75 @@ test("桌面模型厂商 hover 使用固定双栏外框且不转移焦点", asyn
   await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
   await expect(picker.getByRole("button", { name: "Google Gemini", exact: true })).toBeFocused();
 
-  await gemini.click();
-  await expect(picker).toHaveAttribute("data-model-picker-view", "models");
   const selectedModel = picker.getByRole("radio").first();
-  await selectedModel.click();
-  await expect.poll(async () => (await readConversationModelSelection(page, "stable-chat")).modelId).not.toBe("gpt-5.5");
+  await selectedModel.locator("xpath=..").click();
+  await expect.poll(async () => (await readConversationModelSelection(page, "stable-chat")).modelId).toMatch(/^gemini-/);
 
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});
+
+test("迟到的旧厂商目录结果不会覆盖当前厂商模型", async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  let markGoogleRequested: (() => void) | undefined;
+  let releaseGoogle: (() => void) | undefined;
+  const googleRequested = new Promise<void>((resolve) => { markGoogleRequested = resolve; });
+  const googleRelease = new Promise<void>((resolve) => { releaseGoogle = resolve; });
+  await page.route("**/api/ai/models", async (route) => {
+    const input = route.request().postDataJSON() as { provider?: string };
+    if (input.provider === "google") {
+      markGoogleRequested?.();
+      await googleRelease;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          complete: true,
+          fetchedAt: "2026-08-28T00:00:00.000Z",
+          models: [{
+            id: "gemini-stale-directory",
+            label: "Gemini stale directory",
+            purposes: ["text"],
+            capabilities: ["text", "streaming"],
+            status: "active",
+            source: "official_api",
+            capabilitySource: "provider",
+            supportsStreaming: true,
+            supportsStructuredOutput: false,
+            updatedAt: "2026-08-28T00:00:00.000Z",
+          }],
+        }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ models: [], complete: true, fetchedAt: "2026-08-28T00:00:00.000Z" }) });
+  });
+
+  await page.goto("/");
+  await seedConversationModelFixtures(page, [
+    { id: "stale-google", label: "Stale Gemini", provider: "google", apiFormat: "google_generate_content" },
+    { id: "stale-deepseek", label: "Current DeepSeek", provider: "deepseek", apiFormat: "chat_completions" },
+  ], [
+    { id: "stale-chat", title: "异步目录隔离", connectionId: "stale-google", modelId: "gemini-3.5-flash" },
+  ]);
+  await enableConversationModelDirectoryRequest(page, "stale-google");
+  await page.reload();
+  await page.locator('[data-conversation-id="stale-chat"] .conversation-tree-chat-label').click();
+  await page.getByRole("button", { name: "选择模型" }).click();
+  const picker = page.getByRole("dialog", { name: "选择对话模型" });
+  await googleRequested;
+
+  const deepSeek = picker.getByRole("button", { name: "DeepSeek", exact: true });
+  await deepSeek.hover();
+  await expect(deepSeek).toHaveAttribute("data-provider-active", "true");
+  await expect(picker.getByRole("radio", { name: /deepseek-v4-flash/ })).toBeVisible();
+  await expect(picker.getByRole("radio", { name: /gemini-/ })).toHaveCount(0);
+
+  releaseGoogle?.();
+  await page.waitForTimeout(250);
+  await expect(deepSeek).toHaveAttribute("data-provider-active", "true");
+  await expect(picker.getByRole("radio", { name: /deepseek-v4-flash/ })).toBeVisible();
+  await expect(picker.getByRole("radio", { name: /gemini-stale-directory/ })).toHaveCount(0);
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

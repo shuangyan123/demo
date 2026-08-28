@@ -101,6 +101,41 @@
   background: var(--chrome-selected);
 }
 
+.conversation-tree-chat.is-active .conversation-tree-chat-label {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.conversation-tree-chat.is-active .conversation-tree-chat-label:hover {
+  background: transparent;
+}
+
+.conversation-tree-folder-label:focus-visible,
+.conversation-tree-chat-label:focus-visible,
+.conversation-tree-chat > .ui-tooltip-anchor > button:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.workspace-project-row:hover {
+  background: var(--chrome-hover);
+  color: var(--foreground);
+}
+
+.workspace-project-row.is-selected {
+  background: color-mix(in srgb, var(--chrome-selected) 78%, transparent);
+  color: var(--foreground);
+}
+
+.workspace-project-row:focus {
+  outline: none;
+}
+
+.workspace-project-row:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
 .app-sidebar-shell .conversation-tree-heading {
   padding-inline: 0.65rem;
 }

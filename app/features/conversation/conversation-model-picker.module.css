@@ -65,16 +65,17 @@
 }
 
 .picker[data-model-picker-view="controls"],
-.picker[data-model-picker-view="providers"],
 .picker[data-model-picker-view="advanced"] {
   width: min(13rem, calc(100vw - 1.25rem));
 }
 
 @media (min-width: 641px) {
-  /* 厂商与模型浏览共用固定双栏外框，provider hover 只更新右栏内容。 */
+  /* 一级控制行常驻左栏，三种子面板共用同一外框，hover/focus 时只替换右侧内容。 */
   .picker[data-model-picker-view="providers"],
-  .picker[data-model-picker-view="models"] {
-    width: min(28rem, calc(100vw - 1.25rem));
+  .picker[data-model-picker-view="models"],
+  .picker[data-model-picker-view="reasoning"],
+  .picker[data-model-picker-view="speed"] {
+    width: min(41rem, calc(100vw - 1.25rem));
     height: min(26rem, calc(100dvh - 8rem - env(safe-area-inset-top, 0px)));
     left: auto;
     right: 0;
@@ -86,19 +87,30 @@
   }
 }
 
-.picker[data-model-picker-view="reasoning"],
-.picker[data-model-picker-view="speed"] {
-  width: min(10rem, calc(100vw - 1.25rem));
-}
-
-.picker[data-picker-has-budget="true"] {
-  width: min(12.5rem, calc(100vw - 1.25rem));
-}
-
 .layer {
   display: block;
   min-width: 0;
   animation: picker-layer-enter 110ms ease-out;
+}
+
+.controlFlyout {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  align-items: stretch;
+}
+
+.controlPane {
+  width: 13rem;
+  flex: none;
+}
+
+.detailPane {
+  width: 28rem;
+  min-width: 0;
+  flex: none;
+  border-left: 1px solid var(--chrome-card-outline);
 }
 
 .flyout {
@@ -209,7 +221,8 @@
 }
 
 .controlRow:hover,
-.controlRow:focus-visible {
+.controlRow:focus-visible,
+.controlRow[data-control-active="true"] {
   background: var(--surface-muted);
   outline: none;
 }
@@ -422,6 +435,45 @@
   border-top: 1px solid var(--line);
 }
 
+.connectionEmptyState {
+  display: grid;
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-content: center;
+  justify-items: start;
+  gap: 0.45rem;
+  padding: 1rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.connectionEmptyState strong {
+  color: var(--foreground);
+  font-size: 0.8rem;
+}
+
+.connectionEmptyState button {
+  min-height: 2rem;
+  margin-top: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius-row);
+  padding: 0.35rem 0.65rem;
+  color: var(--foreground);
+}
+
+.connectionEmptyState button:hover,
+.connectionEmptyState button:focus-visible {
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.modelEmptyState {
+  padding: 0.7rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 @media (max-width: 640px) {
   .selector {
     flex: 1 1 5.5rem;
@@ -448,6 +500,21 @@
 
   .picker[data-model-picker-view="controls"] {
     width: min(20rem, calc(100vw - 1.25rem));
+  }
+
+  .controlFlyout {
+    display: block;
+    height: auto;
+  }
+
+  .controlPane,
+  .detailPane {
+    width: 100%;
+    border-left: 0;
+  }
+
+  .picker:not([data-model-picker-view="controls"]) .controlPane {
+    display: none;
   }
 
   .picker[data-model-picker-view="models"] {
@@ -493,6 +560,10 @@
 
   .picker[data-picker-has-budget="true"] {
     width: min(20rem, calc(100vw - 1.25rem));
+  }
+
+  .connectionEmptyState {
+    min-height: 8rem;
   }
 }
 

@@ -4,8 +4,8 @@ import type { Page } from "@playwright/test";
 export type ModelConnectionFixture = {
   id: string;
   label: string;
-  provider: "openai" | "google" | "anthropic" | "zhipu" | "custom";
-  apiFormat: "responses" | "google_generate_content" | "chat_completions";
+  provider: "openai" | "google" | "anthropic" | "deepseek" | "minimax" | "zhipu" | "custom";
+  apiFormat: "responses" | "google_generate_content" | "anthropic_messages" | "chat_completions";
   baseUrl?: string;
 };
 
@@ -76,6 +76,70 @@ export async function seedConversationModelFixtures(
       }
     };
   }), { connectionFixtures: connections, conversationFixtures: conversations });
+}
+
+/** 清空当前测试上下文中的连接公开元数据，用于验证零连接恢复入口。 */
+export async function clearConversationModelConnections(page: Page): Promise<void> {
+  await page.getByRole("main").getByRole("heading", { name: "总览", exact: true }).waitFor();
+  await page.evaluate(async () => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction("apiConnectionProfiles", "readwrite");
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => {
+        database.close();
+        resolve();
+      };
+      transaction.objectStore("apiConnectionProfiles").clear();
+    };
+  }));
+}
+
+/** 为单个 fixture 写入可解密的测试凭据，使模型目录请求能被 page.route 精确控制。 */
+export async function enableConversationModelDirectoryRequest(page: Page, connectionId: string): Promise<void> {
+  await page.evaluate(async (id) => {
+    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    const secureDatabase = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("review_workspace_secure_keys", 1);
+      request.onerror = () => reject(request.error);
+      request.onupgradeneeded = () => request.result.createObjectStore("keys", { keyPath: "id" });
+      request.onsuccess = () => resolve(request.result);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const transaction = secureDatabase.transaction("keys", "readwrite");
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+      transaction.objectStore("keys").put({ id: "primary-aes-gcm-v2", key, createdAt: new Date().toISOString() });
+    });
+    secureDatabase.close();
+
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const cipher = await crypto.subtle.encrypt({
+      name: "AES-GCM",
+      iv,
+      additionalData: new TextEncoder().encode(`ai-connection:${id}:api-key`),
+    }, key, new TextEncoder().encode("fixture-directory-key"));
+    const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+    const encryptedKey = `v2:${toBase64(new Uint8Array(cipher))}`;
+    const encodedIv = toBase64(iv);
+
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("review_workspace");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        const transaction = database.transaction("apiConnectionProfiles", "readwrite");
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => { database.close(); resolve(); };
+        const store = transaction.objectStore("apiConnectionProfiles");
+        const get = store.get(id);
+        get.onerror = () => reject(get.error);
+        get.onsuccess = () => store.put({ ...get.result, encryptedKey, iv: encodedIv });
+      };
+    });
+  }, connectionId);
 }
 
 /** 从真实会话表读取模型选择，证明 UI 操作已在发送消息前落库。 */

@@ -98,22 +98,22 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     if (right === selectedConnection?.provider) return 1;
     return providerCollator.compare(getProviderContract(left).label, getProviderContract(right).label);
   }), [eligible, selectedConnection?.provider]);
-  const [hoveredProvider, setHoveredProvider] = useState<ApiProvider>();
-  const activeProvider = view.kind === "models" || view.kind === "runtime"
-    ? view.provider
-    : hoveredProvider && providers.includes(hoveredProvider)
-      ? hoveredProvider
-      : selectedConnection?.provider ?? providers[0];
-  const providerConnections = activeProvider ? eligible.filter((connection) => connection.provider === activeProvider) : [];
-  const preferredConnectionId = view.kind === "models" || view.kind === "runtime" ? view.connectionId : selectedConnectionId;
+  const [requestedProviderId, setActiveProviderId] = useState<ApiProvider | undefined>(() => selectedConnection?.provider);
+  const activeProviderId = requestedProviderId && providers.includes(requestedProviderId)
+    ? requestedProviderId
+    : selectedConnection?.provider ?? providers[0];
+  const providerConnections = activeProviderId ? eligible.filter((connection) => connection.provider === activeProviderId) : [];
+  const preferredConnectionId = (view.kind === "models" || view.kind === "runtime") && view.provider === activeProviderId
+    ? view.connectionId
+    : selectedConnectionId;
   const activeConnection = view.kind === "controls"
     ? selectedConnection
     : providerConnections.find((connection) => connection.id === preferredConnectionId) ?? providerConnections[0];
   const catalog = useConnectionModelCatalog(activeConnection, purpose);
   const activeSelectedModelId = activeConnection?.id === selectedConnectionId ? selectedModelId : undefined;
-  const models = catalog;
-  const selectedDescriptor = activeConnection && activeSelectedModelId
-    ? getAiModelRuntimeDescriptor(activeConnection.provider, activeSelectedModelId)
+  const models = catalog.models;
+  const selectedDescriptor = selectedConnection && selectedModelId
+    ? getAiModelRuntimeDescriptor(selectedConnection.provider, selectedModelId)
     : undefined;
   const runtimeValues = normalizeAiSelectedRuntimeValues(selectedDescriptor, selectedRuntimeValues);
   const pickerView = view.kind === "runtime" ? view.dimension : view.kind;
@@ -128,16 +128,20 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     else if (forwardedRef) (forwardedRef as MutableRefObject<HTMLDivElement | null>).current = node;
   }, [forwardedRef]);
 
-  function activateProvider(provider: ApiProvider) {
-    if (providers.includes(provider)) setHoveredProvider(provider);
+  function usesDesktopFlyout() {
+    return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   }
 
-  function enterProvider(provider: ApiProvider) {
+  function activateProvider(provider: ApiProvider) {
+    if (providers.includes(provider)) setActiveProviderId(provider);
+  }
+
+  function enterProvider(provider: ApiProvider, focusModels = false) {
     const connectionsForProvider = eligible.filter((connection) => connection.provider === provider);
     const nextConnection = connectionsForProvider.find((connection) => connection.id === selectedConnectionId) ?? connectionsForProvider[0];
     if (!nextConnection) return;
-    setHoveredProvider(provider);
-    showModels(provider, nextConnection.id);
+    setActiveProviderId(provider);
+    showModels(provider, nextConnection.id, focusModels);
   }
 
   function handleModelPaneKeyNavigation(event: KeyboardEvent<HTMLElement>) {
@@ -146,9 +150,20 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     back();
   }
 
-  function openSelectedRuntime(dimension: ConversationModelRuntimeDimension) {
+  function openModelBrowser(focusProviders = false) {
+    showProviders(focusProviders);
+  }
+
+  function openSelectedRuntime(dimension: ConversationModelRuntimeDimension, focusOptions = false) {
     if (!selectedConnection || !selectedModelId) return;
-    showRuntime(selectedConnection.provider, selectedConnection.id, dimension);
+    setActiveProviderId(selectedConnection.provider);
+    showRuntime(selectedConnection.provider, selectedConnection.id, dimension, focusOptions);
+  }
+
+  function handleControlKeyDown(event: KeyboardEvent<HTMLButtonElement>, openSection: (focusDetail: boolean) => void) {
+    if (event.key !== "ArrowRight" && event.key !== "Enter") return;
+    event.preventDefault();
+    openSection(true);
   }
 
   function chooseModel(nextModelId: string) {
@@ -162,10 +177,10 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   }
 
   function chooseRuntime(nextValues: AiSelectedRuntimeValues) {
-    if (!activeConnection || !activeSelectedModelId) return;
+    if (!selectedConnection || !selectedModelId) return;
     onSelect({
-      connection: activeConnection,
-      modelId: activeSelectedModelId,
+      connection: selectedConnection,
+      modelId: selectedModelId,
       selectedRuntimeValues: normalizeAiSelectedRuntimeValues(selectedDescriptor, nextValues),
     });
   }
@@ -181,20 +196,50 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
       role="dialog"
     >
       <div ref={viewportRef} className={styles.scrollViewport} data-scrollable="false">
-      {view.kind === "controls" ? (
-        <nav key="controls" aria-label="模型配置" className={styles.layer} onKeyDown={handleProviderArrowNavigation}>
-          <button className={styles.controlRow} data-picker-default-focus="true" data-picker-focus-key="control-entry:model" type="button" onClick={showProviders}>
+      <div className={styles.controlFlyout}>
+        <nav aria-label="模型配置" className={`${styles.layer} ${styles.controlPane}`} onKeyDown={handleProviderArrowNavigation}>
+          <button
+            className={styles.controlRow}
+            data-control-active={view.kind === "providers" || view.kind === "models" ? "true" : undefined}
+            data-picker-default-focus={view.kind === "controls" ? "true" : undefined}
+            data-picker-focus-key="control-entry:model"
+            type="button"
+            onFocus={() => { if (usesDesktopFlyout()) openModelBrowser(); }}
+            onMouseEnter={() => openModelBrowser()}
+            onKeyDown={(event) => handleControlKeyDown(event, openModelBrowser)}
+            onClick={() => openModelBrowser()}
+          >
             <span>模型</span><span>{selectedModelId ?? "选择模型"}<AppIcon name="chevronRight" size={16} /></span>
           </button>
-          <button className={styles.controlRow} data-picker-focus-key="runtime-entry:reasoning" disabled={!selectedDescriptor?.reasoning} type="button" onClick={() => openSelectedRuntime("reasoning")}>
+          <button
+            className={styles.controlRow}
+            data-control-active={view.kind === "runtime" && view.dimension === "reasoning" ? "true" : undefined}
+            data-picker-focus-key="runtime-entry:reasoning"
+            disabled={!selectedDescriptor?.reasoning}
+            type="button"
+            onFocus={() => { if (usesDesktopFlyout()) openSelectedRuntime("reasoning"); }}
+            onMouseEnter={() => openSelectedRuntime("reasoning")}
+            onKeyDown={(event) => handleControlKeyDown(event, (focus) => openSelectedRuntime("reasoning", focus))}
+            onClick={() => openSelectedRuntime("reasoning")}
+          >
             <span>推理强度</span><span>{selectedDescriptor?.reasoning?.options.find((option) => option.value === runtimeValues.reasoning)?.label ?? "不可用"}<AppIcon name="chevronRight" size={16} /></span>
           </button>
-          <button className={styles.controlRow} data-picker-focus-key="runtime-entry:speed" disabled={!selectedDescriptor?.speed} type="button" onClick={() => openSelectedRuntime("speed")}>
+          <button
+            className={styles.controlRow}
+            data-control-active={view.kind === "runtime" && view.dimension === "speed" ? "true" : undefined}
+            data-picker-focus-key="runtime-entry:speed"
+            disabled={!selectedDescriptor?.speed}
+            type="button"
+            onFocus={() => { if (usesDesktopFlyout()) openSelectedRuntime("speed"); }}
+            onMouseEnter={() => openSelectedRuntime("speed")}
+            onKeyDown={(event) => handleControlKeyDown(event, (focus) => openSelectedRuntime("speed", focus))}
+            onClick={() => openSelectedRuntime("speed")}
+          >
             <span>速度</span><span>{selectedDescriptor?.speed?.options.find((option) => option.value === runtimeValues.speed)?.label ?? "不可用"}<AppIcon name="chevronRight" size={16} /></span>
           </button>
         </nav>
-      ) : null}
 
+      {view.kind !== "controls" ? <div className={styles.detailPane}>
       {view.kind === "providers" || view.kind === "models" ? (
         <div className={styles.flyout}>
           <nav key="providers" aria-label="厂商" className={`${styles.layer} ${styles.providerPane}`} onKeyDown={handleProviderArrowNavigation}>
@@ -207,14 +252,19 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                   className={styles.providerRow}
                   data-picker-default-focus={view.kind === "providers" && index === 0 ? "true" : undefined}
                   data-picker-focus-key={`provider:${provider}`}
-                  data-provider-active={provider === activeProvider ? "true" : undefined}
+                  data-provider-active={provider === activeProviderId ? "true" : undefined}
                   type="button"
                   onFocus={() => activateProvider(provider)}
                   onMouseEnter={() => activateProvider(provider)}
                   onKeyDown={(event) => {
-                    if (event.key !== "ArrowRight") return;
+                    if (event.key === "ArrowLeft") {
+                      event.preventDefault();
+                      back();
+                      return;
+                    }
+                    if (event.key !== "ArrowRight" && event.key !== "Enter") return;
                     event.preventDefault();
-                    enterProvider(provider);
+                    enterProvider(provider, true);
                   }}
                   onClick={() => enterProvider(provider)}
                 >
@@ -223,13 +273,19 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                   <span className={styles.mobileDisclosure} aria-hidden="true"><AppIcon name="chevronRight" size={16} /></span>
                 </button>
               );
-            }) : (
-              <button className={styles.emptyRow} type="button" onClick={onOpenConnections}>配置支持当前能力的连接</button>
-            )}
+            }) : null}
           </nav>
 
-      {(view.kind === "providers" || view.kind === "models") && activeProvider && activeConnection ? (
-        <section key={`models:${activeConnection.id}`} className={`${styles.layer} ${styles.modelPane}`} aria-label={`${getProviderContract(activeProvider).label} 模型`} onKeyDown={handleModelPaneKeyNavigation}>
+      {!providers.length ? (
+        <section className={styles.connectionEmptyState} aria-label="尚未配置 AI 连接">
+          <strong>尚未配置 AI 连接</strong>
+          <p>配置 AI 服务后即可选择模型。</p>
+          <button type="button" onClick={onOpenConnections}>前往设置</button>
+        </section>
+      ) : null}
+
+      {(view.kind === "providers" || view.kind === "models") && activeProviderId && activeConnection ? (
+        <section key={catalog.key} className={`${styles.layer} ${styles.modelPane}`} aria-label={`${getProviderContract(activeProviderId).label} 模型`} onKeyDown={handleModelPaneKeyNavigation}>
           <button aria-label="返回厂商" className={styles.flyoutBack} type="button" onClick={back}><AppIcon name="back" size={16} /></button>
           {providerConnections.length > 1 ? (
             <label className={styles.profileRow}>
@@ -238,7 +294,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                 aria-label="连接"
                 value={activeConnection.id}
                 onChange={(event) => {
-                  changeConnection(activeProvider, event.currentTarget.value);
+                  changeConnection(activeProviderId, event.currentTarget.value);
                 }}
               >
                 {providerConnections.map((connection) => <option key={connection.id} value={connection.id}>{connection.label}</option>)}
@@ -272,15 +328,15 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                 </UiTooltip>
               );
             })}
+            {!models.length ? <p className={styles.modelEmptyState}>{catalog.loading ? "正在加载模型…" : "暂无可用模型"}</p> : null}
           </div>
-          <button className={styles.manageRow} type="button" onClick={onOpenConnections}>管理 AI 连接</button>
         </section>
       ) : null}
         </div>
       ) : null}
 
       {view.kind === "runtime" && selectedDescriptor ? (
-        <div key={`${view.dimension}:${activeConnection?.id ?? "missing"}`} className={styles.layer}>
+        <div key={`${view.dimension}:${activeConnection?.id ?? "missing"}`} className={styles.layer} onKeyDown={handleModelPaneKeyNavigation}>
           <ConversationModelRuntimeControls
             descriptor={selectedDescriptor}
             dimension={view.dimension}
@@ -290,6 +346,8 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           />
         </div>
       ) : null}
+      </div> : null}
+      </div>
       </div>
     </div>
   );

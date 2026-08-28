@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
+  clearConversationModelConnections,
   failNextConversationModelWrite,
   installConversationModelWriteFailureHook,
   readConversationModelSelection,
@@ -40,7 +41,7 @@ async function tabOutOfPicker(page: Page, picker: Locator): Promise<void> {
   await expect(page.getByRole("button", { name: "选择模型" })).not.toBeFocused();
 }
 
-test("桌面模型菜单按层紧凑变宽，并保持键盘、tooltip 与焦点语义", async ({ page }, testInfo) => {
+test("桌面模型菜单保持稳定外框，并保留键盘、tooltip 与焦点语义", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
@@ -55,10 +56,13 @@ test("桌面模型菜单按层紧凑变宽，并保持键盘、tooltip 与焦点
 
   const openAiPicker = await openConversationModelPicker(page, "picker-openai-chat");
   await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "providers");
-  await expectPickerWidth(openAiPicker, 208);
-  await openAiPicker.getByRole("button", { name: "OpenAI" }).click();
+  await expectPickerWidth(openAiPicker, 656);
+  await expect(openAiPicker.getByRole("button", { name: "管理 AI 连接" })).toHaveCount(0);
+  const openAiProvider = openAiPicker.getByRole("button", { name: "OpenAI" });
+  await openAiProvider.focus();
+  await openAiProvider.press("ArrowRight");
   await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "models");
-  await expectPickerWidth(openAiPicker, 240);
+  await expectPickerWidth(openAiPicker, 656);
   await expectStablePickerFrames(openAiPicker);
 
   const selectedModel = openAiPicker.getByRole("radio", { name: /gpt-5\.5/ });
@@ -70,52 +74,38 @@ test("桌面模型菜单按层紧凑变宽，并保持键盘、tooltip 与焦点
   await page.waitForTimeout(500);
   await expect(page.locator('body > [role="tooltip"]')).toBeVisible();
 
-  await expect(openAiPicker.getByRole("button", { name: /推理/ })).toHaveCount(0);
+  await expect(openAiPicker.getByRole("button", { name: /^推理强度 / })).toBeEnabled();
   await selectedModel.locator("xpath=..").click();
-  await page.keyboard.press("Escape");
-  const reasoningTrigger = page.getByRole("button", { name: /调整推理强度，当前 medium/ });
-  await reasoningTrigger.click();
-  const reasoningDialog = page.getByRole("dialog", { name: "推理强度" });
-  const reasoningSlider = reasoningDialog.getByRole("slider", { name: "推理档位" });
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
-  await expect(reasoningSlider).toBeFocused();
-  await reasoningSlider.press("ArrowRight");
+  const reasoningControl = openAiPicker.getByRole("button", { name: /^推理强度 / });
+  await reasoningControl.focus();
+  await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "reasoning");
+  await reasoningControl.press("ArrowRight");
+  await openAiPicker.getByRole("radio", { name: "high", exact: true }).locator("xpath=..").click();
   await expect.poll(async () => (await readConversationModelSelection(page, "picker-openai-chat")).runtime?.reasoning).toBe("high");
   await page.keyboard.press("Escape");
-  await expect(reasoningDialog).toBeHidden();
-  await expect(page.getByRole("button", { name: /调整推理强度，当前 high/ })).toBeFocused();
+  await expect(openAiPicker).toBeHidden();
+  await expect(page.getByRole("button", { name: "选择模型" })).toBeFocused();
 
   const tabPicker = await openConversationModelPicker(page, "picker-openai-chat");
   await tabOutOfPicker(page, tabPicker);
 
-  const geminiPicker = await openConversationModelPicker(page, "picker-google-chat");
+  let geminiPicker = await openConversationModelPicker(page, "picker-google-chat");
   await geminiPicker.getByRole("button", { name: "Google Gemini" }).click();
-  await expect(geminiPicker.getByRole("button", { name: /推理/ })).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  const geminiReasoningTrigger = page.getByRole("button", { name: /调整推理强度/ });
-  await geminiReasoningTrigger.click();
-  const geminiReasoningDialog = page.getByRole("dialog", { name: "推理强度" });
-  const budget = geminiReasoningDialog.getByRole("spinbutton", { name: "自定义推理预算" });
+  await expect(geminiPicker.getByRole("button", { name: /^推理强度 / })).toBeEnabled();
+  await geminiPicker.getByRole("button", { name: /^推理强度 / }).click();
+  const budget = geminiPicker.getByRole("spinbutton", { name: "自定义推理预算" });
   await budget.fill("12000");
   await budget.press("ArrowUp");
   await budget.press("Tab");
   await expect.poll(async () => (await readConversationModelSelection(page, "picker-google-chat")).runtime?.reasoning).toBe(12001);
-  await expect(geminiReasoningDialog).toBeVisible();
+  await expect(geminiPicker).toBeHidden();
 
-  await budget.fill("13000");
-  await page.keyboard.press("Escape");
-  await expect(geminiReasoningDialog).toBeHidden();
+  geminiPicker = await openConversationModelPicker(page, "picker-google-chat");
+  await geminiPicker.getByRole("button", { name: /^推理强度 / }).click();
+  const reopenedBudget = geminiPicker.getByRole("spinbutton", { name: "自定义推理预算" });
+  await reopenedBudget.fill("13000");
+  await reopenedBudget.press("Enter");
   await expect.poll(async () => (await readConversationModelSelection(page, "picker-google-chat")).runtime?.reasoning).toBe(13000);
-
-  await geminiReasoningTrigger.click();
-  await geminiReasoningDialog.getByRole("spinbutton", { name: "自定义推理预算" }).fill("14000");
-  await geminiReasoningDialog.getByRole("spinbutton", { name: "自定义推理预算" }).press("Tab");
-  await page.locator(".conversation-thread-header").click({ position: { x: 8, y: 8 } });
-  await expect(geminiReasoningDialog).toBeHidden();
-  await expect.poll(async () => (await readConversationModelSelection(page, "picker-google-chat")).runtime?.reasoning).toBe(14000);
-
-  await geminiReasoningTrigger.click();
 
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-desktop-light.png"), fullPage: false });
 
@@ -125,8 +115,26 @@ test("桌面模型菜单按层紧凑变宽，并保持键盘、tooltip 与焦点
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "返回应用" }).click();
-  await page.getByRole("button", { name: /调整推理强度/ }).click();
+  const darkPicker = await openConversationModelPicker(page, "picker-google-chat");
+  await darkPicker.getByRole("button", { name: /^推理强度 / }).click();
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-desktop-dark.png"), fullPage: false });
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});
+
+test("零可用连接显示恢复空状态并进入既有 AI 连接设置", async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.goto("/");
+  await clearConversationModelConnections(page);
+  await page.reload();
+
+  await page.getByRole("button", { name: "新对话" }).first().click();
+  await page.getByRole("button", { name: "选择模型" }).click();
+  const picker = page.getByRole("dialog", { name: "选择对话模型" });
+  await expect(picker.getByRole("region", { name: "尚未配置 AI 连接" })).toContainText("配置 AI 服务后即可选择模型。");
+  await expect(picker.getByRole("button", { name: "管理 AI 连接" })).toHaveCount(0);
+  await picker.getByRole("button", { name: "前往设置" }).click();
+  await expect(page.getByRole("heading", { name: "AI 连接" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
@@ -164,11 +172,10 @@ test("未知或带后缀的 GLM 模型不展示猜测出的运行选项", async 
 
   const picker = await openConversationModelPicker(page, "unknown-glm-chat");
   await picker.getByRole("button", { name: "GLM / 智谱" }).click();
-  const unknownModel = picker.getByRole("radio", { name: /^glm-5\.2-custom/ });
-  await expect(unknownModel).toBeChecked();
-  await expect(picker.getByRole("button", { name: /推理|速度/ })).toHaveCount(0);
-  await unknownModel.locator("xpath=..").hover();
-  await expect(page.locator('body > [role="tooltip"]')).toContainText("运行参数尚未核验");
+  await expect(picker.getByRole("radio", { name: /^glm-5\.2-custom/ })).toHaveCount(0);
+  await expect(picker.getByRole("button", { name: /^推理强度 / })).toBeDisabled();
+  await expect(picker.getByRole("button", { name: /^速度 / })).toBeDisabled();
+  await expect.poll(async () => (await readConversationModelSelection(page, "unknown-glm-chat")).modelId).toBe("glm-5.2-custom");
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
