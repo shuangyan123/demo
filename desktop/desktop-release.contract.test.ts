@@ -15,6 +15,7 @@ const releaseGuardSource = readFileSync(new URL("../scripts/verify-desktop-relea
 const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archive.mjs", import.meta.url), "utf8");
 const desktopHostPreparation = readFileSync(new URL("../scripts/prepare-desktop-host.mjs", import.meta.url), "utf8");
 const forgeConfig = readFileSync(new URL("../forge.config.ts", import.meta.url), "utf8");
+const recallWindowsIconPath = join(process.cwd(), "public", "brand", "recall", "app", "recall.ico");
 const squirrelNuspecTemplate = readFileSync(new URL("../scripts/squirrel.nuspec.template", import.meta.url), "utf8");
 const electronWinstallerNuspecTemplate = readFileSync(new URL("../node_modules/electron-winstaller/template.nuspectemplate", import.meta.url), "utf8");
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
@@ -309,6 +310,14 @@ test("Forge uses the checked-in no-icon Squirrel nuspec template", () => {
     /const squirrelNuspecTemplate = join\(process\.cwd\(\), "scripts", "squirrel\.nuspec\.template"\)/,
   );
   assert.match(forgeConfig, /nuspecTemplate:\s*squirrelNuspecTemplate/);
+});
+
+test("Forge uses the approved local Recall icon for packaging", () => {
+  assert.ok(existsSync(recallWindowsIconPath));
+  assert.match(forgeConfig, /const recallWindowsIconPath = join\(process\.cwd\(\), "public", "brand", "recall", "app", "recall\.ico"\)/);
+  assert.match(forgeConfig, /packagerConfig:\s*\{[\s\S]*icon:\s*recallWindowsIconPath/);
+  assert.match(forgeConfig, /setupIcon:\s*recallWindowsIconPath/);
+  assert.doesNotMatch(forgeConfig, /iconUrl\s*:/);
 });
 
 test("desktop artifact gate includes the generated Squirrel package metadata regression", () => {
