@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
@@ -71,6 +71,49 @@ const approvedAssets = {
   },
 };
 
+const approvedWordmarkAssets = {
+  "wordmark/recall-wordmark-B-transparent.png": {
+    width: 430,
+    height: 170,
+    sha256: "ed89a87da25516a90f928f6e61287594ed07dc3595a7b89e1dd1bc398a179af9",
+  },
+  "wordmark/recall-wordmark-C-transparent.png": {
+    width: 369,
+    height: 129,
+    sha256: "884bd083eb869fd975dcc2da367dc4b25d0c77372a84662540a10b8b03000bb5",
+  },
+  "wordmark/recall-wordmark-B-dark-transparent.png": {
+    width: 430,
+    height: 170,
+    sha256: "e8c3d1fb5702ed9904b251382b87dbdf527a8e1f3610fb68cbeba8a54881f98d",
+  },
+  "wordmark/recall-wordmark-C-dark-transparent.png": {
+    width: 369,
+    height: 129,
+    sha256: "e62a01b9f698866a15707e53d462d17af360c05602ecee8627142bc65ff99622",
+  },
+  "wordmark/recall-lockup-B-transparent.png": {
+    width: 504,
+    height: 176,
+    sha256: "cc36e668e4056fa2c59455026121072115c696d1277d9ba72fb372e5842095a4",
+  },
+  "wordmark/recall-lockup-C-transparent.png": {
+    width: 544,
+    height: 176,
+    sha256: "fc8afd4c71de72d4181f0a16fba60b386f9a275413bac9bb8504aef2caadd538",
+  },
+  "wordmark/recall-lockup-B-dark-transparent.png": {
+    width: 418,
+    height: 176,
+    sha256: "20ee4d9aeac72e94b3255bd8d56c52e0108ea234ac21855129bcbbf502f07baf",
+  },
+  "wordmark/recall-lockup-C-dark-transparent.png": {
+    width: 446,
+    height: 176,
+    sha256: "fe69e9ccae27502926c756dd6ecf1e8f90cfccf72224162c0ceb44c7191618f3",
+  },
+};
+
 const repositoryOnlyAssetPaths = new Set([
   "source/recall-master-transparent-1254.png",
   "app/recall-app-icon-1024.png",
@@ -110,6 +153,28 @@ function parsePngMetadata(buffer) {
     offset += 12 + length;
   }
   throw new Error("PNG IHDR chunk is missing");
+}
+
+function assertPngAsset(filePath, expected, label) {
+  assert.ok(existsSync(filePath), `missing approved asset: ${label}`);
+  const bytes = readFileSync(filePath);
+  assert.equal(sha256(bytes), expected.sha256, `unexpected asset variant: ${label}`);
+  const metadata = parsePngMetadata(bytes);
+  assert.deepEqual(
+    { width: metadata.width, height: metadata.height },
+    { width: expected.width, height: expected.height },
+    `unexpected dimensions: ${label}`,
+  );
+  assert.equal(metadata.bitDepth, 8, `unexpected PNG bit depth: ${label}`);
+  assert.equal(metadata.colorType, 6, `Recall asset must retain RGBA transparency: ${label}`);
+  return bytes;
+}
+
+function listFiles(root) {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const filePath = resolve(root, entry.name);
+    return entry.isDirectory() ? listFiles(filePath) : [filePath];
+  });
 }
 
 function parseIcoEntries(buffer) {
@@ -159,6 +224,20 @@ test("checked-in Recall assets match the locked v2 package", () => {
   assert.equal(sha256(readFileSync(resolve(workspaceRoot, "app", "favicon.ico"))), approvedFaviconIcoSha256);
 });
 
+test("locked Recall B/C wordmarks and lockups retain their approved PNG bytes", () => {
+  for (const [relativePath, expected] of Object.entries(approvedWordmarkAssets)) {
+    const canonicalPath = resolve(repositoryBrandRoot, relativePath);
+    const runtimePath = resolve(runtimeBrandRoot, relativePath);
+    const canonicalBytes = assertPngAsset(canonicalPath, expected, `canonical ${relativePath}`);
+    assertPngAsset(runtimePath, expected, `runtime ${relativePath}`);
+    assert.deepEqual(
+      readFileSync(runtimePath),
+      canonicalBytes,
+      `runtime wordmark is not byte-identical to canonical copy: ${relativePath}`,
+    );
+  }
+});
+
 test("Recall source and non-runtime exports stay outside the public runtime payload", () => {
   for (const relativePath of repositoryOnlyAssetPaths) {
     assert.ok(existsSync(resolve(repositoryBrandRoot, relativePath)), `missing repository-only asset: ${relativePath}`);
@@ -178,11 +257,20 @@ test("Recall source and non-runtime exports stay outside the public runtime payl
   assert.equal(existsSync(resolve(repositoryBrandRoot, "source", "recall-transparent-crop-check.png")), false);
   assert.equal(existsSync(resolve(runtimeBrandRoot, "source", "recall-transparent-crop-check.png")), false);
   assert.equal(existsSync(resolve(workspaceRoot, "recall_locked_final_brand_assets_v2.zip")), false);
+  assert.equal(existsSync(resolve(workspaceRoot, "recall_wordmark_locked_assets_v2.zip")), false);
+  assert.equal(existsSync(resolve(workspaceRoot, "recall_wordmark_dark_assets.zip")), false);
+  for (const root of [repositoryBrandRoot, runtimeBrandRoot]) {
+    for (const filePath of listFiles(root)) {
+      assert.doesNotMatch(filePath, /\.zip$/i, `source ZIP leaked into repository asset tree: ${filePath}`);
+      assert.doesNotMatch(filePath, /(?:extraction-check|dark-variants-check)\.png$/i, `preview leaked into runtime/repository asset tree: ${filePath}`);
+    }
+  }
 });
 
 test("Recall references use the configured asset without changing application identity", () => {
   const workspaceShell = readFileSync(resolve(workspaceRoot, "app", "features", "shared", "workspace-shell.tsx"), "utf8");
   const recallBrandMark = readFileSync(resolve(workspaceRoot, "app", "features", "shared", "recall-brand-mark.tsx"), "utf8");
+  const recallBrandWordmark = readFileSync(resolve(workspaceRoot, "app", "features", "shared", "recall-brand-wordmark.tsx"), "utf8");
   const forgeConfig = readFileSync(resolve(workspaceRoot, "forge.config.ts"), "utf8");
   const m0Config = readFileSync(resolve(workspaceRoot, "electron-builder.m0.cjs"), "utf8");
   const nsisConfig = readFileSync(resolve(workspaceRoot, "electron-builder.nsis.cjs"), "utf8");
@@ -197,6 +285,23 @@ test("Recall references use the configured asset without changing application id
   assert.match(recallBrandMark, /object-contain/);
   assert.doesNotMatch(recallBrandMark, /mask-|clip-path|object-cover/);
   assert.match(recallBrandMark, /unoptimized/);
+  assert.match(recallBrandWordmark, /export function RecallBrandWordmark/);
+  assert.match(recallBrandWordmark, /export function RecallBrandLockup/);
+  assert.match(recallBrandWordmark, /theme: RecallBrandTheme/);
+  assert.match(recallBrandWordmark, /variant: RecallBrandVariant/);
+  assert.match(recallBrandWordmark, /recall-wordmark-B-transparent\.png/);
+  assert.match(recallBrandWordmark, /recall-wordmark-C-transparent\.png/);
+  assert.match(recallBrandWordmark, /recall-wordmark-B-dark-transparent\.png/);
+  assert.match(recallBrandWordmark, /recall-wordmark-C-dark-transparent\.png/);
+  assert.match(recallBrandWordmark, /recall-lockup-B-transparent\.png/);
+  assert.match(recallBrandWordmark, /recall-lockup-C-transparent\.png/);
+  assert.match(recallBrandWordmark, /recall-lockup-B-dark-transparent\.png/);
+  assert.match(recallBrandWordmark, /recall-lockup-C-dark-transparent\.png/);
+  assert.match(recallBrandWordmark, /object-contain/);
+  assert.match(recallBrandWordmark, /unoptimized/);
+  assert.doesNotMatch(recallBrandWordmark, /object-cover|clip-path|mask-|filter\s*:/);
+  assert.doesNotMatch(recallBrandWordmark, /mix-blend-mode|brightness\(|invert\(/);
+  assert.doesNotMatch(recallBrandWordmark, /font-family|<span|<p/);
   assert.match(main, /const recallWindowIconPath = \[/);
   assert.match(main, /process\.resourcesPath.*recall.*recall\.ico/);
   assert.match(main, /icon:\s*recallWindowIconPath/);
