@@ -50,8 +50,7 @@ export function WindowMenuBar({
             <AppIcon name="back" size={18} />
           </button>
         )}
-        <RecallBrandMark />
-        <strong className="truncate text-foreground">{title}</strong>
+        <RecallBrandMark /><strong className="truncate text-foreground">{title}</strong>
       </div>
     </header>
   );
@@ -201,9 +200,9 @@ export function SidebarNav<T extends string>({
 
   // 移动端横向导航在切换分区后把当前项带入视口，避免内容已切换但选中项仍藏在屏幕外。
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 1024px)").matches) return;
-    activeItemRef.current?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
+    if (window.matchMedia("(max-width: 1024px)").matches) activeItemRef.current?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
   }, [activeKey]);
+
   return (
     <nav className="scrollbar-none grid gap-px" aria-label="侧栏导航">
       {items.map((item) => (
@@ -225,6 +224,7 @@ export function SidebarNav<T extends string>({
     </nav>
   );
 }
+
 // 渲染工作台内容区标题、状态提示和右侧操作，统一主应用各视图顶部布局。
 export function ViewHeader({ actions, eyebrow, title }: { actions?: ReactNode; eyebrow: string; title: string }) {
   return (

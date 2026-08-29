@@ -5,7 +5,8 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 const workspaceRoot = process.cwd();
-const brandRoot = resolve(workspaceRoot, "public", "brand", "recall");
+const repositoryBrandRoot = resolve(workspaceRoot, "assets", "brand", "recall");
+const runtimeBrandRoot = resolve(workspaceRoot, "public", "brand", "recall");
 
 const approvedAssets = {
   "source/recall-master-transparent-1254.png": {
@@ -70,6 +71,18 @@ const approvedAssets = {
   },
 };
 
+const repositoryOnlyAssetPaths = new Set([
+  "source/recall-master-transparent-1254.png",
+  "app/recall-app-icon-1024.png",
+  "app/recall-app-icon-512.png",
+  "app/recall-app-icon-256.png",
+  "app/recall-app-icon-128.png",
+  "app/recall-app-icon-64.png",
+  "app/recall-optical-32.png",
+  "app/recall-optical-24.png",
+  "app/recall-optical-16.png",
+]);
+
 const approvedIcoSha256 = "d35baa505a25f2ae7650af025f055543ef65203b057d86192eddb9ba2b33d9e6";
 const approvedFaviconIcoSha256 = "23b169116449a4d6f1a20bbfb843db81852f0fc1f77a664fd1b4bf7a8f2dbfdc";
 
@@ -115,7 +128,8 @@ function parseIcoEntries(buffer) {
 
 test("checked-in Recall assets match the locked v2 package", () => {
   for (const [relativePath, expected] of Object.entries(approvedAssets)) {
-    const filePath = resolve(brandRoot, relativePath);
+    const root = repositoryOnlyAssetPaths.has(relativePath) ? repositoryBrandRoot : runtimeBrandRoot;
+    const filePath = resolve(root, relativePath);
     assert.ok(existsSync(filePath), `missing approved asset: ${relativePath}`);
     const bytes = readFileSync(filePath);
     assert.equal(sha256(bytes), expected.sha256, `unexpected asset variant: ${relativePath}`);
@@ -129,7 +143,7 @@ test("checked-in Recall assets match the locked v2 package", () => {
     assert.equal(metadata.colorType, 6, `Recall asset must retain RGBA transparency: ${relativePath}`);
   }
 
-  const ico = readFileSync(resolve(brandRoot, "app", "recall.ico"));
+  const ico = readFileSync(resolve(runtimeBrandRoot, "app", "recall.ico"));
   assert.equal(sha256(ico), approvedIcoSha256, "unexpected Windows ICO variant");
   assert.deepEqual(
     parseIcoEntries(ico).map(({ width, height, bitCount }) => `${width}x${height}:${bitCount}`),
@@ -137,13 +151,20 @@ test("checked-in Recall assets match the locked v2 package", () => {
   );
   assert.ok(parseIcoEntries(ico).every((entry) => entry.bytesInRes > 0 && entry.signature === "89504e470d0a1a0a"));
 
-  const favicon = readFileSync(resolve(brandRoot, "web", "favicon.ico"));
+  const favicon = readFileSync(resolve(runtimeBrandRoot, "web", "favicon.ico"));
   assert.equal(sha256(favicon), approvedFaviconIcoSha256, "unexpected web favicon variant");
   assert.equal(sha256(readFileSync(resolve(workspaceRoot, "app", "favicon.ico"))), approvedFaviconIcoSha256);
 });
 
-test("Recall asset layout excludes the crop-check preview and source ZIP", () => {
-  assert.equal(existsSync(resolve(brandRoot, "source", "recall-transparent-crop-check.png")), false);
+test("Recall source and non-runtime exports stay outside the public runtime payload", () => {
+  for (const relativePath of repositoryOnlyAssetPaths) {
+    assert.ok(existsSync(resolve(repositoryBrandRoot, relativePath)), `missing repository-only asset: ${relativePath}`);
+    assert.equal(existsSync(resolve(runtimeBrandRoot, relativePath)), false, `non-runtime asset leaked into public: ${relativePath}`);
+  }
+  assert.ok(existsSync(resolve(repositoryBrandRoot, "README.md")));
+  assert.equal(existsSync(resolve(runtimeBrandRoot, "README.md")), false);
+  assert.equal(existsSync(resolve(repositoryBrandRoot, "source", "recall-transparent-crop-check.png")), false);
+  assert.equal(existsSync(resolve(runtimeBrandRoot, "source", "recall-transparent-crop-check.png")), false);
   assert.equal(existsSync(resolve(workspaceRoot, "recall_locked_final_brand_assets_v2.zip")), false);
 });
 
