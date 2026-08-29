@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -13,6 +13,7 @@ const forgeConfig = readFileSync(resolve(workspaceRoot, "forge.config.ts"), "utf
 const squirrelNuspec = readFileSync(resolve(workspaceRoot, "scripts", "squirrel.nuspec.template"), "utf8");
 const packageJson = JSON.parse(readFileSync(resolve(workspaceRoot, "package.json"), "utf8"));
 const packageLock = JSON.parse(readFileSync(resolve(workspaceRoot, "package-lock.json"), "utf8"));
+const recallWindowsIconPath = resolve(workspaceRoot, "public", "brand", "recall", "app", "recall.ico");
 
 test("M0 builder config is additive and targets bundled NSIS only", () => {
   assert.equal(packageJson.name, "review-workspace");
@@ -37,6 +38,10 @@ test("M0 builder config is additive and targets bundled NSIS only", () => {
   }]);
 
   assert.deepEqual(builderConfig.win.target, [{ target: "nsis", arch: ["x64"] }]);
+  assert.equal(builderConfig.win.icon, recallWindowsIconPath);
+  assert.equal(builderConfig.nsis.installerIcon, recallWindowsIconPath);
+  assert.equal(builderConfig.nsis.uninstallerIcon, recallWindowsIconPath);
+  assert.equal(existsSync(recallWindowsIconPath), true);
   assert.equal(builderConfig.publish, null);
   assert.equal(builderConfig.artifactName, "ReviewWorkspace-${version}-NSIS-M0-POC.${ext}");
   assert.equal(builderConfig.nsis.oneClick, false);

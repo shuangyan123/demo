@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
 import { AppIcon } from "./app-icon";
+import { RecallBrandMark } from "./recall-brand-mark";
 import { useDesktopTitlebarTheme } from "./use-desktop-titlebar-theme.ts";
 // 渲染左上角侧栏切换按钮，使用按钮语义让键盘和屏幕阅读器都能识别当前折叠状态。
 export function SidebarToggleButton({
@@ -49,6 +50,7 @@ export function WindowMenuBar({
             <AppIcon name="back" size={18} />
           </button>
         )}
+        <RecallBrandMark />
         <strong className="truncate text-foreground">{title}</strong>
       </div>
     </header>
@@ -202,7 +204,6 @@ export function SidebarNav<T extends string>({
     if (!window.matchMedia("(max-width: 1024px)").matches) return;
     activeItemRef.current?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
   }, [activeKey]);
-
   return (
     <nav className="scrollbar-none grid gap-px" aria-label="侧栏导航">
       {items.map((item) => (
@@ -224,7 +225,6 @@ export function SidebarNav<T extends string>({
     </nav>
   );
 }
-
 // 渲染工作台内容区标题、状态提示和右侧操作，统一主应用各视图顶部布局。
 export function ViewHeader({ actions, eyebrow, title }: { actions?: ReactNode; eyebrow: string; title: string }) {
   return (

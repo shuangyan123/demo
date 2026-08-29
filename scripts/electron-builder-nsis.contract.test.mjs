@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -11,6 +11,7 @@ const configSource = readFileSync(configPath, "utf8");
 const config = require(configPath);
 const packageJson = JSON.parse(readFileSync(resolve(workspaceRoot, "package.json"), "utf8"));
 const packageLock = JSON.parse(readFileSync(resolve(workspaceRoot, "package-lock.json"), "utf8"));
+const recallWindowsIconPath = resolve(workspaceRoot, "public", "brand", "recall", "app", "recall.ico");
 
 test("M1 builder config is an opt-in bundled NSIS candidate path", () => {
   assert.equal(packageJson.name, "review-workspace");
@@ -39,7 +40,8 @@ test("M1 builder config is an opt-in bundled NSIS candidate path", () => {
   assert.equal(config.artifactName, "ReviewWorkspace-${version}-Windows-x64-NSIS-M1-Candidate.${ext}");
   assert.equal(config.win.signAndEditExecutable, true);
   assert.equal(config.win.signExecutable, false);
-  assert.equal(config.win.icon, undefined, "M1 must not introduce an unapproved icon asset");
+  assert.equal(config.win.icon, recallWindowsIconPath);
+  assert.equal(existsSync(recallWindowsIconPath), true);
 
   assert.equal(config.nsis.oneClick, false);
   assert.equal(config.nsis.perMachine, false);
@@ -50,8 +52,8 @@ test("M1 builder config is an opt-in bundled NSIS candidate path", () => {
   assert.equal(config.nsis.uninstallDisplayName, "错题复盘");
   assert.equal(config.nsis.createDesktopShortcut, true);
   assert.equal(config.nsis.createStartMenuShortcut, true);
-  assert.equal(config.nsis.installerIcon, undefined);
-  assert.equal(config.nsis.uninstallerIcon, undefined);
+  assert.equal(config.nsis.installerIcon, recallWindowsIconPath);
+  assert.equal(config.nsis.uninstallerIcon, recallWindowsIconPath);
 
   assert.match(packageJson.scripts["desktop:builder:nsis:unpacked"], /--projectDir \.desktop-app .*--config \.\.\\electron-builder\.nsis\.cjs/);
   assert.match(packageJson.scripts["desktop:builder:nsis:bundle"], /--projectDir \.desktop-app .*--config \.\.\\electron-builder\.nsis\.cjs/);
