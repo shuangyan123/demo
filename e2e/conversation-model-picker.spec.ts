@@ -15,10 +15,16 @@ async function openConversationModelPicker(page: Page, conversationId: string): 
   return page.getByRole("dialog", { name: "选择对话模型" });
 }
 
-/** 宽度规格允许浏览器子像素和边框产生 2px 误差。 */
+/** 独立 surface 的宽度规格允许浏览器子像素和边框产生 2px 误差。 */
 async function expectPickerWidth(picker: Locator, expected: number): Promise<void> {
   await expect.poll(async () => (await picker.boundingBox())?.width).toBeGreaterThanOrEqual(expected - 2);
   await expect.poll(async () => (await picker.boundingBox())?.width).toBeLessThanOrEqual(expected + 2);
+}
+
+async function expectSurfaceWidth(picker: Locator, surface: string, expected: number): Promise<void> {
+  const locator = picker.locator(`[data-model-picker-surface="${surface}"]`);
+  await expect.poll(async () => (await locator.boundingBox())?.width).toBeGreaterThanOrEqual(expected - 2);
+  await expect.poll(async () => (await locator.boundingBox())?.width).toBeLessThanOrEqual(expected + 2);
 }
 
 /** 连续三帧确认菜单宽度与页面滚动高度稳定，防止换层时滚动条闪烁。 */
@@ -56,23 +62,25 @@ test("桌面模型菜单保持稳定外框，并保留键盘、tooltip 与焦点
 
   const openAiPicker = await openConversationModelPicker(page, "picker-openai-chat");
   await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "providers");
-  await expectPickerWidth(openAiPicker, 656);
+  await expectPickerWidth(openAiPicker, 296);
+  await expectSurfaceWidth(openAiPicker, "provider", 240);
+  await expect(openAiPicker.locator('[data-model-picker-surface="model"]')).toHaveCount(0);
   await expect(openAiPicker.getByRole("button", { name: "管理 AI 连接" })).toHaveCount(0);
   const openAiProvider = openAiPicker.getByRole("button", { name: "OpenAI" });
   await openAiProvider.focus();
+  await expect(openAiPicker.locator('[data-model-picker-surface="model"]')).toBeVisible();
+  await expectSurfaceWidth(openAiPicker, "model", 352);
   await openAiProvider.press("ArrowRight");
   await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "models");
-  await expectPickerWidth(openAiPicker, 656);
+  await expectPickerWidth(openAiPicker, 296);
   await expectStablePickerFrames(openAiPicker);
 
   const selectedModel = openAiPicker.getByRole("radio", { name: /gpt-5\.5/ });
   await expect(selectedModel).toBeFocused();
   await expect(page.locator('body > [role="tooltip"]')).toHaveCount(0);
-  await expect(selectedModel).toHaveAttribute("aria-describedby", /.+/);
   await page.keyboard.press("ArrowDown");
   await expect(openAiPicker.getByRole("radio", { name: /gpt-5\.6-sol/ })).toBeFocused();
-  await page.waitForTimeout(500);
-  await expect(page.locator('body > [role="tooltip"]')).toBeVisible();
+  await expect(page.locator('body > [role="tooltip"]')).toHaveCount(0);
 
   await expect(openAiPicker.getByRole("button", { name: /^推理强度 / })).toBeEnabled();
   await selectedModel.locator("xpath=..").click();

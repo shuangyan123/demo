@@ -110,7 +110,7 @@ desktop/
 ## 设置、模型菜单与额度边界（2026-07-14）
 
 - 设置导航固定为外观、AI 连接、个性化、额度、MCP、诊断；个性化与额度使用模块顶层 `next/dynamic`，旧 `roles` 入口只在导航边界归一化为 `personalization`。
-- 模型菜单外壳不滚动，当前层由独立 viewport 承担真实溢出；换层同步清零滚动位置并通过 `ResizeObserver` 决定是否启用滚动。tooltip 使用单例 intent，程序化聚焦和触屏不创建可视浮层。
+- 模型菜单由紧凑 root、provider 和 model 独立 surface 组成；桌面端只让 model surface 承担长目录滚动，root/provider 不因目录长度增长，换连接以 catalog key 清零 model surface 的滚动。`UiHint` 只在模型名真实溢出时提供完整名称，程序化聚焦和触屏不创建可视浮层。
 - 额度领域类型位于 `types/domains/ai-quota.ts`。浏览器 repository 逐项加密管理凭据，服务端 `quota-adapters.ts` 负责 OpenAI、Anthropic、DeepSeek、xAI 的官方只读 API 和统一错误分类。
 - AI 连接只保存推理凭据；额度管理凭据、Team ID、本地预算和指标单独保存。Dexie 保持 `review_workspace` v16，旧单密钥与旧快照只在读取边界兼容转换。
 
@@ -126,16 +126,16 @@ desktop/
 
 - `ApiConnectionProfile` 只持有厂商、地址、密钥与能力；历史 `model` 只用于一次性初始化默认能力模型，新建和编辑不再写入。
 - 后台任务通过 `AiConnectionDefaults` 的“连接 + 模型”组合运行；对话通过 `selectedConnectionId`、`selectedModelId` 与 `selectedRuntimeValues` 运行，两者互不覆盖。旧推理/速度字段只在 repository 读取时折叠，不升级 Dexie v16。
-- 模型选择器采用单栏钻取：当前会话厂商优先，其余按英文名排序；进入厂商后只显示连接、模型、能力 tooltip 和独立推理/速度子列表，所有选择点击即保存。
+- 模型选择器在移动端继续单栏钻取，在桌面端使用 Root → Provider → Model 的稳定级联 surface；当前会话厂商优先，其余按英文名排序，推理/速度从 Root 各自打开独立小 surface，所有选择点击即保存。
 - 官方 Models API 成功时展示账户可用的全部未弃用模型；失败时才使用带 `verifiedAt` 的回退目录。MiniMax 当前旗舰为 `MiniMax-M3`，GLM 当前旗舰为 `glm-5.2`。
 - 对话树名称区域承担 dnd-kit 拖拽，拖拽期间始终提供根目录目标；repository 继续拒绝跨项目、自身和子孙嵌套。
 
 ## 对话模型菜单分层（2026-07-13）
 
 - `ConversationWorkspace` 只编排会话运行、消息和工具状态；输入器由 `ConversationComposer` 承载。语音、实时通话、模型和推理是一级入口，低频附件/媒体/知识工具进入加号菜单，斜杠指令的瞬时状态留在独立输入组件。
-- 模型菜单状态使用 `providers → models → reasoning/speed` 单层判别联合。`ConversationModelPicker` 每次只渲染当前层，不以绝对定位把新面板覆盖在仍可聚焦的旧面板上。
+- 模型菜单状态继续使用 `providers → models → reasoning/speed` 判别联合；桌面端由 `ConversationModelPicker` 维护共享导航状态并渲染 root/provider/model 独立 surface，短暂离开父行由轻量 pointer grace 保持级联，移动端通过 CSS 隐藏父层继续单栏 step-in。
 - 空白对话选择保存在 `draftSelection`；持久化对话使用按 `conversationId` 隔离的乐观选择。写入按用户操作顺序串行化，刷新确认后清理，失败时只回滚当前对话并显示错误，禁止把 A 对话的临时选择带到 B 对话。
-- 选项宽高由内容和当前层决定：桌面厂商、模型、普通运行、预算层分别为 208/240/160/200px；移动端在 390×844 基准下限制为 320/352/288/320px 且不超过视口安全宽度。仅内容超过可用高度时内部滚动。
+- 选项宽度按 surface 内容密度固定在 root 296px、provider 240px、model 352px 的设计范围内（均受视口安全宽度约束）；模型 surface 使用 viewport-aware `max-height`、`overflow-y: auto` 和 `scrollbar-gutter: stable`，root/provider 不滚动。
 - 运行值继续只以 `selectedRuntimeValues` 持久化，不改变 IndexedDB v16 或 `/api/ai/models`、`/api/ai/generate`。UI 提交归一化值，provider runtime mapper 负责厂商字段。
 
 ```text

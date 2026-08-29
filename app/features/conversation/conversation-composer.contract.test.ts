@@ -12,6 +12,7 @@ const contextIndicator = readFileSync(new URL("./conversation-context-indicator.
 const modelSelector = readFileSync(new URL("./conversation-model-selector.tsx", import.meta.url), "utf8");
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
 const modelPickerStyles = readFileSync(new URL("./conversation-model-picker.module.css", import.meta.url), "utf8");
+const modelFlyoutPosition = readFileSync(new URL("./use-conversation-model-flyout-position.ts", import.meta.url), "utf8");
 const overlayEvents = readFileSync(new URL("../shared/ui-overlay-events.ts", import.meta.url), "utf8");
 const popover = readFileSync(new URL("../shared/ui-popover.tsx", import.meta.url), "utf8");
 const hint = readFileSync(new URL("../shared/ui-tooltip.tsx", import.meta.url), "utf8");
@@ -145,27 +146,36 @@ test("对话画布拥有唯一滚动容器并让正文与 Composer 共用坐标�
 });
 
 test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键盘进入", () => {
-  assert.match(modelPicker, /onMouseEnter=\{\(\) => openModelBrowser\(\)\}/);
+  assert.match(modelPicker, /onPointerEnter=\{\(\) => openModelBrowser\(\)\}/);
   assert.match(modelPicker, /onFocus=\{\(\) => \{ if \(usesDesktopFlyout\(\)\) openModelBrowser\(\); \}\}/);
   assert.match(modelPicker, /openSelectedRuntime\("reasoning"\)/);
   assert.match(modelPicker, /openSelectedRuntime\("speed"\)/);
   assert.match(modelPicker, /event\.key !== "ArrowRight" && event\.key !== "Enter"/);
-  assert.match(modelPicker, /onMouseEnter=\{\(\) => activateProvider\(provider\)\}/);
+  assert.match(modelPicker, /onPointerEnter=\{\(\) => activateProvider\(provider\)\}/);
   assert.match(modelPicker, /onFocus=\{\(\) => activateProvider\(provider\)\}/);
   assert.match(modelPicker, /event\.key !== "ArrowLeft"/);
-  assert.match(modelPicker, /styles\.controlFlyout/);
-  assert.match(modelPicker, /styles\.controlPane/);
-  assert.match(modelPicker, /styles\.detailPane/);
-  assert.match(modelPicker, /styles\.flyout/);
-  assert.match(modelPicker, /className=\{`\$\{styles\.layer\} \$\{styles\.providerPane\}`\}/);
-  assert.match(modelPicker, /className=\{`\$\{styles\.layer\} \$\{styles\.modelPane\}`\}/);
+  assert.match(modelPicker, /styles\.rootSurface/);
+  assert.match(modelPicker, /styles\.providerSurface/);
+  assert.match(modelPicker, /styles\.modelSurface/);
+  assert.match(modelPicker, /styles\.runtimeSurface/);
+  assert.match(modelPicker, /data-model-picker-surface="root"/);
+  assert.match(modelPicker, /data-model-picker-surface="provider"/);
+  assert.match(modelPicker, /data-model-picker-surface="model"/);
+  assert.match(modelPicker, /data-model-picker-surface="runtime"/);
+  assert.match(modelPicker, /UiHint label=\{`完整模型名称：\$\{model\.label\}`\}/);
   assert.match(modelPicker, /styles\.mobileDisclosure/);
-  assert.match(modelPickerStyles, /data-model-picker-view="providers"[\s\S]*width: min\(41rem/);
-  assert.match(modelPickerStyles, /data-model-picker-view="models"[\s\S]*height: min\(26rem/);
-  assert.match(modelPickerStyles, /\.picker:not\(\[data-model-picker-view="controls"\]\) \.controlPane[\s\S]*display: none/);
+  assert.match(modelPickerStyles, /\.picker\s*\{[\s\S]*width: min\(18\.5rem/);
+  assert.match(modelPickerStyles, /\.providerSurface\s*\{[\s\S]*width: min\(15rem/);
+  assert.match(modelPickerStyles, /\.modelSurface\s*\{[\s\S]*max-height:[\s\S]*overflow-y: auto/);
+  assert.match(modelPickerStyles, /scrollbar-gutter: stable/);
+  assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.surface,[\s\S]*?position: static/);
+  assert.match(modelPickerStyles, /\.modelSurface > \.flyoutBack[\s\S]*position: sticky/);
   assert.match(modelPickerStyles, /\.flyoutBack\s*\{\s*display: none;/);
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.flyoutBack\s*\{\s*display: grid;/);
   assert.match(modelPickerStyles, /\.mobileDisclosure\s*\{\s*display: inline-flex;/);
+  assert.match(modelFlyoutPosition, /computeUiOverlayPosition/);
+  assert.match(modelFlyoutPosition, /placementsFor/);
+  assert.match(modelFlyoutPosition, /widestChild/);
   assert.doesNotMatch(modelPicker, /<strong>模型<\/strong>/);
 });
 

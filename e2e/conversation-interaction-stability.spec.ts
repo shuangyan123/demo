@@ -140,7 +140,7 @@ test("ThreadHeader 使用 MainWorkspace 坐标且 Sidebar 状态层级互不混�
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("桌面运行行与厂商 hover 保持固定外框、原子模型列表且不转移焦点", async ({ page }) => {
+test("桌面运行行与厂商 hover 保持独立级联 surface、原子模型列表且不转移焦点", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
@@ -161,6 +161,10 @@ test("桌面运行行与厂商 hover 保持固定外框、原子模型列表且�
   const modelControl = picker.getByRole("button", { name: /^模型 / });
   const reasoningControl = picker.getByRole("button", { name: /^推理强度 / });
   const speedControl = picker.getByRole("button", { name: /^速度 / });
+  const rootSurface = picker.locator('[data-model-picker-surface="root"]');
+  const providerSurface = picker.locator('[data-model-picker-surface="provider"]');
+  const modelSurface = picker.locator('[data-model-picker-surface="model"]');
+  const runtimeSurface = picker.locator('[data-model-picker-surface="runtime"]');
   const controlRows = [modelControl, reasoningControl, speedControl, reasoningControl, modelControl];
   const controlRects: Array<{ x: number; y: number; width: number; height: number }> = [];
   await modelControl.focus();
@@ -171,6 +175,19 @@ test("桌面运行行与厂商 hover 保持固定外框、原子模型列表且�
     const rect = await picker.boundingBox();
     if (!rect) throw new Error("模型选择器没有可见边界");
     controlRects.push(rect);
+    const rootRect = await rootSurface.boundingBox();
+    if (!rootRect) throw new Error("缺少 root surface");
+    expect(rootRect.width).toBeGreaterThanOrEqual(260);
+    expect(rootRect.width).toBeLessThanOrEqual(300);
+    if (index === 0 || index === 4) {
+      await expect(providerSurface).toBeVisible();
+      await expect(modelSurface).toHaveCount(0);
+      await expect(runtimeSurface).toHaveCount(0);
+    } else {
+      await expect(providerSurface).toHaveCount(0);
+      await expect(modelSurface).toHaveCount(0);
+      await expect(runtimeSurface).toBeVisible();
+    }
   }
   const controlInitial = controlRects[0];
   for (const rect of controlRects.slice(1)) {
@@ -180,6 +197,10 @@ test("桌面运行行与厂商 hover 保持固定外框、原子模型列表且�
     expect(Math.abs(rect.height - controlInitial.height)).toBeLessThanOrEqual(1);
   }
 
+  const providerInitial = await providerSurface.boundingBox();
+  expect(providerInitial?.width ?? 0).toBeGreaterThanOrEqual(220);
+  expect(providerInitial?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(260);
+
   await reasoningControl.focus();
   await expect(reasoningControl).toBeFocused();
   await expect(picker).toHaveAttribute("data-model-picker-view", "reasoning");
@@ -187,6 +208,7 @@ test("桌面运行行与厂商 hover 保持固定外框、原子模型列表且�
   await expect(picker.getByRole("radio", { name: "关闭" })).toBeFocused();
   await page.keyboard.press("ArrowLeft");
   await expect(reasoningControl).toBeFocused();
+  await page.mouse.move(0, 0);
   await modelControl.hover();
   await expect(reasoningControl).toBeFocused();
 
@@ -200,6 +222,11 @@ test("桌面运行行与厂商 hover 保持固定外框、原子模型列表且�
   for (const { row, model, absent } of providerRows) {
     await row.hover();
     await expect(row).toHaveAttribute("data-provider-active", "true");
+    await expect(providerSurface).toBeVisible();
+    await expect(modelSurface).toBeVisible();
+    const modelRect = await modelSurface.boundingBox();
+    expect(modelRect?.width ?? 0).toBeGreaterThanOrEqual(300);
+    expect(modelRect?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(360);
     await expect(picker.getByRole("radio", { name: model }).first()).toBeVisible();
     await expect(picker.getByRole("radio", { name: absent })).toHaveCount(0);
     await expect(reasoningControl).toBeFocused();
