@@ -160,6 +160,9 @@ test("Recall references use the configured asset without changing application id
   assert.match(recallBrandMark, /src="\/brand\/recall\/app\/recall-app-icon-48\.png"/);
   assert.match(recallBrandMark, /alt="Recall"/);
   assert.match(recallBrandMark, /unoptimized/);
+  assert.match(main, /const recallWindowIconPath = \[/);
+  assert.match(main, /process\.resourcesPath.*recall.*recall\.ico/);
+  assert.match(main, /icon:\s*recallWindowIconPath/);
   assert.match(forgeConfig, /icon:\s*recallWindowsIconPath/);
   assert.match(forgeConfig, /setupIcon:\s*recallWindowsIconPath/);
   assert.match(m0Config, /icon:\s*recallWindowsIconPath/);
