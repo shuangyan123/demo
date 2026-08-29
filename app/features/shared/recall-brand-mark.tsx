@@ -5,7 +5,7 @@ export function RecallBrandMark() {
   return (
     <Image
       className="h-7 w-7 shrink-0 object-contain"
-      src="/brand/recall/app/recall-app-icon-48.png"
+      src="/brand/recall/app/recall-optical-32.png"
       alt="Recall"
       width={28}
       height={28}

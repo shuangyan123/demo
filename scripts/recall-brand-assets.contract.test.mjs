@@ -78,9 +78,12 @@ const repositoryOnlyAssetPaths = new Set([
   "app/recall-app-icon-256.png",
   "app/recall-app-icon-128.png",
   "app/recall-app-icon-64.png",
-  "app/recall-optical-32.png",
   "app/recall-optical-24.png",
   "app/recall-optical-16.png",
+]);
+
+const repositoryCanonicalDuplicateAssetPaths = new Set([
+  "app/recall-optical-32.png",
 ]);
 
 const approvedIcoSha256 = "d35baa505a25f2ae7650af025f055543ef65203b057d86192eddb9ba2b33d9e6";
@@ -161,6 +164,15 @@ test("Recall source and non-runtime exports stay outside the public runtime payl
     assert.ok(existsSync(resolve(repositoryBrandRoot, relativePath)), `missing repository-only asset: ${relativePath}`);
     assert.equal(existsSync(resolve(runtimeBrandRoot, relativePath)), false, `non-runtime asset leaked into public: ${relativePath}`);
   }
+  for (const relativePath of repositoryCanonicalDuplicateAssetPaths) {
+    const canonicalPath = resolve(repositoryBrandRoot, relativePath);
+    const runtimePath = resolve(runtimeBrandRoot, relativePath);
+    assert.ok(existsSync(canonicalPath), `missing canonical asset: ${relativePath}`);
+    assert.ok(existsSync(runtimePath), `missing runtime asset: ${relativePath}`);
+    const canonicalBytes = readFileSync(canonicalPath);
+    assert.equal(sha256(canonicalBytes), approvedAssets[relativePath].sha256, `unexpected canonical asset variant: ${relativePath}`);
+    assert.deepEqual(readFileSync(runtimePath), canonicalBytes, `runtime asset is not byte-identical to canonical copy: ${relativePath}`);
+  }
   assert.ok(existsSync(resolve(repositoryBrandRoot, "README.md")));
   assert.equal(existsSync(resolve(runtimeBrandRoot, "README.md")), false);
   assert.equal(existsSync(resolve(repositoryBrandRoot, "source", "recall-transparent-crop-check.png")), false);
@@ -178,8 +190,12 @@ test("Recall references use the configured asset without changing application id
   const main = readFileSync(resolve(workspaceRoot, "desktop", "main.ts"), "utf8");
 
   assert.match(workspaceShell, /<RecallBrandMark \/>/);
-  assert.match(recallBrandMark, /src="\/brand\/recall\/app\/recall-app-icon-48\.png"/);
+  assert.match(recallBrandMark, /src="\/brand\/recall\/app\/recall-optical-32\.png"/);
   assert.match(recallBrandMark, /alt="Recall"/);
+  assert.match(recallBrandMark, /width=\{28\}/);
+  assert.match(recallBrandMark, /height=\{28\}/);
+  assert.match(recallBrandMark, /object-contain/);
+  assert.doesNotMatch(recallBrandMark, /mask-|clip-path|object-cover/);
   assert.match(recallBrandMark, /unoptimized/);
   assert.match(main, /const recallWindowIconPath = \[/);
   assert.match(main, /process\.resourcesPath.*recall.*recall\.ico/);
