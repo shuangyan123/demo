@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { installPermissionBoundary } from "./permissions.js";
 import { DESKTOP_ENTRY_URL, installDesktopProtocol, registerDesktopScheme } from "./protocol.js";
@@ -12,6 +13,11 @@ registerDesktopScheme();
 let mainWindow: BrowserWindow | undefined;
 let runtime: DesktopRuntime | undefined;
 const TITLE_BAR_HEIGHT = 52;
+// 开发时从工作树取图标，安装版从受控 runtime 资源取图标；缺失时保留 Electron 默认图标。
+const recallWindowIconPath = [
+  path.join(process.resourcesPath, ".desktop-runtime", "app", "public", "brand", "recall", "app", "recall.ico"),
+  path.join(import.meta.dirname, "..", "public", "brand", "recall", "app", "recall.ico"),
+].find((candidate) => existsSync(candidate));
 
 function installTitleBarIpc(): void {
   ipcMain.removeHandler("review-titlebar:set-theme");
@@ -53,6 +59,7 @@ async function createMainWindow(): Promise<void> {
     minHeight: 680,
     show: false,
     backgroundColor: "#f7f7f5",
+    icon: recallWindowIconPath,
     title: "错题复盘",
     titleBarStyle: "hidden",
     titleBarOverlay: {

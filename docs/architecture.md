@@ -110,7 +110,7 @@ desktop/
 ## 设置、模型菜单与额度边界（2026-07-14）
 
 - 设置导航固定为外观、AI 连接、个性化、额度、MCP、诊断；个性化与额度使用模块顶层 `next/dynamic`，旧 `roles` 入口只在导航边界归一化为 `personalization`。
-- 模型菜单外壳不滚动，当前层由独立 viewport 承担真实溢出；换层同步清零滚动位置并通过 `ResizeObserver` 决定是否启用滚动。tooltip 使用单例 intent，程序化聚焦和触屏不创建可视浮层。
+- 模型菜单由紧凑 root、provider 和 model 独立 surface 组成；桌面端只让 model surface 承担长目录滚动，root/provider 不因目录长度增长，换连接以 catalog key 清零 model surface 的滚动。`UiHint` 只在模型名真实溢出时提供完整名称，程序化聚焦和触屏不创建可视浮层。
 - 额度领域类型位于 `types/domains/ai-quota.ts`。浏览器 repository 逐项加密管理凭据，服务端 `quota-adapters.ts` 负责 OpenAI、Anthropic、DeepSeek、xAI 的官方只读 API 和统一错误分类。
 - AI 连接只保存推理凭据；额度管理凭据、Team ID、本地预算和指标单独保存。Dexie 保持 `review_workspace` v16，旧单密钥与旧快照只在读取边界兼容转换。
 
@@ -126,16 +126,16 @@ desktop/
 
 - `ApiConnectionProfile` 只持有厂商、地址、密钥与能力；历史 `model` 只用于一次性初始化默认能力模型，新建和编辑不再写入。
 - 后台任务通过 `AiConnectionDefaults` 的“连接 + 模型”组合运行；对话通过 `selectedConnectionId`、`selectedModelId` 与 `selectedRuntimeValues` 运行，两者互不覆盖。旧推理/速度字段只在 repository 读取时折叠，不升级 Dexie v16。
-- 模型选择器采用单栏钻取：当前会话厂商优先，其余按英文名排序；进入厂商后只显示连接、模型、能力 tooltip 和独立推理/速度子列表，所有选择点击即保存。
+- 模型选择器在移动端继续单栏钻取，在桌面端使用 Root → Provider → Model 的稳定级联 surface；当前会话厂商优先，其余按英文名排序，推理/速度从 Root 各自打开独立小 surface，所有选择点击即保存。
 - 官方 Models API 成功时展示账户可用的全部未弃用模型；失败时才使用带 `verifiedAt` 的回退目录。MiniMax 当前旗舰为 `MiniMax-M3`，GLM 当前旗舰为 `glm-5.2`。
 - 对话树名称区域承担 dnd-kit 拖拽，拖拽期间始终提供根目录目标；repository 继续拒绝跨项目、自身和子孙嵌套。
 
 ## 对话模型菜单分层（2026-07-13）
 
 - `ConversationWorkspace` 只编排会话运行、消息和工具状态；输入器由 `ConversationComposer` 承载。语音、实时通话、模型和推理是一级入口，低频附件/媒体/知识工具进入加号菜单，斜杠指令的瞬时状态留在独立输入组件。
-- 模型菜单状态使用 `providers → models → reasoning/speed` 单层判别联合。`ConversationModelPicker` 每次只渲染当前层，不以绝对定位把新面板覆盖在仍可聚焦的旧面板上。
+- 模型菜单状态继续使用 `providers → models → reasoning/speed` 判别联合；桌面端由 `ConversationModelPicker` 维护共享导航状态并渲染 root/provider/model 独立 surface，短暂离开父行由轻量 pointer grace 保持级联，移动端通过 CSS 隐藏父层继续单栏 step-in。
 - 空白对话选择保存在 `draftSelection`；持久化对话使用按 `conversationId` 隔离的乐观选择。写入按用户操作顺序串行化，刷新确认后清理，失败时只回滚当前对话并显示错误，禁止把 A 对话的临时选择带到 B 对话。
-- 选项宽高由内容和当前层决定：桌面厂商、模型、普通运行、预算层分别为 208/240/160/200px；移动端在 390×844 基准下限制为 320/352/288/320px 且不超过视口安全宽度。仅内容超过可用高度时内部滚动。
+- 选项宽度按 surface 内容密度固定在 root 296px、provider 240px、model 352px 的设计范围内（均受视口安全宽度约束）；模型 surface 使用 viewport-aware `max-height`、`overflow-y: auto` 和 `scrollbar-gutter: stable`，root/provider 不滚动。
 - 运行值继续只以 `selectedRuntimeValues` 持久化，不改变 IndexedDB v16 或 `/api/ai/models`、`/api/ai/generate`。UI 提交归一化值，provider runtime mapper 负责厂商字段。
 
 ```text
@@ -267,6 +267,23 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - Automation collection 的 URL、Feed 和 MCP source 继续由 `AutomationDefinition.collectionConfig` 声明；`app/services/automation-external-authorization.ts` 只接收当前资源快照，纯函数解析 `ready` / `blocked` / `invalid`，不读取凭据、网络或 React。
 - Application 在 lease 后、凭据和外部请求前执行任务级 preflight；Executor 与 Acquisition service 仍保留 defense-in-depth 的 MCP scheduled、origin、SSRF 和内容边界。每次真实运行都重新解析当前 definition、MCP discovery/tool、`allow_scheduled` 与 origin 交集。
 - `AutomationRun.unattendedAudit` 复用既有运行记录保存最小授权与外部调用摘要；不新增审计表、不保存 secrets、完整 args、raw result、完整 URL 路径、文档正文或模型上下文。授权阻断保留任务/配置/历史，并以 blocked terminal 进入收件箱。
+
+## Chat Workbench 主内容壳层（2026-08-26）
+
+- `MainContentShell` 统一右侧内容的居中 gutter，并提供 narrow / medium / wide 三档宽度；`ReviewWorkspaceShell` 只按视图选择预设，对话继续占满可用高度并由消息区独立滚动。
+- Composer 的空输入主操作是实时语音，存在文本或附件时切换为发送；听写保留为右侧次级操作。模型、推理强度和速度分别由同一模型选择器的 Root 控制层承载；桌面使用 Root → Provider → Model 的独立级联 surface，推理与速度各自打开运行 surface，移动端按点击 step-in 并提供返回；后端 provider boundary 不变。
+- `ConversationContextIndicator` 只消费结构化预算并以紧凑暗色弹层展示用量；手动压缩复用既有 `useConversationContext.compress()`，从 `/压缩` slash command 进入并显式处理 unavailable/loading。72% / 84% 是未来告警与自动压缩的策略契约；`autoCompactionEnabled` 当前为 `false`，不会新增后台压缩、隐式重放或持久化。
+- 粉笔不再作为公考项目主导航模块，导入统一进入“设置 → 导入”，粉笔仅是当前来源。主侧栏“插件与技能”负责发现，设置“已安装插件”负责启停、权限和卸载管理。
+- 个人资料使用现有本地计数、连接和默认模型事实；厂商快捷入口只来自代码内官方 HTTPS allowlist 与 provider contract 文档地址，绝不使用自定义 Base URL、模型输出或对话内容生成外链。
+
+## Chat Workbench 最终 Shell 坐标系（2026-08-27）
+
+- `WorkspaceShell` 在侧栏与内容之间提供唯一 `chrome-sidebar-boundary`；应用和设置侧栏都采用固定 header、独立 `workspace-sidebar-scroll` 与固定 footer，footer 不再随项目/对话列表滚动。
+- 桌面展开态的 `chrome-content-frame[data-content-surface="raised-surface"]` 是唯一 workspace shoulder surface：使用 16px 语义左上圆角、轻微 elevation 和对比度派生 edge；折叠态与移动端清零，不向 conversation/settings card 复制肩部或重复边界。
+- 对话主区固定为 `MainWorkspace → ThreadHeader → ConversationCanvas → ReadingColumn → ComposerDock → ComposerCard`。ThreadHeader 是独立紧凑条带，Canvas 保持全宽且由 `conversation-canvas-scroll` 独占滚动；ReadingColumn 内部只绘制左强右淡的内容分隔线，ComposerDock 非滚动并让 JumpToLatest 以 Composer 中轴叠放。
+- `MainContentShell` 的 narrow / medium / wide 与对话 `--conversation-content-max-width` 由 tokens 统一维护。对话 canvas 由 `conversation-canvas-scroll` 独占纵向滚动，正文、工具结果和 Composer 共用同一中心轴；Topic Rail 锚定 canvas 而不是居中正文列。
+- 对比度只派生边界、surface、选中态、rail 和阴影 token；`--chrome-sidebar-width`、topbar 高度、内容宽度、半径和间距保持固定。`contrast = 0` 与 `contrast = 100` 不改变布局几何。
+- 上下文弹层保持 2–3 行结构化用量，不回显摘要/时间/大按钮；模型厂商层在桌面以整行 hover/focus 打开无 back/chevron chrome 的右侧 flyout，移动端保留点击回退与 disclosure。设置继续复用同一个 `ReviewWorkspaceShell`，正文通过 `centered-settings-column` 保持中等阅读宽度。
 
 ## 扩展点
 
@@ -420,7 +437,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 密文升级为 `v2:`，AAD 由连接 ID、凭据类型和字段组成。AI 连接、旧 AI 设置、额度凭据、MCP Token 与粉笔 Cookie 通过同一幂等迁移门迁移；复核仍有旧密文时绝不删除旧 JWK。
 - 密钥库与密文损坏会返回重新输入凭据的稳定错误，不新增密钥 HTTP API，也不读写 `.env.local`。该边界增强本机静态数据和导出防护，但不能抵御已执行的恶意脚本，因此继续依赖严格 CSP、输入边界和禁用原始 HTML 的 AI Markdown 渲染。
 - `AssistantMarkdown` 是历史消息与流式草稿的唯一 AI 正文展示边界；`react-markdown` 与 `remark-gfm` 只处理受限语法，不使用 `dangerouslySetInnerHTML`。
-- `ConversationReasoningControl` 位于模型选择旁，局部预览滑杆值，仅在指针释放、键盘操作结束或失焦时复用会话级串行乐观保存。速度设置仍留在模型菜单，持久化结构保持 `selectedRuntimeValues`。
+- 对话模型选择器在桌面保持 Root → Provider → Model 独立级联；推理与速度是 Root 的独立运行 surface，选择立即通过既有会话串行保存并持久化到 `selectedRuntimeValues`。移动端以点击 step-in 逐层展示并提供返回，后端 provider adapter/request boundary 不变。
 - 对话树右键和省略号都锚定当前行操作按钮；桌面执行同一视口碰撞修正，移动端继续复用同一底部操作层和行内重命名输入。
 
 ## 全应用单色交互与安全收口（2026-07-26）
@@ -504,7 +521,14 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 声明式扩展权限由 `declarative-extension-permissions.ts` 纯决策核解释，`enabled` 不等于授权；主题/人设执行入口与 `setEnabled(true)` 都在实际回调/事务前重新读取当前声明、能力和底层设置。学习路径、模板和评分标准包暂时没有 runtime，保持阻断。
 - 内置 Obsidian/Fenbi 的真实 repository、provider、网络和应用级监听边界分别复核当前插件偏好；停用只阻止下一次执行，不删除历史数据，也不创建第二套 MCP 权限系统。详见 `docs/declarative-extension-permissions.md`。
 - Electron 窗口使用 `titleBarStyle: "hidden"` 与 52px `titleBarOverlay`。`.chrome-topbar` 是拖动区，全部按钮标记为 `app-region: no-drag`；受限 IPC 只接受 `light | dark` 并仅调整系统窗口按钮对比色。
-- 顶部栏横跨整个窗口，侧栏和工作区从 52px 标题栏下方开始；`<main>` 仍独占顶部/左侧共边和 18px 左上圆角，浏览器模式不伪造系统窗口按钮。
+- Electron 的 renderer 顶部区仍横跨窗口并作为 52px 拖动/标题栏集成区；侧栏和工作区从 native/menu chrome 下方开始。浏览器模式不伪造系统窗口按钮，也不保留这条产品级 renderer 顶栏。
+
+## Workbench chrome 与统一短提示收口（2026-08-27）
+
+- `WorkspaceShell` 在 Browser 中把仅用于 Electron 集成的 `.chrome-topbar` 收敛为零高度边界，`SidebarHeader` 继续在侧栏内部显示“错题复盘”；Electron 仍保留 native/menu chrome、拖动区和受限 `nativeWindow` capability。
+- 桌面展开时 `chrome-sidebar-boundary` 保持 1px 与 16px workspace shoulder；折叠时 sidebar 与 boundary 均为 0 列，`MainWorkspace` 从 x=0 开始。`ThreadHeader` 仍是 MainWorkspace 的全宽顶沿，只用单条 separator 与 Canvas 分层，不再绘制第二张卡片的阴影/渐变。
+- `UiHint`（兼容出口 `UiTooltip`）只承载短文本、portal 到 `document.body`，使用 `computeUiOverlayPosition` 的候选/翻转/夹紧、450ms hover/focus、Escape/blur/leave、touch 抑制和单例可见性；`UiPopover` 继续承载 context usage、模型选择和结构化操作菜单等交互内容。对话上下文的用户可见单位使用“标记”，底层 token 变量与 `/压缩` 契约不变。
+- 本轮只调整 renderer chrome、提示 primitive、对话树/Composer 的 icon-only hint 接入与轻量纵向留白，不修改 Electron IPC、Provider、MCP、IndexedDB v16 或业务数据结构。
 
 # 0.3 Host Capability Layer（2026-08-09）
 

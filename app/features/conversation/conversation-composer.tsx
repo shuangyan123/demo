@@ -1,19 +1,21 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from "react";
-import type { AiModelRuntimeDescriptor, AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent } from "react";
+import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
 import type { AiConnectionPurpose, ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
-import type { ConversationContextCompaction } from "../../types/domains/conversation.ts";
 import type { ConversationContextBudget } from "../../services/conversation-context-budget.ts";
-import { formatContextTokenCount } from "../../services/conversation-context-budget.ts";
+import { mcpSettingsRepository } from "../../services/mcp-settings-repository.ts";
+import { summarizeMcpPermission } from "../../services/mcp-permission.ts";
 import { AppIcon } from "../shared/app-icon";
-import { Button, cx } from "../shared/ui-primitives";
+import { cx } from "../shared/ui-primitives";
+import { announceInteractiveOverlayOpen } from "../shared/ui-overlay-events";
 import type { DraftAttachment } from "./conversation-attachment-utils.ts";
 import { ConversationAddMenu } from "./conversation-add-menu";
 import { ConversationDraftInput } from "./conversation-draft-input";
 import { ConversationModelSelector, type ConversationModelSelectorHandle } from "./conversation-model-selector";
 import type { ConversationModelSelection } from "./conversation-model-picker";
-import { ConversationReasoningControl, type ConversationReasoningControlHandle } from "./conversation-reasoning-control";
+import { ConversationContextIndicator } from "./conversation-context-indicator";
+import { UiHint } from "../shared/ui-tooltip";
 
 /** 工作台只需要通过句柄请求打开模型菜单，不接管菜单内部状态。 */
 export type ConversationComposerHandle = {
@@ -26,14 +28,12 @@ type ConversationComposerProps = {
   busy: boolean;
   connections: ApiConnectionProfile[];
   contextBudget: ConversationContextBudget;
-  contextCompaction?: ConversationContextCompaction;
   contextCompressing: boolean;
   contextCompressionAvailable: boolean;
   draft: string;
   modelSelectionError?: string;
   purpose: AiConnectionPurpose;
   recording: boolean;
-  runtimeDescriptor?: AiModelRuntimeDescriptor;
   selectedConnection?: ApiConnectionProfile;
   selectedModelId?: string;
   selectedRuntimeValues?: AiSelectedRuntimeValues;
@@ -45,6 +45,7 @@ type ConversationComposerProps = {
   onNotice: (message: string) => void;
   onOpenConnections: () => void;
   onOpenMcp: () => void;
+  onOpenPermissions: () => void;
   onOpenProposal: () => void;
   onOpenRealtimeVoice: () => void;
   onOpenTutoringRecords: () => void;
@@ -89,14 +90,12 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   busy,
   connections,
   contextBudget,
-  contextCompaction,
   contextCompressing,
   contextCompressionAvailable,
   draft,
   modelSelectionError,
   purpose,
   recording,
-  runtimeDescriptor,
   selectedConnection,
   selectedModelId,
   selectedRuntimeValues,
@@ -108,6 +107,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   onNotice,
   onOpenConnections,
   onOpenMcp,
+  onOpenPermissions,
   onOpenProposal,
   onOpenRealtimeVoice,
   onOpenTutoringRecords,
@@ -125,7 +125,7 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
   const addTriggerRef = useRef<HTMLButtonElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modelSelectorRef = useRef<ConversationModelSelectorHandle | null>(null);
-  const reasoningControlRef = useRef<ConversationReasoningControlHandle | null>(null);
+  const permissionLabel = useMemo(() => summarizeMcpPermission(mcpSettingsRepository.load()), []);
 
   useImperativeHandle(ref, () => ({
     openModelSelector: () => modelSelectorRef.current?.open(),
@@ -149,6 +149,22 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [toolMenuOpen]);
+  useEffect(() => {
+    function handleComposerShortcut(event: KeyboardEvent) {
+      if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
+      if (event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        modelSelectorRef.current?.open();
+      }
+      if (event.key.toLowerCase() === "d" && !busy) {
+        event.preventDefault();
+        if (recording) onStopRecording();
+        else onStartRecording();
+      }
+    }
+    document.addEventListener("keydown", handleComposerShortcut);
+    return () => document.removeEventListener("keydown", handleComposerShortcut);
+  }, [busy, onStartRecording, onStopRecording, recording]);
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
@@ -156,22 +172,26 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
     onAttachmentsAdd(prepared);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
+  function toggleToolMenu() {
+    if (!toolMenuOpen) announceInteractiveOverlayOpen();
+    setToolMenuOpen((current) => !current);
+  }
 
   return (
-    <form className="conversation-composer" data-conversation-composer onSubmit={onSubmit}>
+    <form className="conversation-composer conversation-composer-card" data-conversation-composer data-conversation-layer="composer-card" onSubmit={onSubmit}>
       {attachments.length ? (
         <div className="conversation-attachment-chips">
           {attachments.map((attachment) => (
             <span key={attachment.id}>
               <span className="truncate">{attachment.file.name}</span>
-              <button
+              <UiHint label="移除附件" placement="top">{({ describedBy }) => <button
                 type="button"
+                aria-describedby={describedBy}
                 aria-label={`移除 ${attachment.file.name}`}
-                title="移除附件"
                 onClick={() => onAttachmentRemove(attachment.id)}
               >
                 <AppIcon name="close" size={16} />
-              </button>
+              </button>}</UiHint>
             </span>
           ))}
         </div>
@@ -179,12 +199,15 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
       {modelSelectionError || toolNotice ? <p className="conversation-composer-notice" role="status">{modelSelectionError ?? toolNotice}</p> : null}
       <ConversationDraftInput
         activeConversation={activeConversation}
+        contextCompressionAvailable={contextCompressionAvailable && !busy}
+        contextCompressing={contextCompressing}
         draft={draft}
         onChange={(value) => { setToolNotice(undefined); onDraftChange(value); }}
+        onCompressContext={onCompressContext}
         onNotice={(message) => { setToolNotice(message); onNotice(message); }}
         onOpenMcp={onOpenMcp}
         onOpenModel={() => modelSelectorRef.current?.open()}
-        onOpenReasoning={() => reasoningControlRef.current?.open()}
+        onOpenReasoning={() => modelSelectorRef.current?.openRuntime("reasoning")}
         onSearchKnowledge={onSearchKnowledge}
       />
       <div className="conversation-composer-toolbar">
@@ -197,19 +220,19 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
           onChange={(event) => void handleFiles(event.currentTarget.files)}
         />
         <div ref={addMenuRef} className="conversation-composer-menu">
-          <button
+          <UiHint label="添加文件等内容" badge="@" placement="top">{({ describedBy }) => <button
             ref={addTriggerRef}
             aria-controls={toolMenuOpen ? "conversation-add-menu" : undefined}
             aria-expanded={toolMenuOpen}
             aria-haspopup="menu"
-            aria-label="添加"
-            className="conversation-composer-icon"
-            title="添加"
+            aria-describedby={describedBy}
+            aria-label="添加文件等内容"
+            className="conversation-composer-icon conversation-composer-add"
             type="button"
-            onClick={() => setToolMenuOpen((value) => !value)}
+            onClick={toggleToolMenu}
           >
             <AppIcon name="newChat" size={20} />
-          </button>
+          </button>}</UiHint>
           {toolMenuOpen ? (
             <ConversationAddMenu
               activeConversation={activeConversation}
@@ -226,73 +249,50 @@ export const ConversationComposer = forwardRef<ConversationComposerHandle, Conve
             />
           ) : null}
         </div>
-        <button
-          aria-label={recording ? "松开后转写" : "按住录音"}
-          className={cx("conversation-composer-icon", recording && "is-recording")}
-          disabled={busy}
-          title={recording ? "松开后转写" : "按住录音"}
+        <UiHint label="更改权限" placement="top">{({ describedBy }) => <button
+          aria-describedby={describedBy}
+          aria-label={`更改权限：${permissionLabel}`}
+          className="conversation-composer-permission"
+          data-permission-state={permissionLabel}
           type="button"
-          onPointerDown={onStartRecording}
-          onPointerUp={onStopRecording}
-          onPointerCancel={onStopRecording}
+          onClick={() => { announceInteractiveOverlayOpen(); onOpenPermissions(); }}
         >
-          <AppIcon name="mic" size={20} />
-        </button>
-        <button
-          aria-label="实时语音通话"
-          className="conversation-composer-icon"
-          disabled={busy}
-          title="实时语音通话"
-          type="button"
-          onClick={onOpenRealtimeVoice}
-        >
-          <AppIcon name="phone" size={20} />
-        </button>
-        <ConversationModelSelector
-          ref={modelSelectorRef}
-          connections={connections}
-          disabled={busy}
-          purpose={purpose}
-          selectedConnectionId={selectedConnection?.id}
-          selectedModelId={selectedModelId}
-          selectedRuntimeValues={selectedRuntimeValues}
-          onOpenConnections={onOpenConnections}
-          onSelect={onSelectModel}
-        />
-        <ConversationReasoningControl
-          ref={reasoningControlRef}
-          disabled={busy}
-          reasoning={runtimeDescriptor?.reasoning}
-          values={selectedRuntimeValues ?? {}}
-          onChange={(runtimeValues) => {
-            if (!selectedConnection || !selectedModelId) return;
-            onSelectModel({
-              connection: selectedConnection,
-              modelId: selectedModelId,
-              selectedRuntimeValues: runtimeValues,
-            });
-          }}
-        />
-        <details className="conversation-context-budget">
-          <summary aria-label="查看对话上下文用量">
-            上下文 {formatContextTokenCount(contextBudget.usedTokens)}
-            {contextBudget.contextWindow ? ` / ${formatContextTokenCount(contextBudget.contextWindow)} · 剩余 ${contextBudget.remainingPercent}%` : " · 上限未知"}
-          </summary>
-          <section aria-label="对话上下文详情">
-            <header className="flex justify-between gap-2"><strong>上下文</strong><span className="text-muted text-xs">{contextBudget.precision === "usage-calibrated" ? "厂商用量校准 + 增量估算" : "本地保守估算"}</span></header>
-            <dl className="grid gap-2 text-xs">
-              <div className="flex justify-between"><dt className="text-muted">已使用</dt><dd>{formatContextTokenCount(contextBudget.usedTokens)} tokens</dd></div>
-              <div className="flex justify-between"><dt className="text-muted">输出预留</dt><dd>{formatContextTokenCount(contextBudget.outputReserveTokens)} tokens</dd></div>
-              {contextBudget.remainingTokens !== undefined ? <div className="flex justify-between"><dt className="text-muted">剩余</dt><dd>{formatContextTokenCount(contextBudget.remainingTokens)} tokens · {contextBudget.remainingPercent}%</dd></div> : null}
-            </dl>
-            {contextCompaction ? <p className="text-muted text-xs">上次压缩：{new Date(contextCompaction.compactedAt).toLocaleString("zh-CN")} · 已覆盖 {contextCompaction.sourceMessageCount} 条消息</p> : null}
-            <Button size="sm" disabled={!contextCompressionAvailable || contextCompressing || busy} onClick={onCompressContext}>
-              {contextCompressing ? <><span className="ui-spinner" />正在压缩</> : <><AppIcon name="sparkles" size={16} />压缩上下文</>}
-            </Button>
-            {!contextCompressionAvailable ? <small className="text-muted text-xs">至少保留最近 6 轮；旧上下文达到可压缩规模后可用。</small> : null}
-          </section>
-        </details>
-        <button className="conversation-send" disabled={busy || (!draft.trim() && !attachments.length)} type="submit" aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>
+          <AppIcon name="tool" size={16} />
+          <span>{permissionLabel}</span>
+        </button>}</UiHint>
+        <div className="conversation-composer-actions">
+          <ConversationContextIndicator
+            budget={contextBudget}
+          />
+          <ConversationModelSelector
+            ref={modelSelectorRef}
+            connections={connections}
+            disabled={busy}
+            purpose={purpose}
+            selectedConnectionId={selectedConnection?.id}
+            selectedModelId={selectedModelId}
+            selectedRuntimeValues={selectedRuntimeValues}
+            onOpenConnections={onOpenConnections}
+            onSelect={onSelectModel}
+          />
+          <UiHint label="点击开始听写" badge="Ctrl+Shift+D" placement="top">{({ describedBy }) => <button
+            aria-label={recording ? "停止听写" : "点击开始听写"}
+            aria-describedby={describedBy}
+            className={cx("conversation-composer-icon", "conversation-composer-mic", recording && "is-recording")}
+            disabled={busy}
+            type="button"
+            onClick={recording ? onStopRecording : onStartRecording}
+          >
+            <AppIcon name="mic" size={20} />
+          </button>}</UiHint>
+          {draft.trim() || attachments.length ? (
+            <UiHint label="发送" placement="top">{({ describedBy }) => <button className="conversation-send" disabled={busy} type="submit" aria-describedby={describedBy} aria-label="发送">{busy ? <span className="ui-spinner" /> : <AppIcon name="send" size={18} />}</button>}</UiHint>
+          ) : (
+            <UiHint label="开启语音聊天" placement="top">{({ describedBy }) => <button className="conversation-send conversation-voice" disabled={busy} type="button" aria-describedby={describedBy} aria-label="开启语音聊天" onClick={onOpenRealtimeVoice}>
+              <AppIcon name="voice" size={20} />
+            </button>}</UiHint>
+          )}
+        </div>
       </div>
     </form>
   );

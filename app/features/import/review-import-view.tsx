@@ -76,7 +76,7 @@ export function ImportView({
   return (
     <section className={styles.workspace} data-step={mobileStep}>
       <header className={styles.header}>
-        <div><h1>粉笔导入</h1><p>同步粉笔错题，或导入粉笔官方导出文件、截图与错题文本；确认前不会写入题库。</p></div>
+        <div><h1>导入</h1><p><strong>来源：粉笔</strong> · 同步账户错题，或导入官方导出文件、截图与错题文本；确认前不会写入题库。</p></div>
         <Button type="button" variant="primary" onClick={() => { setMobileStep("source"); sourceRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }); }}><AppIcon name="import" size={16} />开始导入</Button>
       </header>
       <nav className={styles.steps} aria-label="导入步骤">

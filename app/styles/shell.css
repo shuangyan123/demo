@@ -31,12 +31,17 @@
 
 .chrome-topbar {
   height: var(--chrome-topbar-height);
-  border-bottom: 0;
+  border-bottom: 1px solid var(--chrome-workspace-separator);
   background-color: var(--chrome-topbar-bg);
   background-image: var(--chrome-topbar-diffuse);
   app-region: drag;
   -webkit-app-region: drag;
   user-select: none;
+}
+
+/* 产品标题不再重复占用 renderer chrome；Electron 的窗口标题/菜单仍由宿主负责。 */
+.chrome-product-title {
+  display: none;
 }
 
 .chrome-topbar-safe-area {
@@ -61,13 +66,13 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
     var(--chrome-topbar-diffuse);
 }
 
-/* 展开时保留 248px 侧栏，折叠时把左列压到 0，让主内容自然顶到窗口左侧。 */
+/* 展开时保留固定侧栏和一条边界列，折叠时把侧栏压到 0，让主画布紧接边界。 */
 .chrome-layout {
   position: relative;
   isolation: isolate;
   display: grid;
   height: calc(100dvh - var(--chrome-topbar-height));
-  grid-template-columns: var(--chrome-sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--chrome-sidebar-width) var(--chrome-sidebar-boundary-width) minmax(0, 1fr);
   background-color: var(--chrome-window-bg);
   background-image: none;
   transition: grid-template-columns var(--motion-structure) var(--motion-ease);
@@ -75,7 +80,7 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 
 .chrome-layout[data-sidebar="collapsed"],
 .chrome-layout.is-sidebar-collapsed {
-  grid-template-columns: 0 minmax(0, 1fr);
+  grid-template-columns: 0 0 minmax(0, 1fr);
 }
 
 /* 侧栏本体承载不透明底色、装饰层、内容和边框。 */
@@ -85,11 +90,137 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   min-width: 0;
   width: 100%;
   border-right: 0;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
   transition:
     opacity var(--motion-structure) var(--motion-ease),
     transform var(--motion-structure) var(--motion-ease),
     padding var(--motion-structure) var(--motion-ease),
     border-color var(--motion-fast) var(--motion-ease);
+}
+
+/* 侧栏与主工作区之间的唯一垂直边界；页面内容不得自行绘制这条接缝。 */
+.chrome-sidebar-boundary {
+  position: relative;
+  z-index: 2;
+  width: var(--chrome-sidebar-boundary-width);
+  background: var(--chrome-sidebar-divider);
+  pointer-events: none;
+  transition: width var(--motion-structure) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease);
+}
+
+/* 应用与设置共用的侧栏坐标系：只有中间 scroll region 可滚动。 */
+.workspace-sidebar-shell {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 0.75rem 0.65rem;
+}
+
+.workspace-sidebar-header {
+  display: flex;
+  min-height: 2.35rem;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.workspace-sidebar-brand {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+  padding-inline: 0.35rem;
+}
+
+.workspace-sidebar-brand strong {
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-sidebar-brand span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-sidebar-primary-nav {
+  display: grid;
+  flex: none;
+  gap: 0.1rem;
+}
+
+.workspace-sidebar-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-color: var(--settings-scrollbar-thumb) var(--settings-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.workspace-sidebar-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.workspace-sidebar-scroll::-webkit-scrollbar-track {
+  background: var(--settings-scrollbar-track);
+}
+
+.workspace-sidebar-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--settings-scrollbar-thumb);
+  background-clip: content-box;
+}
+
+.workspace-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--settings-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+.workspace-sidebar-section {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.workspace-sidebar-section + .workspace-sidebar-section {
+  margin-top: 1rem;
+}
+
+.workspace-sidebar-section-heading {
+  display: flex;
+  min-height: 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-inline: 0.65rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.workspace-sidebar-footer {
+  display: grid;
+  flex: none;
+  gap: 0.2rem;
+  border-top: 1px solid var(--chrome-sidebar-footer-separator);
+  padding-top: 0.55rem;
+}
+
+.workspace-sidebar-footer > * {
+  min-width: 0;
 }
 
 .chrome-content {
@@ -124,19 +255,21 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   display: none;
 }
 
-/* 桌面展开态让工作区直接贴合侧栏，仅保留圆角与共边。 */
+/* 桌面展开态让工作区保持唯一肩部表面；圆角、边缘和阴影都归 frame 所有。 */
 .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] {
   padding-left: 0;
-  overflow: visible;
-  border-top-left-radius: 18px;
+  overflow: hidden;
+  border-top-left-radius: var(--ui-radius-workspace-shoulder);
+  border-top: 1px solid var(--chrome-workspace-frame-edge);
+  border-left: 1px solid var(--chrome-workspace-frame-edge);
+  background-color: var(--chrome-workspace-frame-surface);
+  box-shadow: var(--chrome-workspace-frame-shadow);
 }
 
-/* 主区独占绘制与顶栏、侧栏共用的两条边；不叠加阴影或高光，避免圆角伪影。 */
+/* Frame 独占连续的顶部、左侧和肩部外缘；内部内容只负责各自的 separator。 */
 .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
   border: 0;
-  border-top: 1px solid var(--chrome-sidebar-border);
-  border-left: 1px solid var(--chrome-sidebar-border);
-  border-top-left-radius: 18px;
+  border-top-left-radius: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
@@ -145,10 +278,21 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   box-shadow: none;
 }
 
+/* 垂直接缝只在肩部下方出现，避免 1px 直线穿过左上圆角。 */
+.chrome-layout.is-sidebar-expanded .chrome-sidebar-boundary {
+  background: transparent;
+}
+
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
   padding-left: 0;
   overflow: hidden;
   border-top-left-radius: 0;
+  border: 0;
+}
+
+.chrome-layout.is-sidebar-collapsed .chrome-sidebar-boundary {
+  opacity: 0;
+  width: 0;
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
@@ -156,11 +300,6 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   box-shadow: none;
-}
-
-body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
-  border-top-color: rgb(255 255 255 / 9%);
-  border-left-color: rgb(255 255 255 / 9%);
 }
 
 .chrome-layout.is-sidebar-expanded .chrome-sidebar {
@@ -201,7 +340,6 @@ body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame
   }
 
   .chrome-shell .chrome-layout.is-sidebar-expanded .chrome-sidebar {
-    padding-top: 1rem !important;
     background: transparent;
   }
 
@@ -228,6 +366,50 @@ body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame
     border-radius: 0;
   }
 
+  .chrome-shell .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] {
+    box-shadow: none;
+  }
+
+  /* Browser 没有 native titlebar：renderer chrome 退化为零高度边界，workspace 从视口顶端开始。 */
+  .chrome-shell[data-native-window="false"] > .chrome-topbar {
+    height: 0;
+    overflow: visible;
+    border-bottom: 0;
+    background: transparent;
+    background-image: none;
+    app-region: none;
+    -webkit-app-region: none;
+  }
+
+  .chrome-shell[data-native-window="false"] > .chrome-topbar .chrome-topbar-safe-area {
+    position: static;
+    height: 0;
+    padding: 0;
+  }
+
+  .chrome-shell[data-native-window="false"] > .chrome-topbar .ui-tooltip-anchor {
+    position: fixed;
+    z-index: 80;
+    top: 0.75rem;
+    left: calc(var(--chrome-sidebar-width) - 2.5rem);
+  }
+
+  .chrome-shell[data-native-window="false"][data-sidebar="collapsed"] > .chrome-topbar .ui-tooltip-anchor {
+    left: 0.75rem;
+  }
+
+  .chrome-shell[data-native-window="false"] > .chrome-layout {
+    height: 100%;
+  }
+
+  .chrome-shell[data-native-window="false"]::before {
+    inset: 0 auto 0 0;
+  }
+
+  .chrome-shell[data-native-window="false"][data-sidebar="collapsed"]::before {
+    width: 0;
+  }
+
   .chrome-layout.is-sidebar-expanded .chrome-sidebar {
     border-inline-end-width: 0;
     border-right-width: 0;
@@ -245,6 +427,12 @@ body[data-theme="dark"] .chrome-layout.is-sidebar-expanded .chrome-content-frame
   padding-right: 0 !important;
   pointer-events: none;
   transform: translateX(-8px);
+}
+
+.chrome-layout[data-sidebar="collapsed"] .chrome-sidebar-boundary,
+.chrome-layout.is-sidebar-collapsed .chrome-sidebar-boundary {
+  opacity: 0;
+  width: 0;
 }
 
 .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar::before,
@@ -281,7 +469,7 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     left: 0;
     width: min(20rem, calc(100vw - 3rem));
     max-height: none;
-    border-right: 1px solid var(--chrome-sidebar-border);
+    border-right: 0;
     border-bottom: 0;
     box-shadow: 18px 0 48px rgb(15 23 42 / 16%);
     opacity: 0;
@@ -292,9 +480,8 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
       transform var(--motion-structure) var(--motion-ease);
   }
 
-  .review-workspace-sidebar {
-    max-height: none;
-    overflow-y: auto;
+  .chrome-sidebar-boundary {
+    display: none;
   }
 
   .chrome-layout[data-sidebar="collapsed"] .chrome-sidebar,
@@ -302,8 +489,8 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
   .chrome-layout[data-sidebar="expanded"] .chrome-sidebar,
   .chrome-layout.is-sidebar-expanded .chrome-sidebar {
     display: block;
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 
   .chrome-layout[data-mobile-sidebar="open"] .chrome-sidebar {
@@ -328,20 +515,40 @@ body[data-theme="dark"] .sidebar-toggle-button:focus-visible {
     pointer-events: auto;
   }
 
-  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] {
+  .chrome-sidebar {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .workspace-sidebar-shell {
+    padding: 0.65rem 0.75rem max(0.65rem, env(safe-area-inset-bottom));
+  }
+
+  /* plain 与 raised surface 都必须继承移动工作区的确定高度，避免内容把 composer 推出视口。 */
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame,
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame > .chrome-content {
     height: 100%;
+  }
+
+  .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] {
     padding-left: 0;
     overflow: hidden;
     border-top-left-radius: 0;
+    border: 0;
+    box-shadow: none;
   }
 
   .chrome-layout[data-mobile-sidebar] .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
-    height: 100%;
     border: 0;
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
     background-image: none;
     box-shadow: none !important;
+  }
+
+  /* 移动端保留可操作的抽屉触发区，但不再显示重复的产品标题。 */
+  .chrome-shell > .chrome-topbar .chrome-product-title {
+    display: none;
   }
 }
 

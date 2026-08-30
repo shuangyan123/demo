@@ -1,0 +1,47 @@
+"use client";
+
+import { type CSSProperties } from "react";
+import { conversationContextUsagePolicy, formatContextTokenCount, type ConversationContextBudget } from "../../services/conversation-context-budget.ts";
+import { UiInfoHoverCard } from "../shared/ui-info-hover-card";
+
+export function contextUsagePercent(budget: ConversationContextBudget): number | undefined {
+  if (!budget.contextWindow) return undefined;
+  return Math.max(0, Math.min(100, Math.round((budget.usedTokens / budget.contextWindow) * 100)));
+}
+
+/** 环形入口只展示紧凑的结构化用量；手动压缩通过输入框的 /压缩 命令触发。 */
+export function ConversationContextIndicator({ budget }: { budget: ConversationContextBudget }) {
+  const usagePercent = contextUsagePercent(budget);
+  const displayPercent = usagePercent ?? 0;
+  const warning = usagePercent !== undefined && usagePercent >= conversationContextUsagePolicy.warningPercent;
+  const panel = (
+    <section className="conversation-context-popover-content">
+      <strong>背景信息窗口：</strong>
+      <p className="conversation-context-usage">{usagePercent === undefined ? "用量未知" : `${usagePercent}% 已用`}</p>
+      <p className="conversation-context-tokens">
+        已用 {formatContextTokenCount(budget.usedTokens)} 标记{budget.contextWindow ? `，共 ${formatContextTokenCount(budget.contextWindow)} 标记` : "，上限未知"}
+      </p>
+    </section>
+  );
+  return (
+    <UiInfoHoverCard content={panel} contentClassName="conversation-context-popover" contentLabel="背景信息窗口" placement="top">
+      {({ contentId, expanded, toggleForTouch, triggerRef }) => <button
+        ref={triggerRef}
+        aria-describedby={contentId}
+        aria-expanded={expanded}
+        aria-label={usagePercent === undefined ? "查看对话上下文用量，上限未知" : `查看对话上下文用量，已使用 ${usagePercent}%`}
+        className="conversation-context-budget"
+        data-context-warning={warning ? "true" : undefined}
+        type="button"
+        onClick={toggleForTouch}
+      >
+        <span
+          className="conversation-context-ring"
+          style={{ "--context-usage": `${displayPercent * 3.6}deg` } as CSSProperties}
+        >
+          <span>{usagePercent === undefined ? "—" : `${usagePercent}%`}</span>
+        </span>
+      </button>}
+    </UiInfoHoverCard>
+  );
+}

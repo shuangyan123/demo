@@ -38,52 +38,84 @@
   outline-offset: 1px;
 }
 
+/* The wrapper owns only the compact root surface; child flyouts are absolute siblings. */
 .picker {
   position: absolute;
   z-index: 55;
   bottom: calc(100% + 0.5rem);
   left: 0;
-  max-height: min(32rem, calc(100dvh - 8rem - env(safe-area-inset-top, 0px)));
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
+  width: min(18.5rem, calc(100vw - 1.25rem));
+  max-width: calc(100vw - 1.25rem);
+  color: var(--foreground);
+  overflow: visible;
+}
+
+.surface {
+  position: absolute;
+  z-index: 1;
+  min-width: 0;
+  border: 1px solid var(--chrome-popover-outline);
+  border-radius: var(--ui-radius-popover);
   background: var(--surface);
   color: var(--foreground);
-  box-shadow: 0 18px 42px rgb(15 23 42 / 18%);
+  box-shadow: var(--chrome-subtle-shadow);
+  animation: picker-layer-enter 110ms ease-out;
 }
 
-.scrollViewport {
-  max-height: inherit;
+.rootSurface {
+  position: relative;
+  z-index: 2;
+  width: 100%;
   overflow: hidden;
-  overscroll-behavior: contain;
 }
 
-.scrollViewport[data-scrollable="true"] {
+.providerSurface {
+  width: min(15rem, calc(100vw - 1.25rem));
+  overflow: hidden;
+}
+
+.modelSurface {
+  width: min(22rem, calc(100vw - 1.25rem));
+  max-height: min(30rem, calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 
-.picker[data-model-picker-view="providers"] {
-  width: min(13rem, calc(100vw - 1.25rem));
+.runtimeSurface {
+  width: min(14rem, calc(100vw - 1.25rem));
+  max-height: min(30rem, calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
-.picker[data-model-picker-view="models"] {
-  width: min(15rem, calc(100vw - 1.25rem));
-}
-
-.picker[data-model-picker-view="reasoning"],
-.picker[data-model-picker-view="speed"] {
-  width: min(10rem, calc(100vw - 1.25rem));
-}
-
-.picker[data-picker-has-budget="true"] {
-  width: min(12.5rem, calc(100vw - 1.25rem));
-}
-
-.layer {
-  display: block;
+.providerPane {
   min-width: 0;
-  animation: picker-layer-enter 110ms ease-out;
+  padding: 0.25rem;
+}
+
+.flyoutBack {
+  display: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0.25rem 0.25rem 0.1rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--ui-radius-row);
+  background: transparent;
+  color: var(--muted);
+}
+
+.mobileDisclosure {
+  display: none;
+  align-items: center;
+}
+
+.flyoutBack:hover,
+.flyoutBack:focus-visible {
+  background: var(--surface-muted);
+  color: var(--foreground);
+  outline: none;
 }
 
 @keyframes picker-layer-enter {
@@ -97,6 +129,7 @@
 }
 
 .providerRow,
+.controlRow,
 .emptyRow,
 .manageRow,
 .runtimeEntries > button {
@@ -107,16 +140,52 @@
 
 .providerRow {
   display: grid;
-  width: calc(100% - 0.5rem);
+  width: 100%;
   min-height: 2rem;
   grid-template-columns: 1rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.45rem;
-  margin: 0.25rem;
   border-radius: 0.4rem;
   padding: 0.25rem 0.45rem;
   font-size: 0.75rem;
   text-align: left;
+}
+
+.controlRow {
+  display: flex;
+  width: calc(100% - 0.5rem);
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin: 0.25rem;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  color: inherit;
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.controlRow > span:last-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controlRow:hover,
+.controlRow:focus-visible,
+.controlRow[data-control-active="true"] {
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.controlRow:disabled {
+  opacity: 0.48;
 }
 
 .providerRow:hover,
@@ -130,6 +199,11 @@
   background: var(--surface-muted);
   color: var(--foreground);
   outline: none;
+}
+
+.providerRow[data-provider-active="true"] {
+  background: var(--surface-muted);
+  color: var(--foreground);
 }
 
 .header {
@@ -190,8 +264,7 @@
 }
 
 .profileRow select:focus-visible,
-.budgetRow input:focus-visible,
-.manualRow input:focus-visible {
+.budgetRow input:focus-visible {
   outline: 1px solid color-mix(in srgb, var(--foreground) 58%, transparent);
   outline-offset: 1px;
 }
@@ -199,7 +272,12 @@
 .modelList,
 .radioGroup {
   display: grid;
+  min-width: 0;
   padding: 0.25rem;
+}
+
+.modelList > .ui-tooltip-anchor {
+  min-width: 0;
 }
 
 .radioLabel {
@@ -238,6 +316,14 @@
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.checkmarkSlot {
+  display: inline-flex;
+  width: 1rem;
+  min-width: 1rem;
+  align-items: center;
+  justify-content: center;
 }
 
 .radioLabel:hover .radioRow,
@@ -307,48 +393,6 @@
   font-size: 0.7rem;
 }
 
-.manualRow {
-  display: grid;
-  gap: 0.25rem;
-  border-top: 1px solid var(--line);
-  padding: 0.35rem 0.45rem;
-  color: var(--muted);
-  font-size: 0.68rem;
-}
-
-.manualRow > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 1.8rem;
-  align-items: stretch;
-}
-
-.manualRow input {
-  min-width: 0;
-  height: 1.875rem;
-  border: 1px solid var(--line);
-  border-right: 0;
-  border-radius: 0.4rem 0 0 0.4rem;
-  background: var(--surface);
-  padding: 0.25rem 0.4rem;
-  color: var(--foreground);
-}
-
-.manualRow button {
-  display: grid;
-  width: 1.8rem;
-  height: 1.875rem;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 0 0.4rem 0.4rem 0;
-  background: var(--surface-muted);
-  color: var(--foreground);
-}
-
-.manualRow button:disabled {
-  color: var(--muted);
-  opacity: 0.45;
-}
-
 .emptyRow,
 .manageRow {
   width: 100%;
@@ -361,6 +405,43 @@
 
 .manageRow {
   border-top: 1px solid var(--line);
+}
+
+.connectionEmptyState {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  justify-items: start;
+  gap: 0.45rem;
+  padding: 1rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.connectionEmptyState strong {
+  color: var(--foreground);
+  font-size: 0.8rem;
+}
+
+.connectionEmptyState button {
+  min-height: 2rem;
+  margin-top: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius-row);
+  padding: 0.35rem 0.65rem;
+  color: var(--foreground);
+}
+
+.connectionEmptyState button:hover,
+.connectionEmptyState button:focus-visible {
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.modelEmptyState {
+  padding: 0.7rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.72rem;
 }
 
 @media (max-width: 640px) {
@@ -378,16 +459,72 @@
     right: auto;
     bottom: calc(var(--model-picker-mobile-bottom, 7.75rem) + env(safe-area-inset-bottom, 0px));
     left: 50%;
-    max-height: calc(100dvh - var(--model-picker-mobile-bottom, 7.75rem) - 0.75rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    width: min(20rem, calc(100vw - 1.25rem));
+    /* Keep the full mobile surface below the fixed host topbar, including long model lists. */
+    max-height: calc(100dvh - var(--chrome-topbar-height, 52px) - var(--model-picker-mobile-bottom, 7.75rem) - 0.75rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
   }
 
-  .picker[data-model-picker-view="providers"] {
-    width: min(20rem, calc(100vw - 1.25rem));
+  .surface,
+  .rootSurface,
+  .providerSurface,
+  .modelSurface,
+  .runtimeSurface {
+    position: static;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
+    visibility: visible !important;
   }
 
-  .picker[data-model-picker-view="models"] {
-    width: min(22rem, calc(100vw - 1.25rem));
+  .rootSurface {
+    overflow: hidden;
+  }
+
+  .modelSurface {
+    overflow-y: auto;
+    max-height: inherit;
+    scrollbar-gutter: stable;
+  }
+
+  .modelSurface > .flyoutBack {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    background: var(--surface);
+  }
+
+  .picker[data-model-picker-view="providers"] .rootSurface,
+  .picker[data-model-picker-view="models"] .rootSurface,
+  .picker[data-model-picker-view="reasoning"] .rootSurface,
+  .picker[data-model-picker-view="speed"] .rootSurface {
+    display: none;
+  }
+
+  .picker[data-model-picker-view="models"] .providerSurface,
+  .picker[data-model-picker-view="reasoning"] .providerSurface,
+  .picker[data-model-picker-view="speed"] .providerSurface {
+    display: none;
+  }
+
+  .picker[data-model-picker-view="providers"] .modelSurface {
+    display: none;
+  }
+
+  .providerPane {
+    padding: 0.25rem;
+  }
+
+  .flyoutBack {
+    display: grid;
+  }
+
+  .mobileDisclosure {
+    display: inline-flex;
   }
 
   .picker[data-model-picker-view="reasoning"],
@@ -398,6 +535,10 @@
   .picker[data-picker-has-budget="true"] {
     width: min(20rem, calc(100vw - 1.25rem));
   }
+
+  .connectionEmptyState {
+    min-height: 8rem;
+  }
 }
 
 @media (pointer: coarse) {
@@ -406,8 +547,10 @@
   }
 
   .providerRow,
+  .controlRow,
   .emptyRow,
   .manageRow,
+  .flyoutBack,
   .radioRow,
   .runtimeEntries > button,
   .profileRow select {
@@ -433,23 +576,13 @@
     min-height: 44px;
   }
 
-  .budgetRow input,
-  .manualRow input,
-  .manualRow button {
+  .budgetRow input {
     height: 44px;
-  }
-
-  .manualRow > div {
-    grid-template-columns: minmax(0, 1fr) 44px;
-  }
-
-  .manualRow button {
-    width: 2.75rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .layer {
+  .surface {
     animation: none;
   }
 }

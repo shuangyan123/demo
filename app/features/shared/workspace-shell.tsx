@@ -1,29 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
+import { host } from "../../platform/host";
 import { AppIcon } from "./app-icon";
+import { UiHint } from "./ui-tooltip";
+import { SidebarToggleButton } from "./sidebar-toggle-button";
+import { RecallBrandMark } from "./recall-brand-mark";
 import { useDesktopTitlebarTheme } from "./use-desktop-titlebar-theme.ts";
-// 渲染左上角侧栏切换按钮，使用按钮语义让键盘和屏幕阅读器都能识别当前折叠状态。
-export function SidebarToggleButton({
-  buttonRef,
-  collapsed,
-  onToggle,
-}: {
-  buttonRef?: Ref<HTMLButtonElement>;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      ref={buttonRef}
-      className="sidebar-toggle-button grid h-7 w-7 place-items-center rounded-lg border border-line text-muted hover:bg-chrome-hover hover:text-foreground max-lg:h-11 max-lg:w-11"
-      type="button"
-      aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
-      aria-pressed={collapsed}
-      onClick={onToggle}
-    >
-      <AppIcon name="sidebar" size={18} />
-    </button>
-  );
-}
 export function WindowMenuBar({
   sidebarButtonRef,
   sidebarCollapsed,
@@ -40,16 +21,18 @@ export function WindowMenuBar({
       <div className="chrome-topbar-safe-area flex h-full min-w-0 items-center gap-3 px-3">
         <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
         {onBack && (
-          <button
-            className="chrome-titlebar-control hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
-            type="button"
-            aria-label="返回"
-            onClick={onBack}
-          >
-            <AppIcon name="back" size={18} />
-          </button>
+          <UiHint label="返回" placement="bottom">{({ describedBy }) => <button
+              className="chrome-titlebar-control hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
+              type="button"
+              aria-describedby={describedBy}
+              aria-label="返回"
+              onClick={onBack}
+            >
+              <AppIcon name="back" size={18} />
+            </button>}</UiHint>
         )}
-        <strong className="truncate text-foreground">{title}</strong>
+        <RecallBrandMark />
+        <span className="chrome-product-title" data-product-title={title} aria-hidden="true" />
       </div>
     </header>
   );
@@ -78,6 +61,11 @@ export function WorkspaceShell({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const mobileSidebarRef = useRef<HTMLElement>(null);
   const sidebarButtonRef = useRef<HTMLButtonElement>(null);
+  const nativeWindowAvailable = useSyncExternalStore(
+    () => () => undefined,
+    () => Boolean(host.capabilities.nativeWindow),
+    () => false,
+  );
   const sidebarStateClass = sidebarCollapsed ? "is-sidebar-collapsed" : "is-sidebar-expanded";
   const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;
   useDesktopTitlebarTheme();
@@ -145,6 +133,7 @@ export function WorkspaceShell({
     <div
       className="chrome-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground"
       data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
+      data-native-window={nativeWindowAvailable ? "true" : "false"}
     >
       <WindowMenuBar
         sidebarButtonRef={sidebarButtonRef}
@@ -171,15 +160,15 @@ export function WorkspaceShell({
           inert={effectiveCollapsed}
           aria-label={isMobile ? "应用导航" : undefined}
           aria-modal={isMobile && mobileSidebarOpen ? true : undefined}
-          className={`chrome-sidebar diffuse-sidebar settings-sidebar-scroll relative z-30 min-h-0 ${sidebarClassName}`}
+          className={`chrome-sidebar diffuse-sidebar relative z-30 min-h-0 ${sidebarClassName}`}
           role={isMobile ? "dialog" : undefined}
           onClickCapture={handleMobileSidebarAction}
         >
           {sidebar}
         </aside>
-        <div className="chrome-content-frame" data-content-surface={contentSurface}><main className={`chrome-content min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main></div>
-      </div>
-    </div>
+        <div className="chrome-sidebar-boundary" data-sidebar-boundary="true" aria-hidden="true" />
+        <div className="chrome-content-frame" data-content-surface={contentSurface} data-workspace-frame="true"><main className={`chrome-content min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main></div>
+      </div></div>
   );
 }
 
@@ -199,8 +188,7 @@ export function SidebarNav<T extends string>({
 
   // 移动端横向导航在切换分区后把当前项带入视口，避免内容已切换但选中项仍藏在屏幕外。
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 1024px)").matches) return;
-    activeItemRef.current?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
+    if (window.matchMedia("(max-width: 1024px)").matches) activeItemRef.current?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
   }, [activeKey]);
 
   return (
@@ -210,7 +198,7 @@ export function SidebarNav<T extends string>({
           key={item.key}
           data-mobile-sidebar-close="true"
           ref={activeKey === item.key ? activeItemRef : undefined}
-          className={`grid min-h-8 grid-cols-[18px_1fr_auto] items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 max-lg:px-3 ${
+          className={`grid min-h-8 grid-cols-[18px_1fr_auto] items-center gap-2 rounded-[var(--ui-radius-row)] px-2.5 text-left text-sm font-medium max-lg:min-h-11 max-lg:grid-cols-[20px_1fr_auto] max-lg:gap-2.5 max-lg:px-3 ${
             activeKey === item.key ? "bg-chrome-selected" : "hover:bg-chrome-hover"
           }`}
           type="button"

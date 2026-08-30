@@ -11,6 +11,7 @@ export function useConnectionModelCatalog(connection: ApiConnectionProfile | und
   const initial = connection ? inspectConnectionModelCatalog(connection, purpose) : undefined;
   const fallbackModels = initial?.models ?? [];
   const [loaded, setLoaded] = useState<{ key: string; models: AiModelCatalogEntry[] }>();
+  const refreshRequired = Boolean(connection && !(initial?.source === "cache" && !initial.stale && initial.complete));
 
   useEffect(() => {
     let active = true;
@@ -24,5 +25,9 @@ export function useConnectionModelCatalog(connection: ApiConnectionProfile | und
     return () => { active = false; };
   }, [catalogKey, connection, initial?.complete, initial?.source, initial?.stale, purpose]);
 
-  return loaded?.key === catalogKey ? loaded.models : fallbackModels;
+  return {
+    key: catalogKey,
+    loading: Boolean(connection && refreshRequired && loaded?.key !== catalogKey && fallbackModels.length === 0),
+    models: loaded?.key === catalogKey ? loaded.models : fallbackModels,
+  };
 }

@@ -10,8 +10,11 @@ import {
 
 type ConversationDraftInputProps = {
   activeConversation: boolean;
+  contextCompressionAvailable: boolean;
+  contextCompressing: boolean;
   draft: string;
   onChange: (draft: string) => void;
+  onCompressContext: () => void;
   onNotice: (message: string) => void;
   onOpenMcp: () => void;
   onOpenModel: () => void;
@@ -22,8 +25,11 @@ type ConversationDraftInputProps = {
 /** 对话文本框独立管理光标附近的斜杠指令，不把瞬时菜单状态提升到工作区。 */
 export function ConversationDraftInput({
   activeConversation,
+  contextCompressionAvailable,
+  contextCompressing,
   draft,
   onChange,
+  onCompressContext,
   onNotice,
   onOpenMcp,
   onOpenModel,
@@ -56,6 +62,10 @@ export function ConversationDraftInput({
     if (command.action === "model") onOpenModel();
     else if (command.action === "reasoning") onOpenReasoning();
     else if (command.action === "knowledge") onSearchKnowledge();
+    else if (command.action === "compact") {
+      if (contextCompressionAvailable && !contextCompressing) onCompressContext();
+      else onNotice(contextCompressing ? "正在压缩上下文，请稍候" : "当前对话暂无可压缩上下文");
+    }
     else if (activeConversation) onOpenMcp();
     else onNotice("请先发送首条消息，再调用 MCP 工具");
   }
@@ -66,6 +76,8 @@ export function ConversationDraftInput({
         <ConversationSlashCommandMenu
           activeIndex={Math.min(activeIndex, Math.max(0, commands.length - 1))}
           commands={commands}
+          disabledActions={contextCompressionAvailable && !contextCompressing ? [] : ["compact"]}
+          pendingActions={contextCompressing ? ["compact"] : []}
           onHover={setActiveIndex}
           onSelect={selectCommand}
         />

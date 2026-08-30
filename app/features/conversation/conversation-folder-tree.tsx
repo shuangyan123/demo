@@ -8,13 +8,15 @@ import { conversationRepository } from "../../services/conversation-repository";
 import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
 import { useConversationTreeController } from "./use-conversation-tree-controller.ts";
 import { AppIcon } from "../shared/app-icon";
+import { announceInteractiveOverlayOpen } from "../shared/ui-overlay-events";
+import { UiHint } from "../shared/ui-tooltip";
 
 type TreeDragItem = { kind: "folder" | "conversation"; id: string; label: string };
 
 /** 名称区域直接承担拖拽，不再额外占用六点手柄列。 */
-function TreeDragSurface({ item, className, onClick, children }: { item: TreeDragItem; className: string; onClick?: () => void; children: ReactNode }) {
+function TreeDragSurface({ item, className, active, onClick, children }: { item: TreeDragItem; className: string; active?: boolean; onClick?: () => void; children: ReactNode }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: `drag:${item.kind}:${item.id}`, data: item });
-  return <button ref={setNodeRef} className={className} type="button" onClick={onClick} {...attributes} {...listeners}>{children}</button>;
+  return <button ref={setNodeRef} aria-current={active ? "page" : undefined} className={className} type="button" onClick={onClick} {...attributes} {...listeners}>{children}</button>;
 }
 
 /** 文件夹与根目录共用的放置边界。 */
@@ -90,6 +92,7 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
 
   /** 右键与省略号统一读取当前行操作按钮的位置，避免同一菜单出现两套坐标语义。 */
   function openAction(kind: "folder" | "conversation", id: string, label: string, anchor: HTMLElement | null) {
+    announceInteractiveOverlayOpen();
     setActionLabel(label);
     setActionLevel("root");
     actionTriggerRef.current = anchor;
@@ -164,10 +167,11 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   }
 
   function renderConversation(conversation: AiConversation): ReactNode {
-    return <div key={conversation.id} data-conversation-id={conversation.id} data-mobile-sidebar-close="true" className={`conversation-tree-chat ${activeConversationId === conversation.id ? "is-active" : ""}`} onContextMenu={(event) => { event.preventDefault(); openAction("conversation", conversation.id, conversation.title, event.currentTarget.querySelector<HTMLElement>("[data-tree-action-trigger]")); }}>
+    const active = activeConversationId === conversation.id;
+    return <div key={conversation.id} data-conversation-active={active ? "true" : undefined} data-conversation-id={conversation.id} data-mobile-sidebar-close="true" className={`conversation-tree-chat ${active ? "is-active" : ""}`} onContextMenu={(event) => { event.preventDefault(); openAction("conversation", conversation.id, conversation.title, event.currentTarget.querySelector<HTMLElement>("[data-tree-action-trigger]")); }}>
       <span className="conversation-tree-disclosure-slot" aria-hidden="true" />
-      {renaming?.kind === "conversation" && renaming.id === conversation.id ? <input autoFocus aria-label={`重命名${conversation.title}`} className="conversation-tree-inline-rename" value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} onBlur={() => void finishRename("conversation", conversation.id)} onKeyDown={handleRenameKeyDown} /> : <TreeDragSurface className="conversation-tree-chat-label" item={{ kind: "conversation", id: conversation.id, label: conversation.title }} onClick={() => onConversationSelected(conversation.id)}><AppIcon name="message" size={16} /><span className="truncate">{conversation.title}</span></TreeDragSurface>}
-      <button data-tree-action-trigger type="button" aria-label={`${conversation.title} 操作`} onClick={(event) => openAction("conversation", conversation.id, conversation.title, event.currentTarget)}><AppIcon name="more" size={16} /></button>
+      {renaming?.kind === "conversation" && renaming.id === conversation.id ? <input autoFocus aria-label={`重命名${conversation.title}`} className="conversation-tree-inline-rename" value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} onBlur={() => void finishRename("conversation", conversation.id)} onKeyDown={handleRenameKeyDown} /> : <TreeDragSurface active={active} className="conversation-tree-chat-label" item={{ kind: "conversation", id: conversation.id, label: conversation.title }} onClick={() => onConversationSelected(conversation.id)}><AppIcon name="message" size={16} /><span className="truncate">{conversation.title}</span></TreeDragSurface>}
+      <UiHint label="更多操作" placement="right">{({ describedBy }) => <button data-tree-action-trigger type="button" aria-describedby={describedBy} aria-label={`${conversation.title} 操作`} onClick={(event) => openAction("conversation", conversation.id, conversation.title, event.currentTarget)}><AppIcon name="more" size={16} /></button>}</UiHint>
     </div>;
   }
 
@@ -178,9 +182,9 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
     const count = chats.length + children.reduce((sum, item) => sum + projectConversations.filter((chat) => chat.folderId === item.id).length, 0);
     return <div key={folder.id} data-folder-id={folder.id} className="conversation-tree-folder" onContextMenu={(event) => { event.preventDefault(); openAction("folder", folder.id, folder.label, event.currentTarget.querySelector<HTMLElement>("[data-tree-action-trigger]")); }}>
       <TreeDropZone folderId={folder.id} className="conversation-tree-folder-row">
-        <button type="button" aria-label={`${expanded ? "折叠" : "展开"}${folder.label}`} onClick={() => controller.toggleFolder(folder.id)}><AppIcon name={expanded ? "chevronDown" : "chevronRight"} size={16} /></button>
+        <UiHint label={expanded ? "折叠" : "展开"} placement="right">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label={`${expanded ? "折叠" : "展开"}${folder.label}`} onClick={() => controller.toggleFolder(folder.id)}><AppIcon name={expanded ? "chevronDown" : "chevronRight"} size={16} /></button>}</UiHint>
         {renaming?.kind === "folder" && renaming.id === folder.id ? <input autoFocus aria-label={`重命名${folder.label}`} className="conversation-tree-inline-rename" value={actionLabel} onChange={(event) => setActionLabel(event.currentTarget.value)} onBlur={() => void finishRename("folder", folder.id)} onKeyDown={handleRenameKeyDown} /> : <TreeDragSurface className="conversation-tree-folder-label" item={{ kind: "folder", id: folder.id, label: folder.label }}><AppIcon name={expanded ? "folderOpen" : "folder"} size={16} /><span className="truncate">{folder.label}</span><small>{count}</small></TreeDragSurface>}
-        <button data-tree-action-trigger type="button" aria-label={`${folder.label} 操作`} onClick={(event) => openAction("folder", folder.id, folder.label, event.currentTarget)}><AppIcon name="more" size={16} /></button>
+        <UiHint label="更多操作" placement="right">{({ describedBy }) => <button data-tree-action-trigger type="button" aria-describedby={describedBy} aria-label={`${folder.label} 操作`} onClick={(event) => openAction("folder", folder.id, folder.label, event.currentTarget)}><AppIcon name="more" size={16} /></button>}</UiHint>
       </TreeDropZone>
       {expanded ? <div className="conversation-tree-children">{children.map(renderFolder)}{chats.map(renderConversation)}</div> : null}
     </div>;
@@ -233,13 +237,13 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   const actionDrawer = action && typeof document !== "undefined" ? createPortal(
     <div className="conversation-tree-drawer" role="presentation"><button className="conversation-tree-drawer-backdrop" type="button" aria-label="关闭" onClick={() => closeAction()} />
       <section ref={rootMenuRef} role="menu" aria-label="对话树操作" data-mobile-hidden={actionLevel === "move"} data-submenu-side={desktopLayout?.submenuSide} style={desktopLayout?.style} onKeyDown={(event) => handleMenuKeyDown(event, "root")}>
-        <div className="conversation-tree-drawer-title"><strong>{actionLabel}</strong><button type="button" aria-label="关闭操作菜单" title="关闭" onClick={() => closeAction()}><AppIcon name="close" size={16} /></button></div>
+        <div className="conversation-tree-drawer-title"><strong>{actionLabel}</strong><UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭操作菜单" onClick={() => closeAction()}><AppIcon name="close" size={16} /></button>}</UiHint></div>
         <button role="menuitem" type="button" onClick={() => { setRenaming(action); closeAction(false); }}><AppIcon name="edit" size={16} /><span>重命名</span></button>
         <button data-open-move role="menuitem" type="button" aria-haspopup="menu" aria-expanded={actionLevel === "move"} onClick={() => setActionLevel("move")}><AppIcon name="folder" size={16} /><span>移动到</span><AppIcon name="chevronRight" size={16} /></button>
         {action.kind === "folder" ? <button role="menuitem" type="button" onClick={() => { setCreatingParentId(action.id); setCreating(true); controller.expandFolder(action.id); closeAction(false); }}><AppIcon name="folderPlus" size={16} /><span>新建子文件夹</span></button> : null}
         <button role="menuitem" className="is-danger" type="button" onClick={() => { const message = action.kind === "folder" ? "删除文件夹后，子项会移动到上一级。确定继续吗？" : "确定永久删除这条对话及其消息吗？"; if (!window.confirm(message)) return; void run(async () => { if (action.kind === "folder") await conversationRepository.deleteFolder(action.id); else await conversationRepository.deleteConversation(action.id); closeAction(false); }, "已删除"); }}><AppIcon name="trash" size={16} /><span>删除</span></button>
         {actionLevel === "move" ? <section ref={moveMenuRef} className="conversation-tree-move-menu" role="menu" aria-label="移动到文件夹" onKeyDown={(event) => handleMenuKeyDown(event, "move")}>
-          <div className="conversation-tree-drawer-title"><button type="button" aria-label="返回操作菜单" onClick={() => setActionLevel("root")}><AppIcon name="back" size={16} /></button><strong>移动到</strong><button type="button" aria-label="关闭操作菜单" onClick={() => closeAction()}><AppIcon name="close" size={16} /></button></div>
+          <div className="conversation-tree-drawer-title"><UiHint label="返回" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="返回操作菜单" onClick={() => setActionLevel("root")}><AppIcon name="back" size={16} /></button>}</UiHint><strong>移动到</strong><UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭操作菜单" onClick={() => closeAction()}><AppIcon name="close" size={16} /></button>}</UiHint></div>
           <button role="menuitem" type="button" aria-current={!currentFolderId ? "true" : undefined} onClick={() => void moveActionTo()}><AppIcon name="folder" size={16} /><span>根目录</span>{!currentFolderId ? <AppIcon name="check" size={16} /> : null}</button>
           {actionFolders.map((folder) => <button role="menuitem" type="button" key={folder.id} aria-current={currentFolderId === folder.id ? "true" : undefined} onClick={() => void moveActionTo(folder.id)}><AppIcon name="folder" size={16} /><span>{folder.parentId ? "↳ " : ""}{folder.label}</span>{currentFolderId === folder.id ? <AppIcon name="check" size={16} /> : null}</button>)}
         </section> : null}
@@ -249,7 +253,7 @@ export function ConversationFolderTree(props: ConversationFolderTreeProps) {
   ) : null;
 
   const tree = <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={startDrag} onDragCancel={() => setActiveDragItem(null)} onDragEnd={finishDrag}><section className="conversation-tree" aria-label="对话分类">
-    <div className="conversation-tree-heading"><p>对话</p><button type="button" aria-label="新建文件夹" title="新建文件夹" onClick={() => { setCreatingParentId(undefined); setCreating(true); }}><AppIcon name="folderPlus" size={18} /></button></div>
+    <div className="conversation-tree-heading"><p>对话</p><UiHint label="新建文件夹" placement="right">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="新建文件夹" onClick={() => { setCreatingParentId(undefined); setCreating(true); }}><AppIcon name="folderPlus" size={18} /></button>}</UiHint></div>
     {creating ? <form className="conversation-tree-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}><input autoFocus aria-label="新文件夹名称" placeholder="文件夹名称" value={draftLabel} onChange={(event) => setDraftLabel(event.currentTarget.value)} /><button type="submit">创建</button><button type="button" onClick={() => setCreating(false)}>取消</button></form> : null}
     {activeDragItem ? <TreeDropZone dropId="root" dataDropRootTarget className="conversation-tree-root-target"><AppIcon name="back" size={16} /><span>移到根目录</span></TreeDropZone> : null}
     <TreeDropZone dropId="root-surface" dataDropRoot className="conversation-tree-root">

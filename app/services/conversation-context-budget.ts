@@ -9,6 +9,13 @@ export type ConversationContextBudget = {
   precision: "estimated" | "usage-calibrated";
 };
 
+/** 未来自动压缩的 UI/policy 契约；当前只提供告警语义，不触发后台行为。 */
+export const conversationContextUsagePolicy = Object.freeze({
+  warningPercent: 72,
+  autoCompactionPercent: 84,
+  autoCompactionEnabled: false,
+});
+
 function estimateTextTokens(value: string): number {
   let units = 0;
   for (const character of value) units += character.codePointAt(0)! <= 0x7f ? 0.25 : 1;

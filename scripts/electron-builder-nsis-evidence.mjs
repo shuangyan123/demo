@@ -13,6 +13,7 @@ const resourcesRoot = path.join(artifactRoot, "resources");
 const asarPath = path.join(resourcesRoot, "app.asar");
 const runtimeRoot = path.join(resourcesRoot, ".desktop-runtime");
 const installerPath = path.join(outputRoot, "ReviewWorkspace-0.2.4-Windows-x64-NSIS-M1-Candidate.exe");
+const recallWindowsIconPath = path.join(workspaceRoot, "public", "brand", "recall", "app", "recall.ico");
 const require = createRequire(import.meta.url);
 const asar = require("@electron/asar");
 const { FuseState, FuseV1Options, getCurrentFuseWire } = require("@electron/fuses");
@@ -58,6 +59,7 @@ export async function collectNsisCandidateEvidence() {
   requireFile(path.join(artifactRoot, "version"), "Electron version marker");
   requireFile(runtimeRoot, "bundled desktop runtime");
   requireFile(installerPath, "NSIS candidate installer");
+  requireFile(recallWindowsIconPath, "approved Recall Windows ICO");
 
   const executableInfo = readPowerShellJson("read-windows-executable-info.ps1");
   assertEqual(executableInfo.ProductName, "错题复盘", "PE ProductName");
@@ -193,7 +195,10 @@ export async function collectNsisCandidateEvidence() {
     },
     installTimeWebPayload: "ABSENT",
     signing: "NOT EXECUTED / PENDING",
-    icon: "PENDING / NO APPROVED REPOSITORY ICO",
+    icon: {
+      path: relativePath(recallWindowsIconPath),
+      sha256: sha256File(recallWindowsIconPath),
+    },
     ci: process.env.GITHUB_ACTIONS === "true"
       ? {
         runId: process.env.GITHUB_RUN_ID ?? null,
@@ -245,6 +250,8 @@ export function assertNsisCandidateEvidence(evidence) {
   assert(evidence.applicationIdentity?.pass === true, "evidence application identity must pass");
   assertEqual(evidence.applicationIdentity.shortcutName, "错题复盘", "evidence shortcut name");
   assertEqual(evidence.applicationIdentity.uninstallDisplayName, "错题复盘", "evidence uninstall display name");
+  assertEqual(evidence.icon?.path, "public/brand/recall/app/recall.ico", "evidence Windows icon path");
+  assertMatch(evidence.icon?.sha256, /^[0-9a-f]{64}$/, "evidence Windows icon SHA-256");
   assert(evidence.perUserInstallerIntent?.pass === true, "evidence per-user intent must pass");
   assert(evidence.perUserInstallerIntent.perMachine === false, "evidence perMachine intent");
   assert(evidence.perUserInstallerIntent.selectPerMachineByDefault === false, "evidence per-machine selection intent");

@@ -22,6 +22,7 @@ export type ConversationWorkspaceProps = {
   onConversationSelected: (id: string) => void;
   onOpenConnections: () => void;
   onOpenKnowledge: () => void;
+  onOpenPermissions: () => void;
   onOpenTutoringRecords: () => void;
   onRefresh: () => Promise<void>;
   onNotice: (message: string) => void;

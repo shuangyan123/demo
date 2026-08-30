@@ -1,41 +1,30 @@
-/* 弥散侧栏仍保留独立滚动，避免装饰层影响设置导航。 */
-.settings-sidebar-scroll.diffuse-sidebar {
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
 /* 设置分区按自身内容宽度左对齐，禁止再次用统一超宽容器制造无意义空白。 */
 .settings-section-layout {
   width: 100%;
   margin: 0;
 }
 
-/* 设置侧栏保留紧凑滚动条；主工作区统一隐藏滚动条但仍可正常滚动。 */
-.settings-sidebar-scroll {
-  scrollbar-color: var(--settings-scrollbar-thumb) var(--settings-scrollbar-track);
-  scrollbar-width: thin;
+/* 设置正文保持中等阅读宽度；分组边界与对比度同步但不改变行几何。 */
+.centered-settings-column {
+  width: 100%;
+  max-width: var(--content-width-medium);
+  margin-inline: auto;
 }
 
-.settings-sidebar-scroll::-webkit-scrollbar {
-  height: 12px;
-  width: 12px;
+.settings-group {
+  border: 1px solid var(--chrome-card-outline);
+  border-radius: var(--ui-radius-group);
+  background: var(--surface);
+  box-shadow: none;
 }
 
-.settings-sidebar-scroll::-webkit-scrollbar-track {
-  background: var(--settings-scrollbar-track);
-  border-radius: 999px;
+.settings-group .settings-row,
+.settings-group .settings-theme-editor {
+  border-color: var(--chrome-card-outline);
 }
 
-.settings-sidebar-scroll::-webkit-scrollbar-thumb {
-  background: var(--settings-scrollbar-thumb);
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background-clip: content-box;
-}
-
-.settings-sidebar-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--settings-scrollbar-thumb-hover);
-  background-clip: content-box;
+.settings-row {
+  min-height: 3.5rem;
 }
 
 /* 设置页输入和下拉只保留轻量焦点反馈，不再出现醒目的蓝色阴影。 */

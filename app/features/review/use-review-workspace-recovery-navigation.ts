@@ -20,7 +20,7 @@ export function normalizeSettingsSection(section: SettingsSectionKey | "roles"):
 
 // 集中管理设置页入口、健康检查 CTA 和诊断恢复 CTA，避免主工作台散落跨模块跳转规则。
 export function useReviewWorkspaceRecoveryNavigation({ setNotice, switchView }: ReviewWorkspaceRecoveryNavigationInput) {
-  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey>("appearance");
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey>("profile");
   const setNormalizedSettingsSection = useCallback((section: SettingsSectionKey | "roles") => {
     setSettingsSection(normalizeSettingsSection(section));
   }, []);
@@ -44,7 +44,7 @@ export function useReviewWorkspaceRecoveryNavigation({ setNotice, switchView }: 
   );
 
   const resetSettingsSection = useCallback(() => {
-    setNormalizedSettingsSection("appearance");
+    setNormalizedSettingsSection("profile");
   }, [setNormalizedSettingsSection]);
 
   const openDiagnosticsTarget = useCallback(
@@ -70,7 +70,8 @@ export function useReviewWorkspaceRecoveryNavigation({ setNotice, switchView }: 
         return;
       }
       if (action === "import") {
-        switchView("import");
+        setNormalizedSettingsSection("import");
+        switchView("settings");
         return;
       }
       if (action === "entry") {
@@ -83,7 +84,7 @@ export function useReviewWorkspaceRecoveryNavigation({ setNotice, switchView }: 
       }
       switchView("knowledgeTraining");
     },
-    [openApiSettings, switchView],
+    [openApiSettings, setNormalizedSettingsSection, switchView],
   );
 
   return {
