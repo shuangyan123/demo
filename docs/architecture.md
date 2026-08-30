@@ -271,7 +271,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 ## Chat Workbench 主内容壳层（2026-08-26）
 
 - `MainContentShell` 统一右侧内容的居中 gutter，并提供 narrow / medium / wide 三档宽度；`ReviewWorkspaceShell` 只按视图选择预设，对话继续占满可用高度并由消息区独立滚动。
-- Composer 的空输入主操作是实时语音，存在文本或附件时切换为发送；按住录音保留为右侧次级操作。模型、推理强度、速度和高级设置共用单一可回退菜单，手动模型 ID 只在高级层出现。
+- Composer 的空输入主操作是实时语音，存在文本或附件时切换为发送；听写保留为右侧次级操作。模型、推理强度和速度分别由同一模型选择器的 Root 控制层承载；桌面使用 Root → Provider → Model 的独立级联 surface，推理与速度各自打开运行 surface，移动端按点击 step-in 并提供返回；后端 provider boundary 不变。
 - `ConversationContextIndicator` 只消费结构化预算并以紧凑暗色弹层展示用量；手动压缩复用既有 `useConversationContext.compress()`，从 `/压缩` slash command 进入并显式处理 unavailable/loading。72% / 84% 是未来告警与自动压缩的策略契约；`autoCompactionEnabled` 当前为 `false`，不会新增后台压缩、隐式重放或持久化。
 - 粉笔不再作为公考项目主导航模块，导入统一进入“设置 → 导入”，粉笔仅是当前来源。主侧栏“插件与技能”负责发现，设置“已安装插件”负责启停、权限和卸载管理。
 - 个人资料使用现有本地计数、连接和默认模型事实；厂商快捷入口只来自代码内官方 HTTPS allowlist 与 provider contract 文档地址，绝不使用自定义 Base URL、模型输出或对话内容生成外链。
@@ -437,7 +437,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 密文升级为 `v2:`，AAD 由连接 ID、凭据类型和字段组成。AI 连接、旧 AI 设置、额度凭据、MCP Token 与粉笔 Cookie 通过同一幂等迁移门迁移；复核仍有旧密文时绝不删除旧 JWK。
 - 密钥库与密文损坏会返回重新输入凭据的稳定错误，不新增密钥 HTTP API，也不读写 `.env.local`。该边界增强本机静态数据和导出防护，但不能抵御已执行的恶意脚本，因此继续依赖严格 CSP、输入边界和禁用原始 HTML 的 AI Markdown 渲染。
 - `AssistantMarkdown` 是历史消息与流式草稿的唯一 AI 正文展示边界；`react-markdown` 与 `remark-gfm` 只处理受限语法，不使用 `dangerouslySetInnerHTML`。
-- `ConversationReasoningControl` 位于模型选择旁，局部预览滑杆值，仅在指针释放、键盘操作结束或失焦时复用会话级串行乐观保存。速度设置仍留在模型菜单，持久化结构保持 `selectedRuntimeValues`。
+- 对话模型选择器在桌面保持 Root → Provider → Model 独立级联；推理与速度是 Root 的独立运行 surface，选择立即通过既有会话串行保存并持久化到 `selectedRuntimeValues`。移动端以点击 step-in 逐层展示并提供返回，后端 provider adapter/request boundary 不变。
 - 对话树右键和省略号都锚定当前行操作按钮；桌面执行同一视口碰撞修正，移动端继续复用同一底部操作层和行内重命名输入。
 
 ## 全应用单色交互与安全收口（2026-07-26）

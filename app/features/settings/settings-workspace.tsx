@@ -10,6 +10,7 @@ import { ApiConnectionsSettingsView } from "./api-connections-settings-view";
 import { AppearanceSettingsView } from "./appearance-settings-view";
 import { McpSettingsView } from "./mcp-settings-view";
 import layoutStyles from "./settings-layout.module.css";
+import "../../styles/settings.css";
 import { settingsSections, type SettingsSectionKey } from "./settings-workspace-navigation";
 const PersonalizationSettingsView = dynamic(() => import("./personalization-settings-view").then((module) => module.PersonalizationSettingsView));
 const AiQuotaSettingsPanel = dynamic(() => import("./plugins/quota/ai-quota-settings-panel").then((module) => module.AiQuotaSettingsPanel));

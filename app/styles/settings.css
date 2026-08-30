@@ -1,8 +1,3 @@
-/* 侧栏宿主本身不滚动，只有共享的 workspace-sidebar-scroll 承载列表滚动。 */
-.settings-sidebar-scroll.diffuse-sidebar {
-  overflow: hidden;
-}
-
 /* 设置分区按自身内容宽度左对齐，禁止再次用统一超宽容器制造无意义空白。 */
 .settings-section-layout {
   width: 100%;
@@ -30,39 +25,6 @@
 
 .settings-row {
   min-height: 3.5rem;
-}
-
-/* 设置侧栏保留紧凑滚动条；主工作区统一隐藏滚动条但仍可正常滚动。 */
-.workspace-sidebar-scroll,
-.settings-sidebar-scroll {
-  scrollbar-color: var(--settings-scrollbar-thumb) var(--settings-scrollbar-track);
-  scrollbar-width: thin;
-}
-
-.workspace-sidebar-scroll::-webkit-scrollbar,
-.settings-sidebar-scroll::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
-}
-
-.workspace-sidebar-scroll::-webkit-scrollbar-track,
-.settings-sidebar-scroll::-webkit-scrollbar-track {
-  background: var(--settings-scrollbar-track);
-  border-radius: 999px;
-}
-
-.workspace-sidebar-scroll::-webkit-scrollbar-thumb,
-.settings-sidebar-scroll::-webkit-scrollbar-thumb {
-  background: var(--settings-scrollbar-thumb);
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background-clip: content-box;
-}
-
-.workspace-sidebar-scroll::-webkit-scrollbar-thumb:hover,
-.settings-sidebar-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--settings-scrollbar-thumb-hover);
-  background-clip: content-box;
 }
 
 /* 设置页输入和下拉只保留轻量焦点反馈，不再出现醒目的蓝色阴影。 */

@@ -19,12 +19,6 @@
   gap: 1rem;
 }
 
-.learning-page-title {
-  font-size: clamp(1.5rem, 2vw, 1.75rem);
-  font-weight: 800;
-  letter-spacing: -0.025em;
-}
-
 .learning-metrics {
   display: flex;
   flex-wrap: wrap;
@@ -250,12 +244,6 @@
 .ui-panel {
   border-top: 1px solid var(--line);
   padding: 1rem 0;
-}
-
-.ui-panel-eyebrow {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--muted);
 }
 
 .ui-panel-title {
@@ -691,26 +679,6 @@ body[data-theme="dark"] {
   background: transparent;
 }
 
-.ui-board-header {
-  display: flex;
-  min-height: 4.875rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  background: var(--interactive-selected-bg);
-  padding: 0 1.75rem;
-  color: var(--foreground);
-}
-
-.ui-board-header-badge {
-  border-radius: var(--ui-radius);
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  color: #7180a4;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
 .ui-board-title {
   color: #1d3854;
   font-size: 1.5rem;
@@ -835,16 +803,6 @@ body[data-theme="dark"] .ui-detail-content {
   background: color-mix(in srgb, var(--interactive-primary-bg) 86%, var(--surface) 14%);
 }
 
-.ui-button-soft {
-  border-color: var(--line);
-  background: var(--interactive-selected-bg);
-  color: var(--foreground);
-}
-
-.ui-button-soft:hover {
-  background: var(--interactive-pressed-bg);
-}
-
 .ui-button-outline {
   border-color: var(--line);
   background: var(--surface);
@@ -856,16 +814,6 @@ body[data-theme="dark"] .ui-detail-content {
   border-color: var(--line);
   background: var(--interactive-hover-bg);
   color: var(--foreground);
-}
-
-.ui-button-danger {
-  border-color: color-mix(in srgb, var(--red) 26%, transparent);
-  background: color-mix(in srgb, var(--red) 7%, transparent);
-  color: var(--red);
-}
-
-.ui-button-danger:hover {
-  background: color-mix(in srgb, var(--red) 12%, transparent);
 }
 
 .ui-button-ghost {
@@ -1024,8 +972,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   font-weight: 600;
 }
 
-.ai-connection-picker select,
-.ai-provider-select {
+.ai-connection-picker select {
   min-height: 2.25rem;
   border: 1px solid transparent;
   border-radius: 0.5rem;
@@ -1036,26 +983,6 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .ai-connection-picker select {
   width: 100%;
   padding: 0.45rem 0.7rem;
-}
-
-.ai-provider-select {
-  display: grid;
-  grid-template-columns: 1.8rem minmax(0, 1fr);
-  align-items: center;
-  padding-left: 0.5rem;
-}
-
-.ai-provider-select:hover,
-.ai-provider-select:focus-within {
-  background: var(--surface-muted);
-}
-
-.ai-provider-select select {
-  border: 0;
-  background: transparent;
-  /* 外层负责完整点击高度，避免 select 的最小高度再叠加外层边框。 */
-  min-height: 0;
-  height: 100%;
 }
 
 .ai-connection-advanced {
@@ -1081,8 +1008,7 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
     grid-template-columns: 1fr;
   }
   .ai-connection-test-controls { grid-template-columns: 1fr; }
-  .ai-connection-picker select, .ai-provider-select, .ai-connection-test-controls select, .ai-connection-test-controls input { min-height: 2.75rem; }
-  .ai-provider-select select { min-height: 0; }
+  .ai-connection-picker select, .ai-connection-test-controls select, .ai-connection-test-controls input { min-height: 2.75rem; }
 }
 
 .main-content-shell {
@@ -1934,127 +1860,6 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   background: var(--surface-muted);
 }
 
-.conversation-folder-tree {
-  margin-top: 1.3rem;
-}
-
-.conversation-folder-tree-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 0.65rem 0.4rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.conversation-folder-tree-heading button {
-  display: grid;
-  height: 1.55rem;
-  width: 1.55rem;
-  place-items: center;
-  border-radius: 0.35rem;
-}
-
-.conversation-folder-tree-heading button:hover,
-.conversation-folder-tree-row:hover,
-.conversation-folder-tree-conversation:hover {
-  background: var(--chrome-hover);
-}
-
-.conversation-folder-tree-create {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.3rem;
-  padding: 0 0.4rem 0.35rem;
-}
-
-.conversation-folder-tree-input,
-.conversation-folder-tree-create input {
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.4rem;
-  background: var(--surface);
-  padding: 0.3rem 0.45rem;
-  font-size: 0.78rem;
-}
-
-.conversation-folder-tree-create button {
-  border-radius: 0.4rem;
-  background: var(--interactive-primary-bg);
-  padding: 0.25rem 0.5rem;
-  color: var(--interactive-primary-fg);
-  font-size: 0.75rem;
-}
-
-.conversation-folder-tree-row,
-.conversation-folder-tree-conversation {
-  display: grid;
-  min-height: 2rem;
-  grid-template-columns: 0.8rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.25rem;
-  border-radius: 0.4rem;
-  padding: 0.15rem 0.5rem;
-  color: var(--muted);
-  font-size: 0.79rem;
-}
-
-.conversation-folder-tree-conversation {
-  width: 100%;
-  grid-template-columns: minmax(0, 1fr) auto;
-  text-align: left;
-}
-
-.conversation-folder-tree-conversation.is-active {
-  background: var(--chrome-selected);
-  color: var(--foreground);
-}
-
-.conversation-folder-tree-menu {
-  position: relative;
-}
-
-.conversation-folder-tree-menu summary {
-  cursor: pointer;
-  list-style: none;
-  color: var(--muted);
-}
-
-.conversation-folder-tree-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.conversation-folder-tree-menu > div {
-  position: absolute;
-  z-index: 60;
-  right: 0;
-  top: 1.35rem;
-  display: grid;
-  min-width: 7.5rem;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--surface);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
-}
-
-.conversation-folder-tree-menu button {
-  padding: 0.4rem 0.55rem;
-  text-align: left;
-  font-size: 0.75rem;
-}
-
-.conversation-folder-tree-menu button:hover {
-  background: var(--surface-muted);
-}
-
-.conversation-folder-tree-empty {
-  padding: 0.25rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
 .conversation-send {
   background: #111827;
   color: #ffffff;
@@ -2143,13 +1948,6 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .command-result:hover,
 .command-result.is-active {
   background: var(--surface-muted);
-}
-
-.plugin-detail-inline {
-  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
-  border-radius: var(--ui-radius-lg);
-  background: var(--surface);
-  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
 }
 
 /* 批量工具条统一错题库和知识库的多选、删除和导出操作，避免列表页重复布局代码。 */
@@ -2511,24 +2309,6 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   outline: none;
 }
 
-/* AI 辅导实时课堂使用三栏工作台：视角、老师对话、课堂笔记在桌面端并排，移动端自然堆叠。 */
-.tutoring-live-grid {
-  display: grid;
-  grid-template-columns: minmax(18rem, 0.9fr) minmax(24rem, 1.25fr) minmax(18rem, 0.85fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-/* 辅导预览区固定比例，避免摄像头、屏幕共享和截图上传切换时页面跳动。 */
-.tutoring-preview {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
-  border-radius: var(--ui-radius-lg);
-  background: var(--surface-muted);
-}
-
 @media (max-width: 1280px) {
   .ui-stat-grid,
   .ui-card-grid {
@@ -2536,10 +2316,6 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
   }
 
   .ui-content-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .tutoring-live-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

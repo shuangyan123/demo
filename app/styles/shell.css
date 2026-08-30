@@ -164,7 +164,7 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   flex: 1 1 auto;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-color: var(--settings-scrollbar-thumb) transparent;
+  scrollbar-color: var(--settings-scrollbar-thumb) var(--settings-scrollbar-track);
   scrollbar-width: thin;
 }
 
@@ -173,7 +173,7 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 }
 
 .workspace-sidebar-scroll::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--settings-scrollbar-track);
 }
 
 .workspace-sidebar-scroll::-webkit-scrollbar-thumb {
