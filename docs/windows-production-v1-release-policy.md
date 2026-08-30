@@ -4,7 +4,9 @@
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
 blocker 的事实源。它不修改既有 M3/M4 历史证据，也不代表 NSIS production
-cutover、最终 tuple、Draft Release pipeline 或 Level 3 acceptance 已完成。
+cutover、最终 tuple、完整的 exact-SHA Draft round-trip pipeline 或 Level 3
+acceptance 已完成。当前 workflow 的 final-byte hash/manifest 生成和 Draft
+上传只属于部分实现，不得写成完整 pipeline 已完成。
 
 ## Canonical product decision
 
@@ -72,6 +74,11 @@ Unsigned 不降低 SEC-04。Production-v1 必须保留：
 candidate-only。本政策不改变两条路径，也不关闭 Squirrel -> NSIS production
 cutover blocker。
 
+当前 production/default release path 仍是 Squirrel；NSIS 只有在独立的 future
+production cutover 完成后才可成为 production path。当前 package/runtime
+baseline 为 `0.2.4` / Electron `43.4.1`；首个 NSIS production target 仍规划为
+`0.3.0`。
+
 ## Unsigned artifact contract
 
 ### Expected
@@ -96,16 +103,20 @@ cutover blocker。
 
 SHA-256 是 production-v1 的关键完整性控制。最终实现必须按此顺序执行：
 
-1. 从 exact authorized SHA 构建最终 installer bytes；
-2. 确认 installer 符合 expected unsigned state；
-3. 对最终 bytes 计算 SHA-256；
-4. 生成 `SHA256SUMS.txt`；
-5. 将 installer、checksum、source SHA 和 release tag 绑定；
-6. 创建 Draft Release，不自动发布；
-7. 重新下载 Draft Release installer；
-8. 重新计算 SHA-256；
-9. hash/bytes 完全一致后才允许 operator publication；
-10. published asset 不得替换，并在发布后再次下载验证。
+现有 workflow 的 final-byte hash/manifest 生成、exact-SHA artifact 命名和 Draft
+上传只部分满足这些要求；它尚未完成上传后 round-trip 或最终 tuple reconciliation。
+完整 future pipeline 必须：
+
+1. bind authorized source commit；
+2. bind intended source/tag/release tuple；
+3. build final installer；
+4. hash the FINAL artifact bytes；
+5. publish Draft artifact and `SHA256SUMS.txt` manifest；
+6. re-download the uploaded Draft artifact；
+7. re-hash the downloaded bytes；
+8. compare against the recorded final SHA-256；
+9. verify source/tag/artifact tuple reconciliation before operator publication and
+   again after publication；published assets must not be silently replaced。
 
 不得先验收一组 bytes，再用同一 tag/checksum 静默替换 installer。
 
@@ -139,15 +150,14 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 
 ## Remaining M5 production blockers
 
-1. first suitable stable electron-builder release containing upstream #10051；
-2. controlled builder upgrade and regression validation；
-3. Squirrel -> NSIS production cutover；
-4. final production tuple freeze；
-5. unsigned artifact/checksum provenance contracts；
-6. final exact-SHA Draft Release pipeline；
-7. final Level 3 Windows acceptance；
-8. GitHub Actions quota availability for required CI/release evidence；
-9. release/rollback/operator runbook。
+1. GitHub Actions execution availability for required CI/release evidence；
+2. first suitable stable electron-builder release containing upstream #10051；
+3. controlled builder upgrade and regression validation；
+4. Squirrel -> NSIS production cutover；
+5. final `0.3.0` source/package/installer tuple freeze；
+6. complete exact-SHA Draft Release round-trip pipeline；
+7. final Level 3 Windows acceptance on the exact final artifact；
+8. release/rollback/operator runbook。
 
 Electron 保持已接受的 `43.4.1`，除非出现具体 security/compatibility 原因。
 electron-builder `26.15.3` 不是最终 M5 tuple；不得用缺少 #10051 的 `26.15.7`
@@ -176,7 +186,7 @@ mismatch、userData/credential loss、需要 credential re-entry、owned process
 M5-B wait for stable electron-builder containing #10051
   -> M5-C controlled builder upgrade and regression validation
   -> M5-D NSIS production cutover
-  -> M5-E unsigned artifact contracts and checksum provenance
+  -> M5-E finalize unsigned artifact contracts and checksum provenance
   -> M5-F freeze 0.3.0 production tuple
   -> M5-G exact-SHA Draft Release pipeline
   -> M5-H final Level 3 real-Windows replay

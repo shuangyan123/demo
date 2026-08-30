@@ -276,14 +276,16 @@ test("SEC-04 documentation records completed platform acceptance with residual r
   assert.equal(existsSync(legacyWorkflowUrl), false);
   assert.match(releaseAuthorization, /SEC-04: PASS WITH RESIDUAL RISK/);
   assert.match(releaseAuthorization, /workflow ID `323491496`/);
-  assert.match(releaseAuthorization, /disabled_manually/);
+  assert.match(releaseAuthorization, /Historical platform evidence[\s\S]*`disabled_manually`/);
+  assert.match(releaseAuthorization, /Current repository\/API state[\s\S]*`deleted`/);
+  assert.doesNotMatch(releaseAuthorization, /disabled_manually` is the current live state/i);
   assert.match(releaseAuthorization, /TRUSTED TO PUBLISH/);
   assert.match(releaseAuthorization, /TRUSTED DELEGATED TOOLING/);
   assert.match(releaseAuthorization, /main\.protected=false/);
   assert.match(releaseAuthorization, /rulesets are unavailable on the current private plan/i);
   assert.match(releaseAuthorization, /GitHub App installation inventory is incomplete/i);
   assert.match(releaseAuthorization, /future untrusted writer[\s\S]*SEC-04 must be reassessed/i);
-  assert.match(releaseAuthorization, /current-tree[\s\S]*not the sole proof/i);
+  assert.match(releaseAuthorization, /historical[\s\S]*current deletion[\s\S]*separate facts/i);
   assert.doesNotMatch(releaseAuthorization, /PLATFORM CONTROL PENDING/);
   assert.doesNotMatch(releaseAuthorization, /SEC-04 REMEDIATION PARTIAL/);
   assert.doesNotMatch(releaseAuthorization, /legacy Desktop Release workflow is still active/i);

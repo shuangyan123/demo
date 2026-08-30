@@ -4,7 +4,7 @@
 
 - Established `PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED`; certificate procurement, signing providers, Authenticode, RFC3161 timestamping, publisher identity, signing-key rotation and SmartScreen reputation are no longer M5 production-v1 blockers.
 - Retained every SEC-04 release-provenance control and defined the production-v1 security model as trusted source provenance plus exact artifact SHA-256, including checksum-after-final-bytes and Draft Release re-download verification requirements.
-- Recorded Unknown Publisher/SmartScreen warnings and no auto-updater as accepted product residuals, preserved all historical `0.2.x` M3/M4 evidence, and left builder upgrade, NSIS production cutover, `0.3.0`, exact-SHA Draft pipeline and Level 3 Windows acceptance unimplemented.
+- Recorded Unknown Publisher/SmartScreen warnings and no auto-updater as accepted product residuals, preserved all historical `0.2.x` M3/M4 evidence, and left builder upgrade, NSIS production cutover, `0.3.0`, the complete exact-SHA Draft round-trip pipeline, and Level 3 Windows acceptance unimplemented. Existing final-byte hash/manifest generation is only partial fulfillment of that pipeline.
 
 ## 2026-08-20 — 0.8 Squirrel no-remote-icon bridge acceptance closure
 

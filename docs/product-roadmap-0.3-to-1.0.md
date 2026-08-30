@@ -456,7 +456,7 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 - 稳定 Windows x64 安装、覆盖升级、卸载和发布证据。
 - 明确安装器、SHA-256、版本、提交和 CI 的可追溯关系。
-- 按 [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md) 固定 intentionally unsigned、accepted Unknown Publisher/SmartScreen residual 与 exact-artifact SHA-256 security boundary；代码签名和 publisher identity 延后到独立未来里程碑。
+- 按 [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md) 固定 intentionally unsigned、accepted Unknown Publisher/SmartScreen residual 与 exact-artifact SHA-256 security boundary；当前 final-byte hash/manifest 生成仅是部分实现，完整 exact-SHA Draft round-trip 仍是 M5 blocker；代码签名和 publisher identity 延后到独立未来里程碑。
 
 ### 非目标
 
@@ -468,7 +468,7 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 状态：**COMPLETE（2026-08-14）**；`0.8 overall` 仍为 **IN PROGRESS**。
 
-- 已审计当前 Electron `43.2.0`、Forge `7.11.2`、`MakerSquirrel` `7.11.2`、`electron-winstaller` `5.4.4` 和 Squirrel vendor runtime `2.0.1+eef37460ae`；确认 `review_workspace` package identity、Windows x64 输出、Setup/full nupkg/`RELEASES` 形状和现有 Windows release workflow。
+- 2026-08-14 historical audit snapshot recorded Electron `43.2.0`、Forge `7.11.2`、`MakerSquirrel` `7.11.2`、`electron-winstaller` `5.4.4` and Squirrel vendor runtime `2.0.1+eef37460ae`; it confirmed `review_workspace` package identity, Windows x64 output, Setup/full nupkg/`RELEASES` shape and the then-documented Windows release workflow. Current main uses Electron `43.4.1`; this historical evidence is intentionally preserved.
 - 已建立 binary install root 与 Electron `userData` 的独立 ownership contract：预期分别为 `%LOCALAPPDATA%\\review_workspace\\` 与 `%APPDATA%\\错题复盘\\`；覆盖升级不自动清理 userData，卸载清理未实现且必须由未来产品语义和用户授权决定。
 - 已建立 lifecycle contract：四类 Squirrel install/update/uninstall invocation 在 single-instance lock 和 BrowserWindow 前 early quit，`--squirrel-firstrun` 保持正常应用启动；新增直接行为 contract 与 package/release identity contract。
 - 已吸收 clean first-install PASS 和 repeated same-version Setup file-lock diagnostic；后者不扩展为同版本 reinstall 安全保证，也不触发 GPU、sandbox、Update.exe 或 shortcut workaround。
