@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { AppIcon } from "../shared/app-icon";
+import { INTERACTIVE_OVERLAY_OPEN_EVENT } from "../shared/ui-overlay-events";
+import { UiHint } from "../shared/ui-tooltip";
+import { computeUiOverlayPosition } from "../shared/ui-overlay-position";
 import type { ConversationTopic } from "./use-conversation-navigation";
 
 type ConversationTopicNavigationProps = {
@@ -11,7 +15,7 @@ type ConversationTopicNavigationProps = {
   topics: ConversationTopic[];
 };
 
-type TopicPreview = { topic: ConversationTopic; left: number; top: number };
+type TopicPreview = { anchor: HTMLButtonElement; topic: ConversationTopic };
 
 function topicAccessibleName(topic: ConversationTopic, latest: boolean): string {
   return `${latest ? "最新主题，" : ""}主题 ${topic.ordinal}：${topic.label}${topic.summary ? `。摘要：${topic.summary}` : ""}${topic.attachments.length ? `。${topic.attachments.length} 个附件` : ""}`;
@@ -58,9 +62,34 @@ function TopicList({ drawer = false, onPreview, onSelect, topics }: {
 }
 
 function TopicPreviewCard({ preview }: { preview: TopicPreview }) {
+  const cardRef = useRef<HTMLElement | null>(null);
+  const [position, setPosition] = useState({ left: 0, top: 0, visible: false });
   const visibleAttachments = preview.topic.attachments.slice(0, 2);
-  return (
-    <aside className="conversation-topic-preview" style={{ left: preview.left, top: preview.top }} role="tooltip">
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const update = () => setPosition({
+      ...computeUiOverlayPosition({
+        anchor: preview.anchor.getBoundingClientRect(),
+        overlay: card.getBoundingClientRect(),
+        placement: "right",
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+        gap: 10,
+      }),
+      visible: true,
+    });
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [preview]);
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <aside ref={cardRef} className="conversation-topic-preview" style={{ left: position.left, top: position.top, visibility: position.visible ? "visible" : "hidden" }} role="tooltip">
       <strong>{preview.topic.ordinal}. {preview.topic.label}</strong>
       {preview.topic.summary ? <p>{preview.topic.summary}</p> : null}
       {visibleAttachments.length ? (
@@ -69,7 +98,8 @@ function TopicPreviewCard({ preview }: { preview: TopicPreview }) {
           {preview.topic.attachments.length > 2 ? <em>+{preview.topic.attachments.length - 2}</em> : null}
         </div>
       ) : null}
-    </aside>
+    </aside>,
+    document.body,
   );
 }
 
@@ -79,29 +109,49 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
   const previewTimerRef = useRef<number | undefined>(undefined);
   const [preview, setPreview] = useState<TopicPreview>();
 
-  function showPreview(topic: ConversationTopic, target: HTMLButtonElement, delay = 180) {
-    if (previewTimerRef.current !== undefined) window.clearTimeout(previewTimerRef.current);
-    const rect = target.getBoundingClientRect();
+  const clearPreviewTimer = useCallback(() => {
+    if (previewTimerRef.current === undefined) return;
+    window.clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = undefined;
+  }, []);
+
+  const closePreview = useCallback(() => {
+    clearPreviewTimer();
+    setPreview(undefined);
+  }, [clearPreviewTimer]);
+
+  const showPreview = useCallback((topic: ConversationTopic, target: HTMLButtonElement, delay = 180) => {
+    clearPreviewTimer();
+    if (delay <= 0) {
+      setPreview({ anchor: target, topic });
+      return;
+    }
     previewTimerRef.current = window.setTimeout(() => {
-      const cardHalfHeight = 86;
-      setPreview({
-        topic,
-        left: Math.min(window.innerWidth - 500, rect.right + 10),
-        top: Math.max(cardHalfHeight + 12, Math.min(window.innerHeight - cardHalfHeight - 12, rect.top + rect.height / 2)),
-      });
+      previewTimerRef.current = undefined;
+      setPreview({ anchor: target, topic });
     }, delay);
-  }
+  }, [clearPreviewTimer]);
 
   useEffect(() => {
-    const close = () => setPreview(undefined);
-    window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", closePreview);
+    window.addEventListener("scroll", closePreview, true);
+    window.addEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, closePreview);
     return () => {
-      window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
-      if (previewTimerRef.current !== undefined) window.clearTimeout(previewTimerRef.current);
+      window.removeEventListener("resize", closePreview);
+      window.removeEventListener("scroll", closePreview, true);
+      window.removeEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, closePreview);
+      clearPreviewTimer();
     };
-  }, []);
+  }, [clearPreviewTimer, closePreview]);
+
+  useEffect(() => {
+    if (!preview) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closePreview();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [closePreview, preview]);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -138,8 +188,14 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
   if (!topics.length) return null;
   return (
     <>
-      <aside className="conversation-topic-rail" onMouseLeave={() => setPreview(undefined)}>
-        <TopicList topics={topics} onSelect={onSelect} onPreview={(topic, target, immediate) => showPreview(topic, target, immediate ? 0 : 180)} />
+      <aside
+        className="conversation-topic-rail"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closePreview();
+        }}
+        onMouseLeave={closePreview}
+      >
+        <TopicList topics={topics} onSelect={(turnId) => { closePreview(); onSelect(turnId); }} onPreview={(topic, target, immediate) => showPreview(topic, target, immediate ? 0 : 180)} />
       </aside>
       {preview ? <TopicPreviewCard preview={preview} /> : null}
       {drawerOpen ? (
@@ -149,9 +205,10 @@ export function ConversationTopicNavigation({ drawerOpen, onCloseDrawer, onSelec
           <section ref={drawerRef} className="conversation-topic-drawer" role="dialog" aria-modal="true" aria-labelledby="conversation-topic-title">
             <header>
               <div><AppIcon name="topics" size={18} /><h2 id="conversation-topic-title">主题目录</h2><span>{topics.length}</span></div>
-              <button type="button" aria-label="关闭主题目录" title="关闭" onClick={onCloseDrawer}><AppIcon name="close" size={18} /></button>
+              <UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭主题目录" onClick={onCloseDrawer}><AppIcon name="close" size={18} /></button>}</UiHint>
             </header>
             <TopicList drawer topics={topics} onSelect={(turnId) => {
+              closePreview();
               onSelect(turnId);
               onCloseDrawer();
             }} />

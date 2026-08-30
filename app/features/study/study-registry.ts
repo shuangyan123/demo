@@ -85,7 +85,7 @@ const allCivilServiceStudyModules = [
   },
 ] satisfies StudyModuleDefinition[];
 
-export const civilServiceStudyModules = allCivilServiceStudyModules.filter((module) => !(["knowledge", "stats", "tutoring"] as ViewKey[]).includes(module.id));
+export const civilServiceStudyModules = allCivilServiceStudyModules.filter((module) => !(["import", "knowledge", "stats", "tutoring"] as ViewKey[]).includes(module.id));
 
 /** 专项学习项目注册表；后续新增专项只需要注册新的 domain。 */
 export const studyDomainDefinitions: StudyDomainDefinition[] = [

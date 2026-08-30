@@ -41,7 +41,7 @@ type SettingsPluginsViewProps = {
   appearanceSettings: AppearanceSettings;
   entries: KnowledgeEntry[];
   developmentExample?: string;
-  initialPluginId?: SettingsPluginId;
+  initialPluginId?: SettingsPluginId; initialMode?: "manage" | "browse";
   importJobs: ImportJob[];
   knowledgeDrafts: KnowledgeImportDraft[];
   mistakes: Mistake[];
@@ -84,7 +84,7 @@ function PluginGlyph({ item }: { item: PluginDirectoryItem }) {
 export function SettingsPluginsView(props: SettingsPluginsViewProps) {
   const preferences = useSettingsPluginPreferences();
   const [installed, setInstalled] = useState<InstalledExtensionRecord[]>([]);
-  const [active, setActive] = useState<ActivePlugin | undefined>(() => props.initialPluginId ? { kind: "plugin", id: props.initialPluginId } : undefined);
+  const [active, setActive] = useState<ActivePlugin | undefined>(() => props.initialPluginId ? { kind: "plugin", id: props.initialPluginId } : props.initialMode === "browse" ? { kind: "browse" } : undefined);
   const [menuId, setMenuId] = useState<string>();
   const [busyId, setBusyId] = useState<string>();
   const detailRef = useRef<HTMLElement | null>(null);
@@ -310,9 +310,9 @@ export function SettingsPluginsView(props: SettingsPluginsViewProps) {
   }
 
   return (
-    <section className={styles.workspace} aria-label="插件管理">
+    <section className={styles.workspace} aria-label="已安装插件管理">
       <header className={styles.header}>
-        <div><h1>插件</h1><p>启用需要的本地集成，或管理已经安装的声明式扩展。</p></div>
+        <div><h1>已安装插件</h1><p>管理启用状态、权限、设置和已安装的声明式扩展。</p></div>
         <Button variant="outline" onClick={() => setActive({ kind: "browse" })}><AppIcon name="plugins" size={16} />插件市场</Button>
       </header>
       <div className={styles.list} role="list">

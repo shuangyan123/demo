@@ -71,13 +71,20 @@ export function ReviewWorkspaceAppSidebar({
   ];
 
   return (
-    <>
-      <nav className="grid gap-px" aria-label="工作台快捷入口">
+    <div className="workspace-sidebar-shell app-sidebar-shell" data-sidebar-kind="application">
+      <header className="workspace-sidebar-header">
+        <div className="workspace-sidebar-brand">
+          <strong>错题复盘</strong>
+          <span>本地学习工作台</span>
+        </div>
+      </header>
+
+      <nav className="workspace-sidebar-primary-nav" aria-label="工作台快捷入口">
         {topActions.map((item) => (
           <button
             key={item.id}
             data-mobile-sidebar-close="true"
-            className={`grid min-h-8 grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-md px-2.5 text-left text-[0.8rem] font-medium max-lg:min-h-11 max-lg:px-3 ${item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"}`}
+            className={`grid min-h-8 grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2.5 text-left text-[0.8rem] font-medium max-lg:min-h-11 max-lg:px-3 ${item.active ? "bg-chrome-selected" : "hover:bg-chrome-hover"}`}
             type="button"
             onClick={item.onClick}
             onFocus={() => preloadReviewView(item.preload)}
@@ -90,78 +97,69 @@ export function ReviewWorkspaceAppSidebar({
         ))}
       </nav>
 
-      <button
-        data-mobile-sidebar-close="true"
-        className="hidden min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-md px-2.5 text-left text-[0.8rem] font-medium hover:bg-chrome-hover max-lg:min-h-11 max-lg:grid max-lg:px-3"
-        type="button"
-        onClick={onOpenSettings}
-        onFocus={() => preloadReviewView("settings")}
-        onMouseEnter={() => preloadReviewView("settings")}
-      >
-        <AppIcon name="settings" size={16} />
-        <span>设置</span>
-      </button>
-
-      <section className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1" aria-label="项目和对话">
-        <div className="mb-1 flex items-center justify-between gap-2 px-2.5">
-          <p className="text-xs font-medium text-muted">项目</p>
-          <span className="text-[11px] text-muted">专项学习</span>
-        </div>
-        <details className="group rounded-md bg-chrome-selected/60 p-0.5">
-          <summary className={`grid min-h-8 cursor-pointer list-none grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-md px-2 text-left text-[0.8rem] font-semibold max-lg:min-h-11 [&::-webkit-details-marker]:hidden ${projectActive ? "bg-surface text-foreground shadow-sm" : "hover:bg-chrome-hover"}`}>
-            <AppIcon name="project" size={16} />
-            <span className="truncate">{civilServiceDomain.label}</span>
-            <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
-          </summary>
-          <div className="grid gap-px pl-2">
-            <details className="group/modules">
-              <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-md px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover max-lg:min-h-11 [&::-webkit-details-marker]:hidden">
-                <span>模块</span><span className="transition group-open/modules:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
-              </summary>
-              <div className="grid gap-px pl-1">
-                {civilServiceDomain.modules.map((module) => (
-                  <button
-                    key={module.id}
-                    data-mobile-sidebar-close="true"
-                    className={`grid min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-md px-2 text-left text-[0.8rem] max-lg:min-h-11 ${view === module.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:bg-chrome-hover hover:text-foreground"}`}
-                    type="button"
-                    title={module.description}
-                    onClick={() => onSelectView(module.id)}
-                    onFocus={() => preloadReviewView(module.id)}
-                    onMouseEnter={() => preloadReviewView(module.id)}
-                  >
-                    <AppIcon name={module.icon as ReviewNavIconName} size={16} />
-                    <span className="truncate">{module.label}</span>
-                  </button>
-                ))}
-              </div>
-            </details>
+      <div className="workspace-sidebar-scroll" data-sidebar-scroll-region="true">
+        <section className="workspace-sidebar-section" aria-label="项目和对话">
+          <div className="workspace-sidebar-section-heading">
+            <span>项目</span>
+            <span>专项学习</span>
           </div>
-        </details>
+          <details className="workspace-project-group group rounded-[var(--ui-radius-row)] p-0.5" data-project-selected={projectActive ? "true" : undefined}>
+            <summary aria-current={projectActive ? "true" : undefined} className={`workspace-project-row grid min-h-8 cursor-pointer list-none grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2 text-left text-[0.8rem] font-semibold max-lg:min-h-11 [&::-webkit-details-marker]:hidden ${projectActive ? "is-selected text-foreground" : "text-muted"}`}>
+              <AppIcon name="project" size={16} />
+              <span className="truncate">{civilServiceDomain.label}</span>
+              <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
+            </summary>
+            <div className="grid gap-px pl-2">
+              <details className="group/modules">
+                <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-[var(--ui-radius-row)] px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover max-lg:min-h-11 [&::-webkit-details-marker]:hidden">
+                  <span>模块</span><span className="transition group-open/modules:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
+                </summary>
+                <div className="grid gap-px pl-1">
+                  {civilServiceDomain.modules.map((module) => (
+                    <button
+                      key={module.id}
+                      data-mobile-sidebar-close="true"
+                      className={`grid min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2 text-left text-[0.8rem] max-lg:min-h-11 ${view === module.id ? "bg-surface text-foreground" : "text-muted hover:bg-chrome-hover hover:text-foreground"}`}
+                      type="button"
+                      title={module.description}
+                      onClick={() => onSelectView(module.id)}
+                      onFocus={() => preloadReviewView(module.id)}
+                      onMouseEnter={() => preloadReviewView(module.id)}
+                    >
+                      <AppIcon name={module.icon as ReviewNavIconName} size={16} />
+                      <span className="truncate">{module.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </details>
+            </div>
+          </details>
+          <ConversationFolderTree
+            activeConversationId={activeConversationId}
+            conversations={conversations}
+            folders={folders}
+            projectId={civilServiceDomain.id}
+            onConversationSelected={onOpenConversation}
+            onNotice={onNotice}
+            onRefresh={onRefreshConversations}
+          />
+        </section>
+      </div>
 
-        <ConversationFolderTree
-          activeConversationId={activeConversationId}
-          conversations={conversations}
-          folders={folders}
-          projectId={civilServiceDomain.id}
-          onConversationSelected={onOpenConversation}
-          onNotice={onNotice}
-          onRefresh={onRefreshConversations}
-        />
-      </section>
-
-      {footer}
-      <button
-        data-mobile-sidebar-close="true"
-        className="relative z-40 mt-1 grid min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-md px-2.5 text-left text-[0.8rem] font-medium hover:bg-chrome-hover max-lg:hidden"
-        type="button"
-        onClick={onOpenSettings}
-        onFocus={() => preloadReviewView("settings")}
-        onMouseEnter={() => preloadReviewView("settings")}
-      >
-        <AppIcon name="settings" size={16} />
-        <span>设置</span>
-      </button>
-    </>
+      <footer className="workspace-sidebar-footer" aria-label="工作台辅助操作">
+        {footer}
+        <button
+          data-mobile-sidebar-close="true"
+          className="grid min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2.5 text-left text-[0.8rem] font-medium hover:bg-chrome-hover max-lg:min-h-11 max-lg:px-3"
+          type="button"
+          onClick={onOpenSettings}
+          onFocus={() => preloadReviewView("settings")}
+          onMouseEnter={() => preloadReviewView("settings")}
+        >
+          <AppIcon name="settings" size={16} />
+          <span>设置</span>
+        </button>
+      </footer>
+    </div>
   );
 }

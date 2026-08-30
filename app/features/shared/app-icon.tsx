@@ -1,5 +1,5 @@
 import {
-  Activity, ArrowLeft, Ban, Blocks, BookOpen, Bot, Brain, CalendarClock, CalendarDays, Camera, ChartNoAxesColumnIncreasing,
+  Activity, ArrowLeft, AudioLines, Ban, Blocks, BookOpen, Bot, Brain, CalendarClock, CalendarDays, Camera, ChartNoAxesColumnIncreasing,
   Check, ChevronDown, ChevronRight, ClipboardCheck, Clock3, FileInput, FilePenLine, Folder,
   FolderOpen, FolderPlus, GripVertical, LayoutDashboard, Library, MessageSquare, MessagesSquare, Mic, Monitor,
   ArrowDown, CircleAlert, Copy, Download, ExternalLink, Info, ListTree, Moon, MoreHorizontal, Paperclip, Phone, Play, Plus, RefreshCw, RotateCcw, Save, ScanLine, Search, Send, Settings, Settings2, Square, Upload, Undo2,
@@ -11,7 +11,7 @@ export type AppIconName =
   | "activity" | "appearance" | "automation" | "back" | "blocks" | "board" | "bot" | "camera" | "configuration"
   | "dashboard" | "dark" | "diagnostics" | "drag" | "entry" | "folder" | "folderOpen" | "import"
   | "interview" | "knowledge" | "knowledgeTraining" | "library" | "light" | "mcp" | "message"
-  | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins"
+  | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins" | "voice"
   | "project" | "review" | "scheduled" | "screenshot" | "search" | "send" | "settings" | "slash" | "sparkles"
   | "sidebar" | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "edit" | "folderPlus"
   | "refresh" | "warning" | "configure" | "copy" | "trash" | "down" | "topics" | "calendar" | "info"
@@ -24,7 +24,7 @@ const icons: Record<AppIconName, LucideIcon> = {
   import: FileInput, interview: MessagesSquare, knowledge: BookOpen, knowledgeTraining: Brain, library: Library,
   light: Sun, mcp: Blocks, message: MessageSquare, mic: Mic, more: MoreHorizontal, motion: Activity,
   newChat: Plus, none: Ban, paperclip: Paperclip, phone: Phone, personalization: UserRoundPlus, plugins: Blocks,
-  project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings,
+  project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings, voice: AudioLines,
   sidebar: PanelLeft, slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
   tutoring: Bot, check: Check, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, edit: FilePenLine, folderPlus: FolderPlus,
   refresh: RefreshCw, warning: CircleAlert, configure: Settings2, copy: Copy, trash: Trash2, down: ArrowDown, topics: ListTree,

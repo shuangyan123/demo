@@ -130,13 +130,14 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("桌面新对话使用抬升面边界且空白提示靠近底部输入框", async ({ page }, testInfo) => {
+test("桌面新对话使用 plain canvas 且空白提示靠近底部输入框", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
   await page.getByRole("button", { name: "新对话", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "从一个问题开始" })).toBeVisible();
   await expect(page.getByText("发送首条消息后才会创建对话")).toBeVisible();
+  await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "plain");
   const boundary = await page.locator(".chrome-content-frame").evaluate((frame) => {
     const main = frame.querySelector<HTMLElement>(".chrome-content")!;
     const frameStyle = getComputedStyle(frame);
@@ -155,14 +156,14 @@ test("桌面新对话使用抬升面边界且空白提示靠近底部输入框",
     };
   });
   expect(boundary.paddingLeft).toBe("0px");
-  expect(boundary.radius).toBe("18px");
+  expect(boundary.radius).toBe("0px");
   expect(boundary.bottomRadius).toBe("0px");
   expect(boundary.shadow).toBe("none");
   expect(boundary.backgroundImage).toBe("none");
   expect(boundary.backgroundPosition).toBe("0% 0%");
   expect(boundary.backgroundSize).toBe("auto");
-  expect(boundary.topBorderWidth).toBe("1px");
-  expect(boundary.leftBorderWidth).toBe("1px");
+  expect(boundary.topBorderWidth).toBe("0px");
+  expect(boundary.leftBorderWidth).toBe("0px");
   expect(boundary.bottomBorderWidth).toBe("0px");
 
   const contentFit = await page.locator(".chrome-content").evaluate((main) => {

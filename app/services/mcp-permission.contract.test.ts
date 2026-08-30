@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decideMcpToolPermission, normalizeMcpPersistedPermission } from "./mcp-permission.ts";
+import { decideMcpToolPermission, normalizeMcpPersistedPermission, summarizeMcpPermission } from "./mcp-permission.ts";
 import { executeMcpTool } from "./mcp-execution.ts";
 import { clearAllMcpSessionPermissionsForTest, clearMcpSessionPermissions, grantMcpSessionPermission, hasMcpSessionPermission, retainMcpSessionPermissions, revokeMcpSessionPermission } from "./mcp-session-permission-store.ts";
 
@@ -25,6 +25,32 @@ test("legacy persisted allow_session is a conservative ask policy", () => {
   assert.equal(normalizeMcpPersistedPermission("unexpected"), "ask");
   assert.equal(normalizeMcpPersistedPermission("deny"), "deny");
   assert.equal(normalizeMcpPersistedPermission("allow_scheduled"), "allow_scheduled");
+});
+
+test("Composer 权限摘要只投影真实 MCP 工具策略，不伪造完全访问等级", () => {
+  const base = { profiles: [{ id: "server-a" }], discovery: {} };
+  assert.equal(summarizeMcpPermission({ profiles: [], discovery: {} }), "未配置");
+  assert.equal(summarizeMcpPermission(base), "未发现工具");
+  assert.equal(summarizeMcpPermission({
+    profiles: base.profiles,
+    discovery: { "server-a": { toolDescriptors: [{ permission: "ask" }, { permission: "ask" }] } },
+  }), "每次询问");
+  assert.equal(summarizeMcpPermission({
+    profiles: base.profiles,
+    discovery: { "server-a": { toolDescriptors: [{ permission: "allow_session" }] } },
+  }), "本次会话允许");
+  assert.equal(summarizeMcpPermission({
+    profiles: base.profiles,
+    discovery: { "server-a": { toolDescriptors: [{ permission: "allow_scheduled" }] } },
+  }), "允许已安排任务");
+  assert.equal(summarizeMcpPermission({
+    profiles: base.profiles,
+    discovery: { "server-a": { toolDescriptors: [{ permission: "deny" }] } },
+  }), "禁止");
+  assert.equal(summarizeMcpPermission({
+    profiles: base.profiles,
+    discovery: { "server-a": { toolDescriptors: [{ permission: "ask" }, { permission: "deny" }] } },
+  }), "按工具设置");
 });
 
 test("session grants are exact server/tool pairs and can be revoked", () => {

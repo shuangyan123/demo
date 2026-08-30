@@ -1,10 +1,10 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
-  useCallback,
   useRef,
   useState,
   type FocusEvent,
@@ -12,6 +12,8 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { computeUiOverlayPosition, type UiOverlayPlacement } from "./ui-overlay-position";
+import { INTERACTIVE_OVERLAY_OPEN_EVENT } from "./ui-overlay-events";
 
 type TooltipRenderProps = {
   describedBy: string;
@@ -20,6 +22,14 @@ type TooltipRenderProps = {
 type UiTooltipProps = {
   children: (props: TooltipRenderProps) => ReactNode;
   content: ReactNode;
+  placement?: UiOverlayPlacement | readonly UiOverlayPlacement[];
+};
+
+type UiHintProps = {
+  badge?: string;
+  children: (props: TooltipRenderProps) => ReactNode;
+  label: string;
+  placement?: UiOverlayPlacement | readonly UiOverlayPlacement[];
 };
 
 type TooltipPosition = {
@@ -31,47 +41,49 @@ type TooltipPosition = {
 const VIEWPORT_GUTTER = 8;
 const TOOLTIP_GAP = 8;
 const TOOLTIP_DELAY_MS = 450;
-const MINIMUM_SIDE_SPACE = 200;
+const DEFAULT_TOOLTIP_PLACEMENT = ["right", "left", "top", "bottom"] as const;
 const activeTooltipListeners = new Set<(activeId: string | undefined) => void>();
 let activeTooltipId: string | undefined;
 
-/**
- * 认领当前唯一可见的提示，避免模型列表中的多个提示同时残留。
- * @param id 当前提示标识；省略时关闭全部提示
- */
+/** 认领当前唯一可见的提示，避免连续聚焦或快速扫过列表时残留多个小框。 */
 function setActiveTooltip(id?: string): void {
   activeTooltipId = id;
   activeTooltipListeners.forEach((listener) => listener(id));
 }
 
-/**
- * 判断焦点是否由菜单钻取时的程序化聚焦产生；这类焦点只负责键盘定位，不应遮挡内容。
- * @param event React 焦点事件
- */
+/** 信息卡或交互浮层打开前关闭短提示，确保工作台同一时刻只有一个解释层。 */
+export function dismissUiHints(): void {
+  setActiveTooltip(undefined);
+}
+
+export function UiHintBadge({ children }: { children: string }) {
+  return <kbd className="ui-hint-badge">{children}</kbd>;
+}
+
+/** 菜单钻取时的程序化焦点只负责键盘定位，不应创建遮挡内容的提示。 */
 function isProgrammaticPickerFocus(event: FocusEvent<HTMLDivElement>): boolean {
   return event.target instanceof HTMLElement && event.target.dataset.tooltipProgrammaticFocus === "true";
 }
 
 /**
- * 共享轻量提示：鼠标悬停或用户键盘聚焦延迟显示，程序化聚焦与触屏不会创建遮挡浮层。
- * 无论浮层是否可见，控件都通过 aria-describedby 关联一份屏幕阅读器描述。
+ * 共享短提示（UiHint）：只承载短文本说明；交互内容仍由 UiPopover 负责。
+ * visual overlay 通过 portal 和统一定位器脱离任何 sidebar/canvas 裁剪。
  */
-export function UiTooltip({ children, content }: UiTooltipProps) {
+export function UiTooltip({ children, content, placement = DEFAULT_TOOLTIP_PLACEMENT }: UiTooltipProps) {
   const tooltipId = useId();
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const openTimerRef = useRef<number | undefined>(undefined);
+  const lastPointerTypeRef = useRef<string | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0, visible: false });
 
-  /** 清理尚未触发的延迟提示。 */
   const clearOpenTimer = useCallback((): void => {
     if (openTimerRef.current === undefined) return;
     window.clearTimeout(openTimerRef.current);
     openTimerRef.current = undefined;
   }, []);
 
-  /** 在用户停留足够久后显示提示，减少快速扫过列表时的视觉噪音。 */
   const scheduleOpen = useCallback((): void => {
     clearOpenTimer();
     openTimerRef.current = window.setTimeout(() => {
@@ -81,7 +93,6 @@ export function UiTooltip({ children, content }: UiTooltipProps) {
     }, TOOLTIP_DELAY_MS);
   }, [clearOpenTimer, tooltipId]);
 
-  /** 关闭当前提示，同时释放单例所有权。 */
   const closeTooltip = useCallback((): void => {
     clearOpenTimer();
     setOpen(false);
@@ -102,10 +113,17 @@ export function UiTooltip({ children, content }: UiTooltipProps) {
   }, [clearOpenTimer, tooltipId]);
 
   useEffect(() => {
+    window.addEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, closeTooltip);
+    return () => window.removeEventListener(INTERACTIVE_OVERLAY_OPEN_EVENT, closeTooltip);
+  }, [closeTooltip]);
+
+  useEffect(() => {
     if (!open) return;
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") closeTooltip();
-    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeTooltip();
+    };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [closeTooltip, open]);
@@ -113,43 +131,36 @@ export function UiTooltip({ children, content }: UiTooltipProps) {
   useLayoutEffect(() => {
     if (!open) return;
 
-    /** 将提示固定放在锚点左右侧；空间不足时不显示可视浮层。 */
-    function updatePosition() {
+    const updatePosition = () => {
       const anchor = anchorRef.current;
       const tooltip = tooltipRef.current;
       if (!anchor || !tooltip) return;
-      const anchorRect = anchor.getBoundingClientRect();
-      const tooltipRect = tooltip.getBoundingClientRect();
-      const spaceRight = window.innerWidth - anchorRect.right - TOOLTIP_GAP - VIEWPORT_GUTTER;
-      const spaceLeft = anchorRect.left - TOOLTIP_GAP - VIEWPORT_GUTTER;
-      const canUseRight = spaceRight >= Math.max(MINIMUM_SIDE_SPACE, tooltipRect.width);
-      const canUseLeft = spaceLeft >= Math.max(MINIMUM_SIDE_SPACE, tooltipRect.width);
-      if (!canUseRight && !canUseLeft) {
-        setPosition((current) => ({ ...current, visible: false }));
-        return;
-      }
-      const left = canUseRight
-        ? anchorRect.right + TOOLTIP_GAP
-        : anchorRect.left - tooltipRect.width - TOOLTIP_GAP;
-      const maximumTop = Math.max(VIEWPORT_GUTTER, window.innerHeight - tooltipRect.height - VIEWPORT_GUTTER);
-      const top = Math.min(
-        maximumTop,
-        Math.max(VIEWPORT_GUTTER, anchorRect.top + (anchorRect.height - tooltipRect.height) / 2),
-      );
-      setPosition({ left, top, visible: true });
-    }
+      const next = computeUiOverlayPosition({
+        anchor: anchor.getBoundingClientRect(),
+        overlay: tooltip.getBoundingClientRect(),
+        placement,
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+        gap: TOOLTIP_GAP,
+        gutter: VIEWPORT_GUTTER,
+      });
+      setPosition({ ...next, visible: true });
+    };
 
     updatePosition();
+    const observer = new ResizeObserver(updatePosition);
+    if (tooltipRef.current) observer.observe(tooltipRef.current);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [content, open]);
+  }, [content, open, placement]);
 
-  /** 只响应鼠标或触控笔悬停；触屏点击必须直接完成选择。 */
   function handlePointerEnter(event: PointerEvent<HTMLDivElement>): void {
+    lastPointerTypeRef.current = event.pointerType;
     if (event.pointerType === "touch") return;
     scheduleOpen();
   }
@@ -161,10 +172,17 @@ export function UiTooltip({ children, content }: UiTooltipProps) {
       onPointerEnter={handlePointerEnter}
       onPointerLeave={closeTooltip}
       onPointerDown={(event) => {
-        if (event.pointerType === "touch") closeTooltip();
+        lastPointerTypeRef.current = event.pointerType;
+        closeTooltip();
       }}
+      onKeyDownCapture={() => { lastPointerTypeRef.current = undefined; }}
       onFocusCapture={(event) => {
-        if (!isProgrammaticPickerFocus(event)) scheduleOpen();
+        if (isProgrammaticPickerFocus(event)) return;
+        if (lastPointerTypeRef.current) {
+          lastPointerTypeRef.current = undefined;
+          return;
+        }
+        scheduleOpen();
       }}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeTooltip();
@@ -187,5 +205,17 @@ export function UiTooltip({ children, content }: UiTooltipProps) {
           )
         : null}
     </div>
+  );
+}
+
+/** 新代码使用明确的短文本/快捷键接口；UiTooltip 只为已有富文本描述保留兼容出口。 */
+export function UiHint({ badge, children, label, placement }: UiHintProps) {
+  return (
+    <UiTooltip
+      content={<><span className="ui-hint-label">{label}</span>{badge ? <UiHintBadge>{badge}</UiHintBadge> : null}</>}
+      placement={placement}
+    >
+      {children}
+    </UiTooltip>
   );
 }

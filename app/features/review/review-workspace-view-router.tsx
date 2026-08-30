@@ -2,15 +2,18 @@
 
 import dynamic from "next/dynamic";
 import { CommandSearchPalette } from "../conversation/command-search-palette";
-import { SettingsWorkspaceSidebar } from "../settings/settings-workspace-navigation";
+import { useSettingsPluginPreferences } from "../settings/plugins/use-settings-plugin-preferences.ts";
+import { Button } from "../shared/ui-primitives";
 import type { SampleScenarioId } from "../shared/sample-scenario-registry";
 import { ReviewWorkspaceCoreViews } from "./review-workspace-core-views";
-import { SettingsWorkspace } from "./review-workspace-lazy-views";
+import { ImportWorkspace, SettingsPluginsView, SettingsWorkspace } from "./review-workspace-lazy-views";
 import { ReviewWorkspaceSecondaryViews } from "./review-workspace-secondary-views";
 import { ReviewWorkspaceShell } from "./review-workspace-shell";
 import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 
 const SampleScenarioControls = dynamic(() => import("../shared/sample-scenario-controls").then((module) => module.SampleScenarioControls));
+const SettingsWorkspaceSidebar = dynamic(() => import("../settings/settings-workspace-navigation").then((module) => module.SettingsWorkspaceSidebar));
+const ProfileUsageSettingsView = dynamic(() => import("../settings/profile-usage-settings-view").then((module) => module.ProfileUsageSettingsView));
 
 /** 装配设置、工作台壳层和当前视图；不读取 repository 或持有业务状态。 */
 export function ReviewWorkspaceViewRouter({
@@ -33,6 +36,7 @@ export function ReviewWorkspaceViewRouter({
   onLoadSample: (scenarioId: SampleScenarioId) => Promise<void>;
 }) {
   const { automation, conversation, workspace } = controller;
+  const pluginPreferences = useSettingsPluginPreferences();
 
   if (workspace.loading) {
     return (
@@ -68,16 +72,14 @@ export function ReviewWorkspaceViewRouter({
       conversations={conversation.snapshot.conversations.filter((item) => item.status === "active")}
       folders={conversation.snapshot.folders}
       notice={workspace.notice}
-      contentClassName={settingsMode ? "settings-content settings-main-scroll px-8 py-8 max-lg:px-4 max-lg:py-6" : undefined}
+      contentClassName={settingsMode ? "settings-content settings-main-scroll py-8 max-lg:py-6" : undefined}
       sidebarOverride={settingsMode ? (
-        <>
-          <SettingsWorkspaceSidebar
-            activeSection={workspace.settingsSection}
-            onBack={leaveSettings}
-            onSectionChange={workspace.setSettingsSection}
-          />
-          <div className="review-workspace-sidebar mt-auto pt-4">{reviewControls}</div>
-        </>
+        <SettingsWorkspaceSidebar
+          activeSection={workspace.settingsSection}
+          footer={reviewControls}
+          onBack={leaveSettings}
+          onSectionChange={workspace.setSettingsSection}
+        />
       ) : undefined}
       sidebarCollapsed={workspace.sidebarCollapsed}
       today={workspace.today}
@@ -110,6 +112,47 @@ export function ReviewWorkspaceViewRouter({
           onOpenDiagnosticsTarget={workspace.openDiagnosticsTarget}
           onPersonalizationChange={controller.personalization.setSettings}
           onSectionChange={workspace.setSettingsSection}
+          profileContent={<ProfileUsageSettingsView
+            connections={controller.aiConnections.snapshot.profiles}
+            conversationCount={conversation.snapshot.conversations.length}
+            importCount={controller.data.importJobs.length}
+            knowledgeCount={controller.data.knowledgeEntries.length}
+            mistakeCount={controller.data.mistakes.length}
+            textModelId={controller.aiConnections.snapshot.defaults.textModelId}
+          />}
+          importContent={pluginPreferences.enabled["fenbi-import"] ? <ImportWorkspace
+            textConnection={controller.aiConnections.textConnection}
+            visionConnection={controller.aiConnections.visionConnection}
+            importJobs={controller.data.importJobs}
+            mistakes={controller.data.mistakes}
+            today={workspace.today}
+            onRefreshWorkspace={controller.data.refreshData}
+            onSwitchSettings={() => workspace.setSettingsSection("configuration")}
+            setNotice={workspace.setNotice}
+            scope={workspace.scope}
+          /> : <section className="settings-disabled-feature"><strong>粉笔导入插件已停用</strong><p>现有草稿、凭据和导入记录均已保留。</p><Button onClick={() => workspace.setSettingsSection("installed-plugins")}>前往已安装插件</Button></section>}
+          installedPluginsContent={<SettingsPluginsView
+            appearanceSettings={workspace.appearanceSettings}
+            entries={controller.data.knowledgeEntries}
+            importJobs={controller.data.importJobs}
+            knowledgeDrafts={controller.knowledge.snapshot.drafts}
+            mistakes={controller.data.mistakes}
+            personalization={controller.personalization.settings}
+            textConnection={controller.aiConnections.textConnection}
+            visionConnection={controller.aiConnections.visionConnection}
+            today={workspace.today}
+            onChanged={controller.data.refreshData}
+            onAppearanceChange={workspace.updateAppearanceSettings}
+            onConfirmKnowledgeDrafts={controller.knowledge.actions.confirmDrafts}
+            onDeleteKnowledgeDraft={controller.knowledge.actions.deleteDraft}
+            onImportKnowledgeText={controller.knowledge.actions.importText}
+            onNotice={workspace.setNotice}
+            onOpenConnections={() => workspace.setSettingsSection("configuration")}
+            onPersonalizationChange={controller.personalization.setSettings}
+            onRefreshWorkspace={controller.data.refreshData}
+            onUpdateKnowledgeDraft={controller.knowledge.actions.updateDraft}
+            onUpdateKnowledgeDraftList={controller.knowledge.actions.updateDraftList}
+          />}
         />
       ) : (
         <>

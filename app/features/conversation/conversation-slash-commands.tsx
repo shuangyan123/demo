@@ -2,7 +2,7 @@
 
 import { AppIcon, type AppIconName } from "../shared/app-icon";
 
-export type ConversationSlashCommandAction = "model" | "reasoning" | "knowledge" | "mcp";
+export type ConversationSlashCommandAction = "model" | "reasoning" | "knowledge" | "mcp" | "compact";
 
 export type ConversationSlashCommand = {
   id: string;
@@ -29,6 +29,7 @@ export const conversationSlashCommands: ConversationSlashCommand[] = [
   { id: "reasoning", label: "/推理", description: "调整当前模型的推理强度", icon: "configuration", kind: "action", action: "reasoning" },
   { id: "knowledge", label: "/知识", description: "检索本地知识摘要", icon: "knowledge", kind: "action", action: "knowledge" },
   { id: "mcp", label: "/mcp", description: "打开当前对话的 MCP 工具", icon: "mcp", kind: "action", action: "mcp" },
+  { id: "compact", label: "/压缩", description: "手动压缩当前对话上下文", icon: "sparkles", kind: "action", action: "compact" },
 ];
 
 /** 只识别光标所在、由行首或空白引出的斜杠词。 */
@@ -55,11 +56,15 @@ export function filterConversationSlashCommands(query: string): ConversationSlas
 export function ConversationSlashCommandMenu({
   activeIndex,
   commands,
+  disabledActions = [],
+  pendingActions = [],
   onHover,
   onSelect,
 }: {
   activeIndex: number;
   commands: ConversationSlashCommand[];
+  disabledActions?: readonly ConversationSlashCommandAction[];
+  pendingActions?: readonly ConversationSlashCommandAction[];
   onHover: (index: number) => void;
   onSelect: (command: ConversationSlashCommand) => void;
 }) {
@@ -69,6 +74,7 @@ export function ConversationSlashCommandMenu({
         <button
           aria-selected={index === activeIndex}
           className={index === activeIndex ? "is-active" : undefined}
+          disabled={command.kind === "action" && disabledActions.includes(command.action)}
           key={command.id}
           role="option"
           tabIndex={-1}
@@ -78,7 +84,7 @@ export function ConversationSlashCommandMenu({
           onClick={() => onSelect(command)}
         >
           <AppIcon name={command.icon} size={16} />
-          <span><strong>{command.label}</strong><small>{command.description}</small></span>
+          <span><strong>{command.label}</strong><small>{command.kind === "action" && pendingActions.includes(command.action) ? "正在压缩…" : command.description}</small></span>
         </button>
       )) : <p data-review-state="conversation.slash-command.filtered-empty">没有匹配的指令</p>}
     </div>

@@ -1,8 +1,11 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { getAiModelRuntimeDescriptor } from "../../services/model-runtime-descriptors.ts";
+import type { ConversationModelRuntimeDimension } from "./use-conversation-model-navigation.ts";
 import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
+import { UiHint } from "../shared/ui-tooltip";
 import { ConversationModelPicker, type ConversationModelPickerProps } from "./conversation-model-picker";
 import { useConversationModelMenu } from "./use-conversation-model-menu.ts";
 import styles from "./conversation-model-picker.module.css";
@@ -10,6 +13,7 @@ import styles from "./conversation-model-picker.module.css";
 /** Composer 可请求打开或聚焦模型选择器，但不接管内部菜单状态。 */
 export type ConversationModelSelectorHandle = {
   open: () => void;
+  openRuntime: (dimension: ConversationModelRuntimeDimension) => void;
   focus: () => void;
 };
 
@@ -35,14 +39,15 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
   const tabbingRef = useRef(false);
   const selectorRef = useRef<HTMLDivElement | null>(null);
   const [mobileBottom, setMobileBottom] = useState(124);
+  const [initialRuntimeDimension, setInitialRuntimeDimension] = useState<ConversationModelRuntimeDimension>();
   const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
-  const triggerTitle = selectedConnection && selectedModelId
-    ? `${selectedConnection.label} · ${selectedModelId}`
-    : "选择模型";
+  const descriptor = useMemo(() => selectedConnection && selectedModelId ? getAiModelRuntimeDescriptor(selectedConnection.provider, selectedModelId) : undefined, [selectedConnection, selectedModelId]);
+  const reasoningLabel = descriptor?.reasoning?.options.find((option) => option.value === (selectedRuntimeValues?.reasoning ?? descriptor.reasoning?.defaultValue))?.label;
 
   useImperativeHandle(ref, () => ({
     focus: () => triggerRef.current?.focus(),
-    open: () => { if (!disabled) openMenu(); },
+    open: () => { if (!disabled) { setInitialRuntimeDimension(undefined); openMenu(); } },
+    openRuntime: (dimension) => { if (!disabled) { setInitialRuntimeDimension(dimension); openMenu(); } },
   }), [disabled, openMenu, triggerRef]);
 
   useEffect(() => {
@@ -101,31 +106,31 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
       }}
       onKeyDownCapture={(event) => { tabbingRef.current = event.key === "Tab"; }}
     >
-      <button
-        ref={triggerRef}
-        aria-controls={open ? menuId : undefined}
-        aria-expanded={open && !disabled}
-        aria-haspopup="dialog"
-        aria-label="选择模型"
-        className={styles.trigger}
-        disabled={disabled}
-        title={triggerTitle}
-        type="button"
-        onClick={toggle}
-      >
-        {selectedConnection && selectedModelId ? (
-          <>
-            <ProviderIcon provider={selectedConnection.provider} size={18} />
-            <span>{selectedModelId}</span>
-            <AppIcon name="chevronDown" size={16} />
-          </>
-        ) : (
-          <>
-            <AppIcon name="sparkles" size={18} />
-            <span>选择模型</span>
-          </>
-        )}
-      </button>
+      <UiHint label="选择模型" badge="Ctrl+Shift+M" placement="top">{({ describedBy }) => <button
+          ref={triggerRef}
+          aria-controls={open ? menuId : undefined}
+          aria-describedby={describedBy}
+          aria-expanded={open && !disabled}
+          aria-haspopup="dialog"
+          aria-label="选择模型"
+          className={styles.trigger}
+          disabled={disabled}
+          type="button"
+          onClick={() => { setInitialRuntimeDimension(undefined); toggle(); }}
+        >
+          {selectedConnection && selectedModelId ? (
+            <>
+              <ProviderIcon provider={selectedConnection.provider} size={18} />
+              <span>{selectedModelId}{reasoningLabel ? ` · ${reasoningLabel}` : ""}</span>
+              <AppIcon name="chevronDown" size={16} />
+            </>
+          ) : (
+            <>
+              <AppIcon name="sparkles" size={18} />
+              <span>选择模型</span>
+            </>
+          )}
+        </button>}</UiHint>
       {open && !disabled ? (
         <ConversationModelPicker
           ref={menuRef}
@@ -135,6 +140,7 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
           selectedConnectionId={selectedConnectionId}
           selectedModelId={selectedModelId}
           selectedRuntimeValues={selectedRuntimeValues}
+          initialRuntimeDimension={initialRuntimeDimension}
           onOpenConnections={openConnections}
           onSelect={onSelect}
         />

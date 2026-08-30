@@ -13,6 +13,7 @@ import { conversationRepository } from "../../services/conversation-repository.t
 import { buildConversationTurnTimeline } from "../../services/conversation-turns.ts";
 import type { KnowledgeEvolutionProposal } from "../../types/domains/obsidian.ts";
 import { AppIcon } from "../shared/app-icon";
+import { UiHint } from "../shared/ui-tooltip";
 import { persistDraftAttachmentSummaries, type DraftAttachment } from "./conversation-attachment-utils.ts";
 import { conversationProviderErrorMessage, readBlobAsDataUrl, requireConversationAssistantContent } from "./conversation-message-utils.ts";
 import { useConversationVisionTools } from "./use-conversation-vision-tools.ts";
@@ -22,6 +23,7 @@ import { ConversationProposalBlock } from "./conversation-proposal-block";
 import { ConversationTurnList } from "./conversation-turn-list";
 import { ConversationEmptyState } from "./conversation-empty-state";
 import { ConversationTopicNavigation } from "./conversation-topic-navigation";
+import { announceInteractiveOverlayOpen } from "../shared/ui-overlay-events";
 import type { ConversationWorkspaceProps } from "./conversation-workspace-types.ts";
 import { useConversationModelSelection } from "./use-conversation-model-selection.ts";
 import { useConversationNavigation } from "./use-conversation-navigation";
@@ -36,7 +38,7 @@ const RealtimeVoicePanel = dynamic(() => import("./realtime-voice-panel").then((
 /** Codex 式对话面板：文件仅暂存内存，写入库的永远是附件摘要。 */
 export function ConversationWorkspace({ activeConversationId, connections, defaultSelections, knowledgeEntries, launchContext, personalization,
   scheduledCount, snapshot, transcriptionConnection, sampleMode = false, onCreateConversation, onConversationSelected, onOpenConnections,
-  onOpenKnowledge, onOpenTutoringRecords, onRefresh, onNotice, onPersonalizationChange, onClearLaunchContext }: ConversationWorkspaceProps) {
+  onOpenKnowledge, onOpenPermissions, onOpenTutoringRecords, onRefresh, onNotice, onPersonalizationChange, onClearLaunchContext }: ConversationWorkspaceProps) {
   const [draft, setDraft] = useState(() => launchContext?.suggestedPrompt ?? "");
   const [assistantDraft, setAssistantDraft] = useState("");
   const [activeTurnId, setActiveTurnId] = useState<string>();
@@ -52,7 +54,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
   const [conversationProposals, setConversationProposals] = useState<KnowledgeEvolutionProposal[]>([]);
   const [knowledgeContext, setKnowledgeContext] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const messageListRef = useRef<HTMLDivElement | null>(null);
+  const conversationScrollRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<ConversationComposerHandle | null>(null);
   const realtimeConversationIdRef = useRef<string | undefined>(undefined);
   const runStepOrdinalsRef = useRef(new Map<string, number>());
@@ -86,7 +88,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
   const conversationAttachments = useMemo(() => snapshot.attachments.filter((attachment) => attachment.conversationId === activeConversation?.id), [activeConversation?.id, snapshot.attachments]);
   const runSteps = useMemo(() => snapshot.runSteps.filter((step) => step.conversationId === activeConversation?.id).slice(-100), [activeConversation?.id, snapshot.runSteps]);
   const timeline = useMemo(() => buildConversationTurnTimeline(messages, runSteps), [messages, runSteps]);
-  const conversationNavigation = useConversationNavigation({ assistantDraft, attachments: conversationAttachments, scrollContainerRef: messageListRef, timeline });
+  const conversationNavigation = useConversationNavigation({ assistantDraft, attachments: conversationAttachments, scrollContainerRef: conversationScrollRef, timeline });
   const diagnostics = useMemo(() => {
     const groups = new Map<string, typeof runSteps>();
     for (const step of runSteps) if (step.visibility === "diagnostic" && step.turnId) groups.set(step.turnId, [...(groups.get(step.turnId) ?? []), step]);
@@ -394,12 +396,12 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
   const tutoringMode = activeConversation?.kind === "tutoring" || launchContext?.kind === "tutoring";
   return (
     <section className="conversation-workspace" aria-label="AI 对话工作台">
-      <div className="conversation-main">
-        <header className="conversation-thread-header">
+      <div className="conversation-main" data-conversation-layer="workspace">
+        <header className="conversation-thread-header" data-conversation-layer="thread-header">
           <div className="min-w-0"><h1 className="truncate text-base font-semibold">{activeConversation?.title ?? "新对话"}</h1></div>
           <div className="conversation-thread-actions">
-            {conversationNavigation.topics.length ? <button className="conversation-topic-trigger" type="button" aria-haspopup="dialog" onClick={() => setTopicDrawerOpen(true)}><AppIcon name="topics" size={16} /><span>主题 {conversationNavigation.topics.length}</span></button> : null}
-            {activeConversation ? <button className="conversation-header-action" type="button" title="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button> : null}
+            {conversationNavigation.topics.length ? <button className="conversation-topic-trigger" type="button" aria-haspopup="dialog" onClick={() => { announceInteractiveOverlayOpen(); setTopicDrawerOpen(true); }}><AppIcon name="topics" size={16} /><span>主题 {conversationNavigation.topics.length}</span></button> : null}
+            {activeConversation ? <UiHint label="移动到文件夹" placement="bottom">{({ describedBy }) => <button className="conversation-header-action" type="button" aria-describedby={describedBy} aria-label="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button>}</UiHint> : null}
           </div>
         </header>
         {launchContext && !activeConversation ? (
@@ -408,15 +410,14 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
             <button type="button" aria-label="移除对话上下文" onClick={onClearLaunchContext}><AppIcon name="close" size={16} /></button>
           </div>
         ) : null}
-        <div className="conversation-message-region">
+        <div className="conversation-message-region conversation-canvas" data-conversation-layer="conversation-canvas">
           <ConversationTopicNavigation
             drawerOpen={topicDrawerOpen}
             topics={conversationNavigation.topics}
             onCloseDrawer={() => setTopicDrawerOpen(false)}
             onSelect={conversationNavigation.scrollToTopic}
           />
-          <div ref={messageListRef} className={conversationEmpty && !tutoringMode ? "conversation-message-list is-empty" : "conversation-message-list"}>
-            <div className="conversation-message-content">
+          <div ref={conversationScrollRef} className="conversation-canvas-scroll" data-scroll-owner="conversation-canvas" data-conversation-layer="canvas-scroll"><div className={conversationEmpty && !tutoringMode ? "conversation-message-list is-empty" : "conversation-message-list"}><div className="conversation-message-content conversation-reading-column" data-conversation-layer="reading-column">
           {tutoringMode ? (
             <ConversationTutoringExperience
               activeTurnId={activeTurnId}
@@ -437,9 +438,8 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
             </>
           )}
           {conversationProposals.map((proposal) => <ConversationProposalBlock key={proposal.id} proposal={proposal} busy={proposalBusy} onAccept={() => void updateConversationProposal(proposal, "accept")} onReject={() => void updateConversationProposal(proposal, "reject")} />)}
-            <div ref={bottomRef} />
-            </div>
-          </div>
+                <div ref={bottomRef} />
+              </div></div></div>
         </div>
         {visionMode ? (
           <section className="conversation-vision-card" aria-label={visionMode === "camera" ? "摄像头工具" : "屏幕共享工具"}>
@@ -455,45 +455,44 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
           <button className="ui-button ui-button-primary" type="button" disabled={proposalBusy} onClick={() => void generateConversationProposals()}>{proposalBusy ? "生成中…" : "生成提案"}</button>
         </section> : null}
         {mcpPanelOpen ? <ConversationMcpToolPanel onClose={() => setMcpPanelOpen(false)} onExecuted={recordMcpExecution} onNotice={onNotice} /> : null}
-        <div className="conversation-composer-stack">
+        <div className="conversation-composer-dock" data-conversation-layer="composer-dock"><div className="conversation-composer-stack">
           {conversationNavigation.showJumpToLatest ? (
-            <button
+            <UiHint label="跳到最新消息" placement="top">{({ describedBy }) => <button
               className="conversation-jump-latest"
+              data-conversation-layer="jump-to-latest"
               type="button"
+              aria-describedby={describedBy}
               aria-label="跳到最新消息"
-              title="跳到最新消息"
               onClick={() => conversationNavigation.jumpToLatest()}
             >
               <AppIcon name="down" size={18} />
-            </button>
+            </button>}</UiHint>
           ) : null}
         <ConversationComposer ref={composerRef}
           activeConversation={Boolean(activeConversation)} attachments={attachments}
           busy={busy || recording.busy} connections={connections} draft={draft}
           purpose={requiresVision ? "vision" : "text"} recording={recording.recording}
-          runtimeDescriptor={runtimeDescriptor} selectedConnection={effectiveConnection}
+          selectedConnection={effectiveConnection}
           selectedModelId={selectedModelId} selectedRuntimeValues={selectedRuntimeValues}
           modelSelectionError={selectionError}
-          contextBudget={conversationContext.budget}
-          contextCompressing={conversationContext.compressing}
-          contextCompaction={activeConversation?.contextCompaction}
+          contextBudget={conversationContext.budget} contextCompressing={conversationContext.compressing}
           contextCompressionAvailable={Boolean(activeConversation && effectiveConnection && selectedModelId && conversationContext.candidate && !sampleMode)}
           onAttachmentsAdd={(nextAttachments) => setAttachments((current) => [...current, ...nextAttachments])}
           onAttachmentRemove={(attachmentId) => setAttachments((current) => current.filter((item) => item.id !== attachmentId))}
           onCaptureScreen={() => void captureScreenForAnalysis()}
           onCompressContext={() => void conversationContext.compress()}
           onDraftChange={setDraft} onNotice={onNotice} onOpenConnections={onOpenConnections}
-          onOpenMcp={() => setMcpPanelOpen(true)} onOpenProposal={() => setProposalPanelOpen(true)}
+          onOpenMcp={() => setMcpPanelOpen(true)} onOpenPermissions={onOpenPermissions} onOpenProposal={() => setProposalPanelOpen(true)}
           onOpenRealtimeVoice={() => setRealtimeVoiceOpen(true)} onOpenTutoringRecords={onOpenTutoringRecords}
           onSearchKnowledge={() => void runInternalTool("knowledge")}
           onSelectModel={({ connection, modelId, selectedRuntimeValues: runtimeValues }) => selectModel({ connectionId: connection.id, modelId, selectedRuntimeValues: runtimeValues })}
           onStartCamera={() => void startVision("camera")} onStartRecording={() => void recording.start()}
           onStartScreen={() => void startVision("screen")} onStopRecording={recording.stop} onSubmit={submitMessage}
         />
-        </div>
+        </div></div>
         {realtimeVoiceOpen ? <RealtimeVoicePanel connections={connections} onClose={() => setRealtimeVoiceOpen(false)} onFinalTranscript={persistRealtimeTranscript} /> : null}
       </div>
-      {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到文件夹</h2><button type="button" aria-label="关闭移动菜单" title="关闭" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button></div><button type="button" onClick={() => void moveConversation()}>根目录</button>{snapshot.folders.filter((folder) => folder.projectId === activeConversation.projectId).map((folder) => <button key={folder.id} type="button" onClick={() => void moveConversation(folder.id)}>{folder.parentId ? "↳ " : ""}{folder.label}</button>)}</section></div> : null}
+      {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到文件夹</h2><UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button>}</UiHint></div><button type="button" onClick={() => void moveConversation()}>根目录</button>{snapshot.folders.filter((folder) => folder.projectId === activeConversation.projectId).map((folder) => <button key={folder.id} type="button" onClick={() => void moveConversation(folder.id)}>{folder.parentId ? "↳ " : ""}{folder.label}</button>)}</section></div> : null}
     </section>
   );
 }

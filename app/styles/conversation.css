@@ -1,6 +1,6 @@
 /* 对话树与模型选择器保持独立样式边界，避免继续扩大通用 UI 样式表。 */
 .conversation-tree {
-  margin-top: 1.25rem;
+  margin-top: 0.5rem;
 }
 
 .conversation-tree-heading,
@@ -22,7 +22,7 @@
 .conversation-tree-chat {
   grid-template-columns: 1.8rem minmax(0, 1fr) 1.8rem;
   min-height: 2rem;
-  border-radius: 0.45rem;
+  border-radius: var(--ui-radius-row);
 }
 
 .conversation-tree-heading button,
@@ -33,7 +33,28 @@
   min-height: 1.8rem;
   min-width: 1.8rem;
   place-items: center;
-  border-radius: 0.4rem;
+  border-radius: var(--ui-radius-row);
+  color: var(--muted);
+}
+
+/* UiHint 的 anchor 作为 grid item，保持对话树原有三列几何不变。 */
+.conversation-tree-heading > .ui-tooltip-anchor,
+.conversation-tree-folder-row > .ui-tooltip-anchor,
+.conversation-tree-chat > .ui-tooltip-anchor {
+  display: grid;
+  min-height: 1.8rem;
+  min-width: 1.8rem;
+  place-items: center;
+}
+
+.conversation-tree-heading > .ui-tooltip-anchor > button,
+.conversation-tree-folder-row > .ui-tooltip-anchor > button,
+.conversation-tree-chat > .ui-tooltip-anchor > button {
+  display: grid;
+  min-height: 1.8rem;
+  min-width: 1.8rem;
+  place-items: center;
+  border-radius: var(--ui-radius-row);
   color: var(--muted);
 }
 
@@ -78,6 +99,45 @@
 
 .conversation-tree-chat.is-active {
   background: var(--chrome-selected);
+}
+
+.conversation-tree-chat.is-active .conversation-tree-chat-label {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.conversation-tree-chat.is-active .conversation-tree-chat-label:hover {
+  background: transparent;
+}
+
+.conversation-tree-folder-label:focus-visible,
+.conversation-tree-chat-label:focus-visible,
+.conversation-tree-chat > .ui-tooltip-anchor > button:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.workspace-project-row:hover {
+  background: var(--chrome-hover);
+  color: var(--foreground);
+}
+
+.workspace-project-row.is-selected {
+  background: color-mix(in srgb, var(--chrome-selected) 78%, transparent);
+  color: var(--foreground);
+}
+
+.workspace-project-row:focus {
+  outline: none;
+}
+
+.workspace-project-row:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.app-sidebar-shell .conversation-tree-heading {
+  padding-inline: 0.65rem;
 }
 
 /* 子树每层只增加一次固定缩进，根文件与根文件夹始终共享同一图标列。 */
