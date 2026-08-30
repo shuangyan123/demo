@@ -69,6 +69,11 @@ test("desktop and installer changes enable the appropriate desktop gates", () =>
     migration_sensitive: true,
     browser_runtime_sensitive: false,
   });
+  assert.deepEqual(classifyChangedFiles(["scripts/review-workspace-version.contract.test.mjs"]), {
+    installer_sensitive: true,
+    migration_sensitive: false,
+    browser_runtime_sensitive: false,
+  });
   assert.deepEqual(classifyChangedFiles(["public/brand/recall/app/recall.ico"]), {
     installer_sensitive: true,
     migration_sensitive: false,

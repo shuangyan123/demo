@@ -15,7 +15,7 @@ const INSTALLER_PATHS = [
   /^app\/favicon\.ico$/,
   /^(?:electron-builder(?:\.[^/]+)?|forge\.config(?:\.[^/]+)?)$/,
   /^(?:next|postcss|tailwind|tsconfig)\.config\.[^/]+$/,
-  /^scripts\/(?:compile-desktop|prepare-desktop[^/]*|prepare-electron-archive|electron-packager-windows-resource-preload|embed-electron-asar-integrity|read-electron-asar-integrity|read-windows-executable-info|electron-builder[^/]*|generate-electron-builder[^/]*|squirrel[^/]*|windows-squirrel[^/]*|desktop-preload[^/]*|verify-desktop-release-provenance)[^/]*$/,
+  /^scripts\/(?:compile-desktop|prepare-desktop[^/]*|prepare-electron-archive|electron-packager-windows-resource-preload|embed-electron-asar-integrity|read-electron-asar-integrity|read-windows-executable-info|electron-builder[^/]*|generate-electron-builder[^/]*|squirrel[^/]*|windows-squirrel[^/]*|desktop-preload[^/]*|verify-desktop-release-provenance|review-workspace-version)[^/]*$/,
 ];
 const MIGRATION_PATHS = [
   /^desktop\/(?:main|squirrel-lifecycle)(?:\.[^/]+)?$/,
