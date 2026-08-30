@@ -28,17 +28,22 @@ the repository has no residual security risk.
 
 The historical `Desktop Release` workflow at
 `.github/workflows/desktop-release.yml` is workflow ID `323491496`. Its previous
-state was `active`; the repository workflow disable API returned HTTP 204, and
-the subsequent independent readback returned `disabled_manually`.
+state was `active`. Historical platform evidence recorded the disable API
+response as HTTP 204 and the subsequent readback as `disabled_manually`. This
+is historical SEC-04 evidence only; `disabled_manually` is not the current live
+state.
 
-That repository-level disabled state is the primary evidence that ordinary tag
-or event triggers can no longer start the historical workflow. The current-tree
-deletion in PR #100 is additional defense in depth and is not the sole proof of
-historical authority closure.
+Current repository/API state is different: the legacy workflow file is absent
+from the current tree, and the GitHub Actions API reports workflow ID
+`323491496` as `deleted`. The current privileged path is the active
+`.github/workflows/trusted-desktop-release.yml` workflow. The historical
+disabled readback and the current deletion are separate facts and must not be
+collapsed into one platform-state claim.
 
 No runtime tag acceptance is required. Re-enabling the legacy workflow or
 creating a production-like tag would mutate the accepted control and would not
-provide stronger evidence than the authoritative disabled-state readback.
+provide stronger evidence than the historical disabled-state readback together
+with the current deleted state.
 
 ## Trusted current-tree release path
 
@@ -82,8 +87,9 @@ an equivalent independent publication boundary should be enabled first.
 
 ## Attack-path closure
 
-- **Path A — arbitrary branch/tag to historical Desktop Release:** cut at the
-  platform trigger boundary by the `disabled_manually` workflow state.
+- **Path A — arbitrary branch/tag to historical Desktop Release:** historically
+  cut at the platform trigger boundary by the `disabled_manually` workflow
+  state; the current legacy workflow is deleted and absent from the tree.
 - **Path B — malicious self-versioned workflow:** no positively identified
   untrusted writer currently has repository workflow-write capability.
 - **Path C — direct main push to trusted `workflow_run`:** only the trusted owner
@@ -103,9 +109,16 @@ arbitrary code to reach production publication.**
 - GitHub App installation inventory remains an evidence gap.
 - All third-party Actions are allowed, and full commit-SHA pinning is not
   required by repository policy.
-- Code signing, SmartScreen reputation, updater behavior, rollback, and
-  production installer cutover remain later M5 concerns and are not established
-  by this SEC-04 acceptance.
+- Production-v1 is intentionally unsigned. Code signing, publisher identity,
+  certificate timestamping/rotation, and SmartScreen reputation are deferred
+  future capabilities rather than M5 blockers. Unknown Publisher or SmartScreen
+  warnings are accepted product residuals; this SEC-04 acceptance does not claim
+  Authenticode-backed identity or integrity.
+- Rollback, exact-artifact checksum readback, and production NSIS cutover remain
+  M5 concerns. Auto-updater behavior is intentionally excluded from
+  production-v1 and remains a separate future milestone. The unsigned
+  production security model keeps every SEC-04 control and relies on trusted source provenance plus the exact artifact SHA-256. See
+  [`windows-production-v1-release-policy.md`](../windows-production-v1-release-policy.md).
 
 ## Official GitHub semantics used
 

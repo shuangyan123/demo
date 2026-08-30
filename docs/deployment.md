@@ -18,7 +18,14 @@ Windows 打包会先生成最小 `.desktop-app` host，再把 Next standalone、
 
 桌面发布前至少执行 `typecheck`、`lint`、`test:contracts`、`test:desktop`、`build`、`check:bundle`、`audit:prod` 和 `desktop:make`，随后在干净 Windows x64 环境人工验证单实例、持久化、覆盖安装、媒体权限、Obsidian、Route Handlers、篡改资源、非法导航和无令牌直连。
 
-`.github/workflows/desktop-release.yml` 只在 `windows-latest` 上制作 x64 安装包。手动触发会保留 14 天 workflow artifact；推送 `v<package.json.version>` 标签会先校验版本一致性，完成 Web、桌面、审计和 E2E 门禁，再创建包含 `SHA256SUMS.txt` 的 Draft Release。发布仍需人工确认，普通 PR 和 Web 部署不会创建安装包或 Release。
+当前受信任发布工作流 `.github/workflows/trusted-desktop-release.yml` 由成功的
+`CI` main `workflow_run` 驱动，在 `windows-latest` 上按授权 source SHA 制作
+当前 production/default 的 Squirrel x64 安装包，并创建包含 `SHA256SUMS.txt`
+的 Draft Release；发布仍需人工确认。历史
+`.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
+仅保留为 historical SEC-04 evidence。当前 NSIS 仍是 additive candidate/future
+cutover，production-v1 intentionally unsigned 且不引入 auto-updater；普通 PR
+和 Web 部署不会创建生产安装包或 Release。
 
 Web 与桌面使用同一仓库和同一 commit：`ci.yml` 负责共享应用、浏览器 E2E、桌面 TypeScript 与契约；桌面发布工作流负责目标 Windows 环境的最终打包。安装包、`.desktop-runtime`、Forge `out/`、令牌和签名材料均不得提交。
 

@@ -1,5 +1,22 @@
 # 发布前手工冒烟清单
 
+> **Current M5 policy:** Windows production-v1 is intentionally unsigned.
+> Code signing, publisher identity, certificate timestamping/rotation, and
+> SmartScreen reputation are not production-v1 blockers. Historical matrices
+> below retain their original unsigned/non-claim evidence boundaries. The
+> current release policy and remaining blockers are defined in
+> [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md).
+
+当前 canonical release workflow 是
+`.github/workflows/trusted-desktop-release.yml`：它由成功的 `CI` main
+`workflow_run` 驱动，并创建待人工确认的 Draft Release。历史
+`.github/workflows/desktop-release.yml` 已从当前 tree 删除，GitHub Actions
+API 当前状态为 `deleted`，仅保留为 SEC-04 历史证据。当前 runtime 为
+Electron `43.4.1`；生产/default installer 仍是 Forge/MakerSquirrel Squirrel，
+NSIS 仍是 candidate/future cutover；production-v1 不引入 updater。现有
+workflow 的 final-byte SHA-256/manifest 生成只完成部分边界，完整的
+exact-SHA Draft round-trip 仍是 M5 blocker。
+
 ## Current 2026-08-20 · 0.8 Squirrel no-remote-icon bridge acceptance closure
 
 状态：**0.2.4 REAL WINDOWS OFFLINE CLEAN-INSTALL BASELINE: PASS**（用户提供的 operator-attested evidence，限于本节 scope）。历史 `0.2.3` candidate 因 installer-time remote icon retrieval 失效，仅保留既有 operator-attested lifecycle evidence；PR #90 已关闭且未合并，PR #91 的 checked-in no-remote-icon bridge 已合并。该 PASS 不来自 source/package 自动证据，也不是 Codex 本轮重新执行的 independent replay。
@@ -232,7 +249,12 @@ This observation is not a GPU/renderer diagnosis and does not justify `--no-sand
 - `--squirrel-firstrun` is covered as a normal launch, and the source contract verifies lifecycle exit precedes single-instance lock and window creation.
 - `desktop/desktop-release.contract.test.ts` locks package/product identity, Forge/MakerSquirrel setup naming, Electron/Forge/winstaller versions, and the absence of a Main-process `userData` redirect.
 - Existing `desktop/desktop.contract.test.ts` and `scripts/desktop-preload-artifact.contract.test.mjs` continue to guard context isolation, sandbox, web security, ASAR/preload shape and bridge surface.
-- `desktop-release.yml` remains the only Windows release workflow; it does not add auto-update, certificate secrets or user/profile data to artifacts.
+- This 2026-08-14 Phase 1 checkpoint is historical: it described the former
+  `desktop-release.yml` path and must not be read as the current release
+  trigger. The current trusted path is
+  `.github/workflows/trusted-desktop-release.yml`; the legacy workflow is
+  deleted/historical. Neither path adds auto-update, certificate secrets or
+  user/profile data to artifacts.
 
 ### Real acceptance procedure
 

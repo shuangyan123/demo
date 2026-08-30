@@ -1,5 +1,23 @@
 # Windows Desktop Distribution / Lifecycle Contract
 
+> **Current M5 policy:** Windows production-v1 is intentionally unsigned.
+> Code signing, publisher identity, certificate timestamping/rotation, and
+> SmartScreen reputation are deferred future capabilities rather than
+> production-v1 blockers. Historical 0.2.x evidence and non-claims below remain
+> unchanged. See
+> [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md).
+
+当前 canonical release workflow 是
+`.github/workflows/trusted-desktop-release.yml`：它只从成功的 `CI` main
+`workflow_run` 进入受信任发布路径，并创建待人工确认的 Draft Release。历史
+`.github/workflows/desktop-release.yml` 已删除，GitHub Actions API 当前状态为
+`deleted`，仅作为 SEC-04 historical evidence 保留。当前 runtime 为 Electron
+`43.4.1`；当前 production/default installer path 为 Forge/MakerSquirrel
+Squirrel，NSIS 仍为 candidate/future production cutover；没有 auto-updater。
+现有 final-byte SHA-256/manifest 生成只部分满足 exact-SHA 要求，完整 Draft
+artifact re-download/re-hash 和 source/tag/artifact reconciliation 仍是 M5
+blocker。
+
 状态：**0.8 Phase 1 COMPLETE；Phase 2A COMPLETE within scoped adjacent-version acceptance；Phase 2B COMPLETE within scoped closed-app uninstall → same-version reinstall → userData/product-data persistence → full-restart acceptance；0.8 overall IN PROGRESS**（2026-08-15）。
 
 本文件建立 Windows x64 分发、生命周期和 `userData` 的 ownership contract。它不重新设计或削弱 0.7 的 Desktop authority、no Web fallback、fail-closed、context binding、source retention 或 credential cleanup ordering。0.7 的安全语义仍由既有实现、contract 和已归档的 scoped installed-app evidence 所拥有。
@@ -149,7 +167,7 @@ Static contracts and build/package success do not independently prove Windows li
 | 项目 | 当前事实 | 证据 / 分类 |
 | --- | --- | --- |
 | Application package | `review-workspace` / product name `错题复盘` / candidate version `0.2.4` | `package.json`、generated `.desktop-app/package.json` |
-| Electron | `43.2.0` | locked dependency；candidate Windows artifact 的 file version 应为 `0.2.4` |
+| Electron | `43.4.1` | current locked dependency；candidate Windows artifact 的 file version 应为 `0.2.4` |
 | Electron Forge | `7.11.2` | locked `@electron-forge/cli` 与 maker |
 | Maker | `@electron-forge/maker-squirrel` `7.11.2` | `forge.config.ts` 使用 `MakerSquirrel` |
 | Windows generator | `electron-winstaller` `5.4.4` | maker optional dependency，lockfile 已解析 |
@@ -160,7 +178,7 @@ Static contracts and build/package success do not independently prove Windows li
 | Installer name | `ReviewWorkspace-0.2.4-Windows-x64-Setup.exe` | `forge.config.ts` 的 `setupExe` |
 | Forge output | `out/make/squirrel.windows/x64/` | Forge `outDir: "../out"` |
 | Package outputs | `RELEASES`、`review_workspace-0.2.4-full.nupkg`、Setup.exe | candidate make artifact shape |
-| Signing | **PENDING**；没有 production certificate、publisher identity 或 CI signing secret contract | 不声称 signed PASS |
+| Production-v1 signing | **INTENTIONALLY UNSIGNED**；没有 production certificate、publisher identity 或 CI signing secret contract | Unknown Publisher / SmartScreen 是 accepted residual，不是 M5 blocker |
 
 ### Packaging flow
 
@@ -182,7 +200,14 @@ Squirrel Setup.exe / Update.exe
 
 `out\review-workspace-win32-x64\` 是 Forge 的 unpacked application artifact，不是用户安装后的 Squirrel root。安装后的 root、versioned `app-<version>` directory、root execution stub、`Update.exe`、`SquirrelTemp` 和 shortcuts 必须在隔离的真实 Windows profile 中分别观察，不能从 unpacked artifact 推断。
 
-当前 `desktop-release.yml` 只在 Windows x64 runner 上执行 make、preload artifact regression、Squirrel package metadata regression 和 SHA-256 manifest；手动运行上传短期 workflow artifact，`v*` tag 运行还会发布 installer 与 `SHA256SUMS.txt`。当前没有自动更新入口，也没有把裸 `review-workspace.exe` 作为 release asset 发布。
+当前 `.github/workflows/trusted-desktop-release.yml` 在成功的 `CI` main
+`workflow_run` 后，按 exact authorized SHA 执行 Windows x64 Forge/MakerSquirrel
+make、桌面回归和 SHA-256 manifest 生成，并创建 Draft Release。SHA-256
+manifest 与 Draft 上传是部分 exact-SHA fulfillment；最终重新下载、重新 hash
+以及 source/tag/artifact tuple reconciliation 尚未完成。历史
+`.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
+只作为 historical evidence 保留。当前没有自动更新入口，也没有把裸
+`review-workspace.exe` 作为 release asset 发布。
 
 ## 0.8 Squirrel no-remote-icon bridge（2026-08-20）
 
@@ -329,7 +354,7 @@ Squirrel's `--squirrel-install` / `--squirrel-updated` normally owns shortcut an
 | threat | required control |
 | --- | --- |
 | Wrong version, wrong asset or checksum mismatch | package version/tag check、installer filename、source SHA、SHA-256 manifest；不从聊天或文件名猜 provenance |
-| Installer tampering / unknown publisher | production Authenticode identity、timestamp、publisher verification 和 post-sign hash；没有证书时保持 PENDING |
+| Installer tampering / unknown publisher | trusted source provenance、exact final-artifact SHA-256、Draft round-trip 和 tuple reconciliation；production-v1 不声称 Authenticode identity，Unknown Publisher/SmartScreen 是 accepted residual |
 | Overlapping same-version Setup locks files | 不重复运行开发者 profile；使用 disposable profile；把 observed lock/transaction failure 限定为 diagnostic，不宣称 reinstall safe |
 | Upgrade deletes or reinitializes data | binary root 与 `userData` 分离；upgrade 前后检查 schema/data/credential authority；不自动 schema migration |
 | Uninstall deletes user facts or credentials | Phase 1 不实现 uninstall cleanup；先确定真实 Squirrel behavior，再由产品语义和用户授权决定 |
@@ -351,12 +376,16 @@ Squirrel's `--squirrel-install` / `--squirrel-updated` normally owns shortcut an
 | SHA-256 | `SHA256SUMS.txt` 与实际 installer bytes 一致 |
 | architecture | Windows x64 |
 | Squirrel identity/version | `review_workspace`；vendor runtime version recorded separately from app version |
-| signing status | `unsigned / production signing not configured` until certificate and signature verification exist |
+| signing status | `intentionally unsigned`；production signing/publisher identity 是 future capability，不是 production-v1 blocker |
 | publisher identity | current metadata `Private` is not a trusted production publisher; future certificate subject must be verified |
 | CI provenance | workflow run, source SHA, runner and retention; no secret, path, profile or credential data |
 | user/profile data | **never** included in artifact metadata |
 
-Phase 1 adds deterministic contracts for the package identity, Forge maker/output, lifecycle classification and existing artifact checks. Formal signed manifest, certificate secret ownership, timestamping and release promotion remain Phase 2+ work.
+Phase 1 adds deterministic contracts for the package identity, Forge maker/output,
+lifecycle classification and existing artifact checks. Complete exact-SHA Draft
+round-trip verification and release promotion remain future work; certificate
+secret ownership, timestamping and publisher identity belong to a separate future
+signing capability.
 
 ## Acceptance and rollback procedure
 

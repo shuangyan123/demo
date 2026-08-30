@@ -450,13 +450,13 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 ## 0.8 Windows desktop distribution
 
-0.8 owns Windows distribution/lifecycle acceptance: clean-machine install, adjacent-version overwrite upgrade, uninstall/reinstall behavior, installer identity, signing, release asset evidence, and `userData` lifecycle under those flows. It does not own 0.7 credential-security semantics such as Desktop authority, no Web fallback, fail-closed behavior, context binding, or cleanup ordering.
+0.8 owns Windows distribution/lifecycle acceptance: clean-machine install, adjacent-version overwrite upgrade, uninstall/reinstall behavior, installer identity, release asset evidence, and `userData` lifecycle under those flows. Production-v1 is intentionally unsigned; signing/publisher identity is a future capability rather than a 0.8/M5 blocker. It does not own 0.7 credential-security semantics such as Desktop authority, no Web fallback, fail-closed behavior, context binding, or cleanup ordering.
 
 ### 目标
 
-- 稳定 Windows x64 安装、覆盖升级、卸载、签名和发布证据。
+- 稳定 Windows x64 安装、覆盖升级、卸载和发布证据。
 - 明确安装器、SHA-256、版本、提交和 CI 的可追溯关系。
-- 评估代码签名和 SmartScreen 信誉建设。
+- 按 [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md) 固定 intentionally unsigned、accepted Unknown Publisher/SmartScreen residual 与 exact-artifact SHA-256 security boundary；当前 final-byte hash/manifest 生成仅是部分实现，完整 exact-SHA Draft round-trip 仍是 M5 blocker；代码签名和 publisher identity 延后到独立未来里程碑。
 
 ### 非目标
 
@@ -468,7 +468,7 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 状态：**COMPLETE（2026-08-14）**；`0.8 overall` 仍为 **IN PROGRESS**。
 
-- 已审计当前 Electron `43.2.0`、Forge `7.11.2`、`MakerSquirrel` `7.11.2`、`electron-winstaller` `5.4.4` 和 Squirrel vendor runtime `2.0.1+eef37460ae`；确认 `review_workspace` package identity、Windows x64 输出、Setup/full nupkg/`RELEASES` 形状和现有 Windows release workflow。
+- 2026-08-14 historical audit snapshot recorded Electron `43.2.0`、Forge `7.11.2`、`MakerSquirrel` `7.11.2`、`electron-winstaller` `5.4.4` and Squirrel vendor runtime `2.0.1+eef37460ae`; it confirmed `review_workspace` package identity, Windows x64 output, Setup/full nupkg/`RELEASES` shape and the then-documented Windows release workflow. Current main uses Electron `43.4.1`; this historical evidence is intentionally preserved.
 - 已建立 binary install root 与 Electron `userData` 的独立 ownership contract：预期分别为 `%LOCALAPPDATA%\\review_workspace\\` 与 `%APPDATA%\\错题复盘\\`；覆盖升级不自动清理 userData，卸载清理未实现且必须由未来产品语义和用户授权决定。
 - 已建立 lifecycle contract：四类 Squirrel install/update/uninstall invocation 在 single-instance lock 和 BrowserWindow 前 early quit，`--squirrel-firstrun` 保持正常应用启动；新增直接行为 contract 与 package/release identity contract。
 - 已吸收 clean first-install PASS 和 repeated same-version Setup file-lock diagnostic；后者不扩展为同版本 reinstall 安全保证，也不触发 GPU、sandbox、Update.exe 或 shortcut workaround。
@@ -525,13 +525,13 @@ Static contracts and build/package success cannot replace the operator-attested 
 ### 风险
 
 - runner 缓存和上游归档漂移。
-- 签名证书、时间戳服务和发布权限失败。
+- unsigned installer 的 Unknown Publisher / SmartScreen friction，以及 checksum/provenance 或发布权限失败。
 - 覆盖升级破坏 Electron userData 或 Vault 配置。
 
 ### 验收标准
 
 - Phase 1：当前 packaging stack、binary/userData ownership、lifecycle process model、installer identity、threat model 和 A–W acceptance matrix 有代码/依赖/文档证据与 automated contracts。
-- Full 0.8：clean-machine 安装、覆盖升级、Phase 2B scoped 卸载/重装边界、签名、release asset provenance 和其余 userData lifecycle 仍需按各自 scope 的真实 Windows evidence；未执行项目不得写成 PASS。
+- Full 0.8：clean-machine 安装、覆盖升级、Phase 2B scoped 卸载/重装边界、intentionally unsigned release asset provenance 和其余 userData lifecycle 仍需按各自 scope 的真实 Windows evidence；未执行项目不得写成 PASS。Production signing/publisher identity 不是 production-v1 acceptance gate。
 - 安装器、ASAR、runtime manifest、Fuses、大小和 checksum 可验证；这些 artifact checks 不替代真实 installed-app lifecycle evidence。
 
 ### 回滚边界

@@ -10,6 +10,9 @@ import { load, JSON_SCHEMA } from "js-yaml";
 const workflow = readFileSync(new URL("../.github/workflows/trusted-desktop-release.yml", import.meta.url), "utf8");
 const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 const releaseAuthorization = readFileSync(new URL("../docs/security/desktop-release-authorization.md", import.meta.url), "utf8");
+const productionV1Policy = readFileSync(new URL("../docs/windows-production-v1-release-policy.md", import.meta.url), "utf8");
+const releaseSmoke = readFileSync(new URL("../docs/release-smoke.md", import.meta.url), "utf8");
+const windowsDistribution = readFileSync(new URL("../docs/windows-desktop-distribution.md", import.meta.url), "utf8");
 const legacyWorkflowUrl = new URL("../.github/workflows/desktop-release.yml", import.meta.url);
 const releaseGuardSource = readFileSync(new URL("../scripts/verify-desktop-release-provenance.mjs", import.meta.url), "utf8");
 const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archive.mjs", import.meta.url), "utf8");
@@ -173,6 +176,38 @@ test("release artifact upload and download are bound to the verified release SHA
   assert.doesNotMatch(workflow, /autoUpdater|update-electron-app/);
 });
 
+test("production-v1 is intentionally unsigned without weakening exact-artifact provenance", () => {
+  const { build, release } = workflowContract();
+  const buildEnvironment = record(build.env, "production build environment");
+  assert.equal(buildEnvironment.CSC_IDENTITY_AUTO_DISCOVERY, "false");
+  assert.doesNotMatch(
+    workflow,
+    /WIN_CSC_LINK|CSC_LINK|WIN_CSC_KEY_PASSWORD|CSC_KEY_PASSWORD|forceCodeSigning|AZURE_CLIENT_SECRET|SignPath|KeyLocker|RFC3161/,
+  );
+  assert.match(workflow, /Windows SmartScreen.*未签名.*未知发布者/);
+  assert.match(productionV1Policy, /WINDOWS PRODUCTION-V1: INTENTIONALLY UNSIGNED/);
+  assert.match(productionV1Policy, /PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED/);
+  assert.match(productionV1Policy, /PRODUCTION WINDOWS INSTALLER IS EXPECTED TO BE UNSIGNED/);
+  assert.match(productionV1Policy, /trusted source provenance \+ exact artifact SHA-256/);
+  assert.match(productionV1Policy, /Unknown Publisher/);
+  assert.match(productionV1Policy, /M5 READINESS: PLANNING COMPLETE/);
+  assert.match(productionV1Policy, /WINDOWS PRODUCTION RELEASE READY: NO/);
+  assert.match(productionV1Policy, /FUTURE: WINDOWS CODE SIGNING \/ PUBLISHER IDENTITY/);
+  assert.match(releaseAuthorization, /Production-v1 is intentionally unsigned/);
+  assert.match(releaseAuthorization, /trusted source provenance plus the exact[\s\S]*artifact SHA-256/);
+  assert.match(releaseSmoke, /Current M5 policy:[\s\S]*production-v1 is intentionally unsigned/);
+  assert.match(windowsDistribution, /Current M5 policy:[\s\S]*production-v1 is intentionally unsigned/);
+
+  const buildSteps = build.steps as Array<Record<string, unknown>>;
+  const checksumIndex = buildSteps.findIndex((step) => step.name === "Generate SHA-256 manifest");
+  const uploadIndex = buildSteps.findIndex((step) => step.name === "Upload exact-SHA workflow artifact");
+  assert.ok(checksumIndex >= 0 && checksumIndex < uploadIndex);
+  const releaseSteps = release.steps as Array<Record<string, unknown>>;
+  const boundaryIndex = releaseSteps.findIndex((step) => step.name === "Verify release artifact boundary");
+  const draftIndex = releaseSteps.findIndex((step) => step.name === "Create draft GitHub Release");
+  assert.ok(boundaryIndex >= 0 && boundaryIndex < draftIndex);
+});
+
 test("trusted main CI commit with an annotated matching tag passes", (t) => {
   const fixture = createReleaseFixture(t, "main");
   const result = runReleaseGuard(fixture);
@@ -241,14 +276,16 @@ test("SEC-04 documentation records completed platform acceptance with residual r
   assert.equal(existsSync(legacyWorkflowUrl), false);
   assert.match(releaseAuthorization, /SEC-04: PASS WITH RESIDUAL RISK/);
   assert.match(releaseAuthorization, /workflow ID `323491496`/);
-  assert.match(releaseAuthorization, /disabled_manually/);
+  assert.match(releaseAuthorization, /Historical platform evidence[\s\S]*`disabled_manually`/);
+  assert.match(releaseAuthorization, /Current repository\/API state[\s\S]*`deleted`/);
+  assert.doesNotMatch(releaseAuthorization, /disabled_manually` is the current live state/i);
   assert.match(releaseAuthorization, /TRUSTED TO PUBLISH/);
   assert.match(releaseAuthorization, /TRUSTED DELEGATED TOOLING/);
   assert.match(releaseAuthorization, /main\.protected=false/);
   assert.match(releaseAuthorization, /rulesets are unavailable on the current private plan/i);
   assert.match(releaseAuthorization, /GitHub App installation inventory is incomplete/i);
   assert.match(releaseAuthorization, /future untrusted writer[\s\S]*SEC-04 must be reassessed/i);
-  assert.match(releaseAuthorization, /current-tree[\s\S]*not the sole proof/i);
+  assert.match(releaseAuthorization, /historical[\s\S]*current deletion[\s\S]*separate facts/i);
   assert.doesNotMatch(releaseAuthorization, /PLATFORM CONTROL PENDING/);
   assert.doesNotMatch(releaseAuthorization, /SEC-04 REMEDIATION PARTIAL/);
   assert.doesNotMatch(releaseAuthorization, /legacy Desktop Release workflow is still active/i);
