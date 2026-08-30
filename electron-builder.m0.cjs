@@ -4,6 +4,7 @@ const { flipFuses, FuseV1Options, FuseVersion } = require("@electron/fuses");
 
 const projectRoot = __dirname;
 const electronVersion = "43.4.1";
+const recallWindowsIconPath = path.join(projectRoot, "public", "brand", "recall", "app", "recall.ico");
 
 /**
  * M0 is an additive packaging proof of concept. It consumes the host and
@@ -62,11 +63,14 @@ module.exports = {
         arch: ["x64"],
       },
     ],
+    icon: recallWindowsIconPath,
   },
   nsis: {
     oneClick: false,
     runAfterFinish: false,
     differentialPackage: false,
+    installerIcon: recallWindowsIconPath,
+    uninstallerIcon: recallWindowsIconPath,
   },
   afterPack: applyM0Fuses,
 };

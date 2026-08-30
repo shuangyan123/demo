@@ -3,6 +3,7 @@ import { host } from "../../platform/host";
 import { AppIcon } from "./app-icon";
 import { UiHint } from "./ui-tooltip";
 import { SidebarToggleButton } from "./sidebar-toggle-button";
+import { RecallBrandMark } from "./recall-brand-mark";
 import { useDesktopTitlebarTheme } from "./use-desktop-titlebar-theme.ts";
 export function WindowMenuBar({
   sidebarButtonRef,
@@ -30,6 +31,7 @@ export function WindowMenuBar({
               <AppIcon name="back" size={18} />
             </button>}</UiHint>
         )}
+        <RecallBrandMark />
         <span className="chrome-product-title" data-product-title={title} aria-hidden="true" />
       </div>
     </header>
@@ -186,8 +188,7 @@ export function SidebarNav<T extends string>({
 
   // 移动端横向导航在切换分区后把当前项带入视口，避免内容已切换但选中项仍藏在屏幕外。
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 1024px)").matches) return;
-    activeItemRef.current?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
+    if (window.matchMedia("(max-width: 1024px)").matches) activeItemRef.current?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
   }, [activeKey]);
 
   return (

@@ -26,6 +26,7 @@ const execFileAsync = (file: string, args: string[]): Promise<void> => (
 );
 
 const squirrelNuspecTemplate = join(process.cwd(), "scripts", "squirrel.nuspec.template");
+const recallWindowsIconPath = join(process.cwd(), "public", "brand", "recall", "app", "recall.ico");
 
 async function embedWindowsAsarIntegrity(buildPath: string): Promise<void> {
   const executablePath = join(buildPath, "review-workspace.exe");
@@ -78,6 +79,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     name: "review-workspace",
     executableName: "review-workspace",
+    icon: recallWindowsIconPath,
     asar: true,
     prune: false,
     electronZipDir: join(process.cwd(), ".cache", "electron"),
@@ -102,6 +104,7 @@ const config: ForgeConfig = {
       authors: "Private",
       description: "本地优先的错题复盘与 AI 学习工作台",
       nuspecTemplate: squirrelNuspecTemplate,
+      setupIcon: recallWindowsIconPath,
       setupExe: `ReviewWorkspace-${process.env.npm_package_version ?? "0.2.4"}-Windows-x64-Setup.exe`,
     }),
   ],

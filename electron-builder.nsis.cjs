@@ -4,6 +4,7 @@ const { flipFuses, FuseV1Options, FuseVersion } = require("@electron/fuses");
 
 const projectRoot = __dirname;
 const electronVersion = "43.4.1";
+const recallWindowsIconPath = path.join(projectRoot, "public", "brand", "recall", "app", "recall.ico");
 
 /**
  * M1 is an additive candidate path. It consumes the same prepared desktop host
@@ -61,6 +62,7 @@ module.exports = {
         arch: ["x64"],
       },
     ],
+    icon: recallWindowsIconPath,
     // Keep resource/version editing, but make the unsigned M1 boundary explicit.
     signAndEditExecutable: true,
     signExecutable: false,
@@ -71,6 +73,8 @@ module.exports = {
     selectPerMachineByDefault: false,
     runAfterFinish: false,
     differentialPackage: false,
+    installerIcon: recallWindowsIconPath,
+    uninstallerIcon: recallWindowsIconPath,
     shortcutName: "错题复盘",
     uninstallDisplayName: "错题复盘",
     createDesktopShortcut: true,
