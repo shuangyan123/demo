@@ -13,6 +13,7 @@ const modelSelector = readFileSync(new URL("./conversation-model-selector.tsx", 
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
 const modelPickerStyles = readFileSync(new URL("./conversation-model-picker.module.css", import.meta.url), "utf8");
 const modelFlyoutPosition = readFileSync(new URL("./use-conversation-model-flyout-position.ts", import.meta.url), "utf8");
+const modelNavigation = readFileSync(new URL("./use-conversation-model-navigation.ts", import.meta.url), "utf8");
 const overlayEvents = readFileSync(new URL("../shared/ui-overlay-events.ts", import.meta.url), "utf8");
 const popover = readFileSync(new URL("../shared/ui-popover.tsx", import.meta.url), "utf8");
 const hint = readFileSync(new URL("../shared/ui-tooltip.tsx", import.meta.url), "utf8");
@@ -147,12 +148,12 @@ test("对话画布拥有唯一滚动容器并让正文与 Composer 共用坐标�
 
 test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键盘进入", () => {
   assert.match(modelPicker, /onPointerEnter=\{\(\) => openModelBrowser\(\)\}/);
-  assert.match(modelPicker, /onFocus=\{\(\) => \{ if \(usesDesktopFlyout\(\)\) openModelBrowser\(\); \}\}/);
+  assert.match(modelPicker, /onFocus=\{\(event\) => \{ if \(usesDesktopFlyout\(\) && event\.currentTarget\.dataset\.pickerProgrammaticFocus !== "true"\) openModelBrowser\(\); \}\}/);
   assert.match(modelPicker, /openSelectedRuntime\("reasoning"\)/);
   assert.match(modelPicker, /openSelectedRuntime\("speed"\)/);
   assert.match(modelPicker, /event\.key !== "ArrowRight" && event\.key !== "Enter"/);
   assert.match(modelPicker, /onPointerEnter=\{\(\) => activateProvider\(provider\)\}/);
-  assert.match(modelPicker, /onFocus=\{\(\) => activateProvider\(provider\)\}/);
+  assert.match(modelPicker, /onFocus=\{\(event\) => \{ if \(event\.currentTarget\.dataset\.pickerProgrammaticFocus !== "true"\) activateProvider\(provider\); \}\}/);
   assert.match(modelPicker, /event\.key !== "ArrowLeft"/);
   assert.match(modelPicker, /styles\.rootSurface/);
   assert.match(modelPicker, /styles\.providerSurface/);
@@ -171,12 +172,31 @@ test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键�
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.surface,[\s\S]*?position: static/);
   assert.match(modelPickerStyles, /\.modelSurface > \.flyoutBack[\s\S]*position: sticky/);
   assert.match(modelPickerStyles, /\.flyoutBack\s*\{\s*display: none;/);
+  assert.match(modelPickerStyles, /\.rootSurface\s*\{[\s\S]*animation: none;/);
+  assert.match(modelPickerStyles, /@keyframes picker-layer-enter[\s\S]*transform: translateY\(2px\)[\s\S]*transform: translateY\(0\)/);
+  assert.doesNotMatch(modelPickerStyles, /@keyframes picker-layer-enter[\s\S]*?to\s*\{[^}]*opacity:/);
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.flyoutBack\s*\{\s*display: grid;/);
   assert.match(modelPickerStyles, /\.mobileDisclosure\s*\{\s*display: inline-flex;/);
   assert.match(modelFlyoutPosition, /computeUiOverlayPosition/);
   assert.match(modelFlyoutPosition, /placementsFor/);
   assert.match(modelFlyoutPosition, /widestChild/);
   assert.doesNotMatch(modelPicker, /<strong>模型<\/strong>/);
+});
+
+test("模型级联提交先清理子层并冻结厂商几何，程序化返回不会重开", () => {
+  assert.match(modelPicker, /const \[providers\] = useState<ApiProvider\[\]>\(\(\) => sortedProviders\)/);
+  assert.match(modelPicker, /const sortedProviders = useMemo/);
+  assert.match(modelPicker, /const modelSelectionCommittedRef = useRef\(false\)/);
+  assert.match(modelPicker, /if \(modelSelectionCommittedRef\.current\) return/);
+  assert.match(modelPicker, /clearClosePreviewTimer\(\);[\s\S]*cascadePointerInsideRef\.current = false;[\s\S]*setModelPreviewProvider\(undefined\);[\s\S]*setActiveProviderId\(undefined\);/);
+  assert.match(modelPicker, /modelAnchorRef\.current = null;[\s\S]*providerAnchorRef\.current = null;[\s\S]*runtimeAnchorRef\.current = null;/);
+  assert.match(modelPicker, /reset\(\);[\s\S]*onModelCommit\?\.\(\);[\s\S]*onSelect\(\{/);
+  assert.match(modelSelector, /onModelCommit=\{\(\) => close\(false\)\}/);
+  assert.match(modelPicker, /onKeyDownCapture=\{handlePickerKeyDown\}/);
+  assert.match(modelPicker, /event\.key !== "Escape"/);
+  assert.match(modelPicker, /view\.kind === "models"[\s\S]*goBack\(\);[\s\S]*view\.kind === "providers" && modelPreviewProvider/);
+  assert.match(modelNavigation, /pendingFocusRef\.current = undefined;[\s\S]*setView\(\{ kind: "controls" \}\)/);
+  assert.match(modelPicker, /dataset\.pickerProgrammaticFocus !== "true"/);
 });
 
 test("模型目录按 active provider key 原子切换且连接入口只存在于零连接状态", () => {
@@ -219,6 +239,7 @@ test("Workbench chrome removes browser product topbar while preserving native ho
   assert.match(shell, /<WindowMenuBar/);
   assert.match(shell, /data-native-window=\{nativeWindowAvailable \? "true" : "false"\}/);
   assert.match(shellStyles, /data-native-window="false"\][\s\S]*?\.chrome-topbar[\s\S]*?height: 0/);
+  assert.match(shellStyles, /data-native-window="false"\][\s\S]*?chrome-topbar-safe-area > img\[alt="Recall"\][\s\S]*?align-self: flex-start;[\s\S]*?margin-top: 0\.75rem;/);
   assert.match(shellStyles, /\.chrome-layout\.is-sidebar-collapsed[\s\S]*?grid-template-columns: 0 0 minmax\(0, 1fr\)/);
   assert.match(shellStyles, /\.chrome-layout\.is-sidebar-collapsed \.chrome-sidebar-boundary[\s\S]*?width: 0/);
   assert.match(readFileSync(new URL("../review/review-workspace-app-sidebar.tsx", import.meta.url), "utf8"), /<strong>错题复盘<\/strong>/);

@@ -387,6 +387,13 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
     padding: 0;
   }
 
+  /* Browser 没有 native titlebar 时，mark 不再以零高度安全区为中心，保留明确上边距并对齐侧栏标题块。 */
+  .chrome-shell[data-native-window="false"] > .chrome-topbar .chrome-topbar-safe-area > img[alt="Recall"] {
+    align-self: flex-start;
+    margin-top: 0.75rem;
+    margin-inline-start: 0.35rem;
+  }
+
   .chrome-shell[data-native-window="false"] > .chrome-topbar .ui-tooltip-anchor {
     position: fixed;
     z-index: 80;

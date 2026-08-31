@@ -17,7 +17,7 @@ export type ConversationModelSelectorHandle = {
   focus: () => void;
 };
 
-export type ConversationModelSelectorProps = ConversationModelPickerProps & {
+export type ConversationModelSelectorProps = Omit<ConversationModelPickerProps, "onModelCommit"> & {
   disabled?: boolean;
 };
 
@@ -142,6 +142,7 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
           selectedRuntimeValues={selectedRuntimeValues}
           initialRuntimeDimension={initialRuntimeDimension}
           onOpenConnections={openConnections}
+          onModelCommit={() => close(false)}
           onSelect={onSelect}
         />
       ) : null}

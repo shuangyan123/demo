@@ -49,7 +49,7 @@ async function expectNoDocumentHorizontalOverflow(page: Page): Promise<void> {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 }
 
-test("移动端模型菜单保持 step-in、返回和长模型列表滚动", async ({ page }) => {
+test("移动端模型菜单保持 step-in、返回和长模型列表滚动", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -65,6 +65,12 @@ test("移动端模型菜单保持 step-in、返回和长模型列表滚动", asy
   ]);
   await seedModelCache(page, "mobile-cascade-google", "google", mobileModels);
   await page.reload();
+  const recallMark = page.locator('.chrome-topbar-safe-area > img[alt="Recall"]');
+  await expect(recallMark).toBeVisible();
+  const recallMarkBox = await recallMark.boundingBox();
+  expect(recallMarkBox?.width ?? 0).toBe(28);
+  expect(recallMarkBox?.height ?? 0).toBe(28);
+  expect(recallMarkBox?.y ?? -1).toBeGreaterThanOrEqual(0);
   await page.getByRole("button", { name: "展开侧边栏" }).click();
   const drawer = page.getByRole("dialog", { name: "应用导航" });
   await drawer.getByRole("button", { name: "移动长模型目录", exact: true }).click();
@@ -84,6 +90,7 @@ test("移动端模型菜单保持 step-in、返回和长模型列表滚动", asy
   await expect(picker).toHaveAttribute("data-model-picker-view", "models");
   await expect(model).toBeVisible();
   await expect(model.getByRole("radio", { name: /Gemini Mobile Cascade 31/ })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-cascade-mobile-model.png"), fullPage: false });
   const modelMetrics = await model.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(modelMetrics.scrollHeight).toBeGreaterThan(modelMetrics.clientHeight);
   await expectNoDocumentHorizontalOverflow(page);

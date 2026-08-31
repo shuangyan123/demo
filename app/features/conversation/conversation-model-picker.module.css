@@ -67,6 +67,7 @@
   z-index: 2;
   width: 100%;
   overflow: hidden;
+  animation: none;
 }
 
 .providerSurface {
@@ -119,13 +120,9 @@
 }
 
 @keyframes picker-layer-enter {
-  from {
-    opacity: 0;
-  }
+  from { transform: translateY(2px); }
 
-  to {
-    opacity: 1;
-  }
+  to { transform: translateY(0); }
 }
 
 .providerRow,

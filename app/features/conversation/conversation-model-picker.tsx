@@ -43,6 +43,7 @@ export type ConversationModelPickerProps = {
   selectedModelId?: string;
   selectedRuntimeValues?: AiSelectedRuntimeValues;
   onOpenConnections: () => void;
+  onModelCommit?: () => void;
   onSelect: (selection: ConversationModelSelection) => void;
 };
 
@@ -129,6 +130,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   selectedModelId,
   selectedRuntimeValues,
   onOpenConnections,
+  onModelCommit,
   onSelect,
 }, forwardedRef) {
   const pickerRef = useRef<HTMLDivElement | null>(null);
@@ -144,17 +146,20 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   const [modelPreviewProvider, setModelPreviewProvider] = useState<ApiProvider>();
   const closePreviewTimerRef = useRef<number | undefined>(undefined);
   const cascadePointerInsideRef = useRef(false);
+  const modelSelectionCommittedRef = useRef(false);
   const eligible = useMemo(() => connections.filter((connection) => connection.capabilities.includes(purpose)), [connections, purpose]);
   const selectedConnection = eligible.find((connection) => connection.id === selectedConnectionId);
   const initialView: ConversationModelPickerView = initialRuntimeDimension && selectedConnection && selectedModelId
     ? { kind: "runtime", provider: selectedConnection.provider, connectionId: selectedConnection.id, dimension: initialRuntimeDimension }
     : { kind: "controls" };
-  const { back, changeConnection, showModels, showProviders, showRuntime, view } = useConversationModelNavigation({ initialView, pickerRef });
-  const providers = useMemo(() => Array.from(new Set(eligible.map((connection) => connection.provider))).sort((left, right) => {
+  const { back, changeConnection, reset, showModels, showProviders, showRuntime, view } = useConversationModelNavigation({ initialView, pickerRef });
+  const sortedProviders = useMemo(() => Array.from(new Set(eligible.map((connection) => connection.provider))).sort((left, right) => {
     if (left === selectedConnection?.provider) return -1;
     if (right === selectedConnection?.provider) return 1;
     return providerCollator.compare(getProviderContract(left).label, getProviderContract(right).label);
   }), [eligible, selectedConnection?.provider]);
+  // Picker 挂载期间冻结已有厂商顺序；选中项置顶只在关闭后下一次打开时生效。
+  const [providers] = useState<ApiProvider[]>(() => sortedProviders);
   const [requestedProviderId, setActiveProviderId] = useState<ApiProvider | undefined>(() => selectedConnection?.provider);
   const activeProviderId = requestedProviderId && providers.includes(requestedProviderId)
     ? requestedProviderId
@@ -188,7 +193,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     modelAnchorRef.current = rootRowRefs.current.get("model") ?? null;
     providerAnchorRef.current = activeProviderId ? providerRowRefs.current.get(activeProviderId) ?? null : null;
     runtimeAnchorRef.current = runtimeDimension ? rootRowRefs.current.get(runtimeDimension) ?? null : null;
-  }, [activeProviderId, modelSurfaceVisible, providerSurfaceVisible, runtimeDimension]);
+  }, [activeProviderId, modelSurfaceVisible, providerSurfaceVisible, providers, runtimeDimension]);
 
   const { direction, positions } = useConversationModelFlyoutPosition({
     pickerRef,
@@ -263,6 +268,8 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   }
 
   function goBack() {
+    clearClosePreviewTimer();
+    cascadePointerInsideRef.current = false;
     setModelPreviewProvider(undefined);
     back();
   }
@@ -271,6 +278,20 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     if (event.key !== "ArrowLeft") return;
     event.preventDefault();
     goBack();
+  }
+
+  function handlePickerKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Escape") return;
+    if (view.kind !== "models" && !(view.kind === "providers" && modelPreviewProvider)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (view.kind === "models") {
+      goBack();
+      return;
+    }
+    clearClosePreviewTimer();
+    cascadePointerInsideRef.current = false;
+    setModelPreviewProvider(undefined);
   }
 
   function openModelBrowser(focusProviders = false) {
@@ -295,7 +316,18 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
 
   function chooseModel(nextModelId: string) {
     if (!activeConnection) return;
+    if (modelSelectionCommittedRef.current) return;
     const descriptor = getAiModelRuntimeDescriptor(activeConnection.provider, nextModelId);
+    modelSelectionCommittedRef.current = true;
+    clearClosePreviewTimer();
+    cascadePointerInsideRef.current = false;
+    setModelPreviewProvider(undefined);
+    setActiveProviderId(undefined);
+    modelAnchorRef.current = null;
+    providerAnchorRef.current = null;
+    runtimeAnchorRef.current = null;
+    reset();
+    onModelCommit?.();
     onSelect({
       connection: activeConnection,
       modelId: nextModelId,
@@ -328,6 +360,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
       data-model-picker-view={pickerView}
       data-picker-has-budget={hasCustomBudget ? "true" : undefined}
       role="dialog"
+      onKeyDownCapture={handlePickerKeyDown}
     >
       <nav
         aria-label="模型配置"
@@ -344,7 +377,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           data-picker-default-focus={view.kind === "controls" ? "true" : undefined}
           data-picker-focus-key="control-entry:model"
           type="button"
-          onFocus={() => { if (usesDesktopFlyout()) openModelBrowser(); }}
+          onFocus={(event) => { if (usesDesktopFlyout() && event.currentTarget.dataset.pickerProgrammaticFocus !== "true") openModelBrowser(); }}
           onPointerEnter={() => openModelBrowser()}
           onKeyDown={(event) => handleControlKeyDown(event, openModelBrowser)}
           onClick={() => openModelBrowser()}
@@ -358,7 +391,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           data-picker-focus-key="runtime-entry:reasoning"
           disabled={!selectedDescriptor?.reasoning}
           type="button"
-          onFocus={() => { if (usesDesktopFlyout()) openSelectedRuntime("reasoning"); }}
+          onFocus={(event) => { if (usesDesktopFlyout() && event.currentTarget.dataset.pickerProgrammaticFocus !== "true") openSelectedRuntime("reasoning"); }}
           onPointerEnter={() => openSelectedRuntime("reasoning")}
           onKeyDown={(event) => handleControlKeyDown(event, (focus) => openSelectedRuntime("reasoning", focus))}
           onClick={() => openSelectedRuntime("reasoning")}
@@ -372,7 +405,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           data-picker-focus-key="runtime-entry:speed"
           disabled={!selectedDescriptor?.speed}
           type="button"
-          onFocus={() => { if (usesDesktopFlyout()) openSelectedRuntime("speed"); }}
+          onFocus={(event) => { if (usesDesktopFlyout() && event.currentTarget.dataset.pickerProgrammaticFocus !== "true") openSelectedRuntime("speed"); }}
           onPointerEnter={() => openSelectedRuntime("speed")}
           onKeyDown={(event) => handleControlKeyDown(event, (focus) => openSelectedRuntime("speed", focus))}
           onClick={() => openSelectedRuntime("speed")}
@@ -403,7 +436,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                   data-picker-focus-key={`provider:${provider}`}
                   data-provider-active={provider === activeProviderId ? "true" : undefined}
                   type="button"
-                  onFocus={() => activateProvider(provider)}
+                  onFocus={(event) => { if (event.currentTarget.dataset.pickerProgrammaticFocus !== "true") activateProvider(provider); }}
                   onPointerEnter={() => activateProvider(provider)}
                   onKeyDown={(event) => {
                     if (event.key === "ArrowLeft") {
