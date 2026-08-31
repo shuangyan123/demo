@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { seedConversationModelFixtures } from "./helpers/conversation-model-fixtures";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
@@ -41,6 +41,30 @@ async function seedModelCache(page: Page, connectionId: string, provider: "googl
   }, { connectionId, provider, models });
 }
 
+async function expectRecallMarkInsideHeader(page: Page): Promise<void> {
+  const geometry = await page.locator(".chrome-topbar").evaluate((header) => {
+    const safeArea = header.querySelector<HTMLElement>(".chrome-topbar-safe-area");
+    const mark = header.querySelector<HTMLImageElement>('img[alt="Recall"]');
+    if (!safeArea || !mark) throw new Error("Recall 标记缺少可测量的 header 几何");
+    const headerRect = header.getBoundingClientRect();
+    const safeAreaRect = safeArea.getBoundingClientRect();
+    const markRect = mark.getBoundingClientRect();
+    return {
+      header: { top: headerRect.top, bottom: headerRect.bottom, left: headerRect.left, right: headerRect.right },
+      safeArea: { top: safeAreaRect.top, bottom: safeAreaRect.bottom, left: safeAreaRect.left, right: safeAreaRect.right },
+      mark: { top: markRect.top, bottom: markRect.bottom, left: markRect.left, right: markRect.right, width: markRect.width, height: markRect.height },
+    };
+  });
+  expect(geometry.mark.width).toBe(28);
+  expect(geometry.mark.height).toBe(28);
+  for (const boundary of [geometry.header, geometry.safeArea]) {
+    expect(geometry.mark.top).toBeGreaterThanOrEqual(boundary.top);
+    expect(geometry.mark.bottom).toBeLessThanOrEqual(boundary.bottom);
+    expect(geometry.mark.left).toBeGreaterThanOrEqual(boundary.left);
+    expect(geometry.mark.right).toBeLessThanOrEqual(boundary.right);
+  }
+}
+
 async function expectNoDocumentHorizontalOverflow(page: Page): Promise<void> {
   const dimensions = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
@@ -49,7 +73,19 @@ async function expectNoDocumentHorizontalOverflow(page: Page): Promise<void> {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 }
 
-test("移动端模型菜单保持 step-in、返回和长模型列表滚动", async ({ page }) => {
+async function visibleModelRowCount(results: Locator): Promise<number> {
+  return results.evaluate((element) => {
+    const resultsRect = element.getBoundingClientRect();
+    return Array.from(element.querySelectorAll<HTMLElement>("[data-model-picker-row]"))
+      .filter((row) => {
+        const rowRect = row.getBoundingClientRect();
+        return rowRect.top >= resultsRect.top - 1 && rowRect.bottom <= resultsRect.bottom + 1;
+      })
+      .length;
+  });
+}
+
+test("移动端模型菜单保持 step-in、返回和长模型列表滚动", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -65,6 +101,7 @@ test("移动端模型菜单保持 step-in、返回和长模型列表滚动", asy
   ]);
   await seedModelCache(page, "mobile-cascade-google", "google", mobileModels);
   await page.reload();
+  await expectRecallMarkInsideHeader(page);
   await page.getByRole("button", { name: "展开侧边栏" }).click();
   const drawer = page.getByRole("dialog", { name: "应用导航" });
   await drawer.getByRole("button", { name: "移动长模型目录", exact: true }).click();
@@ -84,11 +121,26 @@ test("移动端模型菜单保持 step-in、返回和长模型列表滚动", asy
   await expect(picker).toHaveAttribute("data-model-picker-view", "models");
   await expect(model).toBeVisible();
   await expect(model.getByRole("radio", { name: /Gemini Mobile Cascade 31/ })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-cascade-mobile-model.png"), fullPage: false });
+  const stickyHeader = model.locator('[data-model-picker-sticky-header="true"]');
+  const results = model.locator('[data-model-picker-results="true"]');
+  await expect(stickyHeader).toBeVisible();
+  await expect(model.getByRole("searchbox", { name: "搜索模型" })).toBeVisible();
   const modelMetrics = await model.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
-  expect(modelMetrics.scrollHeight).toBeGreaterThan(modelMetrics.clientHeight);
+  const resultMetrics = await results.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
+  expect(modelMetrics.scrollHeight).toBe(modelMetrics.clientHeight);
+  expect(resultMetrics.scrollHeight).toBeGreaterThan(resultMetrics.clientHeight);
+  expect(resultMetrics.overflowY).toBe("auto");
+  expect(await visibleModelRowCount(results)).toBeLessThanOrEqual(5);
+  const stickyBeforeScroll = await stickyHeader.boundingBox();
+  const modelBeforeScroll = await model.boundingBox();
   await expectNoDocumentHorizontalOverflow(page);
-  await model.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-  await expect.poll(async () => model.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await results.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect.poll(async () => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const stickyAfterScroll = await stickyHeader.boundingBox();
+  const modelAfterScroll = await model.boundingBox();
+  expect(Math.abs((stickyAfterScroll?.y ?? 0) - (stickyBeforeScroll?.y ?? 0))).toBeLessThanOrEqual(1);
+  expect(Math.abs((modelAfterScroll?.y ?? 0) - (modelBeforeScroll?.y ?? 0))).toBeLessThanOrEqual(1);
   await model.getByRole("button", { name: "返回厂商" }).click();
   await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
   await expect(model).toBeHidden();

@@ -48,6 +48,7 @@
   max-width: calc(100vw - 1.25rem);
   color: var(--foreground);
   overflow: visible;
+  isolation: isolate;
 }
 
 .surface {
@@ -56,10 +57,11 @@
   min-width: 0;
   border: 1px solid var(--chrome-popover-outline);
   border-radius: var(--ui-radius-popover);
-  background: var(--surface);
+  background-color: var(--surface);
+  background-image: none;
   color: var(--foreground);
   box-shadow: var(--chrome-subtle-shadow);
-  animation: picker-layer-enter 110ms ease-out;
+  isolation: isolate;
 }
 
 .rootSurface {
@@ -67,6 +69,7 @@
   z-index: 2;
   width: 100%;
   overflow: hidden;
+  animation: none;
 }
 
 .providerSurface {
@@ -75,11 +78,12 @@
 }
 
 .modelSurface {
-  width: min(22rem, calc(100vw - 1.25rem));
+  display: flex;
+  flex-direction: column;
+  width: min(26.25rem, calc(100vw - 1.25rem));
   max-height: min(30rem, calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
 .runtimeSurface {
@@ -116,16 +120,6 @@
   background: var(--surface-muted);
   color: var(--foreground);
   outline: none;
-}
-
-@keyframes picker-layer-enter {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
 }
 
 .providerRow,
@@ -228,6 +222,68 @@
   white-space: nowrap;
 }
 
+.modelPanelHeader {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  flex: none;
+  background-color: var(--surface);
+}
+
+.searchField {
+  display: grid;
+  min-width: 0;
+  min-height: 2.25rem;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background-color: var(--surface-muted);
+  padding: 0 0.45rem;
+  color: var(--muted);
+}
+
+.searchField:hover {
+  border-color: color-mix(in srgb, var(--foreground) 18%, var(--line));
+}
+
+.searchField:focus-within {
+  border-color: color-mix(in srgb, var(--foreground) 34%, var(--line));
+  color: var(--foreground);
+}
+
+.searchInput {
+  min-width: 0;
+  width: 100%;
+  height: 1.85rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.75rem;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.searchInput:focus,
+.searchInput:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.searchInput::placeholder {
+  color: var(--muted);
+}
+
+/* dark 主题表单默认值 specificity 更高，保持 shell 作为唯一视觉表面。 */
+.searchField .searchInput {
+  background-color: transparent;
+}
+
 .backButton {
   display: grid;
   width: 1.75rem;
@@ -274,6 +330,18 @@
   display: grid;
   min-width: 0;
   padding: 0.25rem;
+}
+
+.modelResults {
+  min-height: 0;
+  /* Auto-height keeps short catalogs compact; max-height makes long catalogs the only scroller. */
+  flex: 0 1 auto;
+  /* Five fine-pointer rows plus the list's vertical padding. */
+  --model-results-cap-height: 10.5rem;
+  max-height: min(var(--model-results-cap-height), calc(100dvh - 6rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .modelList > .ui-tooltip-anchor {
@@ -439,6 +507,9 @@
 }
 
 .modelEmptyState {
+  display: grid;
+  min-height: 4.5rem;
+  align-items: center;
   padding: 0.7rem 0.45rem;
   color: var(--muted);
   font-size: 0.72rem;
@@ -486,16 +557,19 @@
   }
 
   .modelSurface {
-    overflow-y: auto;
+    display: flex;
+    height: auto;
     max-height: inherit;
-    scrollbar-gutter: stable;
+    overflow: hidden;
   }
 
-  .modelSurface > .flyoutBack {
+  .modelPanelHeader {
     position: sticky;
-    z-index: 2;
     top: 0;
-    background: var(--surface);
+  }
+
+  .modelResults {
+    max-height: min(var(--model-results-cap-height), calc(100dvh - var(--chrome-topbar-height, 52px) - var(--model-picker-mobile-bottom, 7.75rem) - 4.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
   }
 
   .picker[data-model-picker-view="providers"] .rootSurface,
@@ -579,10 +653,13 @@
   .budgetRow input {
     height: 44px;
   }
+
+  .modelResults {
+    /* Coarse-pointer rows are 44px tall, so five rows need a larger cap. */
+    --model-results-cap-height: 14.25rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .surface {
-    animation: none;
-  }
+  .surface { transition: none; }
 }

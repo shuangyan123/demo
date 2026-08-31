@@ -11,8 +11,11 @@ const slashCommands = readFileSync(new URL("./conversation-slash-commands.tsx", 
 const contextIndicator = readFileSync(new URL("./conversation-context-indicator.tsx", import.meta.url), "utf8");
 const modelSelector = readFileSync(new URL("./conversation-model-selector.tsx", import.meta.url), "utf8");
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
+const baseStyles = readFileSync(new URL("../../styles/base.css", import.meta.url), "utf8");
+const modelProviderOrder = readFileSync(new URL("./conversation-model-provider-order.ts", import.meta.url), "utf8");
 const modelPickerStyles = readFileSync(new URL("./conversation-model-picker.module.css", import.meta.url), "utf8");
 const modelFlyoutPosition = readFileSync(new URL("./use-conversation-model-flyout-position.ts", import.meta.url), "utf8");
+const modelNavigation = readFileSync(new URL("./use-conversation-model-navigation.ts", import.meta.url), "utf8");
 const overlayEvents = readFileSync(new URL("../shared/ui-overlay-events.ts", import.meta.url), "utf8");
 const popover = readFileSync(new URL("../shared/ui-popover.tsx", import.meta.url), "utf8");
 const hint = readFileSync(new URL("../shared/ui-tooltip.tsx", import.meta.url), "utf8");
@@ -147,12 +150,12 @@ test("对话画布拥有唯一滚动容器并让正文与 Composer 共用坐标�
 
 test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键盘进入", () => {
   assert.match(modelPicker, /onPointerEnter=\{\(\) => openModelBrowser\(\)\}/);
-  assert.match(modelPicker, /onFocus=\{\(\) => \{ if \(usesDesktopFlyout\(\)\) openModelBrowser\(\); \}\}/);
+  assert.match(modelPicker, /onFocus=\{\(event\) => \{ if \(usesDesktopFlyout\(\) && event\.currentTarget\.dataset\.pickerProgrammaticFocus !== "true"\) openModelBrowser\(\); \}\}/);
   assert.match(modelPicker, /openSelectedRuntime\("reasoning"\)/);
   assert.match(modelPicker, /openSelectedRuntime\("speed"\)/);
   assert.match(modelPicker, /event\.key !== "ArrowRight" && event\.key !== "Enter"/);
   assert.match(modelPicker, /onPointerEnter=\{\(\) => activateProvider\(provider\)\}/);
-  assert.match(modelPicker, /onFocus=\{\(\) => activateProvider\(provider\)\}/);
+  assert.match(modelPicker, /onFocus=\{\(event\) => \{ if \(event\.currentTarget\.dataset\.pickerProgrammaticFocus !== "true"\) activateProvider\(provider\); \}\}/);
   assert.match(modelPicker, /event\.key !== "ArrowLeft"/);
   assert.match(modelPicker, /styles\.rootSurface/);
   assert.match(modelPicker, /styles\.providerSurface/);
@@ -166,17 +169,79 @@ test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键�
   assert.match(modelPicker, /styles\.mobileDisclosure/);
   assert.match(modelPickerStyles, /\.picker\s*\{[\s\S]*width: min\(18\.5rem/);
   assert.match(modelPickerStyles, /\.providerSurface\s*\{[\s\S]*width: min\(15rem/);
-  assert.match(modelPickerStyles, /\.modelSurface\s*\{[\s\S]*max-height:[\s\S]*overflow-y: auto/);
+  assert.match(modelPickerStyles, /\.modelSurface\s*\{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*overflow: hidden/);
+  assert.match(modelPickerStyles, /\.modelSurface\s*\{[\s\S]*width: min\(26\.25rem/);
+  assert.doesNotMatch(modelPickerStyles, /\.modelSurface\s*\{[^}]*\n\s+height:\s*min\(30rem/);
+  assert.match(modelPickerStyles, /\.modelPanelHeader\s*\{[\s\S]*position: sticky;[\s\S]*flex: none;[\s\S]*background-color: var\(--surface\)/);
+  assert.match(modelPickerStyles, /\.searchField\s*\{[\s\S]*border: 1px solid var\(--line\);[\s\S]*background-color: var\(--surface-muted\)/);
+  assert.match(modelPickerStyles, /\.searchField:hover\s*\{[\s\S]*border-color: color-mix\(in srgb, var\(--foreground\) 18%, var\(--line\)\)/);
+  assert.match(modelPickerStyles, /\.searchField:focus-within\s*\{[\s\S]*border-color: color-mix\(in srgb, var\(--foreground\) 34%, var\(--line\)\)/);
+  assert.doesNotMatch(modelPickerStyles, /\.searchField:focus-within\s*\{[^}]*box-shadow:/);
+  assert.match(modelPickerStyles, /\.searchInput\s*\{[\s\S]*border: 0;[\s\S]*outline: 0;[\s\S]*background: transparent;[\s\S]*box-shadow: none;[\s\S]*appearance: none;[\s\S]*-webkit-appearance: none;/);
+  assert.match(modelPickerStyles, /\.searchInput:focus,\s*\.searchInput:focus-visible\s*\{[\s\S]*border: 0;[\s\S]*outline: 0;[\s\S]*box-shadow: none;/);
+  assert.match(modelPickerStyles, /\.searchField \.searchInput\s*\{\s*background-color: transparent;/);
+  assert.match(modelPicker, /className=\{`\$\{styles\.searchInput\} model-search-input`\}/);
+  assert.match(baseStyles, /input:not\(\.settings-input\):not\(\.contrast-slider\):not\(\.ui-input\):not\(\.command-search-input\):not\(\.model-search-input\):focus-visible/);
+  assert.match(modelPickerStyles, /\.modelResults\s*\{[\s\S]*min-height: 0;[\s\S]*flex: 0 1 auto;[\s\S]*--model-results-cap-height: 10\.5rem;[\s\S]*max-height: min\(var\(--model-results-cap-height\)/);
+  assert.match(modelPickerStyles, /\.modelResults\s*\{[\s\S]*overflow-y: auto;[\s\S]*scrollbar-gutter: stable/);
+  assert.match(modelPickerStyles, /@media \(pointer: coarse\)[\s\S]*--model-results-cap-height: 14\.25rem;/);
   assert.match(modelPickerStyles, /scrollbar-gutter: stable/);
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.surface,[\s\S]*?position: static/);
-  assert.match(modelPickerStyles, /\.modelSurface > \.flyoutBack[\s\S]*position: sticky/);
   assert.match(modelPickerStyles, /\.flyoutBack\s*\{\s*display: none;/);
+  assert.match(modelPickerStyles, /\.rootSurface\s*\{[\s\S]*animation: none;/);
+  assert.doesNotMatch(modelPickerStyles, /@keyframes picker-layer-enter/);
+  assert.doesNotMatch(modelPickerStyles, /animation:\s*picker-layer-enter/);
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.flyoutBack\s*\{\s*display: grid;/);
   assert.match(modelPickerStyles, /\.mobileDisclosure\s*\{\s*display: inline-flex;/);
   assert.match(modelFlyoutPosition, /computeUiOverlayPosition/);
   assert.match(modelFlyoutPosition, /placementsFor/);
   assert.match(modelFlyoutPosition, /widestChild/);
+  assert.match(modelFlyoutPosition, /MAX_CHILD_SURFACE_WIDTH/);
+  assert.match(modelFlyoutPosition, /MAX_MODEL_SURFACE_HEIGHT/);
   assert.doesNotMatch(modelPicker, /<strong>模型<\/strong>/);
+});
+
+test("模型级联由 selector 冻结厂商快照，提交和 Escape 走单一关闭事务", () => {
+  assert.match(modelProviderOrder, /getConversationModelProviderOrder/);
+  assert.match(modelProviderOrder, /Object\.freeze/);
+  assert.match(modelSelector, /const \[sessionProviderOrder, setSessionProviderOrder\] = useState<readonly ApiProvider\[\]>\(\[\]\)/);
+  assert.match(modelSelector, /setSessionProviderOrder\(getConversationModelProviderOrder\(connections, purpose, selectedConnectionId\)\)/);
+  assert.match(modelSelector, /if \(open \|\| !openMenu\(\)\) return/);
+  assert.match(modelSelector, /providerOrder=\{sessionProviderOrder\}/);
+  assert.match(modelPicker, /const providers = providerOrder/);
+  assert.doesNotMatch(modelPicker, /sortedProviders|useState<ApiProvider\[\]>/);
+  assert.match(modelPicker, /const modelSelectionCommittedRef = useRef\(false\)/);
+  assert.match(modelPicker, /if \(modelSelectionCommittedRef\.current\) return/);
+  assert.match(modelPicker, /clearClosePreviewTimer\(\);[\s\S]*providerPointerInsideRef\.current = false;[\s\S]*modelPanelFocusInsideRef\.current = false;[\s\S]*setModelPanelProvider\(undefined\);[\s\S]*setActiveProviderId\(undefined\);/);
+  assert.match(modelPicker, /modelAnchorRef\.current = null;[\s\S]*providerAnchorRef\.current = null;[\s\S]*runtimeAnchorRef\.current = null;/);
+  assert.match(modelPicker, /reset\(\);[\s\S]*onRequestClose\(true\);[\s\S]*onSelect\(\{/);
+  assert.doesNotMatch(modelPicker, /onModelCommit/);
+  assert.match(modelSelector, /onRequestClose=\{closePicker\}/);
+  assert.match(modelPicker, /onKeyDownCapture=\{handlePickerKeyDown\}/);
+  assert.match(modelPicker, /event\.key !== "Escape"/);
+  assert.match(modelPicker, /searchQuery\.trim\(\)[\s\S]*event\.target === modelSearchRef\.current[\s\S]*setSearchQuery\(\"\"\)/);
+  assert.match(modelPicker, /view\.kind === "providers" && modelPanelProvider/);
+  assert.match(modelPicker, /providerPointerInsideRef/);
+  assert.match(modelPicker, /modelPanelPointerInsideRef/);
+  assert.match(modelPicker, /modelPanelFocusInsideRef/);
+  assert.match(modelPicker, /onFocusCapture=\{handleModelPanelFocusEnter\}/);
+  assert.match(modelPicker, /onBlurCapture=\{handleModelPanelFocusLeave\}/);
+  assert.match(modelPicker, /keepCascadeOpen\(\); setSearchQuery\(event\.currentTarget\.value\)/);
+  assert.match(modelNavigation, /pendingFocusRef\.current = undefined;[\s\S]*setView\(\{ kind: "controls" \}\)/);
+  assert.match(modelPicker, /dataset\.pickerProgrammaticFocus !== "true"/);
+});
+
+test("模型面板搜索只过滤当前目录并保留结果键盘语义", () => {
+  assert.match(modelPicker, /const normalizedSearchQuery = searchQuery\.trim\(\)\.toLowerCase\(\)/);
+  assert.match(modelPicker, /model\.label\.toLowerCase\(\)\.includes\(normalizedSearchQuery\)/);
+  assert.match(modelPicker, /model\.id\.toLowerCase\(\)\.includes\(normalizedSearchQuery\)/);
+  assert.match(modelPicker, /data-model-picker-sticky-header="true"/);
+  assert.match(modelPicker, /data-model-picker-results="true"/);
+  assert.match(modelPicker, /aria-label="搜索模型"/);
+  assert.match(modelPicker, /role="radiogroup"/);
+  assert.match(modelPicker, /未找到匹配模型/);
+  assert.match(modelPicker, /scrollIntoView\(\{ block: "nearest" \}\)/);
+  assert.match(modelPicker, /chooseModel\(target\.dataset\.modelId \?\? ""\)/);
 });
 
 test("模型目录按 active provider key 原子切换且连接入口只存在于零连接状态", () => {
@@ -218,7 +283,11 @@ test("交互式菜单打开时关闭 Topic Preview、UiHint 和信息卡", () =>
 test("Workbench chrome removes browser product topbar while preserving native host boundary", () => {
   assert.match(shell, /<WindowMenuBar/);
   assert.match(shell, /data-native-window=\{nativeWindowAvailable \? "true" : "false"\}/);
-  assert.match(shellStyles, /data-native-window="false"\][\s\S]*?\.chrome-topbar[\s\S]*?height: 0/);
+  assert.match(shellStyles, /data-native-window="false"\][\s\S]*?\.chrome-topbar[\s\S]*?height: var\(--chrome-topbar-height\);[\s\S]*?min-height: var\(--chrome-topbar-height\);/);
+  assert.match(shellStyles, /data-native-window="false"\][\s\S]*?chrome-topbar-safe-area[\s\S]*?height: 100%;/);
+  assert.doesNotMatch(shellStyles, /data-native-window="false"\]\s*> \.chrome-topbar\s*\{[^}]*height: 0/);
+  assert.doesNotMatch(shellStyles, /chrome-topbar-safe-area > img\[alt="Recall"\][\s\S]*?margin-top/);
+  assert.match(shellStyles, /\.chrome-layout\s*\{[\s\S]*height: calc\(100dvh - var\(--chrome-topbar-height\)\)/);
   assert.match(shellStyles, /\.chrome-layout\.is-sidebar-collapsed[\s\S]*?grid-template-columns: 0 0 minmax\(0, 1fr\)/);
   assert.match(shellStyles, /\.chrome-layout\.is-sidebar-collapsed \.chrome-sidebar-boundary[\s\S]*?width: 0/);
   assert.match(readFileSync(new URL("../review/review-workspace-app-sidebar.tsx", import.meta.url), "utf8"), /<strong>错题复盘<\/strong>/);

@@ -85,5 +85,10 @@ export function useConversationModelNavigation({ initialView = { kind: "controls
     if (view.kind === "providers") navigate({ kind: "controls" }, { key: "control-entry:model" });
   }, [navigate, view]);
 
-  return { back, changeConnection, showModels, showProviders, showRuntime, view };
+  const reset = useCallback(() => {
+    pendingFocusRef.current = undefined;
+    setView({ kind: "controls" });
+  }, []);
+
+  return { back, changeConnection, reset, showModels, showProviders, showRuntime, view };
 }

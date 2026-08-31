@@ -950,6 +950,12 @@ select,
   display: block;
   flex: none;
   object-fit: contain;
+  background: transparent;
+}
+
+.provider-icon img {
+  display: block;
+  background: transparent;
 }
 
 body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {

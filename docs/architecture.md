@@ -126,16 +126,16 @@ desktop/
 
 - `ApiConnectionProfile` 只持有厂商、地址、密钥与能力；历史 `model` 只用于一次性初始化默认能力模型，新建和编辑不再写入。
 - 后台任务通过 `AiConnectionDefaults` 的“连接 + 模型”组合运行；对话通过 `selectedConnectionId`、`selectedModelId` 与 `selectedRuntimeValues` 运行，两者互不覆盖。旧推理/速度字段只在 repository 读取时折叠，不升级 Dexie v16。
-- 模型选择器在移动端继续单栏钻取，在桌面端使用 Root → Provider → Model 的稳定级联 surface；当前会话厂商优先，其余按英文名排序，推理/速度从 Root 各自打开独立小 surface，所有选择点击即保存。
+- 模型选择器在移动端继续单栏钻取，在桌面端使用 Root → Provider → Model 的稳定级联 surface；selector 只在每次 CLOSED → OPEN 时生成一次不可变厂商顺序快照，picker 会话内只消费该快照，推理/速度从 Root 各自打开独立小 surface，所有选择点击即保存。
 - 官方 Models API 成功时展示账户可用的全部未弃用模型；失败时才使用带 `verifiedAt` 的回退目录。MiniMax 当前旗舰为 `MiniMax-M3`，GLM 当前旗舰为 `glm-5.2`。
 - 对话树名称区域承担 dnd-kit 拖拽，拖拽期间始终提供根目录目标；repository 继续拒绝跨项目、自身和子孙嵌套。
 
 ## 对话模型菜单分层（2026-07-13）
 
 - `ConversationWorkspace` 只编排会话运行、消息和工具状态；输入器由 `ConversationComposer` 承载。语音、实时通话、模型和推理是一级入口，低频附件/媒体/知识工具进入加号菜单，斜杠指令的瞬时状态留在独立输入组件。
-- 模型菜单状态继续使用 `providers → models → reasoning/speed` 判别联合；桌面端由 `ConversationModelPicker` 维护共享导航状态并渲染 root/provider/model 独立 surface，短暂离开父行由轻量 pointer grace 保持级联，移动端通过 CSS 隐藏父层继续单栏 step-in。
+- 模型菜单状态继续使用 `providers → models → reasoning/speed` 判别联合；selector 负责打开/关闭事务和厂商顺序快照，`ConversationModelPicker` 维护当前钻取状态并渲染 root/provider/model 独立 surface，模型层由显式 active provider 控制，provider/model 的 pointer 与 focus ownership 共同决定 pointer grace 是否可以关闭预览，搜索焦点不会依赖 provider 行悬停。移动端通过 CSS 隐藏父层继续单栏 step-in。Escape 按当前层级由 picker 消费：模型搜索框有非空 query 时先清 query，否则返回或关闭一层；模型提交先清理子层和锚点，再经 selector 单次关闭并恢复触发器焦点。
 - 空白对话选择保存在 `draftSelection`；持久化对话使用按 `conversationId` 隔离的乐观选择。写入按用户操作顺序串行化，刷新确认后清理，失败时只回滚当前对话并显示错误，禁止把 A 对话的临时选择带到 B 对话。
-- 选项宽度按 surface 内容密度固定在 root 296px、provider 240px、model 352px 的设计范围内（均受视口安全宽度约束）；模型 surface 使用 viewport-aware `max-height`、`overflow-y: auto` 和 `scrollbar-gutter: stable`，root/provider 不滚动。
+- 选项宽度按 surface 内容密度固定在 root 296px、provider 240px、model 420px 的设计范围内（均受视口安全宽度约束）；模型 surface 按内容高度收缩，结果层最多展示五行并对长目录使用 viewport-aware bounded max-height，定位按当前 header 形状的紧凑稳定上限计算以保持打开会话内顶端锚点稳定，内部由 sticky provider/search header 与 `.modelResults` 组成，只有结果层 `overflow-y: auto` 并使用 `scrollbar-gutter: stable`，root/provider 不滚动。搜索只匹配当前厂商目录的显示名或 canonical model id，保留原始顺序。
 - 运行值继续只以 `selectedRuntimeValues` 持久化，不改变 IndexedDB v16 或 `/api/ai/models`、`/api/ai/generate`。UI 提交归一化值，provider runtime mapper 负责厂商字段。
 
 ```text
