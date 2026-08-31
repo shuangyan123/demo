@@ -133,9 +133,9 @@ desktop/
 ## 对话模型菜单分层（2026-07-13）
 
 - `ConversationWorkspace` 只编排会话运行、消息和工具状态；输入器由 `ConversationComposer` 承载。语音、实时通话、模型和推理是一级入口，低频附件/媒体/知识工具进入加号菜单，斜杠指令的瞬时状态留在独立输入组件。
-- 模型菜单状态继续使用 `providers → models → reasoning/speed` 判别联合；selector 负责打开/关闭事务和厂商顺序快照，`ConversationModelPicker` 维护当前钻取状态并渲染 root/provider/model 独立 surface，短暂离开父行由轻量 pointer grace 保持级联，移动端通过 CSS 隐藏父层继续单栏 step-in。Escape 按当前层级由 picker 消费：模型搜索框有非空 query 时先清 query，否则返回或关闭一层；模型提交先清理子层和锚点，再经 selector 单次关闭并恢复触发器焦点。
+- 模型菜单状态继续使用 `providers → models → reasoning/speed` 判别联合；selector 负责打开/关闭事务和厂商顺序快照，`ConversationModelPicker` 维护当前钻取状态并渲染 root/provider/model 独立 surface，模型层由显式 active provider 控制，provider/model 的 pointer 与 focus ownership 共同决定 pointer grace 是否可以关闭预览，搜索焦点不会依赖 provider 行悬停。移动端通过 CSS 隐藏父层继续单栏 step-in。Escape 按当前层级由 picker 消费：模型搜索框有非空 query 时先清 query，否则返回或关闭一层；模型提交先清理子层和锚点，再经 selector 单次关闭并恢复触发器焦点。
 - 空白对话选择保存在 `draftSelection`；持久化对话使用按 `conversationId` 隔离的乐观选择。写入按用户操作顺序串行化，刷新确认后清理，失败时只回滚当前对话并显示错误，禁止把 A 对话的临时选择带到 B 对话。
-- 选项宽度按 surface 内容密度固定在 root 296px、provider 240px、model 420px 的设计范围内（均受视口安全宽度约束）；模型 surface 按内容高度收缩，结果层最多展示五行并对长目录使用 viewport-aware bounded max-height，定位按同一紧凑上限计算以保持打开会话内顶端锚点稳定，内部由 sticky provider/search header 与 `.modelResults` 组成，只有结果层 `overflow-y: auto` 并使用 `scrollbar-gutter: stable`，root/provider 不滚动。搜索只匹配当前厂商目录的显示名或 canonical model id，保留原始顺序。
+- 选项宽度按 surface 内容密度固定在 root 296px、provider 240px、model 420px 的设计范围内（均受视口安全宽度约束）；模型 surface 按内容高度收缩，结果层最多展示五行并对长目录使用 viewport-aware bounded max-height，定位按当前 header 形状的紧凑稳定上限计算以保持打开会话内顶端锚点稳定，内部由 sticky provider/search header 与 `.modelResults` 组成，只有结果层 `overflow-y: auto` 并使用 `scrollbar-gutter: stable`，root/provider 不滚动。搜索只匹配当前厂商目录的显示名或 canonical model id，保留原始顺序。
 - 运行值继续只以 `selectedRuntimeValues` 持久化，不改变 IndexedDB v16 或 `/api/ai/models`、`/api/ai/generate`。UI 提交归一化值，provider runtime mapper 负责厂商字段。
 
 ```text

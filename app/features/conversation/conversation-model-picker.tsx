@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FocusEvent,
   type KeyboardEvent,
   type MutableRefObject,
 } from "react";
@@ -147,9 +148,13 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   const providerSurfaceRef = useRef<HTMLElement | null>(null);
   const modelSurfaceRef = useRef<HTMLElement | null>(null);
   const runtimeSurfaceRef = useRef<HTMLElement | null>(null);
-  const [modelPreviewProvider, setModelPreviewProvider] = useState<ApiProvider>();
+  // Owns the preview model surface explicitly; visibility never comes from CSS hover.
+  const [modelPanelProvider, setModelPanelProvider] = useState<ApiProvider>();
   const closePreviewTimerRef = useRef<number | undefined>(undefined);
-  const cascadePointerInsideRef = useRef(false);
+  const providerPointerInsideRef = useRef(false);
+  const providerFocusInsideRef = useRef(false);
+  const modelPanelPointerInsideRef = useRef(false);
+  const modelPanelFocusInsideRef = useRef(false);
   const modelSelectionCommittedRef = useRef(false);
   const modelSearchRef = useRef<HTMLInputElement | null>(null);
   const eligible = useMemo(() => connections.filter((connection) => connection.capabilities.includes(purpose)), [connections, purpose]);
@@ -190,7 +195,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     && selectedDescriptor?.reasoning?.kind === "budget";
   const providerSurfaceVisible = view.kind === "providers" || view.kind === "models";
   const modelSurfaceVisible = view.kind === "models"
-    || (view.kind === "providers" && modelPreviewProvider === activeProviderId);
+    || (view.kind === "providers" && modelPanelProvider === activeProviderId);
   const runtimeSurfaceVisible = view.kind === "runtime";
   const surfaceKey = `${pickerView}:${activeConnection?.id ?? "none"}:${activeProviderId ?? "none"}:${modelSurfaceVisible ? "model" : "provider"}`;
 
@@ -209,6 +214,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     providerSurfaceRef,
     modelSurfaceRef,
     runtimeSurfaceRef,
+    modelSurfaceHasConnectionPicker: providerConnections.length > 1,
     surfaceKey,
   });
 
@@ -242,51 +248,117 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     closePreviewTimerRef.current = undefined;
   }
 
+  function hasCascadeOwnership() {
+    return providerPointerInsideRef.current
+      || providerFocusInsideRef.current
+      || modelPanelPointerInsideRef.current
+      || modelPanelFocusInsideRef.current;
+  }
+
   function keepCascadeOpen() {
-    cascadePointerInsideRef.current = true;
     clearClosePreviewTimer();
   }
 
   function scheduleCascadeClose() {
-    cascadePointerInsideRef.current = false;
     clearClosePreviewTimer();
     closePreviewTimerRef.current = window.setTimeout(() => {
       closePreviewTimerRef.current = undefined;
-      if (!cascadePointerInsideRef.current && view.kind === "providers") setModelPreviewProvider(undefined);
+      if (!hasCascadeOwnership() && view.kind === "providers") setModelPanelProvider(undefined);
     }, POINTER_GRACE_MS);
+  }
+
+  function handleRootPointerEnter() {
+    if (view.kind === "providers" && modelPanelProvider) scheduleCascadeClose();
+    else keepCascadeOpen();
+  }
+
+  function handleRootPointerLeave() {
+    scheduleCascadeClose();
+  }
+
+  function handleProviderPointerEnter() {
+    providerPointerInsideRef.current = true;
+    keepCascadeOpen();
+  }
+
+  function handleProviderPointerLeave() {
+    providerPointerInsideRef.current = false;
+    scheduleCascadeClose();
+  }
+
+  function handleProviderFocusEnter() {
+    providerFocusInsideRef.current = true;
+    keepCascadeOpen();
+  }
+
+  function handleProviderFocusLeave(event: FocusEvent<HTMLElement>) {
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    providerFocusInsideRef.current = false;
+    scheduleCascadeClose();
+  }
+
+  function handleModelPanelPointerEnter() {
+    modelPanelPointerInsideRef.current = true;
+    keepCascadeOpen();
+  }
+
+  function handleModelPanelPointerLeave() {
+    modelPanelPointerInsideRef.current = false;
+    scheduleCascadeClose();
+  }
+
+  function handleModelPanelFocusEnter() {
+    modelPanelFocusInsideRef.current = true;
+    keepCascadeOpen();
+  }
+
+  function handleModelPanelFocusLeave(event: FocusEvent<HTMLElement>) {
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    modelPanelFocusInsideRef.current = false;
+    scheduleCascadeClose();
   }
 
   function activateProvider(provider: ApiProvider) {
     if (!providers.includes(provider)) return;
+    const providerChanged = provider !== activeProviderId;
     keepCascadeOpen();
-    setSearchQuery("");
+    if (providerChanged) {
+      modelPanelFocusInsideRef.current = false;
+      setSearchQuery("");
+    }
     setActiveProviderId(provider);
-    setModelPreviewProvider(provider);
+    setModelPanelProvider(provider);
   }
 
   function enterProvider(provider: ApiProvider, focusModels = false) {
     const connectionsForProvider = eligible.filter((connection) => connection.provider === provider);
     const nextConnection = connectionsForProvider.find((connection) => connection.id === selectedConnectionId) ?? connectionsForProvider[0];
     if (!nextConnection) return;
+    const providerChanged = provider !== activeProviderId;
     keepCascadeOpen();
-    setSearchQuery("");
+    modelPanelFocusInsideRef.current = false;
+    if (providerChanged) setSearchQuery("");
     setActiveProviderId(provider);
-    setModelPreviewProvider(provider);
+    setModelPanelProvider(provider);
     showModels(provider, nextConnection.id, focusModels);
   }
 
   function goBack() {
     clearClosePreviewTimer();
-    cascadePointerInsideRef.current = false;
-    setModelPreviewProvider(undefined);
+    providerPointerInsideRef.current = false;
+    providerFocusInsideRef.current = false;
+    modelPanelPointerInsideRef.current = false;
+    modelPanelFocusInsideRef.current = false;
+    setModelPanelProvider(undefined);
     setSearchQuery("");
     back();
   }
 
   function closeProviderPreview() {
     clearClosePreviewTimer();
-    cascadePointerInsideRef.current = false;
-    setModelPreviewProvider(undefined);
+    modelPanelPointerInsideRef.current = false;
+    modelPanelFocusInsideRef.current = false;
+    setModelPanelProvider(undefined);
   }
 
   function handleModelPaneKeyNavigation(event: KeyboardEvent<HTMLElement>) {
@@ -319,15 +391,15 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     if (event.key !== "Escape") return;
     event.preventDefault();
     event.stopPropagation();
+    if (searchQuery.trim() && event.target === modelSearchRef.current) {
+      setSearchQuery("");
+      return;
+    }
     if (view.kind === "models") {
-      if (searchQuery.trim() && event.target === modelSearchRef.current) {
-        setSearchQuery("");
-        return;
-      }
       goBack();
       return;
     }
-    if (view.kind === "providers" && modelPreviewProvider) {
+    if (view.kind === "providers" && modelPanelProvider) {
       closeProviderPreview();
       return;
     }
@@ -340,7 +412,8 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
 
   function openModelBrowser(focusProviders = false) {
     keepCascadeOpen();
-    setModelPreviewProvider(undefined);
+    modelPanelFocusInsideRef.current = false;
+    setModelPanelProvider(undefined);
     setSearchQuery("");
     showProviders(focusProviders);
   }
@@ -348,7 +421,8 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   function openSelectedRuntime(dimension: ConversationModelRuntimeDimension, focusOptions = false) {
     if (!selectedConnection || !selectedModelId) return;
     keepCascadeOpen();
-    setModelPreviewProvider(undefined);
+    modelPanelFocusInsideRef.current = false;
+    setModelPanelProvider(undefined);
     setSearchQuery("");
     setActiveProviderId(selectedConnection.provider);
     showRuntime(selectedConnection.provider, selectedConnection.id, dimension, focusOptions);
@@ -366,8 +440,11 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     const descriptor = getAiModelRuntimeDescriptor(activeConnection.provider, nextModelId);
     modelSelectionCommittedRef.current = true;
     clearClosePreviewTimer();
-    cascadePointerInsideRef.current = false;
-    setModelPreviewProvider(undefined);
+    providerPointerInsideRef.current = false;
+    providerFocusInsideRef.current = false;
+    modelPanelPointerInsideRef.current = false;
+    modelPanelFocusInsideRef.current = false;
+    setModelPanelProvider(undefined);
     setActiveProviderId(undefined);
     modelAnchorRef.current = null;
     providerAnchorRef.current = null;
@@ -413,8 +490,8 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
         className={`${styles.surface} ${styles.rootSurface}`}
         data-model-picker-surface="root"
         onKeyDown={handleProviderArrowNavigation}
-        onPointerEnter={keepCascadeOpen}
-        onPointerLeave={scheduleCascadeClose}
+        onPointerEnter={handleRootPointerEnter}
+        onPointerLeave={handleRootPointerLeave}
       >
         <button
           ref={(node) => assignRootRowRef("model", node)}
@@ -465,8 +542,10 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           ref={(node) => { providerSurfaceRef.current = node; }}
           className={`${styles.surface} ${styles.providerSurface}`}
           data-model-picker-surface="provider"
-          onPointerEnter={keepCascadeOpen}
-          onPointerLeave={scheduleCascadeClose}
+          onFocusCapture={handleProviderFocusEnter}
+          onBlurCapture={handleProviderFocusLeave}
+          onPointerEnter={handleProviderPointerEnter}
+          onPointerLeave={handleProviderPointerLeave}
           style={surfaceStyle("provider")}
         >
           <nav aria-label="厂商" className={styles.providerPane} onKeyDown={handleProviderArrowNavigation}>
@@ -521,8 +600,10 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           data-model-picker-surface="model"
           aria-label={`${getProviderContract(activeProviderId).label} 模型`}
           onKeyDown={handleModelPaneKeyNavigation}
-          onPointerEnter={keepCascadeOpen}
-          onPointerLeave={scheduleCascadeClose}
+          onFocusCapture={handleModelPanelFocusEnter}
+          onBlurCapture={handleModelPanelFocusLeave}
+          onPointerEnter={handleModelPanelPointerEnter}
+          onPointerLeave={handleModelPanelPointerLeave}
           style={surfaceStyle("model")}
         >
           <div className={styles.modelPanelHeader} data-model-picker-sticky-header="true">
@@ -554,7 +635,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
                 placeholder="搜索模型"
                 type="search"
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                onChange={(event) => { keepCascadeOpen(); setSearchQuery(event.currentTarget.value); }}
               />
             </label>
           </div>

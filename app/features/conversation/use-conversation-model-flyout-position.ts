@@ -20,6 +20,7 @@ type UseConversationModelFlyoutPositionOptions = {
   providerSurfaceRef: RefObject<HTMLElement | null>;
   modelSurfaceRef: RefObject<HTMLElement | null>;
   runtimeSurfaceRef: RefObject<HTMLElement | null>;
+  modelSurfaceHasConnectionPicker: boolean;
   surfaceKey: string;
 };
 
@@ -29,9 +30,11 @@ const VIEWPORT_GUTTER = 12;
 // This matches the model surface's 26.25rem desktop width and prevents provider
 // positioning from changing when the model surface appears.
 const MAX_CHILD_SURFACE_WIDTH = 26.25 * 16;
-// Keep the model panel aligned with its provider row while filtering changes
-// content height. This covers the sticky header, optional connection selector,
-// and five compact result rows without reserving the old tall empty area.
+// Keep one stable placement height per header shape while filtering changes
+// content height. The compact shape covers the sticky header, search field,
+// and five fine-pointer result rows; the optional connection selector adds the
+// larger bound. This prevents short lists from being clamped unnecessarily high.
+const COMPACT_MODEL_SURFACE_HEIGHT = 16 * 16;
 const MAX_MODEL_SURFACE_HEIGHT = 18.5 * 16;
 const HIDDEN_POSITION: ConversationModelFlyoutPosition = { left: 0, top: 0, visible: false };
 
@@ -65,6 +68,7 @@ export function useConversationModelFlyoutPosition({
   providerSurfaceRef,
   modelSurfaceRef,
   runtimeSurfaceRef,
+  modelSurfaceHasConnectionPicker,
   surfaceKey,
 }: UseConversationModelFlyoutPositionOptions): {
   positions: PositionMap;
@@ -111,13 +115,16 @@ export function useConversationModelFlyoutPosition({
       model: place(
         providerAnchorRef.current,
         modelSurfaceRef.current,
-        Math.min(MAX_MODEL_SURFACE_HEIGHT, Math.max(0, window.innerHeight - VIEWPORT_GUTTER * 2)),
+        Math.min(
+          modelSurfaceHasConnectionPicker ? MAX_MODEL_SURFACE_HEIGHT : COMPACT_MODEL_SURFACE_HEIGHT,
+          Math.max(0, window.innerHeight - VIEWPORT_GUTTER * 2),
+        ),
       ),
       runtime: place(runtimeAnchorRef.current, runtimeSurfaceRef.current),
     };
     setDirection((current) => current === nextDirection ? current : nextDirection);
     setPositions((current) => positionsEqual(current, nextPositions) ? current : nextPositions);
-  }, [modelAnchorRef, pickerRef, providerAnchorRef, providerSurfaceRef, runtimeAnchorRef, runtimeSurfaceRef, modelSurfaceRef]);
+  }, [modelAnchorRef, modelSurfaceHasConnectionPicker, pickerRef, providerAnchorRef, providerSurfaceRef, runtimeAnchorRef, runtimeSurfaceRef, modelSurfaceRef]);
 
   useLayoutEffect(() => {
     update();

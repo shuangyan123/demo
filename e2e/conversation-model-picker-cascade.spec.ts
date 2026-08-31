@@ -118,6 +118,52 @@ async function visibleModelRowCount(results: Locator): Promise<number> {
   });
 }
 
+async function assertPinnedModelSearch({
+  page,
+  picker,
+  model,
+  providerRow,
+  providerOrderSnapshot,
+  query,
+  expectedModel,
+  fullCount,
+}: {
+  page: Page;
+  picker: Locator;
+  model: Locator;
+  providerRow: Locator;
+  providerOrderSnapshot: string[];
+  query: string;
+  expectedModel: string | RegExp;
+  fullCount: number;
+}): Promise<void> {
+  const search = model.getByRole("searchbox", { name: "搜索模型" });
+  await movePointer(page, providerRow, search);
+  await search.click();
+  await expect(search).toBeFocused();
+  await expect(model).toBeVisible();
+  // Keep focus in the search field while the pointer leaves the whole cascade.
+  await page.mouse.move(100, 100);
+  await page.waitForTimeout(300);
+  await search.pressSequentially(query.slice(0, 1));
+  await expect(model).toBeVisible();
+  await expect(search).toBeFocused();
+  await expect(providerRow).toHaveAttribute("data-provider-active", "true");
+  expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
+  if (query.length > 1) await search.pressSequentially(query.slice(1));
+  await expect(model.getByRole("radio", { name: expectedModel }).first()).toBeVisible();
+  await expect(model).toBeVisible();
+  await expect(search).toBeFocused();
+  await expect(providerRow).toHaveAttribute("data-provider-active", "true");
+  expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
+  await search.fill("");
+  await expect(model.getByRole("radio")).toHaveCount(fullCount);
+  await expect(model).toBeVisible();
+  await expect(search).toBeFocused();
+  await expect(providerRow).toHaveAttribute("data-provider-active", "true");
+  expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
+}
+
 test("桌面模型级联保持独立几何、长目录仅滚模型层且切换原子", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const runtimeErrors = collectRuntimeErrors(page);
@@ -641,5 +687,127 @@ test("模型搜索只过滤当前厂商，结果层键盘导航和提交保持�
   await expect.poll(async () => (await readConversationModelSelection(page, "search-chat")).modelId).toBe("google-canonical-needle");
   await expectNoFrameworkOverlay(page);
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-search-committed.png"), fullPage: false });
+  expectNoRuntimeErrors(runtimeErrors);
+});
+
+test("模型搜索焦点拥有级联生命周期并保持真实过滤结果", async ({ page }) => {
+  test.setTimeout(90_000);
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const geminiModels = [
+    directoryModel("google", "gemini-3.5-flash", "Gemini 3.5 Flash"),
+    ...Array.from({ length: 7 }, (_, index) => directoryModel("google", `gemini-search-long-${index + 1}`, `Gemini Search Long ${index + 1}`)),
+  ];
+  const deepSeekModels = [
+    directoryModel("deepseek", "deepseek-v4-flash", "DeepSeek V4 Flash"),
+    directoryModel("deepseek", "deepseek-search-brief", "DeepSeek Search Brief"),
+  ];
+  const miniMaxModels = [
+    directoryModel("minimax", "MiniMax-M3", "MiniMax-M3"),
+    directoryModel("minimax", "MiniMax-M2.7", "MiniMax-M2.7"),
+    ...Array.from({ length: 4 }, (_, index) => directoryModel("minimax", `minimax-search-${index + 1}`, `MiniMax Search ${index + 1}`)),
+  ];
+
+  await page.goto("/");
+  await seedConversationModelFixtures(page, [
+    { id: "focus-google", label: "焦点 Gemini", provider: "google", apiFormat: "google_generate_content" },
+    { id: "focus-deepseek", label: "焦点 DeepSeek", provider: "deepseek", apiFormat: "chat_completions" },
+    { id: "focus-minimax", label: "焦点 MiniMax", provider: "minimax", apiFormat: "anthropic_messages" },
+  ], [
+    { id: "focus-chat", title: "模型搜索焦点生命周期", connectionId: "focus-google", modelId: "gemini-3.5-flash" },
+  ]);
+  await seedModelCache(page, "focus-google", "google", geminiModels);
+  await seedModelCache(page, "focus-deepseek", "deepseek", deepSeekModels);
+  await seedModelCache(page, "focus-minimax", "minimax", miniMaxModels);
+  await page.reload();
+
+  const picker = await openPicker(page, "focus-chat");
+  const provider = picker.locator('[data-model-picker-surface="provider"]');
+  const model = picker.locator('[data-model-picker-surface="model"]');
+  const modelControl = picker.getByRole("button", { name: /^模型 / });
+  await modelControl.hover();
+  await expect(provider).toBeVisible();
+  const providerOrderSnapshot = await providerOrder(picker);
+  const previewProvider = async (name: string): Promise<Locator> => {
+    await modelControl.hover();
+    await expect(provider).toBeVisible();
+    const row = provider.getByRole("button", { name, exact: true });
+    await movePointer(page, modelControl, row);
+    await expect(row).toHaveAttribute("data-provider-active", "true");
+    await expect(model).toBeVisible();
+    const modelBox = await model.boundingBox();
+    const providerBox = await row.boundingBox();
+    expect(modelBox?.y ?? Number.POSITIVE_INFINITY).toBeLessThan((providerBox?.y ?? 0) + (providerBox?.height ?? 0));
+    expect((modelBox?.y ?? 0) + (modelBox?.height ?? 0)).toBeGreaterThan(providerBox?.y ?? Number.POSITIVE_INFINITY);
+    expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
+    return row;
+  };
+
+  const miniMax = await previewProvider("MiniMax");
+  const miniMaxFullCount = await model.getByRole("radio").count();
+  expect(miniMaxFullCount).toBeGreaterThan(5);
+  await assertPinnedModelSearch({
+    page,
+    picker,
+    model,
+    providerRow: miniMax,
+    providerOrderSnapshot,
+    query: "M3",
+    expectedModel: "MiniMax-M3",
+    fullCount: miniMaxFullCount,
+  });
+
+  const deepSeek = await previewProvider("DeepSeek");
+  const deepSeekFullCount = await model.getByRole("radio").count();
+  expect(deepSeekFullCount).toBeLessThanOrEqual(5);
+  await assertPinnedModelSearch({
+    page,
+    picker,
+    model,
+    providerRow: deepSeek,
+    providerOrderSnapshot,
+    query: "flash",
+    expectedModel: "DeepSeek V4 Flash",
+    fullCount: deepSeekFullCount,
+  });
+
+  const google = await previewProvider("Google Gemini");
+  const geminiFullCount = await model.getByRole("radio").count();
+  expect(geminiFullCount).toBeGreaterThan(5);
+  await assertPinnedModelSearch({
+    page,
+    picker,
+    model,
+    providerRow: google,
+    providerOrderSnapshot,
+    query: "long-3",
+    expectedModel: "Gemini Search Long 3",
+    fullCount: geminiFullCount,
+  });
+
+  const results = model.locator('[data-model-picker-results="true"]');
+  await results.hover();
+  await page.mouse.wheel(0, 500);
+  await expect.poll(async () => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await expect(model).toBeVisible();
+  await expect(google).toHaveAttribute("data-provider-active", "true");
+  expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
+
+  const search = model.getByRole("searchbox", { name: "搜索模型" });
+  await search.click();
+  await search.fill("not-a-real-model");
+  await expect(model).toBeVisible();
+  await expect(model.getByRole("status")).toHaveText("未找到匹配模型");
+  await expect(google).toHaveAttribute("data-provider-active", "true");
+  expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
+  await search.press("Escape");
+  await expect(search).toHaveValue("");
+  await expect(model).toBeVisible();
+  await expect(google).toHaveAttribute("data-provider-active", "true");
+  expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
+  await search.press("Escape");
+  await expect(model).toHaveCount(0);
+  await expect(provider).toBeVisible();
+  expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
   expectNoRuntimeErrors(runtimeErrors);
 });
