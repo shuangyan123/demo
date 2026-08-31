@@ -7,10 +7,12 @@ import {
 } from "./fenbi-session-authority.ts";
 import {
   createFenbiWebPreferences,
-  FENBI_ALLOWED_HOSTS,
+  FENBI_REQUEST_ALLOWED_HOSTS,
+  FENBI_WEB_ALLOWED_HOSTS,
   installFenbiRemoteContentPolicy,
   installFenbiWebContentsPolicy,
-  isAllowedFenbiUrl,
+  isAllowedFenbiRequestUrl,
+  isAllowedFenbiWebUrl,
   isFenbiPermissionAllowed,
 } from "./fenbi-policy.ts";
 
@@ -78,18 +80,26 @@ test("session status never claims authenticated from session data", async () => 
   assert.doesNotMatch(JSON.stringify(status), /authenticated|Cookie|token|secret/i);
 });
 
-test("Fenbi navigation 只接受无凭据 HTTPS exact host", () => {
-  assert.deepEqual(FENBI_ALLOWED_HOSTS, ["tiku.fenbi.com"]);
-  assert.equal(isAllowedFenbiUrl("https://tiku.fenbi.com/"), true);
-  assert.equal(isAllowedFenbiUrl("https://tiku.fenbi.com/login?next=%2F"), true);
-  assert.equal(isAllowedFenbiUrl("http://tiku.fenbi.com/"), false);
-  assert.equal(isAllowedFenbiUrl("https://example.com/"), false);
-  assert.equal(isAllowedFenbiUrl("https://fenbi.com.evil.example/"), false);
-  assert.equal(isAllowedFenbiUrl("https://tiku.fenbi.com.evil.example/"), false);
-  assert.equal(isAllowedFenbiUrl("https://user:password@tiku.fenbi.com/"), false);
-  assert.equal(isAllowedFenbiUrl("https://tiku.fenbi.com:8443/"), false);
+test("Fenbi web navigation and request targets use separate exact-host policies", () => {
+  assert.deepEqual(FENBI_WEB_ALLOWED_HOSTS, ["www.fenbi.com", "tiku.fenbi.com"]);
+  assert.deepEqual(FENBI_REQUEST_ALLOWED_HOSTS, ["tiku.fenbi.com"]);
+  assert.equal(isAllowedFenbiWebUrl("https://www.fenbi.com/"), true);
+  assert.equal(isAllowedFenbiWebUrl("https://www.fenbi.com/member/login.php"), true);
+  assert.equal(isAllowedFenbiWebUrl("https://tiku.fenbi.com/"), true);
+  assert.equal(isAllowedFenbiRequestUrl("https://tiku.fenbi.com/api/account"), true);
+  assert.equal(isAllowedFenbiRequestUrl("https://www.fenbi.com/member/login.php"), false);
+
+  for (const check of [isAllowedFenbiWebUrl, isAllowedFenbiRequestUrl]) {
+    assert.equal(check("http://tiku.fenbi.com/"), false);
+    assert.equal(check("https://example.com/"), false);
+    assert.equal(check("https://fenbi.com.evil.example/"), false);
+    assert.equal(check("https://tiku.fenbi.com.evil.example/"), false);
+    assert.equal(check("https://user:password@tiku.fenbi.com/"), false);
+    assert.equal(check("https://tiku.fenbi.com:8443/"), false);
+  }
   for (const value of ["javascript:alert(1)", "file:///tmp/account", "data:text/html,login", "custom://fenbi/login"]) {
-    assert.equal(isAllowedFenbiUrl(value), false, value);
+    assert.equal(isAllowedFenbiWebUrl(value), false, value);
+    assert.equal(isAllowedFenbiRequestUrl(value), false, value);
   }
 });
 
@@ -132,7 +142,7 @@ test("future Fenbi WebContents policy rejects navigation and popup escape", () =
   handlers.get("will-navigate")?.({ preventDefault: () => { navigationPrevented = true; } }, "https://example.com/");
   assert.equal(navigationPrevented, true);
   navigationPrevented = false;
-  handlers.get("will-navigate")?.({ preventDefault: () => { navigationPrevented = true; } }, "https://tiku.fenbi.com/");
+  handlers.get("will-navigate")?.({ preventDefault: () => { navigationPrevented = true; } }, "https://www.fenbi.com/member/login.php");
   assert.equal(navigationPrevented, false);
   handlers.get("will-redirect")?.({ preventDefault: () => { navigationPrevented = true; } }, "https://fenbi.com.evil.example/");
   assert.equal(navigationPrevented, true);
@@ -140,12 +150,14 @@ test("future Fenbi WebContents policy rejects navigation and popup escape", () =
 
 test("future Fenbi content keeps the Electron isolation baseline", () => {
   assert.deepEqual(createFenbiWebPreferences(), {
+    partition: FENBI_SESSION_PARTITION,
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: true,
     webSecurity: true,
     allowRunningInsecureContent: false,
   });
+  assert.match(policy, /partition:\s*FENBI_SESSION_PARTITION/);
   assert.doesNotMatch(policy, /new\s+WebContentsView|WebContentsView\s*\(/);
 });
 
@@ -171,6 +183,7 @@ test("clear seam only targets the dedicated Fenbi session and not Recall data", 
 test("main-only request seam validates target URL and is absent from preload", () => {
   const fenbiPreload = preload.slice(preload.indexOf("const reviewFenbiSession"));
   assert.match(session, /readFenbiRequestCookieHeader/);
+  assert.match(session, /isAllowedFenbiRequestUrl\(targetUrl\)/);
   assert.match(session, /cookies\.get\(\{ url: targetUrl \}\)/);
   assert.match(session, /FENBI_TARGET_NOT_ALLOWED/);
   assert.doesNotMatch(fenbiPreload, /readFenbiRequestCookieHeader|Cookie|token|secret/i);
@@ -186,6 +199,10 @@ test("manual Fenbi adapter remains the existing app/server authority", () => {
 
 test("desktop artifact contract includes only the four explicit bridges", () => {
   assert.match(artifactContract, /reviewFenbiSession/);
+  assert.match(policy, /isAllowedFenbiWebUrl/);
+  assert.match(policy, /FENBI_WEB_ALLOWED_HOSTS/);
+  assert.match(policy, /FENBI_REQUEST_ALLOWED_HOSTS/);
+  assert.match(session, /isAllowedFenbiRequestUrl/);
   assert.match(policy, /setPermissionCheckHandler\(\(\) => false\)/);
   assert.match(policy, /setPermissionRequestHandler/);
   assert.match(policy, /setDisplayMediaRequestHandler/);

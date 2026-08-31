@@ -1,29 +1,47 @@
 import type { Session, WebContents, WebPreferences } from "electron";
 
-// 当前仓库唯一明确登记的 Fenbi Web host 来自现有 account-import adapter。
-// 登录重定向 host 尚未有仓库证据，因此暂不扩大为任意 *.fenbi.com。
-export const FENBI_ALLOWED_HOSTS = ["tiku.fenbi.com"] as const;
+// Keep this policy module directly executable by the source contract runner; the
+// session authority exposes and enforces the same dedicated partition constant.
+const FENBI_SESSION_PARTITION = "persist:review-fenbi" as const;
 
-export function isAllowedFenbiHostname(hostname: string): boolean {
-  return (FENBI_ALLOWED_HOSTS as readonly string[]).includes(hostname);
+// Web 导航与 authenticated request 使用不同 allowlist，禁止用一个宽泛集合同时授权两种边界。
+export const FENBI_WEB_ALLOWED_HOSTS = ["www.fenbi.com", "tiku.fenbi.com"] as const;
+export const FENBI_REQUEST_ALLOWED_HOSTS = ["tiku.fenbi.com"] as const;
+
+export function isAllowedFenbiWebHostname(hostname: string): boolean {
+  return (FENBI_WEB_ALLOWED_HOSTS as readonly string[]).includes(hostname);
 }
 
-/** Fenbi remote content 只能在显式登记的 HTTPS host 上导航。 */
-export function isAllowedFenbiUrl(value: string): boolean {
+export function isAllowedFenbiRequestHostname(hostname: string): boolean {
+  return (FENBI_REQUEST_ALLOWED_HOSTS as readonly string[]).includes(hostname);
+}
+
+function isAllowedFenbiUrl(value: string, isAllowedHostname: (hostname: string) => boolean): boolean {
   try {
     const url = new URL(value);
     return url.protocol === "https:"
       && url.username === ""
       && url.password === ""
       && url.port === ""
-      && isAllowedFenbiHostname(url.hostname);
+      && isAllowedHostname(url.hostname);
   } catch {
     return false;
   }
 }
 
+/** Fenbi remote content 只能在显式登记的 HTTPS web host 上导航。 */
+export function isAllowedFenbiWebUrl(value: string): boolean {
+  return isAllowedFenbiUrl(value, isAllowedFenbiWebHostname);
+}
+
+/** Main-only authenticated request 只能访问显式登记的 HTTPS API host。 */
+export function isAllowedFenbiRequestUrl(value: string): boolean {
+  return isAllowedFenbiUrl(value, isAllowedFenbiRequestHostname);
+}
+
 /** Foundation 阶段不授予任何 Chromium privileged permission。 */
 export function isFenbiPermissionAllowed(_permission: string): false {
+  void _permission;
   return false;
 }
 
@@ -31,8 +49,11 @@ export function isFenbiPermissionAllowed(_permission: string): false {
 export function createFenbiWebPreferences(): Pick<
   WebPreferences,
   "nodeIntegration" | "contextIsolation" | "sandbox" | "webSecurity" | "allowRunningInsecureContent"
-> {
+> & {
+  partition: typeof FENBI_SESSION_PARTITION;
+} {
   return {
+    partition: FENBI_SESSION_PARTITION,
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: true,
@@ -50,7 +71,7 @@ export function installFenbiRemoteContentPolicy(targetSession: Session): void {
 }
 
 function preventDisallowedNavigation(event: { preventDefault(): void }, url: string): void {
-  if (!isAllowedFenbiUrl(url)) event.preventDefault();
+  if (!isAllowedFenbiWebUrl(url)) event.preventDefault();
 }
 
 /** 后续 WebContentsView 复用：拒绝 popup、外部导航和外部 server-side redirect。 */

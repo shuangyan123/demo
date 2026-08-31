@@ -1,6 +1,6 @@
 import { session, type Session } from "electron";
 import { createFenbiSessionAuthority, FENBI_SESSION_PARTITION } from "./fenbi-session-authority.js";
-import { installFenbiRemoteContentPolicy, isAllowedFenbiUrl } from "./fenbi-policy.js";
+import { installFenbiRemoteContentPolicy, isAllowedFenbiRequestUrl } from "./fenbi-policy.js";
 
 const fenbiSessionAuthority = createFenbiSessionAuthority<Session>({
   fromPartition: (partition) => session.fromPartition(partition),
@@ -24,7 +24,7 @@ export const getFenbiSessionStatus = fenbiSessionAuthority.getFenbiSessionStatus
  * 不进入 preload、renderer、持久化、日志或错误；调用方仍需自行完成账户级权威验证。
  */
 export async function readFenbiRequestCookieHeader(targetUrl: string): Promise<string> {
-  if (!isAllowedFenbiUrl(targetUrl)) throw new Error("FENBI_TARGET_NOT_ALLOWED");
+  if (!isAllowedFenbiRequestUrl(targetUrl)) throw new Error("FENBI_TARGET_NOT_ALLOWED");
   const cookies = await getFenbiSession().cookies.get({ url: targetUrl });
   return cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
 }
