@@ -1,14 +1,17 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { ConversationContextPanel } from "../conversation/conversation-context-panel";
 import { CommandSearchPalette } from "../conversation/command-search-palette";
 import { useSettingsPluginPreferences } from "../settings/plugins/use-settings-plugin-preferences.ts";
 import { Button } from "../shared/ui-primitives";
+import type { WorkspaceContextPanelRegistration } from "../shared/workspace-context-registry";
+import type { WorkspaceSummary } from "../shared/workspace-context-types";
 import type { SampleScenarioId } from "../shared/sample-scenario-registry";
 import { ReviewWorkspaceCoreViews } from "./review-workspace-core-views";
 import { ImportWorkspace, SettingsPluginsView, SettingsWorkspace } from "./review-workspace-lazy-views";
 import { ReviewWorkspaceSecondaryViews } from "./review-workspace-secondary-views";
-import { ReviewWorkspaceShell } from "./review-workspace-shell";
+import { reviewWorkspaceViewTitles, ReviewWorkspaceShell } from "./review-workspace-shell";
 import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 
 const SampleScenarioControls = dynamic(() => import("../shared/sample-scenario-controls").then((module) => module.SampleScenarioControls));
@@ -35,7 +38,7 @@ export function ReviewWorkspaceViewRouter({
   onInstallAllSamples: () => Promise<void>;
   onLoadSample: (scenarioId: SampleScenarioId) => Promise<void>;
 }) {
-  const { automation, conversation, workspace } = controller;
+  const { aiConnections, automation, conversation, workspace } = controller;
   const pluginPreferences = useSettingsPluginPreferences();
 
   if (workspace.loading) {
@@ -47,6 +50,39 @@ export function ReviewWorkspaceViewRouter({
   }
 
   const settingsMode = workspace.view === "settings";
+  const activeConversations = conversation.snapshot.conversations.filter((item) => item.status === "active");
+  const activeConversation = conversation.activeConversationId === null
+    ? null
+    : activeConversations.find((item) => item.id === conversation.activeConversationId) ?? activeConversations[0] ?? null;
+  const activeProject = activeConversation ? conversation.snapshot.projects.find((item) => item.id === activeConversation.projectId) : undefined;
+  const activeFolder = activeConversation?.folderId
+    ? conversation.snapshot.folders.find((item) => item.id === activeConversation.folderId)
+    : undefined;
+  const summaryConnection = aiConnections.snapshot.profiles.find((item) => item.id === (activeConversation?.selectedConnectionId ?? aiConnections.snapshot.defaults.textConnectionId));
+  const summaryModelId = activeConversation?.selectedModelId ?? aiConnections.snapshot.defaults.textModelId;
+  const summary: WorkspaceSummary = {
+    workspaceLabel: "错题复盘",
+    sectionLabel: settingsMode ? "设置" : reviewWorkspaceViewTitles[workspace.view],
+    conversationTitle: workspace.view === "conversation" ? activeConversation?.title ?? conversation.launchContext?.title ?? "新对话" : activeConversation?.title,
+    modelLabel: summaryModelId ? `${summaryConnection?.label ? `${summaryConnection.label} · ` : ""}${summaryModelId}` : undefined,
+    projectLabel: activeProject?.label,
+    attachedContextCount: activeConversation ? conversation.snapshot.attachments.filter((item) => item.conversationId === activeConversation.id).length : undefined,
+    statusLabel: workspace.notice,
+  };
+  const contextPanelRegistrations: WorkspaceContextPanelRegistration[] = workspace.view === "conversation" ? [{
+    id: "conversation",
+    title: "对话上下文",
+    description: "当前会话的本地资料与来源。",
+    matches: (context) => context.view === "conversation",
+    content: <ConversationContextPanel
+      activeConversation={activeConversation}
+      attachments={activeConversation ? conversation.snapshot.attachments.filter((item) => item.conversationId === activeConversation.id) : []}
+      folderLabel={activeFolder?.label}
+      launchContext={conversation.launchContext}
+      projectLabel={activeProject?.label}
+    />,
+  }] : [];
+  const context = { view: workspace.view, conversationId: activeConversation?.id ?? null };
   const reviewControls = scope.kind === "personal" ? (
     <SampleScenarioControls
       busy={busy}
@@ -69,7 +105,9 @@ export function ReviewWorkspaceViewRouter({
     <ReviewWorkspaceShell
       automationUnreadCount={automation.snapshot.unreadCount}
       activeConversationId={conversation.activeConversationId}
-      conversations={conversation.snapshot.conversations.filter((item) => item.status === "active")}
+      conversations={activeConversations}
+      context={context}
+      contextPanelRegistrations={contextPanelRegistrations}
       folders={conversation.snapshot.folders}
       notice={workspace.notice}
       contentClassName={settingsMode ? "settings-content settings-main-scroll py-8 max-lg:py-6" : undefined}
@@ -82,6 +120,7 @@ export function ReviewWorkspaceViewRouter({
         />
       ) : undefined}
       sidebarCollapsed={workspace.sidebarCollapsed}
+      summary={summary}
       today={workspace.today}
       titleOverride={settingsMode ? "设置" : undefined}
       view={workspace.view}

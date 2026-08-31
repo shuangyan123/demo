@@ -72,7 +72,7 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   isolation: isolate;
   display: grid;
   height: calc(100dvh - var(--chrome-topbar-height));
-  grid-template-columns: var(--chrome-sidebar-width) var(--chrome-sidebar-boundary-width) minmax(0, 1fr);
+  grid-template-columns: var(--chrome-sidebar-width) var(--chrome-sidebar-boundary-width) minmax(0, 1fr) 0;
   background-color: var(--chrome-window-bg);
   background-image: none;
   transition: grid-template-columns var(--motion-structure) var(--motion-ease);
@@ -80,7 +80,16 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 
 .chrome-layout[data-sidebar="collapsed"],
 .chrome-layout.is-sidebar-collapsed {
-  grid-template-columns: 0 0 minmax(0, 1fr);
+  grid-template-columns: 0 0 minmax(0, 1fr) 0;
+}
+
+.chrome-layout[data-context-panel="open"] {
+  grid-template-columns: var(--chrome-sidebar-width) var(--chrome-sidebar-boundary-width) minmax(0, 1fr) var(--chrome-context-panel-width);
+}
+
+.chrome-layout[data-context-panel="open"][data-sidebar="collapsed"],
+.chrome-layout[data-context-panel="open"].is-sidebar-collapsed {
+  grid-template-columns: 0 0 minmax(0, 1fr) var(--chrome-context-panel-width);
 }
 
 /* 侧栏本体承载不透明底色、装饰层、内容和边框。 */
@@ -388,14 +397,14 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
     padding: 0;
   }
 
-  .chrome-shell[data-native-window="false"] > .chrome-topbar .ui-tooltip-anchor {
+  .chrome-shell[data-native-window="false"] > .chrome-topbar > .chrome-topbar-safe-area > .ui-tooltip-anchor {
     position: fixed;
     z-index: 80;
     top: 0.75rem;
     left: calc(var(--chrome-sidebar-width) - 2.5rem);
   }
 
-  .chrome-shell[data-native-window="false"][data-sidebar="collapsed"] > .chrome-topbar .ui-tooltip-anchor {
+  .chrome-shell[data-native-window="false"][data-sidebar="collapsed"] > .chrome-topbar > .chrome-topbar-safe-area > .ui-tooltip-anchor {
     left: 0.75rem;
   }
 

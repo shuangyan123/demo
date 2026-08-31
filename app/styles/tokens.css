@@ -51,6 +51,9 @@
   --chrome-sidebar-divider: var(--chrome-sidebar-border);
   --chrome-workspace-separator: var(--chrome-sidebar-border);
   --chrome-sidebar-footer-separator: var(--chrome-sidebar-border);
+  --chrome-context-panel-width: min(22rem, 28vw);
+  --chrome-context-panel-surface: var(--surface);
+  --chrome-context-panel-divider: var(--chrome-sidebar-border);
   --chrome-card-outline: var(--line);
   --chrome-composer-outline: var(--line);
   --chrome-composer-focus-ring: var(--focus-ring);

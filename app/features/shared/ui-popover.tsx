@@ -87,7 +87,8 @@ export function UiPopover({
     function closeOnOutside(event: PointerEvent) {
       const target = event.target as Node | null;
       if (contentRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
-      close();
+      // 外部点击已经把焦点交给新的目标，不要再异步抢回旧触发器。
+      close(false);
     }
     document.addEventListener("keydown", closeOnEscape);
     document.addEventListener("pointerdown", closeOnOutside);

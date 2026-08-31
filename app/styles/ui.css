@@ -1510,9 +1510,9 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 .conversation-context-ring::before { content: ""; position: absolute; width: 1.65rem; height: 1.65rem; border-radius: inherit; background: var(--surface); }
 .conversation-context-ring > span { position: relative; z-index: 1; font-family: var(--app-code-font); font-size: 0.57rem; font-weight: 650; }
 .conversation-context-budget[data-context-warning="true"] { color: color-mix(in srgb, #b45309 82%, var(--foreground)); }
-.conversation-context-popover { position: fixed; z-index: 89; display: grid; width: min(18rem, calc(100vw - 1.5rem)); gap: 0.28rem; border: 1px solid var(--chrome-context-popover-outline); border-radius: var(--ui-radius-hint); background: var(--chrome-context-popover-surface); padding: 0.58rem 0.7rem; color: var(--chrome-context-popover-foreground); pointer-events: auto; box-shadow: var(--chrome-context-popover-shadow); animation: ui-tooltip-enter 100ms ease-out; }
-.conversation-context-popover > section { display: grid; gap: 0.15rem; }
-.conversation-context-popover > section > strong { font-size: 0.72rem; font-weight: 650; line-height: 1.35; }
+.workspace-context-popover { position: fixed; z-index: 89; display: grid; width: min(18rem, calc(100vw - 1.5rem)); gap: 0.28rem; border: 1px solid var(--chrome-context-popover-outline); border-radius: var(--ui-radius-hint); background: var(--chrome-context-popover-surface); padding: 0.58rem 0.7rem; color: var(--chrome-context-popover-foreground); pointer-events: auto; box-shadow: var(--chrome-context-popover-shadow); animation: ui-tooltip-enter 100ms ease-out; }
+.workspace-context-popover > section { display: grid; gap: 0.15rem; }
+.workspace-context-popover > section > strong { font-size: 0.72rem; font-weight: 650; line-height: 1.35; }
 .conversation-context-usage { margin: 0; font-size: 0.9rem; font-weight: 700; line-height: 1.25; }
 .conversation-context-tokens { margin: 0; }
 .conversation-context-tokens { color: var(--chrome-context-popover-muted); font-size: 0.7rem; }
@@ -2630,5 +2630,5 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
 
 @media (prefers-reduced-motion: reduce) {
   .ui-tooltip-content,
-  .conversation-context-popover { animation: none; }
+  .workspace-context-popover { animation: none; }
 }
