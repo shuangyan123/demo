@@ -7,6 +7,8 @@ import { isPackagedDesktop, showRuntimeFailure, startDesktopRuntime, type Deskto
 import { installDesktopCredentialStorageIpc } from "./credential-storage.js";
 import { installDesktopVaultIpc } from "./vault.js";
 import { isSquirrelLifecycleInvocation } from "./squirrel-lifecycle.js";
+import { initializeFenbiSession } from "./fenbi-session.js";
+import { installFenbiSessionIpc } from "./fenbi-session-ipc.js";
 
 registerDesktopScheme();
 
@@ -46,6 +48,8 @@ async function createMainWindow(): Promise<void> {
   const developmentUrl = process.env.ELECTRON_RENDERER_URL;
   const partition = "persist:review-workspace";
   const workspaceSession = session.fromPartition(partition);
+  initializeFenbiSession();
+  installFenbiSessionIpc(developmentUrl);
   installDesktopCredentialStorageIpc(developmentUrl);
   installDesktopVaultIpc(developmentUrl);
   if (isPackagedDesktop()) {
