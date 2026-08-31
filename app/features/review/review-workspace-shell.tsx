@@ -45,6 +45,7 @@ type ReviewWorkspaceShellProps = {
 export const reviewWorkspaceViewTitles: Record<ViewKey, string> = {
   conversation: "对话",
   dashboard: "总览",
+  fenbi: "粉笔练习",
   library: "错题库",
   review: "错题复盘",
   knowledgeTraining: "知识训练",
@@ -61,7 +62,7 @@ export const reviewWorkspaceViewTitles: Record<ViewKey, string> = {
 
 function contentWidth(view: ViewKey): MainContentWidth {
   if (view === "settings") return "medium";
-  if (["conversation", "dashboard", "library", "plugins", "import", "automation"].includes(view)) return "wide";
+  if (["conversation", "dashboard", "fenbi", "library", "plugins", "import", "automation"].includes(view)) return "wide";
   return "medium";
 }
 
@@ -132,13 +133,17 @@ export function ReviewWorkspaceShell({
       sidebar={sidebarOverride ?? applicationSidebar}
     >
       <MainContentShell
-        className={view === "conversation" ? "conversation-main-content flex !h-full !min-h-0 !max-w-none flex-1 flex-col !px-0" : undefined}
+        className={view === "conversation"
+          ? "conversation-main-content flex !h-full !min-h-0 !max-w-none flex-1 flex-col !px-0"
+          : view === "fenbi"
+            ? "flex !h-full !min-h-0 !max-w-none flex-1 flex-col !px-0"
+            : undefined}
         width={contentWidth(view)}
       >
       {["library", "import", "entry", "plugins"].includes(view) && notice !== "本地题库已同步" ? (
         <div className="mb-3 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted" role="status">{notice}</div>
       ) : null}
-      {!["conversation", "dashboard", "automation", "library", "import", "entry", "plugins", "settings"].includes(view) ? (
+      {!["conversation", "dashboard", "fenbi", "automation", "library", "import", "entry", "plugins", "settings"].includes(view) ? (
         <ViewHeader
           actions={(
             <>

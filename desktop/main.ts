@@ -9,11 +9,15 @@ import { installDesktopVaultIpc } from "./vault.js";
 import { isSquirrelLifecycleInvocation } from "./squirrel-lifecycle.js";
 import { initializeFenbiSession } from "./fenbi-session.js";
 import { installFenbiSessionIpc } from "./fenbi-session-ipc.js";
+import { createFenbiWebContentsController } from "./fenbi-web-contents-controller.js";
+import { installFenbiWebContentsIpc } from "./fenbi-web-contents-ipc.js";
 
 registerDesktopScheme();
 
 let mainWindow: BrowserWindow | undefined;
 let runtime: DesktopRuntime | undefined;
+let fenbiViewController: ReturnType<typeof createFenbiWebContentsController> | undefined;
+let fenbiViewIpcCleanup: (() => void) | undefined;
 const TITLE_BAR_HEIGHT = 52;
 // 开发时从工作树取图标，安装版从受控 runtime 资源取图标；缺失时保留 Electron 默认图标。
 const recallWindowIconPath = [
@@ -42,6 +46,13 @@ function isAllowedExternalUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function disposeFenbiWebContents(): void {
+  fenbiViewIpcCleanup?.();
+  fenbiViewIpcCleanup = undefined;
+  fenbiViewController?.dispose();
+  fenbiViewController = undefined;
 }
 
 async function createMainWindow(): Promise<void> {
@@ -82,6 +93,12 @@ async function createMainWindow(): Promise<void> {
       devTools: Boolean(developmentUrl),
     },
   });
+  fenbiViewController = createFenbiWebContentsController(mainWindow);
+  fenbiViewIpcCleanup = installFenbiWebContentsIpc(developmentUrl, fenbiViewController, mainWindow);
+  mainWindow.once("closed", () => {
+    disposeFenbiWebContents();
+    mainWindow = undefined;
+  });
   installTitleBarIpc();
   installPermissionBoundary(workspaceSession, developmentUrl);
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -98,6 +115,7 @@ async function createMainWindow(): Promise<void> {
 }
 
 async function cleanupFailedLaunch(): Promise<void> {
+  disposeFenbiWebContents();
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
   mainWindow = undefined;
   if (!runtime) return;

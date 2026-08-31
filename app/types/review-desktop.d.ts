@@ -1,5 +1,7 @@
 import type {
   DesktopCredentialProtectionPreloadBridge,
+  DesktopFenbiSessionPreloadBridge,
+  DesktopFenbiViewPreloadBridge,
   DesktopVaultPreloadBridge,
   DesktopWindowPreloadBridge,
 } from "../platform/capabilities.ts";
@@ -9,6 +11,8 @@ declare global {
     reviewDesktopVault?: DesktopVaultPreloadBridge;
     reviewDesktopWindow?: DesktopWindowPreloadBridge;
     reviewDesktopCredentialProtection?: DesktopCredentialProtectionPreloadBridge;
+    reviewFenbiSession?: DesktopFenbiSessionPreloadBridge;
+    reviewFenbiView?: DesktopFenbiViewPreloadBridge;
   }
 }
 

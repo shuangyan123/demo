@@ -12,6 +12,7 @@ import "../../application/interview/interview-application.contract.test.ts";
 import "../../application/automation/automation-application.contract.test.ts";
 import "../../application/import/import-application.contract.test.ts";
 import "../shared/workspace-context-registry.contract.test.ts";
+import "../shared/ui-overlay-events.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -62,7 +63,7 @@ test("业务层只能通过 Host Capability 访问 Electron preload", async () =
     const relativePath = path.relative(APP_ROOT, file).replace(/\\/g, "/");
     if (relativePath === "types/review-desktop.d.ts" || relativePath.startsWith("platform/desktop/")) continue;
     const source = await readFile(file, "utf8");
-    if (/reviewDesktop(?:Vault|Window|CredentialProtection)/.test(source)) directBridgeReferences.push(relativePath);
+    if (/reviewDesktop(?:Vault|Window|CredentialProtection)|reviewFenbi(?:Session|View)/.test(source)) directBridgeReferences.push(relativePath);
   }
   assert.deepEqual(directBridgeReferences, []);
 

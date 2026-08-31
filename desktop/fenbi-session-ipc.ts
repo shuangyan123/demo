@@ -1,5 +1,6 @@
-import { ipcMain, type IpcMainInvokeEvent } from "electron";
+import { ipcMain } from "electron";
 import { clearFenbiSession, getFenbiSessionStatus } from "./fenbi-session.js";
+import { isTrustedFenbiRendererSender } from "./fenbi-ipc-trust.js";
 import type {
   FenbiSessionClearResult,
   FenbiSessionResult,
@@ -8,17 +9,6 @@ import type {
 
 const FENBI_SESSION_STATUS_CHANNEL = "review-fenbi-session:get-status";
 const FENBI_SESSION_CLEAR_CHANNEL = "review-fenbi-session:clear";
-
-function isTrustedSender(event: IpcMainInvokeEvent, developmentUrl?: string): boolean {
-  const value = event.senderFrame?.url ?? event.sender.getURL();
-  if (value.startsWith("review-app://workspace/")) return true;
-  if (!developmentUrl) return false;
-  try {
-    return new URL(value).origin === new URL(developmentUrl).origin;
-  } catch {
-    return false;
-  }
-}
 
 function failure<T>(code: "untrusted_sender" | "session_unavailable" | "clear_failed", message: string): FenbiSessionResult<T> {
   return { ok: false, error: { code, message } };
@@ -31,7 +21,7 @@ export function installFenbiSessionIpc(developmentUrl?: string): void {
   }
 
   ipcMain.handle(FENBI_SESSION_STATUS_CHANNEL, async (event) => {
-    if (!isTrustedSender(event, developmentUrl)) {
+    if (!isTrustedFenbiRendererSender(event, developmentUrl)) {
       return failure<FenbiSessionStatus>("untrusted_sender", "Fenbi session access denied");
     }
     try {
@@ -42,7 +32,7 @@ export function installFenbiSessionIpc(developmentUrl?: string): void {
   });
 
   ipcMain.handle(FENBI_SESSION_CLEAR_CHANNEL, async (event) => {
-    if (!isTrustedSender(event, developmentUrl)) {
+    if (!isTrustedFenbiRendererSender(event, developmentUrl)) {
       return failure<FenbiSessionClearResult>("untrusted_sender", "Fenbi session access denied");
     }
     try {

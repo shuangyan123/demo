@@ -39,3 +39,17 @@ Fenbi 页面本身不加载 Recall preload。Recall renderer 仅能通过 sender
 ## Evidence boundary
 
 本 foundation 的 contract tests 不需要真实 Fenbi 账号、Cookie 或外部网络。它们覆盖 partition isolation、URL policy、deny-all permissions、popup/navigation/download defaults、sanitized bridge、clear target 和现有手动 adapter 保留。真实登录、account validation、WebContentsView lifecycle 和 incremental sync 属于后续任务。
+
+## Embedded practice workspace (FENBI-EMBED-01)
+
+“粉笔练习”是桌面端的 remote practice surface，不是导入页的别名。Electron Main 通过唯一的 `FenbiWebContentsController` lazy 创建 `WebContentsView`，将它挂到 Recall `BrowserWindow.contentView`，并始终复用 `createFenbiWebPreferences()` 与 `installFenbiWebContentsPolicy()`。初始导航固定为 `https://www.fenbi.com/`；renderer 只能请求首页、刷新、后退、前进和 bounds 更新，不能提供任意 URL。
+
+该 view 使用 `persist:review-fenbi`，Recall 主 renderer 仍使用 `persist:review-workspace`。Fenbi remote content 不加载 Recall preload，因此不会收到任何 Recall contextBridge、Node 能力或 `reviewFenbiSession`；Recall renderer 只通过 origin-checked `reviewFenbiView` 接收脱敏状态（可用性、可见性、加载状态、allowlist host、导航能力和安全错误枚举）。bounds 由 renderer slot 提供，但 Main 会校验有限数值、拒绝负尺寸并将几何 clamp 到 BrowserWindow content area；不做未经 Electron 证据支持的 device-pixel-ratio 换算。
+
+`FenbiContextPanel` 注册在现有 `WorkspaceContextPanelRegistration`，只展示真实 session/view 状态和实际可用操作：回到首页、后退、前进、刷新、打开现有粉笔导入、确认后清除粉笔专用会话。`hasSessionData` 仍不等于已登录；`authentication: "unknown"` 显示为“检测到粉笔会话数据 / 登录状态尚未验证”。清除操作只委托 Fenbi dedicated session，完成后刷新状态并回到 Fenbi 首页，不删除 Recall 数据。自动错题同步尚未实现。
+
+Web/Next.js mode 不伪造 native embedded surface，而显示“粉笔嵌入仅桌面版可用”，并可提供安全的 `https://www.fenbi.com/` 浏览器链接。现有 `粉笔导入` workflow 保持独立，是当前的 import/sync fallback；未来同步任务仍需另行定义 session-authorized incremental wrong-question synchronization，不能在本任务中复制 parser、抓取页面 DOM 或拦截请求。
+
+`WebContentsView` 是 native child surface，普通 renderer `z-index` 不能把 SummaryPopover 或 mobile drawer 可靠地画在它上面。共享 `ui-overlay-events.ts` 提供 source-set occlusion store：SummaryPopover、mobile ContextPanel 和 mobile sidebar 分别持有稳定 source，任一 source 打开即隐藏 Fenbi view，所有 source 关闭后才恢复。桌面 ContextPanel 继续使用 push layout，slot 通过 ResizeObserver、布局 transition、窗口/viewport 事件和 requestAnimationFrame 跟随实际几何；离开 Fenbi view 时隐藏，返回时使用最新 bounds。该机制是通用 shell 能力，ContextPanel 与 SummaryPopover 不包含 Fenbi 特判。
+
+真实 Fenbi 页面交互、登录 redirect host、session persistence 和 native z-order 仍需在 Electron GUI 中验收；浏览器 Playwright 只证明导航、fallback、ContextPanel/summary 和 occlusion renderer contract，不替代 live native QA。

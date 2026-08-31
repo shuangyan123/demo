@@ -33,7 +33,7 @@ async function runSmoke() {
   try {
     await mainWindow.loadURL("data:text/html,<html><body>preload smoke</body></html>");
     const evidence = await mainWindow.webContents.executeJavaScript(`({
-      desktopBridge: Boolean(window.reviewDesktopVault || window.reviewDesktopWindow || window.reviewDesktopCredentialProtection),
+      desktopBridge: Boolean(window.reviewDesktopVault || window.reviewDesktopWindow || window.reviewDesktopCredentialProtection || window.reviewFenbiSession || window.reviewFenbiView),
       credentialProtection: Boolean(window.reviewDesktopCredentialProtection),
       credentialProtectionMethods: Boolean(
         window.reviewDesktopCredentialProtection

@@ -6,6 +6,7 @@ import { KnowledgeView } from "../knowledge/knowledge-workspace";
 import { EntryView } from "./review-entry-view";
 import {
   AutomationView,
+  FenbiWorkspace,
   ImportWorkspace,
   InterviewWorkspace,
   KnowledgeTrainingView,
@@ -55,6 +56,8 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
           onOpenSettings={() => workspace.openApiSettings("请先配置默认文本连接，再运行自动化")}
         />
       ) : null}
+
+      {view === "fenbi" ? <FenbiWorkspace /> : null}
 
       {view === "knowledge" ? (
         <KnowledgeView

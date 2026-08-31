@@ -51,6 +51,63 @@ export interface NativeWindowCapability {
   setTitleBarTheme(mode: "light" | "dark"): Promise<void>;
 }
 
+export type FenbiSessionAuthentication = "unknown" | "not-established";
+
+/** Fenbi session 只向 UI 暴露可恢复的布尔状态，不暴露 Cookie 或账户材料。 */
+export type FenbiSessionStatus = {
+  available: boolean;
+  persistent: true;
+  hasSessionData: boolean;
+  authentication: FenbiSessionAuthentication;
+};
+
+export type FenbiSessionHostResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: { code: "untrusted_sender" | "session_unavailable" | "clear_failed"; message: string } };
+
+export type FenbiViewHost = "www.fenbi.com" | "tiku.fenbi.com";
+export type FenbiViewErrorCode = "untrusted_sender" | "view_unavailable" | "invalid_bounds" | "load_failed" | "navigation_unavailable";
+
+export type FenbiViewState = {
+  available: boolean;
+  visible: boolean;
+  loading: boolean;
+  host?: FenbiViewHost;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  lastError?: Exclude<FenbiViewErrorCode, "untrusted_sender" | "invalid_bounds">;
+};
+
+export type FenbiViewBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type FenbiViewResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: { code: FenbiViewErrorCode; message: string } };
+
+export interface DesktopFenbiSessionCapability {
+  readonly kind: "desktop";
+  getStatus(): Promise<FenbiSessionStatus>;
+  clear(): Promise<{ cleared: true }>;
+}
+
+export interface DesktopFenbiViewCapability {
+  readonly kind: "desktop";
+  getState(): Promise<FenbiViewState>;
+  show(): Promise<FenbiViewState>;
+  hide(): Promise<FenbiViewState>;
+  setBounds(bounds: FenbiViewBounds): Promise<FenbiViewState>;
+  openHome(): Promise<FenbiViewState>;
+  reload(): Promise<FenbiViewState>;
+  goBack(): Promise<FenbiViewState>;
+  goForward(): Promise<FenbiViewState>;
+  onStateChanged(listener: (state: FenbiViewState) => void): () => void;
+}
+
 export type CredentialProtectionStatus =
   | { status: "available"; backend: "os_protected" }
   | { status: "unavailable" | "unsupported" | "temporarily_unavailable" };
@@ -99,6 +156,8 @@ export type HostCapabilities = {
   vault?: VaultCapability;
   nativeWindow?: NativeWindowCapability;
   credentialProtection?: DesktopCredentialProtectionCapability;
+  fenbiSession?: DesktopFenbiSessionCapability;
+  fenbiView?: DesktopFenbiViewCapability;
 };
 
 export type HostRuntime = {
@@ -113,4 +172,21 @@ export type DesktopCredentialProtectionPreloadBridge = {
   getStatus(): Promise<CredentialHostResult<CredentialProtectionStatus>>;
   protectCredential(context: string, secret: string): Promise<CredentialHostResult<DesktopCredentialEnvelope>>;
   unprotectCredential(context: string, envelope: DesktopCredentialEnvelope): Promise<CredentialHostResult<DesktopCredentialUnprotectResult>>;
+};
+
+export type DesktopFenbiSessionPreloadBridge = {
+  getStatus(): Promise<FenbiSessionHostResult<FenbiSessionStatus>>;
+  clear(): Promise<FenbiSessionHostResult<{ cleared: true }>>;
+};
+
+export type DesktopFenbiViewPreloadBridge = {
+  getState(): Promise<FenbiViewResult<FenbiViewState>>;
+  show(): Promise<FenbiViewResult<FenbiViewState>>;
+  hide(): Promise<FenbiViewResult<FenbiViewState>>;
+  setBounds(bounds: FenbiViewBounds): Promise<FenbiViewResult<FenbiViewState>>;
+  openHome(): Promise<FenbiViewResult<FenbiViewState>>;
+  reload(): Promise<FenbiViewResult<FenbiViewState>>;
+  goBack(): Promise<FenbiViewResult<FenbiViewState>>;
+  goForward(): Promise<FenbiViewResult<FenbiViewState>>;
+  onStateChanged(listener: (state: FenbiViewState) => void): () => void;
 };

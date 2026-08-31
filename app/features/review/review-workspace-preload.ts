@@ -3,6 +3,7 @@ import type { ViewKey } from "../../types/domains/workspace.ts";
 const preloaders: Partial<Record<ViewKey, () => Promise<unknown>>> = {
   automation: () => import("../automation/automation-view"),
   conversation: () => import("../conversation/conversation-workspace"),
+  fenbi: () => import("../fenbi/fenbi-workspace"),
   import: () => import("../import/import-workspace"),
   interview: () => import("../interview/interview-workspace"),
   plugins: () => import("../settings/plugins/settings-plugins-view"),

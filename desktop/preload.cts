@@ -6,6 +6,12 @@ import type {
   DesktopCredentialEnvelope,
 } from "./credential-storage-envelope.js";
 import type {
+  FenbiViewBounds,
+  FenbiViewPreloadBridge,
+  FenbiViewResult,
+  FenbiViewState,
+} from "./fenbi-web-contents-types.js";
+import type {
   FenbiSessionClearResult,
   FenbiSessionPreloadBridge,
   FenbiSessionResult,
@@ -47,3 +53,48 @@ const reviewFenbiSession: FenbiSessionPreloadBridge = {
 };
 
 contextBridge.exposeInMainWorld("reviewFenbiSession", reviewFenbiSession);
+
+const FENBI_VIEW_STATE_CHANGED_CHANNEL = "review-fenbi-view:state-changed";
+
+function sanitizeFenbiViewState(value: unknown): FenbiViewState | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  const host = candidate.host === "www.fenbi.com" || candidate.host === "tiku.fenbi.com" ? candidate.host : undefined;
+  const lastError = candidate.lastError === "view_unavailable"
+    || candidate.lastError === "load_failed"
+    || candidate.lastError === "navigation_unavailable"
+    ? candidate.lastError
+    : undefined;
+  if (![candidate.available, candidate.visible, candidate.loading, candidate.canGoBack, candidate.canGoForward].every((item) => typeof item === "boolean")) return undefined;
+  return {
+    available: candidate.available,
+    visible: candidate.visible,
+    loading: candidate.loading,
+    ...(host ? { host } : {}),
+    canGoBack: candidate.canGoBack,
+    canGoForward: candidate.canGoForward,
+    ...(lastError ? { lastError } : {}),
+  } as FenbiViewState;
+}
+
+/** Renderer 只得到固定动作与脱敏 state；remote Fenbi WebContents 不加载此 preload。 */
+const reviewFenbiView: FenbiViewPreloadBridge = {
+  getState: () => ipcRenderer.invoke("review-fenbi-view:get-state") as Promise<FenbiViewResult<FenbiViewState>>,
+  show: () => ipcRenderer.invoke("review-fenbi-view:show") as Promise<FenbiViewResult<FenbiViewState>>,
+  hide: () => ipcRenderer.invoke("review-fenbi-view:hide") as Promise<FenbiViewResult<FenbiViewState>>,
+  setBounds: (bounds: FenbiViewBounds) => ipcRenderer.invoke("review-fenbi-view:set-bounds", bounds) as Promise<FenbiViewResult<FenbiViewState>>,
+  openHome: () => ipcRenderer.invoke("review-fenbi-view:open-home") as Promise<FenbiViewResult<FenbiViewState>>,
+  reload: () => ipcRenderer.invoke("review-fenbi-view:reload") as Promise<FenbiViewResult<FenbiViewState>>,
+  goBack: () => ipcRenderer.invoke("review-fenbi-view:go-back") as Promise<FenbiViewResult<FenbiViewState>>,
+  goForward: () => ipcRenderer.invoke("review-fenbi-view:go-forward") as Promise<FenbiViewResult<FenbiViewState>>,
+  onStateChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: unknown) => {
+      const state = sanitizeFenbiViewState(value);
+      if (state) listener(state);
+    };
+    ipcRenderer.on(FENBI_VIEW_STATE_CHANGED_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(FENBI_VIEW_STATE_CHANGED_CHANNEL, handler);
+  },
+};
+
+contextBridge.exposeInMainWorld("reviewFenbiView", reviewFenbiView);

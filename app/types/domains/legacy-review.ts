@@ -1053,7 +1053,7 @@ export type KnowledgeFilters = {
   favoriteOnly: boolean;
 };
 
-export type ViewKey = "conversation" | "dashboard" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry" | "plugins" | "settings";
+export type ViewKey = "conversation" | "dashboard" | "fenbi" | "library" | "review" | "knowledgeTraining" | "stats" | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry" | "plugins" | "settings";
 
 export type StudyDomainId = "civil-service";
 

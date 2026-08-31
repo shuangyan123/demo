@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject, type ReactNode } from "react";
 import { AppIcon } from "./app-icon";
+import { setNativeSurfaceOcclusion } from "./ui-overlay-events";
 import { UiHint } from "./ui-tooltip";
 import type { WorkspaceContextPanelRegistration } from "./workspace-context-registry";
 
@@ -75,11 +76,17 @@ type ContextPanelProps = {
 /** 全站唯一右侧面板宿主：桌面 push，移动端 drawer；feature 内容经 registration 注入。 */
 export function ContextPanel({ id, onClose, open, registration, triggerRef }: ContextPanelProps) {
   const headingId = useId();
+  const nativeSurfaceOcclusionSource = `context-panel:${useId()}`;
   const panelRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const wasOpenRef = useRef(false);
   const [isMobile, setIsMobile] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+
+  useLayoutEffect(() => {
+    setNativeSurfaceOcclusion(nativeSurfaceOcclusionSource, open && isMobile);
+    return () => setNativeSurfaceOcclusion(nativeSurfaceOcclusionSource, false);
+  }, [isMobile, nativeSurfaceOcclusionSource, open]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 1024px)");
