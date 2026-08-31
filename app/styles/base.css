@@ -93,7 +93,7 @@ input[type="range"] {
   min-width: 0;
 }
 
-input:not(.settings-input):not(.contrast-slider):not(.ui-input):not(.command-search-input):focus-visible,
+input:not(.settings-input):not(.contrast-slider):not(.ui-input):not(.command-search-input):not(.model-search-input):focus-visible,
 select:not(.settings-select):not(.ui-select):focus-visible,
 textarea:not(.ui-textarea):focus-visible {
   border-color: var(--line);

@@ -811,3 +811,118 @@ test("模型搜索焦点拥有级联生命周期并保持真实过滤结果", as
   expect(await providerOrder(picker)).toEqual(providerOrderSnapshot);
   expectNoRuntimeErrors(runtimeErrors);
 });
+
+test("模型搜索 shell 提供单一轻量 focus treatment 且不发生布局偏移", async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+  await seedConversationModelFixtures(page, [
+    { id: "visual-google", label: "视觉 Gemini", provider: "google", apiFormat: "google_generate_content" },
+  ], [
+    { id: "visual-chat", title: "模型搜索视觉验收", connectionId: "visual-google", modelId: "gemini-3.5-flash" },
+  ]);
+  await seedModelCache(page, "visual-google", "google", [
+    directoryModel("google", "gemini-3.5-flash", "Gemini 3.5 Flash"),
+    directoryModel("google", "gemini-3.5-pro", "Gemini 3.5 Pro"),
+  ]);
+  await page.reload();
+  await expectRecallMarkInsideHeader(page);
+
+  const picker = await openPicker(page, "visual-chat");
+  const provider = picker.locator('[data-model-picker-surface="provider"]');
+  const modelControl = picker.getByRole("button", { name: /^模型 / });
+  await modelControl.hover();
+  const google = provider.getByRole("button", { name: "Google Gemini", exact: true });
+  await movePointer(page, modelControl, google);
+  const model = picker.locator('[data-model-picker-surface="model"]');
+  const search = model.getByRole("searchbox", { name: "搜索模型" });
+  const field = search.locator("xpath=..");
+  const initialResultCount = await model.getByRole("radio").count();
+
+  const readVisualState = () => search.evaluate((input) => {
+    const shell = input.parentElement;
+    if (!shell) throw new Error("搜索框缺少 shell");
+    const shellStyle = getComputedStyle(shell);
+    const inputStyle = getComputedStyle(input);
+    const rect = input.getBoundingClientRect();
+    return {
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      shell: {
+        backgroundColor: shellStyle.backgroundColor,
+        borderColor: shellStyle.borderColor,
+        borderStyle: shellStyle.borderStyle,
+        borderWidth: shellStyle.borderWidth,
+        boxShadow: shellStyle.boxShadow,
+        outlineStyle: shellStyle.outlineStyle,
+      },
+      input: {
+        appearance: inputStyle.appearance,
+        backgroundColor: inputStyle.backgroundColor,
+        borderStyle: inputStyle.borderStyle,
+        borderWidth: inputStyle.borderWidth,
+        boxShadow: inputStyle.boxShadow,
+        outlineStyle: inputStyle.outlineStyle,
+      },
+      focused: document.activeElement === input,
+      shellFocusWithin: shell.matches(":focus-within"),
+    };
+  });
+
+  const assertSameGeometry = (before: Awaited<ReturnType<typeof readVisualState>>, after: Awaited<ReturnType<typeof readVisualState>>) => {
+    for (const key of ["x", "y", "width", "height"] as const) expect(Math.abs(before.rect[key] - after.rect[key])).toBeLessThanOrEqual(0.01);
+  };
+
+  const defaultState = await readVisualState();
+  expect(defaultState.focused).toBe(false);
+  expect(defaultState.shell.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(defaultState.shell.borderStyle).toBe("solid");
+  expect(defaultState.shell.borderWidth).toBe("1px");
+  expect(defaultState.shell.boxShadow).toBe("none");
+  expect(defaultState.input.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+  expect(defaultState.input.borderStyle).toBe("none");
+  expect(defaultState.input.borderWidth).toBe("0px");
+  expect(defaultState.input.boxShadow).toBe("none");
+  expect(defaultState.input.outlineStyle).toBe("none");
+
+  await field.hover();
+  const hoverState = await readVisualState();
+  expect(hoverState.shell.borderColor).not.toBe(defaultState.shell.borderColor);
+  expect(hoverState.shell.boxShadow).toBe("none");
+  assertSameGeometry(defaultState, hoverState);
+
+  await search.click();
+  await expect(search).toBeFocused();
+  const mouseFocusState = await readVisualState();
+  expect(mouseFocusState.shellFocusWithin).toBe(true);
+  expect(mouseFocusState.shell.borderColor).not.toBe(defaultState.shell.borderColor);
+  expect(mouseFocusState.shell.boxShadow).toBe("none");
+  expect(mouseFocusState.input.borderStyle).toBe("none");
+  expect(mouseFocusState.input.boxShadow).toBe("none");
+  expect(mouseFocusState.input.outlineStyle).toBe("none");
+  assertSameGeometry(defaultState, mouseFocusState);
+
+  await model.getByRole("button", { name: "返回厂商" }).focus();
+  await model.getByRole("button", { name: "返回厂商" }).press("Tab");
+  await expect(search).toBeFocused();
+  const keyboardFocusState = await readVisualState();
+  expect(keyboardFocusState.shellFocusWithin).toBe(true);
+  expect(keyboardFocusState.shell.borderColor).toBe(mouseFocusState.shell.borderColor);
+  expect(keyboardFocusState.shell.boxShadow).toBe("none");
+  expect(keyboardFocusState.input.borderStyle).toBe("none");
+  expect(keyboardFocusState.input.boxShadow).toBe("none");
+  expect(keyboardFocusState.input.outlineStyle).toBe("none");
+  assertSameGeometry(mouseFocusState, keyboardFocusState);
+
+  await search.pressSequentially("flash");
+  await expect(search).toHaveValue("flash");
+  await expect(model).toBeVisible();
+  await expect(model.getByRole("radio", { name: "Gemini 3.5 Flash", exact: true })).toBeVisible();
+  await search.fill("");
+  await expect(search).toHaveValue("");
+  await expect(model.getByRole("radio")).toHaveCount(initialResultCount);
+  await expect(model).toBeVisible();
+  await expectNoFrameworkOverlay(page);
+  await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-search-focus-treatment.png"), fullPage: false });
+  expectNoRuntimeErrors(runtimeErrors);
+});

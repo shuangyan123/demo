@@ -11,6 +11,7 @@ const slashCommands = readFileSync(new URL("./conversation-slash-commands.tsx", 
 const contextIndicator = readFileSync(new URL("./conversation-context-indicator.tsx", import.meta.url), "utf8");
 const modelSelector = readFileSync(new URL("./conversation-model-selector.tsx", import.meta.url), "utf8");
 const modelPicker = readFileSync(new URL("./conversation-model-picker.tsx", import.meta.url), "utf8");
+const baseStyles = readFileSync(new URL("../../styles/base.css", import.meta.url), "utf8");
 const modelProviderOrder = readFileSync(new URL("./conversation-model-provider-order.ts", import.meta.url), "utf8");
 const modelPickerStyles = readFileSync(new URL("./conversation-model-picker.module.css", import.meta.url), "utf8");
 const modelFlyoutPosition = readFileSync(new URL("./use-conversation-model-flyout-position.ts", import.meta.url), "utf8");
@@ -172,6 +173,15 @@ test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键�
   assert.match(modelPickerStyles, /\.modelSurface\s*\{[\s\S]*width: min\(26\.25rem/);
   assert.doesNotMatch(modelPickerStyles, /\.modelSurface\s*\{[^}]*\n\s+height:\s*min\(30rem/);
   assert.match(modelPickerStyles, /\.modelPanelHeader\s*\{[\s\S]*position: sticky;[\s\S]*flex: none;[\s\S]*background-color: var\(--surface\)/);
+  assert.match(modelPickerStyles, /\.searchField\s*\{[\s\S]*border: 1px solid var\(--line\);[\s\S]*background-color: var\(--surface-muted\)/);
+  assert.match(modelPickerStyles, /\.searchField:hover\s*\{[\s\S]*border-color: color-mix\(in srgb, var\(--foreground\) 18%, var\(--line\)\)/);
+  assert.match(modelPickerStyles, /\.searchField:focus-within\s*\{[\s\S]*border-color: color-mix\(in srgb, var\(--foreground\) 34%, var\(--line\)\)/);
+  assert.doesNotMatch(modelPickerStyles, /\.searchField:focus-within\s*\{[^}]*box-shadow:/);
+  assert.match(modelPickerStyles, /\.searchInput\s*\{[\s\S]*border: 0;[\s\S]*outline: 0;[\s\S]*background: transparent;[\s\S]*box-shadow: none;[\s\S]*appearance: none;[\s\S]*-webkit-appearance: none;/);
+  assert.match(modelPickerStyles, /\.searchInput:focus,\s*\.searchInput:focus-visible\s*\{[\s\S]*border: 0;[\s\S]*outline: 0;[\s\S]*box-shadow: none;/);
+  assert.match(modelPickerStyles, /\.searchField \.searchInput\s*\{\s*background-color: transparent;/);
+  assert.match(modelPicker, /className=\{`\$\{styles\.searchInput\} model-search-input`\}/);
+  assert.match(baseStyles, /input:not\(\.settings-input\):not\(\.contrast-slider\):not\(\.ui-input\):not\(\.command-search-input\):not\(\.model-search-input\):focus-visible/);
   assert.match(modelPickerStyles, /\.modelResults\s*\{[\s\S]*min-height: 0;[\s\S]*flex: 0 1 auto;[\s\S]*--model-results-cap-height: 10\.5rem;[\s\S]*max-height: min\(var\(--model-results-cap-height\)/);
   assert.match(modelPickerStyles, /\.modelResults\s*\{[\s\S]*overflow-y: auto;[\s\S]*scrollbar-gutter: stable/);
   assert.match(modelPickerStyles, /@media \(pointer: coarse\)[\s\S]*--model-results-cap-height: 14\.25rem;/);

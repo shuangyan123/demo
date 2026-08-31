@@ -630,7 +630,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
               <input
                 ref={modelSearchRef}
                 aria-label="搜索模型"
-                className={styles.searchInput}
+                className={`${styles.searchInput} model-search-input`}
                 data-picker-default-focus="true"
                 placeholder="搜索模型"
                 type="search"
