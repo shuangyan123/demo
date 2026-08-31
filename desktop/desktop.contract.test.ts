@@ -4,6 +4,7 @@ import test from "node:test";
 import "./vault.contract.test.ts";
 import "./runtime-spawn.contract.test.ts";
 import "./squirrel-lifecycle.contract.test.ts";
+import "./fenbi-session.contract.test.ts";
 
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const runtime = readFileSync(new URL("./runtime.ts", import.meta.url), "utf8");

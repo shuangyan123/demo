@@ -5,6 +5,12 @@ import type {
   DesktopCredentialUnprotectResult,
   DesktopCredentialEnvelope,
 } from "./credential-storage-envelope.js";
+import type {
+  FenbiSessionClearResult,
+  FenbiSessionPreloadBridge,
+  FenbiSessionResult,
+  FenbiSessionStatus,
+} from "./fenbi-session-types.js";
 
 contextBridge.exposeInMainWorld("reviewDesktopVault", {
   getState: () => ipcRenderer.invoke("review-vault:get-state"),
@@ -33,3 +39,11 @@ contextBridge.exposeInMainWorld("reviewDesktopCredentialProtection", {
   protectCredential: (context: string, secret: string) => ipcRenderer.invoke("review-credential-storage:protect", context, secret) as Promise<CredentialHostResult<DesktopCredentialEnvelope>>,
   unprotectCredential: (context: string, envelope: DesktopCredentialEnvelope) => ipcRenderer.invoke("review-credential-storage:unprotect", context, envelope) as Promise<CredentialHostResult<DesktopCredentialUnprotectResult>>,
 });
+
+/** 只返回脱敏 session 状态与 clear receipt；不暴露 Electron Session 或 Cookie API。 */
+const reviewFenbiSession: FenbiSessionPreloadBridge = {
+  getStatus: () => ipcRenderer.invoke("review-fenbi-session:get-status") as Promise<FenbiSessionResult<FenbiSessionStatus>>,
+  clear: () => ipcRenderer.invoke("review-fenbi-session:clear") as Promise<FenbiSessionResult<FenbiSessionClearResult>>,
+};
+
+contextBridge.exposeInMainWorld("reviewFenbiSession", reviewFenbiSession);

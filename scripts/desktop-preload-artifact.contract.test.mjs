@@ -12,6 +12,7 @@ const expectedBridgeNames = [
   "reviewDesktopCredentialProtection",
   "reviewDesktopVault",
   "reviewDesktopWindow",
+  "reviewFenbiSession",
 ].sort();
 
 function hash(value) {
