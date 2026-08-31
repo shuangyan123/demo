@@ -26,9 +26,11 @@ type UseConversationModelFlyoutPositionOptions = {
 const GAP = 6;
 const VIEWPORT_GUTTER = 12;
 // Keep direction measurement independent of which child surface is mounted first.
-// This matches the model surface's 22rem desktop width and prevents provider
+// This matches the model surface's 26.25rem desktop width and prevents provider
 // positioning from changing when the model surface appears.
-const MAX_CHILD_SURFACE_WIDTH = 22 * 16;
+const MAX_CHILD_SURFACE_WIDTH = 26.25 * 16;
+// Use one bounded height for placement so filtering cannot move the model top anchor.
+const MAX_MODEL_SURFACE_HEIGHT = 30 * 16;
 const HIDDEN_POSITION: ConversationModelFlyoutPosition = { left: 0, top: 0, visible: false };
 
 const initialPositions: PositionMap = {
@@ -77,11 +79,22 @@ export function useConversationModelFlyoutPosition({
     const nextDirection: "left" | "right" = pickerRect.right + GAP + widestChild <= window.innerWidth - VIEWPORT_GUTTER ? "right" : "left";
     const placements = placementsFor(nextDirection);
 
-    const place = (anchor: HTMLElement | null, surface: HTMLElement | null): ConversationModelFlyoutPosition => {
+    const place = (anchor: HTMLElement | null, surface: HTMLElement | null, stableHeight?: number): ConversationModelFlyoutPosition => {
       if (!anchor || !surface) return HIDDEN_POSITION;
+      const surfaceRect = surface.getBoundingClientRect();
+      const overlay = stableHeight === undefined
+        ? surfaceRect
+        : {
+          bottom: surfaceRect.top + stableHeight,
+          height: stableHeight,
+          left: surfaceRect.left,
+          right: surfaceRect.right,
+          top: surfaceRect.top,
+          width: surfaceRect.width,
+        };
       const next = computeUiOverlayPosition({
         anchor: anchor.getBoundingClientRect(),
-        overlay: surface.getBoundingClientRect(),
+        overlay,
         placement: placements,
         viewportHeight: window.innerHeight,
         viewportWidth: window.innerWidth,
@@ -93,7 +106,11 @@ export function useConversationModelFlyoutPosition({
 
     const nextPositions: PositionMap = {
       provider: place(modelAnchorRef.current, providerSurfaceRef.current),
-      model: place(providerAnchorRef.current, modelSurfaceRef.current),
+      model: place(
+        providerAnchorRef.current,
+        modelSurfaceRef.current,
+        Math.min(MAX_MODEL_SURFACE_HEIGHT, Math.max(0, window.innerHeight - VIEWPORT_GUTTER * 2)),
+      ),
       runtime: place(runtimeAnchorRef.current, runtimeSurfaceRef.current),
     };
     setDirection((current) => current === nextDirection ? current : nextDirection);

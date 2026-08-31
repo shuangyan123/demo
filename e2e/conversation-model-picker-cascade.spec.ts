@@ -90,8 +90,9 @@ async function waitForPickerLayerAnimations(page: Page): Promise<void> {
 
 async function seedModelCache(page: Page, connectionId: string, provider: CascadeProvider, models: DirectoryModel[]): Promise<void> {
   await page.evaluate(({ connectionId, provider, models }) => {
+    const baseUrl = provider === "minimax" ? "http://127.0.0.1:9/anthropic" : "http://127.0.0.1:9/v1";
     localStorage.setItem(
-      `review_provider_models_v4:${connectionId}:${provider}:http://127.0.0.1:9/v1`,
+      `review_provider_models_v4:${connectionId}:${provider}:${baseUrl}`,
       JSON.stringify({ complete: true, fetchedAt: "2026-08-29T00:00:00.000Z", models }),
     );
   }, { connectionId, provider, models });
@@ -112,7 +113,7 @@ test("桌面模型级联保持独立几何、长目录仅滚模型层且切换�
 
   const geminiModels = [
     directoryModel("google", "gemini-3.5-flash", "Gemini 3.5 Flash"),
-    directoryModel("google", "gemini-cascade-long-01", "Deep Research Max Preview (April 2026 extended evaluation build)"),
+    directoryModel("google", "gemini-cascade-long-01", "Deep Research Max Preview (April 2026 extended evaluation build with an intentionally long canonical display label for overflow QA)"),
     ...Array.from({ length: 39 }, (_, index) => directoryModel("google", `gemini-cascade-${String(index + 2).padStart(2, "0")}`, `Gemini Cascade Preview ${index + 2}`)),
     directoryModel("google", "gemini-cascade-last", "Gemini 2.5 Computer Use Preview — Long Context — Final Model"),
   ];
@@ -163,12 +164,13 @@ test("桌面模型级联保持独立几何、长目录仅滚模型层且切换�
   const rootWithModel = await root.boundingBox();
   const providerWithModel = await provider.boundingBox();
   const modelWithModel = await model.boundingBox();
-  expect(modelWithModel?.width ?? 0).toBeGreaterThanOrEqual(300);
-  expect(modelWithModel?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(360);
+  expect(modelWithModel?.width ?? 0).toBeGreaterThanOrEqual(420);
+  expect(modelWithModel?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(460);
   expect(Math.abs((rootWithModel?.x ?? 0) - (rootBefore?.x ?? 0))).toBeLessThanOrEqual(1);
   expect(Math.abs((rootWithModel?.y ?? 0) - (rootBefore?.y ?? 0))).toBeLessThanOrEqual(1);
   expect(Math.abs((providerWithModel?.x ?? 0) - (providerBefore?.x ?? 0))).toBeLessThanOrEqual(1);
   expect(Math.abs((providerWithModel?.y ?? 0) - (providerBefore?.y ?? 0))).toBeLessThanOrEqual(1);
+  const longModelHeight = modelWithModel?.height ?? 0;
   const surfacePresentation = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-model-picker-surface]')].map((surface) => {
     const style = getComputedStyle(surface);
     return { surface: surface.dataset.modelPickerSurface, background: style.backgroundColor, opacity: style.opacity, transform: style.transform };
@@ -260,7 +262,23 @@ test("桌面模型级联保持独立几何、长目录仅滚模型层且切换�
   expect(await providerOrder(picker)).toEqual(sessionProviderOrder);
   await expect(model.getByRole("radio", { name: /DeepSeek Cascade One/ })).toBeVisible();
   await expect(model.getByRole("radio", { name: /Gemini Cascade Preview/ })).toHaveCount(0);
-  await expect.poll(async () => results.evaluate((element) => element.scrollTop)).toBe(0);
+  const shortModelMetrics = await model.evaluate((element) => {
+    const results = element.querySelector<HTMLElement>('[data-model-picker-results="true"]');
+    if (!results) throw new Error("缺少短目录结果层");
+    return {
+      height: element.getBoundingClientRect().height,
+      resultsHeight: results.getBoundingClientRect().height,
+      resultsClientHeight: results.clientHeight,
+      resultsScrollHeight: results.scrollHeight,
+    };
+  });
+  expect(shortModelMetrics.height).toBeLessThan(longModelHeight);
+  expect(shortModelMetrics.resultsScrollHeight).toBe(shortModelMetrics.resultsClientHeight);
+  expect(shortModelMetrics.resultsHeight).toBeGreaterThan(0);
+  const shortModelBox = await model.boundingBox();
+  expect(Math.abs((shortModelBox?.y ?? 0) - (modelSurfaceBeforeScroll?.y ?? 0))).toBeLessThanOrEqual(1);
+  await expect.poll(async () => model.evaluate((element) => element.scrollTop)).toBe(0);
+  await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-cascade-deepseek-short.png"), fullPage: false });
   const rootAfterSwitch = await root.boundingBox();
   const providerAfterSwitch = await provider.boundingBox();
   expect(Math.abs((rootAfterSwitch?.x ?? 0) - (rootBeforeSwitch?.x ?? 0))).toBeLessThanOrEqual(1);
@@ -271,7 +289,7 @@ test("桌面模型级联保持独立几何、长目录仅滚模型层且切换�
   await movePointer(page, deepSeek, google);
   await expect(model.getByRole("radio", { name: /Gemini 3\.5 Flash/ })).toBeVisible();
   expect(await providerOrder(picker)).toEqual(sessionProviderOrder);
-  await expect.poll(async () => results.evaluate((element) => element.scrollTop)).toBe(0);
+  await expect.poll(async () => model.locator('[data-model-picker-results="true"]').evaluate((element) => element.scrollTop)).toBe(0);
 
   await modelControl.hover();
   await expect(runtime).toHaveCount(0);
@@ -302,7 +320,10 @@ test("provider 到 concrete model 的提交先关闭级联，再应用 selected-
   ]);
   await seedModelCache(page, "stability-google", "google", [directoryModel("google", "gemini-3.5-flash", "Gemini 3.5 Flash")]);
   await seedModelCache(page, "stability-deepseek", "deepseek", [directoryModel("deepseek", "deepseek-v4-flash", "DeepSeek V4 Flash")]);
-  await seedModelCache(page, "stability-minimax", "minimax", [directoryModel("minimax", "MiniMax-M3", "MiniMax-M3")]);
+  await seedModelCache(page, "stability-minimax", "minimax", [
+    directoryModel("minimax", "MiniMax-M3", "MiniMax-M3"),
+    ...Array.from({ length: 5 }, (_, index) => directoryModel("minimax", `minimax-medium-${index + 1}`, `MiniMax Medium ${index + 1}`)),
+  ]);
   await page.reload();
   await expectRecallMarkInsideHeader(page);
 
@@ -326,7 +347,23 @@ test("provider 到 concrete model 的提交先关闭级联，再应用 selected-
   expect(await providerOrder(picker)).toEqual(initialDomOrder);
   const minimaxModel = model.getByRole("radio", { name: "MiniMax-M3", exact: true });
   await expect(minimaxModel).toBeVisible();
+  expect(await model.getByRole("radio").count()).toBeGreaterThanOrEqual(6);
+  await expect(model.getByRole("radio", { name: "MiniMax Medium 5", exact: true })).toBeVisible();
   expect(await providerOrder(picker)).toEqual(initialDomOrder);
+  const minimaxBox = await model.boundingBox();
+  const minimaxMetrics = await model.evaluate((element) => {
+    const results = element.querySelector<HTMLElement>('[data-model-picker-results="true"]');
+    if (!results) throw new Error("缺少 MiniMax 结果层");
+    return {
+      height: element.getBoundingClientRect().height,
+      resultsClientHeight: results.clientHeight,
+      resultsScrollHeight: results.scrollHeight,
+    };
+  });
+  expect(minimaxBox?.width ?? 0).toBeGreaterThanOrEqual(420);
+  expect(minimaxBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(460);
+  expect(minimaxMetrics.height).toBeLessThan(480);
+  expect(minimaxMetrics.resultsScrollHeight).toBe(minimaxMetrics.resultsClientHeight);
   await waitForPickerLayerAnimations(page);
   const rootWithModel = await root.boundingBox();
   const providerWithModel = await provider.boundingBox();
@@ -497,6 +534,8 @@ test("模型搜索只过滤当前厂商，结果层键盘导航和提交保持�
   const rootBeforeSearch = await root.boundingBox();
   const providerBeforeSearch = await provider.boundingBox();
   const modelBeforeSearch = await model.boundingBox();
+  expect(modelBeforeSearch?.width ?? 0).toBeGreaterThanOrEqual(420);
+  expect(modelBeforeSearch?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(460);
   const initialResultCount = await model.getByRole("radio").count();
   expect(initialResultCount).toBeGreaterThanOrEqual(searchModels.length);
 
@@ -520,7 +559,8 @@ test("模型搜索只过滤当前厂商，结果层键盘导航和提交保持�
   const oneMatchBox = await model.boundingBox();
   expect(Math.abs((oneMatchBox?.x ?? 0) - (modelBeforeSearch?.x ?? 0))).toBeLessThanOrEqual(1);
   expect(Math.abs((oneMatchBox?.y ?? 0) - (modelBeforeSearch?.y ?? 0))).toBeLessThanOrEqual(1);
-  expect(Math.abs((oneMatchBox?.height ?? 0) - (modelBeforeSearch?.height ?? 0))).toBeLessThanOrEqual(1);
+  expect(oneMatchBox?.height ?? 0).toBeLessThan(modelBeforeSearch?.height ?? Number.POSITIVE_INFINITY);
+  expect(await results.evaluate((element) => element.scrollHeight)).toBe(await results.evaluate((element) => element.clientHeight));
   expect(await providerOrder(picker)).toEqual(initialOrder);
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-search-one.png"), fullPage: false });
 
@@ -531,7 +571,8 @@ test("模型搜索只过滤当前厂商，结果层键盘导航和提交保持�
   expect(Math.abs((noMatchBox?.x ?? 0) - (modelBeforeSearch?.x ?? 0))).toBeLessThanOrEqual(1);
   expect(Math.abs((noMatchBox?.y ?? 0) - (modelBeforeSearch?.y ?? 0))).toBeLessThanOrEqual(1);
   expect(Math.abs((noMatchBox?.width ?? 0) - (modelBeforeSearch?.width ?? 0))).toBeLessThanOrEqual(1);
-  expect(Math.abs((noMatchBox?.height ?? 0) - (modelBeforeSearch?.height ?? 0))).toBeLessThanOrEqual(1);
+  expect(noMatchBox?.height ?? 0).toBeLessThan(modelBeforeSearch?.height ?? Number.POSITIVE_INFINITY);
+  expect(await results.evaluate((element) => element.scrollHeight)).toBe(await results.evaluate((element) => element.clientHeight));
   expect(await providerOrder(picker)).toEqual(initialOrder);
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-search-none.png"), fullPage: false });
 

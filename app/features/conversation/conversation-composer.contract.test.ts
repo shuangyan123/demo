@@ -169,8 +169,10 @@ test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键�
   assert.match(modelPickerStyles, /\.picker\s*\{[\s\S]*width: min\(18\.5rem/);
   assert.match(modelPickerStyles, /\.providerSurface\s*\{[\s\S]*width: min\(15rem/);
   assert.match(modelPickerStyles, /\.modelSurface\s*\{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*overflow: hidden/);
+  assert.match(modelPickerStyles, /\.modelSurface\s*\{[\s\S]*width: min\(26\.25rem/);
+  assert.doesNotMatch(modelPickerStyles, /\.modelSurface\s*\{[^}]*\n\s+height:\s*min\(30rem/);
   assert.match(modelPickerStyles, /\.modelPanelHeader\s*\{[\s\S]*position: sticky;[\s\S]*flex: none;[\s\S]*background-color: var\(--surface\)/);
-  assert.match(modelPickerStyles, /\.modelResults\s*\{[\s\S]*min-height: 0;[\s\S]*overflow-y: auto;[\s\S]*scrollbar-gutter: stable/);
+  assert.match(modelPickerStyles, /\.modelResults\s*\{[\s\S]*min-height: 0;[\s\S]*flex: 0 1 auto;[\s\S]*overflow-y: auto;[\s\S]*scrollbar-gutter: stable/);
   assert.match(modelPickerStyles, /scrollbar-gutter: stable/);
   assert.match(modelPickerStyles, /@media \(max-width: 640px\)[\s\S]*?\.surface,[\s\S]*?position: static/);
   assert.match(modelPickerStyles, /\.flyoutBack\s*\{\s*display: none;/);
@@ -183,6 +185,7 @@ test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键�
   assert.match(modelFlyoutPosition, /placementsFor/);
   assert.match(modelFlyoutPosition, /widestChild/);
   assert.match(modelFlyoutPosition, /MAX_CHILD_SURFACE_WIDTH/);
+  assert.match(modelFlyoutPosition, /MAX_MODEL_SURFACE_HEIGHT/);
   assert.doesNotMatch(modelPicker, /<strong>模型<\/strong>/);
 });
 

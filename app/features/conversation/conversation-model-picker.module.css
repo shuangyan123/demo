@@ -80,8 +80,7 @@
 .modelSurface {
   display: flex;
   flex-direction: column;
-  width: min(22rem, calc(100vw - 1.25rem));
-  height: min(30rem, calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+  width: min(26.25rem, calc(100vw - 1.25rem));
   max-height: min(30rem, calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
   overflow: hidden;
   overscroll-behavior: contain;
@@ -316,7 +315,8 @@
 
 .modelResults {
   min-height: 0;
-  flex: 1 1 auto;
+  /* Auto-height keeps short catalogs compact; max-height makes long catalogs the only scroller. */
+  flex: 0 1 auto;
   max-height: min(25rem, calc(100dvh - 6rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -537,7 +537,7 @@
 
   .modelSurface {
     display: flex;
-    height: min(30rem, calc(100dvh - var(--chrome-topbar-height, 52px) - var(--model-picker-mobile-bottom, 7.75rem) - 0.75rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+    height: auto;
     max-height: inherit;
     overflow: hidden;
   }
