@@ -370,9 +370,10 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
     box-shadow: none;
   }
 
-  /* Browser 没有 native titlebar：renderer chrome 退化为零高度边界，workspace 从视口顶端开始。 */
+  /* Browser 没有 native titlebar，也保留真实 renderer header 几何，让 28px mark 在自己的内容盒内布局。 */
   .chrome-shell[data-native-window="false"] > .chrome-topbar {
-    height: 0;
+    height: var(--chrome-topbar-height);
+    min-height: var(--chrome-topbar-height);
     overflow: visible;
     border-bottom: 0;
     background: transparent;
@@ -383,15 +384,8 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 
   .chrome-shell[data-native-window="false"] > .chrome-topbar .chrome-topbar-safe-area {
     position: static;
-    height: 0;
+    height: 100%;
     padding: 0;
-  }
-
-  /* Browser 没有 native titlebar 时，mark 不再以零高度安全区为中心，保留明确上边距并对齐侧栏标题块。 */
-  .chrome-shell[data-native-window="false"] > .chrome-topbar .chrome-topbar-safe-area > img[alt="Recall"] {
-    align-self: flex-start;
-    margin-top: 0.75rem;
-    margin-inline-start: 0.35rem;
   }
 
   .chrome-shell[data-native-window="false"] > .chrome-topbar .ui-tooltip-anchor {
@@ -403,18 +397,6 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
 
   .chrome-shell[data-native-window="false"][data-sidebar="collapsed"] > .chrome-topbar .ui-tooltip-anchor {
     left: 0.75rem;
-  }
-
-  .chrome-shell[data-native-window="false"] > .chrome-layout {
-    height: 100%;
-  }
-
-  .chrome-shell[data-native-window="false"]::before {
-    inset: 0 auto 0 0;
-  }
-
-  .chrome-shell[data-native-window="false"][data-sidebar="collapsed"]::before {
-    width: 0;
   }
 
   .chrome-layout.is-sidebar-expanded .chrome-sidebar {

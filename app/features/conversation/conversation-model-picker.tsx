@@ -39,17 +39,17 @@ export type ConversationModelPickerProps = {
   initialRuntimeDimension?: ConversationModelRuntimeDimension;
   connections: ApiConnectionProfile[];
   purpose: AiConnectionPurpose;
+  providerOrder: readonly ApiProvider[];
   selectedConnectionId?: string;
   selectedModelId?: string;
   selectedRuntimeValues?: AiSelectedRuntimeValues;
   onOpenConnections: () => void;
-  onModelCommit?: () => void;
+  onRequestClose: (restoreFocus?: boolean) => void;
   onSelect: (selection: ConversationModelSelection) => void;
 };
 
 type PickerAnchorKey = "model" | ConversationModelRuntimeDimension;
 
-const providerCollator = new Intl.Collator("en", { sensitivity: "base" });
 const POINTER_GRACE_MS = 140;
 
 type ModelOptionRowProps = {
@@ -82,13 +82,14 @@ function ModelOptionRow({ model, checked, defaultFocus, name, onChange }: ModelO
   }, [model.label]);
 
   const renderRow = (describedBy?: string) => (
-    <label className={styles.radioLabel}>
+    <label className={styles.radioLabel} data-model-picker-row="true">
       <input
         aria-describedby={describedBy}
         checked={checked}
         className={styles.radioInput}
         data-picker-default-focus={checked || defaultFocus ? "true" : undefined}
         data-picker-focus-key={`model:${model.id}`}
+        data-model-id={model.id}
         name={name}
         type="radio"
         value={model.id}
@@ -126,11 +127,12 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   initialRuntimeDimension,
   connections,
   purpose,
+  providerOrder,
   selectedConnectionId,
   selectedModelId,
   selectedRuntimeValues,
   onOpenConnections,
-  onModelCommit,
+  onRequestClose,
   onSelect,
 }, forwardedRef) {
   const pickerRef = useRef<HTMLDivElement | null>(null);
@@ -147,19 +149,15 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   const closePreviewTimerRef = useRef<number | undefined>(undefined);
   const cascadePointerInsideRef = useRef(false);
   const modelSelectionCommittedRef = useRef(false);
+  const modelSearchRef = useRef<HTMLInputElement | null>(null);
   const eligible = useMemo(() => connections.filter((connection) => connection.capabilities.includes(purpose)), [connections, purpose]);
   const selectedConnection = eligible.find((connection) => connection.id === selectedConnectionId);
   const initialView: ConversationModelPickerView = initialRuntimeDimension && selectedConnection && selectedModelId
     ? { kind: "runtime", provider: selectedConnection.provider, connectionId: selectedConnection.id, dimension: initialRuntimeDimension }
     : { kind: "controls" };
   const { back, changeConnection, reset, showModels, showProviders, showRuntime, view } = useConversationModelNavigation({ initialView, pickerRef });
-  const sortedProviders = useMemo(() => Array.from(new Set(eligible.map((connection) => connection.provider))).sort((left, right) => {
-    if (left === selectedConnection?.provider) return -1;
-    if (right === selectedConnection?.provider) return 1;
-    return providerCollator.compare(getProviderContract(left).label, getProviderContract(right).label);
-  }), [eligible, selectedConnection?.provider]);
-  // Picker 挂载期间冻结已有厂商顺序；选中项置顶只在关闭后下一次打开时生效。
-  const [providers] = useState<ApiProvider[]>(() => sortedProviders);
+  // 顺序由 selector 在 CLOSED -> OPEN 时生成；picker 会话内只读这个快照。
+  const providers = providerOrder;
   const [requestedProviderId, setActiveProviderId] = useState<ApiProvider | undefined>(() => selectedConnection?.provider);
   const activeProviderId = requestedProviderId && providers.includes(requestedProviderId)
     ? requestedProviderId
@@ -174,6 +172,12 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   const catalog = useConnectionModelCatalog(activeConnection, purpose);
   const activeSelectedModelId = activeConnection?.id === selectedConnectionId ? selectedModelId : undefined;
   const models = catalog.models;
+  const [searchQuery, setSearchQuery] = useState("");
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredModels = useMemo(() => {
+    if (!normalizedSearchQuery) return models;
+    return models.filter((model) => model.label.toLowerCase().includes(normalizedSearchQuery) || model.id.toLowerCase().includes(normalizedSearchQuery));
+  }, [models, normalizedSearchQuery]);
   const selectedDescriptor = selectedConnection && selectedModelId
     ? getAiModelRuntimeDescriptor(selectedConnection.provider, selectedModelId)
     : undefined;
@@ -253,6 +257,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   function activateProvider(provider: ApiProvider) {
     if (!providers.includes(provider)) return;
     keepCascadeOpen();
+    setSearchQuery("");
     setActiveProviderId(provider);
     setModelPreviewProvider(provider);
   }
@@ -262,6 +267,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     const nextConnection = connectionsForProvider.find((connection) => connection.id === selectedConnectionId) ?? connectionsForProvider[0];
     if (!nextConnection) return;
     keepCascadeOpen();
+    setSearchQuery("");
     setActiveProviderId(provider);
     setModelPreviewProvider(provider);
     showModels(provider, nextConnection.id, focusModels);
@@ -271,7 +277,14 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     clearClosePreviewTimer();
     cascadePointerInsideRef.current = false;
     setModelPreviewProvider(undefined);
+    setSearchQuery("");
     back();
+  }
+
+  function closeProviderPreview() {
+    clearClosePreviewTimer();
+    cascadePointerInsideRef.current = false;
+    setModelPreviewProvider(undefined);
   }
 
   function handleModelPaneKeyNavigation(event: KeyboardEvent<HTMLElement>) {
@@ -280,23 +293,53 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     goBack();
   }
 
+  function handleModelResultsKeyNavigation(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") return;
+    const target = event.target instanceof HTMLInputElement ? event.target : null;
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLInputElement>("input[data-model-id]:not([disabled])"));
+    if (!target || !items.length) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      chooseModel(target.dataset.modelId ?? "");
+      return;
+    }
+    event.preventDefault();
+    const currentIndex = items.indexOf(target);
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    const next = items[(currentIndex + direction + items.length) % items.length];
+    if (!next) return;
+    next.focus();
+    next.closest<HTMLElement>("[data-model-picker-row]")?.scrollIntoView({ block: "nearest" });
+  }
+
+  /** Escape 由 picker 按深度消费：搜索框先清 query，空 query 才返回/关闭一层。 */
   function handlePickerKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Escape") return;
-    if (view.kind !== "models" && !(view.kind === "providers" && modelPreviewProvider)) return;
     event.preventDefault();
     event.stopPropagation();
     if (view.kind === "models") {
+      if (searchQuery.trim() && event.target === modelSearchRef.current) {
+        setSearchQuery("");
+        return;
+      }
       goBack();
       return;
     }
-    clearClosePreviewTimer();
-    cascadePointerInsideRef.current = false;
-    setModelPreviewProvider(undefined);
+    if (view.kind === "providers" && modelPreviewProvider) {
+      closeProviderPreview();
+      return;
+    }
+    if (view.kind === "providers" || view.kind === "controls") {
+      onRequestClose(true);
+      return;
+    }
+    goBack();
   }
 
   function openModelBrowser(focusProviders = false) {
     keepCascadeOpen();
     setModelPreviewProvider(undefined);
+    setSearchQuery("");
     showProviders(focusProviders);
   }
 
@@ -304,6 +347,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     if (!selectedConnection || !selectedModelId) return;
     keepCascadeOpen();
     setModelPreviewProvider(undefined);
+    setSearchQuery("");
     setActiveProviderId(selectedConnection.provider);
     showRuntime(selectedConnection.provider, selectedConnection.id, dimension, focusOptions);
   }
@@ -315,7 +359,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   }
 
   function chooseModel(nextModelId: string) {
-    if (!activeConnection) return;
+    if (!activeConnection || !nextModelId) return;
     if (modelSelectionCommittedRef.current) return;
     const descriptor = getAiModelRuntimeDescriptor(activeConnection.provider, nextModelId);
     modelSelectionCommittedRef.current = true;
@@ -327,7 +371,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
     providerAnchorRef.current = null;
     runtimeAnchorRef.current = null;
     reset();
-    onModelCommit?.();
+    onRequestClose(true);
     onSelect({
       connection: activeConnection,
       modelId: nextModelId,
@@ -479,31 +523,53 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           onPointerLeave={scheduleCascadeClose}
           style={surfaceStyle("model")}
         >
-          <button aria-label="返回厂商" className={styles.flyoutBack} type="button" onClick={goBack}><AppIcon name="back" size={16} /></button>
-          {providerConnections.length > 1 ? (
-            <label className={styles.profileRow}>
-              <span className="sr-only">连接</span>
-              <select
-                aria-label="连接"
-                value={activeConnection.id}
-                onChange={(event) => changeConnection(activeProviderId, event.currentTarget.value)}
-              >
-                {providerConnections.map((connection) => <option key={connection.id} value={connection.id}>{connection.label}</option>)}
-              </select>
-            </label>
-          ) : null}
-          <div className={styles.modelList} role="radiogroup" aria-label="模型">
-            {models.map((model, index) => (
-              <ModelOptionRow
-                key={model.id}
-                checked={model.id === activeSelectedModelId}
-                defaultFocus={!activeSelectedModelId && index === 0}
-                model={model}
-                name={modelRadioName}
-                onChange={() => chooseModel(model.id)}
+          <div className={styles.modelPanelHeader} data-model-picker-sticky-header="true">
+            <header className={styles.header}>
+              <button aria-label="返回厂商" className={styles.backButton} type="button" onClick={goBack}><AppIcon name="back" size={16} /></button>
+              <ProviderIcon provider={activeProviderId} size={16} />
+              <strong>{getProviderContract(activeProviderId).label}</strong>
+            </header>
+            {providerConnections.length > 1 ? (
+              <label className={styles.profileRow}>
+                <span className="sr-only">连接</span>
+                <select
+                  aria-label="连接"
+                  value={activeConnection.id}
+                  onChange={(event) => { setSearchQuery(""); changeConnection(activeProviderId, event.currentTarget.value); }}
+                >
+                  {providerConnections.map((connection) => <option key={connection.id} value={connection.id}>{connection.label}</option>)}
+                </select>
+              </label>
+            ) : null}
+            <label className={styles.searchField}>
+              <AppIcon name="search" size={16} />
+              <span className="sr-only">搜索模型</span>
+              <input
+                ref={modelSearchRef}
+                aria-label="搜索模型"
+                className={styles.searchInput}
+                data-picker-default-focus="true"
+                placeholder="搜索模型"
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.currentTarget.value)}
               />
-            ))}
-            {!models.length ? <p className={styles.modelEmptyState}>{catalog.loading ? "正在加载模型…" : "暂无可用模型"}</p> : null}
+            </label>
+          </div>
+          <div className={styles.modelResults} data-model-picker-results="true">
+            <div className={styles.modelList} role="radiogroup" aria-label="模型" onKeyDown={handleModelResultsKeyNavigation}>
+              {filteredModels.map((model, index) => (
+                <ModelOptionRow
+                  key={model.id}
+                  checked={model.id === activeSelectedModelId}
+                  defaultFocus={!activeSelectedModelId && index === 0}
+                  model={model}
+                  name={modelRadioName}
+                  onChange={() => chooseModel(model.id)}
+                />
+              ))}
+              {!filteredModels.length ? <p className={styles.modelEmptyState} role="status">{catalog.loading && !models.length ? "正在加载模型…" : models.length ? "未找到匹配模型" : "暂无可用模型"}</p> : null}
+            </div>
           </div>
         </section>
       ) : null}

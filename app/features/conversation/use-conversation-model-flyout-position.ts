@@ -25,6 +25,10 @@ type UseConversationModelFlyoutPositionOptions = {
 
 const GAP = 6;
 const VIEWPORT_GUTTER = 12;
+// Keep direction measurement independent of which child surface is mounted first.
+// This matches the model surface's 22rem desktop width and prevents provider
+// positioning from changing when the model surface appears.
+const MAX_CHILD_SURFACE_WIDTH = 22 * 16;
 const HIDDEN_POSITION: ConversationModelFlyoutPosition = { left: 0, top: 0, visible: false };
 
 const initialPositions: PositionMap = {
@@ -69,9 +73,7 @@ export function useConversationModelFlyoutPosition({
     const picker = pickerRef.current;
     if (!picker) return;
     const pickerRect = picker.getBoundingClientRect();
-    const surfaces = [providerSurfaceRef.current, modelSurfaceRef.current, runtimeSurfaceRef.current]
-      .filter((surface): surface is HTMLElement => Boolean(surface));
-    const widestChild = surfaces.reduce((width, surface) => Math.max(width, surface.getBoundingClientRect().width), 0);
+    const widestChild = Math.min(MAX_CHILD_SURFACE_WIDTH, Math.max(0, window.innerWidth - VIEWPORT_GUTTER * 2));
     const nextDirection: "left" | "right" = pickerRect.right + GAP + widestChild <= window.innerWidth - VIEWPORT_GUTTER ? "right" : "left";
     const placements = placementsFor(nextDirection);
 

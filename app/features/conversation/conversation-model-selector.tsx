@@ -1,11 +1,13 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { getAiModelRuntimeDescriptor } from "../../services/model-runtime-descriptors.ts";
+import type { ApiProvider } from "../../types/domains/ai-provider.ts";
 import type { ConversationModelRuntimeDimension } from "./use-conversation-model-navigation.ts";
 import { AppIcon } from "../shared/app-icon";
 import { ProviderIcon } from "../shared/provider-icon";
 import { UiHint } from "../shared/ui-tooltip";
+import { getConversationModelProviderOrder } from "./conversation-model-provider-order";
 import { ConversationModelPicker, type ConversationModelPickerProps } from "./conversation-model-picker";
 import { useConversationModelMenu } from "./use-conversation-model-menu.ts";
 import styles from "./conversation-model-picker.module.css";
@@ -17,7 +19,7 @@ export type ConversationModelSelectorHandle = {
   focus: () => void;
 };
 
-export type ConversationModelSelectorProps = Omit<ConversationModelPickerProps, "onModelCommit"> & {
+export type ConversationModelSelectorProps = Omit<ConversationModelPickerProps, "onRequestClose" | "providerOrder"> & {
   disabled?: boolean;
 };
 
@@ -35,24 +37,40 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
   onOpenConnections,
   onSelect,
 }, ref) {
-  const { close, menuId, menuRef, open, openMenu, toggle, triggerRef } = useConversationModelMenu();
   const tabbingRef = useRef(false);
   const selectorRef = useRef<HTMLDivElement | null>(null);
   const [mobileBottom, setMobileBottom] = useState(124);
   const [initialRuntimeDimension, setInitialRuntimeDimension] = useState<ConversationModelRuntimeDimension>();
+  const [sessionProviderOrder, setSessionProviderOrder] = useState<readonly ApiProvider[]>([]);
+  const clearPickerSession = useCallback(() => {
+    setInitialRuntimeDimension(undefined);
+    setSessionProviderOrder([]);
+  }, []);
+  const { close, menuId, menuRef, open, openMenu, triggerRef } = useConversationModelMenu({ onClose: clearPickerSession });
   const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
   const descriptor = useMemo(() => selectedConnection && selectedModelId ? getAiModelRuntimeDescriptor(selectedConnection.provider, selectedModelId) : undefined, [selectedConnection, selectedModelId]);
   const reasoningLabel = descriptor?.reasoning?.options.find((option) => option.value === (selectedRuntimeValues?.reasoning ?? descriptor.reasoning?.defaultValue))?.label;
 
+  const closePicker = useCallback((restoreFocus = true) => {
+    clearPickerSession();
+    close(restoreFocus);
+  }, [clearPickerSession, close]);
+
+  const openPicker = useCallback((dimension?: ConversationModelRuntimeDimension) => {
+    if (open || !openMenu()) return;
+    setSessionProviderOrder(getConversationModelProviderOrder(connections, purpose, selectedConnectionId));
+    setInitialRuntimeDimension(dimension);
+  }, [connections, open, openMenu, purpose, selectedConnectionId]);
+
   useImperativeHandle(ref, () => ({
     focus: () => triggerRef.current?.focus(),
-    open: () => { if (!disabled) { setInitialRuntimeDimension(undefined); openMenu(); } },
-    openRuntime: (dimension) => { if (!disabled) { setInitialRuntimeDimension(dimension); openMenu(); } },
-  }), [disabled, openMenu, triggerRef]);
+    open: () => { if (!disabled) openPicker(); },
+    openRuntime: (dimension) => { if (!disabled) openPicker(dimension); },
+  }), [disabled, openPicker, triggerRef]);
 
   useEffect(() => {
-    if (disabled && open) close(false);
-  }, [close, disabled, open]);
+    if (disabled && open) closePicker(false);
+  }, [closePicker, disabled, open]);
 
   /** 移动端按 Composer 实际顶部定位，附件 chips 换行时浮层也不会覆盖输入区。 */
   useLayoutEffect(() => {
@@ -86,7 +104,7 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
   }, [disabled, open, triggerRef]);
 
   function openConnections() {
-    close(false);
+    closePicker(false);
     onOpenConnections();
   }
 
@@ -100,7 +118,7 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
         if (!tabbingRef.current) return;
         const selector = event.currentTarget;
         window.requestAnimationFrame(() => {
-          if (!selector.contains(document.activeElement)) close(false);
+          if (!selector.contains(document.activeElement)) closePicker(false);
           tabbingRef.current = false;
         });
       }}
@@ -116,7 +134,7 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
           className={styles.trigger}
           disabled={disabled}
           type="button"
-          onClick={() => { setInitialRuntimeDimension(undefined); toggle(); }}
+          onClick={() => { if (open) closePicker(false); else openPicker(); }}
         >
           {selectedConnection && selectedModelId ? (
             <>
@@ -137,12 +155,13 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
           id={menuId}
           connections={connections}
           purpose={purpose}
+          providerOrder={sessionProviderOrder}
           selectedConnectionId={selectedConnectionId}
           selectedModelId={selectedModelId}
           selectedRuntimeValues={selectedRuntimeValues}
           initialRuntimeDimension={initialRuntimeDimension}
           onOpenConnections={openConnections}
-          onModelCommit={() => close(false)}
+          onRequestClose={closePicker}
           onSelect={onSelect}
         />
       ) : null}
