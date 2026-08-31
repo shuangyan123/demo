@@ -7,6 +7,8 @@ import type { ViewKey } from "../../types/domains/workspace.ts";
 import { Button } from "../shared/ui-primitives";
 import { MainContentShell, type MainContentWidth } from "../shared/main-content-shell";
 import { ViewHeader, WorkspaceShell } from "../shared/workspace-shell";
+import type { WorkspaceContextDescriptor, WorkspaceContextPanelRegistration } from "../shared/workspace-context-registry";
+import type { WorkspaceSummary } from "../shared/workspace-context-types";
 import { ReviewWorkspaceAppSidebar } from "./review-workspace-app-sidebar";
 import { preloadReviewView } from "./review-workspace-preload.ts";
 
@@ -15,12 +17,15 @@ type ReviewWorkspaceShellProps = {
   children: ReactNode;
   contentClassName?: string;
   conversations: AiConversation[];
+  context: WorkspaceContextDescriptor;
+  contextPanelRegistrations?: readonly WorkspaceContextPanelRegistration[];
   folders: AiConversationFolder[];
   activeConversationId?: string | null;
   notice: string;
   sidebarFooter?: ReactNode;
   sidebarOverride?: ReactNode;
   sidebarCollapsed: boolean;
+  summary: WorkspaceSummary;
   today: Date;
   titleOverride?: string;
   view: ViewKey;
@@ -37,7 +42,7 @@ type ReviewWorkspaceShellProps = {
   onToggleSidebar: () => void;
 };
 
-const viewTitles: Record<ViewKey, string> = {
+export const reviewWorkspaceViewTitles: Record<ViewKey, string> = {
   conversation: "对话",
   dashboard: "总览",
   library: "错题库",
@@ -66,12 +71,15 @@ export function ReviewWorkspaceShell({
   children,
   contentClassName,
   conversations,
+  context,
+  contextPanelRegistrations,
   folders,
   activeConversationId,
   notice,
   sidebarFooter,
   sidebarOverride,
   sidebarCollapsed,
+  summary,
   today,
   titleOverride,
   view,
@@ -115,7 +123,10 @@ export function ReviewWorkspaceShell({
           : `review-view-${view} py-7`)}
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName={sidebarOverride ? "workspace-sidebar-host text-settings-sidebar-text" : "workspace-sidebar-host text-app-sidebar-text"}
-      title={titleOverride ?? viewTitles[view]}
+      context={context}
+      contextPanelRegistrations={contextPanelRegistrations}
+      summary={summary}
+      title={titleOverride ?? reviewWorkspaceViewTitles[view]}
       onBack={onBack}
       onToggleSidebar={onToggleSidebar}
       sidebar={sidebarOverride ?? applicationSidebar}
@@ -138,7 +149,7 @@ export function ReviewWorkspaceShell({
             </>
           )}
           eyebrow={`${toISODate(today)} · ${notice}`}
-          title={viewTitles[view]}
+          title={reviewWorkspaceViewTitles[view]}
         />
       ) : null}
       {children}

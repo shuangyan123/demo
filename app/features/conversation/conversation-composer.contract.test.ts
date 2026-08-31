@@ -22,6 +22,7 @@ const hint = readFileSync(new URL("../shared/ui-tooltip.tsx", import.meta.url), 
 const infoHoverCard = readFileSync(new URL("../shared/ui-info-hover-card.tsx", import.meta.url), "utf8");
 const overlay = readFileSync(new URL("../shared/ui-overlay-position.ts", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../shared/workspace-shell.tsx", import.meta.url), "utf8");
+const windowMenuBar = readFileSync(new URL("../shared/window-menu-bar.tsx", import.meta.url), "utf8");
 const shellStyles = readFileSync(new URL("../../styles/shell.css", import.meta.url), "utf8");
 const mainContentShell = readFileSync(new URL("../shared/main-content-shell.tsx", import.meta.url), "utf8");
 const reviewShell = readFileSync(new URL("../review/review-workspace-shell.tsx", import.meta.url), "utf8");
@@ -307,7 +308,8 @@ test("UiHint is the shared non-interactive overlay and migrated controls avoid n
   assert.match(hint, /onPointerLeave=\{closeTooltip\}/);
   assert.match(hint, /role="tooltip"/);
   assert.match(overlay, /const opposite =/);
-  for (const source of [shell, composer, readFileSync(new URL("./conversation-workspace.tsx", import.meta.url), "utf8"), readFileSync(new URL("./conversation-topic-navigation.tsx", import.meta.url), "utf8"), readFileSync(new URL("./conversation-folder-tree.tsx", import.meta.url), "utf8")]) {
+  assert.ok([shell, windowMenuBar].some((source) => /UiHint/.test(source)));
+  for (const source of [composer, readFileSync(new URL("./conversation-workspace.tsx", import.meta.url), "utf8"), readFileSync(new URL("./conversation-topic-navigation.tsx", import.meta.url), "utf8"), readFileSync(new URL("./conversation-folder-tree.tsx", import.meta.url), "utf8")]) {
     assert.match(source, /UiHint/);
   }
   assert.doesNotMatch(composer, /title=/);

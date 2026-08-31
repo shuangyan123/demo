@@ -530,6 +530,12 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - `UiHint`（兼容出口 `UiTooltip`）只承载短文本、portal 到 `document.body`，使用 `computeUiOverlayPosition` 的候选/翻转/夹紧、450ms hover/focus、Escape/blur/leave、touch 抑制和单例可见性；`UiPopover` 继续承载 context usage、模型选择和结构化操作菜单等交互内容。对话上下文的用户可见单位使用“标记”，底层 token 变量与 `/压缩` 契约不变。
 - 本轮只调整 renderer chrome、提示 primitive、对话树/Composer 的 icon-only hint 接入与轻量纵向留白，不修改 Electron IPC、Provider、MCP、IndexedDB v16 或业务数据结构。
 
+## Workspace context surfaces（2026-08-31）
+
+- `PrimarySidebar` 只负责导航，`Workspace` 承担主要操作；顶栏 `SummaryPopover` 是只读的当前状态摘要，`ContextPanel` 是对当前上下文执行后续动作的持久工作区。摘要不复制设置、粉笔或 Obsidian 的完整功能，也不承担业务写入。
+- `SummaryPopover` 复用 `UiPopover` 的 portal、外部点击、Escape 和触发器焦点恢复；`ContextPanel` 在桌面使用稳定宽度的第四列 push 主内容，在移动端转换为可关闭 drawer/overlay。两者是独立 surface，临时 surface 优先处理 Escape，面板不会因焦点转移而自动消失。
+- `workspace-context-registry.ts` 提供通用 registration/resolution 边界：当前路由上下文只解析匹配的 `ContextPanel` 内容，未注册内容显示明确 empty state。接入点不新增数据库、Provider、Electron IPC 或独立业务状态；未来 Fenbi、Obsidian 等功能应注册到同一 ContextPanel，而不是把完整能力塞进摘要或 PrimarySidebar。
+
 # 0.3 Host Capability Layer（2026-08-09）
 
 - `app/platform/host.ts` 是 renderer 识别 Web、Electron 和服务端环境的唯一入口；能力按需解析，模块初始化阶段不读取 `window`。

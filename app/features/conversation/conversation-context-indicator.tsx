@@ -24,7 +24,7 @@ export function ConversationContextIndicator({ budget }: { budget: ConversationC
     </section>
   );
   return (
-    <UiInfoHoverCard content={panel} contentClassName="conversation-context-popover" contentLabel="背景信息窗口" placement="top">
+    <UiInfoHoverCard content={panel} contentClassName="workspace-context-popover" contentLabel="背景信息窗口" placement="top">
       {({ contentId, expanded, toggleForTouch, triggerRef }) => <button
         ref={triggerRef}
         aria-describedby={contentId}

@@ -269,6 +269,7 @@ test("Recall source and non-runtime exports stay outside the public runtime payl
 
 test("Recall references use the configured asset without changing application identity", () => {
   const workspaceShell = readFileSync(resolve(workspaceRoot, "app", "features", "shared", "workspace-shell.tsx"), "utf8");
+  const windowMenuBar = readFileSync(resolve(workspaceRoot, "app", "features", "shared", "window-menu-bar.tsx"), "utf8");
   const recallBrandMark = readFileSync(resolve(workspaceRoot, "app", "features", "shared", "recall-brand-mark.tsx"), "utf8");
   const recallBrandWordmark = readFileSync(resolve(workspaceRoot, "app", "features", "shared", "recall-brand-wordmark.tsx"), "utf8");
   const forgeConfig = readFileSync(resolve(workspaceRoot, "forge.config.ts"), "utf8");
@@ -277,7 +278,7 @@ test("Recall references use the configured asset without changing application id
   const packageJson = JSON.parse(readFileSync(resolve(workspaceRoot, "package.json"), "utf8"));
   const main = readFileSync(resolve(workspaceRoot, "desktop", "main.ts"), "utf8");
 
-  assert.match(workspaceShell, /<RecallBrandMark \/>/);
+  assert.match(`${workspaceShell}\n${windowMenuBar}`, /<RecallBrandMark \/>/);
   assert.match(recallBrandMark, /src="\/brand\/recall\/app\/recall-optical-32\.png"/);
   assert.match(recallBrandMark, /alt="Recall"/);
   assert.match(recallBrandMark, /width=\{28\}/);

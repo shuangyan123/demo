@@ -1,42 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { host } from "../../platform/host";
-import { AppIcon } from "./app-icon";
-import { UiHint } from "./ui-tooltip";
-import { SidebarToggleButton } from "./sidebar-toggle-button";
-import { RecallBrandMark } from "./recall-brand-mark";
+import { ContextPanel } from "./context-panel";
+import { resolveWorkspaceContextPanel, type WorkspaceContextDescriptor, type WorkspaceContextPanelRegistration } from "./workspace-context-registry";
+import type { WorkspaceSummary } from "./workspace-context-types";
+import { WindowMenuBar } from "./window-menu-bar";
 import { useDesktopTitlebarTheme } from "./use-desktop-titlebar-theme.ts";
-export function WindowMenuBar({
-  sidebarButtonRef,
-  sidebarCollapsed,
-  title = "错题复盘",
-  onBack,
-  onToggleSidebar,
-}: {
-  sidebarButtonRef?: Ref<HTMLButtonElement>;
-  sidebarCollapsed: boolean; title?: string; onBack?: () => void;
-  onToggleSidebar: () => void;
-}) {
-  return (
-    <header className="chrome-topbar z-40 shrink-0 text-sm text-muted">
-      <div className="chrome-topbar-safe-area flex h-full min-w-0 items-center gap-3 px-3">
-        <SidebarToggleButton buttonRef={sidebarButtonRef} collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
-        {onBack && (
-          <UiHint label="返回" placement="bottom">{({ describedBy }) => <button
-              className="chrome-titlebar-control hidden h-8 w-8 place-items-center rounded-lg transition hover:bg-settings-selected hover:text-foreground max-lg:inline-grid"
-              type="button"
-              aria-describedby={describedBy}
-              aria-label="返回"
-              onClick={onBack}
-            >
-              <AppIcon name="back" size={18} />
-            </button>}</UiHint>
-        )}
-        <RecallBrandMark />
-        <span className="chrome-product-title" data-product-title={title} aria-hidden="true" />
-      </div>
-    </header>
-  );
-}
+export { WindowMenuBar } from "./window-menu-bar";
 // 渲染 Codex 风格工作台壳层，统一顶部栏、侧栏折叠、内容滚动和弥散侧栏结构。
 export function WorkspaceShell({
   children,
@@ -45,6 +14,9 @@ export function WorkspaceShell({
   sidebar,
   sidebarClassName = "",
   sidebarCollapsed,
+  summary,
+  context,
+  contextPanelRegistrations = [],
   title,
   onBack,
   onToggleSidebar,
@@ -55,12 +27,18 @@ export function WorkspaceShell({
   sidebar: ReactNode;
   sidebarClassName?: string;
   sidebarCollapsed: boolean;
+  summary: WorkspaceSummary;
+  context: WorkspaceContextDescriptor;
+  contextPanelRegistrations?: readonly WorkspaceContextPanelRegistration[];
   title: string; onBack?: () => void; onToggleSidebar: () => void;
 }) {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [contextPanelOpen, setContextPanelOpen] = useState(false);
   const mobileSidebarRef = useRef<HTMLElement>(null);
   const sidebarButtonRef = useRef<HTMLButtonElement>(null);
+  const contextPanelTriggerRef = useRef<HTMLButtonElement>(null);
+  const contextPanelId = useId();
   const nativeWindowAvailable = useSyncExternalStore(
     () => () => undefined,
     () => Boolean(host.capabilities.nativeWindow),
@@ -68,6 +46,7 @@ export function WorkspaceShell({
   );
   const sidebarStateClass = sidebarCollapsed ? "is-sidebar-collapsed" : "is-sidebar-expanded";
   const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;
+  const contextPanel = resolveWorkspaceContextPanel(contextPanelRegistrations, context);
   useDesktopTitlebarTheme();
   // 移动端侧栏是临时抽屉，桌面端继续使用既有持久化折叠状态。
   useEffect(() => {
@@ -136,15 +115,21 @@ export function WorkspaceShell({
       data-native-window={nativeWindowAvailable ? "true" : "false"}
     >
       <WindowMenuBar
+        contextPanelId={contextPanelId}
+        contextPanelOpen={contextPanelOpen}
+        contextPanelTriggerRef={contextPanelTriggerRef}
         sidebarButtonRef={sidebarButtonRef}
         sidebarCollapsed={effectiveCollapsed}
+        summary={summary}
         title={title}
         onBack={onBack}
+        onToggleContextPanel={() => setContextPanelOpen((current) => !current)}
         onToggleSidebar={toggleSidebar}
       />
       <div
         className={`chrome-layout ${sidebarStateClass} min-h-0 flex-1`}
         data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
+        data-context-panel={contextPanelOpen ? "open" : "closed"}
         data-mobile-sidebar={mobileSidebarOpen ? "open" : "closed"}
       >
         <button
@@ -168,6 +153,7 @@ export function WorkspaceShell({
         </aside>
         <div className="chrome-sidebar-boundary" data-sidebar-boundary="true" aria-hidden="true" />
         <div className="chrome-content-frame" data-content-surface={contentSurface} data-workspace-frame="true"><main className={`chrome-content min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-none ${contentClassName}`}>{children}</main></div>
+        <ContextPanel id={contextPanelId} onClose={() => setContextPanelOpen(false)} open={contextPanelOpen} registration={contextPanel} triggerRef={contextPanelTriggerRef} />
       </div></div>
   );
 }

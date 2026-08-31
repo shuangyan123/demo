@@ -11,6 +11,7 @@ import "../../platform/host.contract.test.ts";
 import "../../application/interview/interview-application.contract.test.ts";
 import "../../application/automation/automation-application.contract.test.ts";
 import "../../application/import/import-application.contract.test.ts";
+import "../shared/workspace-context-registry.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
