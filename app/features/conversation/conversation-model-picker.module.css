@@ -317,7 +317,9 @@
   min-height: 0;
   /* Auto-height keeps short catalogs compact; max-height makes long catalogs the only scroller. */
   flex: 0 1 auto;
-  max-height: min(25rem, calc(100dvh - 6rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+  /* Five fine-pointer rows plus the list's vertical padding. */
+  --model-results-cap-height: 10.5rem;
+  max-height: min(var(--model-results-cap-height), calc(100dvh - 6rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -548,7 +550,7 @@
   }
 
   .modelResults {
-    max-height: calc(100dvh - var(--chrome-topbar-height, 52px) - var(--model-picker-mobile-bottom, 7.75rem) - 4.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: min(var(--model-results-cap-height), calc(100dvh - var(--chrome-topbar-height, 52px) - var(--model-picker-mobile-bottom, 7.75rem) - 4.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
   }
 
   .picker[data-model-picker-view="providers"] .rootSurface,
@@ -631,6 +633,11 @@
 
   .budgetRow input {
     height: 44px;
+  }
+
+  .modelResults {
+    /* Coarse-pointer rows are 44px tall, so five rows need a larger cap. */
+    --model-results-cap-height: 14.25rem;
   }
 }
 

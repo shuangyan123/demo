@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { seedConversationModelFixtures } from "./helpers/conversation-model-fixtures";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
@@ -73,6 +73,18 @@ async function expectNoDocumentHorizontalOverflow(page: Page): Promise<void> {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 }
 
+async function visibleModelRowCount(results: Locator): Promise<number> {
+  return results.evaluate((element) => {
+    const resultsRect = element.getBoundingClientRect();
+    return Array.from(element.querySelectorAll<HTMLElement>("[data-model-picker-row]"))
+      .filter((row) => {
+        const rowRect = row.getBoundingClientRect();
+        return rowRect.top >= resultsRect.top - 1 && rowRect.bottom <= resultsRect.bottom + 1;
+      })
+      .length;
+  });
+}
+
 test("移动端模型菜单保持 step-in、返回和长模型列表滚动", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const runtimeErrors = collectRuntimeErrors(page);
@@ -119,6 +131,7 @@ test("移动端模型菜单保持 step-in、返回和长模型列表滚动", asy
   expect(modelMetrics.scrollHeight).toBe(modelMetrics.clientHeight);
   expect(resultMetrics.scrollHeight).toBeGreaterThan(resultMetrics.clientHeight);
   expect(resultMetrics.overflowY).toBe("auto");
+  expect(await visibleModelRowCount(results)).toBeLessThanOrEqual(5);
   const stickyBeforeScroll = await stickyHeader.boundingBox();
   const modelBeforeScroll = await model.boundingBox();
   await expectNoDocumentHorizontalOverflow(page);

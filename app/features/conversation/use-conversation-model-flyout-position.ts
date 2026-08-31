@@ -29,8 +29,10 @@ const VIEWPORT_GUTTER = 12;
 // This matches the model surface's 26.25rem desktop width and prevents provider
 // positioning from changing when the model surface appears.
 const MAX_CHILD_SURFACE_WIDTH = 26.25 * 16;
-// Use one bounded height for placement so filtering cannot move the model top anchor.
-const MAX_MODEL_SURFACE_HEIGHT = 30 * 16;
+// Keep the model panel aligned with its provider row while filtering changes
+// content height. This covers the sticky header, optional connection selector,
+// and five compact result rows without reserving the old tall empty area.
+const MAX_MODEL_SURFACE_HEIGHT = 18.5 * 16;
 const HIDDEN_POSITION: ConversationModelFlyoutPosition = { left: 0, top: 0, visible: false };
 
 const initialPositions: PositionMap = {

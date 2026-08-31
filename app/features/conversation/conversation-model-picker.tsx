@@ -50,7 +50,9 @@ export type ConversationModelPickerProps = {
 
 type PickerAnchorKey = "model" | ConversationModelRuntimeDimension;
 
-const POINTER_GRACE_MS = 140;
+// The compact panel now overlaps the active provider row vertically; retain a
+// small forgiving bridge for the few pixels between sibling surfaces.
+const POINTER_GRACE_MS = 240;
 
 type ModelOptionRowProps = {
   model: AiModelCatalogEntry;

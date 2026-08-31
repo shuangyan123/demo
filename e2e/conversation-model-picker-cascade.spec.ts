@@ -106,6 +106,18 @@ async function providerOrder(picker: Locator): Promise<string[]> {
   return picker.locator('[data-model-picker-surface="provider"] [data-picker-focus-key^="provider:"]').evaluateAll((items) => items.map((item) => item.getAttribute("data-picker-focus-key") ?? ""));
 }
 
+async function visibleModelRowCount(results: Locator): Promise<number> {
+  return results.evaluate((element) => {
+    const resultsRect = element.getBoundingClientRect();
+    return Array.from(element.querySelectorAll<HTMLElement>("[data-model-picker-row]"))
+      .filter((row) => {
+        const rowRect = row.getBoundingClientRect();
+        return rowRect.top >= resultsRect.top - 1 && rowRect.bottom <= resultsRect.bottom + 1;
+      })
+      .length;
+  });
+}
+
 test("桌面模型级联保持独立几何、长目录仅滚模型层且切换原子", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const runtimeErrors = collectRuntimeErrors(page);
@@ -220,6 +232,8 @@ test("桌面模型级联保持独立几何、长目录仅滚模型层且切换�
   expect(scrollMetrics.results.scrollHeight).toBeGreaterThan(scrollMetrics.results.clientHeight);
   expect(scrollMetrics.results.maxHeight).not.toBe("none");
   expect(scrollMetrics.results.overflowY).toBe("auto");
+  const results = model.locator('[data-model-picker-results="true"]');
+  expect(await visibleModelRowCount(results)).toBeLessThanOrEqual(5);
 
   const modelPanelHeader = model.locator('[data-model-picker-sticky-header="true"]');
   const modelPanelHeaderBeforeScroll = await modelPanelHeader.boundingBox();
@@ -240,7 +254,6 @@ test("桌面模型级联保持独立几何、长目录仅滚模型层且切换�
   await page.waitForTimeout(500);
   await expect(page.locator('body > [role="tooltip"]')).toContainText("完整模型名称：Deep Research Max Preview");
 
-  const results = model.locator('[data-model-picker-results="true"]');
   await results.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   await expect.poll(async () => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   const bottomModel = model.getByRole("radio", { name: /Final Model/ });
@@ -275,6 +288,7 @@ test("桌面模型级联保持独立几何、长目录仅滚模型层且切换�
   expect(shortModelMetrics.height).toBeLessThan(longModelHeight);
   expect(shortModelMetrics.resultsScrollHeight).toBe(shortModelMetrics.resultsClientHeight);
   expect(shortModelMetrics.resultsHeight).toBeGreaterThan(0);
+  expect(await visibleModelRowCount(results)).toBeLessThanOrEqual(5);
   const shortModelBox = await model.boundingBox();
   expect(Math.abs((shortModelBox?.y ?? 0) - (modelSurfaceBeforeScroll?.y ?? 0))).toBeLessThanOrEqual(1);
   await expect.poll(async () => model.evaluate((element) => element.scrollTop)).toBe(0);
@@ -363,7 +377,11 @@ test("provider 到 concrete model 的提交先关闭级联，再应用 selected-
   expect(minimaxBox?.width ?? 0).toBeGreaterThanOrEqual(420);
   expect(minimaxBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(460);
   expect(minimaxMetrics.height).toBeLessThan(480);
-  expect(minimaxMetrics.resultsScrollHeight).toBe(minimaxMetrics.resultsClientHeight);
+  expect(minimaxMetrics.resultsScrollHeight).toBeGreaterThan(minimaxMetrics.resultsClientHeight);
+  const minimaxProviderBox = await minimax.boundingBox();
+  expect(minimaxBox?.y ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((minimaxProviderBox?.y ?? 0) + (minimaxProviderBox?.height ?? 0) + 1);
+  expect((minimaxBox?.y ?? 0) + (minimaxBox?.height ?? 0)).toBeGreaterThanOrEqual((minimaxProviderBox?.y ?? Number.POSITIVE_INFINITY) - 1);
+  expect(await visibleModelRowCount(model.locator('[data-model-picker-results="true"]'))).toBeLessThanOrEqual(5);
   await waitForPickerLayerAnimations(page);
   const rootWithModel = await root.boundingBox();
   const providerWithModel = await provider.boundingBox();
