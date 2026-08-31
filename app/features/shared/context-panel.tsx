@@ -229,7 +229,6 @@ export function ContextPanelToggleButton({ buttonRef, onToggle, open, panelId }:
           aria-controls={panelId}
           aria-describedby={describedBy}
           aria-expanded={open}
-          aria-haspopup="dialog"
           aria-label={label}
           aria-pressed={open}
           className={`workspace-context-panel-toggle sidebar-toggle-button grid h-7 w-7 place-items-center rounded-lg border border-line text-muted hover:bg-chrome-hover hover:text-foreground max-lg:h-11 max-lg:w-11 ${open ? "bg-chrome-selected text-foreground" : ""}`}
