@@ -1,7 +1,7 @@
 import {
   Activity, ArrowLeft, AudioLines, Ban, Blocks, BookOpen, Bot, Brain, CalendarClock, CalendarDays, Camera, ChartNoAxesColumnIncreasing,
   Check, ChevronDown, ChevronRight, ClipboardCheck, Clock3, FileInput, FilePenLine, Folder,
-  FolderOpen, FolderPlus, GripVertical, LayoutDashboard, Library, MessageSquare, MessagesSquare, Mic, Monitor,
+  FolderOpen, FolderPlus, Globe2, GripVertical, LayoutDashboard, Library, MessageSquare, MessagesSquare, Mic, Monitor,
   ArrowDown, CircleAlert, Copy, Download, ExternalLink, Info, ListTree, Moon, MoreHorizontal, Paperclip, Phone, Play, Plus, RefreshCw, RotateCcw, Save, ScanLine, Search, Send, Settings, Settings2, Square, Upload, Undo2,
   PanelLeft, PanelRight, Slash, SlidersHorizontal, Sparkles, Sun, Trash2, UserRoundPlus, Wrench, X, type LucideIcon,
 } from "lucide-react";
@@ -9,7 +9,7 @@ import {
 /** 应用功能图标名称；品牌 Logo 继续由 ProviderIcon 独立管理。 */
 export type AppIconName =
   | "activity" | "appearance" | "automation" | "back" | "blocks" | "board" | "bot" | "camera" | "configuration"
-  | "dashboard" | "dark" | "diagnostics" | "drag" | "entry" | "folder" | "folderOpen" | "import"
+  | "dashboard" | "dark" | "diagnostics" | "drag" | "entry" | "fenbi" | "folder" | "folderOpen" | "import"
   | "interview" | "knowledge" | "knowledgeTraining" | "library" | "light" | "mcp" | "message"
   | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins" | "voice"
   | "project" | "review" | "scheduled" | "screenshot" | "search" | "send" | "settings" | "slash" | "sparkles"
@@ -21,7 +21,7 @@ const icons: Record<AppIconName, LucideIcon> = {
   activity: Activity, appearance: Sun, automation: CalendarClock, back: ArrowLeft, blocks: Blocks,
   board: ClipboardCheck, bot: Bot, camera: Camera, configuration: SlidersHorizontal, dashboard: LayoutDashboard, dark: Moon,
   diagnostics: Activity, drag: GripVertical, entry: FilePenLine, folder: Folder, folderOpen: FolderOpen,
-  import: FileInput, interview: MessagesSquare, knowledge: BookOpen, knowledgeTraining: Brain, library: Library,
+  import: FileInput, interview: MessagesSquare, knowledge: BookOpen, knowledgeTraining: Brain, library: Library, fenbi: Globe2,
   light: Sun, mcp: Blocks, message: MessageSquare, mic: Mic, more: MoreHorizontal, motion: Activity,
   newChat: Plus, none: Ban, paperclip: Paperclip, phone: Phone, personalization: UserRoundPlus, plugins: Blocks,
   project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings, voice: AudioLines,

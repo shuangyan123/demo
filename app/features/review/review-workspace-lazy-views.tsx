@@ -28,6 +28,10 @@ export const ImportWorkspace = dynamic(
   () => import("../import/import-workspace").then((module) => module.ImportWorkspace),
   { loading: WorkspaceViewLoading },
 );
+export const FenbiWorkspace = dynamic(
+  () => import("../fenbi/fenbi-workspace").then((module) => module.FenbiWorkspace),
+  { loading: WorkspaceViewLoading },
+);
 export const ConversationWorkspace = dynamic(
   () => import("../conversation/conversation-workspace").then((module) => module.ConversationWorkspace),
   { loading: WorkspaceViewLoading },

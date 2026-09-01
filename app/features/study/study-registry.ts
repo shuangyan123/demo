@@ -12,6 +12,15 @@ const allCivilServiceStudyModules = [
     recommendedActionLabel: "查看今日学习链路",
   },
   {
+    id: "fenbi",
+    label: "粉笔练习",
+    description: "在 Recall 中打开粉笔练习网站，保留独立浏览会话。",
+    icon: "fenbi",
+    capabilities: ["在线练习", "独立会话", "本地控制"],
+    healthSignals: ["import"],
+    recommendedActionLabel: "进入粉笔练习",
+  },
+  {
     id: "import",
     label: "粉笔导入",
     description: "同步粉笔账户错题，或解析粉笔导出文件、截图与文本。",

@@ -10,10 +10,13 @@ desktop/
 ├─ preload.cts       sandbox-compatible CommonJS context-isolated 最小桌面桥
 ├─ vault.ts         Vault 目录选择、恢复与受限 IPC
 ├─ credential-storage.ts 版本化凭据保护 capability 与安全 IPC
+├─ fenbi-web-contents-controller.ts  Fenbi WebContentsView 单一 owner
+├─ fenbi-web-contents-ipc.ts         脱敏 view 状态与固定动作桥接
 └─ permissions.ts   媒体、文件与屏幕来源权限
 ```
 
 - React controller、Dexie repository 与 Route Handlers 保持 Web/Electron 共用；桌面目录不进入 React 业务依赖图。
+- “粉笔练习”只在桌面由 `WebContentsView` 承载真实 Fenbi 页面，使用 `persist:review-fenbi` 和既有 exact-host remote policy；Recall renderer 从不接收原始 Fenbi 会话材料。浏览器模式显示 desktop-only fallback，现有 `粉笔导入` 保持独立。native child surface 的 z-order 由共享 source-set occlusion store 协调 SummaryPopover、ContextPanel drawer 和 mobile sidebar，不能依赖 renderer z-index。
 - Electron 主进程只管理应用生命周期、安全边界和本地 Next 子进程，不持有学习状态；当前生产凭据仍由 WebCrypto repository 解密，Main 仅提供未接入生产迁移的窄化 credential-protection capability。
 - `next.config.ts` 使用 `output: "standalone"`。浏览器开发仍由 `npm run dev` 提供，Electron 开发加载同一 `http://127.0.0.1:3000`。
 - 安装版数据流为 `review-app://workspace → persist:review-workspace session.protocol.handle → 127.0.0.1:随机端口 → Next standalone`。协议处理器必须与窗口使用同一个持久化 session；一次性令牌仅存在于主进程和子进程环境，代理转发到 Next 后由根 `proxy.ts` 校验并移除。

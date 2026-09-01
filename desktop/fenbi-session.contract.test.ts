@@ -19,6 +19,7 @@ import {
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const session = readFileSync(new URL("./fenbi-session.ts", import.meta.url), "utf8");
 const sessionIpc = readFileSync(new URL("./fenbi-session-ipc.ts", import.meta.url), "utf8");
+const ipcTrust = readFileSync(new URL("./fenbi-ipc-trust.ts", import.meta.url), "utf8");
 const policy = readFileSync(new URL("./fenbi-policy.ts", import.meta.url), "utf8");
 const preload = readFileSync(new URL("./preload.cts", import.meta.url), "utf8");
 const desktopContract = readFileSync(new URL("./desktop.contract.test.ts", import.meta.url), "utf8");
@@ -167,8 +168,8 @@ test("preload bridge is sanitized and has no raw-cookie getter", () => {
   assert.match(preload, /clear/);
   assert.doesNotMatch(preload, /getCookie|getCookies|getCookieHeader|revealFenbiSecret|cookies\.get|Set-Cookie|document\.cookie/);
   assert.doesNotMatch(preload, /fromPartition|webContents|ipcRenderer\.send/);
-  assert.match(sessionIpc, /event\.senderFrame\?\.url \?\? event\.sender\.getURL\(\)/);
-  assert.match(sessionIpc, /review-app:\/\/workspace\//);
+  assert.match(ipcTrust, /event\.senderFrame\?\.url \?\? event\.sender\.getURL\(\)/);
+  assert.match(ipcTrust, /review-app:\/\/workspace\//);
 });
 
 test("clear seam only targets the dedicated Fenbi session and not Recall data", () => {
@@ -197,8 +198,9 @@ test("manual Fenbi adapter remains the existing app/server authority", () => {
   assert.doesNotMatch(sessionIpc, /app\/server|fenbi-account-import-adapter/);
 });
 
-test("desktop artifact contract includes only the four explicit bridges", () => {
+test("desktop artifact contract includes only the five explicit bridges", () => {
   assert.match(artifactContract, /reviewFenbiSession/);
+  assert.match(artifactContract, /reviewFenbiView/);
   assert.match(policy, /isAllowedFenbiWebUrl/);
   assert.match(policy, /FENBI_WEB_ALLOWED_HOSTS/);
   assert.match(policy, /FENBI_REQUEST_ALLOWED_HOSTS/);

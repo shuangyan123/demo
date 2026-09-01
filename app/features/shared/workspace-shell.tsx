@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { host } from "../../platform/host";
 import { ContextPanel } from "./context-panel";
+import { useNativeSurfaceOcclusion } from "./ui-overlay-events";
 import { resolveWorkspaceContextPanel, type WorkspaceContextDescriptor, type WorkspaceContextPanelRegistration } from "./workspace-context-registry";
 import type { WorkspaceSummary } from "./workspace-context-types";
 import { WindowMenuBar } from "./window-menu-bar";
@@ -59,6 +60,7 @@ export function WorkspaceShell({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+  useNativeSurfaceOcclusion("mobile-sidebar", isMobile && mobileSidebarOpen);
   // 抽屉打开时锁定滚动、约束 Tab 焦点，并在关闭后恢复触发按钮焦点。
   useEffect(() => {
     if (!isMobile || !mobileSidebarOpen) return;

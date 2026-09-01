@@ -13,6 +13,7 @@ const expectedBridgeNames = [
   "reviewDesktopVault",
   "reviewDesktopWindow",
   "reviewFenbiSession",
+  "reviewFenbiView",
 ].sort();
 
 function hash(value) {

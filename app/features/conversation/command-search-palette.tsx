@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CommandSearchResult } from "../../types/domains/conversation.ts";
 import { AppIcon } from "../shared/app-icon";
+import { useNativeSurfaceOcclusion } from "../shared/ui-overlay-events";
 import { IconButton, cx } from "../shared/ui-primitives";
 import styles from "./command-search-palette.module.css";
 
@@ -32,6 +33,9 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+
+  useNativeSurfaceOcclusion("command-palette", open);
+
   const groupedResults = useMemo(() => {
     const groups = new Map<CommandSearchResult["group"], CommandSearchResult[]>();
     for (const result of results) {
@@ -47,8 +51,9 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
     restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    window.setTimeout(() => inputRef.current?.focus(), 0);
+    const focusFrame = window.requestAnimationFrame(() => inputRef.current?.focus());
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.body.style.overflow = previousOverflow;
       restoreFocusRef.current?.focus();
     };
@@ -164,3 +169,5 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
     document.body,
   );
 }
+
+export default CommandSearchPalette;

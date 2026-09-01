@@ -10,7 +10,7 @@ import { preloadReviewView } from "./review-workspace-preload.ts";
 
 type ReviewNavIconName =
   | "newChat" | "search" | "scheduled" | "project" | "plugins" | "settings"
-  | "dashboard" | "library" | "review" | "knowledgeTraining" | "stats"
+  | "dashboard" | "fenbi" | "library" | "review" | "knowledgeTraining" | "stats"
   | "knowledge" | "automation" | "interview" | "tutoring" | "import" | "entry";
 
 type ReviewWorkspaceAppSidebarProps = {

@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject, type ReactNode } from "react";
 import { AppIcon } from "./app-icon";
+import { useNativeSurfaceOcclusion } from "./ui-overlay-events";
 import { UiHint } from "./ui-tooltip";
 import type { WorkspaceContextPanelRegistration } from "./workspace-context-registry";
 
@@ -80,6 +81,8 @@ export function ContextPanel({ id, onClose, open, registration, triggerRef }: Co
   const wasOpenRef = useRef(false);
   const [isMobile, setIsMobile] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+
+  useNativeSurfaceOcclusion("context-panel", open && isMobile);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 1024px)");
