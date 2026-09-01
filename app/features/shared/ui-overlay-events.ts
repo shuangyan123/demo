@@ -1,3 +1,5 @@
+import { useId, useLayoutEffect } from "react";
+
 /** 交互式浮层打开时通知短暂 hover/info 层收起。仅是 DOM 事件信号，不承载业务状态。 */
 export const INTERACTIVE_OVERLAY_OPEN_EVENT = "workspace:interactive-overlay-open";
 
@@ -68,6 +70,14 @@ export function subscribeNativeSurfaceOcclusion(listener: () => void): () => voi
 
 export function setNativeSurfaceOcclusion(source: string, occluded: boolean): void {
   nativeSurfaceOcclusionStore.set(source, occluded);
+}
+
+export function useNativeSurfaceOcclusion(prefix: string, occluded: boolean): void {
+  const source = `${prefix}:${useId()}`;
+  useLayoutEffect(() => {
+    setNativeSurfaceOcclusion(source, occluded);
+    return () => setNativeSurfaceOcclusion(source, false);
+  }, [occluded, source]);
 }
 
 export function announceInteractiveOverlayOpen(): void {

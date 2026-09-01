@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CommandSearchResult } from "../../types/domains/conversation.ts";
 import { AppIcon } from "../shared/app-icon";
-import { setNativeSurfaceOcclusion } from "../shared/ui-overlay-events";
+import { useNativeSurfaceOcclusion } from "../shared/ui-overlay-events";
 import { IconButton, cx } from "../shared/ui-primitives";
 import styles from "./command-search-palette.module.css";
 
@@ -28,17 +28,13 @@ const groupLabels: Record<CommandSearchResult["group"], string> = {
 };
 
 export function CommandSearchPalette({ open, results, onClose, onQueryChange, onSelect }: CommandSearchPaletteProps) {
-  const nativeSurfaceOcclusionSource = `command-palette:${useId()}`;
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
-  useLayoutEffect(() => {
-    setNativeSurfaceOcclusion(nativeSurfaceOcclusionSource, open);
-    return () => setNativeSurfaceOcclusion(nativeSurfaceOcclusionSource, false);
-  }, [nativeSurfaceOcclusionSource, open]);
+  useNativeSurfaceOcclusion("command-palette", open);
 
   const groupedResults = useMemo(() => {
     const groups = new Map<CommandSearchResult["group"], CommandSearchResult[]>();
@@ -173,3 +169,5 @@ export function CommandSearchPalette({ open, results, onClose, onQueryChange, on
     document.body,
   );
 }
+
+export default CommandSearchPalette;

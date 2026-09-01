@@ -12,7 +12,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { computeUiOverlayPosition, type UiOverlayPlacement } from "./ui-overlay-position";
-import { announceInteractiveOverlayOpen, setNativeSurfaceOcclusion } from "./ui-overlay-events";
+import { announceInteractiveOverlayOpen, useNativeSurfaceOcclusion } from "./ui-overlay-events";
 
 type UiPopoverRenderProps = {
   contentId: string;
@@ -36,16 +36,12 @@ export function UiPopover({
   placement?: UiOverlayPlacement;
 }) {
   const contentId = useId();
-  const nativeSurfaceOcclusionSource = `popover:${useId()}`;
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0, visible: false });
 
-  useLayoutEffect(() => {
-    setNativeSurfaceOcclusion(nativeSurfaceOcclusionSource, expanded);
-    return () => setNativeSurfaceOcclusion(nativeSurfaceOcclusionSource, false);
-  }, [expanded, nativeSurfaceOcclusionSource]);
+  useNativeSurfaceOcclusion("popover", expanded);
 
   const close = useCallback((restoreFocus = true) => {
     setExpanded(false);

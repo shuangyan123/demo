@@ -68,11 +68,7 @@ test("Fenbi slot follows real layout geometry without repair timers", () => {
 test("Fenbi confirmation and command search own balanced native-surface sources", () => {
   const fenbiContext = readFileSync(new URL("../fenbi/fenbi-context-panel.tsx", import.meta.url), "utf8");
   const commandSearch = readFileSync(new URL("../conversation/command-search-palette.tsx", import.meta.url), "utf8");
-  assert.match(fenbiContext, /fenbi-clear-confirm:\$\{useId\(\)\}/);
-  assert.match(fenbiContext, /setNativeSurfaceOcclusion\(nativeSurfaceOcclusionSource, clearConfirmationOpen\)/);
-  assert.match(fenbiContext, /return \(\) => setNativeSurfaceOcclusion\(nativeSurfaceOcclusionSource, false\)/);
-  assert.match(commandSearch, /command-palette:\$\{useId\(\)\}/);
-  assert.match(commandSearch, /setNativeSurfaceOcclusion\(nativeSurfaceOcclusionSource, open\)/);
-  assert.match(commandSearch, /return \(\) => setNativeSurfaceOcclusion\(nativeSurfaceOcclusionSource, false\)/);
+  assert.match(fenbiContext, /useNativeSurfaceOcclusion\("fenbi-clear-confirm", clearConfirmationOpen\)/);
+  assert.match(commandSearch, /useNativeSurfaceOcclusion\("command-palette", open\)/);
   assert.doesNotMatch(commandSearch, /setInterval|setTimeout/);
 });

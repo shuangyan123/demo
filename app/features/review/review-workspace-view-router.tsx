@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { ConversationContextPanel } from "../conversation/conversation-context-panel";
-import { CommandSearchPalette } from "../conversation/command-search-palette";
 import { useSettingsPluginPreferences } from "../settings/plugins/use-settings-plugin-preferences.ts";
 import { Button } from "../shared/ui-primitives";
 import type { WorkspaceContextPanelRegistration } from "../shared/workspace-context-registry";
@@ -18,6 +17,7 @@ const SampleScenarioControls = dynamic(() => import("../shared/sample-scenario-c
 const SettingsWorkspaceSidebar = dynamic(() => import("../settings/settings-workspace-navigation").then((module) => module.SettingsWorkspaceSidebar));
 const ProfileUsageSettingsView = dynamic(() => import("../settings/profile-usage-settings-view").then((module) => module.ProfileUsageSettingsView));
 const FenbiContextPanel = dynamic(() => import("../fenbi/fenbi-context-panel").then((module) => module.FenbiContextPanel));
+const CommandSearchPalette = dynamic(() => import("../conversation/command-search-palette"));
 
 /** 装配设置、工作台壳层和当前视图；不读取 repository 或持有业务状态。 */
 export function ReviewWorkspaceViewRouter({
