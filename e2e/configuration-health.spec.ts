@@ -41,7 +41,7 @@ test("配置健康面板展示新库缺项并可导航到补齐入口", async ({
   await page.goto("/");
   await page.locator(".dashboard-configuration-health > summary").click();
   await page.locator(".dashboard-configuration-health").getByRole("button", { name: "导入资料", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "粉笔导入", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "导入", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "配置粉笔 Cookie" })).toBeVisible();
   await expectNoFrameworkOverlay(page);
 

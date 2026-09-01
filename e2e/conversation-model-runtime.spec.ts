@@ -71,12 +71,18 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
 
     await trigger.click();
     const dialog = page.getByRole("dialog", { name: "选择对话模型" });
+    await dialog.getByRole("button", { name: /^模型 / }).hover();
     await dialog.getByRole("button", { name: "OpenAI" }).click();
     await dialog.getByRole("radio", { name: /gpt-5\.6-sol/ }).locator("xpath=..").click();
-    await expect(dialog).toBeVisible();
+    await trigger.click();
+    await dialog.getByRole("button", { name: /^模型 / }).hover();
+    await dialog.getByRole("button", { name: "OpenAI" }).click();
     await expect(dialog.getByRole("button", { name: /^推理强度 / })).toBeEnabled();
     await expect(dialog.getByRole("button", { name: /^速度 / })).toBeEnabled();
     await dialog.getByRole("radio", { name: /gpt-5\.5/ }).locator("xpath=..").click();
+    await trigger.click();
+    await dialog.getByRole("button", { name: /^模型 / }).hover();
+    await dialog.getByRole("button", { name: "OpenAI" }).click();
     const reasoningControl = dialog.getByRole("button", { name: /^推理强度 / });
     await reasoningControl.click();
     await expect(dialog).toHaveAttribute("data-model-picker-view", "reasoning");
@@ -85,9 +91,12 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     await reasoningSurface.getByRole("radio", { name: "high", exact: true }).locator("xpath=..").click();
     await expect.poll(async () => (await readRuntimeState(page)).runtime?.reasoning).toBe("high");
     await page.keyboard.press("Escape");
+    await expect(dialog).toHaveAttribute("data-model-picker-view", "controls");
+    await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
 
     await trigger.click();
+    await dialog.getByRole("button", { name: /^模型 / }).hover();
     await dialog.getByRole("button", { name: "OpenAI" }).click();
     const speedControl = dialog.getByRole("button", { name: /^速度 / });
     await expect(speedControl).toBeEnabled();
@@ -98,6 +107,8 @@ test("模型菜单即时保存推理与速度，并把归一化值映射到真�
     await speedSurface.getByRole("radio", { name: /^优先/ }).locator("xpath=..").click();
     await expect.poll(async () => (await readRuntimeState(page)).runtime?.speed).toBe("priority");
     await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveAttribute("data-model-picker-view", "controls");
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();

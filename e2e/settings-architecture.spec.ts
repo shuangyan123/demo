@@ -7,6 +7,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).first().click();
+  await page.getByRole("button", { name: "外观", exact: true }).click();
 
   await expect(page.getByRole("button", { name: "个性化" })).toBeVisible();
   await expect(page.getByRole("button", { name: "额度" })).toBeVisible();
@@ -38,7 +39,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   });
   expect(workspaceDiffuse.frameBackgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(workspaceDiffuse.frameBackgroundImage).toContain("radial-gradient");
-  expect(workspaceDiffuse.frameRadius).toBe("18px");
+  expect(workspaceDiffuse.frameRadius).toBe("16px");
   expect(workspaceDiffuse.layoutBackgroundImage).toBe("none");
   expect(workspaceDiffuse.mainBackgroundColor).toBe("rgba(0, 0, 0, 0)");
   expect(workspaceDiffuse.mainBackgroundImage).toBe("none");
@@ -68,6 +69,7 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   expect(codeFontFamily).toContain("GeistMono");
   await page.reload();
   await page.getByRole("button", { name: "设置" }).first().click();
+  await page.getByRole("button", { name: "外观", exact: true }).click();
   await expect(page.getByRole("switch", { name: "浅色主题弥散渐变" })).toHaveAttribute("aria-checked", "true");
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath("settings-appearance-dark-desktop.png"), fullPage: false });
@@ -160,7 +162,7 @@ test("额度页面通过归一化接口验证并刷新，不暴露原始响应",
   await expect(quotaPanel.getByRole("button", { name: "刷新DeepSeek额度" })).toBeVisible();
   const metricRing = quotaPanel.getByRole("button", { name: /官方可用余额/ });
   await metricRing.hover();
-  await expect(page.getByRole("tooltip")).toContainText("官方可用余额");
+  await expect(page.locator('body > [role="tooltip"]:visible').filter({ hasText: "官方可用余额" })).toContainText("官方可用余额");
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
@@ -190,15 +192,16 @@ test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符�
       mainTop: main.getBoundingClientRect().top,
       frameTop: frame.getBoundingClientRect().top,
       frameBottom: frame.getBoundingClientRect().bottom,
+      topbarBottom: topbar.getBoundingClientRect().bottom,
       viewportHeight: window.innerHeight,
       topbarColor: getComputedStyle(topbar).backgroundColor,
       sidebarColor: getComputedStyle(sidebar).backgroundColor,
     };
   });
-  expect(shellGeometry.mainTop).toBe(52);
-  expect(shellGeometry.frameTop).toBe(52);
+  expect(Math.abs(shellGeometry.mainTop - shellGeometry.frameTop)).toBeLessThanOrEqual(1);
+  expect(Math.abs(shellGeometry.frameTop - shellGeometry.topbarBottom)).toBeLessThanOrEqual(1);
   expect(shellGeometry.frameBottom).toBe(shellGeometry.viewportHeight);
-  expect(shellGeometry.topbarColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(shellGeometry.topbarColor).toBe("rgba(0, 0, 0, 0)");
   expect(shellGeometry.sidebarColor).toBe("rgba(0, 0, 0, 0)");
 
   await page.getByRole("button", { name: "AI 连接" }).click();
@@ -224,10 +227,12 @@ test("设置融合壳层、连接列、Claude 品牌色与插件详情边界符�
   expect(claudeColor).toBe("rgb(217, 119, 87)");
 
   await page.getByRole("button", { name: "返回应用" }).click();
-  await page.getByRole("button", { name: "插件" }).click();
-  const pluginList = page.getByRole("list");
-  await expect(pluginList.getByRole("listitem")).toHaveCount(2);
-  await page.getByRole("button", { name: "粉笔导入 错题文本与截图导入", exact: true }).click();
+  const sidebar = page.locator(".chrome-sidebar:visible");
+  await sidebar.getByRole("button", { name: "设置" }).click();
+  await sidebar.getByRole("button", { name: "插件", exact: true }).click();
+  const installedPlugins = page.getByRole("region", { name: "已安装插件管理" });
+  await expect(installedPlugins.getByRole("list").getByRole("listitem")).toHaveCount(2);
+  await installedPlugins.getByRole("button", { name: "粉笔导入 错题文本与截图导入", exact: true }).click();
   const detailBounds = await page.getByRole("region", { name: "粉笔导入 详情" }).evaluate((detail) => {
     const rect = detail.getBoundingClientRect();
     return {
