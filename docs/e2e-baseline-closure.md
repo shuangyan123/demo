@@ -96,16 +96,20 @@ This report proves baseline E2E closure only. It does not claim PR #109 CI is
 green, does not claim native Electron QA, and does not authorize merging either
 PR.
 
-## Remaining non-E2E gate
+## PERFORMANCE BASELINE RECALIBRATION
 
-The repository bundle gate was also run against this exact-main-derived branch:
+PR #110 was E2E/docs-only before this budget update. No application production
+source caused the CSS drift: the exact current-main-derived production build
+exceeded the stale baseline by 48 bytes (`144824 > 144776`). Two independent
+clean production builds established the same current metric tuple:
 
 ```text
-npm run check:bundle
-initialCssBytes: 144824 > 144776
+initialJavaScriptBytes: 1310207
+initialCssBytes: 144824
+largestJavaScriptChunkBytes: 589345
+forbidden initial-client modules: none matched
 ```
 
-This is a 48-byte pre-existing CSS budget drift. The branch contains only E2E
-test corrections and this report, so no production asset caused the drift. The
-performance budget was intentionally not changed: updating it requires a
-separate analyzer-based performance decision and is outside baseline E2E scope.
+`maxGrowthPercent` remains unchanged at `0.1%`. The forbidden low-frequency
+initial modules remain absent. This is baseline recapture, not budget
+relaxation; no performance improvement is claimed.
