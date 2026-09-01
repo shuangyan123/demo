@@ -96,6 +96,12 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-mobile-seven-levels.png"), fullPage: false });
 
   await page.keyboard.press("Escape");
+  if (await trigger.getAttribute("aria-expanded") === "true") {
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  }
+  await trigger.click();
+  await expect(picker).toBeVisible();
   await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
   await picker.getByRole("button", { name: /^模型 / }).click();
   await picker.getByRole("button", { name: "GLM / 智谱" }).click();

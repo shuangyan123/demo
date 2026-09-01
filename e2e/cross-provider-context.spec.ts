@@ -73,6 +73,7 @@ test("切换 Google 到 DeepSeek 后继续发送本地可见历史", async ({ pa
 
     await page.getByRole("button", { name: "选择模型" }).click();
     const picker = page.getByRole("dialog", { name: "选择对话模型" });
+    await picker.getByRole("button", { name: /^模型 / }).hover();
     await picker.getByRole("button", { name: "DeepSeek", exact: true }).click();
     await picker.getByText("deepseek-v4-pro", { exact: true }).click();
     await page.keyboard.press("Escape");
@@ -163,10 +164,16 @@ test("上下文压缩经 mock provider 持久化并进入下一轮真实请求",
     await page.reload();
     await page.getByRole("button", { name: "建立压缩测试会话", exact: true }).click();
 
-    const summary = page.locator('summary[aria-label="查看对话上下文用量"]');
+    const summary = page.getByRole("button", { name: /查看对话上下文用量/ });
     await summary.click();
+    await expect(page.getByText("背景信息窗口：", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    const draft = page.getByRole("textbox", { name: "对话输入" });
+    await draft.fill("/");
+    const slashMenu = page.getByRole("listbox", { name: "快捷指令" });
+    await expect(slashMenu).toBeVisible();
     returnCompaction = true;
-    await page.getByRole("button", { name: "压缩上下文" }).click();
+    await slashMenu.getByRole("option", { name: /\/压缩/ }).click();
     await expect.poll(async () => (await readCompaction(page, conversationId)).summary, { timeout: 15_000 }).toContain("继续完成用户目标");
     await page.reload();
     await page.getByRole("button", { name: "建立压缩测试会话", exact: true }).click();

@@ -44,7 +44,7 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   await expect(page.locator(".chrome-sidebar")).toHaveCSS("border-right-width", "0px");
   await expect(dashboardFrame).toHaveAttribute("data-content-surface", "raised-surface");
   await expect(dashboardFrame).toHaveCSS("padding-left", "0px");
-  await expect(dashboardFrame).toHaveCSS("overflow", "visible");
+  await expect(dashboardFrame).toHaveCSS("overflow", "hidden");
   await expect(dashboardFrame).toHaveCSS("background-color", "rgb(255, 255, 255)");
   expect(await dashboardFrame.evaluate((element) => getComputedStyle(element).backgroundImage)).toBe("none");
   const edgeDecoration = await dashboardFrame.evaluate((element) => {
@@ -56,11 +56,14 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   });
   expect(edgeDecoration.backgroundImage).toBe("none");
   expect(edgeDecoration.content === "none" || edgeDecoration.content === "normal").toBe(true);
-  await expect(dashboardMain).toHaveCSS("border-top-left-radius", "18px");
-  await expect(dashboardMain).toHaveCSS("border-bottom-left-radius", "0px");
-  await expect(dashboardMain).toHaveCSS("border-top-width", "1px");
-  await expect(dashboardMain).toHaveCSS("border-left-width", "1px");
+  await expect(dashboardFrame).toHaveCSS("border-top-left-radius", "16px");
+  await expect(dashboardFrame).toHaveCSS("border-bottom-left-radius", "0px");
+  await expect(dashboardFrame).toHaveCSS("border-top-width", "1px");
+  await expect(dashboardFrame).toHaveCSS("border-left-width", "1px");
   await expect(dashboardMain).toHaveCSS("border-bottom-width", "0px");
+  await expect(dashboardMain).toHaveCSS("border-top-left-radius", "0px");
+  await expect(dashboardMain).toHaveCSS("border-top-width", "0px");
+  await expect(dashboardMain).toHaveCSS("border-left-width", "0px");
   const chromeTransition = await page.locator(".chrome-shell").evaluate((shell) => {
     const topbar = shell.querySelector<HTMLElement>(".chrome-topbar")!;
     const sidebar = shell.querySelector<HTMLElement>(".chrome-sidebar")!;
@@ -109,8 +112,8 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
     };
   });
   expect(desktopGeometry.frameTop).toBe(52);
-  expect(desktopGeometry.mainTop).toBe(52);
-  expect(desktopGeometry.leftGap).toBeLessThanOrEqual(1);
+  expect(desktopGeometry.mainTop - desktopGeometry.frameTop).toBe(1);
+  expect(desktopGeometry.leftGap).toBeLessThanOrEqual(2);
   expect(desktopGeometry.rightGap).toBeLessThanOrEqual(1);
   expect(desktopGeometry.bottomGap).toBeLessThanOrEqual(1);
 
@@ -130,14 +133,14 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("桌面新对话使用 plain canvas 且空白提示靠近底部输入框", async ({ page }, testInfo) => {
+test("桌面新对话使用共享 raised canvas 且空白提示靠近底部输入框", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
   await page.getByRole("button", { name: "新对话", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "从一个问题开始" })).toBeVisible();
   await expect(page.getByText("发送首条消息后才会创建对话")).toBeVisible();
-  await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "plain");
+  await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-surface");
   const boundary = await page.locator(".chrome-content-frame").evaluate((frame) => {
     const main = frame.querySelector<HTMLElement>(".chrome-content")!;
     const frameStyle = getComputedStyle(frame);
@@ -205,7 +208,8 @@ test("普通模块与独立设置工作台共享同一外层边界", async ({ pa
   await page.getByRole("button", { name: "错题复盘 暂无到期" }).click();
   await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-surface");
   await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "0px");
-  await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "18px");
+  await expect(page.locator(".chrome-content-frame")).toHaveCSS("border-top-left-radius", "16px");
+  await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "0px");
   await page.locator(".chrome-shell").evaluate((shell) => { shell.dataset.shellIdentity = "persistent"; });
 
   await page.getByRole("button", { name: "设置" }).first().click();
@@ -213,7 +217,8 @@ test("普通模块与独立设置工作台共享同一外层边界", async ({ pa
   await expect(page.locator(".chrome-shell")).toHaveAttribute("data-shell-identity", "persistent");
   await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-surface");
   await expect(page.locator(".chrome-content-frame")).toHaveCSS("padding-left", "0px");
-  await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "18px");
+  await expect(page.locator(".chrome-content-frame")).toHaveCSS("border-top-left-radius", "16px");
+  await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "0px");
 });
 
 test("移动端侧栏是默认关闭的焦点抽屉，七阶段沿 S 曲线自然滚动", async ({ page }, testInfo) => {
@@ -259,6 +264,7 @@ test("深色模式下桌面与移动端保持学习路径和新对话可用", as
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
   await page.getByRole("button", { name: "设置" }).first().click();
+  await page.getByRole("button", { name: "外观", exact: true }).click();
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await page.getByRole("button", { name: "返回应用" }).click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
