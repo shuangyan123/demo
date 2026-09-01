@@ -1,6 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+/**
+ * PRE-EXISTING MOBILE E2E DEBT EXPOSED BY RESTORED ACTIONS EXECUTION:
+ * the mobile chrome title is intentionally exposed as metadata, not duplicate visible text.
+ */
 /** 仅在原生详情未展开时点击 summary。 */
 async function ensureDetailsOpen(summary: Locator) {
   const open = await summary.evaluate((element) => (element.parentElement as HTMLDetailsElement).open);
@@ -23,6 +27,10 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(size.scroll).toBeLessThanOrEqual(size.client + 1);
 }
 
+async function expectChromeTitle(page: Page, title: string) {
+  await expect(page.locator(".chrome-product-title")).toHaveAttribute("data-product-title", title);
+}
+
 /** 使用移动端可见的录入表单创建今日复盘数据。 */
 async function createMobileMistake(page: Page) {
   await page.locator(".dashboard-configuration-health > summary").click();
@@ -43,7 +51,7 @@ test("P1 移动端列表详情、复盘底栏和知识工作区可达", async ({
   await createMobileMistake(page);
   await openMobileModule(page, "学习数据");
   await page.getByRole("button", { name: "批量管理" }).click();
-  await expect(page.locator(".chrome-topbar").getByText("错题库", { exact: true })).toBeVisible();
+  await expectChromeTitle(page, "错题库");
   await expect(page.locator(".learning-detail")).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath("p1-mistakes-mobile.png"), fullPage: false });
   await page.getByRole("button", { name: /移动端错题/ }).click();
@@ -51,18 +59,19 @@ test("P1 移动端列表详情、复盘底栏和知识工作区可达", async ({
   await page.getByRole("button", { name: "返回错题列表" }).click();
 
   await openMobileModule(page, "开始复盘");
-  await expect(page.locator(".chrome-topbar").getByText("错题复盘", { exact: true })).toBeVisible();
+  await expectChromeTitle(page, "错题复盘");
   await expect(page.locator(".review-session-actions")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("p1-review-mobile.png"), fullPage: false });
 
   await openMobileModule(page, "学习数据");
   await page.getByRole("button", { name: "知识演进与 Obsidian" }).click();
-  await expect(page.locator(".chrome-topbar").getByText("知识库", { exact: true })).toBeVisible();
+  await expectChromeTitle(page, "知识库");
   await page.screenshot({ path: testInfo.outputPath("p1-knowledge-mobile.png"), fullPage: false });
   await expectNoHorizontalOverflow(page);
 
   await page.getByRole("button", { name: "展开侧边栏" }).click();
   await page.getByRole("dialog", { name: "应用导航" }).getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("combobox", { name: "设置分区" }).selectOption("appearance");
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await page.getByRole("button", { name: "返回", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");

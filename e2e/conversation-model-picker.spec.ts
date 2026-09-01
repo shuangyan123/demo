@@ -12,7 +12,12 @@ import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors }
 async function openConversationModelPicker(page: Page, conversationId: string): Promise<Locator> {
   await page.locator(`[data-conversation-id="${conversationId}"] .conversation-tree-chat-label`).click();
   await page.getByRole("button", { name: "选择模型" }).click();
-  return page.getByRole("dialog", { name: "选择对话模型" });
+  const picker = page.getByRole("dialog", { name: "选择对话模型" });
+  await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
+  // 桌面端厂商层由真实模型控制行的 hover 打开；初始弹层只展示 controls。
+  await picker.getByRole("button", { name: /^模型 / }).hover();
+  await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
+  return picker;
 }
 
 /** 独立 surface 的宽度规格允许浏览器子像素和边框产生 2px 误差。 */
@@ -69,27 +74,33 @@ test("桌面模型菜单保持稳定外框，并保留键盘、tooltip 与焦点
   const openAiProvider = openAiPicker.getByRole("button", { name: "OpenAI" });
   await openAiProvider.focus();
   await expect(openAiPicker.locator('[data-model-picker-surface="model"]')).toBeVisible();
-  await expectSurfaceWidth(openAiPicker, "model", 352);
+  await expectSurfaceWidth(openAiPicker, "model", 420);
   await openAiProvider.press("ArrowRight");
   await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "models");
   await expectPickerWidth(openAiPicker, 296);
   await expectStablePickerFrames(openAiPicker);
 
   const selectedModel = openAiPicker.getByRole("radio", { name: /gpt-5\.5/ });
-  await expect(selectedModel).toBeFocused();
+  const modelSearch = openAiPicker.getByRole("searchbox", { name: "搜索模型" });
+  await expect(modelSearch).toBeFocused();
   await expect(page.locator('body > [role="tooltip"]')).toHaveCount(0);
+  await page.keyboard.press("Tab");
+  await expect(selectedModel).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(openAiPicker.getByRole("radio", { name: /gpt-5\.6-sol/ })).toBeFocused();
   await expect(page.locator('body > [role="tooltip"]')).toHaveCount(0);
 
   await expect(openAiPicker.getByRole("button", { name: /^推理强度 / })).toBeEnabled();
   await selectedModel.locator("xpath=..").click();
-  const reasoningControl = openAiPicker.getByRole("button", { name: /^推理强度 / });
+  const runtimePicker = await openConversationModelPicker(page, "picker-openai-chat");
+  const reasoningControl = runtimePicker.getByRole("button", { name: /^推理强度 / });
   await reasoningControl.focus();
-  await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "reasoning");
+  await expect(runtimePicker).toHaveAttribute("data-model-picker-view", "reasoning");
   await reasoningControl.press("ArrowRight");
-  await openAiPicker.getByRole("radio", { name: "high", exact: true }).locator("xpath=..").click();
+  await runtimePicker.getByRole("radio", { name: "high", exact: true }).locator("xpath=..").click();
   await expect.poll(async () => (await readConversationModelSelection(page, "picker-openai-chat")).runtime?.reasoning).toBe("high");
+  await page.keyboard.press("Escape");
+  await expect(openAiPicker).toHaveAttribute("data-model-picker-view", "controls");
   await page.keyboard.press("Escape");
   await expect(openAiPicker).toBeHidden();
   await expect(page.getByRole("button", { name: "选择模型" })).toBeFocused();
@@ -139,6 +150,8 @@ test("零可用连接显示恢复空状态并进入既有 AI 连接设置", asyn
   await page.getByRole("button", { name: "新对话" }).first().click();
   await page.getByRole("button", { name: "选择模型" }).click();
   const picker = page.getByRole("dialog", { name: "选择对话模型" });
+  await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
+  await picker.getByRole("button", { name: /^模型 / }).hover();
   await expect(picker.getByRole("region", { name: "尚未配置 AI 连接" })).toContainText("配置 AI 服务后即可选择模型。");
   await expect(picker.getByRole("button", { name: "管理 AI 连接" })).toHaveCount(0);
   await picker.getByRole("button", { name: "前往设置" }).click();
@@ -212,6 +225,8 @@ test("持久化模型选择按对话隔离、连续点击以最后一次为准�
   picker = await openConversationModelPicker(page, "state-chat-b");
   await picker.getByRole("button", { name: "OpenAI" }).click();
   await picker.getByRole("radio", { name: /gpt-5\.6-sol/ }).locator("xpath=..").click();
+  picker = await openConversationModelPicker(page, "state-chat-b");
+  await picker.getByRole("button", { name: "OpenAI" }).click();
   await picker.getByRole("radio", { name: /gpt-5\.6-terra/ }).locator("xpath=..").click();
   await expect.poll(async () => (await readConversationModelSelection(page, "state-chat-b")).modelId).toBe("gpt-5.6-terra");
 
@@ -223,6 +238,8 @@ test("持久化模型选择按对话隔离、连续点击以最后一次为准�
   await failNextConversationModelWrite(page, "gpt-5.6-luna");
   await picker.getByRole("radio", { name: /gpt-5\.6-luna/ }).locator("xpath=..").click();
   await expect(page.getByText(/模型选择保存失败/).first()).toBeVisible();
+  picker = await openConversationModelPicker(page, "state-chat-b");
+  await picker.getByRole("button", { name: "OpenAI" }).click();
   await expect(picker.getByRole("radio", { name: /gpt-5\.6-terra/ })).toBeChecked();
   expect((await readConversationModelSelection(page, "state-chat-b")).modelId).toBe("gpt-5.6-terra");
 

@@ -2,6 +2,10 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import path from "node:path";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+/**
+ * PRE-EXISTING MOBILE E2E DEBT EXPOSED BY RESTORED ACTIONS EXECUTION:
+ * import is a dashboard next action, not a normal study-module entry.
+ */
 async function openStudyModule(drawer: Locator, label: string) {
   await drawer.evaluate((element, targetLabel) => {
     for (const details of element.querySelectorAll("details")) details.open = true;
@@ -35,9 +39,11 @@ test("四页审查数据在 390×844 保持移动步骤、详情层与完整操�
   await expect(loadAll).toHaveCount(0, { timeout: 80_000 });
   await expect(page.getByRole("heading", { name: "总览" })).toBeVisible();
 
-  const importDrawer = await openDrawer(page);
-  await openStudyModule(importDrawer, "粉笔导入");
-  await expect(page.getByRole("heading", { name: "粉笔导入" })).toBeVisible();
+  const mobileDrawer = page.getByRole("dialog", { name: "应用导航" });
+  await page.keyboard.press("Escape");
+  await expect(mobileDrawer).toBeHidden();
+  await page.getByRole("region", { name: "公考学习链路" }).getByRole("button", { name: /^粉笔导入/ }).click();
+  await expect(page.getByRole("heading", { name: "导入", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "1 来源" })).toBeVisible();
   await expect(page.getByRole("button", { name: "2 草稿" })).toBeVisible();
   await expect(page.getByRole("button", { name: "3 确认" })).toBeVisible();
@@ -46,7 +52,8 @@ test("四页审查数据在 390×844 保持移动步骤、详情层与完整操�
 
   await page.reload();
   const pluginDrawer = await openDrawer(page);
-  await pluginDrawer.getByRole("button", { name: "插件", exact: true }).dispatchEvent("click");
+  await pluginDrawer.getByRole("button", { name: "设置", exact: true }).dispatchEvent("click");
+  await page.getByRole("combobox", { name: "设置分区" }).selectOption("installed-plugins");
   await page.getByRole("button", { name: "Obsidian Vault 本地 Vault 双向知识同步", exact: true }).click();
   await expect(page.getByRole("region", { name: "Obsidian Vault 详情" })).toBeVisible();
   await expectNoHorizontalOverflow(page);

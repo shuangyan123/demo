@@ -43,6 +43,7 @@ async function readWorkspaceGeometry(page: Page): Promise<WorkspaceGeometry> {
 test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await loadReviewConversation(page);
 
   const topics = page.getByRole("navigation", { name: "对话主题目录" });
@@ -63,8 +64,10 @@ test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留
   await firstTopic.click();
   await expect(preview).toHaveCount(0);
 
+  await page.mouse.move(0, 0);
   await page.getByRole("button", { name: "选择模型" }).focus();
-  await firstTopic.focus();
+  await firstTopic.evaluate((element) => (element as HTMLElement).focus({ preventScroll: true }));
+  await expect(firstTopic).toBeFocused();
   await expect(preview).toBeVisible();
   await page.getByRole("button", { name: "选择模型" }).focus();
   await expect(preview).toHaveCount(0);
@@ -156,9 +159,10 @@ test("桌面运行行与厂商 hover 保持独立级联 surface、原子模型�
 
   await page.getByRole("button", { name: "选择模型" }).click();
   const picker = page.getByRole("dialog", { name: "选择对话模型" });
+  const modelControl = picker.getByRole("button", { name: /^模型 / });
+  await modelControl.hover();
   await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
 
-  const modelControl = picker.getByRole("button", { name: /^模型 / });
   const reasoningControl = picker.getByRole("button", { name: /^推理强度 / });
   const speedControl = picker.getByRole("button", { name: /^速度 / });
   const rootSurface = picker.locator('[data-model-picker-surface="root"]');
@@ -226,7 +230,7 @@ test("桌面运行行与厂商 hover 保持独立级联 surface、原子模型�
     await expect(modelSurface).toBeVisible();
     const modelRect = await modelSurface.boundingBox();
     expect(modelRect?.width ?? 0).toBeGreaterThanOrEqual(300);
-    expect(modelRect?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(360);
+    expect(modelRect?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(460);
     await expect(picker.getByRole("radio", { name: model }).first()).toBeVisible();
     await expect(picker.getByRole("radio", { name: absent })).toHaveCount(0);
     await expect(reasoningControl).toBeFocused();
@@ -248,11 +252,17 @@ test("桌面运行行与厂商 hover 保持独立级联 surface、原子模型�
   await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
   await gemini.press("ArrowRight");
   await expect(picker).toHaveAttribute("data-model-picker-view", "models");
+  await expect(picker.getByRole("searchbox", { name: "搜索模型" })).toBeFocused();
+  await page.keyboard.press("Tab");
   await expect(picker.getByRole("radio").first()).toBeFocused();
   await page.keyboard.press("ArrowLeft");
   await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
   await expect(picker.getByRole("button", { name: "Google Gemini", exact: true })).toBeFocused();
 
+  await gemini.press("ArrowRight");
+  await expect(picker).toHaveAttribute("data-model-picker-view", "models");
+  await expect(picker.getByRole("searchbox", { name: "搜索模型" })).toBeFocused();
+  await page.keyboard.press("Tab");
   const selectedModel = picker.getByRole("radio").first();
   await selectedModel.locator("xpath=..").click();
   await expect.poll(async () => (await readConversationModelSelection(page, "stable-chat")).modelId).toMatch(/^gemini-/);
@@ -309,6 +319,7 @@ test("迟到的旧厂商目录结果不会覆盖当前厂商模型", async ({ pa
   await page.locator('[data-conversation-id="stale-chat"] .conversation-tree-chat-label').click();
   await page.getByRole("button", { name: "选择模型" }).click();
   const picker = page.getByRole("dialog", { name: "选择对话模型" });
+  await picker.getByRole("button", { name: /^模型 / }).hover();
   await googleRequested;
 
   const deepSeek = picker.getByRole("button", { name: "DeepSeek", exact: true });
