@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { FenbiSessionStatus, FenbiViewState } from "../../platform/capabilities";
 import { resolveHost } from "../../platform/host";
+import { setNativeSurfaceOcclusion } from "../shared/ui-overlay-events";
 import { Button, Chip, ConfirmDialog } from "../shared/ui-primitives";
 
 const NO_SUBSCRIBE = () => () => undefined;
@@ -19,6 +20,7 @@ function actionLabel(value: boolean | undefined, positive: string, negative: str
 
 /** Fenbi 的业务控制只进入现有 ContextPanel，不创建第二套工作台 chrome。 */
 export function FenbiContextPanel({ onOpenImport }: { onOpenImport: () => void }) {
+  const nativeSurfaceOcclusionSource = `fenbi-clear-confirm:${useId()}`;
   const isDesktop = useSyncExternalStore(NO_SUBSCRIBE, () => resolveHost().kind === "desktop", () => false);
   const runtime = useMemo(() => {
     const resolved = resolveHost();
@@ -31,6 +33,11 @@ export function FenbiContextPanel({ onOpenImport }: { onOpenImport: () => void }
   const [busyAction, setBusyAction] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [clearConfirmationOpen, setClearConfirmationOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    setNativeSurfaceOcclusion(nativeSurfaceOcclusionSource, clearConfirmationOpen);
+    return () => setNativeSurfaceOcclusion(nativeSurfaceOcclusionSource, false);
+  }, [clearConfirmationOpen, nativeSurfaceOcclusionSource]);
 
   useEffect(() => {
     if (!session && !view) return;

@@ -34,6 +34,16 @@ test("移动端粉笔练习与侧栏/ContextPanel drawer 维持遮挡状态", as
   await expect(workspace).toHaveAttribute("data-native-surface-occluded", "false");
 
   await page.getByRole("button", { name: "展开侧边栏" }).click();
+  const mobileSidebar = page.getByRole("dialog", { name: "应用导航" });
+  await mobileSidebar.getByRole("button", { name: "搜索", exact: true }).click();
+  const commandPalette = page.getByRole("dialog", { name: "搜索聊天或运行命令" });
+  await expect(commandPalette).toBeVisible();
+  await expect(workspace).toHaveAttribute("data-native-surface-occluded", "true");
+  await page.keyboard.press("Escape");
+  await expect(commandPalette).toBeHidden();
+  await expect(workspace).toHaveAttribute("data-native-surface-occluded", "false");
+
+  await page.getByRole("button", { name: "展开侧边栏" }).click();
   await expect(workspace).toHaveAttribute("data-native-surface-occluded", "true");
   await page.getByRole("button", { name: "收起侧边栏" }).click();
   await expect(workspace).toHaveAttribute("data-native-surface-occluded", "false");

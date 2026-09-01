@@ -33,6 +33,19 @@ test("multiple native-surface blockers do not reveal the surface prematurely", (
   assert.equal(store.getSnapshot().occluded, false);
 });
 
+test("Fenbi clear confirmation and command palette keep independent blockers", () => {
+  const store = createNativeSurfaceOcclusionStore();
+  store.set("popover:summary", true);
+  store.set("command-palette:test", true);
+  store.set("fenbi-clear-confirm:test", true);
+  store.set("command-palette:test", false);
+  assert.deepEqual(store.getSnapshot(), { occluded: true, sources: ["fenbi-clear-confirm:test", "popover:summary"] });
+  store.set("fenbi-clear-confirm:test", false);
+  assert.deepEqual(store.getSnapshot(), { occluded: true, sources: ["popover:summary"] });
+  store.set("popover:summary", false);
+  assert.equal(store.getSnapshot().occluded, false);
+});
+
 test("shared occlusion source ignores empty ids and exposes a stable event contract", () => {
   const source = readFileSync(new URL("./ui-overlay-events.ts", import.meta.url), "utf8");
   const before = getNativeSurfaceOcclusionSnapshot();
@@ -50,4 +63,16 @@ test("Fenbi slot follows real layout geometry without repair timers", () => {
   assert.match(source, /transitionend/);
   assert.match(source, /orientationchange/);
   assert.doesNotMatch(source, /setInterval|setTimeout/);
+});
+
+test("Fenbi confirmation and command search own balanced native-surface sources", () => {
+  const fenbiContext = readFileSync(new URL("../fenbi/fenbi-context-panel.tsx", import.meta.url), "utf8");
+  const commandSearch = readFileSync(new URL("../conversation/command-search-palette.tsx", import.meta.url), "utf8");
+  assert.match(fenbiContext, /fenbi-clear-confirm:\$\{useId\(\)\}/);
+  assert.match(fenbiContext, /setNativeSurfaceOcclusion\(nativeSurfaceOcclusionSource, clearConfirmationOpen\)/);
+  assert.match(fenbiContext, /return \(\) => setNativeSurfaceOcclusion\(nativeSurfaceOcclusionSource, false\)/);
+  assert.match(commandSearch, /command-palette:\$\{useId\(\)\}/);
+  assert.match(commandSearch, /setNativeSurfaceOcclusion\(nativeSurfaceOcclusionSource, open\)/);
+  assert.match(commandSearch, /return \(\) => setNativeSurfaceOcclusion\(nativeSurfaceOcclusionSource, false\)/);
+  assert.doesNotMatch(commandSearch, /setInterval|setTimeout/);
 });

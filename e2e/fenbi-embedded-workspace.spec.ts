@@ -28,10 +28,21 @@ test("粉笔练习进入公考模块并连接现有 SummaryPopover/ContextPanel"
   await expect(page.getByRole("heading", { name: "总览", exact: true })).toBeVisible();
 
   await openFenbiModule(page);
-  await expect(page.locator('[data-fenbi-workspace="true"]')).toBeVisible();
+  const workspace = page.locator('[data-fenbi-workspace="true"]');
+  await expect(workspace).toBeVisible();
   await expect(page.locator('[data-fenbi-browser-fallback="true"]').getByText("粉笔嵌入仅桌面版可用", { exact: true })).toBeVisible();
+  await expect(workspace).toHaveAttribute("data-native-surface-occluded", "false");
   await expect(page.locator('[data-main-content-width="wide"]')).toBeVisible();
   await expectNoHorizontalOverflow(page);
+
+  const searchTrigger = page.locator(".chrome-sidebar:visible").getByRole("button", { name: "搜索", exact: true });
+  await searchTrigger.click();
+  const commandPalette = page.getByRole("dialog", { name: "搜索聊天或运行命令" });
+  await expect(commandPalette).toBeVisible();
+  await expect(workspace).toHaveAttribute("data-native-surface-occluded", "true");
+  await page.keyboard.press("Escape");
+  await expect(commandPalette).toBeHidden();
+  await expect(workspace).toHaveAttribute("data-native-surface-occluded", "false");
 
   const summaryTrigger = page.getByRole("button", { name: "查看当前工作区摘要" });
   await summaryTrigger.click();
@@ -59,7 +70,7 @@ test("粉笔练习进入公考模块并连接现有 SummaryPopover/ContextPanel"
   await page.locator(".app-sidebar-shell").getByRole("button", { name: "总览", exact: true }).click();
   await expect(page.getByRole("heading", { name: "总览", exact: true })).toBeVisible();
   await openFenbiModule(page);
-  await expect(page.locator('[data-fenbi-workspace="true"]')).toBeVisible();
+  await expect(workspace).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
