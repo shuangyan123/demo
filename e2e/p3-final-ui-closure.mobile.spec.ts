@@ -1,11 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+/**
+ * PRE-EXISTING MOBILE E2E DEBT EXPOSED BY RESTORED ACTIONS EXECUTION:
+ * the import route uses the current shared heading contract.
+ */
 test("P3 移动导入步骤与全屏搜索没有横向溢出", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.goto("/");
   await page.getByRole("region", { name: "下一步" }).getByRole("button", { name: "粉笔导入" }).click();
-  await expect(page.getByRole("heading", { name: "粉笔导入" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "导入", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "1 来源" })).toHaveAttribute("aria-current", "step");
   await page.getByRole("button", { name: "2 草稿" }).click();
   await expect(page.getByRole("button", { name: "2 草稿" })).toHaveAttribute("aria-current", "step");

@@ -2,6 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { readConversationModelSelection, seedConversationModelFixtures } from "./helpers/conversation-model-fixtures";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+/**
+ * PRE-EXISTING MOBILE E2E DEBT EXPOSED BY RESTORED ACTIONS EXECUTION:
+ * this flow follows the current main Escape contract.
+ */
 /** 移动视口不得出现页面级横向滚动。 */
 async function expectNoDocumentHorizontalOverflow(page: Page): Promise<void> {
   const dimensions = await page.evaluate(() => ({
@@ -92,7 +96,7 @@ test("390×844 下 GLM 七档和两档按内容布局，触控目标、滚动与
   await page.screenshot({ path: testInfo.outputPath("conversation-model-picker-mobile-seven-levels.png"), fullPage: false });
 
   await page.keyboard.press("Escape");
-  await trigger.click();
+  await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
   await picker.getByRole("button", { name: /^模型 / }).click();
   await picker.getByRole("button", { name: "GLM / 智谱" }).click();
   await picker.getByRole("radio", { name: /^glm-5\.1/ }).locator("xpath=..").click();
