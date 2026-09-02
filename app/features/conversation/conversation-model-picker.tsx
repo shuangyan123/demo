@@ -239,7 +239,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
   }, []);
 
   function usesDesktopFlyout() {
-    return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    return window.matchMedia("(min-width: 641px) and (hover: hover) and (pointer: fine)").matches;
   }
 
   function clearClosePreviewTimer() {
@@ -501,7 +501,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           data-picker-focus-key="control-entry:model"
           type="button"
           onFocus={(event) => { if (usesDesktopFlyout() && event.currentTarget.dataset.pickerProgrammaticFocus !== "true") openModelBrowser(); }}
-          onPointerEnter={() => openModelBrowser()}
+          onPointerEnter={() => { if (usesDesktopFlyout()) openModelBrowser(); }}
           onKeyDown={(event) => handleControlKeyDown(event, openModelBrowser)}
           onClick={() => openModelBrowser()}
         >
@@ -515,7 +515,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           disabled={!selectedDescriptor?.reasoning}
           type="button"
           onFocus={(event) => { if (usesDesktopFlyout() && event.currentTarget.dataset.pickerProgrammaticFocus !== "true") openSelectedRuntime("reasoning"); }}
-          onPointerEnter={() => openSelectedRuntime("reasoning")}
+          onPointerEnter={() => { if (usesDesktopFlyout()) openSelectedRuntime("reasoning"); }}
           onKeyDown={(event) => handleControlKeyDown(event, (focus) => openSelectedRuntime("reasoning", focus))}
           onClick={() => openSelectedRuntime("reasoning")}
         >
@@ -529,7 +529,7 @@ export const ConversationModelPicker = forwardRef<HTMLDivElement, ConversationMo
           disabled={!selectedDescriptor?.speed}
           type="button"
           onFocus={(event) => { if (usesDesktopFlyout() && event.currentTarget.dataset.pickerProgrammaticFocus !== "true") openSelectedRuntime("speed"); }}
-          onPointerEnter={() => openSelectedRuntime("speed")}
+          onPointerEnter={() => { if (usesDesktopFlyout()) openSelectedRuntime("speed"); }}
           onKeyDown={(event) => handleControlKeyDown(event, (focus) => openSelectedRuntime("speed", focus))}
           onClick={() => openSelectedRuntime("speed")}
         >

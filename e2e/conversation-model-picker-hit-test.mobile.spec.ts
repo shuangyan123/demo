@@ -83,6 +83,8 @@ test("移动端模型控制中心点在打开后的布局帧内始终由 picker 
     await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
     const modelControl = picker.locator('[data-picker-focus-key="control-entry:model"]');
     await expect(modelControl).toBeVisible();
+    await modelControl.hover();
+    await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
     await expectModelControlOwnsHitTest(page, modelControl);
 
     // This is intentionally a normal Playwright click: an intercepted center point must fail here.
@@ -104,6 +106,15 @@ test("移动端模型控制中心点在打开后的布局帧内始终由 picker 
     await expect(model).toBeVisible();
     await model.getByRole("button", { name: "返回厂商" }).click();
     await expect(picker).toHaveAttribute("data-model-picker-view", "providers");
+    await picker.getByRole("button", { name: "返回模型配置" }).click();
+    await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
+    const reasoningControl = picker.locator('[data-picker-focus-key="runtime-entry:reasoning"]');
+    await reasoningControl.hover();
+    await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
+    await reasoningControl.click();
+    await expect(picker).toHaveAttribute("data-model-picker-view", "reasoning");
+    await picker.getByRole("button", { name: "返回模型" }).click();
+    await expect(picker).toHaveAttribute("data-model-picker-view", "controls");
     await page.keyboard.press("Escape");
     await expect(picker).toBeHidden();
     await expect(trigger).toBeFocused();
