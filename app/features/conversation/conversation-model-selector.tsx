@@ -79,18 +79,21 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
     const composer = trigger?.closest<HTMLElement>("[data-conversation-composer]");
     if (!trigger) return;
     let frame = 0;
+    const measure = () => {
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const anchorTop = (composer ?? trigger).getBoundingClientRect().top;
+      setMobileBottom(Math.max(10, Math.round(viewportHeight - anchorTop + 8)));
+    };
     const update = () => {
       window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-        const anchorTop = (composer ?? trigger).getBoundingClientRect().top;
-        setMobileBottom(Math.max(10, Math.round(viewportHeight - anchorTop + 8)));
-      });
+      frame = window.requestAnimationFrame(measure);
     };
     const observer = new ResizeObserver(update);
     observer.observe(trigger);
     if (composer) observer.observe(composer);
-    update();
+    // 首次打开时在 layout effect 内完成定位，避免浮层先以默认 bottom 绘制一帧后再移动，
+    // 从而出现视觉位置与浏览器指针命中区域暂时不一致。
+    measure();
     window.addEventListener("resize", update);
     window.visualViewport?.addEventListener("resize", update);
     window.visualViewport?.addEventListener("scroll", update);
