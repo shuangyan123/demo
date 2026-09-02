@@ -150,10 +150,11 @@ test("对话画布拥有唯一滚动容器并让正文与 Composer 共用坐标�
 });
 
 test("模型一级控制与厂商整行支持桌面悬停、焦点和显式键盘进入", () => {
-  assert.match(modelPicker, /onPointerEnter=\{\(\) => openModelBrowser\(\)\}/);
+  assert.match(modelPicker, /function usesDesktopFlyout\(\) \{[\s\S]*window\.matchMedia\("\(min-width: 641px\) and \(hover: hover\) and \(pointer: fine\)"\)\.matches/);
+  assert.match(modelPicker, /onPointerEnter=\{\(\) => \{ if \(usesDesktopFlyout\(\)\) openModelBrowser\(\); \}\}/);
   assert.match(modelPicker, /onFocus=\{\(event\) => \{ if \(usesDesktopFlyout\(\) && event\.currentTarget\.dataset\.pickerProgrammaticFocus !== "true"\) openModelBrowser\(\); \}\}/);
-  assert.match(modelPicker, /openSelectedRuntime\("reasoning"\)/);
-  assert.match(modelPicker, /openSelectedRuntime\("speed"\)/);
+  assert.match(modelPicker, /onPointerEnter=\{\(\) => \{ if \(usesDesktopFlyout\(\)\) openSelectedRuntime\("reasoning"\); \}\}/);
+  assert.match(modelPicker, /onPointerEnter=\{\(\) => \{ if \(usesDesktopFlyout\(\)\) openSelectedRuntime\("speed"\); \}\}/);
   assert.match(modelPicker, /event\.key !== "ArrowRight" && event\.key !== "Enter"/);
   assert.match(modelPicker, /onPointerEnter=\{\(\) => activateProvider\(provider\)\}/);
   assert.match(modelPicker, /onFocus=\{\(event\) => \{ if \(event\.currentTarget\.dataset\.pickerProgrammaticFocus !== "true"\) activateProvider\(provider\); \}\}/);
