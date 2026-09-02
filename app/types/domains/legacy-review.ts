@@ -1081,7 +1081,12 @@ export type StudyDomainDefinition = {
   id: StudyDomainId;
   label: string;
   description: string;
-  modules: StudyModuleDefinition[];
+  /** 所有已注册模块的元数据；是否显示由项目级 enabledModuleIds 决定。 */
+  moduleCatalog: StudyModuleDefinition[];
+  /** 首次进入项目时显示的稳定模块集合，顺序由 moduleCatalog 决定。 */
+  defaultEnabledModuleIds: Array<StudyModuleDefinition["id"]>;
+  /** 项目始终保留的入口，避免偏好导致项目没有可用落点。 */
+  requiredModuleIds: Array<StudyModuleDefinition["id"]>;
   dashboard: {
     headline: string;
     flow: StudyDomainFlowStep[];

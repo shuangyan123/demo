@@ -13,7 +13,7 @@ export type AppIconName =
   | "interview" | "knowledge" | "knowledgeTraining" | "library" | "light" | "mcp" | "message"
   | "mic" | "more" | "motion" | "newChat" | "none" | "paperclip" | "phone" | "personalization" | "plugins" | "voice"
   | "project" | "review" | "scheduled" | "screenshot" | "search" | "send" | "settings" | "slash" | "sparkles"
-  | "sidebar" | "panelRight" | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "edit" | "folderPlus"
+  | "sidebar" | "panelRight" | "plus" | "stats" | "system" | "tool" | "tutoring" | "check" | "chevronDown" | "chevronRight" | "close" | "edit" | "folderPlus"
   | "refresh" | "warning" | "configure" | "copy" | "trash" | "down" | "topics" | "calendar" | "info"
   | "upload" | "download" | "save" | "undo" | "retry" | "play" | "stop" | "externalLink";
 
@@ -25,7 +25,7 @@ const icons: Record<AppIconName, LucideIcon> = {
   light: Sun, mcp: Blocks, message: MessageSquare, mic: Mic, more: MoreHorizontal, motion: Activity,
   newChat: Plus, none: Ban, paperclip: Paperclip, phone: Phone, personalization: UserRoundPlus, plugins: Blocks,
   project: Folder, review: ClipboardCheck, scheduled: Clock3, screenshot: ScanLine, search: Search, send: Send, settings: Settings, voice: AudioLines,
-  sidebar: PanelLeft, panelRight: PanelRight, slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
+  sidebar: PanelLeft, panelRight: PanelRight, plus: Plus, slash: Slash, sparkles: Sparkles, stats: ChartNoAxesColumnIncreasing, system: Monitor, tool: Wrench,
   tutoring: Bot, check: Check, chevronDown: ChevronDown, chevronRight: ChevronRight, close: X, edit: FilePenLine, folderPlus: FolderPlus,
   refresh: RefreshCw, warning: CircleAlert, configure: Settings2, copy: Copy, trash: Trash2, down: ArrowDown, topics: ListTree,
   calendar: CalendarDays, info: Info,

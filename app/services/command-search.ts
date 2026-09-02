@@ -2,7 +2,7 @@ import type { AiConversation, AiProject, CommandSearchResult } from "../types/do
 import type { AutomationSnapshot } from "../types/domains/automation.ts";
 import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
 import type { Mistake } from "../types/domains/review.ts";
-import { scheduledWorkspaceDefinition, studyDomainDefinitions } from "../features/study/study-registry.ts";
+import { resolveEnabledStudyModules, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../features/study/study-registry.ts";
 
 export type BuildCommandSearchInput = {
   projects: AiProject[];
@@ -46,7 +46,7 @@ export function buildCommandSearchResults(input: BuildCommandSearchInput, query 
       view: "dashboard",
       projectId: project.id,
     })),
-    ...studyDomain.modules.map((module): CommandSearchResult => ({
+    ...resolveEnabledStudyModules(studyDomain.id).map((module): CommandSearchResult => ({
       id: `study:${module.id}`,
       group: "study",
       label: `${studyDomain.label} / ${module.label}`,

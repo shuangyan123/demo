@@ -27,6 +27,7 @@ const shellStyles = readFileSync(new URL("../../styles/shell.css", import.meta.u
 const mainContentShell = readFileSync(new URL("../shared/main-content-shell.tsx", import.meta.url), "utf8");
 const reviewShell = readFileSync(new URL("../review/review-workspace-shell.tsx", import.meta.url), "utf8");
 const reviewSidebar = readFileSync(new URL("../review/review-workspace-app-sidebar.tsx", import.meta.url), "utf8");
+const studyProjectNavigation = readFileSync(new URL("../study/study-project-navigation.tsx", import.meta.url), "utf8");
 const conversationTree = readFileSync(new URL("./conversation-folder-tree.tsx", import.meta.url), "utf8");
 const conversationStyles = readFileSync(new URL("../../styles/conversation.css", import.meta.url), "utf8");
 const mcpPermission = readFileSync(new URL("../../services/mcp-permission.ts", import.meta.url), "utf8");
@@ -261,9 +262,10 @@ test("模型目录按 active provider key 原子切换且连接入口只存在�
 });
 
 test("Sidebar 将项目选中、当前对话和键盘焦点表达为独立状态", () => {
-  assert.match(reviewSidebar, /data-project-selected=\{projectActive \? "true"/);
-  assert.match(reviewSidebar, /workspace-project-row/);
-  assert.match(reviewSidebar, /is-selected/);
+  assert.match(reviewSidebar, /<StudyProjectNavigation/);
+  assert.match(studyProjectNavigation, /data-project-selected=\{projectActive \? "true"/);
+  assert.match(studyProjectNavigation, /workspace-project-row/);
+  assert.match(studyProjectNavigation, /is-selected/);
   assert.match(conversationTree, /data-conversation-active=\{active \? "true"/);
   assert.match(conversationTree, /aria-current=\{active \? "page"/);
   assert.match(conversationStyles, /workspace-project-row\.is-selected/);

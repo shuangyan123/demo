@@ -1,7 +1,7 @@
 import type { ScheduledWorkspaceState, StudyDomainDefinition, StudyModuleDefinition, ViewKey } from "../../types/domains/workspace.ts";
 
 /** 公考专项复用现有错题、知识、面试和辅导视图；这里只声明导航和能力边界。 */
-const allCivilServiceStudyModules = [
+export const civilServiceStudyModuleCatalog = [
   {
     id: "dashboard",
     label: "总览",
@@ -94,7 +94,16 @@ const allCivilServiceStudyModules = [
   },
 ] satisfies StudyModuleDefinition[];
 
-export const civilServiceStudyModules = allCivilServiceStudyModules.filter((module) => !(["import", "knowledge", "stats", "tutoring"] as ViewKey[]).includes(module.id));
+const CIVIL_SERVICE_DEFAULT_ENABLED_MODULE_IDS: Array<StudyModuleDefinition["id"]> = [
+  "dashboard",
+  "fenbi",
+  "library",
+  "review",
+  "knowledgeTraining",
+  "interview",
+];
+
+const CIVIL_SERVICE_REQUIRED_MODULE_IDS: Array<StudyModuleDefinition["id"]> = ["dashboard"];
 
 /** 专项学习项目注册表；后续新增专项只需要注册新的 domain。 */
 export const studyDomainDefinitions: StudyDomainDefinition[] = [
@@ -102,7 +111,9 @@ export const studyDomainDefinitions: StudyDomainDefinition[] = [
     id: "civil-service",
     label: "公考",
     description: "公务员考试错题、知识、面试和 AI 辅导工作区。",
-    modules: civilServiceStudyModules,
+    moduleCatalog: civilServiceStudyModuleCatalog,
+    defaultEnabledModuleIds: CIVIL_SERVICE_DEFAULT_ENABLED_MODULE_IDS,
+    requiredModuleIds: CIVIL_SERVICE_REQUIRED_MODULE_IDS,
     dashboard: {
       headline: "把导入、错题、知识、训练、辅导、已安排和 Obsidian 输出连成一条日常学习链路。",
       flow: [
@@ -119,13 +130,55 @@ export const studyDomainDefinitions: StudyDomainDefinition[] = [
   },
 ];
 
+export type StudyModuleId = StudyModuleDefinition["id"];
+
+export function getStudyDomainDefinition(domainId: string): StudyDomainDefinition | undefined {
+  return studyDomainDefinitions.find((domain) => domain.id === domainId);
+}
+
+/** 返回专项完整目录；调用方不得把它直接当作当前项目的可见集合。 */
+export function getStudyModuleCatalog(domainId: string): StudyModuleDefinition[] {
+  return getStudyDomainDefinition(domainId)?.moduleCatalog ?? [];
+}
+
+export function getDefaultEnabledStudyModuleIds(domainId: string): StudyModuleId[] {
+  return [...(getStudyDomainDefinition(domainId)?.defaultEnabledModuleIds ?? [])];
+}
+
+/**
+ * 用 registry 顺序解析项目偏好，过滤未知 ID、去重并补齐必选入口。
+ * 未提供偏好表示首次进入项目，应使用稳定默认集合；显式空数组仍允许隐藏所有可选模块。
+ */
+export function resolveEnabledStudyModuleIds(domainId: string, storedIds?: readonly string[]): StudyModuleId[] {
+  const domain = getStudyDomainDefinition(domainId);
+  if (!domain) return [];
+
+  const knownIds = new Set<StudyModuleId>(domain.moduleCatalog.map((module) => module.id));
+  const selectedIds = new Set<StudyModuleId>();
+  for (const id of storedIds ?? domain.defaultEnabledModuleIds) {
+    const normalizedId = id as StudyModuleId;
+    if (knownIds.has(normalizedId)) selectedIds.add(normalizedId);
+  }
+  for (const id of domain.requiredModuleIds) selectedIds.add(id);
+
+  return domain.moduleCatalog.filter((module) => selectedIds.has(module.id)).map((module) => module.id);
+}
+
+export function resolveEnabledStudyModules(domainId: string, storedIds?: readonly string[]): StudyModuleDefinition[] {
+  const enabledIds = new Set(resolveEnabledStudyModuleIds(domainId, storedIds));
+  return getStudyModuleCatalog(domainId).filter((module) => enabledIds.has(module.id));
+}
+
+/** 兼容旧调用方：表示公考的默认可见集合，而不是完整 registry 目录。 */
+export const civilServiceStudyModules = resolveEnabledStudyModules("civil-service");
+
 export const scheduledWorkspaceDefinition = {
   viewKey: "automation",
   label: "已安排",
   description: "计划任务、定时执行和运行收件箱。",
 } satisfies Omit<ScheduledWorkspaceState, "unreadCount">;
 
-const moduleViewKeySet = new Set<ViewKey>(civilServiceStudyModules.map((module) => module.id));
+const moduleViewKeySet = new Set<ViewKey>(civilServiceStudyModuleCatalog.map((module) => module.id));
 
 /** 判断当前视图是否属于专项学习项目，供 Codex 式侧栏高亮使用。 */
 export function isStudyModuleView(view: ViewKey): boolean {

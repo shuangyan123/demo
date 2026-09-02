@@ -201,6 +201,12 @@ app/
 - Interview / Tutoring / Import / Settings：低频功能，必须动态加载。
 - AI Connection：连接档案、能力边界、模型目录、语音与额度插件。
 
+### 项目级学习模块可见性
+
+- `app/features/study/study-registry.ts` 为每个学习项目登记完整模块目录、默认可见模块和必选模块；公考当前完整目录包含总览、粉笔练习、粉笔导入、学习数据、开始复盘、知识库、知识训练、面试训练、AI 辅导和薄弱分析。
+- `app/services/study-module-preferences-repository.ts` 只在浏览器 `localStorage` 的 `review-workspace:study-module-preferences:v1` 下按项目 ID 保存稳定模块 ID；读取时过滤未知 ID、去重、按 registry 顺序归一化并始终保留总览。不升级 `review_workspace` Dexie schema，也不新增下载、插件或服务安装流程。
+- 侧栏移除只改变当前项目的导航可见性；学习数据、对话、粉笔会话、凭据和全局能力继续由原有 repository / host capability 管理。粉笔练习仍是普通 registry 模块，模块管理不改变其独立浏览会话或安全边界。
+
 ## 对话、插件与 MCP
 
 - `ConversationWorkspace` 由 `ConversationComposer`、两级模型选择、媒体工具、MCP 调用和 Obsidian 提案等独立组件协作；会话可以保存 `selectedModelId` 覆盖，但继续复用同一连接档案的密钥和 endpoint。
