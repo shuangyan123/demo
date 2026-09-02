@@ -1,12 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
 import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
 import { AppIcon } from "../shared/app-icon";
-import { isStudyModuleView, scheduledWorkspaceDefinition, studyDomainDefinitions } from "../study/study-registry";
+import { scheduledWorkspaceDefinition } from "../study/study-registry";
 import { preloadReviewView } from "./review-workspace-preload.ts";
+
+const StudyProjectNavigation = dynamic(
+  () => import("../study/study-project-navigation").then((module) => module.StudyProjectNavigation),
+);
 
 type ReviewNavIconName =
   | "newChat" | "search" | "scheduled" | "project" | "plugins" | "settings"
@@ -45,8 +50,6 @@ export function ReviewWorkspaceAppSidebar({
   onSelectView,
   onStartNewConversation,
 }: ReviewWorkspaceAppSidebarProps) {
-  const civilServiceDomain = studyDomainDefinitions[0];
-  const projectActive = view === "conversation" || isStudyModuleView(view);
   const topActions: Array<{
     id: string;
     label: string;
@@ -103,42 +106,17 @@ export function ReviewWorkspaceAppSidebar({
             <span>项目</span>
             <span>专项学习</span>
           </div>
-          <details className="workspace-project-group group rounded-[var(--ui-radius-row)] p-0.5" data-project-selected={projectActive ? "true" : undefined}>
-            <summary aria-current={projectActive ? "true" : undefined} className={`workspace-project-row grid min-h-8 cursor-pointer list-none grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2 text-left text-[0.8rem] font-semibold max-lg:min-h-11 [&::-webkit-details-marker]:hidden ${projectActive ? "is-selected text-foreground" : "text-muted"}`}>
-              <AppIcon name="project" size={16} />
-              <span className="truncate">{civilServiceDomain.label}</span>
-              <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
-            </summary>
-            <div className="grid gap-px pl-2">
-              <details className="group/modules">
-                <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[1fr_auto] items-center rounded-[var(--ui-radius-row)] px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover max-lg:min-h-11 [&::-webkit-details-marker]:hidden">
-                  <span>模块</span><span className="transition group-open/modules:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
-                </summary>
-                <div className="grid gap-px pl-1">
-                  {civilServiceDomain.modules.map((module) => (
-                    <button
-                      key={module.id}
-                      data-mobile-sidebar-close="true"
-                      className={`grid min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2 text-left text-[0.8rem] max-lg:min-h-11 ${view === module.id ? "bg-surface text-foreground" : "text-muted hover:bg-chrome-hover hover:text-foreground"}`}
-                      type="button"
-                      title={module.description}
-                      onClick={() => onSelectView(module.id)}
-                      onFocus={() => preloadReviewView(module.id)}
-                      onMouseEnter={() => preloadReviewView(module.id)}
-                    >
-                      <AppIcon name={module.icon as ReviewNavIconName} size={16} />
-                      <span className="truncate">{module.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </details>
-            </div>
-          </details>
+          <StudyProjectNavigation
+            onNotice={onNotice}
+            onPreloadView={preloadReviewView}
+            onSelectView={onSelectView}
+            view={view}
+          />
           <ConversationFolderTree
             activeConversationId={activeConversationId}
             conversations={conversations}
             folders={folders}
-            projectId={civilServiceDomain.id}
+            projectId="civil-service"
             onConversationSelected={onOpenConversation}
             onNotice={onNotice}
             onRefresh={onRefreshConversations}

@@ -26,7 +26,9 @@ test("粉笔导入从项目主导航移到通用导入设置，插件发现与�
     readFile(new URL("../review/review-workspace-secondary-views.tsx", import.meta.url), "utf8"),
     readFile(new URL("./plugins/settings-plugins-view.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(registry, /\["import", "knowledge", "stats", "tutoring"\]/);
+  assert.match(registry, /moduleCatalog: civilServiceStudyModuleCatalog/);
+  assert.match(registry, /defaultEnabledModuleIds: CIVIL_SERVICE_DEFAULT_ENABLED_MODULE_IDS/);
+  assert.match(registry, /id: "import"/);
   assert.match(sidebar, /label: "插件"/);
   assert.doesNotMatch(sidebar, /label: "插件与技能"/);
   assert.match(importView, /<h1>导入<\/h1>[\s\S]*来源：粉笔/);
