@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import { AppIcon, type AppIconName } from "../shared/app-icon";
 import { announceInteractiveOverlayOpen } from "../shared/ui-overlay-events";
@@ -23,6 +23,8 @@ const StudyModuleDialog = dynamic(
 );
 
 type StudyProjectNavigationProps = {
+  children?: ReactNode;
+  initiallyOpen?: boolean;
   onNotice: (message: string) => void;
   onPreloadView: (view: ViewKey) => void;
   onSelectView: (view: ViewKey) => void;
@@ -30,7 +32,7 @@ type StudyProjectNavigationProps = {
 };
 
 /** 公考项目树的低频管理边界；模块 registry、项目偏好和弹窗不进入主侧栏首屏入口。 */
-export function StudyProjectNavigation({ onNotice, onPreloadView, onSelectView, view }: StudyProjectNavigationProps) {
+export function StudyProjectNavigation({ children, initiallyOpen = false, onNotice, onPreloadView, onSelectView, view }: StudyProjectNavigationProps) {
   const civilServiceDomain = studyDomainDefinitions[0]!;
   const [moduleDialog, setModuleDialog] = useState<"add" | "manage" | null>(null);
   const {
@@ -41,6 +43,11 @@ export function StudyProjectNavigation({ onNotice, onPreloadView, onSelectView, 
     resetDefaults,
   } = useStudyModulePreferences(civilServiceDomain.id);
   const projectActive = view === "conversation" || isStudyModuleView(view);
+  const projectRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    if (initiallyOpen && projectRef.current) projectRef.current.open = true;
+  }, [initiallyOpen]);
 
   function openModuleDialog(nextDialog: "add" | "manage") {
     announceInteractiveOverlayOpen();
@@ -81,7 +88,11 @@ export function StudyProjectNavigation({ onNotice, onPreloadView, onSelectView, 
 
   return (
     <>
-      <details className="workspace-project-group group rounded-[var(--ui-radius-row)] p-0.5" data-project-selected={projectActive ? "true" : undefined}>
+      <details
+        ref={projectRef}
+        className="workspace-project-group group rounded-[var(--ui-radius-row)] p-0.5"
+        data-project-selected={projectActive ? "true" : undefined}
+      >
         <summary aria-current={projectActive ? "true" : undefined} className={`workspace-project-row grid min-h-8 cursor-pointer list-none grid-cols-[16px_1fr_auto] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2 text-left text-[0.8rem] font-semibold max-lg:min-h-11 [&::-webkit-details-marker]:hidden ${projectActive ? "is-selected text-foreground" : "text-muted"}`}>
           <AppIcon name="project" size={16} />
           <span className="truncate">{civilServiceDomain.label}</span>
@@ -139,6 +150,7 @@ export function StudyProjectNavigation({ onNotice, onPreloadView, onSelectView, 
               ))}
             </div>
           </details>
+          {children}
         </div>
       </details>
       {moduleDialog ? (

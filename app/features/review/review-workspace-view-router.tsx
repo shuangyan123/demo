@@ -56,8 +56,9 @@ export function ReviewWorkspaceViewRouter({
     ? null
     : activeConversations.find((item) => item.id === conversation.activeConversationId) ?? activeConversations[0] ?? null;
   const activeProject = activeConversation ? conversation.snapshot.projects.find((item) => item.id === activeConversation.projectId) : undefined;
-  const activeFolder = activeConversation?.folderId
-    ? conversation.snapshot.folders.find((item) => item.id === activeConversation.folderId)
+  const activePartitionId = activeConversation?.partitionId ?? activeConversation?.folderId;
+  const activePartition = activePartitionId
+    ? conversation.snapshot.partitions.find((item) => item.id === activePartitionId)
     : undefined;
   const summaryConnection = aiConnections.snapshot.profiles.find((item) => item.id === (activeConversation?.selectedConnectionId ?? aiConnections.snapshot.defaults.textConnectionId));
   const summaryModelId = activeConversation?.selectedModelId ?? aiConnections.snapshot.defaults.textModelId;
@@ -78,7 +79,7 @@ export function ReviewWorkspaceViewRouter({
     content: <ConversationContextPanel
       activeConversation={activeConversation}
       attachments={activeConversation ? conversation.snapshot.attachments.filter((item) => item.conversationId === activeConversation.id) : []}
-      folderLabel={activeFolder?.label}
+      partitionLabel={activePartition?.label}
       launchContext={conversation.launchContext}
       projectLabel={activeProject?.label}
     />,
@@ -115,7 +116,8 @@ export function ReviewWorkspaceViewRouter({
       conversations={activeConversations}
       context={context}
       contextPanelRegistrations={contextPanelRegistrations}
-      folders={conversation.snapshot.folders}
+      openProjectTree={installedCount > 0}
+      partitions={conversation.snapshot.partitions}
       notice={workspace.notice}
       contentClassName={settingsMode ? "settings-content settings-main-scroll py-8 max-lg:py-6" : undefined}
       sidebarOverride={settingsMode ? (

@@ -24,12 +24,14 @@ type UseReviewConversationControllerInput = {
   scope: WorkspaceDataScope;
 };
 
-const EMPTY_SNAPSHOT: ConversationSnapshot = { projects: [], folders: [], conversations: [], attachments: [], messages: [], runSteps: [] };
+const EMPTY_SNAPSHOT: ConversationSnapshot = { projects: [], partitions: [], folders: [], conversations: [], attachments: [], messages: [], runSteps: [] };
 
 function scopeConversationSnapshot(snapshot: ConversationSnapshot, scope: WorkspaceDataScope): ConversationSnapshot {
+  const partitions = filterWorkspaceRecords(snapshot.partitions, scope);
   return {
     projects: filterWorkspaceRecords(snapshot.projects, scope),
-    folders: filterWorkspaceRecords(snapshot.folders, scope),
+    partitions,
+    folders: partitions,
     conversations: filterWorkspaceRecords(snapshot.conversations, scope),
     attachments: filterWorkspaceRecords(snapshot.attachments, scope),
     messages: filterWorkspaceRecords(snapshot.messages, scope),

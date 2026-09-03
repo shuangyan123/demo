@@ -264,10 +264,14 @@ test("模型目录按 active provider key 原子切换且连接入口只存在�
 
 test("Sidebar 将项目选中、当前对话和键盘焦点表达为独立状态", () => {
   assert.match(reviewSidebar, /<StudyProjectNavigation/);
+  assert.match(reviewSidebar, /<ConversationPartitionTree/);
+  assert.match(studyProjectNavigation, /children\?: ReactNode/);
   assert.match(studyProjectNavigation, /data-project-selected=\{projectActive \? "true"/);
   assert.match(studyProjectNavigation, /workspace-project-row/);
   assert.match(studyProjectNavigation, /is-selected/);
   assert.match(conversationTree, /data-conversation-active=\{active \? "true"/);
+  assert.match(conversationTree, /data-partition-id=\{partition\.id\}/);
+  assert.match(conversationTree, /aria-label="分区和对话"/);
   assert.match(conversationTree, /aria-current=\{active \? "page"/);
   assert.match(conversationStyles, /workspace-project-row\.is-selected/);
   assert.match(conversationStyles, /conversation-tree-chat\.is-active/);

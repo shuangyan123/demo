@@ -386,9 +386,9 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
       onNotice(error instanceof Error ? `${error.message}；可重新授权、重新同步或解决冲突后重试` : "提案处理失败");
     } finally { setProposalBusy(false); }
   }
-  async function moveConversation(folderId?: string) {
+  async function moveConversation(partitionId?: string) {
     if (!activeConversation) return;
-    await conversationRepository.moveConversation(activeConversation.id, folderId);
+    await conversationRepository.moveConversationToPartition(activeConversation.id, partitionId);
     setMoveDrawerOpen(false);
     await onRefresh();
   }
@@ -401,7 +401,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
           <div className="min-w-0"><h1 className="truncate text-base font-semibold">{activeConversation?.title ?? "新对话"}</h1></div>
           <div className="conversation-thread-actions">
             {conversationNavigation.topics.length ? <button className="conversation-topic-trigger" type="button" aria-haspopup="dialog" onClick={() => { announceInteractiveOverlayOpen(); setTopicDrawerOpen(true); }}><AppIcon name="topics" size={16} /><span>主题 {conversationNavigation.topics.length}</span></button> : null}
-            {activeConversation ? <UiHint label="移动到文件夹" placement="bottom">{({ describedBy }) => <button className="conversation-header-action" type="button" aria-describedby={describedBy} aria-label="移动到文件夹" onClick={() => setMoveDrawerOpen(true)}>⌁</button>}</UiHint> : null}
+            {activeConversation ? <UiHint label="移动到分区" placement="bottom">{({ describedBy }) => <button className="conversation-header-action" type="button" aria-describedby={describedBy} aria-label="移动到分区" onClick={() => setMoveDrawerOpen(true)}>⌁</button>}</UiHint> : null}
           </div>
         </header>
         {launchContext && !activeConversation ? (
@@ -492,7 +492,7 @@ export function ConversationWorkspace({ activeConversationId, connections, defau
         </div></div>
         {realtimeVoiceOpen ? <RealtimeVoicePanel connections={connections} onClose={() => setRealtimeVoiceOpen(false)} onFinalTranscript={persistRealtimeTranscript} /> : null}
       </div>
-      {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到文件夹</h2><UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button>}</UiHint></div><button type="button" onClick={() => void moveConversation()}>根目录</button>{snapshot.folders.filter((folder) => folder.projectId === activeConversation.projectId).map((folder) => <button key={folder.id} type="button" onClick={() => void moveConversation(folder.id)}>{folder.parentId ? "↳ " : ""}{folder.label}</button>)}</section></div> : null}
+      {moveDrawerOpen && activeConversation ? <div className="conversation-move-drawer" role="dialog" aria-modal="true" aria-label="移动对话"><button className="conversation-move-backdrop" type="button" aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)} /><section><div className="flex items-center justify-between"><h2>移动到分区</h2><UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭移动菜单" onClick={() => setMoveDrawerOpen(false)}><AppIcon name="close" size={16} /></button>}</UiHint></div><button type="button" onClick={() => void moveConversation()}>项目根目录</button>{snapshot.partitions.filter((partition) => partition.projectId === activeConversation.projectId).map((partition) => <button key={partition.id} type="button" onClick={() => void moveConversation(partition.id)}>{partition.parentId ? "↳ " : ""}{partition.label}</button>)}</section></div> : null}
     </section>
   );
 }

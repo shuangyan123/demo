@@ -140,9 +140,20 @@
   padding-inline: 0.65rem;
 }
 
-/* 子树每层只增加一次固定缩进，根文件与根文件夹始终共享同一图标列。 */
+/* 子树每层只增加一次固定缩进，根对话与根分区始终共享同一图标列。 */
 .conversation-tree-children {
   padding-left: 0.625rem;
+}
+
+.conversation-tree-section-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.conversation-tree-section-title p {
+  margin: 0;
 }
 
 .conversation-tree-inline-rename {
@@ -198,9 +209,25 @@
 
 .conversation-tree-create {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.3rem;
   padding: 0 0.3rem 0.45rem;
+}
+
+.conversation-tree-create h3 {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.conversation-tree-create label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.conversation-tree-create > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.3rem;
 }
 
 .conversation-tree-create input,

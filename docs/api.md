@@ -141,7 +141,7 @@ GLM 运行能力只按显式模型清单登记。七档清单当前仅含 `glm-5
 
 `AiConversationSourceType` 新增 `mistake`，用于从错题行启动对话；现有 `manual/tutoring/interview/import/knowledge` 保持兼容。
 
-通用 AI 会话不新增服务端 API。`ConversationRepository` 通过 IndexedDB v16 保存项目、文件夹、会话、消息、附件摘要和工具步骤。点击“新对话”只打开空白草稿，发送第一条消息后才调用 `createConversation()` 落库；`deleteConversation()` 在单一事务中级联删除关联摘要。
+通用 AI 会话不新增服务端 API。`ConversationRepository` 通过 IndexedDB v16 保存项目、分区、会话、消息、附件摘要和工具步骤；底层 `aiConversationFolders` 表与 `folderId` 字段继续保留以兼容旧数据。新代码通过 `createPartition()`、`renamePartition()`、`movePartition()`、`deletePartition()` 和 `moveConversationToPartition()` 管理分区，读取旧记录时将 `folderId` 归一化为 `partitionId`，新写入同步保留两者。点击“新对话”只打开空白草稿，发送第一条消息后才调用 `createConversation()` 落库；`deleteConversation()` 在单一事务中级联删除关联摘要。
 
 会话消息只保存用户可见文本、附件摘要、连接标签、模型和 usage；不得保存截图原文、Vault 正文、完整 prompt 或厂商原始响应。缺少默认文本连接时仍可保存用户消息，但助手回复必须明确提示需要配置连接，不得伪装 AI 已执行。
 

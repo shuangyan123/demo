@@ -1,7 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
 import type { AiSelectedRuntimeValues } from "../types/domains/ai-model.ts";
 import { legacyRuntimeValues } from "./model-runtime-descriptors.ts";
-import type { AiConversation, AiConversationAttachment, AiConversationFolder, AiConversationKind, AiConversationMessage, AiConversationRole, AiConversationRunStep, AiConversationSourceType, AiProject, ConversationContextCompaction } from "../types/domains/conversation.ts";
+import type { AiConversation, AiConversationAttachment, AiConversationFolder, AiConversationKind, AiConversationMessage, AiConversationRole, AiConversationRunStep, AiConversationSourceType, AiProject, AiProjectPartition, ConversationContextCompaction } from "../types/domains/conversation.ts";
 import type { AiUsageRecord } from "../types/domains/ai-connection.ts";
 import type { StudyDomainId } from "../types/domains/workspace.ts";
 
@@ -10,6 +10,9 @@ export const DEFAULT_AI_PROJECT_ID = "civil-service";
 /** 对话快照只包含持久化摘要，不包含附件字节或转写原始音频。 */
 export type ConversationSnapshot = {
   projects: AiProject[];
+  /** 新业务边界；底层仍读取 v16 的 aiConversationFolders 表。 */
+  partitions: AiProjectPartition[];
+  /** @deprecated 运行时兼容旧快照消费者；新功能只读取 partitions。 */
   folders: AiConversationFolder[];
   conversations: AiConversation[];
   attachments: AiConversationAttachment[];
@@ -24,6 +27,8 @@ export type CreateConversationInput = {
   kind?: AiConversationKind;
   sourceType?: AiConversationSourceType;
   sourceId?: string;
+  partitionId?: string;
+  /** @deprecated 只兼容调用方传入的 v16 字段；新代码使用 partitionId。 */
   folderId?: string;
   selectedConnectionId?: string;
   selectedModelId?: string;
@@ -85,7 +90,7 @@ function previewText(value: string): string {
   return value.replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
-function folderLabel(value: string): string {
+function partitionLabel(value: string): string {
   return value.trim().replace(/\s+/g, " ").slice(0, 48);
 }
 
@@ -105,18 +110,18 @@ async function ensureDefaultProject(today = new Date()): Promise<AiProject> {
   return project;
 }
 
-async function assertFolderProject(folderId: string | undefined, projectId: string): Promise<void> {
-  if (!folderId) return;
-  const folder = await reviewDb.aiConversationFolders.get(folderId);
-  if (!folder || folder.projectId !== projectId) throw new Error("目标文件夹不存在或不属于当前项目");
+async function assertPartitionProject(partitionId: string | undefined, projectId: string): Promise<void> {
+  if (!partitionId) return;
+  const partition = await reviewDb.aiConversationFolders.get(partitionId);
+  if (!partition || partition.projectId !== projectId) throw new Error("目标分区不存在或不属于当前项目");
 }
 
-async function assertFolderMove(folderId: string, parentId: string | undefined): Promise<void> {
+async function assertPartitionMove(partitionId: string, parentId: string | undefined): Promise<void> {
   if (!parentId) return;
-  if (parentId === folderId) throw new Error("文件夹不能移动到自身");
+  if (parentId === partitionId) throw new Error("分区不能移动到自身");
   let cursor = await reviewDb.aiConversationFolders.get(parentId);
   while (cursor) {
-    if (cursor.parentId === folderId) throw new Error("文件夹不能移动到自己的子文件夹");
+    if (cursor.parentId === partitionId) throw new Error("分区不能移动到自己的子分区");
     cursor = cursor.parentId ? await reviewDb.aiConversationFolders.get(cursor.parentId) : undefined;
   }
 }
@@ -128,7 +133,7 @@ export const conversationRepository = {
 
   async loadSnapshot(today = new Date()): Promise<ConversationSnapshot> {
     await ensureDefaultProject(today);
-    const [projects, folders, conversations, attachments, messages, runSteps] = await Promise.all([
+    const [projects, partitions, conversations, attachments, messages, runSteps] = await Promise.all([
       reviewDb.aiProjects.orderBy("updatedAt").reverse().toArray(),
       reviewDb.aiConversationFolders.orderBy("updatedAt").reverse().toArray(),
       reviewDb.aiConversations.orderBy("updatedAt").reverse().toArray(),
@@ -136,13 +141,18 @@ export const conversationRepository = {
       reviewDb.aiConversationMessages.orderBy("createdAt").toArray(),
       reviewDb.aiConversationRunSteps.orderBy("updatedAt").toArray(),
     ]);
-    const normalizedConversations = conversations.map((conversation) => ({
-      ...conversation,
-      selectedRuntimeValues: conversation.selectedRuntimeValues ?? legacyRuntimeValues(conversation.selectedReasoningEffort, conversation.selectedSpeedMode),
-    }));
+    const normalizedConversations = conversations.map((conversation) => {
+      const partitionId = conversation.partitionId ?? conversation.folderId;
+      return {
+        ...conversation,
+        partitionId,
+        selectedRuntimeValues: conversation.selectedRuntimeValues ?? legacyRuntimeValues(conversation.selectedReasoningEffort, conversation.selectedSpeedMode),
+      };
+    });
     return {
       projects,
-      folders,
+      partitions,
+      folders: partitions,
       conversations: normalizedConversations,
       attachments,
       messages: messages.toSorted(compareConversationMessages),
@@ -150,15 +160,16 @@ export const conversationRepository = {
     };
   },
 
-  async createFolder(input: { projectId?: string; parentId?: string; label: string; today?: Date }): Promise<AiConversationFolder> {
+  async createPartition(input: { projectId?: string; parentId?: string; label: string; today?: Date }): Promise<AiProjectPartition> {
     const project = input.projectId ? await reviewDb.aiProjects.get(input.projectId) : await ensureDefaultProject(input.today);
+    if (input.projectId && !project) throw new Error("项目不存在");
     const projectId = project?.id ?? DEFAULT_AI_PROJECT_ID;
-    const label = folderLabel(input.label);
-    if (!label) throw new Error("请输入文件夹名称");
-    await assertFolderProject(input.parentId, projectId);
+    const label = partitionLabel(input.label);
+    if (!label) throw new Error("请输入分区名称");
+    await assertPartitionProject(input.parentId, projectId);
     const timestamp = nowIso(input.today);
-    const siblings = await reviewDb.aiConversationFolders.filter((folder) => folder.projectId === projectId && (folder.parentId ?? "") === (input.parentId ?? "")).toArray();
-    const folder: AiConversationFolder = {
+    const siblings = await reviewDb.aiConversationFolders.filter((partition) => partition.projectId === projectId && (partition.parentId ?? "") === (input.parentId ?? "")).toArray();
+    const partition: AiProjectPartition = {
       id: crypto.randomUUID(),
       projectId,
       parentId: input.parentId,
@@ -167,43 +178,66 @@ export const conversationRepository = {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    await reviewDb.aiConversationFolders.add(folder);
-    return folder;
+    await reviewDb.aiConversationFolders.add(partition);
+    return partition;
   },
 
-  async renameFolder(id: string, label: string, today = new Date()): Promise<void> {
-    const nextLabel = folderLabel(label);
-    if (!nextLabel) throw new Error("请输入文件夹名称");
+  async renamePartition(id: string, label: string, today = new Date()): Promise<void> {
+    const nextLabel = partitionLabel(label);
+    if (!nextLabel) throw new Error("请输入分区名称");
+    if (!await reviewDb.aiConversationFolders.get(id)) throw new Error("分区不存在");
     await reviewDb.aiConversationFolders.update(id, { label: nextLabel, updatedAt: nowIso(today) });
   },
 
-  async moveFolder(id: string, parentId: string | undefined, today = new Date()): Promise<void> {
-    const folder = await reviewDb.aiConversationFolders.get(id);
-    if (!folder) throw new Error("文件夹不存在");
-    await assertFolderProject(parentId, folder.projectId);
-    await assertFolderMove(id, parentId);
+  async movePartition(id: string, parentId: string | undefined, today = new Date()): Promise<void> {
+    const partition = await reviewDb.aiConversationFolders.get(id);
+    if (!partition) throw new Error("分区不存在");
+    await assertPartitionProject(parentId, partition.projectId);
+    await assertPartitionMove(id, parentId);
     await reviewDb.aiConversationFolders.update(id, { parentId, updatedAt: nowIso(today) });
   },
 
-  async deleteFolder(id: string, today = new Date()): Promise<void> {
-    const folder = await reviewDb.aiConversationFolders.get(id);
-    if (!folder) return;
+  async deletePartition(id: string, today = new Date()): Promise<void> {
+    const partition = await reviewDb.aiConversationFolders.get(id);
+    if (!partition) return;
     const timestamp = nowIso(today);
     await reviewDb.transaction("rw", reviewDb.aiConversationFolders, reviewDb.aiConversations, async () => {
       const children = await reviewDb.aiConversationFolders.filter((item) => item.parentId === id).toArray();
-      await Promise.all(children.map((child) => reviewDb.aiConversationFolders.update(child.id, { parentId: folder.parentId, updatedAt: timestamp })));
-      const conversations = await reviewDb.aiConversations.filter((item) => item.folderId === id).toArray();
-      await Promise.all(conversations.map((conversation) => reviewDb.aiConversations.update(conversation.id, { folderId: folder.parentId, updatedAt: timestamp })));
+      await Promise.all(children.map((child) => reviewDb.aiConversationFolders.update(child.id, { parentId: partition.parentId, updatedAt: timestamp })));
+      const conversations = await reviewDb.aiConversations.filter((item) => item.partitionId === id || item.folderId === id).toArray();
+      await Promise.all(conversations.map((conversation) => reviewDb.aiConversations.update(conversation.id, { partitionId: partition.parentId, folderId: partition.parentId, updatedAt: timestamp })));
       await reviewDb.aiConversationFolders.delete(id);
     });
+  },
+
+  /** @deprecated v16 compatibility adapter; new feature code must use createPartition. */
+  async createFolder(input: { projectId?: string; parentId?: string; label: string; today?: Date }): Promise<AiProjectPartition> {
+    return this.createPartition(input);
+  },
+
+  /** @deprecated v16 compatibility adapter; new feature code must use renamePartition. */
+  async renameFolder(id: string, label: string, today = new Date()): Promise<void> {
+    return this.renamePartition(id, label, today);
+  },
+
+  /** @deprecated v16 compatibility adapter; new feature code must use movePartition. */
+  async moveFolder(id: string, parentId: string | undefined, today = new Date()): Promise<void> {
+    return this.movePartition(id, parentId, today);
+  },
+
+  /** @deprecated v16 compatibility adapter; new feature code must use deletePartition. */
+  async deleteFolder(id: string, today = new Date()): Promise<void> {
+    return this.deletePartition(id, today);
   },
 
   async createConversation(input: CreateConversationInput = {}): Promise<AiConversation> {
     const timestamp = nowIso(input.today);
     const project = input.projectId ? await reviewDb.aiProjects.get(input.projectId) : await ensureDefaultProject(input.today);
+    if (input.projectId && !project) throw new Error("项目不存在");
     const projectId = project?.id ?? DEFAULT_AI_PROJECT_ID;
     if (!project) await ensureDefaultProject(input.today);
-    await assertFolderProject(input.folderId, projectId);
+    const partitionId = input.partitionId ?? input.folderId;
+    await assertPartitionProject(partitionId, projectId);
     const conversation: AiConversation = {
       id: crypto.randomUUID(),
       projectId,
@@ -213,7 +247,8 @@ export const conversationRepository = {
       status: "active",
       sourceType: input.sourceType ?? "manual",
       sourceId: input.sourceId,
-      folderId: input.folderId,
+      partitionId,
+      folderId: partitionId,
       selectedConnectionId: input.selectedConnectionId,
       selectedModelId: input.selectedModelId,
       selectedRuntimeValues: input.selectedRuntimeValues,
@@ -226,16 +261,21 @@ export const conversationRepository = {
   },
 
   async renameConversation(id: string, title: string, today = new Date()): Promise<void> {
-    const nextTitle = folderLabel(title);
+    const nextTitle = partitionLabel(title);
     if (!nextTitle) return;
     await reviewDb.aiConversations.update(id, { title: nextTitle, updatedAt: nowIso(today) });
   },
 
-  async moveConversation(id: string, folderId: string | undefined, today = new Date()): Promise<void> {
+  async moveConversationToPartition(id: string, partitionId: string | undefined, today = new Date()): Promise<void> {
     const conversation = await reviewDb.aiConversations.get(id);
     if (!conversation) throw new Error("对话不存在");
-    await assertFolderProject(folderId, conversation.projectId);
-    await reviewDb.aiConversations.update(id, { folderId, updatedAt: nowIso(today) });
+    await assertPartitionProject(partitionId, conversation.projectId);
+    await reviewDb.aiConversations.update(id, { partitionId, folderId: partitionId, updatedAt: nowIso(today) });
+  },
+
+  /** @deprecated v16 compatibility adapter; new feature code must use moveConversationToPartition. */
+  async moveConversation(id: string, folderId: string | undefined, today = new Date()): Promise<void> {
+    return this.moveConversationToPartition(id, folderId, today);
   },
 
   async setConversationConnection(id: string, selectedConnectionId: string | undefined, today = new Date()): Promise<void> {

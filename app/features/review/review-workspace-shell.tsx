@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { toISODate } from "../../lib/review-utils";
-import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
+import type { AiConversation, AiProjectPartition } from "../../types/domains/conversation.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import { Button } from "../shared/ui-primitives";
 import { MainContentShell, type MainContentWidth } from "../shared/main-content-shell";
@@ -19,7 +19,8 @@ type ReviewWorkspaceShellProps = {
   conversations: AiConversation[];
   context: WorkspaceContextDescriptor;
   contextPanelRegistrations?: readonly WorkspaceContextPanelRegistration[];
-  folders: AiConversationFolder[];
+  partitions: AiProjectPartition[];
+  openProjectTree?: boolean;
   activeConversationId?: string | null;
   notice: string;
   sidebarFooter?: ReactNode;
@@ -74,7 +75,8 @@ export function ReviewWorkspaceShell({
   conversations,
   context,
   contextPanelRegistrations,
-  folders,
+  partitions,
+  openProjectTree = false,
   activeConversationId,
   notice,
   sidebarFooter,
@@ -101,7 +103,8 @@ export function ReviewWorkspaceShell({
       activeConversationId={activeConversationId}
       automationUnreadCount={automationUnreadCount}
       conversations={conversations}
-      folders={folders}
+      openProjectTree={openProjectTree}
+      partitions={partitions}
       footer={sidebarFooter}
       view={view}
       onNotice={onNotice}

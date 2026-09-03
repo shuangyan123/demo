@@ -7,7 +7,7 @@ import type { ConversationLaunchContext } from "./conversation-launch-context.ts
 type ConversationContextPanelProps = {
   activeConversation?: AiConversation | null;
   attachments: AiConversationAttachment[];
-  folderLabel?: string;
+  partitionLabel?: string;
   launchContext?: ConversationLaunchContext | null;
   projectLabel?: string;
 };
@@ -22,10 +22,10 @@ function ContextFact({ label, value }: { label: string; value: string }) {
 }
 
 /** 对话注册的轻量上下文内容只读本地快照，不创建新的资料或凭据边界。 */
-export function ConversationContextPanel({ activeConversation, attachments, folderLabel, launchContext, projectLabel }: ConversationContextPanelProps) {
+export function ConversationContextPanel({ activeConversation, attachments, partitionLabel, launchContext, projectLabel }: ConversationContextPanelProps) {
   const facts = [
     projectLabel ? <ContextFact key="project" label="项目" value={projectLabel} /> : null,
-    folderLabel ? <ContextFact key="folder" label="文件夹" value={folderLabel} /> : null,
+    partitionLabel ? <ContextFact key="partition" label="分区" value={partitionLabel} /> : null,
     activeConversation ? <ContextFact key="messages" label="消息" value={`${activeConversation.messageCount} 条`} /> : null,
     activeConversation ? <ContextFact key="source" label="来源" value={activeConversation.sourceType} /> : null,
   ].filter(Boolean);

@@ -50,7 +50,7 @@
 | included | `tutoringSessions`, `tutoringTurns`, `tutoringPlans`, `tutoringLinks` | 辅导资产与历史 |
 | included | `obsidianNoteMappings`, `knowledgeEvolutionProposals` | 应用侧 Vault 映射/哈希与待确认提案，不含正文 |
 | included | `automationDefinitions`, `automationRuns` | 已安排定义与脱敏运行收件箱 |
-| included | `aiProjects`, `aiConversationFolders`, `aiConversations`, `aiConversationAttachments`, `aiConversationMessages`, `aiConversationRunSteps` | 可见对话、附件摘要和脱敏工具步骤 |
+| included | `aiProjects`, `aiConversationFolders`, `aiConversations`, `aiConversationAttachments`, `aiConversationMessages`, `aiConversationRunSteps` | 可见项目分区、对话、附件摘要和脱敏工具步骤；分区仍保留 v16 文件夹表以兼容 |
 | intentionally excluded | `apiSettings` | 旧凭据兼容表；原因必须保留，不能自动加入导出 |
 | intentionally excluded | `obsidianVaultConfigs` | 宿主目录授权/句柄；恢复后重新选择或授权 |
 
