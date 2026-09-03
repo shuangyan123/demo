@@ -27,13 +27,13 @@ test("conversation repository persists projects, conversations, messages and run
   assert.equal(snapshot.runSteps[0]?.label, "准备上下文");
 });
 
-test("conversation folders support nesting, rename, move and attachment summaries without file bytes", async () => {
+test("project partitions support nesting, rename, move and attachment summaries without file bytes", async () => {
   await resetDatabase();
-  const root = await conversationRepository.createFolder({ label: "申论", today });
-  const child = await conversationRepository.createFolder({ label: "材料分析", parentId: root.id, today });
-  await conversationRepository.renameFolder(child.id, "材料精读", today);
-  const conversation = await conversationRepository.createConversation({ today, title: "草稿", folderId: root.id, selectedConnectionId: "vision-1" });
-  await conversationRepository.moveConversation(conversation.id, child.id, today);
+  const root = await conversationRepository.createPartition({ label: "申论", today });
+  const child = await conversationRepository.createPartition({ label: "材料分析", parentId: root.id, today });
+  await conversationRepository.renamePartition(child.id, "材料精读", today);
+  const conversation = await conversationRepository.createConversation({ today, title: "草稿", partitionId: root.id, selectedConnectionId: "vision-1" });
+  await conversationRepository.moveConversationToPartition(conversation.id, child.id, today);
   const attachment = await conversationRepository.createAttachment({
     conversationId: conversation.id,
     kind: "image",
@@ -46,7 +46,9 @@ test("conversation folders support nesting, rename, move and attachment summarie
   await conversationRepository.appendMessage({ conversationId: conversation.id, role: "user", content: "分析这张题图", attachmentIds: [attachment.id], today });
 
   const snapshot = await conversationRepository.loadSnapshot(today);
+  assert.equal(snapshot.partitions.find((partition) => partition.id === child.id)?.label, "材料精读");
   assert.equal(snapshot.folders.find((folder) => folder.id === child.id)?.label, "材料精读");
+  assert.equal(snapshot.conversations[0]?.partitionId, child.id);
   assert.equal(snapshot.conversations[0]?.folderId, child.id);
   assert.equal(snapshot.conversations[0]?.selectedConnectionId, "vision-1");
   assert.deepEqual(snapshot.attachments[0], {
@@ -61,6 +63,48 @@ test("conversation folders support nesting, rename, move and attachment summarie
     createdAt: "2026-07-09T08:00:00.000Z",
   });
   assert.equal(JSON.stringify(snapshot.attachments).includes("data:image"), false);
+});
+
+test("project partitions reject cross-project and cyclic moves, while deletion preserves content", async () => {
+  await resetDatabase();
+  const root = await conversationRepository.createPartition({ label: "根", today });
+  const child = await conversationRepository.createPartition({ label: "子", parentId: root.id, today });
+  const grandchild = await conversationRepository.createPartition({ label: "孙", parentId: child.id, today });
+  await reviewDb.aiProjects.put({ id: "other-project", label: "其他项目", description: "合同测试项目", createdAt: today.toISOString(), updatedAt: today.toISOString() });
+  const otherPartition = await conversationRepository.createPartition({ projectId: "other-project", label: "其他分区", today });
+  await assert.rejects(() => conversationRepository.movePartition(root.id, child.id, today), /自己的子分区/);
+  await assert.rejects(() => conversationRepository.movePartition(child.id, otherPartition.id, today), /不存在或不属于当前项目/);
+
+  const conversation = await conversationRepository.createConversation({ today, title: "保留内容", partitionId: child.id });
+  await conversationRepository.appendMessage({ conversationId: conversation.id, role: "user", content: "删除分区后仍保留", today });
+  await conversationRepository.deletePartition(child.id, today);
+
+  const snapshot = await conversationRepository.loadSnapshot(today);
+  assert.equal(snapshot.partitions.some((partition) => partition.id === child.id), false);
+  assert.equal(snapshot.partitions.find((partition) => partition.id === grandchild.id)?.parentId, root.id);
+  assert.equal(snapshot.conversations.find((item) => item.id === conversation.id)?.partitionId, root.id);
+  assert.equal(snapshot.messages.find((message) => message.conversationId === conversation.id)?.content, "删除分区后仍保留");
+});
+
+test("legacy folder storage remains readable through the partition boundary", async () => {
+  await resetDatabase();
+  const timestamp = today.toISOString();
+  await reviewDb.aiConversationFolders.put({ id: "legacy-folder", projectId: "civil-service", label: "历史资料", sortOrder: 0, createdAt: timestamp, updatedAt: timestamp });
+  await reviewDb.aiConversations.put({ id: "legacy-conversation", projectId: "civil-service", title: "历史会话", kind: "general", status: "active", sourceType: "manual", folderId: "legacy-folder", messageCount: 0, createdAt: timestamp, updatedAt: timestamp });
+
+  const snapshot = await conversationRepository.loadSnapshot(today);
+  assert.equal(snapshot.partitions[0]?.id, "legacy-folder");
+  assert.equal(snapshot.conversations[0]?.partitionId, "legacy-folder");
+  assert.equal(snapshot.conversations[0]?.folderId, "legacy-folder");
+});
+
+test("partition labels are trimmed and normalized, while empty names are rejected", async () => {
+  await resetDatabase();
+  const partition = await conversationRepository.createPartition({ label: "  资料   分析  ", today });
+  assert.equal(partition.label, "资料 分析");
+  await assert.rejects(() => conversationRepository.createPartition({ label: " \t ", today }), /请输入分区名称/);
+  await assert.rejects(() => conversationRepository.renamePartition(partition.id, "\n\t", today), /请输入分区名称/);
+  assert.equal((await conversationRepository.loadSnapshot(today)).partitions[0]?.label, "资料 分析");
 });
 
 test("conversation model selection persists provider-supported speed without a schema upgrade", async () => {

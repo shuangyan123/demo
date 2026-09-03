@@ -1129,8 +1129,8 @@ export type AiProject = {
   updatedAt: string;
 };
 
-/** 对话文件夹即分类；允许嵌套，但不持久化任何会话正文。 */
-export type AiConversationFolder = {
+/** 项目内持久化的学习分区；允许嵌套，但不持久化任何会话正文。 */
+export type AiProjectPartition = {
   id: string;
   projectId: string;
   parentId?: string;
@@ -1139,6 +1139,11 @@ export type AiConversationFolder = {
   createdAt: string;
   updatedAt: string;
 };
+
+/**
+ * @deprecated v16 的 IndexedDB 表仍使用旧名称；新业务代码请使用 AiProjectPartition。
+ */
+export type AiConversationFolder = AiProjectPartition;
 
 export type AiConversationAttachment = {
   id: string;
@@ -1161,6 +1166,9 @@ export type AiConversation = {
   status: AiConversationStatus;
   sourceType: AiConversationSourceType;
   sourceId?: string;
+  /** 项目分区的稳定业务关系；旧数据库读取时由 folderId 兼容补齐。 */
+  partitionId?: string;
+  /** @deprecated 仅供 v16 旧存储和迁移兼容；不要在新 UI 中展示。 */
   folderId?: string;
   selectedConnectionId?: string;
   /** 对话级模型覆盖；连接档案继续负责密钥和协议，模型可按会话切换。 */

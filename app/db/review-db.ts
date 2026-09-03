@@ -1,6 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type { AiConnectionDefaults, ApiConnectionProfile, ApiSetting } from "../types/domains/ai-connection.ts";
-import type { AiConversation, AiConversationAttachment, AiConversationFolder, AiConversationMessage, AiConversationRunStep, AiProject } from "../types/domains/conversation.ts";
+import type { AiConversation, AiConversationAttachment, AiConversationMessage, AiConversationRunStep, AiProject, AiProjectPartition } from "../types/domains/conversation.ts";
 import type { AppearanceSettings } from "../types/domains/appearance.ts";
 import type { Attempt, Mistake } from "../types/domains/review.ts";
 import type { AutomationDefinition, AutomationRun } from "../types/domains/automation.ts";
@@ -47,7 +47,8 @@ class ReviewDexieDatabase extends Dexie {
   automationDefinitions!: Table<AutomationDefinition, string>;
   automationRuns!: Table<AutomationRun, string>;
   aiProjects!: Table<AiProject, string>;
-  aiConversationFolders!: Table<AiConversationFolder, string>;
+  /** v16 compatibility table; the service boundary exposes these records as project partitions. */
+  aiConversationFolders!: Table<AiProjectPartition, string>;
   aiConversations!: Table<AiConversation, string>;
   aiConversationAttachments!: Table<AiConversationAttachment, string>;
   aiConversationMessages!: Table<AiConversationMessage, string>;

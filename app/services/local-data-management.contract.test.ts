@@ -47,6 +47,7 @@ test("数据管理按导入、错题复盘和对话范围独立统计与清理",
   await reviewDb.attempts.put({ id: "attempt", mistakeId: "mistake", reviewedAt: now, result: "wrong", masteryAfter: 1 } as never);
   await seedConversation();
   await reviewDb.aiConversationFolders.put({ id: "folder", projectId: "civil-service", label: "测试", createdAt: now, updatedAt: now } as never);
+  await reviewDb.aiConversations.update("conversation", { partitionId: "folder", folderId: "folder" });
   await extensionDb.extensions.put({ id: "extension", kind: "theme", enabled: false, installedAt: now, updatedAt: now } as never);
   const encrypted = await encryptSecret("never-export-this", secretContext.aiConnection("connection"));
   await reviewDb.apiConnectionProfiles.put({
@@ -98,6 +99,8 @@ test("数据管理按导入、错题复盘和对话范围独立统计与清理",
   assert.equal(exported.manifest.recordCounts.total, Object.values(exported.manifest.recordCounts.review_workspace).reduce((sum, count) => sum + count, 1));
   assert.deepEqual(new Set(exported.manifest.includedStores.review_workspace), new Set(Object.entries(CORE_DATA_STORE_POLICIES).filter(([, policy]) => policy.backup === "included").map(([table]) => table)));
   assert.equal(exported.databases.review_extensions.extensions.length, 1);
+  assert.equal((exported.databases.review_workspace.aiConversationFolders as Array<{ id: string }>).some((item) => item.id === "folder"), true);
+  assert.equal((exported.databases.review_workspace.aiConversations as Array<{ id: string; partitionId?: string }>).find((item) => item.id === "conversation")?.partitionId, "folder");
   assert.equal("apiSettings" in exported.databases.review_workspace, false);
   assert.equal("obsidianVaultConfigs" in exported.databases.review_workspace, false);
   assert.match(exportSource, /reconfigure_required/);
@@ -112,6 +115,8 @@ test("数据管理按导入、错题复盘和对话范围独立统计与清理",
   const restoredProfile = await reviewDb.apiConnectionProfiles.get("connection");
   assert.equal((restoredProfile as unknown as Record<string, unknown>).credentialStatus, "reconfigure_required");
   assert.equal("encryptedKey" in (restoredProfile as unknown as Record<string, unknown>), false);
+  assert.equal((await reviewDb.aiConversations.get("conversation"))?.partitionId, "folder");
+  assert.equal((await reviewDb.aiConversations.get("conversation"))?.folderId, "folder");
 
   await localDataManagementRepository.clearImports();
   assert.equal(await reviewDb.importJobs.count(), 0);

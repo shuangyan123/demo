@@ -119,8 +119,8 @@ desktop/
 
 ## 对话拖拽与厂商适配器边界（2026-07-12）
 
-- `ConversationFolderTree` 在自身 Client Component 边界内持有 `DndContext`、Pointer/Touch/Keyboard sensors 与拖拽覆盖层；`ReviewWorkspace` 不接触拖拽状态。
-- 文件夹和对话移动仍由 `conversationRepository` 校验项目、根目录、自身及子孙关系，UI 只提交目标并显示结果。
+- `ConversationPartitionTree` 在自身 Client Component 边界内持有 `DndContext`、Pointer/Touch/Keyboard sensors 与拖拽覆盖层；`ReviewWorkspace` 不接触拖拽状态。
+- 分区和对话移动仍由 `conversationRepository` 校验项目、根目录、自身及子孙关系，UI 只提交目标并显示结果。
 - AI 连接档案只负责厂商、鉴权、Base URL 与声明能力；默认用途通过 `AiConnectionDefaults` 独立保存连接与模型。
 - 七家已核验厂商通过 `providerAdapterRegistry` 进入明确协议；其他厂商只进入兼容边界。
 - 模型选择器采用厂商到模型的紧凑钻取，点击模型立即保存会话选择，不再维护额外确认状态。
@@ -196,7 +196,7 @@ app/
 
 - Review：错题、复盘、统计与主工作台装配。
 - Knowledge：知识资料、训练、内化、演进与 Obsidian 桥接。
-- Conversation：项目、文件夹、空白草稿、消息与工具步骤。
+- Conversation：项目、分区、空白草稿、消息与工具步骤。
 - Automation：仅在应用打开时调度的“已安排”任务。
 - Interview / Tutoring / Import / Settings：低频功能，必须动态加载。
 - AI Connection：连接档案、能力边界、模型目录、语音与额度插件。
@@ -222,6 +222,13 @@ app/
 - 业务模块通过内存态 `ConversationLaunchContext` 把来源、摘要和建议问题交给空白对话；点击入口不会创建记录，首次发送后才持久化会话与脱敏上下文摘要。
 - 摄像头、屏幕共享和截图属于对话工具。原始 `MediaStream` 与帧只驻留内存，截图只有在用户发送后才进入多模态请求。
 - 历史辅导 session/turn 表继续兼容，通过对话工具菜单的“历史辅导记录”进入，不升级 Dexie schema。
+
+## 项目、模块与分区
+
+- 项目（当前为“公考”）是对话的长期归属，模块是进入具体学习能力的导航入口，分区是项目内持久化的主题/上下文范围。v1 分区只作用于对话树，不把错题、知识库、粉笔、Obsidian、辅导或模块偏好挂到分区上。
+- 项目根目录中的对话仍然有效且不显示“未分区”。删除分区只删除容器本身，直接子分区与其中直接对话上移；对话、消息、附件摘要和运行步骤不会被级联删除。
+- `ConversationPartitionTree` 嵌入公考项目树，公开操作经 `conversationRepository` 的 `createPartition`、`renamePartition`、`movePartition`、`deletePartition` 和 `moveConversationToPartition` 完成。底层继续复用 `aiConversationFolders` 与 v16，不升级 Dexie。
+- 读取历史记录时仓储将 `folderId` 归一化为 `partitionId`，新写入同步保留旧字段；备份、恢复、旧快照和现有存储关系因此保持可读，旧 folder 方法只作为兼容适配器存在。
 
 `app/types/review.ts` 是迁移期兼容出口；新代码应从 `app/types/domains/*` 引用。领域类型完成迁移后再缩减兼容出口，避免一次性改动全部调用方。
 
@@ -364,7 +371,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 # 对话树与连接测试闭环（2026-07-13）
 
 - 对话树的名称区域直接作为 dnd-kit 拖拽表面，不再占用六点手柄或鼠标提示；拖动时用浮层和固定根目录目标反馈，移动合法性仍由 repository 校验。
-- 文件夹和对话统一使用“展开位/空位、图标名称、操作位”网格；根图标严格对齐，只有 `.conversation-tree-children` 按层级增加缩进。两者通过右键菜单进入行内重命名；Enter 提交、Escape 取消。
+- 分区和对话统一使用“展开位/空位、图标名称、操作位”网格；根图标严格对齐，只有 `.conversation-tree-children` 按层级增加缩进。两者通过右键菜单进入行内重命名；Enter 提交、Escape 取消。
 - 连接档案只保存厂商、鉴权、 endpoint 与能力。模型发现和真实测试通过连接级 AI 客户端完成，测试模型只保存在本地界面偏好中，必须由用户显式设为默认能力模型。
 - `AiModelRuntimeDescriptor` 位于 `types/domains/ai-model.ts`，由具体模型 ID 声明推理、速度、默认值、文档和核验日期。OpenAI/Gemini/xAI Priority、Claude Fast、MiniMax 配对高速模型分别映射，其他模型不得伪造统一速度档。
 - 明确核验的 `glm-5.2` 保留 `max/xhigh/high/medium/low/minimal/none` 七档，默认 `max`，请求同时发送 `thinking.type=enabled` 与原样 `reasoning_effort`；核验清单内的 GLM-4.5 至 5.1 只发送开关。未来或带自定义后缀的模型在 descriptor 登记前保持未知，不按版本字符串推断。
@@ -452,7 +459,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 ## 全应用单色交互与安全收口（2026-07-26）
 
 - 共享样式新增 `interactive-primary`、`interactive-selected`、`interactive-hover`、`interactive-pressed` 与 `focus-ring` 中性令牌。主操作使用前景/表面反色，选择依赖中性底色、字重和勾选，键盘焦点仅通过 `:focus-visible` 高对比外轮廓表达；品牌资产、学习链路和数值图表继续使用各自的数据色。
-- 对话树操作状态仍归 `ConversationFolderTree` 所有。右键与省略号解析同一行操作按钮矩形；桌面一级菜单固定 208px 并优先位于锚点右侧 8px，移动二级菜单固定 224px 并独立碰撞翻转；移动端将相同状态投影为带返回按钮的两级底部层。
+- 对话树操作状态仍归 `ConversationPartitionTree` 所有。右键与省略号解析同一行操作按钮矩形；桌面一级菜单固定 208px 并优先位于锚点右侧 8px，移动二级菜单固定 224px 并独立碰撞翻转；移动端将相同状态投影为带返回按钮的两级底部层。
 - 安全密钥库把“读取”与“创建”拆开。解密只调用 `readSecurePrimaryKey()`，缺失、损坏、旧 JWK 异常和密文/AAD 校验失败分别映射为稳定的 `CredentialSecurityError`，不会为不可解密记录生成新钥匙。
 - 安全导出升级为 `LocalDataExportV2`，采用显式表允许清单和递归敏感字段清理。旧 AI 设置、Vault 目录配置、密文、IV、掩码 Key、Token、Cookie 与厂商原始响应不进入导出；连接只保留非敏感元数据并标为 `reconfigure_required`。新增表默认不导出。
 - 出站策略默认允许公网 HTTPS 与 loopback，RFC1918/ULA 必须由自定义连接或 MCP 的 `allowPrivateNetwork` 明确授权；云元数据、链路本地、未指定、多播和 URL 内嵌凭据始终拒绝。服务端检查全部 DNS 结果，并以 `redirect: "error"` 拒绝未复核跳转。

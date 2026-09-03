@@ -2,15 +2,17 @@
 
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
-import type { AiConversation, AiConversationFolder } from "../../types/domains/conversation.ts";
+import type { AiConversation, AiProjectPartition } from "../../types/domains/conversation.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
-import { ConversationFolderTree } from "../conversation/conversation-folder-tree";
 import { AppIcon } from "../shared/app-icon";
 import { scheduledWorkspaceDefinition } from "../study/study-registry";
 import { preloadReviewView } from "./review-workspace-preload.ts";
 
 const StudyProjectNavigation = dynamic(
   () => import("../study/study-project-navigation").then((module) => module.StudyProjectNavigation),
+);
+const ConversationPartitionTree = dynamic(
+  () => import("../conversation/conversation-folder-tree").then((module) => module.ConversationPartitionTree),
 );
 
 type ReviewNavIconName =
@@ -22,7 +24,8 @@ type ReviewWorkspaceAppSidebarProps = {
   activeConversationId?: string | null;
   automationUnreadCount: number;
   conversations: AiConversation[];
-  folders: AiConversationFolder[];
+  openProjectTree?: boolean;
+  partitions: AiProjectPartition[];
   footer?: ReactNode;
   view: ViewKey;
   onNotice: (message: string) => void;
@@ -39,7 +42,8 @@ export function ReviewWorkspaceAppSidebar({
   activeConversationId,
   automationUnreadCount,
   conversations,
-  folders,
+  openProjectTree = false,
+  partitions,
   footer,
   view,
   onNotice,
@@ -107,20 +111,22 @@ export function ReviewWorkspaceAppSidebar({
             <span>专项学习</span>
           </div>
           <StudyProjectNavigation
+            initiallyOpen={openProjectTree || conversations.length > 0 || partitions.length > 0}
             onNotice={onNotice}
             onPreloadView={preloadReviewView}
             onSelectView={onSelectView}
             view={view}
-          />
-          <ConversationFolderTree
-            activeConversationId={activeConversationId}
-            conversations={conversations}
-            folders={folders}
-            projectId="civil-service"
-            onConversationSelected={onOpenConversation}
-            onNotice={onNotice}
-            onRefresh={onRefreshConversations}
-          />
+          >
+            <ConversationPartitionTree
+              activeConversationId={activeConversationId}
+              conversations={conversations}
+              partitions={partitions}
+              projectId="civil-service"
+              onConversationSelected={onOpenConversation}
+              onNotice={onNotice}
+              onRefresh={onRefreshConversations}
+            />
+          </StudyProjectNavigation>
         </section>
       </div>
 
