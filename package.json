@@ -103,7 +103,7 @@
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "43.4.1",
-    "electron-builder": "26.15.3",
+    "electron-builder": "26.16.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.12",
     "fake-indexeddb": "^6.2.5",

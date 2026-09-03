@@ -52,7 +52,7 @@ export async function collectNsisCandidateEvidence() {
   assertEqual(packageJson.name, "review-workspace", "package name");
   assertEqual(packageJson.productName, "错题复盘", "product name");
   assertEqual(packageJson.version, "0.2.4", "package version");
-  assertEqual(packageJson.devDependencies["electron-builder"], "26.15.3", "electron-builder version");
+  assertEqual(packageJson.devDependencies["electron-builder"], "26.16.0", "electron-builder version");
 
   requireFile(executablePath, "unpacked executable");
   requireFile(asarPath, "app.asar");
@@ -215,7 +215,7 @@ export function assertNsisCandidateEvidence(evidence) {
   assertEqual(evidence.productName, "错题复盘", "evidence product name");
   assertEqual(evidence.packageName, "review-workspace", "evidence package name");
   assertEqual(evidence.electronVersion, "43.4.1", "evidence Electron version");
-  assertEqual(evidence.electronBuilderVersion, "26.15.3", "evidence electron-builder version");
+  assertEqual(evidence.electronBuilderVersion, "26.16.0", "evidence electron-builder version");
   assertEqual(evidence.target, "nsis", "evidence target");
   assertEqual(evidence.architecture, "x64", "evidence architecture");
   assertEqual(evidence.appId, "com.squirrel.review_workspace.review-workspace", "evidence appId");

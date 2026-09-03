@@ -6,19 +6,31 @@ import test from "node:test";
 
 const workspaceRoot = process.cwd();
 const require = createRequire(import.meta.url);
+const expectedElectronBuilderVersion = "26.16.0";
 const configPath = resolve(workspaceRoot, "electron-builder.nsis.cjs");
 const configSource = readFileSync(configPath, "utf8");
 const config = require(configPath);
 const packageJson = JSON.parse(readFileSync(resolve(workspaceRoot, "package.json"), "utf8"));
 const packageLock = JSON.parse(readFileSync(resolve(workspaceRoot, "package-lock.json"), "utf8"));
+const appBuilderLibPackagePath = require.resolve("app-builder-lib/package.json");
+const appBuilderLibPackage = JSON.parse(readFileSync(appBuilderLibPackagePath, "utf8"));
+const allowOnlyOneInstallerInstanceTemplatePath = resolve(
+  appBuilderLibPackagePath,
+  "..",
+  "templates",
+  "nsis",
+  "include",
+  "allowOnlyOneInstallerInstance.nsh",
+);
+const allowOnlyOneInstallerInstanceTemplate = readFileSync(allowOnlyOneInstallerInstanceTemplatePath, "utf8");
 const recallWindowsIconPath = resolve(workspaceRoot, "public", "brand", "recall", "app", "recall.ico");
 
 test("M1 builder config is an opt-in bundled NSIS candidate path", () => {
   assert.equal(packageJson.name, "review-workspace");
   assert.equal(packageJson.productName, "错题复盘");
   assert.equal(packageJson.version, "0.2.4");
-  assert.equal(packageJson.devDependencies["electron-builder"], "26.15.3");
-  assert.equal(packageLock.packages["node_modules/electron-builder"].version, "26.15.3");
+  assert.equal(packageJson.devDependencies["electron-builder"], expectedElectronBuilderVersion);
+  assert.equal(packageLock.packages["node_modules/electron-builder"].version, expectedElectronBuilderVersion);
 
   assert.equal(config.appId, "com.squirrel.review_workspace.review-workspace");
   assert.equal(config.productName, "错题复盘");
@@ -64,6 +76,23 @@ test("M1 builder config is an opt-in bundled NSIS candidate path", () => {
   assert.doesNotMatch(configSource, /nsis-web|nsisWeb|appPackageUrl/);
   assert.doesNotMatch(configSource, /electron-updater|autoUpdater|latest\.yml|\.blockmap/);
   assert.doesNotMatch(configSource, /app\.setAppUserModelId/);
+});
+
+test("installed v26 NSIS template hardens every PowerShell process check", () => {
+  assert.equal(appBuilderLibPackage.version, expectedElectronBuilderVersion);
+  assert.match(allowOnlyOneInstallerInstanceTemplate, /!macro CHECK_APP_RUNNING/);
+  assert.match(allowOnlyOneInstallerInstanceTemplate, /!macro FIND_PROCESS/);
+  assert.match(allowOnlyOneInstallerInstanceTemplate, /!macro KILL_PROCESS/);
+
+  const powershellInvocations = [
+    ...allowOnlyOneInstallerInstanceTemplate.matchAll(/nsExec::Exec `"\$PowerShellPath"[\s\S]*?`/g),
+  ].map(([invocation]) => invocation);
+  assert.ok(powershellInvocations.length >= 4, "expected the PowerShell availability and process checks");
+
+  for (const invocation of powershellInvocations) {
+    assert.match(invocation, /-NoProfile\b/);
+    assert.match(invocation, /-NonInteractive\b/);
+  }
 });
 
 test("M1 preserves the complete strict Electron 43 fuse writer", () => {

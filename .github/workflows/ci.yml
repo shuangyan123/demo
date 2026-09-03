@@ -265,7 +265,7 @@ jobs:
       # pull_request's github.sha is the synthetic merge ref; bind evidence to
       # the exact contributor head checked out below.
       M1_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
-      # electron-builder 26.15.3 supports this boundary; M1 intentionally has
+      # electron-builder 26.16.0 supports this boundary; M1 intentionally has
       # no certificate and must not discover a runner/user certificate.
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
