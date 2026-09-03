@@ -14,7 +14,7 @@ const recallWindowsIconPath = path.join(projectRoot, "public", "brand", "recall"
 async function applyM0Fuses(context) {
   if (context.electronPlatformName !== "win32") return;
 
-  // electron-builder 26.15.3 resolves its nested @electron/fuses 1.8.0,
+  // electron-builder 26.16.0 resolves its nested @electron/fuses 1.8.0,
   // which cannot describe Electron 43's ninth WasmTrapHandlers fuse. Use
   // the repository-pinned @electron/fuses API so strict mode covers all
   // nine fuses before the unsigned binary can proceed to a later signing stage.

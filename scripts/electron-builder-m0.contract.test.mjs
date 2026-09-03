@@ -19,8 +19,8 @@ test("M0 builder config is additive and targets bundled NSIS only", () => {
   assert.equal(packageJson.name, "review-workspace");
   assert.equal(packageJson.productName, "错题复盘");
   assert.equal(packageJson.version, "0.2.4");
-  assert.equal(packageJson.devDependencies["electron-builder"], "26.15.3");
-  assert.equal(packageLock.packages["node_modules/electron-builder"].version, "26.15.3");
+  assert.equal(packageJson.devDependencies["electron-builder"], "26.16.0");
+  assert.equal(packageLock.packages["node_modules/electron-builder"].version, "26.16.0");
 
   assert.equal(builderConfig.appId, "com.squirrel.review_workspace.review-workspace");
   assert.equal(builderConfig.productName, "错题复盘");

@@ -14,7 +14,7 @@ const recallWindowsIconPath = path.join(projectRoot, "public", "brand", "recall"
 async function applyM1Fuses(context) {
   if (context.electronPlatformName !== "win32") return;
 
-  // electron-builder 26.15.3 resolves an older nested @electron/fuses package
+  // electron-builder 26.16.0 still resolves an older nested @electron/fuses package
   // that cannot describe Electron 43's ninth V1 fuse. Keep the repository-
   // pinned writer and the complete strict wire used by the M0 proof.
   await flipFuses(path.join(context.appOutDir, "review-workspace.exe"), {
