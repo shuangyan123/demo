@@ -15,7 +15,7 @@
 
 ## 当前基线（2026-09-04）
 
-- 运行时固定 Node.js `>=24 <25`，本地/CI/桌面验收使用 Node.js 24.20.0；TypeScript 5、ESLint 9、Next.js 16.2。
+- 运行时固定 Node.js `>=24 <25`，本地/CI/桌面验收使用 Node.js 24.20.0；TypeScript 5、ESLint 9、Next.js 16.3。
 - 2026-07-04 的补丁基线为 `ea8c56d`；历史 major 预研确认 ESLint 10 与当前 Next lint 插件不兼容，不进入本轮。
 - 0.2.0 发布候选使用 Next.js/`eslint-config-next` 16.2.12、ESLint 9.39.5、`js-yaml` 5.2.2，并定向覆盖 Next 子树为 `postcss` 8.5.23。
 - `npm run audit:prod` 优先读取 npm audit 的有效 JSON；只有端点异常时才回退官方 Bulk Advisory API。两条路径都不可用、报告无效或生产依赖树为空时必须失败关闭。
