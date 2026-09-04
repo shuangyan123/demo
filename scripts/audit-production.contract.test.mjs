@@ -81,9 +81,22 @@ test("生产审计只收集 lockfile 中的生产依赖并保留嵌套版本", (
   });
 });
 
-test("npm audit 只有带漏洞计数的 JSON 才算有效报告", () => {
+test("npm audit 必须完整提供五个安全计数字段", () => {
+  assert.equal(parseNpmAuditOutput(JSON.stringify({
+    metadata: { vulnerabilities: { total: 0 } },
+  })).kind, "infrastructure_error");
+  assert.equal(parseNpmAuditOutput(JSON.stringify({
+    metadata: { vulnerabilities: { low: 0, moderate: 0, high: 0, critical: 0 } },
+  })).kind, "infrastructure_error");
   assert.deepEqual(parseNpmAuditOutput(JSON.stringify({
-    metadata: { vulnerabilities: { moderate: 2, high: 0, critical: 0, total: 2 } },
+    metadata: { vulnerabilities: {
+      low: 0,
+      moderate: 2,
+      high: 0,
+      critical: 0,
+      total: 2,
+      info: 4,
+    } },
   })), {
     kind: "report",
     counts: { low: 0, moderate: 2, high: 0, critical: 0, total: 2 },

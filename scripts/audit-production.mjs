@@ -34,12 +34,12 @@ export function parseNpmAuditOutput(source) {
   try {
     const report = JSON.parse(source);
     const counts = report?.metadata?.vulnerabilities;
-    const hasCount = counts && typeof counts === "object"
-      && AUDIT_COUNT_FIELDS.some((field) => Object.hasOwn(counts, field));
-    const hasValidCounts = hasCount && AUDIT_COUNT_FIELDS.every((field) => {
-      const value = counts[field];
-      return value === undefined || (typeof value === "number" && Number.isInteger(value) && value >= 0);
-    });
+    const hasValidCounts = counts && typeof counts === "object" && !Array.isArray(counts)
+      && AUDIT_COUNT_FIELDS.every((field) => Object.hasOwn(counts, field))
+      && AUDIT_COUNT_FIELDS.every((field) => {
+        const value = counts[field];
+        return typeof value === "number" && Number.isInteger(value) && value >= 0;
+      });
     if (hasValidCounts) {
       return {
         kind: "report",
