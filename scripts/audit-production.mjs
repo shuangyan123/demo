@@ -5,8 +5,11 @@ import { pathToFileURL } from "node:url";
 
 const BULK_AUDIT_URL = "https://registry.npmjs.org/-/npm/v1/security/advisories/bulk";
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
-const AUDIT_RETRY_DELAYS_MS = [0, 500, 1_000];
-const NPM_AUDIT_TIMEOUT_MS = 30_000;
+const AUDIT_COUNT_FIELDS = ["low", "moderate", "high", "critical", "total"];
+const BULK_ADVISORY_SEVERITIES = new Set(["low", "moderate", "high", "critical"]);
+export const AUDIT_RETRY_DELAYS_MS = Object.freeze([0, 1_000, 3_000]);
+export const NPM_AUDIT_TIMEOUT_MS = 90_000;
+export const BULK_AUDIT_TIMEOUT_MS = 30_000;
 
 /** 从 lockfile v3 中提取实际生产依赖版本，开发依赖不会进入审计载荷。 */
 export function collectProductionVersions(lockfile) {
@@ -31,7 +34,13 @@ export function parseNpmAuditOutput(source) {
   try {
     const report = JSON.parse(source);
     const counts = report?.metadata?.vulnerabilities;
-    if (counts && typeof counts === "object") {
+    const hasValidCounts = counts && typeof counts === "object" && !Array.isArray(counts)
+      && AUDIT_COUNT_FIELDS.every((field) => Object.hasOwn(counts, field))
+      && AUDIT_COUNT_FIELDS.every((field) => {
+        const value = counts[field];
+        return typeof value === "number" && Number.isInteger(value) && value >= 0;
+      });
+    if (hasValidCounts) {
       return {
         kind: "report",
         counts: {
@@ -49,16 +58,51 @@ export function parseNpmAuditOutput(source) {
   }
 }
 
+/** 先判断 spawnSync 是否执行成功，再解析 stdout；npm audit 的漏洞报告可以合法地以非零状态退出。 */
+export function classifyNpmAuditProcessResult(result, timeoutMs = NPM_AUDIT_TIMEOUT_MS) {
+  if (result?.error) {
+    if (result.error.code === "ETIMEDOUT") {
+      return {
+        kind: "infrastructure_error",
+        reason: "timeout",
+        fallbackEligible: true,
+        message: `npm audit timed out after ${timeoutMs}ms`,
+      };
+    }
+    const code = typeof result.error.code === "string" ? result.error.code : "unknown";
+    return {
+      kind: "infrastructure_error",
+      reason: "execution_failure",
+      fallbackEligible: true,
+      message: `npm audit subprocess failed (${code})`,
+    };
+  }
+
+  const parsed = parseNpmAuditOutput(result?.stdout ?? "");
+  if (parsed.kind === "report") return { ...parsed, fallbackEligible: false };
+  return { ...parsed, reason: "invalid_report", fallbackEligible: true };
+}
+
 /** Bulk API 已按请求中的具体版本筛选，门禁只阻止 high 与 critical。 */
 export function summarizeBulkAdvisories(report) {
+  if (!report || typeof report !== "object" || Array.isArray(report)) {
+    throw new Error("Bulk Advisory API 返回了无法解析的报告");
+  }
   const advisories = [];
   for (const [packageName, packageAdvisories] of Object.entries(report ?? {})) {
-    if (!Array.isArray(packageAdvisories)) continue;
+    if (!Array.isArray(packageAdvisories)) throw new Error("Bulk Advisory API 返回了无法解析的报告");
     for (const advisory of packageAdvisories) {
+      if (!advisory || typeof advisory !== "object" || Array.isArray(advisory)) {
+        throw new Error("Bulk Advisory API 返回了无法解析的报告");
+      }
+      const severity = String(advisory.severity ?? "").toLowerCase();
+      if (!BULK_ADVISORY_SEVERITIES.has(severity)) {
+        throw new Error("Bulk Advisory API 返回了无法解析的报告");
+      }
       advisories.push({
         packageName,
         id: String(advisory.id ?? "unknown"),
-        severity: String(advisory.severity ?? "unknown").toLowerCase(),
+        severity,
         title: String(advisory.title ?? "未命名安全公告").slice(0, 160),
         url: typeof advisory.url === "string" ? advisory.url : undefined,
       });
@@ -95,7 +139,7 @@ function printAuditSummary(source, counts) {
 }
 
 function sanitizeInfrastructureMessage(message) {
-  return message.replace(/\s+/g, " ").slice(0, 240);
+  return String(message ?? "unknown").replace(/\s+/g, " ").slice(0, 240);
 }
 
 async function wait(delayMs) {
@@ -103,10 +147,10 @@ async function wait(delayMs) {
   await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
-async function requestBulkAudit(payload, fetchImpl = fetch) {
+async function requestBulkAudit(payload, fetchImpl = fetch, waitImpl = wait) {
   let lastError;
   for (const delayMs of AUDIT_RETRY_DELAYS_MS) {
-    await wait(delayMs);
+    await waitImpl(delayMs);
     try {
       const response = await fetchImpl(BULK_AUDIT_URL, {
         method: "POST",
@@ -117,7 +161,7 @@ async function requestBulkAudit(payload, fetchImpl = fetch) {
           "user-agent": "le-production-audit/0.2.0",
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(BULK_AUDIT_TIMEOUT_MS),
       });
       if (!response.ok) throw new Error(`Bulk Advisory API 返回 HTTP ${response.status}`);
       return decodeAuditResponse(await response.arrayBuffer());
@@ -131,9 +175,10 @@ async function requestBulkAudit(payload, fetchImpl = fetch) {
 export async function runProductionAudit({
   lockfilePath = new URL("../package-lock.json", import.meta.url),
   fetchImpl = fetch,
+  waitImpl = wait,
   npmAuditResult = runNpmAudit(),
 } = {}) {
-  const npmResult = parseNpmAuditOutput(npmAuditResult.stdout ?? "");
+  const npmResult = classifyNpmAuditProcessResult(npmAuditResult, NPM_AUDIT_TIMEOUT_MS);
   if (npmResult.kind === "report") {
     printAuditSummary("npm-audit", npmResult.counts);
     return npmResult.counts.high + npmResult.counts.critical === 0 ? 0 : 1;
@@ -144,7 +189,7 @@ export async function runProductionAudit({
   const payload = collectProductionVersions(lockfile);
   if (!Object.keys(payload).length) throw new Error("package-lock.json 中没有可审计的生产依赖");
 
-  const bulkReport = await requestBulkAudit(payload, fetchImpl);
+  const bulkReport = await requestBulkAudit(payload, fetchImpl, waitImpl);
   const summary = summarizeBulkAdvisories(bulkReport);
   const counts = summary.advisories.reduce(
     (result, advisory) => {
