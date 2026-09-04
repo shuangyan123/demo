@@ -164,7 +164,7 @@ test("Windows exact-head and NSIS unsigned contracts remain in the gated jobs", 
     const source = JSON.stringify(job);
     assert.match(source, /github\.event\.pull_request\.head\.sha/);
     assert.match(source, /persist-credentials":false/);
-    assert.match(source, /node-version":"22\.23\.1/);
+    assert.match(source, /node-version":"24\.20\.0/);
   }
   assert.match(JSON.stringify(jobs["windows-nsis-m1"]), /CSC_IDENTITY_AUTO_DISCOVERY":"false"/);
   assert.match(JSON.stringify(jobs["windows-nsis-m1"]), /desktop:builder:nsis:unpacked/);

@@ -14,7 +14,7 @@ test("M1 Windows CI independently rebuilds and reads back the exact PR-head cand
   assert.match(job, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
   assert.match(job, /M1_SOURCE_COMMIT: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
   assert.match(job, /git rev-parse HEAD/);
-  assert.match(job, /node-version: 22\.23\.1/);
+  assert.match(job, /node-version: 24\.20\.0/);
   assert.match(job, /npm ci/);
   assert.match(job, /npm run audit:prod/);
   assert.match(job, /npm run desktop:prepare/);

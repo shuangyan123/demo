@@ -2,7 +2,7 @@
 
 ## 维护节奏
 
-- 每月集中处理一次补丁和小版本更新，范围限定为同主版本、同 Next/React 稳定线和 Node.js 22 兼容版本。
+- 每月集中处理一次补丁和小版本更新，范围限定为同主版本、同 Next/React 稳定线和 Node.js 24 兼容版本。
 - 每季度单独预研破坏性 major；ESLint、TypeScript、Node 类型基线不得混入安全补丁 PR。
 - 高危公告可加急，但禁止使用 `npm audit fix --force` 自动跨 major、降级或覆盖 peer 约束。
 
@@ -13,9 +13,9 @@
 3. 安全补丁先合入 `develop`；等待 CI 通过后再继续普通补丁，major 预研必须恢复依赖树且不得混入发布提交。
 4. 发布 PR 记录合并提交、CI 链接、回滚提交和未解决公告的负责人、复查日期。
 
-## 当前基线（2026-07-26）
+## 当前基线（2026-09-04）
 
-- 运行时固定 Node.js `>=22 <23`，TypeScript 5、ESLint 9、Next.js 16.2。
+- 运行时固定 Node.js `>=24 <25`，本地/CI/桌面验收使用 Node.js 24.20.0；TypeScript 5、ESLint 9、Next.js 16.2。
 - 2026-07-04 的补丁基线为 `ea8c56d`；历史 major 预研确认 ESLint 10 与当前 Next lint 插件不兼容，不进入本轮。
 - 0.2.0 发布候选使用 Next.js/`eslint-config-next` 16.2.12、ESLint 9.39.5、`js-yaml` 5.2.2，并定向覆盖 Next 子树为 `postcss` 8.5.23。
 - `npm run audit:prod` 优先读取 npm audit 的有效 JSON；只有端点异常时才回退官方 Bulk Advisory API。两条路径都不可用、报告无效或生产依赖树为空时必须失败关闭。

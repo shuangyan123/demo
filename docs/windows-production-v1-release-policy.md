@@ -162,7 +162,7 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 Electron 保持已接受的 `43.4.1`，除非出现具体 security/compatibility 原因。
 electron-builder `26.15.3` 不是最终 M5 tuple；不得用缺少 #10051 的 `26.15.7`
 或 prerelease/alpha 规避等待。最终 tuple 必须分别记录 Electron version、
-Electron embedded Node、bundled application/sidecar Node `22.23.1`、stable
+Electron embedded Node、bundled application/sidecar Node `24.20.0`、stable
 electron-builder、历史/兼容 Forge/Squirrel、Windows architecture、NSIS mode、
 exact main SHA、tag 和 package version。
 

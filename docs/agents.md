@@ -183,7 +183,7 @@
 - `KnowledgeEntry.nextReviewAt` 必须保持 `YYYY-MM-DD`；Vault 导入或迁移不能把完整 ISO 时间戳送入 `formatShortDate()`。
 - Obsidian 图谱由同步后的 mapping 和 Wikilink 派生；React 只持有可序列化 `ObsidianGraphSnapshot`，AI 提案只接收节点/边摘要，不读取未授权 Vault 全文。
 - CI 只验证静态质量、契约和生产构建；真实 Vault 与 AI 密钥必须留在本地浏览器验收，不得写入 Actions secrets 或测试夹具。
-- 契约测试使用 `--experimental-strip-types`，GitHub Actions 与本地交付基线应使用 Node.js 22，避免 Node 20 无法识别该运行参数导致质量门误失败。
+- 契约测试使用 `--experimental-strip-types`，GitHub Actions 与本地交付基线应使用 Node.js 24.20.0，避免 Node 20 无法识别该运行参数导致质量门误失败。
 
 - 知识演进确认闭环必须区分 `create`、`merge`、`link`：`merge` 只能替换显式 AI 演进区并维护摘要、标签、托管链接和来源引用，`link` 只能维护 Wikilink/sourceRefs；两者确认前都要复读 Vault 并校验过期 hash，写入失败后 proposal 必须保持 pending 以便重试。
 - 知识演进生成必须返回可见诊断：解析数量、过滤数量、空结果原因和过滤说明都要在 UI 可见，不能只显示空状态。
@@ -223,13 +223,13 @@
 
 ## Node.js 与 Tailwind 运行时经验
 
-- 项目本地开发、CI 和发布验证统一使用 Node.js 22；契约测试依赖 `node --test --experimental-strip-types`，不得回退到 Node 20。
+- 项目本地开发、CI 和发布验证统一使用 Node.js 24.20.0；契约测试依赖 `node --test --experimental-strip-types`，不得回退到 Node 20。
 - 如果 Node 26 运行 `next build` 出现 `[DEP0205] module.register()`，优先检查 `@tailwindcss/node` 版本；4.3.2 已改为优先使用 `module.registerHooks()`，不要用忽略 deprecation warning 的方式掩盖问题。
 - Tailwind 运行时问题只接受同一补丁线内的最小升级，升级后必须跑 `npm run lint`、`npm run test:contracts` 和 `npm run build`，并用 `node --trace-deprecation ./node_modules/next/dist/bin/next build` 验证 warning 已消失。
 
 ## 依赖维护经验
 
-- 常规依赖维护优先集中处理同主版本、同 Next/React 稳定线、Node 22 兼容的补丁和小版本更新；破坏性 major 变更必须单独预研，不混入安全补丁 PR。
+- 常规依赖维护优先集中处理同主版本、同 Next/React 稳定线、Node 24 兼容的补丁和小版本更新；破坏性 major 变更必须单独预研，不混入安全补丁 PR。
 - Next、React、React DOM 和 `eslint-config-next` 保持精确版本，避免框架核心在 lockfile 之外漂移；工具库可沿用现有 caret 范围，但必须通过 `package-lock.json` 锁定实际解析结果。
 - `npm audit` 不得使用 `--force` 自动降级或跨 major 修复；如果修复建议要求退回不可接受的旧 Next 主版本，只能记录为上游未提供可接受稳定修复并继续跟踪。
 # 2026-07 对话工作台沉淀
