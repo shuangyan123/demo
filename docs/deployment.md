@@ -10,7 +10,7 @@ npm run desktop:package   # 未安装目录
 npm run desktop:make      # Squirrel.Windows 安装包
 ```
 
-`desktop:prepare` 会先执行 Next 生产构建和桌面 TypeScript 编译，再准备固定的 Node.js 22.23.1 与 Electron Windows x64 归档。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm 安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。缓存位于 `.cache/desktop-runtime` 和 `.cache/electron`，组装结果位于 `.desktop-runtime`，均不提交。
+`desktop:prepare` 会先执行 Next 生产构建和桌面 TypeScript 编译，再准备固定的 Node.js 24.20.0 与 Electron Windows x64 归档。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm 安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。缓存位于 `.cache/desktop-runtime` 和 `.cache/electron`，组装结果位于 `.desktop-runtime`，均不提交。
 
 安装包首次与后续覆盖安装共用 Electron `persist:review-workspace` partition。覆盖安装不得清理 Electron 用户数据目录。更新时从私人仓库拉取受信任代码，重新运行 `desktop:make` 并覆盖安装。
 
@@ -32,7 +32,7 @@ Web 与桌面使用同一仓库和同一 commit：`ci.yml` 负责共享应用、
 
 ## GitHub Actions 质量门
 
-Pull Request 和 `main` 推送统一使用 Node.js 22 执行 `npm ci`、ESLint、契约测试和生产构建；全部通过后方可合并。契约测试依赖 Node.js 22 的 TypeScript 运行参数，真实 Vault 与外部 AI 连接只在本地 Chrome/Edge 验收，不向 CI 上传目录内容或 API Key。
+Pull Request 和 `main` 推送统一使用 Node.js 24.20.0 执行 `npm ci`、ESLint、契约测试和生产构建；全部通过后方可合并。契约测试依赖 Node.js 24.20.0 的 TypeScript 运行参数，真实 Vault 与外部 AI 连接只在本地 Chrome/Edge 验收，不向 CI 上传目录内容或 API Key。
 
 ## 构建要求
 
@@ -60,7 +60,7 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 ## 采集服务部署边界
 
 - 生产服务器必须允许对用户白名单中的公开 HTTP(S) 来源发起出站请求，同时禁止把代理层配置成可访问云元数据或内网的通用转发器。
-- 运行时基线为 Node.js 22；`cheerio@1.1.2` 用于服务端 HTML/RSS/XML 解析，其引擎要求与项目基线一致。
+- 运行时基线为 Node.js 24.20.0；`cheerio@1.1.2` 用于服务端 HTML/RSS/XML 解析，其引擎要求与项目基线一致。
 - 浏览器关闭后不会采集；页面恢复可见或网络恢复时仍只合并补跑一次。
 - CI 必须拦截 `/api/acquisition/fetch` 并使用固定响应，不连接真实网站、真实 MCP、真实模型或真实 Vault。
 - 部署日志不得记录完整网页、MCP 原始结果、模型原始响应、提示词、连接密钥或 Vault 正文。
@@ -73,7 +73,7 @@ Obsidian 双向桥接要求 HTTPS 或 localhost，并以 Chrome 111+ / Edge 111+
 # P3 UI/UX 部署说明（2026-07-23）
 
 - 本轮没有新增环境变量、服务端依赖、Route、数据库迁移或外网服务。
-- 生产验收继续使用 Node.js 22、`next build` 与单实例 `next start`；CI 的导入、搜索、插件和学习数据流程全部使用本地状态或明确 mock。
+- 生产验收继续使用 Node.js 24.20.0、`next build` 与单实例 `next start`；CI 的导入、搜索、插件和学习数据流程全部使用本地状态或明确 mock。
 - 发布前必须完成 1536×1024 与 390×844 的浅色/深色截图、控制台检查、键盘路径、减少动态效果和横向溢出检查。
 # 0.2.0 升级门禁
 

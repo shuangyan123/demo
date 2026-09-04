@@ -391,7 +391,7 @@ signing capability.
 
 All real installer procedures require a dedicated Windows x64 user/profile and a disposable/revocable test credential. Do not repeatedly launch Setup in the developer profile. Do not put credentials, full URLs, local paths, raw exceptions or user identity into evidence.
 
-1. Build from a known source SHA with Node 22; record version, installer filename, architecture, maker, Squirrel version, SHA-256 and signing status.
+1. Build from a known source SHA with Node 24.20.0; record version, installer filename, architecture, maker, Squirrel version, SHA-256 and signing status.
 2. For clean install, confirm no existing app root, `SquirrelTemp`, `Update.exe` or process; launch Setup once; observe normal Squirrel completion, first run and process exit.
 3. For adjacent-version acceptance, install `0.2.2`, fully close the app, then install the separately built `0.2.3` candidate. Check new `app-<version>`, root stub, shortcuts, old-version cleanup, launch, data and credential authority. Do not fabricate this row before the real adjacent upgrade is observed.
 4. For uninstall/reinstall, record whether only install root or also `userData` is removed. If `userData` remains, verify schema/data handling and keep credential recovery semantics scoped to the same Windows user/machine/profile.

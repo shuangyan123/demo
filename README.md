@@ -31,14 +31,14 @@ desktop application identifiers remain unchanged.
 - React 19、TypeScript 5、Tailwind CSS 4
 - Dexie 4 / IndexedDB，本地业务库为 `review_workspace` v16
 - Electron 43、Electron Forge 7、Squirrel.Windows
-- Node.js 22
+- Node.js 24.20.0 LTS
 - Node test runner 契约测试和 Playwright E2E
 
 依赖升级必须遵守 [依赖维护策略](docs/dependency-maintenance.md)，禁止使用 `npm audit fix --force` 绕过主版本或兼容性边界。
 
 ## 环境要求
 
-- Node.js `>=22 <23`
+- Node.js `>=24 <25`
 - npm，使用仓库中的 `package-lock.json`
 - Web 开发支持 Windows、macOS 或 Linux
 - Electron 打包与正式验收当前仅支持 Windows x64

@@ -234,8 +234,8 @@ export function assertNsisCandidateEvidence(evidence) {
   assert(evidence.appAsar?.duplicateRuntimePresent === false, "evidence duplicate runtime flag");
   assert(evidence.appAsar?.unpackedResourcesAppPresent === false, "evidence unpacked resources/app flag");
   assert(evidence.runtime?.manifestPass === true, "evidence runtime manifest must pass");
-  assert(evidence.runtime?.nodeVersion === "v22.23.1", "evidence bundled Node must be v22.23.1");
-  assert(evidence.runtime?.manifestNodeVersion === "22.23.1", "evidence runtime manifest Node must be 22.23.1");
+  assert(evidence.runtime?.nodeVersion === "v24.20.0", "evidence bundled Node must be v24.20.0");
+  assert(evidence.runtime?.manifestNodeVersion === "24.20.0", "evidence runtime manifest Node must be 24.20.0");
   assert(evidence.runtime?.manifestFileCount > 0, "evidence runtime manifest file count must be positive");
   assert(evidence.preload?.pass === true, "evidence preload hash must pass");
   assertMatch(evidence.preload?.compiledSha256, /^[0-9a-f]{64}$/, "evidence compiled preload SHA-256");
@@ -276,7 +276,7 @@ function resolveSourceCommit() {
 async function verifyRuntime() {
   const manifest = readJson(path.join(runtimeRoot, "manifest.json"));
   assertEqual(manifest.algorithm, "sha256", "runtime manifest algorithm");
-  assertEqual(manifest.nodeVersion, "22.23.1", "runtime manifest Node version");
+  assertEqual(manifest.nodeVersion, "24.20.0", "runtime manifest Node version");
   assert(manifest.files && typeof manifest.files === "object", "runtime manifest files are missing");
   assert(manifest.files["node/node.exe"], "runtime manifest is missing node/node.exe");
   assert(manifest.files["app/server.js"], "runtime manifest is missing app/server.js");
@@ -297,7 +297,7 @@ async function verifyRuntime() {
     encoding: "utf8",
     windowsHide: true,
   }).trim();
-  assertEqual(nodeVersion, "v22.23.1", "bundled Node --version");
+  assertEqual(nodeVersion, "v24.20.0", "bundled Node --version");
   return {
     nodeVersion,
     manifestNodeVersion: manifest.nodeVersion,

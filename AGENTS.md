@@ -60,7 +60,7 @@ Review Workspace 是一个：
 * Electron
 * Electron Forge
 * Dexie / IndexedDB
-* Node.js 22
+* Node.js 24.20.0 LTS
 * Next standalone runtime
 
 不要在普通功能开发中更换核心技术栈。

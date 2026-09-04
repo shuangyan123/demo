@@ -8,10 +8,10 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-const nodeVersion = "22.23.1";
+const nodeVersion = "24.20.0";
 const nodeArchive = `node-v${nodeVersion}-win-x64.zip`;
 // 固定版本同时固定官方 SHASUMS256，缓存命中时无需再次访问外网。
-const nodeArchiveSha256 = "7df0bc9375723f4a86b3aa1b7cc73342423d9677a8df4538aca31a049e309c29";
+const nodeArchiveSha256 = "6cac9ffbca8f6a47091e4b5c772e0606049c3871cb67d900c0cedde630e545ba";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputRoot = path.join(projectRoot, ".desktop-runtime");
 const cacheRoot = path.join(projectRoot, ".cache", "desktop-runtime");
