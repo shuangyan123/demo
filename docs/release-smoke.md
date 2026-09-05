@@ -14,18 +14,21 @@
 API 当前状态为 `deleted`，仅保留为 SEC-04 历史证据。当前 runtime 为
 Electron `43.4.1`；生产/default installer 现为 electron-builder + bundled NSIS，
 Forge/MakerSquirrel Squirrel 仅保留作历史、迁移和回滚兼容路径；production-v1
-不引入 updater。现有 workflow 的 final-byte SHA-256/manifest 生成只完成部分
-边界，完整的 exact-SHA Draft round-trip 仍是 M5 blocker。
+不引入 updater。M5-E 已完成 final staged-byte SHA-256/manifest self-verification、
+source/staged/evidence reconciliation、实际 unsigned Authenticode 检查，以及
+exact-SHA Actions artifact 下载后的 checksum verification；完整的 Draft Release
+asset round-trip 仍是 M5-G blocker。
 
-## Current M5-D · NSIS production cutover
+## Current M5-E · unsigned artifact / checksum provenance
 
-状态：**M5-D NSIS PRODUCTION CUTOVER IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
+状态：**M5-E UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
 
 - Canonical builder：`electron-builder 26.16.0` + bundled NSIS，Windows x64、per-user、assisted installer。
 - Canonical installer：`ReviewWorkspace-${version}-Windows-x64-Setup.exe`；当前 package version 仍为 `0.2.4`。
-- Trusted release build：成功的 `CI` main `workflow_run` 通过 exact authorized SHA checkout 后，执行 `desktop:prepare`、NSIS unpacked/bundle、source/evidence/artifact readback；production-v1 保持 intentionally unsigned，`CSC_IDENTITY_AUTO_DISCOVERY=false`。
+- Trusted release build：成功的 `CI` main `workflow_run` 通过 exact authorized SHA checkout 后，执行 `desktop:prepare`、NSIS unpacked/bundle、source/evidence/artifact readback，再由唯一 finalizer 清空 `out/release/`、复制 canonical installer、从最终 staged bytes 生成并自校验 `SHA256SUMS.txt`、核对 source/staged/evidence hash、在 Windows 上确认 `NotSigned` 且无 signer/timestamp signer，并在 upload 前确认 public boundary 只有 installer + `SHA256SUMS.txt`；production-v1 保持 intentionally unsigned，`CSC_IDENTITY_AUTO_DISCOVERY=false`。
+- Exact-SHA artifact readback：release job checkout 授权 SHA 后下载 Actions artifact，重新校验目录边界、canonical filename、manifest syntax 与 downloaded installer SHA-256，失败时不会进入 Draft creation。
 - Squirrel：`desktop:make`、Forge/MakerSquirrel、`out/make`、历史 `.nupkg` 和 M3/M4 contracts 继续保留，但不再是 trusted production builder。
-- 本阶段不创建 tag、GitHub Release 或 0.3.0 tuple；M5-E/F/G/H/I/J 仍未完成。
+- 本阶段不创建 tag、GitHub Release 或 0.3.0 tuple；M5-F/G/H/I/J 仍未完成，M5-G 仍负责 GitHub Draft Release asset re-download/re-hash。
 
 若执行 bounded cutover smoke，只能使用 disposable/dedicated Windows profile：安装 exact
 cutover-validation NSIS artifact、启动并做基本 UI interaction、关闭并核对 owned process
@@ -518,7 +521,7 @@ Different machine、different Windows account、copied `userData`、uninstall/re
 6. 验证 JSON、SSE、音频、模型目录、MCP、摄像头、麦克风、屏幕共享与 Obsidian 目录选择。
 7. 篡改随包资源后确认启动被阻止；非法导航、新窗口和外部非 HTTPS 地址应被拒绝。
 8. 运行完整 Web 门禁、`test:desktop`、Forge Windows x64 打包与干净环境安装。
-9. 手动运行 Desktop Release 时确认只生成 Actions artifact；使用匹配 `package.json` 的 `v*` 标签时确认创建 Draft Release、安装包与 `SHA256SUMS.txt`，不自动发布或启用更新。
+9. M5-E workflow contract 确认 final staged installer 与 `SHA256SUMS.txt` 先通过 checksum/unsigned verification，再上传 exact-SHA Actions artifact；M5-G 另行确认 Draft Release asset re-download/re-hash，不自动发布或启用更新。
 9. 使用 `@electron/fuses` 读取安装版可执行文件，确认 RunAsNode、NODE_OPTIONS、CLI Inspect、额外 `file://` 权限和 browser-process-specific snapshot 均关闭；Cookie 加密、ASAR 完整性、OnlyLoadAppFromAsar 与 WasmTrapHandlers 均开启。
 
 

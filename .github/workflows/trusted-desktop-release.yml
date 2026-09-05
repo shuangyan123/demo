@@ -132,17 +132,10 @@ jobs:
       - name: NSIS production artifact contracts
         run: npm run test:desktop:builder:nsis:artifact
 
-      - name: Generate SHA-256 manifest
-        shell: pwsh
-        run: |
-          $package = Get-Content -Raw package.json | ConvertFrom-Json
-          $installerName = "ReviewWorkspace-$($package.version)-Windows-x64-Setup.exe"
-          $installer = Get-ChildItem -LiteralPath "out\builder-nsis" -Recurse -File -Filter $installerName | Select-Object -First 1
-          if (-not $installer) { throw "Missing installer $installerName" }
-          $releaseDirectory = New-Item -ItemType Directory -Force "out\release"
-          Copy-Item -LiteralPath $installer.FullName -Destination (Join-Path $releaseDirectory $installerName)
-          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
-          "$hash  $installerName" | Set-Content -Encoding utf8 (Join-Path $releaseDirectory "SHA256SUMS.txt")
+      - name: Finalize and verify unsigned release artifact
+        env:
+          RELEASE_EXPECTED_PACKAGE_VERSION: ${{ needs.authorize-release.outputs.package_version }}
+        run: node scripts/finalize-release-artifact.mjs
 
       - name: Upload exact-SHA workflow artifact
         uses: actions/upload-artifact@v4
@@ -166,21 +159,29 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout exact authorized commit for artifact verification
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.authorize-release.outputs.release_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node 24.20.0
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.20.0
+          cache: npm
+
       - name: Download exact-SHA release artifact
         uses: actions/download-artifact@v5
         with:
           name: review-workspace-windows-x64-${{ needs.authorize-release.outputs.release_sha }}
           path: out/release
 
-      - name: Verify release artifact boundary
-        shell: pwsh
-        run: |
-          $installerName = "ReviewWorkspace-${{ needs.authorize-release.outputs.package_version }}-Windows-x64-Setup.exe"
-          $expected = @($installerName, "SHA256SUMS.txt") | Sort-Object
-          $actual = @(Get-ChildItem -LiteralPath "out/release" -File | Select-Object -ExpandProperty Name | Sort-Object)
-          if (Compare-Object -ReferenceObject $expected -DifferenceObject $actual) {
-            throw "Release artifact must contain exactly the installer and SHA256SUMS.txt"
-          }
+      - name: Verify downloaded release artifact checksum
+        env:
+          RELEASE_EXPECTED_PACKAGE_VERSION: ${{ needs.authorize-release.outputs.package_version }}
+        run: node scripts/verify-release-artifact.mjs
 
       - name: Create draft GitHub Release
         env:

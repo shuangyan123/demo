@@ -314,6 +314,20 @@ jobs:
       - name: NSIS production artifact contracts
         run: npm run test:desktop:builder:nsis:artifact
 
+      - name: Finalize and verify unsigned release artifact
+        run: node scripts/finalize-release-artifact.mjs
+
+      - name: Upload private finalized NSIS release artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-workspace-nsis-final-${{ github.event.pull_request.head.sha }}
+          path: |
+            out/release/ReviewWorkspace-0.2.4-Windows-x64-Setup.exe
+            out/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload private NSIS production evidence
         if: success()
         uses: actions/upload-artifact@v4

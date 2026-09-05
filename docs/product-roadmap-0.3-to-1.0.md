@@ -456,7 +456,7 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 - 稳定 Windows x64 安装、覆盖升级、卸载和发布证据。
 - 明确安装器、SHA-256、版本、提交和 CI 的可追溯关系。
-- 按 [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md) 固定 intentionally unsigned、accepted Unknown Publisher/SmartScreen residual 与 exact-artifact SHA-256 security boundary；当前 final-byte hash/manifest 生成仅是部分实现，完整 exact-SHA Draft round-trip 仍是 M5 blocker；代码签名和 publisher identity 延后到独立未来里程碑。
+- 按 [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md) 固定 intentionally unsigned、accepted Unknown Publisher/SmartScreen residual 与 exact-artifact SHA-256 security boundary；M5-E 已完成 final staged-byte hash/manifest、实际 unsigned Authenticode 和 Actions artifact download verification，完整 exact-SHA Draft Release asset round-trip 仍是 M5-G blocker；代码签名和 publisher identity 延后到独立未来里程碑。
 
 ### 非目标
 

@@ -19,6 +19,8 @@ const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archiv
 const desktopHostPreparation = readFileSync(new URL("../scripts/prepare-desktop-host.mjs", import.meta.url), "utf8");
 const forgeConfig = readFileSync(new URL("../forge.config.ts", import.meta.url), "utf8");
 const nsisConfig = readFileSync(new URL("../electron-builder.nsis.cjs", import.meta.url), "utf8");
+const releaseArtifactProvenance = readFileSync(new URL("../scripts/release-artifact-provenance.mjs", import.meta.url), "utf8");
+const authenticodeHelper = readFileSync(new URL("../scripts/read-windows-authenticode-signature.ps1", import.meta.url), "utf8");
 const recallWindowsIconPath = join(process.cwd(), "public", "brand", "recall", "app", "recall.ico");
 const squirrelNuspecTemplate = readFileSync(new URL("../scripts/squirrel.nuspec.template", import.meta.url), "utf8");
 const electronWinstallerNuspecTemplate = readFileSync(new URL("../node_modules/electron-winstaller/template.nuspectemplate", import.meta.url), "utf8");
@@ -150,6 +152,7 @@ test("production release authority is anchored to successful main CI workflow_ru
   assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:builder:nsis:source"));
   assert.ok(buildSteps.some((step) => step.run === "npm run generate:desktop:builder:nsis:evidence"));
   assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:builder:nsis:artifact"));
+  assert.ok(buildSteps.some((step) => step.run === "node scripts/finalize-release-artifact.mjs"));
   assert.equal(buildSteps.some((step) => step.run === "npm run desktop:make"), false);
   assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:integration"));
   assert.equal(buildSteps.some((step) => step.run === "npm run test:desktop:artifact"), false);
@@ -163,7 +166,7 @@ test("trusted production release uses the canonical intentionally unsigned NSIS 
   assert.match(nsisConfig, /signExecutable:\s*false/);
   assert.doesNotMatch(nsisConfig, /forceCodeSigning|electron-updater|autoUpdater|latest\.yml|\.blockmap/);
   assert.match(workflow, /Build production NSIS installer/);
-  assert.match(workflow, /out\\builder-nsis/);
+  assert.match(workflow, /out\/release/);
   assert.doesNotMatch(workflow, /desktop:make|MakerSquirrel|NSIS-M1-Candidate|M1 Candidate/);
 });
 
@@ -184,11 +187,19 @@ test("release artifact upload and download are bound to the verified release SHA
   const buildSteps = build.steps as Array<Record<string, unknown>>;
   const releaseSteps = release.steps as Array<Record<string, unknown>>;
   const upload = record(buildSteps.find((step) => step.name === "Upload exact-SHA workflow artifact")?.with, "upload inputs");
+  const releaseCheckout = releaseSteps.find((step) => step.name === "Checkout exact authorized commit for artifact verification");
+  const releaseCheckoutInputs = record(releaseCheckout?.with, "release artifact verifier checkout inputs");
+  assert.match(String(releaseCheckoutInputs.ref), /needs\.authorize-release\.outputs\.release_sha/);
+  assert.equal(releaseCheckoutInputs["fetch-depth"], 0);
+  assert.equal(releaseCheckoutInputs["persist-credentials"], false);
   const download = record(releaseSteps.find((step) => step.name === "Download exact-SHA release artifact")?.with, "download inputs");
   assert.match(String(upload.name), /needs\.authorize-release\.outputs\.release_sha/);
   assert.match(String(download.name), /needs\.authorize-release\.outputs\.release_sha/);
   assert.match(String(upload.path), /ReviewWorkspace-.*package_version.*-Windows-x64-Setup\.exe/);
   assert.match(String(upload.path), /SHA256SUMS\.txt/);
+  const downloadedVerification = releaseSteps.find((step) => step.name === "Verify downloaded release artifact checksum");
+  assert.equal(downloadedVerification?.run, "node scripts/verify-release-artifact.mjs");
+  assert.match(JSON.stringify(downloadedVerification), /needs\.authorize-release\.outputs\.package_version/);
   const releaseCommand = String(releaseSteps.find((step) => step.name === "Create draft GitHub Release")?.run);
   assert.match(releaseCommand, /gh release create/);
   assert.match(releaseCommand, /needs\.authorize-release\.outputs\.release_tag/);
@@ -211,7 +222,7 @@ test("production-v1 is intentionally unsigned without weakening exact-artifact p
   assert.match(productionV1Policy, /PRODUCTION WINDOWS INSTALLER IS EXPECTED TO BE UNSIGNED/);
   assert.match(productionV1Policy, /trusted source provenance \+ exact artifact SHA-256/);
   assert.match(productionV1Policy, /Unknown Publisher/);
-  assert.match(productionV1Policy, /M5-D NSIS PRODUCTION CUTOVER IMPLEMENTED/);
+  assert.match(productionV1Policy, /M5-E UNSIGNED ARTIFACT \/ CHECKSUM PROVENANCE IMPLEMENTED/);
   assert.match(productionV1Policy, /WINDOWS PRODUCTION RELEASE READY: NO/);
   assert.match(productionV1Policy, /FUTURE: WINDOWS CODE SIGNING \/ PUBLISHER IDENTITY/);
   assert.match(releaseAuthorization, /Production-v1 is intentionally unsigned/);
@@ -220,13 +231,27 @@ test("production-v1 is intentionally unsigned without weakening exact-artifact p
   assert.match(windowsDistribution, /Current M5 policy:[\s\S]*production-v1 is intentionally unsigned/);
 
   const buildSteps = build.steps as Array<Record<string, unknown>>;
-  const checksumIndex = buildSteps.findIndex((step) => step.name === "Generate SHA-256 manifest");
+  const finalizationIndex = buildSteps.findIndex((step) => step.name === "Finalize and verify unsigned release artifact");
   const uploadIndex = buildSteps.findIndex((step) => step.name === "Upload exact-SHA workflow artifact");
-  assert.ok(checksumIndex >= 0 && checksumIndex < uploadIndex);
+  assert.equal(finalizationIndex + 1, uploadIndex);
   const releaseSteps = release.steps as Array<Record<string, unknown>>;
-  const boundaryIndex = releaseSteps.findIndex((step) => step.name === "Verify release artifact boundary");
+  const boundaryIndex = releaseSteps.findIndex((step) => step.name === "Verify downloaded release artifact checksum");
   const draftIndex = releaseSteps.findIndex((step) => step.name === "Create draft GitHub Release");
-  assert.ok(boundaryIndex >= 0 && boundaryIndex < draftIndex);
+  assert.equal(boundaryIndex + 1, draftIndex);
+});
+
+test("M5-E finalization is fail-closed at the staged-byte and native Authenticode boundaries", () => {
+  assert.match(releaseArtifactProvenance, /out.*builder-nsis/);
+  assert.match(releaseArtifactProvenance, /out.*release/);
+  assert.match(releaseArtifactProvenance, /copyFileImplementation/);
+  assert.match(releaseArtifactProvenance, /sha256File\(stagedPath\)/);
+  assert.match(releaseArtifactProvenance, /assertExactReleaseDirectory/);
+  assert.match(releaseArtifactProvenance, /assertUnsignedAuthenticodeSignature/);
+  assert.match(releaseArtifactProvenance, /Production-v1 Authenticode verification requires a Windows runner/);
+  assert.match(authenticodeHelper, /Get-AuthenticodeSignature/);
+  assert.match(authenticodeHelper, /SignerCertificate/);
+  assert.match(authenticodeHelper, /TimeStamperCertificate/);
+  assert.doesNotMatch(workflow, /Get-FileHash|Copy-Item.*builder-nsis/);
 });
 
 test("trusted main CI commit with an annotated matching tag passes", (t) => {
