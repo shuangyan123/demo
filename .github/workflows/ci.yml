@@ -253,8 +253,8 @@ jobs:
           path: .playwright-results
           if-no-files-found: ignore
 
-  windows-nsis-m1:
-    name: Windows NSIS Candidate
+  windows-nsis-production:
+    name: Windows NSIS Production
     needs: private-release-checkout
     if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.installer_sensitive == 'true')
     runs-on: windows-latest
@@ -264,9 +264,9 @@ jobs:
     env:
       # pull_request's github.sha is the synthetic merge ref; bind evidence to
       # the exact contributor head checked out below.
-      M1_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
-      # electron-builder 26.16.0 supports this boundary; M1 intentionally has
-      # no certificate and must not discover a runner/user certificate.
+      NSIS_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+      # electron-builder 26.16.0 supports this boundary; production-v1 has no
+      # certificate and must not discover a runner/user certificate.
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
     steps:
@@ -280,8 +280,8 @@ jobs:
         shell: pwsh
         run: |
           $head = (git rev-parse HEAD).Trim()
-          if ($head -ne $env:M1_SOURCE_COMMIT) {
-            throw "Checked out $head instead of exact PR head $env:M1_SOURCE_COMMIT"
+          if ($head -ne $env:NSIS_SOURCE_COMMIT) {
+            throw "Checked out $head instead of exact PR head $env:NSIS_SOURCE_COMMIT"
           }
 
       - name: Setup Node 24.20.0
@@ -299,28 +299,28 @@ jobs:
       - name: Prepare desktop inputs
         run: npm run desktop:prepare
 
-      - name: Build M1 unpacked candidate
+      - name: Build production-equivalent NSIS unpacked artifact
         run: npm run desktop:builder:nsis:unpacked
 
-      - name: Build bundled NSIS M1 candidate
+      - name: Build production NSIS installer
         run: npm run desktop:builder:nsis:bundle
 
-      - name: M1 source contracts
+      - name: NSIS production source contracts
         run: npm run test:desktop:builder:nsis:source
 
-      - name: Generate candidate evidence
+      - name: Generate NSIS production evidence
         run: npm run generate:desktop:builder:nsis:evidence
 
-      - name: M1 artifact contracts
+      - name: NSIS production artifact contracts
         run: npm run test:desktop:builder:nsis:artifact
 
-      - name: Upload private M1 candidate evidence
+      - name: Upload private NSIS production evidence
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: review-workspace-nsis-m1-${{ github.event.pull_request.head.sha }}
+          name: review-workspace-nsis-production-${{ github.event.pull_request.head.sha }}
           path: |
-            out/builder-nsis/ReviewWorkspace-0.2.4-Windows-x64-NSIS-M1-Candidate.exe
-            out/builder-nsis/candidate-evidence.json
+            out/builder-nsis/ReviewWorkspace-0.2.4-Windows-x64-Setup.exe
+            out/builder-nsis/production-evidence.json
           if-no-files-found: error
           retention-days: 7

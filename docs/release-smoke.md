@@ -12,10 +12,26 @@
 `workflow_run` 驱动，并创建待人工确认的 Draft Release。历史
 `.github/workflows/desktop-release.yml` 已从当前 tree 删除，GitHub Actions
 API 当前状态为 `deleted`，仅保留为 SEC-04 历史证据。当前 runtime 为
-Electron `43.4.1`；生产/default installer 仍是 Forge/MakerSquirrel Squirrel，
-NSIS 仍是 candidate/future cutover；production-v1 不引入 updater。现有
-workflow 的 final-byte SHA-256/manifest 生成只完成部分边界，完整的
-exact-SHA Draft round-trip 仍是 M5 blocker。
+Electron `43.4.1`；生产/default installer 现为 electron-builder + bundled NSIS，
+Forge/MakerSquirrel Squirrel 仅保留作历史、迁移和回滚兼容路径；production-v1
+不引入 updater。现有 workflow 的 final-byte SHA-256/manifest 生成只完成部分
+边界，完整的 exact-SHA Draft round-trip 仍是 M5 blocker。
+
+## Current M5-D · NSIS production cutover
+
+状态：**M5-D NSIS PRODUCTION CUTOVER IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
+
+- Canonical builder：`electron-builder 26.16.0` + bundled NSIS，Windows x64、per-user、assisted installer。
+- Canonical installer：`ReviewWorkspace-${version}-Windows-x64-Setup.exe`；当前 package version 仍为 `0.2.4`。
+- Trusted release build：成功的 `CI` main `workflow_run` 通过 exact authorized SHA checkout 后，执行 `desktop:prepare`、NSIS unpacked/bundle、source/evidence/artifact readback；production-v1 保持 intentionally unsigned，`CSC_IDENTITY_AUTO_DISCOVERY=false`。
+- Squirrel：`desktop:make`、Forge/MakerSquirrel、`out/make`、历史 `.nupkg` 和 M3/M4 contracts 继续保留，但不再是 trusted production builder。
+- 本阶段不创建 tag、GitHub Release 或 0.3.0 tuple；M5-E/F/G/H/I/J 仍未完成。
+
+若执行 bounded cutover smoke，只能使用 disposable/dedicated Windows profile：安装 exact
+cutover-validation NSIS artifact、启动并做基本 UI interaction、关闭并核对 owned process
+closure、正常 uninstall、用同一 artifact reinstall、再次启动。不得手工删除 userData、registry、
+install directory 或 credentials，不得用 `taskkill`/registry surgery 促成 PASS；该 smoke
+不等同于 M5-H Level 3。
 
 ## Current 2026-08-20 · 0.8 Squirrel no-remote-icon bridge acceptance closure
 

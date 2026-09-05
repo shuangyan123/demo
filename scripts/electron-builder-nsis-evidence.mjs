@@ -12,7 +12,8 @@ const executablePath = path.join(artifactRoot, "review-workspace.exe");
 const resourcesRoot = path.join(artifactRoot, "resources");
 const asarPath = path.join(resourcesRoot, "app.asar");
 const runtimeRoot = path.join(resourcesRoot, ".desktop-runtime");
-const installerPath = path.join(outputRoot, "ReviewWorkspace-0.2.4-Windows-x64-NSIS-M1-Candidate.exe");
+const packageJson = readJson(path.join(workspaceRoot, "package.json"));
+const installerPath = path.join(outputRoot, `ReviewWorkspace-${packageJson.version}-Windows-x64-Setup.exe`);
 const recallWindowsIconPath = path.join(workspaceRoot, "public", "brand", "recall", "app", "recall.ico");
 const require = createRequire(import.meta.url);
 const asar = require("@electron/asar");
@@ -30,7 +31,7 @@ const expectedFuses = [
   ["WasmTrapHandlers", FuseV1Options.WasmTrapHandlers, FuseState.ENABLE],
 ];
 
-export function getNsisCandidatePaths() {
+export function getNsisProductionPaths() {
   return {
     outputRoot,
     artifactRoot,
@@ -42,13 +43,12 @@ export function getNsisCandidatePaths() {
   };
 }
 
-export async function collectNsisCandidateEvidence() {
+export async function collectNsisProductionEvidence() {
   if (process.platform !== "win32") {
-    throw new Error("M1 NSIS artifact readback requires a Windows runner");
+    throw new Error("Production NSIS artifact readback requires a Windows runner");
   }
 
   const sourceCommit = resolveSourceCommit();
-  const packageJson = readJson(path.join(workspaceRoot, "package.json"));
   assertEqual(packageJson.name, "review-workspace", "package name");
   assertEqual(packageJson.productName, "错题复盘", "product name");
   assertEqual(packageJson.version, "0.2.4", "package version");
@@ -58,7 +58,7 @@ export async function collectNsisCandidateEvidence() {
   requireFile(asarPath, "app.asar");
   requireFile(path.join(artifactRoot, "version"), "Electron version marker");
   requireFile(runtimeRoot, "bundled desktop runtime");
-  requireFile(installerPath, "NSIS candidate installer");
+  requireFile(installerPath, "production NSIS installer");
   requireFile(recallWindowsIconPath, "approved Recall Windows ICO");
 
   const executableInfo = readPowerShellJson("read-windows-executable-info.ps1");
@@ -93,7 +93,7 @@ export async function collectNsisCandidateEvidence() {
   assert(!existsSync(path.join(artifactRoot, "resources", "app")), "resources/app unpacked application tree is present");
   const rootNodeModulesPresent = existsSync(path.join(artifactRoot, "node_modules"))
     || existsSync(path.join(resourcesRoot, "node_modules"));
-  assert(!rootNodeModulesPresent, "unpacked candidate contains a root node_modules tree");
+  assert(!rootNodeModulesPresent, "unpacked production artifact contains a root node_modules tree");
 
   const resourceEntries = readdirSync(resourcesRoot);
   assert(resourceEntries.includes("app.asar"), "resources/app.asar is missing");
@@ -123,15 +123,15 @@ export async function collectNsisCandidateEvidence() {
     wire: Object.fromEntries(expectedFuses.map(([name, key]) => [name, fuseWire[key]])),
     pass: fuseWire.version === "1" && expectedFuses.every(([, key, expected]) => fuseWire[key] === expected),
   };
-  assert(fuses.pass, "actual Electron V1 fuse wire differs from the strict M1 contract");
+  assert(fuses.pass, "actual Electron V1 fuse wire differs from the strict production contract");
 
   const outputFiles = listFiles(outputRoot);
   const updaterMetadata = {
     blockmapPresent: outputFiles.some((file) => file.toLowerCase().endsWith(".blockmap")),
     latestYmlPresent: outputFiles.some((file) => path.basename(file).toLowerCase() === "latest.yml"),
   };
-  assert(!updaterMetadata.blockmapPresent, "M1 output contains .blockmap updater metadata");
-  assert(!updaterMetadata.latestYmlPresent, "M1 output contains latest.yml updater metadata");
+  assert(!updaterMetadata.blockmapPresent, "production output contains .blockmap updater metadata");
+  assert(!updaterMetadata.latestYmlPresent, "production output contains latest.yml updater metadata");
 
   const installer = {
     filename: path.basename(installerPath),
@@ -194,7 +194,7 @@ export async function collectNsisCandidateEvidence() {
       pass: true,
     },
     installTimeWebPayload: "ABSENT",
-    signing: "NOT EXECUTED / PENDING",
+    signing: "INTENTIONALLY UNSIGNED",
     icon: {
       path: relativePath(recallWindowsIconPath),
       sha256: sha256File(recallWindowsIconPath),
@@ -209,7 +209,7 @@ export async function collectNsisCandidateEvidence() {
   };
 }
 
-export function assertNsisCandidateEvidence(evidence) {
+export function assertNsisProductionEvidence(evidence) {
   assertEqual(evidence.schemaVersion, 1, "evidence schema version");
   assertEqual(evidence.packageVersion, "0.2.4", "evidence package version");
   assertEqual(evidence.productName, "错题复盘", "evidence product name");
@@ -219,7 +219,7 @@ export function assertNsisCandidateEvidence(evidence) {
   assertEqual(evidence.target, "nsis", "evidence target");
   assertEqual(evidence.architecture, "x64", "evidence architecture");
   assertEqual(evidence.appId, "com.squirrel.review_workspace.review-workspace", "evidence appId");
-  assertEqual(evidence.installerFilename, "ReviewWorkspace-0.2.4-Windows-x64-NSIS-M1-Candidate.exe", "evidence installer filename");
+  assertEqual(evidence.installerFilename, "ReviewWorkspace-0.2.4-Windows-x64-Setup.exe", "evidence installer filename");
   assert(typeof evidence.sourceCommit === "string" && /^[0-9a-f]{40}$/.test(evidence.sourceCommit), "evidence sourceCommit must be a full Git SHA");
   assert(evidence.installerByteSize > 0, "evidence installer byte size must be positive");
   assertMatch(evidence.installerSha256, /^[0-9a-f]{64}$/, "evidence installer SHA-256");
@@ -256,19 +256,20 @@ export function assertNsisCandidateEvidence(evidence) {
   assert(evidence.perUserInstallerIntent.perMachine === false, "evidence perMachine intent");
   assert(evidence.perUserInstallerIntent.selectPerMachineByDefault === false, "evidence per-machine selection intent");
   assertEqual(evidence.installTimeWebPayload, "ABSENT", "evidence install-time web payload");
+  assertEqual(evidence.signing, "INTENTIONALLY UNSIGNED", "evidence signing state");
 }
 
 function resolveSourceCommit() {
   const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: workspaceRoot, encoding: "utf8", windowsHide: true }).trim().toLowerCase();
   const status = execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: workspaceRoot, encoding: "utf8", windowsHide: true }).trim();
-  if (status) throw new Error("Cannot bind candidate evidence to an ambiguous dirty worktree");
-  const configured = process.env.M1_SOURCE_COMMIT
+  if (status) throw new Error("Cannot bind production evidence to an ambiguous dirty worktree");
+  const configured = process.env.NSIS_SOURCE_COMMIT
     ?? (process.env.GITHUB_ACTIONS === "true" ? process.env.GITHUB_SHA : undefined);
   if (configured !== undefined && !/^[0-9a-f]{40}$/i.test(configured)) {
-    throw new Error("M1_SOURCE_COMMIT/GITHUB_SHA must be a full Git SHA");
+    throw new Error("NSIS_SOURCE_COMMIT/GITHUB_SHA must be a full Git SHA");
   }
   if (configured !== undefined && configured.toLowerCase() !== head) {
-    throw new Error(`M1 source commit ${configured} does not match checked-out HEAD ${head}`);
+    throw new Error(`NSIS source commit ${configured} does not match checked-out HEAD ${head}`);
   }
   return (configured ?? head).toLowerCase();
 }

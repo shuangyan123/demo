@@ -1,12 +1,12 @@
 # Windows production-v1 release policy
 
-状态：**M5 READINESS PLANNING COMPLETE / IMPLEMENTATION NOT STARTED**。
+状态：**M5-D NSIS PRODUCTION CUTOVER IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
-blocker 的事实源。它不修改既有 M3/M4 历史证据，也不代表 NSIS production
-cutover、最终 tuple、完整的 exact-SHA Draft round-trip pipeline 或 Level 3
-acceptance 已完成。当前 workflow 的 final-byte hash/manifest 生成和 Draft
-上传只属于部分实现，不得写成完整 pipeline 已完成。
+blocker 的事实源。它不修改既有 M3/M4 历史证据，也不代表最终 tuple、完整的
+exact-SHA Draft round-trip pipeline 或 Level 3 acceptance 已完成。当前
+workflow 的 final-byte hash/manifest 生成和 Draft 上传只属于部分实现，不得
+写成完整 pipeline 已完成。
 
 ## Canonical product decision
 
@@ -70,14 +70,11 @@ Unsigned 不降低 SEC-04。Production-v1 必须保留：
 - Draft GitHub Release；
 - owner/operator publication approval。
 
-当前 trusted workflow 仍构建 Forge/MakerSquirrel；当前 NSIS path 仍是
-candidate-only。本政策不改变两条路径，也不关闭 Squirrel -> NSIS production
-cutover blocker。
-
-当前 production/default release path 仍是 Squirrel；NSIS 只有在独立的 future
-production cutover 完成后才可成为 production path。当前 package/runtime
-baseline 为 `0.2.4` / Electron `43.4.1`；首个 NSIS production target 仍规划为
-`0.3.0`。
+当前 trusted workflow 已按 exact authorized SHA 构建 canonical
+electron-builder + NSIS production-equivalent installer。Forge/MakerSquirrel
+仍保留在仓库，作为历史 0.2.x、迁移、回滚和兼容性验证路径；它不再是
+production/default builder。当前 package/runtime baseline 为 `0.2.4` /
+Electron `43.4.1`；首个 NSIS production target 仍规划为 `0.3.0`，属于 M5-F。
 
 ## Unsigned artifact contract
 
@@ -87,7 +84,8 @@ baseline 为 `0.2.4` / Electron `43.4.1`；首个 NSIS production target 仍规�
 - repository 没有 production signing backend 或 signing secret；
 - unsigned status 是显式产品决策；
 - Windows build 禁止意外 certificate auto-discovery；
-- `CSC_IDENTITY_AUTO_DISCOVERY=false` 或等价边界必须随未来 NSIS cutover 保留；
+- `CSC_IDENTITY_AUTO_DISCOVERY=false` 或等价边界必须随 active NSIS production
+  path 保留；
 - `forceCodeSigning: true` 不得用于 production-v1。
 
 ### Failure
@@ -150,18 +148,16 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 
 ## Remaining M5 production blockers
 
-1. GitHub Actions execution availability for required CI/release evidence；
-2. first suitable stable electron-builder release containing upstream #10051；
-3. controlled builder upgrade and regression validation；
-4. Squirrel -> NSIS production cutover；
-5. final `0.3.0` source/package/installer tuple freeze；
-6. complete exact-SHA Draft Release round-trip pipeline；
-7. final Level 3 Windows acceptance on the exact final artifact；
-8. release/rollback/operator runbook。
+1. M5-E — finalize unsigned production artifact contracts and checksum provenance；
+2. M5-F — freeze the final `0.3.0` source/package/installer tuple；
+3. M5-G — complete the exact-SHA Draft Release round-trip pipeline；
+4. M5-H — perform final Level 3 Windows acceptance on the exact final artifact；
+5. M5-I — complete the release/rollback/operator runbook；
+6. M5-J — operator publication and post-release verification。
 
 Electron 保持已接受的 `43.4.1`，除非出现具体 security/compatibility 原因。
-electron-builder `26.15.3` 不是最终 M5 tuple；不得用缺少 #10051 的 `26.15.7`
-或 prerelease/alpha 规避等待。最终 tuple 必须分别记录 Electron version、
+当前受控 NSIS builder 为 `electron-builder 26.16.0`；最终 tuple 仍须在 M5-F
+单独冻结。不得以 prerelease/alpha 规避 tuple 验收。最终 tuple 必须分别记录 Electron version、
 Electron embedded Node、bundled application/sidecar Node `24.20.0`、stable
 electron-builder、历史/兼容 Forge/Squirrel、Windows architecture、NSIS mode、
 exact main SHA、tag 和 package version。
@@ -185,7 +181,7 @@ mismatch、userData/credential loss、需要 credential re-entry、owned process
 ```text
 M5-B wait for stable electron-builder containing #10051
   -> M5-C controlled builder upgrade and regression validation
-  -> M5-D NSIS production cutover
+  -> M5-D NSIS production cutover (implemented)
   -> M5-E finalize unsigned artifact contracts and checksum provenance
   -> M5-F freeze 0.3.0 production tuple
   -> M5-G exact-SHA Draft Release pipeline
@@ -213,7 +209,7 @@ Certificate revocation/rotation 不属于 production-v1 blocker；仅在未来 s
 ## Classification
 
 ```text
-M5 READINESS: PLANNING COMPLETE
+M5-D: NSIS PRODUCTION CUTOVER IMPLEMENTED
 PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED
 WINDOWS PRODUCTION RELEASE READY: NO
 ```

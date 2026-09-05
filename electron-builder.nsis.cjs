@@ -7,11 +7,11 @@ const electronVersion = "43.4.1";
 const recallWindowsIconPath = path.join(projectRoot, "public", "brand", "recall", "app", "recall.ico");
 
 /**
- * M1 is an additive candidate path. It consumes the same prepared desktop host
- * and runtime as the accepted Forge/Squirrel path, but never becomes a release
- * default or performs installation/migration work.
+ * This is the canonical production/default Windows installer path. It consumes
+ * the same prepared desktop host and runtime as the retained Forge/Squirrel
+ * compatibility path without duplicating its security or identity policy.
  */
-async function applyM1Fuses(context) {
+async function applyProductionFuses(context) {
   if (context.electronPlatformName !== "win32") return;
 
   // electron-builder 26.16.0 still resolves an older nested @electron/fuses package
@@ -54,7 +54,7 @@ module.exports = {
   npmRebuild: false,
   nodeGypRebuild: false,
   publish: null,
-  artifactName: "ReviewWorkspace-${version}-Windows-x64-NSIS-M1-Candidate.${ext}",
+  artifactName: "ReviewWorkspace-${version}-Windows-x64-Setup.${ext}",
   win: {
     target: [
       {
@@ -63,7 +63,8 @@ module.exports = {
       },
     ],
     icon: recallWindowsIconPath,
-    // Keep resource/version editing, but make the unsigned M1 boundary explicit.
+    // Keep resource/version editing while making the intentionally unsigned
+    // production-v1 boundary explicit.
     signAndEditExecutable: true,
     signExecutable: false,
   },
@@ -80,5 +81,5 @@ module.exports = {
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
   },
-  afterPack: applyM1Fuses,
+  afterPack: applyProductionFuses,
 };

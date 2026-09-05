@@ -61,8 +61,9 @@ with the current deleted state.
    A missing expected tag or a tag targeting another commit returns
    `publish_authorized=false` and skips the build without treating an ordinary
    main CI run as a release failure.
-6. The read-only build job runs only after authorization and produces an
-   exact-SHA artifact. Only the final draft release job receives
+6. The read-only build job runs only after authorization, builds the canonical
+   electron-builder + bundled NSIS installer from the exact authorized SHA, and
+   produces an exact-SHA artifact. Only the final draft release job receives
    `contents: write` and consumes that exact artifact.
 
 There is intentionally no tag `push`, `workflow_dispatch`, or
@@ -114,8 +115,8 @@ arbitrary code to reach production publication.**
   future capabilities rather than M5 blockers. Unknown Publisher or SmartScreen
   warnings are accepted product residuals; this SEC-04 acceptance does not claim
   Authenticode-backed identity or integrity.
-- Rollback, exact-artifact checksum readback, and production NSIS cutover remain
-  M5 concerns. Auto-updater behavior is intentionally excluded from
+- Rollback and exact-artifact checksum readback remain M5 concerns. M5-D's
+  production NSIS cutover is implemented, while auto-updater behavior is intentionally excluded from
   production-v1 and remains a separate future milestone. The unsigned
   production security model keeps every SEC-04 control and relies on trusted source provenance plus the exact artifact SHA-256. See
   [`windows-production-v1-release-policy.md`](../windows-production-v1-release-policy.md).
