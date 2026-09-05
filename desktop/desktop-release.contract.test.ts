@@ -18,6 +18,7 @@ const releaseGuardSource = readFileSync(new URL("../scripts/verify-desktop-relea
 const electronArchive = readFileSync(new URL("../scripts/prepare-electron-archive.mjs", import.meta.url), "utf8");
 const desktopHostPreparation = readFileSync(new URL("../scripts/prepare-desktop-host.mjs", import.meta.url), "utf8");
 const forgeConfig = readFileSync(new URL("../forge.config.ts", import.meta.url), "utf8");
+const nsisConfig = readFileSync(new URL("../electron-builder.nsis.cjs", import.meta.url), "utf8");
 const recallWindowsIconPath = join(process.cwd(), "public", "brand", "recall", "app", "recall.ico");
 const squirrelNuspecTemplate = readFileSync(new URL("../scripts/squirrel.nuspec.template", import.meta.url), "utf8");
 const electronWinstallerNuspecTemplate = readFileSync(new URL("../node_modules/electron-winstaller/template.nuspectemplate", import.meta.url), "utf8");
@@ -143,9 +144,27 @@ test("production release authority is anchored to successful main CI workflow_ru
   assert.equal(guard?.run, "node scripts/verify-desktop-release-provenance.mjs");
   assert.match(String(build.if), /needs\.authorize-release\.outputs\.publish_authorized == 'true'/);
   const buildSteps = build.steps as Array<Record<string, unknown>>;
-  assert.ok(buildSteps.some((step) => step.run === "npm run desktop:make"));
+  assert.ok(buildSteps.some((step) => step.run === "npm run desktop:prepare"));
+  assert.ok(buildSteps.some((step) => step.run === "npm run desktop:builder:nsis:unpacked"));
+  assert.ok(buildSteps.some((step) => step.run === "npm run desktop:builder:nsis:bundle"));
+  assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:builder:nsis:source"));
+  assert.ok(buildSteps.some((step) => step.run === "npm run generate:desktop:builder:nsis:evidence"));
+  assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:builder:nsis:artifact"));
+  assert.equal(buildSteps.some((step) => step.run === "npm run desktop:make"), false);
   assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:integration"));
-  assert.ok(buildSteps.some((step) => step.run === "npm run test:desktop:artifact"));
+  assert.equal(buildSteps.some((step) => step.run === "npm run test:desktop:artifact"), false);
+  assert.doesNotMatch(JSON.stringify(build), /MakerSquirrel|desktop:make|NSIS-M1-Candidate|M1 Candidate/);
+});
+
+test("trusted production release uses the canonical intentionally unsigned NSIS builder", () => {
+  assert.match(nsisConfig, /artifactName:\s*["']ReviewWorkspace-\$\{version\}-Windows-x64-Setup\.\$\{ext\}["']/);
+  assert.match(nsisConfig, /target:\s*["']nsis["'][\s\S]*arch:\s*\[["']x64["']\]/);
+  assert.match(nsisConfig, /afterPack:\s*applyProductionFuses/);
+  assert.match(nsisConfig, /signExecutable:\s*false/);
+  assert.doesNotMatch(nsisConfig, /forceCodeSigning|electron-updater|autoUpdater|latest\.yml|\.blockmap/);
+  assert.match(workflow, /Build production NSIS installer/);
+  assert.match(workflow, /out\\builder-nsis/);
+  assert.doesNotMatch(workflow, /desktop:make|MakerSquirrel|NSIS-M1-Candidate|M1 Candidate/);
 });
 
 test("release publication authority is job-scoped and consumes only guard authorization", () => {
@@ -160,6 +179,8 @@ test("release publication authority is job-scoped and consumes only guard author
 
 test("release artifact upload and download are bound to the verified release SHA", () => {
   const { build, release } = workflowContract();
+  const buildEnvironment = record(build.env, "production build environment");
+  assert.equal(buildEnvironment.NSIS_SOURCE_COMMIT, "${{ needs.authorize-release.outputs.release_sha }}");
   const buildSteps = build.steps as Array<Record<string, unknown>>;
   const releaseSteps = release.steps as Array<Record<string, unknown>>;
   const upload = record(buildSteps.find((step) => step.name === "Upload exact-SHA workflow artifact")?.with, "upload inputs");
@@ -190,7 +211,7 @@ test("production-v1 is intentionally unsigned without weakening exact-artifact p
   assert.match(productionV1Policy, /PRODUCTION WINDOWS INSTALLER IS EXPECTED TO BE UNSIGNED/);
   assert.match(productionV1Policy, /trusted source provenance \+ exact artifact SHA-256/);
   assert.match(productionV1Policy, /Unknown Publisher/);
-  assert.match(productionV1Policy, /M5 READINESS: PLANNING COMPLETE/);
+  assert.match(productionV1Policy, /M5-D NSIS PRODUCTION CUTOVER IMPLEMENTED/);
   assert.match(productionV1Policy, /WINDOWS PRODUCTION RELEASE READY: NO/);
   assert.match(productionV1Policy, /FUTURE: WINDOWS CODE SIGNING \/ PUBLISHER IDENTITY/);
   assert.match(releaseAuthorization, /Production-v1 is intentionally unsigned/);

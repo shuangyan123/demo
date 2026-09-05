@@ -66,6 +66,7 @@ jobs:
       # Production-v1 is intentionally unsigned. Never inherit a runner/user
       # certificate while the release path remains unsigned by product policy.
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      NSIS_SOURCE_COMMIT: ${{ needs.authorize-release.outputs.release_sha }}
 
     steps:
       - name: Checkout exact authorized main commit
@@ -113,18 +114,30 @@ jobs:
       - name: Desktop and mobile E2E
         run: npm run test:e2e
 
-      - name: Make Windows installer
-        run: npm run desktop:make
+      - name: Prepare desktop inputs
+        run: npm run desktop:prepare
 
-      - name: Packaged preload artifact regression
-        run: npm run test:desktop:artifact
+      - name: Build production-equivalent NSIS unpacked artifact
+        run: npm run desktop:builder:nsis:unpacked
+
+      - name: Build production NSIS installer
+        run: npm run desktop:builder:nsis:bundle
+
+      - name: NSIS production source contracts
+        run: npm run test:desktop:builder:nsis:source
+
+      - name: Generate NSIS production evidence
+        run: npm run generate:desktop:builder:nsis:evidence
+
+      - name: NSIS production artifact contracts
+        run: npm run test:desktop:builder:nsis:artifact
 
       - name: Generate SHA-256 manifest
         shell: pwsh
         run: |
           $package = Get-Content -Raw package.json | ConvertFrom-Json
           $installerName = "ReviewWorkspace-$($package.version)-Windows-x64-Setup.exe"
-          $installer = Get-ChildItem -LiteralPath "out\make" -Recurse -File -Filter $installerName | Select-Object -First 1
+          $installer = Get-ChildItem -LiteralPath "out\builder-nsis" -Recurse -File -Filter $installerName | Select-Object -First 1
           if (-not $installer) { throw "Missing installer $installerName" }
           $releaseDirectory = New-Item -ItemType Directory -Force "out\release"
           Copy-Item -LiteralPath $installer.FullName -Destination (Join-Path $releaseDirectory $installerName)

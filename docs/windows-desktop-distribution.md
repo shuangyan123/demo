@@ -12,8 +12,9 @@
 `workflow_run` 进入受信任发布路径，并创建待人工确认的 Draft Release。历史
 `.github/workflows/desktop-release.yml` 已删除，GitHub Actions API 当前状态为
 `deleted`，仅作为 SEC-04 historical evidence 保留。当前 runtime 为 Electron
-`43.4.1`；当前 production/default installer path 为 Forge/MakerSquirrel
-Squirrel，NSIS 仍为 candidate/future production cutover；没有 auto-updater。
+`43.4.1`；当前 production/default installer path 为 electron-builder + bundled
+NSIS，Forge/MakerSquirrel Squirrel 仅作为历史、迁移、回滚和兼容性路径保留；
+没有 auto-updater。
 现有 final-byte SHA-256/manifest 生成只部分满足 exact-SHA 要求，完整 Draft
 artifact re-download/re-hash 和 source/tag/artifact reconciliation 仍是 M5
 blocker。
@@ -166,43 +167,47 @@ Static contracts and build/package success do not independently prove Windows li
 
 | 项目 | 当前事实 | 证据 / 分类 |
 | --- | --- | --- |
-| Application package | `review-workspace` / product name `错题复盘` / candidate version `0.2.4` | `package.json`、generated `.desktop-app/package.json` |
-| Electron | `43.4.1` | current locked dependency；candidate Windows artifact 的 file version 应为 `0.2.4` |
-| Electron Forge | `7.11.2` | locked `@electron-forge/cli` 与 maker |
-| Maker | `@electron-forge/maker-squirrel` `7.11.2` | `forge.config.ts` 使用 `MakerSquirrel` |
+| Application package | `review-workspace` / product name `错题复盘` / package version `0.2.4` | `package.json`、generated `.desktop-app/package.json` |
+| Electron | `43.4.1` | current locked dependency；current Windows artifact 的 file version 应为 `0.2.4` |
+| electron-builder | `26.16.0` | active canonical production/default Windows builder |
+| Electron Forge | `7.11.2` | retained for historical Squirrel and migration/rollback compatibility |
+| Maker | `@electron-forge/maker-squirrel` `7.11.2` | historical Squirrel path in `forge.config.ts`; not the active production builder |
 | Windows generator | `electron-winstaller` `5.4.4` | maker optional dependency，lockfile 已解析 |
 | Squirrel runtime | `Squirrel.exe` ProductVersion `2.0.1+eef37460ae`，FileVersion `2.0.1.1` | 当前 `electron-winstaller/vendor/Squirrel.exe` 资源版本；不把它误写成应用版本 |
 | Setup bootstrapper | `Setup.exe` ProductVersion `1.9.1.0` | 当前 `electron-winstaller/vendor/Setup.exe` 资源版本 |
 | Target | Windows x64 | Forge `--arch=x64` 与 `squirrel.windows/x64` |
 | Squirrel package id | `review_workspace` | Forge maker 将 `review-workspace` 的连字符替换为下划线 |
-| Installer name | `ReviewWorkspace-0.2.4-Windows-x64-Setup.exe` | `forge.config.ts` 的 `setupExe` |
-| Forge output | `out/make/squirrel.windows/x64/` | Forge `outDir: "../out"` |
-| Package outputs | `RELEASES`、`review_workspace-0.2.4-full.nupkg`、Setup.exe | candidate make artifact shape |
+| Installer name | `ReviewWorkspace-0.2.4-Windows-x64-Setup.exe` | canonical `electron-builder.nsis.cjs` `artifactName` |
+| NSIS output | `out/builder-nsis/` | active production-equivalent output and artifact evidence root |
+| Historical Forge output | `out/make/squirrel.windows/x64/` | retained Squirrel compatibility path |
+| Historical package outputs | `RELEASES`、`review_workspace-0.2.4-full.nupkg`、Setup.exe | preserved Squirrel artifact shape |
 | Production-v1 signing | **INTENTIONALLY UNSIGNED**；没有 production certificate、publisher identity 或 CI signing secret contract | Unknown Publisher / SmartScreen 是 accepted residual，不是 M5 blocker |
 
-### Packaging flow
+### Current production packaging flow
 
 ```text
 package.json + .desktop-app/package.json
         ↓
 Next standalone + desktop:compile
         ↓
-Forge packager: review-workspace.exe + resources/app.asar + .desktop-runtime
+electron-builder + bundled NSIS: review-workspace.exe + resources/app.asar + .desktop-runtime
         ↓
-MakerSquirrel / electron-winstaller
+ReviewWorkspace-<version>-Windows-x64-Setup.exe
         ↓
-RELEASES + full.nupkg + ReviewWorkspace-<version>-Windows-x64-Setup.exe
+per-user NSIS installer / uninstaller
         ↓
-Squirrel Setup.exe / Update.exe
-        ↓
-%LOCALAPPDATA%\review_workspace\app-<version>\
+%LOCALAPPDATA%\Programs\review-workspace\
 ```
 
-`out\review-workspace-win32-x64\` 是 Forge 的 unpacked application artifact，不是用户安装后的 Squirrel root。安装后的 root、versioned `app-<version>` directory、root execution stub、`Update.exe`、`SquirrelTemp` 和 shortcuts 必须在隔离的真实 Windows profile 中分别观察，不能从 unpacked artifact 推断。
+`forge.config.ts` + `MakerSquirrel`、`out\make`、Squirrel `Update.exe` 和
+`review_workspace-<version>-full.nupkg` 仍可用于历史 0.2.x、迁移、回滚和
+compatibility replay；它们不参与当前 trusted production build。NSIS 安装后的
+root、uninstaller、registry identities、shortcuts 和 `userData` 必须在隔离的
+真实 Windows profile 中分别观察，不能从 unpacked artifact 推断。
 
 当前 `.github/workflows/trusted-desktop-release.yml` 在成功的 `CI` main
-`workflow_run` 后，按 exact authorized SHA 执行 Windows x64 Forge/MakerSquirrel
-make、桌面回归和 SHA-256 manifest 生成，并创建 Draft Release。SHA-256
+`workflow_run` 后，按 exact authorized SHA 执行 Windows x64 electron-builder NSIS
+production-equivalent build、桌面回归和 SHA-256 manifest 生成，并创建 Draft Release。SHA-256
 manifest 与 Draft 上传是部分 exact-SHA fulfillment；最终重新下载、重新 hash
 以及 source/tag/artifact tuple reconciliation 尚未完成。历史
 `.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，

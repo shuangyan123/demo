@@ -30,7 +30,7 @@ desktop application identifiers remain unchanged.
 - Next.js 16 App Router，生产构建使用 `output: "standalone"`
 - React 19、TypeScript 5、Tailwind CSS 4
 - Dexie 4 / IndexedDB，本地业务库为 `review_workspace` v16
-- Electron 43、Electron Forge 7、Squirrel.Windows
+- Electron 43、electron-builder 26、NSIS；Electron Forge 7 / Squirrel.Windows 作为兼容路径
 - Node.js 24.20.0 LTS
 - Node test runner 契约测试和 Playwright E2E
 
@@ -81,10 +81,10 @@ npm run desktop:compile
 构建 Windows x64 安装包：
 
 ```bash
-npm run desktop:make
+npm run desktop:builder:nsis
 ```
 
-`desktop:make` 会构建 Next standalone、准备固定 Node 运行时、校验 Electron 归档、组装 ASAR 并应用 Electron Fuses。产物位于 `out/`，不得提交到仓库。
+`desktop:builder:nsis` 会构建 Next standalone、准备固定 Node 运行时、校验 Electron 归档、组装 ASAR、应用 Electron Fuses 并生成 production-equivalent NSIS 安装器。产物位于 `out/`，不得提交到仓库。历史 Squirrel 兼容构建仍可通过 `desktop:make` 使用。
 
 更完整的运行时和发布说明见 [部署文档](docs/deployment.md) 与 [发布 Smoke 清单](docs/release-smoke.md)。
 

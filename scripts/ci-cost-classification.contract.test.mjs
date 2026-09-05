@@ -147,7 +147,7 @@ test("main keeps the full validation matrix while PR heavyweight jobs are gated"
   assert.match(String(e2e.if), /browser_runtime_sensitive == 'true'/);
 
   const m3 = record(jobs["windows-m3"], "Windows M3 job");
-  const nsis = record(jobs["windows-nsis-m1"], "Windows NSIS job");
+  const nsis = record(jobs["windows-nsis-production"], "Windows NSIS job");
   for (const [job, output] of [[m3, "migration_sensitive"], [nsis, "installer_sensitive"]]) {
     assert.equal(job.needs, "private-release-checkout");
     assert.match(String(job.if), /always\(\)/);
@@ -159,18 +159,18 @@ test("main keeps the full validation matrix while PR heavyweight jobs are gated"
 
 test("Windows exact-head and NSIS unsigned contracts remain in the gated jobs", () => {
   const jobs = workflowJobs();
-  for (const jobId of ["windows-m3", "windows-nsis-m1"]) {
+  for (const jobId of ["windows-m3", "windows-nsis-production"]) {
     const job = record(jobs[jobId], `${jobId} job`);
     const source = JSON.stringify(job);
     assert.match(source, /github\.event\.pull_request\.head\.sha/);
     assert.match(source, /persist-credentials":false/);
     assert.match(source, /node-version":"24\.20\.0/);
   }
-  assert.match(JSON.stringify(jobs["windows-nsis-m1"]), /CSC_IDENTITY_AUTO_DISCOVERY":"false"/);
-  assert.match(JSON.stringify(jobs["windows-nsis-m1"]), /desktop:builder:nsis:unpacked/);
-  assert.match(JSON.stringify(jobs["windows-nsis-m1"]), /desktop:builder:nsis:bundle/);
-  assert.match(JSON.stringify(jobs["windows-nsis-m1"]), /test:desktop:builder:nsis:source/);
-  assert.match(JSON.stringify(jobs["windows-nsis-m1"]), /test:desktop:builder:nsis:artifact/);
+  assert.match(JSON.stringify(jobs["windows-nsis-production"]), /CSC_IDENTITY_AUTO_DISCOVERY":"false"/);
+  assert.match(JSON.stringify(jobs["windows-nsis-production"]), /desktop:builder:nsis:unpacked/);
+  assert.match(JSON.stringify(jobs["windows-nsis-production"]), /desktop:builder:nsis:bundle/);
+  assert.match(JSON.stringify(jobs["windows-nsis-production"]), /test:desktop:builder:nsis:source/);
+  assert.match(JSON.stringify(jobs["windows-nsis-production"]), /test:desktop:builder:nsis:artifact/);
 });
 
 test("trusted desktop release workflow remains byte-identical and exact-SHA based", () => {

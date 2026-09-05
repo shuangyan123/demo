@@ -25,7 +25,7 @@ const allowOnlyOneInstallerInstanceTemplatePath = resolve(
 const allowOnlyOneInstallerInstanceTemplate = readFileSync(allowOnlyOneInstallerInstanceTemplatePath, "utf8");
 const recallWindowsIconPath = resolve(workspaceRoot, "public", "brand", "recall", "app", "recall.ico");
 
-test("M1 builder config is an opt-in bundled NSIS candidate path", () => {
+test("production builder config is the canonical bundled NSIS path", () => {
   assert.equal(packageJson.name, "review-workspace");
   assert.equal(packageJson.productName, "错题复盘");
   assert.equal(packageJson.version, "0.2.4");
@@ -49,7 +49,7 @@ test("M1 builder config is an opt-in bundled NSIS candidate path", () => {
 
   assert.deepEqual(config.win.target, [{ target: "nsis", arch: ["x64"] }]);
   assert.equal(config.publish, null);
-  assert.equal(config.artifactName, "ReviewWorkspace-${version}-Windows-x64-NSIS-M1-Candidate.${ext}");
+  assert.equal(config.artifactName, "ReviewWorkspace-${version}-Windows-x64-Setup.${ext}");
   assert.equal(config.win.signAndEditExecutable, true);
   assert.equal(config.win.signExecutable, false);
   assert.equal(config.win.icon, recallWindowsIconPath);
@@ -95,8 +95,8 @@ test("installed v26 NSIS template hardens every PowerShell process check", () =>
   }
 });
 
-test("M1 preserves the complete strict Electron 43 fuse writer", () => {
-  assert.match(configSource, /afterPack\s*:\s*applyM1Fuses/);
+test("production config preserves the complete strict Electron 43 fuse writer", () => {
+  assert.match(configSource, /afterPack\s*:\s*applyProductionFuses/);
   assert.match(configSource, /flipFuses\(path\.join\(context\.appOutDir/);
   assert.match(configSource, /strictlyRequireAllFuses:\s*true/);
   assert.doesNotMatch(configSource, /electronFuses\s*:/);

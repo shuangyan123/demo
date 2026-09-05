@@ -7,24 +7,24 @@
 ```bash
 npm run desktop:dev       # localhost:3000 与 Electron 开发窗口
 npm run desktop:package   # 未安装目录
-npm run desktop:make      # Squirrel.Windows 安装包
+npm run desktop:builder:nsis # electron-builder NSIS production-equivalent 安装包
 ```
 
 `desktop:prepare` 会先执行 Next 生产构建和桌面 TypeScript 编译，再准备固定的 Node.js 24.20.0 与 Electron Windows x64 归档。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm 安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。缓存位于 `.cache/desktop-runtime` 和 `.cache/electron`，组装结果位于 `.desktop-runtime`，均不提交。
 
-安装包首次与后续覆盖安装共用 Electron `persist:review-workspace` partition。覆盖安装不得清理 Electron 用户数据目录。更新时从私人仓库拉取受信任代码，重新运行 `desktop:make` 并覆盖安装。
+安装包首次与后续安装共用 Electron `persist:review-workspace` partition。安装流程不得清理 Electron 用户数据目录。当前 production/default 构建使用 per-user NSIS；Forge/MakerSquirrel 的 `desktop:make` 仅用于历史 Squirrel、迁移和回滚兼容验证。
 
 Windows 打包会先生成最小 `.desktop-app` host，再把 Next standalone、Node 运行时和哈希清单作为受控资源加入安装包。构建预加载器只修正 Forge 的 Windows glob 并跳过高内存的 PE 图标重写；产品名、fuse 与 ASAR 完整性资源由后置步骤写入。不要手动删除或绕过该链路。
 
-桌面发布前至少执行 `typecheck`、`lint`、`test:contracts`、`test:desktop`、`build`、`check:bundle`、`audit:prod` 和 `desktop:make`，随后在干净 Windows x64 环境人工验证单实例、持久化、覆盖安装、媒体权限、Obsidian、Route Handlers、篡改资源、非法导航和无令牌直连。
+桌面发布前至少执行 `typecheck`、`lint`、`test:contracts`、`test:desktop`、`build`、`check:bundle`、`audit:prod` 和 `desktop:builder:nsis`，随后在干净 Windows x64 环境人工验证单实例、持久化、安装/卸载、媒体权限、Obsidian、Route Handlers、篡改资源、非法导航和无令牌直连。
 
 当前受信任发布工作流 `.github/workflows/trusted-desktop-release.yml` 由成功的
 `CI` main `workflow_run` 驱动，在 `windows-latest` 上按授权 source SHA 制作
-当前 production/default 的 Squirrel x64 安装包，并创建包含 `SHA256SUMS.txt`
+当前 production/default 的 NSIS x64 安装包，并创建包含 `SHA256SUMS.txt`
 的 Draft Release；发布仍需人工确认。历史
 `.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
-仅保留为 historical SEC-04 evidence。当前 NSIS 仍是 additive candidate/future
-cutover，production-v1 intentionally unsigned 且不引入 auto-updater；普通 PR
+仅保留为 historical SEC-04 evidence。Forge/Squirrel 仍保留为历史/迁移/回滚
+兼容路径，production-v1 intentionally unsigned 且不引入 auto-updater；普通 PR
 和 Web 部署不会创建生产安装包或 Release。
 
 Web 与桌面使用同一仓库和同一 commit：`ci.yml` 负责共享应用、浏览器 E2E、桌面 TypeScript 与契约；桌面发布工作流负责目标 Windows 环境的最终打包。安装包、`.desktop-runtime`、Forge `out/`、令牌和签名材料均不得提交。
