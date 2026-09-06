@@ -20,6 +20,7 @@ const desktopHostPreparation = readFileSync(new URL("../scripts/prepare-desktop-
 const forgeConfig = readFileSync(new URL("../forge.config.ts", import.meta.url), "utf8");
 const nsisConfig = readFileSync(new URL("../electron-builder.nsis.cjs", import.meta.url), "utf8");
 const releaseArtifactProvenance = readFileSync(new URL("../scripts/release-artifact-provenance.mjs", import.meta.url), "utf8");
+const draftReleaseRoundTrip = readFileSync(new URL("../scripts/verify-draft-release-roundtrip.mjs", import.meta.url), "utf8");
 const authenticodeHelper = readFileSync(new URL("../scripts/read-windows-authenticode-signature.ps1", import.meta.url), "utf8");
 const recallWindowsIconPath = join(process.cwd(), "public", "brand", "recall", "app", "recall.ico");
 const squirrelNuspecTemplate = readFileSync(new URL("../scripts/squirrel.nuspec.template", import.meta.url), "utf8");
@@ -192,18 +193,26 @@ test("release artifact upload and download are bound to the verified release SHA
   assert.match(String(releaseCheckoutInputs.ref), /needs\.authorize-release\.outputs\.release_sha/);
   assert.equal(releaseCheckoutInputs["fetch-depth"], 0);
   assert.equal(releaseCheckoutInputs["persist-credentials"], false);
-  const download = record(releaseSteps.find((step) => step.name === "Download exact-SHA release artifact")?.with, "download inputs");
+  const download = record(releaseSteps.find((step) => step.name === "Download exact-SHA release artifact files")?.with, "download inputs");
   assert.match(String(upload.name), /needs\.authorize-release\.outputs\.release_sha/);
   assert.match(String(download.name), /needs\.authorize-release\.outputs\.release_sha/);
   assert.match(String(upload.path), /ReviewWorkspace-.*package_version.*-Windows-x64-Setup\.exe/);
   assert.match(String(upload.path), /SHA256SUMS\.txt/);
+  assert.match(String(download.path), /out\/release-canonical/);
   const downloadedVerification = releaseSteps.find((step) => step.name === "Verify downloaded release artifact checksum");
   assert.equal(downloadedVerification?.run, "node scripts/verify-release-artifact.mjs");
   assert.match(JSON.stringify(downloadedVerification), /needs\.authorize-release\.outputs\.package_version/);
-  const releaseCommand = String(releaseSteps.find((step) => step.name === "Create draft GitHub Release")?.run);
-  assert.match(releaseCommand, /gh release create/);
-  assert.match(releaseCommand, /needs\.authorize-release\.outputs\.release_tag/);
-  assert.match(releaseCommand, /--draft/);
+  const releaseCommand = String(releaseSteps.find((step) => step.name === "Create or safely resume and verify Draft GitHub Release")?.run);
+  const roundTripStep = record(releaseSteps.find((step) => step.name === "Create or safely resume and verify Draft GitHub Release")?.env, "round-trip inputs");
+  assert.equal(releaseCommand, "node scripts/verify-draft-release-roundtrip.mjs");
+  assert.equal(roundTripStep.RELEASE_CANONICAL_DIRECTORY, "out/release-canonical");
+  assert.equal(roundTripStep.RELEASE_ROUND_TRIP_DIRECTORY, "out/release-roundtrip");
+  assert.match(draftReleaseRoundTrip, /gh[\s\S]*release[\s\S]*create/);
+  assert.match(draftReleaseRoundTrip, /--draft/);
+  assert.match(draftReleaseRoundTrip, /--verify-tag/);
+  assert.match(draftReleaseRoundTrip, /releases\/tags/);
+  assert.match(draftReleaseRoundTrip, /releases\/assets/);
+  assert.doesNotMatch(draftReleaseRoundTrip, /--clobber/);
   assert.doesNotMatch(JSON.stringify(build), /gh release create/);
   assert.doesNotMatch(workflow, /autoUpdater|update-electron-app/);
 });
@@ -216,7 +225,7 @@ test("production-v1 is intentionally unsigned without weakening exact-artifact p
     workflow,
     /WIN_CSC_LINK|CSC_LINK|WIN_CSC_KEY_PASSWORD|CSC_KEY_PASSWORD|forceCodeSigning|AZURE_CLIENT_SECRET|SignPath|KeyLocker|RFC3161/,
   );
-  assert.match(workflow, /Windows SmartScreen.*未签名.*未知发布者/);
+  assert.match(draftReleaseRoundTrip, /Unsigned status: intentionally unsigned; Windows may show Unknown Publisher/);
   assert.match(productionV1Policy, /WINDOWS PRODUCTION-V1: INTENTIONALLY UNSIGNED/);
   assert.match(productionV1Policy, /PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED/);
   assert.match(productionV1Policy, /PRODUCTION WINDOWS INSTALLER IS EXPECTED TO BE UNSIGNED/);
@@ -236,7 +245,7 @@ test("production-v1 is intentionally unsigned without weakening exact-artifact p
   assert.equal(finalizationIndex + 1, uploadIndex);
   const releaseSteps = release.steps as Array<Record<string, unknown>>;
   const boundaryIndex = releaseSteps.findIndex((step) => step.name === "Verify downloaded release artifact checksum");
-  const draftIndex = releaseSteps.findIndex((step) => step.name === "Create draft GitHub Release");
+  const draftIndex = releaseSteps.findIndex((step) => step.name === "Create or safely resume and verify Draft GitHub Release");
   assert.equal(boundaryIndex + 1, draftIndex);
 });
 

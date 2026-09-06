@@ -172,26 +172,40 @@ jobs:
           node-version: 24.20.0
           cache: npm
 
-      - name: Download exact-SHA release artifact
+      - name: Prepare clean canonical artifact directory
+        shell: bash
+        run: |
+          rm -rf out/release-canonical
+          mkdir -p out/release-canonical
+
+      - name: Download exact-SHA release artifact files
         uses: actions/download-artifact@v5
         with:
           name: review-workspace-windows-x64-${{ needs.authorize-release.outputs.release_sha }}
-          path: out/release
+          path: out/release-canonical
 
       - name: Verify downloaded release artifact checksum
         env:
           RELEASE_EXPECTED_PACKAGE_VERSION: ${{ needs.authorize-release.outputs.package_version }}
+          RELEASE_ARTIFACT_DIRECTORY: out/release-canonical
         run: node scripts/verify-release-artifact.mjs
 
-      - name: Create draft GitHub Release
+      - name: Create or safely resume and verify Draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: pwsh
-        run: |
-          $installerName = "ReviewWorkspace-${{ needs.authorize-release.outputs.package_version }}-Windows-x64-Setup.exe"
-          $notes = @"
-          Windows x64 安装版。请运行 $installerName 完成安装或覆盖升级。
+          RELEASE_EXPECTED_PACKAGE_VERSION: ${{ needs.authorize-release.outputs.package_version }}
+          RELEASE_EXPECTED_TAG: ${{ needs.authorize-release.outputs.release_tag }}
+          RELEASE_SHA: ${{ needs.authorize-release.outputs.release_sha }}
+          RELEASE_ACTIONS_ARTIFACT_NAME: review-workspace-windows-x64-${{ needs.authorize-release.outputs.release_sha }}
+          RELEASE_CANONICAL_DIRECTORY: out/release-canonical
+          RELEASE_ROUND_TRIP_DIRECTORY: out/release-roundtrip
+          RELEASE_EVIDENCE_PATH: out/release-roundtrip-evidence.json
+        run: node scripts/verify-draft-release-roundtrip.mjs
 
-          不分发脱离 resources 目录无法独立运行的裸主程序。Windows SmartScreen 可能因当前版本未签名而提示未知发布者。
-          "@
-          gh release create "${{ needs.authorize-release.outputs.release_tag }}" "out/release/$installerName" "out/release/SHA256SUMS.txt" --draft --notes $notes --title "错题复盘 ${{ needs.authorize-release.outputs.release_tag }}"
+      - name: Upload machine-readable Draft round-trip evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-workspace-draft-release-roundtrip-${{ needs.authorize-release.outputs.release_sha }}
+          path: out/release-roundtrip-evidence.json
+          if-no-files-found: error
+          retention-days: 14

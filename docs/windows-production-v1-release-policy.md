@@ -1,10 +1,11 @@
 # Windows production-v1 release policy
 
-状态：**M5-F 0.3.0 PRODUCTION TUPLE FREEZE IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
+状态：**M5-G DRAFT RELEASE ROUND-TRIP PIPELINE IMPLEMENTED / READY TO MERGE;
+REAL ACTIVATION PENDING / WINDOWS PRODUCTION RELEASE NOT READY**。
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
-blocker 的事实源。它不修改既有 M3/M4 历史证据，也不代表完整的 exact-SHA
-Draft Release asset round-trip pipeline 或 Level 3 acceptance 已完成。M5-F
+blocker 的事实源。它不修改既有 M3/M4 历史证据，也不把实现后的 pipeline
+误写成真实 tag/Draft 执行或 Level 3 acceptance。M5-F
 冻结的是静态 `0.3.0` production tuple；最终 `main` source SHA 仍由合并后
 实际执行时动态绑定。
 M5-E 已完成 build finalization、staged-byte SHA-256/manifest readback、实际
@@ -125,15 +126,20 @@ M5-E 的 trusted workflow 现在按以下顺序完成 final staged artifact boun
 8. inspect the final staged installer with Windows `Get-AuthenticodeSignature` and
    require `NotSigned` with no signer or timestamp signer；
 9. verify the exact two-file release boundary before Actions upload；
-10. verify the downloaded exact-SHA Actions artifact again before Draft creation。
+10. verify the downloaded exact-SHA Actions artifact again before Draft creation；
+11. read back the actual Draft Release metadata, download its two asset records by
+    asset ID into a distinct directory, and compare the independently hashed bytes
+    and byte sizes against the canonical directory。
 
-M5-G and later still require the remaining release pipeline controls:
+M5-G implementation now supplies the remaining Draft round-trip controls；real
+activation and later milestones still require:
 
 1. bind intended source/tag/release tuple；
-2. publish the Draft Release asset；
-3. re-download the uploaded Draft Release asset；
+2. create or safely resume only a stable, unpublished Draft Release with the exact
+   two expected assets；
+3. re-download the actual Draft Release asset records；
 4. re-hash the downloaded bytes；
-5. compare against the recorded final SHA-256；
+5. compare against the canonical final SHA-256 and byte size；
 6. verify source/tag/artifact tuple reconciliation before operator publication and
    again after publication；published assets must not be silently replaced。
 
@@ -169,7 +175,8 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 
 ## Remaining M5 production blockers
 
-1. M5-G — complete the exact-SHA Draft Release asset round-trip pipeline；
+1. M5-G — execute the merged exact-SHA Draft Release asset round-trip against the
+   final authorized tag and successful CI run；
 2. M5-H — perform final Level 3 Windows acceptance on the exact final artifact；
 3. M5-I — complete the release/rollback/operator runbook；
 4. M5-J — operator publication and post-release verification。
@@ -209,6 +216,21 @@ M5-B wait for stable electron-builder containing #10051
   -> M5-J operator publish and post-release verification
 ```
 
+### M5-G activation boundary
+
+M5-G 的实现 PR 只修改 pipeline、contracts 和文档，不创建真实 `v0.3.0` tag、
+Draft Release 或 publication。实现合并后，owner/operator 必须先等待该精确
+`main` SHA 的成功 `CI` run，确认 `v0.3.0` tag 与 Release 均不存在，再明确授权
+创建指向该 SHA 的 tag；随后重新运行同一成功 CI run。tag push 单独不触发 release
+authority，也不能替代 `workflow_run`。Trusted workflow 成功后必须仍停在 Draft，
+并保存 source SHA、tag commit、Actions artifact identity、Draft Release/asset IDs、
+canonical 与 round-trip bytes/hash 的 machine-readable evidence。
+
+任何既有 Release 的 published/non-Draft/prerelease 状态、额外或缺失 asset、tag
+漂移、byte-size/hash mismatch 或 updater metadata 都是 hard stop。禁止移动 tag、
+删除或替换 asset、使用 `--clobber`、发布 Release，或以 M5-H Level 3/M5-I/M5-J
+未完成的工作替代本阶段 evidence。
+
 发布流程中不存在 signing step。Actions quota 不可用时，不得移除 CI gate、绕过
 SEC-04、提前创建 tag、用 local build 替代 trusted production artifact 或削弱
 workflow security。
@@ -232,7 +254,9 @@ M5-D: NSIS PRODUCTION CUTOVER IMPLEMENTED
 M5-E: UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED
 M5-F: FINAL 0.3.0 PRODUCTION TUPLE FROZEN / READY TO MERGE
 EXPECTED RELEASE TAG: v0.3.0 (NOT CREATED)
-M5-G/H/I/J: INCOMPLETE
+M5-G: DRAFT RELEASE ROUND-TRIP PIPELINE IMPLEMENTED / READY TO MERGE
+REAL ACTIVATION: PENDING
+M5-H/I/J: INCOMPLETE
 PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED
 WINDOWS PRODUCTION RELEASE READY: NO
 ```
