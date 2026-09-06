@@ -14,10 +14,12 @@
 `deleted`，仅作为 SEC-04 historical evidence 保留。当前 runtime 为 Electron
 `43.4.1`；当前 production/default installer path 为 electron-builder + bundled
 NSIS，Forge/MakerSquirrel Squirrel 仅作为历史、迁移、回滚和兼容性路径保留；
-没有 auto-updater。
-现有 final-byte SHA-256/manifest 生成只部分满足 exact-SHA 要求，完整 Draft
-artifact re-download/re-hash 和 source/tag/artifact reconciliation 仍是 M5
-blocker。
+没有 auto-updater。M5-E 已完成 final staged installer byte provenance：清空并重建
+`out/release/`、从 staged bytes 生成并 readback `SHA256SUMS.txt`、reconcile
+source/staged/production evidence、在 Windows 上确认最终 installer 为
+`NotSigned` 且没有 signer/timestamp signer，并在 Draft 创建前重新校验下载的
+exact-SHA Actions artifact。完整 Draft Release asset re-download/re-hash 和
+source/tag/artifact reconciliation 仍是 M5-G 及后续 blocker。
 
 状态：**0.8 Phase 1 COMPLETE；Phase 2A COMPLETE within scoped adjacent-version acceptance；Phase 2B COMPLETE within scoped closed-app uninstall → same-version reinstall → userData/product-data persistence → full-restart acceptance；0.8 overall IN PROGRESS**（2026-08-15）。
 
@@ -207,9 +209,10 @@ root、uninstaller、registry identities、shortcuts 和 `userData` 必须在隔
 
 当前 `.github/workflows/trusted-desktop-release.yml` 在成功的 `CI` main
 `workflow_run` 后，按 exact authorized SHA 执行 Windows x64 electron-builder NSIS
-production-equivalent build、桌面回归和 SHA-256 manifest 生成，并创建 Draft Release。SHA-256
-manifest 与 Draft 上传是部分 exact-SHA fulfillment；最终重新下载、重新 hash
-以及 source/tag/artifact tuple reconciliation 尚未完成。历史
+production-equivalent build、桌面回归和 M5-E finalization：最终 staged bytes
+hash、manifest self-verification、source/staged/evidence reconciliation、实际
+unsigned Authenticode readback、exact two-file Actions artifact boundary，以及
+下载后的 checksum verification，然后才创建 Draft Release。历史
 `.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
 只作为 historical evidence 保留。当前没有自动更新入口，也没有把裸
 `review-workspace.exe` 作为 release asset 发布。
@@ -359,7 +362,7 @@ Squirrel's `--squirrel-install` / `--squirrel-updated` normally owns shortcut an
 | threat | required control |
 | --- | --- |
 | Wrong version, wrong asset or checksum mismatch | package version/tag check、installer filename、source SHA、SHA-256 manifest；不从聊天或文件名猜 provenance |
-| Installer tampering / unknown publisher | trusted source provenance、exact final-artifact SHA-256、Draft round-trip 和 tuple reconciliation；production-v1 不声称 Authenticode identity，Unknown Publisher/SmartScreen 是 accepted residual |
+| Installer tampering / unknown publisher | trusted source provenance、exact final-staged-artifact SHA-256、manifest readback、actual `NotSigned` Authenticode boundary；Draft asset round-trip 和 tuple reconciliation 仍由 M5-G/H 负责，Unknown Publisher/SmartScreen 是 accepted residual |
 | Overlapping same-version Setup locks files | 不重复运行开发者 profile；使用 disposable profile；把 observed lock/transaction failure 限定为 diagnostic，不宣称 reinstall safe |
 | Upgrade deletes or reinitializes data | binary root 与 `userData` 分离；upgrade 前后检查 schema/data/credential authority；不自动 schema migration |
 | Uninstall deletes user facts or credentials | Phase 1 不实现 uninstall cleanup；先确定真实 Squirrel behavior，再由产品语义和用户授权决定 |
@@ -386,11 +389,12 @@ Squirrel's `--squirrel-install` / `--squirrel-updated` normally owns shortcut an
 | CI provenance | workflow run, source SHA, runner and retention; no secret, path, profile or credential data |
 | user/profile data | **never** included in artifact metadata |
 
-Phase 1 adds deterministic contracts for the package identity, Forge maker/output,
-lifecycle classification and existing artifact checks. Complete exact-SHA Draft
-round-trip verification and release promotion remain future work; certificate
-secret ownership, timestamping and publisher identity belong to a separate future
-signing capability.
+Existing deterministic contracts cover package identity, Forge maker/output,
+lifecycle classification and artifact checks. M5-E adds the final-staged-byte
+checksum/manifest and actual unsigned Authenticode boundary. Complete exact-SHA
+Draft Release asset round-trip verification and release promotion remain future
+work; certificate secret ownership, timestamping and publisher identity belong to
+a separate future signing capability.
 
 ## Acceptance and rollback procedure
 

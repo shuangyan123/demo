@@ -20,8 +20,12 @@ Windows 打包会先生成最小 `.desktop-app` host，再把 Next standalone、
 
 当前受信任发布工作流 `.github/workflows/trusted-desktop-release.yml` 由成功的
 `CI` main `workflow_run` 驱动，在 `windows-latest` 上按授权 source SHA 制作
-当前 production/default 的 NSIS x64 安装包，并创建包含 `SHA256SUMS.txt`
-的 Draft Release；发布仍需人工确认。历史
+当前 production/default 的 NSIS x64 安装包。M5-E finalizer 只把 canonical
+installer staged 到 `out/release/`，从最终 staged bytes 生成并自校验
+`SHA256SUMS.txt`，核对 source/staged/evidence hash，并在 Windows 上确认
+实际 `NotSigned` Authenticode boundary；Actions artifact 下载后在 Draft 创建前
+再次校验目录、文件名、manifest 和 installer SHA-256。随后才创建包含两项资产的
+Draft Release；发布仍需人工确认。历史
 `.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
 仅保留为 historical SEC-04 evidence。Forge/Squirrel 仍保留为历史/迁移/回滚
 兼容路径，production-v1 intentionally unsigned 且不引入 auto-updater；普通 PR

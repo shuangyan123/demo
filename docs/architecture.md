@@ -31,7 +31,7 @@ desktop/
 - 公考开发示例按学习数据、复盘、知识训练和面试模块分别注册；总览不提供示例。匹配场景时仍先于业务 controller 分流到纯内存 fixture。
 - 表格使用显式 `cellStart` / `cellCenter` 语义类，不依赖列序号猜测内容。
 - GitHub 使用共享 Web CI 与当前 `Trusted Desktop Release` 工作流：PR 验证同一份业务代码和桌面壳契约，成功的 `CI` main `workflow_run` 才能进入受信任的 Windows 发布路径，并按 exact authorized SHA 创建带 SHA-256 清单的 Draft Release。历史 `desktop-release.yml` 已删除，仅保留为 SEC-04 historical evidence。当前 runtime 为 Electron `43.4.1`，production/default installer 为 electron-builder + bundled NSIS；Forge/MakerSquirrel Squirrel 保留为历史/迁移/回滚兼容路径，production-v1 intentionally unsigned 且没有 auto-updater。
-- 桌面发布与 Web 部署只通过 Git commit SHA 关联；现有 final-byte hash/manifest 生成是 exact-SHA pipeline 的部分实现，完整 Draft re-download/re-hash 和 source/tag/artifact reconciliation 仍待完成。安装包、`.desktop-runtime`、Forge `out/` 和签名材料不进入仓库。
+- 桌面发布与 Web 部署只通过 Git commit SHA 关联；M5-E finalizer 从最终 staged installer bytes 生成并自校验 SHA-256 manifest，校验实际 unsigned Authenticode 边界，并在 Draft 创建前重新校验下载的 exact-SHA Actions artifact；完整 Draft Release asset re-download/re-hash 和 source/tag/artifact reconciliation 仍待完成。安装包、`.desktop-runtime`、Forge `out/` 和签名材料不进入仓库。
 
 ## 0.8 Windows distribution Phase 1（2026-08-14）
 

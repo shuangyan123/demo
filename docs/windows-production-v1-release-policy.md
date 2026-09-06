@@ -1,12 +1,13 @@
 # Windows production-v1 release policy
 
-状态：**M5-D NSIS PRODUCTION CUTOVER IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
+状态：**M5-E UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
 blocker 的事实源。它不修改既有 M3/M4 历史证据，也不代表最终 tuple、完整的
-exact-SHA Draft round-trip pipeline 或 Level 3 acceptance 已完成。当前
-workflow 的 final-byte hash/manifest 生成和 Draft 上传只属于部分实现，不得
-写成完整 pipeline 已完成。
+exact-SHA Draft Release asset round-trip pipeline 或 Level 3 acceptance 已完成。
+M5-E 已完成 build finalization、staged-byte SHA-256/manifest readback、实际
+unsigned Authenticode 检查，以及 exact-SHA Actions artifact 下载后的 checksum
+readback；不得把这些证据扩大为已发布或已完成最终 Windows acceptance。
 
 ## Canonical product decision
 
@@ -101,19 +102,29 @@ Electron `43.4.1`；首个 NSIS production target 仍规划为 `0.3.0`，属于 
 
 SHA-256 是 production-v1 的关键完整性控制。最终实现必须按此顺序执行：
 
-现有 workflow 的 final-byte hash/manifest 生成、exact-SHA artifact 命名和 Draft
-上传只部分满足这些要求；它尚未完成上传后 round-trip 或最终 tuple reconciliation。
-完整 future pipeline 必须：
+M5-E 的 trusted workflow 现在按以下顺序完成 final staged artifact boundary：
 
 1. bind authorized source commit；
-2. bind intended source/tag/release tuple；
-3. build final installer；
-4. hash the FINAL artifact bytes；
-5. publish Draft artifact and `SHA256SUMS.txt` manifest；
-6. re-download the uploaded Draft artifact；
-7. re-hash the downloaded bytes；
-8. compare against the recorded final SHA-256；
-9. verify source/tag/artifact tuple reconciliation before operator publication and
+2. build final installer；
+3. clean `out/release/` and copy the canonical NSIS installer；
+4. hash the FINAL staged installer bytes；
+5. require source SHA-256 == staged SHA-256；
+6. write and independently parse `SHA256SUMS.txt` with exactly two spaces and the
+   package-version-derived filename；
+7. reconcile `production-evidence.json` with the same source/staged bytes；
+8. inspect the final staged installer with Windows `Get-AuthenticodeSignature` and
+   require `NotSigned` with no signer or timestamp signer；
+9. verify the exact two-file release boundary before Actions upload；
+10. verify the downloaded exact-SHA Actions artifact again before Draft creation。
+
+M5-G and later still require the remaining release pipeline controls:
+
+1. bind intended source/tag/release tuple；
+2. publish the Draft Release asset；
+3. re-download the uploaded Draft Release asset；
+4. re-hash the downloaded bytes；
+5. compare against the recorded final SHA-256；
+6. verify source/tag/artifact tuple reconciliation before operator publication and
    again after publication；published assets must not be silently replaced。
 
 不得先验收一组 bytes，再用同一 tag/checksum 静默替换 installer。
@@ -148,12 +159,11 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 
 ## Remaining M5 production blockers
 
-1. M5-E — finalize unsigned production artifact contracts and checksum provenance；
-2. M5-F — freeze the final `0.3.0` source/package/installer tuple；
-3. M5-G — complete the exact-SHA Draft Release round-trip pipeline；
-4. M5-H — perform final Level 3 Windows acceptance on the exact final artifact；
-5. M5-I — complete the release/rollback/operator runbook；
-6. M5-J — operator publication and post-release verification。
+1. M5-F — freeze the final `0.3.0` source/package/installer tuple；
+2. M5-G — complete the exact-SHA Draft Release asset round-trip pipeline；
+3. M5-H — perform final Level 3 Windows acceptance on the exact final artifact；
+4. M5-I — complete the release/rollback/operator runbook；
+5. M5-J — operator publication and post-release verification。
 
 Electron 保持已接受的 `43.4.1`，除非出现具体 security/compatibility 原因。
 当前受控 NSIS builder 为 `electron-builder 26.16.0`；最终 tuple 仍须在 M5-F
@@ -210,6 +220,7 @@ Certificate revocation/rotation 不属于 production-v1 blocker；仅在未来 s
 
 ```text
 M5-D: NSIS PRODUCTION CUTOVER IMPLEMENTED
+M5-E: UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED
 PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED
 WINDOWS PRODUCTION RELEASE READY: NO
 ```
