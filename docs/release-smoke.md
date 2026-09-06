@@ -11,24 +11,43 @@
 `.github/workflows/trusted-desktop-release.yml`：它由成功的 `CI` main
 `workflow_run` 驱动，并创建待人工确认的 Draft Release。历史
 `.github/workflows/desktop-release.yml` 已从当前 tree 删除，GitHub Actions
-API 当前状态为 `deleted`，仅保留为 SEC-04 历史证据。当前 runtime 为
-Electron `43.4.1`；生产/default installer 现为 electron-builder + bundled NSIS，
+API 当前状态为 `deleted`，仅保留为 SEC-04 历史证据。当前 package/runtime
+target 为 `0.3.0` / Electron `43.4.1`；实际 Electron embedded Node readback
+为 `24.18.1`，bundled Node 为 `24.20.0`；生产/default installer 现为
+electron-builder + bundled NSIS，
 Forge/MakerSquirrel Squirrel 仅保留作历史、迁移和回滚兼容路径；production-v1
 不引入 updater。M5-E 已完成 final staged-byte SHA-256/manifest self-verification、
 source/staged/evidence reconciliation、实际 unsigned Authenticode 检查，以及
 exact-SHA Actions artifact 下载后的 checksum verification；完整的 Draft Release
 asset round-trip 仍是 M5-G blocker。
 
+## Current M5-F · final 0.3.0 production tuple freeze
+
+状态：**M5-F FINAL 0.3.0 PRODUCTION TUPLE FROZEN / READY TO MERGE**。
+
+- Frozen package version：`0.3.0`；expected release tag：`v0.3.0`；actual tag
+  deliberately **not created** in M5-F。
+- Frozen installer：`ReviewWorkspace-0.3.0-Windows-x64-Setup.exe`；Windows
+  x64、NSIS、per-user、stable、intentionally unsigned、`NO AUTO-UPDATER`。
+- Frozen runtime：Electron `43.4.1`，Electron embedded Node `24.18.1`，bundled
+  application/sidecar Node `24.20.0`，electron-builder `26.16.0`。
+- `sourceCommit` remains the exact runtime/build provenance SHA. The M5-F
+  feature-head candidate is evidence for that feature head only; it is not the
+  final published `v0.3.0` artifact hash because squash merge changes the final
+  main SHA。
+- M5-E checksum/manifest and unsigned Authenticode boundaries remain intact。
+  M5-G/H/I/J remain incomplete；**WINDOWS PRODUCTION RELEASE READY: NO**。
+
 ## Current M5-E · unsigned artifact / checksum provenance
 
-状态：**M5-E UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
+状态：**M5-E UNSIGNED ARTIFACT / CHECKSUM PROVENANCE COMPLETE**；Windows production release remains **NOT READY**。
 
 - Canonical builder：`electron-builder 26.16.0` + bundled NSIS，Windows x64、per-user、assisted installer。
-- Canonical installer：`ReviewWorkspace-${version}-Windows-x64-Setup.exe`；当前 package version 仍为 `0.2.4`。
+- Canonical installer：`ReviewWorkspace-${version}-Windows-x64-Setup.exe`；M5-F 当前 package version 为 `0.3.0`。
 - Trusted release build：成功的 `CI` main `workflow_run` 通过 exact authorized SHA checkout 后，执行 `desktop:prepare`、NSIS unpacked/bundle、source/evidence/artifact readback，再由唯一 finalizer 清空 `out/release/`、复制 canonical installer、从最终 staged bytes 生成并自校验 `SHA256SUMS.txt`、核对 source/staged/evidence hash、在 Windows 上确认 `NotSigned` 且无 signer/timestamp signer，并在 upload 前确认 public boundary 只有 installer + `SHA256SUMS.txt`；production-v1 保持 intentionally unsigned，`CSC_IDENTITY_AUTO_DISCOVERY=false`。
 - Exact-SHA artifact readback：release job checkout 授权 SHA 后下载 Actions artifact，重新校验目录边界、canonical filename、manifest syntax 与 downloaded installer SHA-256，失败时不会进入 Draft creation。
 - Squirrel：`desktop:make`、Forge/MakerSquirrel、`out/make`、历史 `.nupkg` 和 M3/M4 contracts 继续保留，但不再是 trusted production builder。
-- 本阶段不创建 tag、GitHub Release 或 0.3.0 tuple；M5-F/G/H/I/J 仍未完成，M5-G 仍负责 GitHub Draft Release asset re-download/re-hash。
+- M5-E 本身不创建 tag 或 GitHub Release；M5-F 已冻结 `0.3.0` tuple，M5-G 仍负责 GitHub Draft Release asset re-download/re-hash，M5-H/I/J 仍未完成。
 
 若执行 bounded cutover smoke，只能使用 disposable/dedicated Windows profile：安装 exact
 cutover-validation NSIS artifact、启动并做基本 UI interaction、关闭并核对 owned process

@@ -4,6 +4,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  getElectronRuntimeExecutablePath,
+  readElectronRuntimeVersions,
+} from "./read-electron-runtime-version.mjs";
 
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputRoot = path.join(workspaceRoot, "out", "builder-nsis");
@@ -51,8 +55,10 @@ export async function collectNsisProductionEvidence() {
   const sourceCommit = resolveSourceCommit();
   assertEqual(packageJson.name, "review-workspace", "package name");
   assertEqual(packageJson.productName, "错题复盘", "product name");
-  assertEqual(packageJson.version, "0.2.4", "package version");
+  assertEqual(packageJson.version, "0.3.0", "package version");
+  assertEqual(process.env.CSC_IDENTITY_AUTO_DISCOVERY, "false", "CSC_IDENTITY_AUTO_DISCOVERY");
   assertEqual(packageJson.devDependencies["electron-builder"], "26.16.0", "electron-builder version");
+  assertEqual(packageJson.devDependencies.electron, "43.4.1", "Electron version");
 
   requireFile(executablePath, "unpacked executable");
   requireFile(asarPath, "app.asar");
@@ -65,9 +71,15 @@ export async function collectNsisProductionEvidence() {
   assertEqual(executableInfo.ProductName, "错题复盘", "PE ProductName");
   assertEqual(executableInfo.FileDescription, "错题复盘", "PE FileDescription");
   assertEqual(executableInfo.InternalName, "review-workspace", "PE InternalName");
-  assertMatch(executableInfo.FileVersion, /^0\.2\.4(?:\.0)?$/, "PE FileVersion");
-  assertMatch(executableInfo.ProductVersion, /^0\.2\.4(?:\.0)?$/, "PE ProductVersion");
-  assertEqual(readFileSync(path.join(artifactRoot, "version"), "utf8").trim(), "43.4.1", "packaged Electron version");
+  assertMatch(executableInfo.FileVersion, /^0\.3\.0(?:\.0)?$/, "PE FileVersion");
+  assertMatch(executableInfo.ProductVersion, /^0\.3\.0(?:\.0)?$/, "PE ProductVersion");
+  const packagedElectronVersion = readFileSync(path.join(artifactRoot, "version"), "utf8").trim();
+  assertEqual(packagedElectronVersion, packageJson.devDependencies.electron, "packaged Electron version");
+  const electronRuntime = readElectronRuntimeVersions({
+    workspaceRoot,
+    executablePath: getElectronRuntimeExecutablePath({ workspaceRoot }),
+  });
+  assertEqual(electronRuntime.electronVersion, packagedElectronVersion, "Electron runtime version");
 
   const packageFiles = asar.listPackage(asarPath)
     .map((file) => file.replaceAll("\\", "/").replace(/^\/+/, ""));
@@ -80,7 +92,7 @@ export async function collectNsisProductionEvidence() {
   const appMetadata = JSON.parse(asar.extractFile(asarPath, "package.json").toString("utf8"));
   assertEqual(appMetadata.name, "review-workspace", "packaged app name");
   assertEqual(appMetadata.productName, "错题复盘", "packaged product name");
-  assertEqual(appMetadata.version, "0.2.4", "packaged app version");
+  assertEqual(appMetadata.version, "0.3.0", "packaged app version");
 
   const compiledPreload = readFileSync(path.join(workspaceRoot, ".desktop", "preload.cjs"));
   const packagedPreload = asar.extractFile(asarPath, ".desktop/preload.cjs");
@@ -143,10 +155,20 @@ export async function collectNsisProductionEvidence() {
     schemaVersion: 1,
     sourceCommit,
     packageVersion: packageJson.version,
+    expectedTag: `v${packageJson.version}`,
+    channel: "stable",
+    platform: "Windows",
     productName: packageJson.productName,
     packageName: packageJson.name,
-    electronVersion: "43.4.1",
+    electronVersion: packagedElectronVersion,
+    electronRuntime: {
+      executablePath: relativePath(electronRuntime.executablePath),
+      embeddedNodeVersion: electronRuntime.embeddedNodeVersion,
+      method: electronRuntime.method,
+      pass: electronRuntime.pass,
+    },
     electronBuilderVersion: packageJson.devDependencies["electron-builder"],
+    bundledNodeVersion: runtime.manifestNodeVersion,
     target: "nsis",
     architecture: "x64",
     appId: "com.squirrel.review_workspace.review-workspace",
@@ -178,6 +200,16 @@ export async function collectNsisProductionEvidence() {
     preload,
     fuses,
     strictlyRequireAllFuses: true,
+    nsis: {
+      oneClick: false,
+      perMachine: false,
+      selectPerMachineByDefault: false,
+      runAfterFinish: false,
+      differentialPackage: false,
+    },
+    publish: null,
+    cscIdentityAutoDiscovery: process.env.CSC_IDENTITY_AUTO_DISCOVERY === "false",
+    updater: "NO AUTO-UPDATER",
     updaterMetadata,
     applicationIdentity: {
       pass: true,
@@ -211,15 +243,22 @@ export async function collectNsisProductionEvidence() {
 
 export function assertNsisProductionEvidence(evidence) {
   assertEqual(evidence.schemaVersion, 1, "evidence schema version");
-  assertEqual(evidence.packageVersion, "0.2.4", "evidence package version");
+  assertEqual(evidence.packageVersion, "0.3.0", "evidence package version");
+  assertEqual(evidence.expectedTag, "v0.3.0", "evidence expected tag");
+  assertEqual(evidence.channel, "stable", "evidence channel");
+  assertEqual(evidence.platform, "Windows", "evidence platform");
   assertEqual(evidence.productName, "错题复盘", "evidence product name");
   assertEqual(evidence.packageName, "review-workspace", "evidence package name");
   assertEqual(evidence.electronVersion, "43.4.1", "evidence Electron version");
+  assert(evidence.electronRuntime?.pass === true, "evidence Electron runtime readback must pass");
+  assertEqual(evidence.electronRuntime.embeddedNodeVersion, "24.18.1", "evidence Electron embedded Node version");
+  assertEqual(evidence.electronRuntime.method, "Electron main process process.versions", "evidence Electron runtime readback method");
   assertEqual(evidence.electronBuilderVersion, "26.16.0", "evidence electron-builder version");
+  assertEqual(evidence.bundledNodeVersion, "24.20.0", "evidence bundled Node version");
   assertEqual(evidence.target, "nsis", "evidence target");
   assertEqual(evidence.architecture, "x64", "evidence architecture");
   assertEqual(evidence.appId, "com.squirrel.review_workspace.review-workspace", "evidence appId");
-  assertEqual(evidence.installerFilename, "ReviewWorkspace-0.2.4-Windows-x64-Setup.exe", "evidence installer filename");
+  assertEqual(evidence.installerFilename, "ReviewWorkspace-0.3.0-Windows-x64-Setup.exe", "evidence installer filename");
   assert(typeof evidence.sourceCommit === "string" && /^[0-9a-f]{40}$/.test(evidence.sourceCommit), "evidence sourceCommit must be a full Git SHA");
   assert(evidence.installerByteSize > 0, "evidence installer byte size must be positive");
   assertMatch(evidence.installerSha256, /^[0-9a-f]{64}$/, "evidence installer SHA-256");
@@ -245,9 +284,21 @@ export function assertNsisProductionEvidence(evidence) {
     assertEqual(evidence.fuses.actual?.[name], fuseStateName(expected), `evidence fuse ${name}`);
   }
   assert(evidence.strictlyRequireAllFuses === true, "evidence must preserve strictlyRequireAllFuses=true");
+  assert(
+    evidence.nsis?.oneClick === false
+      && evidence.nsis?.perMachine === false
+      && evidence.nsis?.selectPerMachineByDefault === false
+      && evidence.nsis?.runAfterFinish === false
+      && evidence.nsis?.differentialPackage === false,
+    "evidence NSIS policy",
+  );
+  assert(evidence.publish === null, "evidence publish policy");
+  assert(evidence.cscIdentityAutoDiscovery === true, "evidence CSC identity auto-discovery policy");
+  assert(evidence.updater === "NO AUTO-UPDATER", "evidence updater policy");
   assert(evidence.updaterMetadata?.blockmapPresent === false, "evidence must not contain a blockmap");
   assert(evidence.updaterMetadata?.latestYmlPresent === false, "evidence must not contain latest.yml");
   assert(evidence.applicationIdentity?.pass === true, "evidence application identity must pass");
+  assertEqual(evidence.applicationIdentity.version, "0.3.0", "evidence application identity version");
   assertEqual(evidence.applicationIdentity.shortcutName, "错题复盘", "evidence shortcut name");
   assertEqual(evidence.applicationIdentity.uninstallDisplayName, "错题复盘", "evidence uninstall display name");
   assertEqual(evidence.icon?.path, "public/brand/recall/app/recall.ico", "evidence Windows icon path");

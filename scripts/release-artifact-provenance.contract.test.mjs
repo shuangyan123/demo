@@ -16,7 +16,7 @@ import {
   verifyReleaseArtifact,
 } from "./release-artifact-provenance.mjs";
 
-const version = "0.2.4";
+const version = "0.3.0";
 const installerFilename = canonicalInstallerFilename(version);
 
 function createFixture(t) {
@@ -33,6 +33,9 @@ function createFixture(t) {
 async function writeEvidence(fixture, overrides = {}) {
   const sourceHash = await sha256File(fixture.sourcePath);
   const evidence = {
+    packageVersion: version,
+    expectedTag: `v${version}`,
+    sourceCommit: "a".repeat(40),
     installerFilename,
     installerByteSize: readFileSync(fixture.sourcePath).byteLength,
     installerSha256: sourceHash,

@@ -26,7 +26,7 @@ test("Windows CI independently rebuilds and reads back the exact PR-head product
   assert.match(job, /node scripts\/finalize-release-artifact\.mjs/);
   assert.match(job, /out\/release\/SHA256SUMS\.txt/);
   assert.match(job, /review-workspace-nsis-final-\$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
-  assert.match(job, /ReviewWorkspace-0\.2\.4-Windows-x64-Setup\.exe/);
+  assert.match(job, /ReviewWorkspace-0\.3\.0-Windows-x64-Setup\.exe/);
   assert.match(job, /production-evidence\.json/);
   assert.match(job, /review-workspace-nsis-production-\$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
   assert.match(job, /retention-days: 7/);

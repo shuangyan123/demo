@@ -10,7 +10,14 @@ npm run desktop:package   # 未安装目录
 npm run desktop:builder:nsis # electron-builder NSIS production-equivalent 安装包
 ```
 
-`desktop:prepare` 会先执行 Next 生产构建和桌面 TypeScript 编译，再准备固定的 Node.js 24.20.0 与 Electron Windows x64 归档。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm 安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。缓存位于 `.cache/desktop-runtime` 和 `.cache/electron`，组装结果位于 `.desktop-runtime`，均不提交。
+`desktop:prepare` 会先执行 Next 生产构建和桌面 TypeScript 编译，再准备固定的
+bundled Node.js `24.20.0` 与 Electron Windows x64 归档。当前 M5-F production
+package version 为 `0.3.0`；Electron `43.4.1` 的 embedded Node 是通过实际
+Electron main-process `process.versions` readback 确认的 `24.18.1`，不能从
+bundled Node 推断。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm
+安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。
+缓存位于 `.cache/desktop-runtime` 和 `.cache/electron`，组装结果位于
+`.desktop-runtime`，均不提交。
 
 安装包首次与后续安装共用 Electron `persist:review-workspace` partition。安装流程不得清理 Electron 用户数据目录。当前 production/default 构建使用 per-user NSIS；Forge/MakerSquirrel 的 `desktop:make` 仅用于历史 Squirrel、迁移和回滚兼容验证。
 
@@ -20,12 +27,13 @@ Windows 打包会先生成最小 `.desktop-app` host，再把 Next standalone、
 
 当前受信任发布工作流 `.github/workflows/trusted-desktop-release.yml` 由成功的
 `CI` main `workflow_run` 驱动，在 `windows-latest` 上按授权 source SHA 制作
-当前 production/default 的 NSIS x64 安装包。M5-E finalizer 只把 canonical
+当前 `0.3.0` production/default 的 NSIS x64 安装包。M5-E finalizer 只把 canonical
 installer staged 到 `out/release/`，从最终 staged bytes 生成并自校验
 `SHA256SUMS.txt`，核对 source/staged/evidence hash，并在 Windows 上确认
 实际 `NotSigned` Authenticode boundary；Actions artifact 下载后在 Draft 创建前
 再次校验目录、文件名、manifest 和 installer SHA-256。随后才创建包含两项资产的
-Draft Release；发布仍需人工确认。历史
+Draft Release；发布仍需人工确认。M5-F 只冻结 tuple，expected `v0.3.0` tag
+尚未创建，最终 main SHA 继续动态绑定；M5-G/H/I/J 尚未完成。历史
 `.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
 仅保留为 historical SEC-04 evidence。Forge/Squirrel 仍保留为历史/迁移/回滚
 兼容路径，production-v1 intentionally unsigned 且不引入 auto-updater；普通 PR

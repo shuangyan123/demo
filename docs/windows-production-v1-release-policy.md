@@ -1,10 +1,12 @@
 # Windows production-v1 release policy
 
-状态：**M5-E UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
+状态：**M5-F 0.3.0 PRODUCTION TUPLE FREEZE IMPLEMENTED / WINDOWS PRODUCTION RELEASE NOT READY**。
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
-blocker 的事实源。它不修改既有 M3/M4 历史证据，也不代表最终 tuple、完整的
-exact-SHA Draft Release asset round-trip pipeline 或 Level 3 acceptance 已完成。
+blocker 的事实源。它不修改既有 M3/M4 历史证据，也不代表完整的 exact-SHA
+Draft Release asset round-trip pipeline 或 Level 3 acceptance 已完成。M5-F
+冻结的是静态 `0.3.0` production tuple；最终 `main` source SHA 仍由合并后
+实际执行时动态绑定。
 M5-E 已完成 build finalization、staged-byte SHA-256/manifest readback、实际
 unsigned Authenticode 检查，以及 exact-SHA Actions artifact 下载后的 checksum
 readback；不得把这些证据扩大为已发布或已完成最终 Windows acceptance。
@@ -74,8 +76,16 @@ Unsigned 不降低 SEC-04。Production-v1 必须保留：
 当前 trusted workflow 已按 exact authorized SHA 构建 canonical
 electron-builder + NSIS production-equivalent installer。Forge/MakerSquirrel
 仍保留在仓库，作为历史 0.2.x、迁移、回滚和兼容性验证路径；它不再是
-production/default builder。当前 package/runtime baseline 为 `0.2.4` /
-Electron `43.4.1`；首个 NSIS production target 仍规划为 `0.3.0`，属于 M5-F。
+production/default builder。当前 package/runtime baseline 为 `0.3.0` / Electron
+`43.4.1`；M5-F 的实际 Electron main-process readback 记录 embedded Node
+`24.18.1`，bundled application/sidecar Node 仍为 `24.20.0`。首个 NSIS
+production target 已冻结为 `0.3.0`。
+
+M5-F static tuple：package version `0.3.0`、expected tag `v0.3.0`、stable、
+Windows x64、NSIS、per-user、installer
+`ReviewWorkspace-0.3.0-Windows-x64-Setup.exe`、intentionally unsigned、
+`NO AUTO-UPDATER`。`v0.3.0` tag 在 M5-F 中尚未创建；`sourceCommit` 继续由
+trusted checkout 的 exact Git SHA 在构建时绑定，不能在 PR 中预写最终 main SHA。
 
 ## Unsigned artifact contract
 
@@ -145,7 +155,7 @@ publisher identity。
 ## Version, channel, and updater
 
 - first production NSIS target：`0.3.0`；
-- tag：`v0.3.0`，继续遵循 `v${package.version}`；
+- expected tag：`v0.3.0`，继续遵循 `v${package.version}`；M5-F 不创建实际 tag；
 - initial channel：stable only；
 - distribution：manual GitHub Release/download；
 - production-v1 updater policy：`NO AUTO-UPDATER`。
@@ -159,15 +169,14 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 
 ## Remaining M5 production blockers
 
-1. M5-F — freeze the final `0.3.0` source/package/installer tuple；
-2. M5-G — complete the exact-SHA Draft Release asset round-trip pipeline；
-3. M5-H — perform final Level 3 Windows acceptance on the exact final artifact；
-4. M5-I — complete the release/rollback/operator runbook；
-5. M5-J — operator publication and post-release verification。
+1. M5-G — complete the exact-SHA Draft Release asset round-trip pipeline；
+2. M5-H — perform final Level 3 Windows acceptance on the exact final artifact；
+3. M5-I — complete the release/rollback/operator runbook；
+4. M5-J — operator publication and post-release verification。
 
 Electron 保持已接受的 `43.4.1`，除非出现具体 security/compatibility 原因。
-当前受控 NSIS builder 为 `electron-builder 26.16.0`；最终 tuple 仍须在 M5-F
-单独冻结。不得以 prerelease/alpha 规避 tuple 验收。最终 tuple 必须分别记录 Electron version、
+当前受控 NSIS builder 为 `electron-builder 26.16.0`；M5-F 已单独冻结最终 tuple。
+不得以 prerelease/alpha 规避 tuple 验收。最终 tuple 必须分别记录 Electron version、
 Electron embedded Node、bundled application/sidecar Node `24.20.0`、stable
 electron-builder、历史/兼容 Forge/Squirrel、Windows architecture、NSIS mode、
 exact main SHA、tag 和 package version。
@@ -221,6 +230,9 @@ Certificate revocation/rotation 不属于 production-v1 blocker；仅在未来 s
 ```text
 M5-D: NSIS PRODUCTION CUTOVER IMPLEMENTED
 M5-E: UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED
+M5-F: FINAL 0.3.0 PRODUCTION TUPLE FROZEN / READY TO MERGE
+EXPECTED RELEASE TAG: v0.3.0 (NOT CREATED)
+M5-G/H/I/J: INCOMPLETE
 PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED
 WINDOWS PRODUCTION RELEASE READY: NO
 ```

@@ -28,7 +28,7 @@ const recallWindowsIconPath = resolve(workspaceRoot, "public", "brand", "recall"
 test("production builder config is the canonical bundled NSIS path", () => {
   assert.equal(packageJson.name, "review-workspace");
   assert.equal(packageJson.productName, "错题复盘");
-  assert.equal(packageJson.version, "0.2.4");
+  assert.equal(packageJson.version, "0.3.0");
   assert.equal(packageJson.devDependencies["electron-builder"], expectedElectronBuilderVersion);
   assert.equal(packageLock.packages["node_modules/electron-builder"].version, expectedElectronBuilderVersion);
 

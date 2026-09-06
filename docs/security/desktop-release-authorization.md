@@ -74,6 +74,12 @@ already point at the successful main CI commit. If the tag is created after its
 CI run completed, a new successful main CI run is required; tag push alone does
 not authorize publication.
 
+M5-F freezes the current production tuple at package version `0.3.0` with
+expected tag `v0.3.0`; that tag is deliberately absent at this boundary. The
+final main SHA remains dynamically bound by the trusted checkout and cannot be
+hard-coded in the pre-squash PR. M5-G/H/I/J remain incomplete, and the current
+classification is **WINDOWS PRODUCTION RELEASE READY: NO**.
+
 ## Main protection and rulesets
 
 The private repository currently reports `main.protected=false`. Branch
@@ -118,9 +124,10 @@ arbitrary code to reach production publication.**
   warnings are accepted product residuals; this SEC-04 acceptance does not claim
   Authenticode-backed identity or integrity.
 - Rollback and Draft Release asset round-trip remain M5 concerns. M5-D's
-  production NSIS cutover and M5-E's unsigned staged-artifact/checksum provenance
-  are implemented, while auto-updater behavior is intentionally excluded from
-  production-v1 and remains a separate future milestone. The unsigned
+  production NSIS cutover, M5-E's unsigned staged-artifact/checksum provenance,
+  and M5-F's `0.3.0` tuple freeze are implemented, while auto-updater behavior
+  is intentionally excluded from production-v1 and remains a separate future
+  milestone. The unsigned
   production security model keeps every SEC-04 control and relies on trusted source provenance plus the exact artifact SHA-256. See
   [`windows-production-v1-release-policy.md`](../windows-production-v1-release-policy.md).
 

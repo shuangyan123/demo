@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-06 — M5-F 0.3.0 production tuple freeze
+
+- Froze the first production NSIS identity at package version `0.3.0`, expected
+  tag `v0.3.0`, stable Windows x64, per-user NSIS, intentionally unsigned, and
+  `NO AUTO-UPDATER`; the actual tag and any Release remain intentionally absent.
+- Extended the existing NSIS production evidence with package-derived tag,
+  channel/platform, installer policy, updater/signing policy, bundled Node
+  identity, and an actual Electron main-process `process.versions` readback
+  recording embedded Node `24.18.1` separately from bundled Node `24.20.0`.
+- Preserved dynamic exact source-SHA provenance: the M5-F feature-head candidate
+  is not a final published `v0.3.0` artifact because the eventual squash merge
+  creates the final main SHA. M5-G/H/I/J remain incomplete and Windows
+  production release readiness remains **NO**.
+
 ## 2026-08-24 — M5 intentionally unsigned production-v1 policy
 
 - Established `PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED`; certificate procurement, signing providers, Authenticode, RFC3161 timestamping, publisher identity, signing-key rotation and SmartScreen reputation are no longer M5 production-v1 blockers.
