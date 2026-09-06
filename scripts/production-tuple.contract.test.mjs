@@ -11,6 +11,7 @@ const packageLock = JSON.parse(read("package-lock.json"));
 const require = createRequire(import.meta.url);
 const nsisConfig = require(resolve(workspaceRoot, "electron-builder.nsis.cjs"));
 const metadataSource = read("app/config/app-metadata.ts");
+const electronArchivePreparationSource = read("scripts/prepare-electron-archive.mjs");
 const nsisEvidenceSource = read("scripts/electron-builder-nsis-evidence.mjs");
 const electronRuntimeReaderSource = read("scripts/read-electron-runtime-version.mjs");
 const releaseGuardSource = read("scripts/verify-desktop-release-provenance.mjs");
@@ -49,6 +50,12 @@ test("M5-F production evidence reads Electron embedded Node at runtime", () => {
   assert.match(nsisEvidenceSource, /readElectronRuntimeVersions/);
   assert.match(nsisEvidenceSource, /embeddedNodeVersion/);
   assert.match(nsisEvidenceSource, /electronRuntime/);
+});
+
+test("M5-F prepares the verified Electron archive executable for runtime readback", () => {
+  assert.match(electronArchivePreparationSource, /tar\.exe/);
+  assert.match(electronArchivePreparationSource, /electronExecutablePath/);
+  assert.match(electronArchivePreparationSource, /Electron runtime executable missing after extraction/);
 });
 
 test("M5-F preserves dynamic trusted main SHA and package-derived tag provenance", () => {

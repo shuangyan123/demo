@@ -3,6 +3,7 @@
  * npm 安装 electron 时已经下载过同一文件，桌面打包不应再次依赖外网。
  */
 import { createReadStream } from "node:fs";
+import { execFile } from "node:child_process";
 import {
   copyFile,
   mkdir,
@@ -14,9 +15,11 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const { downloadArtifact } = require("@electron/get");
 const electronRoot = path.join(projectRoot, "node_modules", "electron");
@@ -106,4 +109,22 @@ if (!await isVerifiedArchive(archivePath)) {
   throw new Error(`Electron 归档校验失败：${archivePath}`);
 }
 
-console.log(`Prepared verified Electron archive: ${archiveName}`);
+// npm cache 在 CI 上可能只有经过校验的 ZIP；runtime readback 需要实际的
+// Electron executable，因此把同一归档展开到受控缓存目录。
+const electronExecutablePath = path.join(archiveDirectory, "electron.exe");
+if (!await isFile(electronExecutablePath)) {
+  await execFileAsync("tar.exe", ["-xf", archivePath, "-C", archiveDirectory], { windowsHide: true });
+}
+if (!await isFile(electronExecutablePath)) {
+  throw new Error(`Electron runtime executable missing after extraction: ${electronExecutablePath}`);
+}
+
+console.log(`Prepared verified Electron archive and runtime: ${archiveName}`);
+
+async function isFile(filePath) {
+  try {
+    return (await stat(filePath)).isFile();
+  } catch {
+    return false;
+  }
+}
