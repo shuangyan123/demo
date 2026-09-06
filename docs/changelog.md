@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-06 — M5-G exact-SHA Draft Release round-trip pipeline
+
+- Added fail-closed Draft Release metadata readback, exact stable two-asset
+  boundary checks, pre-existing-tag enforcement with `--verify-tag`, and safe
+  resume behavior that never replaces or clobbers existing Release assets.
+- Added asset-ID downloads into a fresh round-trip directory and explicit
+  canonical-versus-GitHub-hosted installer byte-size, SHA-256, manifest,
+  filename, package-version and file-set reconciliation with machine-readable
+  evidence.
+- Kept `workflow_run`/successful-main/exact-SHA release authority, intentionally
+  unsigned/no-updater policy, and the no-tag/no-publication boundary. The real
+  post-merge `v0.3.0` activation, M5-H Level 3, M5-I runbook and M5-J publication
+  remain pending.
+
 ## 2026-09-06 — M5-F 0.3.0 production tuple freeze
 
 - Froze the first production NSIS identity at package version `0.3.0`, expected

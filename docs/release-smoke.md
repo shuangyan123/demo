@@ -18,8 +18,10 @@ electron-builder + bundled NSIS，
 Forge/MakerSquirrel Squirrel 仅保留作历史、迁移和回滚兼容路径；production-v1
 不引入 updater。M5-E 已完成 final staged-byte SHA-256/manifest self-verification、
 source/staged/evidence reconciliation、实际 unsigned Authenticode 检查，以及
-exact-SHA Actions artifact 下载后的 checksum verification；完整的 Draft Release
-asset round-trip 仍是 M5-G blocker。
+exact-SHA Actions artifact 下载后的 checksum verification；M5-G 现在还会使用
+`--verify-tag` 创建或安全恢复 Draft、read back 实际 Release metadata、按 asset ID
+下载两项 GitHub asset 到独立目录，并完成跨目录 SHA/byte-size reconciliation；真实
+activation 仍需在实现合并后执行。
 
 ## Current M5-F · final 0.3.0 production tuple freeze
 
@@ -36,7 +38,27 @@ asset round-trip 仍是 M5-G blocker。
   final published `v0.3.0` artifact hash because squash merge changes the final
   main SHA。
 - M5-E checksum/manifest and unsigned Authenticode boundaries remain intact。
-  M5-G/H/I/J remain incomplete；**WINDOWS PRODUCTION RELEASE READY: NO**。
+  M5-G real activation、M5-H/I/J remain incomplete；**WINDOWS PRODUCTION RELEASE READY: NO**。
+
+## Current M5-G · exact-SHA Draft Release asset round-trip
+
+状态：**M5-G DRAFT RELEASE ROUND-TRIP PIPELINE IMPLEMENTED / READY TO MERGE;
+REAL ACTIVATION PENDING**；当前仍为
+**WINDOWS PRODUCTION RELEASE READY: NO**。
+
+- Release job 使用 `out/release-canonical/` 保存 exact-SHA Actions artifact，使用
+  独立的 `out/release-roundtrip/` 保存从 GitHub Draft asset records 重新下载的实际
+  字节；两个目录都必须恰好包含 installer 与 `SHA256SUMS.txt`。
+- 现有 Draft 若已存在，必须是 stable、未发布且只含两个预期 asset；其 asset bytes
+  会被重新下载并与 canonical bytes/hash 对比。任何缺失、额外、替换或不一致均
+  fail closed，不能使用 `--clobber`、删除 asset 或自动修复。
+- 机器可读 evidence 记录 package version、expected tag、authorized source SHA、tag
+  commit、Actions artifact identity、Draft Release ID/status、asset IDs、两次 byte
+  size/SHA-256 与 reconciliation result；不记录凭据。
+- 本实现 PR 不创建真实 tag、Draft Release 或 publication。合并后必须先等待精确
+  main SHA 的 CI 成功，再经 owner authorization 创建精确 `v0.3.0` tag，并重新运行
+  同一成功 CI；tag push 单独不授予 release authority。成功后仍停在 Draft，M5-H
+  Level 3、M5-I runbook 与 M5-J publication 不能由本流程代替。
 
 ## Current M5-E · unsigned artifact / checksum provenance
 
@@ -47,7 +69,9 @@ asset round-trip 仍是 M5-G blocker。
 - Trusted release build：成功的 `CI` main `workflow_run` 通过 exact authorized SHA checkout 后，执行 `desktop:prepare`、NSIS unpacked/bundle、source/evidence/artifact readback，再由唯一 finalizer 清空 `out/release/`、复制 canonical installer、从最终 staged bytes 生成并自校验 `SHA256SUMS.txt`、核对 source/staged/evidence hash、在 Windows 上确认 `NotSigned` 且无 signer/timestamp signer，并在 upload 前确认 public boundary 只有 installer + `SHA256SUMS.txt`；production-v1 保持 intentionally unsigned，`CSC_IDENTITY_AUTO_DISCOVERY=false`。
 - Exact-SHA artifact readback：release job checkout 授权 SHA 后下载 Actions artifact，重新校验目录边界、canonical filename、manifest syntax 与 downloaded installer SHA-256，失败时不会进入 Draft creation。
 - Squirrel：`desktop:make`、Forge/MakerSquirrel、`out/make`、历史 `.nupkg` 和 M3/M4 contracts 继续保留，但不再是 trusted production builder。
-- M5-E 本身不创建 tag 或 GitHub Release；M5-F 已冻结 `0.3.0` tuple，M5-G 仍负责 GitHub Draft Release asset re-download/re-hash，M5-H/I/J 仍未完成。
+- M5-E 本身不创建 tag 或 GitHub Release；M5-F 已冻结 `0.3.0` tuple，M5-G 已实现
+  GitHub Draft Release asset re-download/re-hash pipeline，但真实 activation 尚未执行；
+  M5-H/I/J 仍未完成。
 
 若执行 bounded cutover smoke，只能使用 disposable/dedicated Windows profile：安装 exact
 cutover-validation NSIS artifact、启动并做基本 UI interaction、关闭并核对 owned process

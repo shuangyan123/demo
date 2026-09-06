@@ -65,8 +65,13 @@ with the current deleted state.
    electron-builder + bundled NSIS installer from the exact authorized SHA, and
    finalizes the staged installer bytes with the SHA-256 manifest and actual
    unsigned Authenticode check before producing an exact-SHA artifact. The final
-   draft release job checks the downloaded artifact again before creation. Only
-   that job receives `contents: write` and consumes the exact artifact.
+   release job downloads that artifact into `out/release-canonical`, checks it
+   again, then creates or safely resumes the exact Draft Release only with a
+   pre-existing verified tag (`--verify-tag`). It reads the actual Release back,
+   requires the stable two-asset boundary, downloads those same GitHub asset
+   records by asset ID into the distinct `out/release-roundtrip` directory, and
+   compares the independently hashed bytes. Only that job receives
+   `contents: write` and consumes the exact artifact.
 
 There is intentionally no tag `push`, `workflow_dispatch`, or
 `repository_dispatch` trigger in the privileged workflow. A release tag must
@@ -75,10 +80,36 @@ CI run completed, a new successful main CI run is required; tag push alone does
 not authorize publication.
 
 M5-F freezes the current production tuple at package version `0.3.0` with
-expected tag `v0.3.0`; that tag is deliberately absent at this boundary. The
-final main SHA remains dynamically bound by the trusted checkout and cannot be
-hard-coded in the pre-squash PR. M5-G/H/I/J remain incomplete, and the current
-classification is **WINDOWS PRODUCTION RELEASE READY: NO**.
+expected tag `v0.3.0`; that tag is deliberately absent while M5-G is being
+implemented. The final main SHA remains dynamically bound by the trusted
+checkout and cannot be hard-coded in the pre-squash PR. The M5-G pipeline is
+implemented in the current tree, but its real post-merge tag/Draft execution is
+still pending; M5-H/I/J remain incomplete, and the current classification is
+**WINDOWS PRODUCTION RELEASE READY: NO**.
+
+## M5-G post-merge activation protocol
+
+The implementation PR must not create `v0.3.0`, create a Draft Release, publish
+anything, or perform M5-H Level 3 acceptance. After that PR is squash-merged,
+the trusted owner/operator must perform this exact sequence:
+
+1. Wait for the exact M5-G `main` SHA's `CI` workflow to complete successfully,
+   and record that SHA and run ID.
+2. Confirm package version `0.3.0`, expected tag `v0.3.0` is absent before
+   activation, and no `v0.3.0` Release exists.
+3. With explicit owner authorization, create `v0.3.0` exactly at that recorded
+   `main` SHA. Verify the remote tag target and never move, delete, or recreate
+   the tag.
+4. Re-run the same successful `CI` run on the same SHA. Tag push alone is not a
+   release authority and does not activate the privileged workflow.
+5. Let the resulting successful `workflow_run` re-evaluate the existing
+   `workflow_run`/exact-tag authority. The workflow must then build, verify the
+   exact-SHA Actions artifact, create or resume only a Draft Release, download
+   the two actual Release assets, and require the canonical/round-trip hashes to
+   match.
+6. Stop with the Release still Draft. If tag, Release state, asset names, byte
+   sizes, hashes, signing state, or updater metadata do not match, fail closed;
+   do not replace assets or weaken the authority model.
 
 ## Main protection and rulesets
 

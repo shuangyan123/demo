@@ -10,8 +10,10 @@ const workspaceRoot = process.cwd();
 const classifierPath = resolve(workspaceRoot, "scripts", "classify-ci-changes.mjs");
 const ciPath = resolve(workspaceRoot, ".github", "workflows", "ci.yml");
 const trustedReleasePath = resolve(workspaceRoot, ".github", "workflows", "trusted-desktop-release.yml");
+const draftReleaseRoundTripPath = resolve(workspaceRoot, "scripts", "verify-draft-release-roundtrip.mjs");
 const ci = readFileSync(ciPath, "utf8");
 const trustedRelease = readFileSync(trustedReleasePath, "utf8");
+const draftReleaseRoundTrip = readFileSync(draftReleaseRoundTripPath, "utf8");
 
 function allGates(value) {
   return {
@@ -173,10 +175,16 @@ test("Windows exact-head and NSIS unsigned contracts remain in the gated jobs", 
   assert.match(JSON.stringify(jobs["windows-nsis-production"]), /test:desktop:builder:nsis:artifact/);
 });
 
-test("trusted desktop release workflow remains byte-identical and exact-SHA based", () => {
+test("trusted desktop release workflow remains exact-SHA based and delegates Draft round-trip safety", () => {
   assert.match(trustedRelease, /workflow_run:/);
   assert.match(trustedRelease, /workflow_run\.event == 'push'/);
   assert.match(trustedRelease, /workflow_run\.head_branch == 'main'/);
   assert.match(trustedRelease, /workflow_run\.head_sha/);
-  assert.match(trustedRelease, /--draft/);
+  assert.match(trustedRelease, /out\/release-canonical/);
+  assert.match(trustedRelease, /out\/release-roundtrip/);
+  assert.match(trustedRelease, /verify-draft-release-roundtrip\.mjs/);
+  assert.match(draftReleaseRoundTrip, /["']release["'],\s*["']create["']/);
+  assert.match(draftReleaseRoundTrip, /--draft/);
+  assert.match(draftReleaseRoundTrip, /--verify-tag/);
+  assert.doesNotMatch(draftReleaseRoundTrip, /--clobber/);
 });

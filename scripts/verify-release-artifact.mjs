@@ -3,6 +3,7 @@ import { verifyReleaseArtifact } from "./release-artifact-provenance.mjs";
 try {
   const result = await verifyReleaseArtifact({
     expectedVersion: process.env.RELEASE_EXPECTED_PACKAGE_VERSION,
+    releaseDirectory: process.env.RELEASE_ARTIFACT_DIRECTORY,
   });
   console.log(JSON.stringify(result, null, 2));
 } catch (error) {

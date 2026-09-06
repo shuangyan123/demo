@@ -30,14 +30,21 @@ Windows 打包会先生成最小 `.desktop-app` host，再把 Next standalone、
 当前 `0.3.0` production/default 的 NSIS x64 安装包。M5-E finalizer 只把 canonical
 installer staged 到 `out/release/`，从最终 staged bytes 生成并自校验
 `SHA256SUMS.txt`，核对 source/staged/evidence hash，并在 Windows 上确认
-实际 `NotSigned` Authenticode boundary；Actions artifact 下载后在 Draft 创建前
-再次校验目录、文件名、manifest 和 installer SHA-256。随后才创建包含两项资产的
-Draft Release；发布仍需人工确认。M5-F 只冻结 tuple，expected `v0.3.0` tag
-尚未创建，最终 main SHA 继续动态绑定；M5-G/H/I/J 尚未完成。历史
+实际 `NotSigned` Authenticode boundary；Actions artifact 下载到独立的
+`out/release-canonical/` 后，在 Draft 创建前再次校验目录、文件名、manifest 和
+installer SHA-256。M5-G 随后只用 `--verify-tag` 创建或安全恢复 Draft，read back
+实际 Release metadata，按 asset ID 将两项 GitHub asset 下载到独立的
+`out/release-roundtrip/`，再独立 re-hash 并与 canonical bytes 对比；发布仍需人工
+确认。M5-F 只冻结 tuple，expected `v0.3.0` tag 在真实 activation 前尚未创建，最终
+main SHA 继续动态绑定；M5-G pipeline 已实现但真实 activation 仍待执行，M5-H/I/J
+尚未完成。历史
 `.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
 仅保留为 historical SEC-04 evidence。Forge/Squirrel 仍保留为历史/迁移/回滚
 兼容路径，production-v1 intentionally unsigned 且不引入 auto-updater；普通 PR
-和 Web 部署不会创建生产安装包或 Release。
+和 Web 部署不会创建生产安装包或 Release。M5-G implementation PR 也不会创建
+真实 tag、Draft Release 或 publication；合并后须先等待精确 main SHA 的 CI 成功，
+再经 owner authorization 创建精确 tag，并重新运行同一成功 CI。若 Draft 已存在，
+任何额外、缺失或不匹配 asset 都必须 fail closed，禁止替换或 `--clobber`。
 
 Web 与桌面使用同一仓库和同一 commit：`ci.yml` 负责共享应用、浏览器 E2E、桌面 TypeScript 与契约；桌面发布工作流负责目标 Windows 环境的最终打包。安装包、`.desktop-runtime`、Forge `out/`、令牌和签名材料均不得提交。
 
