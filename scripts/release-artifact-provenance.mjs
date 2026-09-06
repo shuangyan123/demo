@@ -238,6 +238,7 @@ export async function finalizeReleaseArtifact({
   const stagedByteSize = (await stat(stagedPath)).size;
   await reconcileProductionEvidence({
     evidencePath,
+    expectedPackageVersion: paths.packageVersion,
     expectedInstallerFilename: paths.installerFilename,
     sourceHash: sourceHashAfterCopy,
     stagedByteSize,
@@ -276,6 +277,7 @@ export async function finalizeReleaseArtifact({
 
 async function reconcileProductionEvidence({
   evidencePath,
+  expectedPackageVersion,
   expectedInstallerFilename,
   sourceHash,
   stagedByteSize,
@@ -290,6 +292,15 @@ async function reconcileProductionEvidence({
     );
   }
 
+  if (evidence.packageVersion !== expectedPackageVersion) {
+    throw new Error("NSIS production evidence package version does not match final staging");
+  }
+  if (evidence.expectedTag !== `v${expectedPackageVersion}`) {
+    throw new Error("NSIS production evidence expected tag does not match package version");
+  }
+  if (typeof evidence.sourceCommit !== "string" || !/^[0-9a-f]{40}$/i.test(evidence.sourceCommit)) {
+    throw new Error("NSIS production evidence source commit must be a full Git SHA");
+  }
   if (evidence.installerFilename !== expectedInstallerFilename) {
     throw new Error("NSIS production evidence installer filename does not match final staging");
   }
