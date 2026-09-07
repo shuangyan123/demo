@@ -11,6 +11,26 @@ const PERSISTED_REVIEW_CONVERSATION_TITLE = "必要条件与充分条件";
 const UI_REVIEW_HYDRATION_TIMEOUT = 80_000;
 const UI_REVIEW_TEST_TIMEOUT = 90_000;
 
+async function hasPersistedReviewConversation(page: Page): Promise<boolean> {
+  return page.evaluate((conversationId) => new Promise<boolean>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const record = database.transaction("aiConversations", "readonly").objectStore("aiConversations").get(conversationId);
+      record.onsuccess = () => {
+        database.close();
+        resolve(Boolean(record.result));
+      };
+      record.onerror = () => {
+        const error = record.error;
+        database.close();
+        reject(error);
+      };
+    };
+  }), PERSISTED_REVIEW_CONVERSATION_ID);
+}
+
 async function waitForPersistedReviewConversation(page: Page): Promise<import("@playwright/test").Locator> {
   const conversation = page.locator(`[data-conversation-id="${PERSISTED_REVIEW_CONVERSATION_ID}"]`);
   await expect(conversation).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
@@ -24,6 +44,8 @@ async function loadReviewConversation(page: Page): Promise<void> {
   await page.locator(".sample-scenario-trigger").click();
   await page.getByLabel("选择当前页面审查场景").selectOption("conversation-normal");
   await page.getByRole("button", { name: "载入本页" }).click();
+  // 先观察真实 IndexedDB 提交，再 reload，避免中断仍在进行的示例数据事务。
+  await expect.poll(() => hasPersistedReviewConversation(page), { timeout: UI_REVIEW_HYDRATION_TIMEOUT }).toBe(true);
   await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
   await page.reload();
   const persistedConversation = await waitForPersistedReviewConversation(page);
