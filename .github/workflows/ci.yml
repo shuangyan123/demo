@@ -314,6 +314,7 @@ jobs:
         with:
           name: playwright-windows
           path: .playwright-results
+          include-hidden-files: true
           if-no-files-found: ignore
 
   windows-nsis-production:

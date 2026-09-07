@@ -8,10 +8,12 @@ import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors }
 
 const PERSISTED_REVIEW_CONVERSATION_ID = "ui-review:conversation-normal:conversation";
 const PERSISTED_REVIEW_CONVERSATION_TITLE = "必要条件与充分条件";
+const UI_REVIEW_HYDRATION_TIMEOUT = 80_000;
+const UI_REVIEW_TEST_TIMEOUT = 90_000;
 
 async function waitForPersistedReviewConversation(page: Page): Promise<import("@playwright/test").Locator> {
   const conversation = page.locator(`[data-conversation-id="${PERSISTED_REVIEW_CONVERSATION_ID}"]`);
-  await expect(conversation).toBeVisible({ timeout: 80_000 });
+  await expect(conversation).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
   await expect(conversation.getByRole("button", { name: PERSISTED_REVIEW_CONVERSATION_TITLE, exact: true })).toBeVisible();
   return conversation;
 }
@@ -22,7 +24,7 @@ async function loadReviewConversation(page: Page): Promise<void> {
   await page.locator(".sample-scenario-trigger").click();
   await page.getByLabel("选择当前页面审查场景").selectOption("conversation-normal");
   await page.getByRole("button", { name: "载入本页" }).click();
-  await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: 80_000 });
+  await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
   await page.reload();
   const persistedConversation = await waitForPersistedReviewConversation(page);
   await persistedConversation.getByRole("button", { name: PERSISTED_REVIEW_CONVERSATION_TITLE, exact: true }).click();
@@ -53,6 +55,8 @@ async function readWorkspaceGeometry(page: Page): Promise<WorkspaceGeometry> {
 }
 
 test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留", async ({ page }) => {
+  // 让 80 秒的持久化 hydration 断言在慢 Windows runner 上拥有完整的有限预算。
+  test.setTimeout(UI_REVIEW_TEST_TIMEOUT);
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -107,6 +111,8 @@ test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留
 });
 
 test("ThreadHeader 使用 MainWorkspace 坐标且 Sidebar 状态层级互不混淆", async ({ page }) => {
+  // 让 80 秒的持久化 hydration 断言在慢 Windows runner 上拥有完整的有限预算。
+  test.setTimeout(UI_REVIEW_TEST_TIMEOUT);
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await loadReviewConversation(page);

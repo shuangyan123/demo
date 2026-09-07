@@ -2,6 +2,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import path from "node:path";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+const UI_REVIEW_HYDRATION_TIMEOUT = 80_000;
+const UI_REVIEW_TEST_TIMEOUT = 90_000;
+
 async function ensureOpen(summary: Locator) {
   if (!await summary.evaluate((element) => (element.parentElement as HTMLDetailsElement).open)) await summary.click();
 }
@@ -14,9 +17,22 @@ async function openLearningInsights(page: Page) {
   await page.getByRole("button", { name: "薄弱分析", exact: true }).click();
 }
 
+async function openAiConnections(page: Page) {
+  await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "设置", exact: true }).click();
+  const settingsSidebar = page.locator(".settings-sidebar-shell:visible");
+  await expect(settingsSidebar).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
+  const connectionsButton = settingsSidebar.getByRole("button", { name: "AI 连接", exact: true });
+  await connectionsButton.click();
+  await expect(connectionsButton).toHaveClass(/bg-chrome-selected/, { timeout: UI_REVIEW_HYDRATION_TIMEOUT });
+}
+
 async function loadCurrentScenario(page: Page, scenarioId: string) {
-  await page.locator(".sample-scenario-trigger").click();
-  await page.getByRole("combobox", { name: "选择当前页面审查场景" }).selectOption(scenarioId);
+  const trigger = page.locator(".sample-scenario-trigger");
+  await expect(trigger).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
+  await trigger.click();
+  const selector = page.getByRole("combobox", { name: "选择当前页面审查场景" });
+  await expect(selector).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
+  await selector.selectOption(scenarioId);
   await page.getByRole("button", { name: "载入本页" }).click();
   await expect(page.getByRole("heading", { name: "总览" })).toBeVisible();
 }
@@ -31,6 +47,8 @@ function collectExternalRequests(page: Page) {
 }
 
 test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联", async ({ page }, testInfo) => {
+  // 场景载入使用有限的可观察 hydration 预算，不把 timeout 扩大到全局。
+  test.setTimeout(UI_REVIEW_TEST_TIMEOUT);
   const runtimeErrors = collectRuntimeErrors(page);
   const externalRequests = collectExternalRequests(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
@@ -58,11 +76,9 @@ test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联"
   await expect(page.getByRole("heading", { name: /草稿详情/ })).toBeVisible();
   await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/import-console-1536.png"), fullPage: false });
 
-  await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "设置" }).click();
-  await page.getByRole("button", { name: "AI 连接" }).click();
+  await openAiConnections(page);
   await loadCurrentScenario(page, "settings-ai-connections-dense");
-  await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "设置" }).click();
-  await page.getByRole("button", { name: "AI 连接" }).click();
+  await openAiConnections(page);
   await expect(page.getByRole("region", { name: "已保存连接" }).getByRole("article")).toHaveCount(3);
   await expect(page.getByRole("combobox", { name: "默认语音连接" })).toContainText("openai-prod");
   await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/ai-connections-1536.png"), fullPage: false });
@@ -73,8 +89,7 @@ test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联"
   await page.locator(".sample-scenario-trigger").click();
   await page.getByRole("combobox", { name: "选择当前页面审查场景" }).selectOption("settings-ai-credential-recovery");
   await page.getByRole("button", { name: "载入本页" }).click();
-  await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "设置" }).click();
-  await page.getByRole("button", { name: "AI 连接" }).click();
+  await openAiConnections(page);
   await expect(page.getByRole("button", { name: "测试" })).toBeDisabled();
   await page.getByRole("button", { name: "重新输入密钥" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "凭据需要重新输入" })).toBeVisible();

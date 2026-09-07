@@ -186,6 +186,7 @@ test("Windows exact-head and NSIS unsigned contracts remain in the gated jobs", 
   assert.match(windowsE2eSource, /npx playwright install chromium/);
   assert.match(windowsE2eSource, /CI=1/);
   assert.match(windowsE2eSource, /npm run test:e2e/);
+  assert.match(windowsE2eSource, /include-hidden-files":true/);
   assert.doesNotMatch(windowsE2eSource, /retries:|continue-on-error:|test\.skip|test\.fixme/);
   assert.match(JSON.stringify(jobs["windows-nsis-production"]), /CSC_IDENTITY_AUTO_DISCOVERY":"false"/);
   assert.match(JSON.stringify(jobs["windows-nsis-production"]), /desktop:builder:nsis:unpacked/);
