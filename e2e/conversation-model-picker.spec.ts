@@ -8,6 +8,9 @@ import {
 } from "./helpers/conversation-model-fixtures";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+const WINDOWS_COLD_START_TEST_TIMEOUT = 75_000;
+const WINDOWS_COLD_START_READY_TIMEOUT = 60_000;
+
 /** 打开指定持久化对话的模型菜单，避免依赖会话排序。 */
 async function openConversationModelPicker(page: Page, conversationId: string): Promise<Locator> {
   await page.locator(`[data-conversation-id="${conversationId}"] .conversation-tree-chat-label`).click();
@@ -53,6 +56,8 @@ async function tabOutOfPicker(page: Page, picker: Locator): Promise<void> {
 }
 
 test("桌面模型菜单保持稳定外框，并保留键盘、tooltip 与焦点语义", async ({ page }, testInfo) => {
+  // Windows 冷启动可能让应用首屏数据初始化超过默认 30 秒；只扩展该测试的有限启动预算。
+  test.setTimeout(WINDOWS_COLD_START_TEST_TIMEOUT);
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
@@ -62,7 +67,7 @@ test("桌面模型菜单保持稳定外框，并保留键盘、tooltip 与焦点
   ], [
     { id: "picker-openai-chat", title: "模型宽度 OpenAI", connectionId: "picker-openai", modelId: "gpt-5.5" },
     { id: "picker-google-chat", title: "模型宽度 Gemini", connectionId: "picker-google", modelId: "gemini-2.5-pro" },
-  ]);
+  ], { readyTimeout: WINDOWS_COLD_START_READY_TIMEOUT });
   await page.reload();
 
   const openAiPicker = await openConversationModelPicker(page, "picker-openai-chat");

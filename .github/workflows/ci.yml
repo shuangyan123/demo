@@ -253,6 +253,70 @@ jobs:
           path: .playwright-results
           if-no-files-found: ignore
 
+  windows-e2e:
+    name: Windows Full E2E (Node 24.20.0)
+    needs: private-release-checkout
+    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.browser_runtime_sensitive == 'true' || needs.private-release-checkout.outputs.installer_sensitive == 'true')
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      WINDOWS_E2E_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+      # The Windows runner uses PowerShell; this is the explicit CI=1 boundary
+      # consumed by Playwright for the single-worker, CI reporter path.
+      CI: "1"
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Verify exact PR head
+        shell: pwsh
+        run: |
+          $head = (git rev-parse HEAD).Trim()
+          if ($head -ne $env:WINDOWS_E2E_SOURCE_COMMIT) {
+            throw "Checked out $head instead of exact PR head $env:WINDOWS_E2E_SOURCE_COMMIT"
+          }
+
+      - name: Setup Node 24.20.0
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.20.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Full E2E tests with CI=1
+        shell: pwsh
+        run: |
+          if ($env:CI -ne "1") {
+            throw "Windows full E2E must run with CI=1"
+          }
+          npm run test:e2e
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Upload Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-windows
+          path: .playwright-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+
   windows-nsis-production:
     name: Windows NSIS Production
     needs: private-release-checkout
@@ -323,7 +387,7 @@ jobs:
         with:
           name: review-workspace-nsis-final-${{ github.event.pull_request.head.sha }}
           path: |
-            out/release/ReviewWorkspace-0.3.0-Windows-x64-Setup.exe
+            out/release/ReviewWorkspace-0.3.1-Windows-x64-Setup.exe
             out/release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
@@ -334,7 +398,7 @@ jobs:
         with:
           name: review-workspace-nsis-production-${{ github.event.pull_request.head.sha }}
           path: |
-            out/builder-nsis/ReviewWorkspace-0.3.0-Windows-x64-Setup.exe
+            out/builder-nsis/ReviewWorkspace-0.3.1-Windows-x64-Setup.exe
             out/builder-nsis/production-evidence.json
           if-no-files-found: error
           retention-days: 7

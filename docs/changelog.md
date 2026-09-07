@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-07 — M5-G Windows release E2E recovery candidate 0.3.1
+
+- Replaced the reload conversation click race with a state-based persisted Sidebar
+  conversation boundary, and replaced credential cleanup call-count fault injection
+  with a named pre-key-boundary state seam that proves the durable partial journal
+  before Host recovery.
+- Updated the authoritative package, NSIS/Forge identity, CI artifact paths and
+  production tuple contracts to source candidate `0.3.1`.
+- Added a PR-only `windows-latest` + Node `24.20.0` full E2E gate with exact PR-head
+  verification, `npm ci`, production build, Playwright Chromium and explicit `CI=1`.
+- Corrected the release-governance boundary: PR #125 is a recovery fix only, and a
+  dedicated reviewed/merged `0.3.1` production tuple re-freeze plus exact
+  post-freeze main CI is mandatory before M5-G activation.
+- `v0.3.0` at `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` remains an immutable,
+  unpublished failed candidate; its exact tag and no-Release state must remain
+  unchanged. This task creates no `v0.3.1` tag, Draft Release or GitHub Release;
+  PR #125 remains **M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
+  NOT TAGGED / NOT ACTIVATED**.
+
 ## 2026-09-06 — M5-G exact-SHA Draft Release round-trip pipeline
 
 - Added fail-closed Draft Release metadata readback, exact stable two-asset
@@ -10,15 +29,20 @@
   filename, package-version and file-set reconciliation with machine-readable
   evidence.
 - Kept `workflow_run`/successful-main/exact-SHA release authority, intentionally
-  unsigned/no-updater policy, and the no-tag/no-publication boundary. The real
-  post-merge `v0.3.0` activation, M5-H Level 3, M5-I runbook and M5-J publication
-  remain pending.
+  unsigned/no-updater policy, and the no-tag/no-publication boundary. The later
+  `v0.3.0` activation attempt and trusted Windows E2E failure remain historical
+  context for the immutable unpublished failed candidate. The `0.3.1` recovery
+  source requires a new production tuple re-freeze before activation; M5-H Level 3,
+  M5-I runbook and M5-J publication remain pending.
 
 ## 2026-09-06 — M5-F 0.3.0 production tuple freeze
 
 - Froze the first production NSIS identity at package version `0.3.0`, expected
   tag `v0.3.0`, stable Windows x64, per-user NSIS, intentionally unsigned, and
-  `NO AUTO-UPDATER`; the actual tag and any Release remain intentionally absent.
+  `NO AUTO-UPDATER`; at that milestone the actual tag and any Release remained
+  intentionally absent. A subsequent activation attempt failed the trusted
+  Windows release E2E gate; the exact tag remains at the frozen SHA and no Release
+  was published.
 - Extended the existing NSIS production evidence with package-derived tag,
   channel/platform, installer policy, updater/signing policy, bundled Node
   identity, and an actual Electron main-process `process.versions` readback

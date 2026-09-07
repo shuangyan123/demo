@@ -1,4 +1,6 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+
+const CONNECTION_SAVE_READY_TIMEOUT = 15_000;
 
 /** AI 连接编辑器按需打开，测试必须走与用户一致的“添加连接”入口。 */
 export async function openConnectionEditor(page: Page) {
@@ -19,6 +21,9 @@ export async function configureCustomTextConnection(page: Page, input: { label: 
   await page.getByLabel("Base URL").fill(input.baseUrl);
   if (input.apiKey) await page.getByLabel("API Key").fill(input.apiKey);
   await page.getByRole("button", { name: "保存连接" }).click();
+  // 保存 handler 还会刷新 Dexie snapshot 和兼容默认连接；等待它报告完成，避免后续
+  // 凭据迁移在 profile/default/legacy bridge 的跨表写入之间读取不一致快照。
+  await expect(page.getByRole("status").filter({ hasText: "配置已保存" })).toBeVisible({ timeout: CONNECTION_SAVE_READY_TIMEOUT });
 }
 
 /** 自定义连接的模型属于默认能力，不写回连接档案。 */

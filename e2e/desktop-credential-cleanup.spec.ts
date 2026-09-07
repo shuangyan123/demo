@@ -1,6 +1,19 @@
 import { expect, test, type Page } from "@playwright/test";
 import { configureCustomTextConnection } from "./helpers/configure-custom-ai";
 
+type CleanupJournalEvidence = {
+  state?: string;
+  reasonCode?: string;
+  sourceStates?: Record<string, string>;
+};
+
+async function readCleanupJournal(page: Page): Promise<CleanupJournalEvidence | null> {
+  return page.evaluate(() => {
+    const raw = window.localStorage.getItem("review-workspace:credential-cleanup:v1");
+    return raw ? JSON.parse(raw) as CleanupJournalEvidence : null;
+  });
+}
+
 async function openAiConnectionSettings(page: Page) {
   await page.getByRole("complementary").getByRole("button").last().click();
   await page.getByRole("button", { name: /AI/ }).first().click();
@@ -12,18 +25,36 @@ async function installFakeDesktopCredentialProtection(page: Page, expectedSecret
     const protectedPayload = "ZHVtbXktcHJvdGVjdGVk";
     let protectCalls = 0;
     let unprotectCalls = 0;
-    let cleanupHostChecksUntilFailure: number | undefined;
+    let cleanupHostFailure: { kind: "always" } | { kind: "before_key_boundary"; triggered: boolean } | undefined;
     let unprotectFailureCode: "host_payload_invalid" | "host_context_mismatch" | undefined;
+
+    function cleanupJournalState(): string | undefined {
+      const raw = window.localStorage.getItem("review-workspace:credential-cleanup:v1");
+      if (!raw) return undefined;
+      try {
+        const journal = JSON.parse(raw) as { state?: unknown };
+        return typeof journal.state === "string" ? journal.state : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+
+    function shouldFailCleanupHostCheck(): boolean {
+      if (cleanupHostFailure?.kind === "always") return true;
+      if (cleanupHostFailure?.kind !== "before_key_boundary") return false;
+      if (cleanupHostFailure.triggered || cleanupJournalState() === "deleting_sources") {
+        cleanupHostFailure.triggered = true;
+        return true;
+      }
+      return false;
+    }
 
     const failure = (code: "host_payload_invalid" | "host_context_mismatch" = "host_payload_invalid") => ({ ok: false as const, error: { code, message: "safe test failure" } });
     Object.defineProperty(window, "reviewDesktopCredentialProtection", {
       configurable: true,
       value: {
         getStatus: async () => {
-          if (cleanupHostChecksUntilFailure !== undefined) {
-            if (cleanupHostChecksUntilFailure === 0) return { ok: true, value: { status: "unavailable", backend: "os_protected" } };
-            cleanupHostChecksUntilFailure -= 1;
-          }
+          if (shouldFailCleanupHostCheck()) return { ok: true, value: { status: "unavailable", backend: "os_protected" } };
           return { ok: true, value: { status: "available", backend: "os_protected" } };
         },
         protectCredential: async (context: string, secret: string) => {
@@ -46,9 +77,15 @@ async function installFakeDesktopCredentialProtection(page: Page, expectedSecret
     Object.defineProperty(window, "__e2eCleanupEvidence", {
       configurable: true,
       value: {
-        read: () => ({ protectCalls, unprotectCalls, expectedSecretSeen: [...protectedSecrets.values()].includes(expected) }),
-        failAfterChecks: (count: number) => { cleanupHostChecksUntilFailure = count; },
-        recoverHost: () => { cleanupHostChecksUntilFailure = undefined; },
+        read: () => ({
+          protectCalls,
+          unprotectCalls,
+          expectedSecretSeen: [...protectedSecrets.values()].includes(expected),
+          cleanupFailureTriggered: cleanupHostFailure?.kind === "before_key_boundary" && cleanupHostFailure.triggered,
+        }),
+        failHost: () => { cleanupHostFailure = { kind: "always" }; },
+        failAtNamedCleanupPhase: (phase: "before_key_boundary") => { cleanupHostFailure = { kind: phase, triggered: false }; },
+        recoverHost: () => { cleanupHostFailure = undefined; },
         failUnprotect: (code: "host_payload_invalid" | "host_context_mismatch") => { unprotectFailureCode = code; },
       },
     });
@@ -77,8 +114,8 @@ test("Host unavailable keeps cleanup blocked without creating cleanup state", as
   await installFakeDesktopCredentialProtection(page, "unused-host-unavailable");
   await page.goto("/");
   await page.evaluate(() => (window as Window & {
-    __e2eCleanupEvidence?: { failAfterChecks: (count: number) => void };
-  }).__e2eCleanupEvidence?.failAfterChecks(0));
+    __e2eCleanupEvidence?: { failHost: () => void };
+  }).__e2eCleanupEvidence?.failHost());
   await openAiConnectionSettings(page);
 
   const panel = page.getByRole("region", { name: "Desktop credential cleanup" });
@@ -223,12 +260,22 @@ test("partial cleanup is surfaced after reload and resumes only after an explici
   await cleanupPanel.getByRole("button", { name: "Review cleanup" }).click();
   await expect(cleanupPanel).toHaveAttribute("data-status", "awaiting_confirmation");
   await page.evaluate(() => (window as Window & {
-    __e2eCleanupEvidence?: { failAfterChecks: (count: number) => void };
-  }).__e2eCleanupEvidence?.failAfterChecks(5));
+    __e2eCleanupEvidence?: { failAtNamedCleanupPhase: (phase: "before_key_boundary") => void };
+  }).__e2eCleanupEvidence?.failAtNamedCleanupPhase("before_key_boundary"));
   await cleanupPanel.getByRole("checkbox").check();
   await cleanupPanel.getByRole("button", { name: "Confirm and clean" }).click();
   await expect(cleanupPanel).toHaveAttribute("data-status", "unavailable");
   await expect(cleanupPanel.getByRole("button", { name: "Resume cleanup" })).toHaveCount(0);
+  await expect.poll(() => readCleanupJournal(page), { timeout: 15_000 }).toMatchObject({
+    state: "partial",
+    reasonCode: "desktop_host_unavailable",
+  });
+  const partialJournal = await readCleanupJournal(page);
+  expect(Object.values(partialJournal?.sourceStates ?? {})).toContain("cleaned");
+  const failureEvidence = await page.evaluate(() => (window as Window & {
+    __e2eCleanupEvidence?: { read: () => { cleanupFailureTriggered?: boolean } };
+  }).__e2eCleanupEvidence?.read());
+  expect(failureEvidence?.cleanupFailureTriggered).toBe(true);
   await page.evaluate(() => (window as Window & {
     __e2eCleanupEvidence?: { recoverHost: () => void };
   }).__e2eCleanupEvidence?.recoverHost());

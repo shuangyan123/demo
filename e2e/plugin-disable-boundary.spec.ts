@@ -1,11 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+const PLUGIN_SECTION_RENDER_TIMEOUT = 15_000;
+
 async function openInstalledPlugins(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/");
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "设置" }).click();
-  await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件", exact: true }).click();
-  await expect(page.getByRole("region", { name: "已安装插件管理" })).toBeVisible();
+  const settingsSidebar = page.locator(".settings-sidebar-shell:visible");
+  await expect(settingsSidebar).toBeVisible({ timeout: PLUGIN_SECTION_RENDER_TIMEOUT });
+  await settingsSidebar.getByRole("button", { name: "插件", exact: true }).click();
+  // 设置区内容按 section 懒加载；等待已点击的真实面板完成渲染，不改变全局超时。
+  await expect(page.getByRole("region", { name: "已安装插件管理" })).toBeVisible({ timeout: PLUGIN_SECTION_RENDER_TIMEOUT });
 }
 
 test("内置插件停用后设置面板立即阻断后续操作并保留数据提示", async ({ page }) => {

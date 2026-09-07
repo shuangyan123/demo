@@ -148,6 +148,16 @@ test("main keeps the full validation matrix while PR heavyweight jobs are gated"
   assert.match(String(e2e.if), /needs\.build\.result == 'success'/);
   assert.match(String(e2e.if), /browser_runtime_sensitive == 'true'/);
 
+  const windowsE2e = record(jobs["windows-e2e"], "Windows full E2E job");
+  assert.equal(windowsE2e.name, "Windows Full E2E (Node 24.20.0)");
+  assert.equal(windowsE2e["runs-on"], "windows-latest");
+  assert.equal(windowsE2e.needs, "private-release-checkout");
+  assert.match(String(windowsE2e.if), /github\.event_name == 'pull_request'/);
+  assert.match(String(windowsE2e.if), /always\(\)/);
+  assert.match(String(windowsE2e.if), /browser_runtime_sensitive == 'true'/);
+  assert.match(String(windowsE2e.if), /installer_sensitive == 'true'/);
+  assert.match(String(windowsE2e.if), /needs\.private-release-checkout\.result != 'success'/);
+
   const m3 = record(jobs["windows-m3"], "Windows M3 job");
   const nsis = record(jobs["windows-nsis-production"], "Windows NSIS job");
   for (const [job, output] of [[m3, "migration_sensitive"], [nsis, "installer_sensitive"]]) {
@@ -161,13 +171,23 @@ test("main keeps the full validation matrix while PR heavyweight jobs are gated"
 
 test("Windows exact-head and NSIS unsigned contracts remain in the gated jobs", () => {
   const jobs = workflowJobs();
-  for (const jobId of ["windows-m3", "windows-nsis-production"]) {
+  for (const jobId of ["windows-m3", "windows-e2e", "windows-nsis-production"]) {
     const job = record(jobs[jobId], `${jobId} job`);
     const source = JSON.stringify(job);
     assert.match(source, /github\.event\.pull_request\.head\.sha/);
     assert.match(source, /persist-credentials":false/);
     assert.match(source, /node-version":"24\.20\.0/);
   }
+  const windowsE2e = record(jobs["windows-e2e"], "Windows full E2E job");
+  assert.equal(windowsE2e.env.CI, "1");
+  const windowsE2eSource = JSON.stringify(windowsE2e);
+  assert.match(windowsE2eSource, /npm ci/);
+  assert.match(windowsE2eSource, /npm run build/);
+  assert.match(windowsE2eSource, /npx playwright install chromium/);
+  assert.match(windowsE2eSource, /CI=1/);
+  assert.match(windowsE2eSource, /npm run test:e2e/);
+  assert.match(windowsE2eSource, /include-hidden-files":true/);
+  assert.doesNotMatch(windowsE2eSource, /retries:|continue-on-error:|test\.skip|test\.fixme/);
   assert.match(JSON.stringify(jobs["windows-nsis-production"]), /CSC_IDENTITY_AUTO_DISCOVERY":"false"/);
   assert.match(JSON.stringify(jobs["windows-nsis-production"]), /desktop:builder:nsis:unpacked/);
   assert.match(JSON.stringify(jobs["windows-nsis-production"]), /desktop:builder:nsis:bundle/);

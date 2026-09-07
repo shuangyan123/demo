@@ -6,15 +6,51 @@ import {
 } from "./helpers/conversation-model-fixtures";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+const PERSISTED_REVIEW_CONVERSATION_ID = "ui-review:conversation-normal:conversation";
+const PERSISTED_REVIEW_CONVERSATION_TITLE = "必要条件与充分条件";
+const UI_REVIEW_HYDRATION_TIMEOUT = 80_000;
+const UI_REVIEW_TEST_TIMEOUT = 90_000;
+
+async function hasPersistedReviewConversation(page: Page): Promise<boolean> {
+  return page.evaluate((conversationId) => new Promise<boolean>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const record = database.transaction("aiConversations", "readonly").objectStore("aiConversations").get(conversationId);
+      record.onsuccess = () => {
+        database.close();
+        resolve(Boolean(record.result));
+      };
+      record.onerror = () => {
+        const error = record.error;
+        database.close();
+        reject(error);
+      };
+    };
+  }), PERSISTED_REVIEW_CONVERSATION_ID);
+}
+
+async function waitForPersistedReviewConversation(page: Page): Promise<import("@playwright/test").Locator> {
+  const conversation = page.locator(`[data-conversation-id="${PERSISTED_REVIEW_CONVERSATION_ID}"]`);
+  await expect(conversation).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
+  await expect(conversation.getByRole("button", { name: PERSISTED_REVIEW_CONVERSATION_TITLE, exact: true })).toBeVisible();
+  return conversation;
+}
+
 async function loadReviewConversation(page: Page): Promise<void> {
   await page.goto("/?ui-review=1");
   await page.getByRole("button", { name: "新对话" }).first().click();
   await page.locator(".sample-scenario-trigger").click();
   await page.getByLabel("选择当前页面审查场景").selectOption("conversation-normal");
   await page.getByRole("button", { name: "载入本页" }).click();
-  await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: 80_000 });
+  // 先观察真实 IndexedDB 提交，再 reload，避免中断仍在进行的示例数据事务。
+  await expect.poll(() => hasPersistedReviewConversation(page), { timeout: UI_REVIEW_HYDRATION_TIMEOUT }).toBe(true);
+  await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: UI_REVIEW_HYDRATION_TIMEOUT });
   await page.reload();
-  await page.getByRole("button", { name: "必要条件与充分条件", exact: true }).click();
+  const persistedConversation = await waitForPersistedReviewConversation(page);
+  await persistedConversation.getByRole("button", { name: PERSISTED_REVIEW_CONVERSATION_TITLE, exact: true }).click();
+  await expect(persistedConversation).toHaveAttribute("data-conversation-active", "true");
   await expect(page.locator('[data-conversation-layer="workspace"]')).toBeVisible();
 }
 
@@ -41,6 +77,8 @@ async function readWorkspaceGeometry(page: Page): Promise<WorkspaceGeometry> {
 }
 
 test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留", async ({ page }) => {
+  // 让 80 秒的持久化 hydration 断言在慢 Windows runner 上拥有完整的有限预算。
+  test.setTimeout(UI_REVIEW_TEST_TIMEOUT);
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -95,6 +133,8 @@ test("Topic Preview 离开、点击、失焦和交互菜单打开均不会残留
 });
 
 test("ThreadHeader 使用 MainWorkspace 坐标且 Sidebar 状态层级互不混淆", async ({ page }) => {
+  // 让 80 秒的持久化 hydration 断言在慢 Windows runner 上拥有完整的有限预算。
+  test.setTimeout(UI_REVIEW_TEST_TIMEOUT);
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await loadReviewConversation(page);

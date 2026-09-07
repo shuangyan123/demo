@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { expectNoHorizontalOverflow } from "./helpers/layout-assertions";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+const CONVERSATION_VIEW_RENDER_TIMEOUT = 15_000;
+
 /** 计算每个编号圆环中心到桌面装饰路径的最短屏幕距离。 */
 async function readDesktopFlowNodeDistances(page: Page) {
   return page.locator(".dashboard-study-flow-canvas").evaluate((canvas) => {
@@ -138,7 +140,8 @@ test("桌面新对话使用共享 raised canvas 且空白提示靠近底部输�
   await page.goto("/");
   await page.getByRole("button", { name: "新对话", exact: true }).click();
 
-  await expect(page.getByRole("heading", { name: "从一个问题开始" })).toBeVisible();
+  // 对话视图按需动态加载；等待真实空白态标题，覆盖 Windows 首次加载的模块解析窗口。
+  await expect(page.getByRole("heading", { name: "从一个问题开始" })).toBeVisible({ timeout: CONVERSATION_VIEW_RENDER_TIMEOUT });
   await expect(page.getByText("发送首条消息后才会创建对话")).toBeVisible();
   await expect(page.locator(".chrome-content-frame")).toHaveAttribute("data-content-surface", "raised-surface");
   const boundary = await page.locator(".chrome-content-frame").evaluate((frame) => {

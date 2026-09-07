@@ -18,8 +18,8 @@ const releaseGuardSource = read("scripts/verify-desktop-release-provenance.mjs")
 const workflowSource = read(".github/workflows/trusted-desktop-release.yml");
 const ciSource = read(".github/workflows/ci.yml");
 
-test("M5-F freezes the current production package and installer tuple", () => {
-  assert.equal(packageJson.version, "0.3.0");
+test("M5-G recovery candidate keeps the current production package and installer tuple", () => {
+  assert.equal(packageJson.version, "0.3.1");
   assert.equal(packageLock.version, packageJson.version);
   assert.equal(packageLock.packages[""].version, packageJson.version);
 
@@ -64,6 +64,6 @@ test("M5-F preserves dynamic trusted main SHA and package-derived tag provenance
   assert.match(releaseGuardSource, /const releaseTag = `v\$\{packageJson\.version\}`/);
   assert.match(workflowSource, /NSIS_SOURCE_COMMIT: \$\{\{ needs\.authorize-release\.outputs\.release_sha \}\}/);
   assert.match(workflowSource, /ReviewWorkspace-\$\{\{ needs\.authorize-release\.outputs\.package_version \}\}-Windows-x64-Setup\.exe/);
-  assert.match(ciSource, /ReviewWorkspace-0\.3\.0-Windows-x64-Setup\.exe/);
+  assert.match(ciSource, /ReviewWorkspace-0\.3\.1-Windows-x64-Setup\.exe/);
   assert.doesNotMatch(`${nsisEvidenceSource}\n${releaseGuardSource}\n${workflowSource}`, /a79bd8934b1f25ac3328222d6d0c284eb6363984/);
 });
