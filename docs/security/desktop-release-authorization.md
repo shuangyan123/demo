@@ -79,41 +79,50 @@ already point at the successful main CI commit. If the tag is created after its
 CI run completed, a new successful main CI run is required; tag push alone does
 not authorize publication.
 
-M5-F's `0.3.0` tuple is now historical failed-candidate evidence. The exact
-candidate `v0.3.0` at SHA `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` remains
-unpublished and immutable: it must never be deleted, moved, retagged, reused or
-published. The current recovery source candidate is package version `0.3.1`,
-with expected tag `v0.3.1`; that tag is deliberately absent. The final main SHA
-remains dynamically bound by the trusted checkout and cannot be hard-coded in the
-pre-squash PR. The M5-G recovery/E2E and Draft pipeline is implemented in the
-current tree, but its real post-merge tag/Draft execution is still pending;
-M5-H/I/J remain incomplete, and the current classification is
-**WINDOWS PRODUCTION RELEASE READY: NO**.
+Historical M5-F originally froze the `0.3.0` production tuple. A subsequent
+activation attempt failed the trusted Windows release E2E gate; the exact
+`v0.3.0` tag at SHA `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` remains an
+immutable unpublished failed candidate and has no GitHub Release. It must never
+be deleted, moved, retagged, reused or published. The current PR #125 is
+**M5-G RECOVERY FIX** for source candidate `0.3.1`; expected tag `v0.3.1` is
+absent. The final main SHA remains dynamically bound by the later freeze/main
+state and cannot be hard-coded in the pre-squash PR. M5-H/I/J remain incomplete,
+and the current classification is **WINDOWS PRODUCTION RELEASE READY: NO**.
 
-## M5-G post-merge activation protocol
+## M5-G recovery fix and later activation protocol
 
-The implementation PR must not create `v0.3.1`, create a Draft Release, publish
-anything, or perform M5-H Level 3 acceptance. After that PR is squash-merged,
-the trusted owner/operator must perform this exact sequence:
+PR #125 must remain Draft and must not create `v0.3.1`, create a Draft Release,
+publish anything, or perform M5-H Level 3 acceptance. Its exact Windows + Node
+`24.20.0` full E2E gate is recovery evidence only. If PR #125 merges, the
+recovery source changes are on `main`, but the `0.3.1` production tuple is still
+**NOT YET FROZEN**.
 
-1. Wait for the exact M5-G `main` SHA's `CI` workflow to complete successfully,
-   and record that SHA and run ID.
-2. Confirm package version `0.3.1`, expected tag `v0.3.1` is absent before
-   activation, and no `v0.3.1` Release exists. Separately confirm the failed
-   `v0.3.0` candidate remains untouched and unpublished.
-3. With explicit owner authorization, create `v0.3.1` exactly at that recorded
-   `main` SHA. Verify the remote tag target and never move, delete, or recreate
-   the tag.
-4. Re-run the same successful `CI` run on the same SHA. Tag push alone is not a
+The trusted owner/operator must complete this sequence before any real M5-G
+activation:
+
+1. Record a successful exact post-merge `main` CI run for the merged PR #125
+   recovery source.
+2. Open a separate, dedicated `0.3.1` production tuple re-freeze milestone. In
+   a reviewed and merged freeze change, record every static field listed in
+   [`windows-production-v1-release-policy.md`](../windows-production-v1-release-policy.md),
+   including package/tag/installer identity, Windows x64 stable NSIS per-user
+   mode, Electron and both Node versions, electron-builder, app identity,
+   intentionally unsigned/Authenticode state, `publish=null`, no-updater
+   metadata, and the strict fuse tuple.
+3. Require the exact post-freeze `main` CI to pass. The exact main SHA produced
+   by that freeze merge is the only source SHA eligible for the later activation;
+   PR #125 is not the production freeze.
+4. After owner authorization, confirm `v0.3.1` and its Release are absent, and
+   confirm immutable `v0.3.0` still points to
+   `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` with no Release.
+5. Create `v0.3.1` exactly at the frozen main SHA and verify the remote tag
+   target. Never move, delete, recreate or retag it.
+6. Re-run the same successful main CI on that SHA. Tag push alone is not a
    release authority and does not activate the privileged workflow.
-5. Let the resulting successful `workflow_run` re-evaluate the existing
-   `workflow_run`/exact-tag authority. The workflow must then build, verify the
-   exact-SHA Actions artifact, create or resume only a Draft Release, download
-   the two actual Release assets, and require the canonical/round-trip hashes to
-   match.
-6. Stop with the Release still Draft. If tag, Release state, asset names, byte
-   sizes, hashes, signing state, or updater metadata do not match, fail closed;
-   do not replace assets or weaken the authority model.
+7. Let the resulting successful `workflow_run` build the exact-SHA artifact,
+   create or safely resume only a Draft Release, and complete the asset-ID
+   download plus canonical/round-trip hash reconciliation. Stop with the
+   Release still Draft; any mismatch must fail closed.
 
 ## Main protection and rulesets
 
@@ -161,8 +170,8 @@ arbitrary code to reach production publication.**
 - Rollback and Draft Release asset round-trip remain M5 concerns. M5-D's
   production NSIS cutover, M5-E's unsigned staged-artifact/checksum provenance,
   and M5-G's `0.3.1` recovery candidate/tuple update are implemented; the
-  historical M5-F `0.3.0` tuple remains an immutable failed candidate, while
-  auto-updater behavior is intentionally excluded from production-v1 and remains
+  historical M5-F `0.3.0` tuple remains historical, while its subsequent exact
+  `v0.3.0` activation outcome is an immutable failed unpublished candidate; auto-updater behavior is intentionally excluded from production-v1 and remains
   a separate future milestone. The unsigned
   production security model keeps every SEC-04 control and relies on trusted source provenance plus the exact artifact SHA-256. See
   [`windows-production-v1-release-policy.md`](../windows-production-v1-release-policy.md).

@@ -23,16 +23,19 @@ source/staged/evidence reconciliation、实际 unsigned Authenticode 检查，�
 exact-SHA Actions artifact 下载后的 checksum verification；M5-G 现在还会使用
 `--verify-tag` 创建或安全恢复 Draft、read back 实际 Release metadata、按 asset ID
 下载两项 GitHub asset 到独立目录，并完成跨目录 SHA/byte-size reconciliation；真实
-activation 仍需在实现合并后执行。
+activation 不能由 PR #125 直接触发；合并后的 exact main CI 之后，仍必须先完成
+新的 `0.3.1` production tuple re-freeze，并通过该 freeze merge 后的 exact main CI。
 
 ## Historical M5-F · final 0.3.0 production tuple freeze
 
-状态：**M5-F 0.3.0 FAILED UNPUBLISHED CANDIDATE / IMMUTABLE**。
+状态：**M5-F HISTORICAL 0.3.0 PRODUCTION TUPLE FREEZE**；后续 activation
+outcome：**v0.3.0 IMMUTABLE FAILED UNPUBLISHED CANDIDATE**。
 
-- Frozen package version：`0.3.0`；expected release tag：`v0.3.0`；actual tag
-  deliberately **not created** in M5-F；the candidate SHA
-  `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` must never be moved, retagged, reused
-  or published。
+- Frozen package version：`0.3.0`；expected release tag：`v0.3.0`；M5-F milestone
+  当时 actual tag deliberately **not created**；a subsequent activation attempt
+  failed the trusted Windows release E2E gate. The exact tag now remains at
+  `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3`, has no GitHub Release, and must
+  never be moved, retagged, reused or published。
 - Frozen installer：`ReviewWorkspace-0.3.0-Windows-x64-Setup.exe`；Windows
   x64、NSIS、per-user、stable、intentionally unsigned、`NO AUTO-UPDATER`。
 - Frozen runtime：Electron `43.4.1`，Electron embedded Node `24.18.1`，bundled
@@ -46,8 +49,8 @@ activation 仍需在实现合并后执行。
 
 ## Current M5-G · 0.3.1 recovery E2E and exact-SHA Draft Release asset round-trip
 
-状态：**M5-G RECOVERY E2E + DRAFT RELEASE ROUND-TRIP PIPELINE IMPLEMENTED / READY FOR REVIEW;
-REAL ACTIVATION PENDING**；当前仍为
+状态：**M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
+NOT TAGGED / NOT ACTIVATED; PR #125 DRAFT**；当前仍为
 **WINDOWS PRODUCTION RELEASE READY: NO**。
 
 - Release job 使用 `out/release-canonical/` 保存 exact-SHA Actions artifact，使用
@@ -59,12 +62,19 @@ REAL ACTIVATION PENDING**；当前仍为
 - 机器可读 evidence 记录 package version、expected tag、authorized source SHA、tag
   commit、Actions artifact identity、Draft Release ID/status、asset IDs、两次 byte
   size/SHA-256 与 reconciliation result；不记录凭据。
+- PR #125 adds the PR-only Windows `windows-latest` + Node `24.20.0` full E2E
+  gate with exact-head verification, `npm ci`, production build, Playwright
+  Chromium and `CI=1`; its GitHub result is required recovery evidence and is
+  not replaced by local Node 26 runs or Ubuntu E2E.
 - 当前 source candidate package version 为 `0.3.1`；本轮只验证代码、契约和 E2E，
   不创建 `v0.3.1` tag、Draft Release 或 GitHub Release。
-- 本实现 PR 不创建真实 tag、Draft Release 或 publication。合并后必须先等待精确
-  main SHA 的 CI 成功，再经 owner authorization 创建精确 `v0.3.1` tag，并重新运行
-  同一成功 CI；tag push 单独不授予 release authority。成功后仍停在 Draft，M5-H
-  Level 3、M5-I runbook 与 M5-J publication 不能由本流程代替。
+- 本实现 PR 不创建真实 tag、Draft Release 或 publication。PR #125 合并后，恢复
+  source changes 在 main 上，但 `0.3.1` production tuple 仍 **NOT YET FROZEN**。
+  必须先完成新的 dedicated production tuple re-freeze、review/merge freeze change
+  并通过 exact post-freeze main CI；只有之后 owner authorization 才能确认
+  `v0.3.1` tag/Release absent、在 exact frozen main SHA 创建 tag、验证 tag，并重新
+  运行同一成功 main CI。tag push 单独不授予 release authority。成功后仍停在 Draft，
+  M5-H Level 3、M5-I runbook 与 M5-J publication 不能由本流程代替。
 
 ## Current M5-E · unsigned artifact / checksum provenance
 
@@ -75,9 +85,10 @@ REAL ACTIVATION PENDING**；当前仍为
 - Trusted release build：成功的 `CI` main `workflow_run` 通过 exact authorized SHA checkout 后，执行 `desktop:prepare`、NSIS unpacked/bundle、source/evidence/artifact readback，再由唯一 finalizer 清空 `out/release/`、复制 canonical installer、从最终 staged bytes 生成并自校验 `SHA256SUMS.txt`、核对 source/staged/evidence hash、在 Windows 上确认 `NotSigned` 且无 signer/timestamp signer，并在 upload 前确认 public boundary 只有 installer + `SHA256SUMS.txt`；production-v1 保持 intentionally unsigned，`CSC_IDENTITY_AUTO_DISCOVERY=false`。
 - Exact-SHA artifact readback：release job checkout 授权 SHA 后下载 Actions artifact，重新校验目录边界、canonical filename、manifest syntax 与 downloaded installer SHA-256，失败时不会进入 Draft creation。
 - Squirrel：`desktop:make`、Forge/MakerSquirrel、`out/make`、历史 `.nupkg` 和 M3/M4 contracts 继续保留，但不再是 trusted production builder。
-- M5-E 本身不创建 tag 或 GitHub Release；M5-F 的 `0.3.0` tuple 是失败候选历史证据；
-  M5-G recovery 已实现 GitHub Draft Release asset re-download/re-hash pipeline，
-  但真实 activation 尚未执行；
+- M5-E 本身不创建 tag 或 GitHub Release；M5-F originally froze the `0.3.0`
+  tuple, and the subsequent failed activation left its exact tag as an immutable
+  unpublished failed candidate；M5-G recovery 已实现 GitHub Draft Release asset
+  re-download/re-hash pipeline，但真实 activation 尚未执行；
   M5-H/I/J 仍未完成。
 
 若执行 bounded cutover smoke，只能使用 disposable/dedicated Windows profile：安装 exact

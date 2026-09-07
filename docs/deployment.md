@@ -11,10 +11,11 @@ npm run desktop:builder:nsis # electron-builder NSIS production-equivalent 安�
 ```
 
 `desktop:prepare` 会先执行 Next 生产构建和桌面 TypeScript 编译，再准备固定的
-bundled Node.js `24.20.0` 与 Electron Windows x64 归档。当前 M5-G recovery
-source candidate package version 为 `0.3.1`；原 `v0.3.0` 位于
-`6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3`，是 unpublished failed candidate，必须
-保持 immutable，不能 retag；Electron `43.4.1` 的 embedded Node 是通过实际
+bundled Node.js `24.20.0` 与 Electron Windows x64 归档。当前 PR #125 是
+**M5-G RECOVERY FIX**，source candidate package version 为 `0.3.1`，仍为
+**NOT YET FROZEN / NOT TAGGED / NOT ACTIVATED**；原 `v0.3.0` 位于
+`6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3`，是 immutable unpublished failed
+candidate，必须保持 exact tag 不变，不能 retag；Electron `43.4.1` 的 embedded Node 是通过实际
 Electron main-process `process.versions` readback 确认的 `24.18.1`，不能从
 bundled Node 推断。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm
 安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。
@@ -38,14 +39,19 @@ installer SHA-256。M5-G 随后只用 `--verify-tag` 创建或安全恢复 Draft
 实际 Release metadata，按 asset ID 将两项 GitHub asset 下载到独立的
 `out/release-roundtrip/`，再独立 re-hash 并与 canonical bytes 对比；发布仍需人工
 确认。`v0.3.1` tag 在真实 activation 前尚未创建，最终 main SHA 继续动态绑定；
-M5-G recovery/E2E and round-trip pipeline 已实现但真实 activation 仍待执行，M5-H/I/J
-尚未完成。历史
+M5-G recovery/E2E and round-trip pipeline 已实现但真实 activation 仍待执行；PR #125
+合并后的 exact main CI 仍不能替代新的 `0.3.1` production tuple re-freeze。该 freeze
+必须由独立的 reviewed/merged change 记录完整 static tuple，并通过 exact post-freeze
+main CI 后才能进入 owner authorization。M5-H/I/J 尚未完成。历史
 `.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
 仅保留为 historical SEC-04 evidence。Forge/Squirrel 仍保留为历史/迁移/回滚
 兼容路径，production-v1 intentionally unsigned 且不引入 auto-updater；普通 PR
 和 Web 部署不会创建生产安装包或 Release。M5-G implementation PR 也不会创建
 真实 tag、Draft Release 或 publication；合并后须先等待精确 main SHA 的 CI 成功，
-再经 owner authorization 创建精确 tag，并重新运行同一成功 CI。若 Draft 已存在，
+再完成新的 `0.3.1` production tuple re-freeze、freeze change review/merge 和
+exact post-freeze main CI。只有完成这些前置条件并取得 owner authorization 后，才可
+确认 `v0.3.1` tag/Release absent，在 exact frozen main SHA 创建并验证 tag，再重新运行
+同一成功 CI。若 Draft 已存在，
 任何额外、缺失或不匹配 asset 都必须 fail closed，禁止替换或 `--clobber`。
 
 Web 与桌面使用同一仓库和同一 commit：`ci.yml` 负责共享应用、浏览器 E2E、桌面 TypeScript 与契约；桌面发布工作流负责目标 Windows 环境的最终打包。安装包、`.desktop-runtime`、Forge `out/`、令牌和签名材料均不得提交。
