@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 import { seedConversationModelFixtures } from "./helpers/conversation-model-fixtures";
 
+const SETTINGS_SECTION_RENDER_TIMEOUT = 15_000;
+
 test("设置导航、厂商选择与弥散状态保持独立且可持久化", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
@@ -99,8 +101,9 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(page.getByText("默认多模态", { exact: true })).toBeVisible();
   await expect(page.getByText("默认语音", { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("settings-ai-connections-compact-desktop.png"), fullPage: false });
-  await page.getByRole("button", { name: "个性化" }).click();
-  await expect(page.getByRole("heading", { name: "个性化" })).toBeVisible();
+  await page.getByRole("button", { name: "个性化", exact: true }).click();
+  await expect(page.getByRole("button", { name: "个性化", exact: true })).toHaveClass(/bg-chrome-selected/);
+  await expect(page.getByRole("heading", { name: "个性化", exact: true })).toBeVisible({ timeout: SETTINGS_SECTION_RENDER_TIMEOUT });
   await page.getByRole("button", { name: "额度" }).click();
   await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible({ timeout: 15_000 });
   const quotaTable = page.getByRole("region", { name: "AI 额度与用量" });
@@ -115,8 +118,9 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(page.getByRole("heading", { name: "额度与用量" })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "诊断" }).click();
   await expect(page.getByRole("heading", { name: "诊断", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "个性化" }).click();
-  await expect(page.getByRole("heading", { name: "个性化" })).toBeVisible();
+  await page.getByRole("button", { name: "个性化", exact: true }).click();
+  await expect(page.getByRole("button", { name: "个性化", exact: true })).toHaveClass(/bg-chrome-selected/);
+  await expect(page.getByRole("heading", { name: "个性化", exact: true })).toBeVisible({ timeout: SETTINGS_SECTION_RENDER_TIMEOUT });
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });
