@@ -456,7 +456,7 @@ Real cleanup、post-cleanup restart、no-regeneration observation 和 cleanup �
 
 - 稳定 Windows x64 安装、覆盖升级、卸载和发布证据。
 - 明确安装器、SHA-256、版本、提交和 CI 的可追溯关系。
-- 按 [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md) 固定 intentionally unsigned、accepted Unknown Publisher/SmartScreen residual 与 exact-artifact SHA-256 security boundary；M5-E 已完成 final staged-byte hash/manifest、实际 unsigned Authenticode 和 Actions artifact download verification，M5-F 已冻结 `0.3.0` production tuple，M5-G 已实现 exact-SHA Draft Release asset readback/re-download/re-hash pipeline（真实 tag/Draft activation 仍待 owner authorization，最终 main SHA 动态绑定）；M5-H/I/J 仍未完成；代码签名和 publisher identity 延后到独立未来里程碑。
+- 按 [`windows-production-v1-release-policy.md`](windows-production-v1-release-policy.md) 固定 intentionally unsigned、accepted Unknown Publisher/SmartScreen residual 与 exact-artifact SHA-256 security boundary；M5-E 已完成 final staged-byte hash/manifest、实际 unsigned Authenticode 和 Actions artifact download verification，M5-F 的 `0.3.0` 仅保留为 immutable unpublished failed candidate，M5-G 已准备 `0.3.1` source candidate 并实现 exact-SHA Draft Release asset readback/re-download/re-hash pipeline（真实 tag/Draft activation 仍待 owner authorization，最终 main SHA 动态绑定）；M5-H/I/J 仍未完成；代码签名和 publisher identity 延后到独立未来里程碑。
 
 ### 非目标
 
@@ -531,7 +531,7 @@ Static contracts and build/package success cannot replace the operator-attested 
 ### 验收标准
 
 - Phase 1：当前 packaging stack、binary/userData ownership、lifecycle process model、installer identity、threat model 和 A–W acceptance matrix 有代码/依赖/文档证据与 automated contracts。
-- Full 0.8：clean-machine 安装、覆盖升级、Phase 2B scoped 卸载/重装边界、intentionally unsigned release asset provenance 和其余 userData lifecycle 仍需按各自 scope 的真实 Windows evidence；M5-F 的 `0.3.0` tuple freeze 与 M5-G round-trip pipeline 已实现，但 M5-G real activation、M5-H/I/J 尚未完成，未执行项目不得写成 PASS。Production signing/publisher identity 不是 production-v1 acceptance gate。
+- Full 0.8：clean-machine 安装、覆盖升级、Phase 2B scoped 卸载/重装边界、intentionally unsigned release asset provenance 和其余 userData lifecycle 仍需按各自 scope 的真实 Windows evidence；M5-G 的 `0.3.1` source candidate 与 round-trip pipeline 已实现，但 M5-G real activation、M5-H/I/J 尚未完成，未执行项目不得写成 PASS。Production signing/publisher identity 不是 production-v1 acceptance gate；`v0.3.0` failed candidate 保持 immutable。
 - 安装器、ASAR、runtime manifest、Fuses、大小和 checksum 可验证；这些 artifact checks 不替代真实 installed-app lifecycle evidence。
 
 ### 回滚边界

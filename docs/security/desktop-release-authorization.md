@@ -79,25 +79,29 @@ already point at the successful main CI commit. If the tag is created after its
 CI run completed, a new successful main CI run is required; tag push alone does
 not authorize publication.
 
-M5-F freezes the current production tuple at package version `0.3.0` with
-expected tag `v0.3.0`; that tag is deliberately absent while M5-G is being
-implemented. The final main SHA remains dynamically bound by the trusted
-checkout and cannot be hard-coded in the pre-squash PR. The M5-G pipeline is
-implemented in the current tree, but its real post-merge tag/Draft execution is
-still pending; M5-H/I/J remain incomplete, and the current classification is
+M5-F's `0.3.0` tuple is now historical failed-candidate evidence. The exact
+candidate `v0.3.0` at SHA `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` remains
+unpublished and immutable: it must never be deleted, moved, retagged, reused or
+published. The current recovery source candidate is package version `0.3.1`,
+with expected tag `v0.3.1`; that tag is deliberately absent. The final main SHA
+remains dynamically bound by the trusted checkout and cannot be hard-coded in the
+pre-squash PR. The M5-G recovery/E2E and Draft pipeline is implemented in the
+current tree, but its real post-merge tag/Draft execution is still pending;
+M5-H/I/J remain incomplete, and the current classification is
 **WINDOWS PRODUCTION RELEASE READY: NO**.
 
 ## M5-G post-merge activation protocol
 
-The implementation PR must not create `v0.3.0`, create a Draft Release, publish
+The implementation PR must not create `v0.3.1`, create a Draft Release, publish
 anything, or perform M5-H Level 3 acceptance. After that PR is squash-merged,
 the trusted owner/operator must perform this exact sequence:
 
 1. Wait for the exact M5-G `main` SHA's `CI` workflow to complete successfully,
    and record that SHA and run ID.
-2. Confirm package version `0.3.0`, expected tag `v0.3.0` is absent before
-   activation, and no `v0.3.0` Release exists.
-3. With explicit owner authorization, create `v0.3.0` exactly at that recorded
+2. Confirm package version `0.3.1`, expected tag `v0.3.1` is absent before
+   activation, and no `v0.3.1` Release exists. Separately confirm the failed
+   `v0.3.0` candidate remains untouched and unpublished.
+3. With explicit owner authorization, create `v0.3.1` exactly at that recorded
    `main` SHA. Verify the remote tag target and never move, delete, or recreate
    the tag.
 4. Re-run the same successful `CI` run on the same SHA. Tag push alone is not a
@@ -156,9 +160,10 @@ arbitrary code to reach production publication.**
   Authenticode-backed identity or integrity.
 - Rollback and Draft Release asset round-trip remain M5 concerns. M5-D's
   production NSIS cutover, M5-E's unsigned staged-artifact/checksum provenance,
-  and M5-F's `0.3.0` tuple freeze are implemented, while auto-updater behavior
-  is intentionally excluded from production-v1 and remains a separate future
-  milestone. The unsigned
+  and M5-G's `0.3.1` recovery candidate/tuple update are implemented; the
+  historical M5-F `0.3.0` tuple remains an immutable failed candidate, while
+  auto-updater behavior is intentionally excluded from production-v1 and remains
+  a separate future milestone. The unsigned
   production security model keeps every SEC-04 control and relies on trusted source provenance plus the exact artifact SHA-256. See
   [`windows-production-v1-release-policy.md`](../windows-production-v1-release-policy.md).
 

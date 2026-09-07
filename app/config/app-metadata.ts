@@ -4,4 +4,4 @@
  */
 export const REVIEW_WORKSPACE_VERSION = process.env.NEXT_PUBLIC_REVIEW_WORKSPACE_VERSION
   ?? process.env.npm_package_version
-  ?? "0.3.0";
+  ?? "0.3.1";

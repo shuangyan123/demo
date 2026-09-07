@@ -11,8 +11,10 @@ npm run desktop:builder:nsis # electron-builder NSIS production-equivalent 安�
 ```
 
 `desktop:prepare` 会先执行 Next 生产构建和桌面 TypeScript 编译，再准备固定的
-bundled Node.js `24.20.0` 与 Electron Windows x64 归档。当前 M5-F production
-package version 为 `0.3.0`；Electron `43.4.1` 的 embedded Node 是通过实际
+bundled Node.js `24.20.0` 与 Electron Windows x64 归档。当前 M5-G recovery
+source candidate package version 为 `0.3.1`；原 `v0.3.0` 位于
+`6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3`，是 unpublished failed candidate，必须
+保持 immutable，不能 retag；Electron `43.4.1` 的 embedded Node 是通过实际
 Electron main-process `process.versions` readback 确认的 `24.18.1`，不能从
 bundled Node 推断。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm
 安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。
@@ -27,7 +29,7 @@ Windows 打包会先生成最小 `.desktop-app` host，再把 Next standalone、
 
 当前受信任发布工作流 `.github/workflows/trusted-desktop-release.yml` 由成功的
 `CI` main `workflow_run` 驱动，在 `windows-latest` 上按授权 source SHA 制作
-当前 `0.3.0` production/default 的 NSIS x64 安装包。M5-E finalizer 只把 canonical
+当前 `0.3.1` source candidate 的 production/default NSIS x64 安装包。M5-E finalizer 只把 canonical
 installer staged 到 `out/release/`，从最终 staged bytes 生成并自校验
 `SHA256SUMS.txt`，核对 source/staged/evidence hash，并在 Windows 上确认
 实际 `NotSigned` Authenticode boundary；Actions artifact 下载到独立的
@@ -35,8 +37,8 @@ installer staged 到 `out/release/`，从最终 staged bytes 生成并自校验
 installer SHA-256。M5-G 随后只用 `--verify-tag` 创建或安全恢复 Draft，read back
 实际 Release metadata，按 asset ID 将两项 GitHub asset 下载到独立的
 `out/release-roundtrip/`，再独立 re-hash 并与 canonical bytes 对比；发布仍需人工
-确认。M5-F 只冻结 tuple，expected `v0.3.0` tag 在真实 activation 前尚未创建，最终
-main SHA 继续动态绑定；M5-G pipeline 已实现但真实 activation 仍待执行，M5-H/I/J
+确认。`v0.3.1` tag 在真实 activation 前尚未创建，最终 main SHA 继续动态绑定；
+M5-G recovery/E2E and round-trip pipeline 已实现但真实 activation 仍待执行，M5-H/I/J
 尚未完成。历史
 `.github/workflows/desktop-release.yml`（workflow ID `323491496`）已删除，
 仅保留为 historical SEC-04 evidence。Forge/Squirrel 仍保留为历史/迁移/回滚

@@ -6,6 +6,16 @@ import {
 } from "./helpers/conversation-model-fixtures";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
+const PERSISTED_REVIEW_CONVERSATION_ID = "ui-review:conversation-normal:conversation";
+const PERSISTED_REVIEW_CONVERSATION_TITLE = "必要条件与充分条件";
+
+async function waitForPersistedReviewConversation(page: Page): Promise<import("@playwright/test").Locator> {
+  const conversation = page.locator(`[data-conversation-id="${PERSISTED_REVIEW_CONVERSATION_ID}"]`);
+  await expect(conversation).toBeVisible({ timeout: 80_000 });
+  await expect(conversation.getByRole("button", { name: PERSISTED_REVIEW_CONVERSATION_TITLE, exact: true })).toBeVisible();
+  return conversation;
+}
+
 async function loadReviewConversation(page: Page): Promise<void> {
   await page.goto("/?ui-review=1");
   await page.getByRole("button", { name: "新对话" }).first().click();
@@ -14,7 +24,9 @@ async function loadReviewConversation(page: Page): Promise<void> {
   await page.getByRole("button", { name: "载入本页" }).click();
   await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: 80_000 });
   await page.reload();
-  await page.getByRole("button", { name: "必要条件与充分条件", exact: true }).click();
+  const persistedConversation = await waitForPersistedReviewConversation(page);
+  await persistedConversation.getByRole("button", { name: PERSISTED_REVIEW_CONVERSATION_TITLE, exact: true }).click();
+  await expect(persistedConversation).toHaveAttribute("data-conversation-active", "true");
   await expect(page.locator('[data-conversation-layer="workspace"]')).toBeVisible();
 }
 

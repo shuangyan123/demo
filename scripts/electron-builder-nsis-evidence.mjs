@@ -55,7 +55,7 @@ export async function collectNsisProductionEvidence() {
   const sourceCommit = resolveSourceCommit();
   assertEqual(packageJson.name, "review-workspace", "package name");
   assertEqual(packageJson.productName, "错题复盘", "product name");
-  assertEqual(packageJson.version, "0.3.0", "package version");
+  assertEqual(packageJson.version, "0.3.1", "package version");
   assertEqual(process.env.CSC_IDENTITY_AUTO_DISCOVERY, "false", "CSC_IDENTITY_AUTO_DISCOVERY");
   assertEqual(packageJson.devDependencies["electron-builder"], "26.16.0", "electron-builder version");
   assertEqual(packageJson.devDependencies.electron, "43.4.1", "Electron version");
@@ -71,8 +71,8 @@ export async function collectNsisProductionEvidence() {
   assertEqual(executableInfo.ProductName, "错题复盘", "PE ProductName");
   assertEqual(executableInfo.FileDescription, "错题复盘", "PE FileDescription");
   assertEqual(executableInfo.InternalName, "review-workspace", "PE InternalName");
-  assertMatch(executableInfo.FileVersion, /^0\.3\.0(?:\.0)?$/, "PE FileVersion");
-  assertMatch(executableInfo.ProductVersion, /^0\.3\.0(?:\.0)?$/, "PE ProductVersion");
+  assertMatch(executableInfo.FileVersion, /^0\.3\.1(?:\.0)?$/, "PE FileVersion");
+  assertMatch(executableInfo.ProductVersion, /^0\.3\.1(?:\.0)?$/, "PE ProductVersion");
   const packagedElectronVersion = readFileSync(path.join(artifactRoot, "version"), "utf8").trim();
   assertEqual(packagedElectronVersion, packageJson.devDependencies.electron, "packaged Electron version");
   const electronRuntime = readElectronRuntimeVersions({
@@ -92,7 +92,7 @@ export async function collectNsisProductionEvidence() {
   const appMetadata = JSON.parse(asar.extractFile(asarPath, "package.json").toString("utf8"));
   assertEqual(appMetadata.name, "review-workspace", "packaged app name");
   assertEqual(appMetadata.productName, "错题复盘", "packaged product name");
-  assertEqual(appMetadata.version, "0.3.0", "packaged app version");
+  assertEqual(appMetadata.version, "0.3.1", "packaged app version");
 
   const compiledPreload = readFileSync(path.join(workspaceRoot, ".desktop", "preload.cjs"));
   const packagedPreload = asar.extractFile(asarPath, ".desktop/preload.cjs");
@@ -243,8 +243,8 @@ export async function collectNsisProductionEvidence() {
 
 export function assertNsisProductionEvidence(evidence) {
   assertEqual(evidence.schemaVersion, 1, "evidence schema version");
-  assertEqual(evidence.packageVersion, "0.3.0", "evidence package version");
-  assertEqual(evidence.expectedTag, "v0.3.0", "evidence expected tag");
+  assertEqual(evidence.packageVersion, "0.3.1", "evidence package version");
+  assertEqual(evidence.expectedTag, "v0.3.1", "evidence expected tag");
   assertEqual(evidence.channel, "stable", "evidence channel");
   assertEqual(evidence.platform, "Windows", "evidence platform");
   assertEqual(evidence.productName, "错题复盘", "evidence product name");
@@ -258,7 +258,7 @@ export function assertNsisProductionEvidence(evidence) {
   assertEqual(evidence.target, "nsis", "evidence target");
   assertEqual(evidence.architecture, "x64", "evidence architecture");
   assertEqual(evidence.appId, "com.squirrel.review_workspace.review-workspace", "evidence appId");
-  assertEqual(evidence.installerFilename, "ReviewWorkspace-0.3.0-Windows-x64-Setup.exe", "evidence installer filename");
+  assertEqual(evidence.installerFilename, "ReviewWorkspace-0.3.1-Windows-x64-Setup.exe", "evidence installer filename");
   assert(typeof evidence.sourceCommit === "string" && /^[0-9a-f]{40}$/.test(evidence.sourceCommit), "evidence sourceCommit must be a full Git SHA");
   assert(evidence.installerByteSize > 0, "evidence installer byte size must be positive");
   assertMatch(evidence.installerSha256, /^[0-9a-f]{64}$/, "evidence installer SHA-256");
@@ -298,7 +298,7 @@ export function assertNsisProductionEvidence(evidence) {
   assert(evidence.updaterMetadata?.blockmapPresent === false, "evidence must not contain a blockmap");
   assert(evidence.updaterMetadata?.latestYmlPresent === false, "evidence must not contain latest.yml");
   assert(evidence.applicationIdentity?.pass === true, "evidence application identity must pass");
-  assertEqual(evidence.applicationIdentity.version, "0.3.0", "evidence application identity version");
+  assertEqual(evidence.applicationIdentity.version, "0.3.1", "evidence application identity version");
   assertEqual(evidence.applicationIdentity.shortcutName, "错题复盘", "evidence shortcut name");
   assertEqual(evidence.applicationIdentity.uninstallDisplayName, "错题复盘", "evidence uninstall display name");
   assertEqual(evidence.icon?.path, "public/brand/recall/app/recall.ico", "evidence Windows icon path");

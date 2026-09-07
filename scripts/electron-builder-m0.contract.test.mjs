@@ -18,7 +18,7 @@ const recallWindowsIconPath = resolve(workspaceRoot, "public", "brand", "recall"
 test("M0 builder config is additive and targets bundled NSIS only", () => {
   assert.equal(packageJson.name, "review-workspace");
   assert.equal(packageJson.productName, "错题复盘");
-  assert.equal(packageJson.version, "0.3.0");
+  assert.equal(packageJson.version, "0.3.1");
   assert.equal(packageJson.devDependencies["electron-builder"], "26.16.0");
   assert.equal(packageLock.packages["node_modules/electron-builder"].version, "26.16.0");
 
@@ -78,7 +78,7 @@ test("M0 leaves the accepted Forge Squirrel production contract intact", () => {
   assert.match(forgeConfig, /new MakerSquirrel\(/);
   assert.match(forgeConfig, /name:\s*["']review_workspace["']/);
   assert.match(forgeConfig, /nuspecTemplate:\s*squirrelNuspecTemplate/);
-  assert.match(forgeConfig, /setupExe: `ReviewWorkspace-\$\{process\.env\.npm_package_version \?\? "0\.3\.0"\}-Windows-x64-Setup\.exe`/);
+  assert.match(forgeConfig, /setupExe: `ReviewWorkspace-\$\{process\.env\.npm_package_version \?\? "0\.3\.1"\}-Windows-x64-Setup\.exe`/);
   assert.match(squirrelNuspec, /<id><%- name %><\/id>/);
   assert.doesNotMatch(squirrelNuspec, /<iconUrl\b/i);
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-07 — M5-G Windows release E2E recovery candidate 0.3.1
+
+- Replaced the reload conversation click race with a state-based persisted Sidebar
+  conversation boundary, and replaced credential cleanup call-count fault injection
+  with a named pre-key-boundary state seam that proves the durable partial journal
+  before Host recovery.
+- Updated the authoritative package, NSIS/Forge identity, CI artifact paths and
+  production tuple contracts to source candidate `0.3.1`.
+- `v0.3.0` at `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` remains an immutable,
+  unpublished failed candidate. This task creates no `v0.3.1` tag, Draft Release or
+  GitHub Release; Windows production activation and Level 3 acceptance remain pending.
+
 ## 2026-09-06 — M5-G exact-SHA Draft Release round-trip pipeline
 
 - Added fail-closed Draft Release metadata readback, exact stable two-asset

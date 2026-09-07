@@ -105,7 +105,7 @@ const config: ForgeConfig = {
       description: "本地优先的错题复盘与 AI 学习工作台",
       nuspecTemplate: squirrelNuspecTemplate,
       setupIcon: recallWindowsIconPath,
-      setupExe: `ReviewWorkspace-${process.env.npm_package_version ?? "0.3.0"}-Windows-x64-Setup.exe`,
+      setupExe: `ReviewWorkspace-${process.env.npm_package_version ?? "0.3.1"}-Windows-x64-Setup.exe`,
     }),
   ],
 };

@@ -170,8 +170,8 @@ Static contracts and build/package success do not independently prove Windows li
 
 | 项目 | 当前事实 | 证据 / 分类 |
 | --- | --- | --- |
-| Application package | `review-workspace` / product name `错题复盘` / package version `0.3.0` | `package.json`、generated `.desktop-app/package.json` |
-| Electron | `43.4.1` | current locked dependency；current Windows artifact 的 file version 应为 `0.3.0` |
+| Application package | `review-workspace` / product name `错题复盘` / package version `0.3.1` | `package.json`、generated `.desktop-app/package.json` |
+| Electron | `43.4.1` | current locked dependency；current Windows artifact 的 file version 应为 `0.3.1` |
 | Electron embedded Node | `24.18.1` | M5-F actual Electron main-process `process.versions` readback |
 | electron-builder | `26.16.0` | active canonical production/default Windows builder |
 | Electron Forge | `7.11.2` | retained for historical Squirrel and migration/rollback compatibility |
@@ -181,7 +181,7 @@ Static contracts and build/package success do not independently prove Windows li
 | Setup bootstrapper | `Setup.exe` ProductVersion `1.9.1.0` | 当前 `electron-winstaller/vendor/Setup.exe` 资源版本 |
 | Target | Windows x64 | Forge `--arch=x64` 与 `squirrel.windows/x64` |
 | Squirrel package id | `review_workspace` | Forge maker 将 `review-workspace` 的连字符替换为下划线 |
-| Installer name | `ReviewWorkspace-0.3.0-Windows-x64-Setup.exe` | canonical `electron-builder.nsis.cjs` `artifactName` |
+| Installer name | `ReviewWorkspace-0.3.1-Windows-x64-Setup.exe` | canonical `electron-builder.nsis.cjs` `artifactName` |
 | NSIS output | `out/builder-nsis/` | active production-equivalent output and artifact evidence root |
 | Historical Forge output | `out/make/squirrel.windows/x64/` | retained Squirrel compatibility path |
 | Historical package outputs | `RELEASES`、`review_workspace-0.2.4-full.nupkg`、Setup.exe | preserved Squirrel artifact shape |
@@ -392,11 +392,15 @@ Squirrel's `--squirrel-install` / `--squirrel-updated` normally owns shortcut an
 | CI provenance | workflow run, source SHA, runner and retention; no secret, path, profile or credential data |
 | user/profile data | **never** included in artifact metadata |
 
-Existing deterministic contracts cover package identity, Forge maker/output,
+Current package identity is the `0.3.1` source candidate. The exact
+`v0.3.0`/`6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` candidate is an unpublished
+failed historical candidate and must remain immutable; it is not retagged or
+reused. Existing deterministic contracts cover package identity, Forge maker/output,
 lifecycle classification and artifact checks. M5-E adds the final-staged-byte
 checksum/manifest and actual unsigned Authenticode boundary. M5-F freezes the
-`0.3.0` tuple and records the actual Electron embedded Node readback; the
-expected `v0.3.0` tag is deliberately absent until the later release boundary.
+`0.3.0` tuple and records the actual Electron embedded Node readback; the failed
+candidate's `v0.3.0` tag is deliberately absent and must never be created,
+moved, retagged, reused or published.
 The exact-SHA Draft Release asset round-trip verification pipeline is now
 implemented; its real post-merge tag/Draft activation and release promotion
 remain future work. Certificate secret ownership, timestamping and publisher
@@ -415,9 +419,10 @@ All real installer procedures require a dedicated Windows x64 user/profile and a
 
 ## Current non-claims
 
-- M5-F has frozen the `0.3.0` production tuple and M5-G has implemented the
-  exact-SHA Draft asset readback/re-download/re-hash pipeline, but the expected
-  `v0.3.0` tag and Draft activation have not been performed; M5-H/I/J remain
+- M5-G has prepared the `0.3.1` source candidate and implemented the exact-SHA
+  Draft asset readback/re-download/re-hash pipeline, but the expected `v0.3.1`
+  tag and Draft activation have not been performed; the failed `v0.3.0` candidate
+  remains immutable and unpublished; M5-H/I/J remain
   incomplete and Windows production release readiness remains **NO**;
 - adjacent-version overwrite upgrade is **PASS within the same-machine, same-Windows-user, same-application-profile scope** recorded above; it is not portability evidence;
 - the incidental same-version `0.2.2` Setup observation is not a general same-version reinstall safety claim;

@@ -1,16 +1,22 @@
 # Windows production-v1 release policy
 
-状态：**M5-G DRAFT RELEASE ROUND-TRIP PIPELINE IMPLEMENTED / READY TO MERGE;
+状态：**M5-G RECOVERY E2E + DRAFT RELEASE ROUND-TRIP PIPELINE IMPLEMENTED / READY FOR REVIEW;
 REAL ACTIVATION PENDING / WINDOWS PRODUCTION RELEASE NOT READY**。
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
 blocker 的事实源。它不修改既有 M3/M4 历史证据，也不把实现后的 pipeline
-误写成真实 tag/Draft 执行或 Level 3 acceptance。M5-F
-冻结的是静态 `0.3.0` production tuple；最终 `main` source SHA 仍由合并后
-实际执行时动态绑定。
+误写成真实 tag/Draft 执行或 Level 3 acceptance。M5-F 冻结并记录的是历史
+`0.3.0` production tuple；最终 recovery candidate 的 `main` source SHA 仍由
+合并后实际执行时动态绑定。
 M5-E 已完成 build finalization、staged-byte SHA-256/manifest readback、实际
 unsigned Authenticode 检查，以及 exact-SHA Actions artifact 下载后的 checksum
 readback；不得把这些证据扩大为已发布或已完成最终 Windows acceptance。
+
+本轮 M5-G recovery candidate 为 package version `0.3.1`。原 `v0.3.0`、SHA
+`6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` 是 **FAILED UNPUBLISHED CANDIDATE /
+IMMUTABLE**：不得删除、移动、强制更新、复用、创建或发布该 tag/Release。当前
+`0.3.1` 仅是 source candidate；本轮不创建 tag、Draft Release 或 GitHub Release，
+也不代表 Windows production release 已 ready。
 
 ## Canonical product decision
 
@@ -77,10 +83,11 @@ Unsigned 不降低 SEC-04。Production-v1 必须保留：
 当前 trusted workflow 已按 exact authorized SHA 构建 canonical
 electron-builder + NSIS production-equivalent installer。Forge/MakerSquirrel
 仍保留在仓库，作为历史 0.2.x、迁移、回滚和兼容性验证路径；它不再是
-production/default builder。当前 package/runtime baseline 为 `0.3.0` / Electron
+production/default builder。当前 package/runtime baseline 为 `0.3.1` / Electron
 `43.4.1`；M5-F 的实际 Electron main-process readback 记录 embedded Node
 `24.18.1`，bundled application/sidecar Node 仍为 `24.20.0`。首个 NSIS
-production target 已冻结为 `0.3.0`。
+production recovery target 为 `0.3.1`；M5-F 的 `0.3.0` tuple 只保留为失败候选的
+历史证据。
 
 M5-F static tuple：package version `0.3.0`、expected tag `v0.3.0`、stable、
 Windows x64、NSIS、per-user、installer
@@ -160,8 +167,8 @@ publisher identity。
 
 ## Version, channel, and updater
 
-- first production NSIS target：`0.3.0`；
-- expected tag：`v0.3.0`，继续遵循 `v${package.version}`；M5-F 不创建实际 tag；
+- current production NSIS source candidate：`0.3.1`；
+- expected recovery tag：`v0.3.1`，继续遵循 `v${package.version}`；本轮不创建实际 tag；
 - initial channel：stable only；
 - distribution：manual GitHub Release/download；
 - production-v1 updater policy：`NO AUTO-UPDATER`。
@@ -171,7 +178,7 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 或 client-side private GitHub PAT。Updater 是独立未来里程碑。
 
 历史 `0.2.x`、M3 和 M4 identity/evidence 保持原版本和原 claim boundary；不得
-批量改写为 `0.3.0`。
+批量改写为 `0.3.0`；该版本是失败候选历史证据，必须保持 immutable。
 
 ## Remaining M5 production blockers
 
@@ -210,7 +217,7 @@ M5-B wait for stable electron-builder containing #10051
   -> M5-D NSIS production cutover (implemented)
   -> M5-E finalize unsigned artifact contracts and checksum provenance
   -> M5-F freeze 0.3.0 production tuple
-  -> M5-G exact-SHA Draft Release pipeline
+  -> M5-G recovery E2E + exact-SHA Draft Release pipeline
   -> M5-H final Level 3 real-Windows replay
   -> M5-I release, rollback, and operator runbook
   -> M5-J operator publish and post-release verification
@@ -218,9 +225,10 @@ M5-B wait for stable electron-builder containing #10051
 
 ### M5-G activation boundary
 
-M5-G 的实现 PR 只修改 pipeline、contracts 和文档，不创建真实 `v0.3.0` tag、
+M5-G 的实现 PR 只修改 E2E synchronization、contracts、version-derived source 和
+文档，不创建真实 `v0.3.1` tag、
 Draft Release 或 publication。实现合并后，owner/operator 必须先等待该精确
-`main` SHA 的成功 `CI` run，确认 `v0.3.0` tag 与 Release 均不存在，再明确授权
+`main` SHA 的成功 `CI` run，确认 `v0.3.1` tag 与 Release 均不存在，再明确授权
 创建指向该 SHA 的 tag；随后重新运行同一成功 CI run。tag push 单独不触发 release
 authority，也不能替代 `workflow_run`。Trusted workflow 成功后必须仍停在 Draft，
 并保存 source SHA、tag commit、Actions artifact identity、Draft Release/asset IDs、
@@ -252,9 +260,9 @@ Certificate revocation/rotation 不属于 production-v1 blocker；仅在未来 s
 ```text
 M5-D: NSIS PRODUCTION CUTOVER IMPLEMENTED
 M5-E: UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED
-M5-F: FINAL 0.3.0 PRODUCTION TUPLE FROZEN / READY TO MERGE
-EXPECTED RELEASE TAG: v0.3.0 (NOT CREATED)
-M5-G: DRAFT RELEASE ROUND-TRIP PIPELINE IMPLEMENTED / READY TO MERGE
+M5-F: 0.3.0 HISTORICAL FAILED UNPUBLISHED CANDIDATE / IMMUTABLE
+EXPECTED RECOVERY RELEASE TAG: v0.3.1 (NOT CREATED)
+M5-G: RECOVERY E2E + DRAFT RELEASE ROUND-TRIP PIPELINE IMPLEMENTED / READY FOR REVIEW
 REAL ACTIVATION: PENDING
 M5-H/I/J: INCOMPLETE
 PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED

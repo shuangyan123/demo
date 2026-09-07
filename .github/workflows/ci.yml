@@ -323,7 +323,7 @@ jobs:
         with:
           name: review-workspace-nsis-final-${{ github.event.pull_request.head.sha }}
           path: |
-            out/release/ReviewWorkspace-0.3.0-Windows-x64-Setup.exe
+            out/release/ReviewWorkspace-0.3.1-Windows-x64-Setup.exe
             out/release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
@@ -334,7 +334,7 @@ jobs:
         with:
           name: review-workspace-nsis-production-${{ github.event.pull_request.head.sha }}
           path: |
-            out/builder-nsis/ReviewWorkspace-0.3.0-Windows-x64-Setup.exe
+            out/builder-nsis/ReviewWorkspace-0.3.1-Windows-x64-Setup.exe
             out/builder-nsis/production-evidence.json
           if-no-files-found: error
           retention-days: 7
