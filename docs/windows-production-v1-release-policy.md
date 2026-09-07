@@ -1,25 +1,28 @@
 # Windows production-v1 release policy
 
-状态：**M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
-NOT TAGGED / NOT ACTIVATED; PR #125 DRAFT / WINDOWS PRODUCTION RELEASE NOT READY**。
+状态：**0.3.1 PRODUCTION TUPLE RE-FREEZE — UNDER REVIEW /
+v0.3.1 — NOT TAGGED / M5-G ACTIVATION — NOT STARTED /
+WINDOWS PRODUCTION RELEASE READY: NO**。
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
 blocker 的事实源。它不修改既有 M3/M4 历史证据，也不把实现后的 pipeline
 误写成真实 tag/Draft 执行或 Level 3 acceptance。M5-F originally froze and
 recorded the historical `0.3.0` production tuple. A subsequent activation attempt
 failed the trusted Windows release E2E gate; the exact `v0.3.0` tag therefore
-remains an immutable unpublished failed candidate. The recovery candidate's
-`main` source SHA remains dynamically bound by the later freeze/main state。
+remains an immutable unpublished failed candidate. PR #125 已合并为 recovery
+implementation；当前 dedicated re-freeze change 正在 review。
+`0.3.1` 的 static tuple 已记录在本文，但 operational freeze 仍必须等待本次
+change 经 review、owner-authorized merge，并通过 exact post-freeze main CI。
 M5-E 已完成 build finalization、staged-byte SHA-256/manifest readback、实际
 unsigned Authenticode 检查，以及 exact-SHA Actions artifact 下载后的 checksum
 readback；不得把这些证据扩大为已发布或已完成最终 Windows acceptance。
 
-本轮 M5-G recovery candidate 为 package version `0.3.1`。原 `v0.3.0`、SHA
+当前 `0.3.1` production tuple 的 package version 为 `0.3.1`。原 `v0.3.0`、SHA
 `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` 是 **FAILED UNPUBLISHED CANDIDATE /
 IMMUTABLE**：其 exact tag 必须保持在该 SHA，不得删除、移动、强制更新、复用或
-发布；当前没有对应 GitHub Release。当前 `0.3.1` 仅是 source candidate；本轮不
-创建 `v0.3.1` tag、Draft Release 或 GitHub Release，也不代表 Windows production
-release 已 ready。
+发布；当前没有对应 GitHub Release。当前 re-freeze change 不创建
+`v0.3.1` tag、Draft Release 或 GitHub Release；M5-G activation 仍未开始，也不代表
+Windows production release 已 ready。
 
 ## Canonical product decision
 
@@ -88,9 +91,9 @@ electron-builder + NSIS production-equivalent installer。Forge/MakerSquirrel
 仍保留在仓库，作为历史 0.2.x、迁移、回滚和兼容性验证路径；它不再是
 production/default builder。当前 package/runtime baseline 为 `0.3.1` / Electron
 `43.4.1`；M5-F 的实际 Electron main-process readback 记录 embedded Node
-`24.18.1`，bundled application/sidecar Node 仍为 `24.20.0`。首个 NSIS
-production recovery source candidate 为 `0.3.1`；M5-F 的 `0.3.0` tuple 只保留为
-历史 freeze 与后续失败候选证据。
+`24.18.1`，bundled application/sidecar Node 仍为 `24.20.0`。当前 NSIS
+production tuple 为 `0.3.1`；M5-F 的 `0.3.0` tuple 只保留为历史 freeze
+与后续失败候选证据。
 
 M5-F static tuple：package version `0.3.0`、expected tag `v0.3.0`、stable、
 Windows x64、NSIS、per-user、installer
@@ -101,20 +104,20 @@ activation attempt 使用了 exact SHA 后 trusted Windows release E2E gate 失�
 published Release。`sourceCommit` 继续由 trusted checkout 的 exact Git SHA 在构建
 时绑定，不能在 PR 中预写最终 main SHA。
 
-## Mandatory 0.3.1 production tuple re-freeze
+## Current 0.3.1 production tuple re-freeze — under review
 
-PR #125 is **M5-G RECOVERY FIX** only. It prepares the `0.3.1` source candidate
-and the exact Windows/Node `24.20.0` full-E2E gate; it does not freeze the final
-`0.3.1` production tuple, create its tag, or activate M5-G. After PR #125 merges,
-the recovery source changes may be on `main`, but the `0.3.1` production tuple is
-still **NOT YET FROZEN**.
+PR #125 is the **MERGED M5-G RECOVERY IMPLEMENTATION**. Its exact Windows/Node
+`24.20.0` full-E2E and post-merge main CI are recovery evidence; PR #125 was not
+the production freeze.
 
-A later dedicated, reviewed and merged freeze milestone is mandatory before any
-real M5-G activation. That change must record the following static identity and
-security fields; the final source/main SHA is the exact result of that freeze
-merge and must be followed by an exact post-freeze `main` CI pass.
+The current dedicated re-freeze change records the following complete static
+`0.3.1` production tuple. While this change is under review, the tuple is
+repository-frozen as a static contract but not operationally frozen. Operational
+freeze completion requires review, owner-authorized merge, and an exact
+post-freeze `main` CI pass. The final release source SHA is therefore the exact
+squash/merge result of this change, never a prewritten candidate SHA.
 
-| field | required frozen value or boundary |
+| field | frozen value or boundary |
 | --- | --- |
 | package version | `0.3.1` |
 | expected tag | `v0.3.1` |
@@ -133,14 +136,12 @@ merge and must be followed by an exact post-freeze `main` CI pass.
 The required order is:
 
 ```text
-PR #125 M5-G recovery fix
-  -> exact Windows + Node 24.20.0 full E2E PASS
-  -> owner-authorized PR #125 merge
+PR #125 MERGED M5-G recovery implementation
   -> exact post-merge main CI PASS
-  -> NEW 0.3.1 PRODUCTION TUPLE FREEZE MILESTONE
-  -> freeze the static tuple above in a reviewed/merged change
+  -> CURRENT 0.3.1 PRODUCTION TUPLE RE-FREEZE UNDER REVIEW
+  -> owner-authorized merge of this freeze change
   -> exact post-freeze main CI PASS
-  -> owner authorization for activation
+  -> M5-G activation owner authorization
   -> confirm v0.3.1 tag and Release are absent
   -> create v0.3.1 at the exact frozen main SHA and verify the tag
   -> rerun the same successful main CI
@@ -148,7 +149,8 @@ PR #125 M5-G recovery fix
 ```
 
 The `0.3.1` re-freeze is therefore a hard prerequisite for M5-G activation;
-PR #125 must not be described as the final production freeze.
+PR #125 must remain described as the merged recovery implementation, not the
+final production freeze.
 
 ## Unsigned artifact contract
 
@@ -194,7 +196,8 @@ M5-E 的 trusted workflow 现在按以下顺序完成 final staged artifact boun
     and byte sizes against the canonical directory。
 
 M5-G recovery implementation supplies the remaining Draft round-trip controls;
-the later re-freeze and real activation still require:
+the current re-freeze change records the static tuple under review, while
+operational freeze and real activation still require:
 
 1. bind intended source/tag/release tuple；
 2. create or safely resume only a stable, unpublished Draft Release with the exact
@@ -222,9 +225,9 @@ publisher identity。
 
 ## Version, channel, and updater
 
-- current recovery NSIS source candidate：`0.3.1`；
-- expected recovery tag：`v0.3.1`，继续遵循 `v${package.version}`；本轮不创建实际 tag；
-- initial channel：stable only；
+- current frozen static NSIS production tuple：`0.3.1`；operational freeze remains under review；
+- expected tag：`v0.3.1`，继续遵循 package-derived version；真实 activation 前不创建 tag；
+- channel：stable only；
 - distribution：manual GitHub Release/download；
 - production-v1 updater policy：`NO AUTO-UPDATER`。
 
@@ -237,14 +240,16 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 
 ## Remaining M5 production blockers
 
-1. M5-G — execute the merged exact-SHA Draft Release asset round-trip against the
-   final authorized tag and successful CI run；
+1. M5-G — after this re-freeze is owner-authorized and its exact post-freeze
+   main CI passes, execute the exact-SHA tag/Draft Release asset round-trip；
 2. M5-H — perform final Level 3 Windows acceptance on the exact final artifact；
 3. M5-I — complete the release/rollback/operator runbook；
 4. M5-J — operator publication and post-release verification。
 
 Electron 保持已接受的 `43.4.1`，除非出现具体 security/compatibility 原因。
-当前受控 NSIS builder 为 `electron-builder 26.16.0`；M5-F 已单独冻结最终 tuple。
+当前受控 NSIS builder 为 `electron-builder 26.16.0`；本次 change 记录并冻结
+`0.3.1` 的完整 static tuple，operational completion 仍取决于 review/merge 和
+exact post-freeze main CI。
 不得以 prerelease/alpha 规避 tuple 验收。最终 tuple 必须分别记录 Electron version、
 Electron embedded Node、bundled application/sidecar Node `24.20.0`、stable
 electron-builder、历史/兼容 Forge/Squirrel、Windows architecture、NSIS mode、
@@ -272,22 +277,26 @@ M5-B wait for stable electron-builder containing #10051
   -> M5-D NSIS production cutover (implemented)
   -> M5-E finalize unsigned artifact contracts and checksum provenance
   -> M5-F freeze 0.3.0 production tuple
-  -> M5-G recovery E2E + exact-SHA Draft Release pipeline
+  -> M5-G recovery implementation and exact-SHA Draft Release pipeline (PR #125 merged)
+  -> 0.3.1 production tuple re-freeze (current change under review)
+  -> exact post-freeze main CI
   -> M5-H final Level 3 real-Windows replay
   -> M5-I release, rollback, and operator runbook
   -> M5-J operator publish and post-release verification
 ```
 
-### M5-G recovery and activation boundary
+### M5-G recovery, re-freeze, and activation boundary
 
-M5-G 的 PR #125 只提供 recovery E2E synchronization、contracts、version-derived
-source 和治理文档；它不创建真实 `v0.3.1` tag、Draft Release 或 publication。
-PR #125 merge 后的 exact main CI 只证明 recovery source 已进入 main，不等于
-`0.3.1` production tuple 已冻结，也不等于有 activation authority。
+PR #125 已合并，完成 M5-G recovery E2E synchronization、contracts、
+version-derived source 和治理实现；它没有创建真实 `v0.3.1` tag、Draft Release
+或 publication，也不是 production freeze。
+当前 dedicated re-freeze change 正在 review，记录本文上方的完整 `0.3.1` static
+tuple。它可以冻结 repository contract，但在本 change 经 review、owner-authorized
+merge 并通过 exact post-freeze main CI 前，不得称为 operationally frozen。
 
-只有在单独的 `0.3.1` production tuple re-freeze milestone 完成 reviewed/merged
-freeze、并且该 freeze merge 的 exact main CI 成功后，trusted owner/operator 才能
-按以下顺序申请 activation：确认 `v0.3.1` tag 与 Release 仍不存在，确认
+只有在当前 re-freeze change 完成 reviewed/merged freeze、并且该 freeze merge 的
+exact main CI 成功后，trusted owner/operator 才能按以下顺序申请 activation：
+确认 `v0.3.1` tag 与 Release 仍不存在，确认
 `v0.3.0` tag 仍精确指向 `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` 且没有 Release，
 再经 owner authorization 创建指向 exact frozen main SHA 的 `v0.3.1` tag 并验证
 目标。随后必须重新运行同一成功 main CI；tag push 单独不触发 release authority，
@@ -325,10 +334,11 @@ M5-D: NSIS PRODUCTION CUTOVER IMPLEMENTED
 M5-E: UNSIGNED ARTIFACT / CHECKSUM PROVENANCE IMPLEMENTED
 M5-F: HISTORICAL 0.3.0 PRODUCTION TUPLE FREEZE
 POST-ACTIVATION OUTCOME: v0.3.0 IMMUTABLE FAILED UNPUBLISHED CANDIDATE
-M5-G: RECOVERY FIX / PR #125 DRAFT
-0.3.1: SOURCE CANDIDATE / NOT YET FROZEN / NOT TAGGED / NOT ACTIVATED
-MANDATORY NEXT: NEW 0.3.1 PRODUCTION TUPLE FREEZE BEFORE M5-G ACTIVATION
-REAL ACTIVATION: PENDING
+PR #125: MERGED M5-G RECOVERY IMPLEMENTATION
+CURRENT RE-FREEZE: 0.3.1 STATIC PRODUCTION TUPLE / UNDER REVIEW
+0.3.1: FROZEN STATIC TUPLE / NOT TAGGED
+M5-G ACTIVATION: NOT STARTED
+OPERATIONAL FREEZE: PENDING REVIEW, OWNER-AUTHORIZED MERGE, EXACT POST-FREEZE MAIN CI
 M5-H/I/J: INCOMPLETE
 PRODUCTION-V1 SIGNING POLICY: INTENTIONALLY UNSIGNED
 WINDOWS PRODUCTION RELEASE READY: NO
