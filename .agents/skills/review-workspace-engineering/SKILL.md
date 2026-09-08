@@ -57,6 +57,25 @@ This mode requires the hard preflight in section 2 and a task-specific fresh bra
 
 If the user explicitly asks to continue an existing open PR or to address its review, CI, or stabilization work, inspect and continue that PR's exact head branch. Do not create another branch or a second PR. Verify the PR head branch, local branch, and PR HEAD SHA before writing.
 
+## 1.2 Task authorization covers the healthy same-task lifecycle
+
+For a normal scoped engineering task, the user's authorization applies to that same task through:
+
+```text
+implementation
+→ local validation
+→ commit
+→ push
+→ PR
+→ task-related CI/review fixes
+→ Merge
+→ post-Merge verification
+→ repository synchronization
+→ task cleanup
+```
+
+Do not request another routine confirmation merely to Merge a healthy PR. When every applicable hard gate in section 20 is satisfied, Merge automatically. This authority does not permit unrelated scope expansion, release/publication work, or any operation the user explicitly excluded. If the user explicitly disables commit, push, PR, Merge, or cleanup, honor that narrower boundary.
+
 For roadmap work, read:
 
 ```text
@@ -72,13 +91,14 @@ and the relevant architecture document.
 For mode B, before editing, run:
 
 ```bash
+git rev-parse --show-toplevel
 git status --short
 git status -sb
 git branch --show-current
 git rev-parse HEAD
 git fetch origin
 git rev-parse origin/main
-git worktree list
+git worktree list --porcelain
 git status --short
 ```
 
@@ -89,6 +109,8 @@ The preflight must establish:
 * `HEAD` equals `origin/main`
 * there are no unknown local changes
 * no other worktree must be modified or resolved to begin this task
+
+Also inspect whether a merge, rebase, cherry-pick, revert, or bisect is in progress, and inspect the path, branch, HEAD, and status of every other listed worktree when needed to identify active task or user WIP ownership. A clean unrelated worktree does not block this task; an ambiguous or conflicting one does.
 
 If any condition fails, STOP. Do not stash, reset, restore, clean, checkout away local changes, commit unrelated changes, delete/prune worktrees, or alter WIP branches.
 
@@ -223,9 +245,37 @@ Otherwise record it as residual work.
 
 ---
 
-# 7. Establish or continue the task branch
+# 7. Choose the task worktree and establish the branch
 
-For mode B, after the hard preflight create and switch to a fresh task-specific branch from the validated `origin/main`:
+Worktrees are optional, not mandatory ceremony. After the hard preflight, choose exactly one valid mode for a new write task.
+
+### A. Simple current-worktree mode
+
+Use this for an ordinary isolated task when branch switching will not disturb other work:
+
+```text
+clean synchronized main
+→ fresh task branch
+→ implementation / validation
+→ PR / CI / Merge
+→ sync the normal worktree to main
+→ clean up the task branch
+```
+
+### B. Disposable task-worktree mode
+
+Prefer a separate task worktree when another task or user WIP must remain checked out, the normal worktree should stay on `main`, parallel work exists, switching would disturb active work, a release task needs isolation, or the repository explicitly requires isolation. Do not create one merely for a trivial isolated task.
+
+If mode B is used:
+
+* give the worktree and branch clear ownership by this task
+* create it from the validated `origin/main` with a fresh task-specific branch
+* choose a path that is not an existing worktree and preserve every unrelated worktree
+* treat removing it as a post-Merge delivery step, subject to the checks in section 25
+
+Never remove an unknown or user-owned worktree. Never routinely use `git worktree remove --force`.
+
+For either mode, establish a fresh task-specific branch from the validated `origin/main`:
 
 Use:
 
@@ -362,10 +412,11 @@ Do not invent fake transaction guarantees only to simplify tests.
 For rules-only changes limited to repository instructions and the engineering Skill, run at least:
 
 ```bash
+git status --short
 git diff --check
 ```
 
-Also run any repository-provided AGENTS, Skill, Markdown, or rules validation that applies. Do not mechanically run product build, Playwright, or Electron packaging when no runtime boundary changed; state the rules-only scope and the commands actually run in the PR.
+Inspect the complete diff, confirm that only authorized Skill/rules files changed, validate frontmatter and required structural markers, and run any repository-provided AGENTS, Skill, Markdown, or rules validation that applies. If no such checker exists, perform the direct structural inspection and say so. Do not mechanically run product build, Playwright, or Electron packaging when no runtime boundary changed; state the rules-only scope and the commands actually run in the PR.
 
 For ordinary TypeScript / React / Service / Application changes run at minimum:
 
@@ -505,6 +556,8 @@ Never mark an entire phase complete if defined work remains pending.
 # 15. Commit
 
 Only commit after required local quality gates pass.
+
+For a normal authorized task, committing is part of the same delivery authorization; do not pause for routine confirmation. Commit only the reviewed, in-scope change.
 
 Use Conventional Commits.
 
@@ -646,7 +699,7 @@ branch protection
 
 Do not assume local PASS means remote PASS.
 
-If checks are pending, continue checking until they reach a terminal state when the environment permits.
+If checks are pending, continue checking until they reach a terminal state when the environment permits. If remote inspection is unavailable, treat the missing evidence as a blocker rather than inferring success.
 
 ---
 
@@ -665,6 +718,8 @@ inspect
 
 Do not merge based on old CI after changing the PR HEAD.
 
+Task-related CI or review corrections remain within the original task authorization only when they do not expand the authorized files, behavior, security boundary, or release boundary. After every new commit, repeat local validation, remote checks, and exact-HEAD verification.
+
 If requested feedback substantially expands scope:
 
 do not perform an unrelated roadmap phase just to satisfy it.
@@ -675,32 +730,25 @@ Keep the PR focused and report the scope conflict.
 
 # 20. Auto-merge hard gate
 
-Automatic Merge is allowed only when all applicable conditions are true:
+For a normal authorized task, healthy PR plus every applicable hard gate below means the agent should Merge automatically. Do not request routine user Merge confirmation. Automatic Merge is allowed only when all of these are verified:
 
-```text
-local required gates PASS
-remote required checks PASS
-GitHub Actions PASS
-no merge conflict
-no Changes Requested
-no unresolved blocking review
-no sensitive files
-no unexpected scope expansion
-PR base = main
-PR HEAD = the validated HEAD
-```
+1. Required local validation passed.
+2. The PR base is the intended `main` branch.
+3. The PR HEAD is the exact expected task HEAD.
+4. The locally validated HEAD still equals the current PR HEAD.
+5. Required CI checks completed successfully.
+6. Relevant GitHub Actions completed successfully.
+7. The PR is mergeable and has no merge conflict.
+8. No `Changes Requested` review exists.
+9. No unresolved blocking review thread exists.
+10. Changed filenames match the authorized task.
+11. No unexpected scope expansion is present.
+12. No sensitive material or credential exposure is present.
+13. No branch or worktree dependency would be broken by Merge or cleanup.
+14. Any repository-specific security, provenance, release, artifact, or trust gate applicable to this task is satisfied.
+15. The task has not crossed into a separately authorized publication or release boundary.
 
-Immediately before Merge:
-
-re-read PR HEAD SHA.
-
-If it changed since validation:
-
-**do not Merge.**
-
-Validate the new HEAD first.
-
-A required check that is pending or failed is a hard stop. Do not merge a PR with a conflict, Changes Requested, or an unresolved blocking review thread.
+Immediately before Merge, re-read PR metadata, the exact PR HEAD SHA, required checks for that SHA, changed filenames, mergeability, conflicts, reviews, and blocking comments. If the HEAD changed after validation, do not Merge based on old validation; validate the new HEAD first. A pending or failed required check is a hard stop.
 
 ---
 
@@ -745,59 +793,117 @@ Do not use a meaningless default title.
 
 ---
 
-# 23. Branch cleanup
+## 22.1 Release and publication boundaries remain separate
 
-After successful Merge:
+Normal task authorization and a healthy PR authorize only the scoped PR Merge. They do not implicitly authorize:
 
-check whether another open PR depends on the branch.
+* creating tags or GitHub Releases
+* publishing packages or other public artifacts
+* signing artifacts or changing signing/trusted-publisher configuration
+* enabling updater publication or changing release channels
+* production rollout or release-workflow trust/permissions changes
 
-If not:
-
-delete the merged remote work branch.
-
-Do not delete a branch that is still used as the base of stacked work.
+Preserve exact authorized source SHA, artifact/checksum provenance, CI-source binding, least-privilege permissions, and existing release-trigger restrictions. Perform release or publication work only when it is explicitly part of the authorized task and allowed by the existing repository rules.
 
 ---
 
-# 24. Sync final main
+# 23. Verify the Merge result
 
-After Merge:
+After Merge, do not stop. Fetch `origin`, verify remotely that:
+
+* the PR is actually merged
+* the expected final main result exists
+* the resulting remote `main` is the intended state
+
+Record the verified pre-Merge PR HEAD SHA, PR number/link, merge strategy, merge/squash commit SHA, and resulting `origin/main` SHA.
+
+Only after the PR merge and final remote `main` are verified may repository cleanup begin. A successful Merge and a later cleanup blocker are separate states: never erase a successful delivery by reporting cleanup as if it had succeeded.
+
+---
+
+# 24. Synchronize the normal main worktree
+
+After a verified Merge, identify the normal repository/main worktree and inspect it before modifying it. If it is safe:
 
 ```bash
 git fetch origin
 git switch main
 git pull --ff-only origin main
+git rev-parse HEAD
+git rev-parse origin/main
 git status
 ```
 
-Do not use `reset --hard` as the default sync mechanism.
+The local `main` must equal the expected `origin/main` and be clean, with no merge, rebase, cherry-pick, revert, or bisect in progress. If a disposable task worktree was used, perform these operations in the known normal main worktree; do not switch or overwrite an unrelated worktree.
+
+Hard STOP synchronization if the normal worktree contains unknown local changes, untracked user work that could be affected, unfinished operations, ambiguous detached ownership, or another active task. Do not stash, reset, restore, clean, or overwrite it. Preserve it and report the cleanup blocker while keeping the verified delivery status separate.
+
+Do not use `reset --hard` as the default synchronization mechanism.
 
 ---
 
-# 25. Post-merge verification
+# 25. Clean up the task worktree
 
-Run lightweight checks against final `main`.
+If no disposable task worktree was used, report:
 
-At minimum for substantial TypeScript architecture changes:
+```text
+Task worktree: NOT USED
+```
+
+If one was used, remove it automatically only after verifying all of the following:
+
+* it belongs to the current task
+* the corresponding PR is confirmed merged
+* the exact task/PR HEAD and final remote main result are verified
+* the worktree is clean
+* no merge, rebase, cherry-pick, revert, or bisect is unfinished
+* no uncommitted task data would be lost
+* no other process, task, or workflow still requires it
+
+Remove it normally without `--force`, then verify it no longer appears in `git worktree list`. If it is dirty or ownership is ambiguous, preserve it and report the exact blocker. Never remove an unknown or user-owned worktree.
+
+---
+
+# 26. Clean up local and remote task branches
+
+After successful Merge, after the normal main worktree is synchronized when safe, and only after no worktree uses the task branch:
+
+1. Check for open or stacked PRs that depend on the branch.
+2. Prefer `git branch -d <task-branch>` for a merged local task branch.
+3. Because squash Merge may leave the original tip non-ancestor of `main`, `git branch -D <task-branch>` is allowed only when every condition below is true:
+
+   * the branch was created or explicitly owned by the current task
+   * its PR is confirmed merged
+   * its name equals the verified PR head branch
+   * its local tip equals the previously verified PR HEAD SHA
+   * final remote `main` is verified
+   * no open or stacked PR depends on it
+   * no worktree uses it
+   * no uncommitted changes would be lost
+   * ownership is unambiguous
+
+Never use `git branch -D` for an unknown, user-WIP, unmerged, changed-after-verification, worktree-owned, stacked, or ambiguously owned branch.
+
+Then inspect the remote task branch. If it is already absent, report `Remote task branch: ALREADY ABSENT`. If it belongs to this merged task, is no longer needed, and is not referenced by another PR or workflow, delete it normally and report `Remote task branch: REMOVED`. Otherwise preserve it and report why. Remote branch deletion never permits force-push.
+
+---
+
+# 27. Post-merge quality verification
+
+Run the checks required for the actual task category against final `main`, not merely the feature branch. For rules-only Skill/instruction changes, use the proportional structural checks from section 11, including `git diff --check` and complete authorized-file/frontmatter/structure inspection. For substantial TypeScript architecture changes, run at minimum:
 
 ```bash
 npm run typecheck
 npm run test:contracts
 ```
 
-When appropriate also:
-
-```bash
-npm run build
-```
-
-For high-risk workflow changes, run the relevant smoke / E2E path.
+When appropriate also run `npm run build`; for high-risk workflow changes run the relevant smoke or E2E path. Do not run meaningless product, Electron, packaging, release, or publication work merely for ceremony, and do not claim any check that did not run.
 
 This confirms the actual merged commit—not merely the feature branch—is healthy.
 
 ---
 
-# 26. Stop after the requested task
+# 28. Stop after the requested task
 
 Do not automatically start the next Roadmap task.
 
@@ -821,13 +927,9 @@ unless the user explicitly requested multiple phases.
 
 ---
 
-# 27. Failure policy
+# 29. Failure policy
 
-If push, PR, CI or Merge cannot complete:
-
-identify the actual blocker.
-
-Examples:
+If push, PR, CI, or Merge cannot complete, identify the actual blocker and preserve the continuation state. Examples include:
 
 ```text
 authentication
@@ -841,6 +943,8 @@ environment limitation
 ```
 
 Resolve only when safe and within scope.
+
+If delivery did not Merge, do not perform successful-delivery cleanup: preserve the task branch, task worktree, commits, PR, and useful diagnostic state. If Merge succeeded but synchronization or cleanup is blocked by user-owned or ambiguous state, keep the verified delivery result and report cleanup as incomplete; do not destructively resolve the blocker.
 
 Otherwise stop at the last safe state.
 
@@ -856,48 +960,45 @@ unless verified.
 
 ---
 
-# 28. Final report
+# 30. Final report
 
-After successful delivery report:
+Report exact state rather than vague completion claims. For a successful delivery, include:
 
 ```text
 Implementation
 - concise description
 
 Validation
-- typecheck: PASS/FAIL
-- lint: PASS/FAIL
-- contracts: PASS/FAIL
-- build: PASS/FAIL
-- e2e: PASS/FAIL if applicable
+- commands/checks actually run with PASS/FAIL
 
-Git
-- branch
-- commits
+GitHub delivery
+- task branch
+- commit SHA
+- PR number/link
+- exact verified PR HEAD SHA
+- CI/check result
+- merge strategy
+- merge commit SHA
+- final origin/main SHA
 
-Pull Request
-- number
-- title
-- URL
-- remote checks
+Cleanup
+- main worktree: SYNCED + CLEAN / BLOCKED
+- task worktree: REMOVED / NOT USED / PRESERVED
+- local task branch: REMOVED / PRESERVED
+- remote task branch: REMOVED / ALREADY ABSENT / PRESERVED
 
-Merge
-- method
-- result
-- final main SHA
-
-Post-merge
-- checks executed
+Post-merge verification
+- PASS / FAIL / BLOCKED
 
 Residual risks
 - only real unresolved issues
 ```
 
-Keep the report concise.
+Include the task worktree path when one was used. Do not report `complete`, `merged`, `clean`, or `PASS` for any state that was not actually verified.
 
 ---
 
-# 29. Core completion rule
+# 31. Core completion rule
 
 The normal successful workflow is:
 
@@ -926,9 +1027,12 @@ Verify HEAD SHA
 ↓
 Squash Merge
 ↓
-Clean branch
 ↓
 Sync main
+↓
+Verify final remote main
+↓
+Clean task worktree and branches
 ↓
 Post-merge verification
 ↓
