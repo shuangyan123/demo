@@ -23,7 +23,7 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   await expect(page.locator(".dashboard-configuration-health > summary")).toContainText("配置健康");
   await expect(page.getByRole("button", { name: "展开侧边栏" })).toBeVisible();
   await page.locator(".dashboard-configuration-health > summary").click();

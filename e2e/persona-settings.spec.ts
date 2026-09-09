@@ -5,7 +5,7 @@ test("角色设置可切换定制视图并打开默认人设编辑弹层", async
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "个性化" }).click();
 

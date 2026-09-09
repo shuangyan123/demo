@@ -6,7 +6,7 @@ test("AI 连接可保存本地自定义文本连接并设为默认", async ({ pa
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "AI 连接" }).click();
 

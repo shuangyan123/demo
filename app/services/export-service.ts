@@ -127,7 +127,7 @@ export function exportKnowledgeEntries(items: KnowledgeEntry[], format: ExportFo
 // 生成完整工作台备份，方便用户在未来做手动归档或迁移。
 export function exportWorkspaceBundle(input: { knowledgeEntries: KnowledgeEntry[]; mistakes: Mistake[] }): ExportFile {
   return {
-    filename: `错题复盘-工作台备份-${fileStamp()}.json`,
+    filename: `Recall-工作台备份-${fileStamp()}.json`,
     mimeType: "application/json;charset=utf-8",
     content: JSON.stringify({ exportedAt: new Date().toISOString(), type: "workspaceBundle", ...input }, null, 2),
   };

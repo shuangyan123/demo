@@ -1,15 +1,15 @@
-# ReviewWorkspace
+# Recall
 
-ReviewWorkspace 是一个基于 Next.js、React、Dexie 和 Electron 的本地优先 AI 学习工作台。项目当前面向单机单用户场景，核心业务数据保存在本地浏览器数据库中，并可在用户授权后与 Obsidian Vault 协作。
+Recall 是一个基于 Next.js、React、Dexie 和 Electron 的本地优先 AI 学习工作台。项目当前面向单机单用户场景，核心业务数据保存在本地浏览器数据库中，并可在用户授权后与 Obsidian Vault 协作。
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/brand/recall/wordmark/recall-wordmark-B-dark-transparent.png" />
   <img src="assets/brand/recall/wordmark/recall-wordmark-B-transparent.png" alt="Recall" width="215" height="85" />
 </picture>
 
-The formal Recall B wordmark above is supplied locked artwork. It is a visual
-brand asset only; the existing `ReviewWorkspace`, `错题复盘`, package, and
-desktop application identifiers remain unchanged.
+The formal Recall B wordmark above is supplied locked artwork and represents the
+current visible product brand; the existing `ReviewWorkspace`, `错题复盘`,
+package, and desktop application identifiers remain unchanged.
 
 当前版本处于 `0.2.x` 功能收敛阶段。后续版本规划见 [0.3 到 1.0 产品路线图](docs/product-roadmap-0.3-to-1.0.md)。
 

@@ -13,7 +13,7 @@ const notoSansSC = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "错题复盘",
+  title: "Recall",
   description: "错题整理、复盘计划和薄弱分析工具",
 };
 

@@ -323,7 +323,7 @@ export async function showRuntimeFailure(error: unknown): Promise<number> {
   while (true) {
     const result = await dialog.showMessageBox({
       type: "error",
-      title: "错题复盘无法启动",
+      title: "Recall 无法启动",
       message: copy.message,
       detail: `${copy.detail}\n\n可以重试完整校验和启动；若仍失败，请复制诊断后运行安装器覆盖安装，现有用户数据不会被删除。`,
       buttons: ["重试", "复制诊断", "退出"],

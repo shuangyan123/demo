@@ -5,7 +5,7 @@ test("设置页诊断面板展示当前快照并提供只读恢复入口", async
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "诊断" }).click();
 

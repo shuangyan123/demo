@@ -53,7 +53,7 @@ test("知识库可手动新增资料并立即展示", async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   await page.getByRole("region", { name: "公考学习链路" }).getByRole("button", { name: /知识沉淀/ }).click();
   await expect(page.getByRole("heading", { name: "知识库", exact: true })).toBeVisible();
 
@@ -75,7 +75,7 @@ test("手动录入可保存错题并在错题库中展示", async ({ page }) => 
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   await page.locator(".dashboard-configuration-health > summary").click();
   await page.locator(".dashboard-configuration-health").getByRole("button", { name: "手动录入" }).click();
 

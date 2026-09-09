@@ -5,7 +5,7 @@ test("已安排表单完整交互不会触发空事件目标运行时错误", as
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
 
   await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();

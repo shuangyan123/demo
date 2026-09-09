@@ -17,7 +17,7 @@ export function WindowMenuBar({
   sidebarButtonRef,
   sidebarCollapsed,
   summary,
-  title = "错题复盘",
+  title = "Recall",
 }: {
   contextPanelId: string;
   contextPanelOpen: boolean;

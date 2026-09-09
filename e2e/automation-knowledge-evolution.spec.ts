@@ -44,7 +44,7 @@ test("知识演进已安排任务可通过 mock JSON 生成待确认提案", asy
 
   try {
     await page.goto("/");
-    await expect(page).toHaveTitle("错题复盘");
+    await expect(page).toHaveTitle("Recall");
 
     await page.locator(".dashboard-configuration-health > summary").click();
     await page.locator(".dashboard-configuration-health").getByRole("button", { name: "手动录入" }).click();

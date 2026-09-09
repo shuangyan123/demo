@@ -81,7 +81,7 @@ export function ReviewWorkspaceAppSidebar({
     <div className="workspace-sidebar-shell app-sidebar-shell" data-sidebar-kind="application">
       <header className="workspace-sidebar-header">
         <div className="workspace-sidebar-brand">
-          <strong>错题复盘</strong>
+          <strong>Recall</strong>
           <span>本地学习工作台</span>
         </div>
       </header>

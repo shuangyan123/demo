@@ -63,7 +63,7 @@ export function ReviewWorkspaceViewRouter({
   const summaryConnection = aiConnections.snapshot.profiles.find((item) => item.id === (activeConversation?.selectedConnectionId ?? aiConnections.snapshot.defaults.textConnectionId));
   const summaryModelId = activeConversation?.selectedModelId ?? aiConnections.snapshot.defaults.textModelId;
   const summary: WorkspaceSummary = {
-    workspaceLabel: "错题复盘",
+    workspaceLabel: "Recall",
     sectionLabel: settingsMode ? "设置" : reviewWorkspaceViewTitles[workspace.view],
     conversationTitle: workspace.view === "conversation" ? activeConversation?.title ?? conversation.launchContext?.title ?? "新对话" : activeConversation?.title,
     modelLabel: summaryModelId ? `${summaryConnection?.label ? `${summaryConnection.label} · ` : ""}${summaryModelId}` : undefined,

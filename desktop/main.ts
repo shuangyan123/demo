@@ -75,7 +75,7 @@ async function createMainWindow(): Promise<void> {
     show: false,
     backgroundColor: "#f7f7f5",
     icon: recallWindowIconPath,
-    title: "错题复盘",
+    title: "Recall",
     titleBarStyle: "hidden",
     titleBarOverlay: {
       color: "#00000000",
@@ -166,5 +166,5 @@ if (isSquirrelLifecycleInvocation(process.argv)) {
 }
 
 process.on("uncaughtException", (error) => {
-  void dialog.showErrorBox("错题复盘运行错误", error.message);
+  void dialog.showErrorBox("Recall 运行错误", error.message);
 });

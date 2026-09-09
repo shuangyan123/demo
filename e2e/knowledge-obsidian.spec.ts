@@ -5,7 +5,7 @@ test("知识库 Obsidian 桥接入口在未连接状态下可恢复展示", asyn
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   await page.locator(".dashboard-configuration-health > summary").click();
   await page.locator(".dashboard-configuration-health").getByRole("button", { name: "连接 Obsidian" }).click();
 

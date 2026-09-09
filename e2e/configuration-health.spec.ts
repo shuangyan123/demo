@@ -5,7 +5,7 @@ test("配置健康面板展示新库缺项并可导航到补齐入口", async ({
   const runtimeErrors = collectRuntimeErrors(page);
 
   await page.goto("/");
-  await expect(page).toHaveTitle("错题复盘");
+  await expect(page).toHaveTitle("Recall");
   const healthSummary = page.locator(".dashboard-configuration-health > summary");
   await expect(healthSummary).toContainText("配置健康");
   await expect(healthSummary).toContainText(/项待配置/);

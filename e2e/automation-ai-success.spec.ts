@@ -15,7 +15,7 @@ test("已安排使用默认文本连接时可完成试运行和成功运行详�
 
   try {
     await page.goto("/");
-    await expect(page).toHaveTitle("错题复盘");
+    await expect(page).toHaveTitle("Recall");
 
     await page.getByRole("button", { name: "设置" }).first().click();
     await page.getByRole("button", { name: "AI 连接" }).click();
