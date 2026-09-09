@@ -46,7 +46,7 @@ async function ensureDetailsOpen(summary: Locator): Promise<void> {
 async function openDashboard(page: Page): Promise<void> {
   const sidebar = page.locator(".chrome-sidebar:visible");
   await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "公考" }).first());
-  await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "模块" }).first());
+  await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "学习" }).first());
   await sidebar.getByRole("button", { name: "总览", exact: true }).click();
   await expect(page.getByRole("heading", { name: "今日学习" })).toBeVisible();
 }

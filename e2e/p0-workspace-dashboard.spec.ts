@@ -235,7 +235,7 @@ test("移动端侧栏是默认关闭的焦点抽屉，七阶段沿 S 曲线自�
   await toggle.click();
   const drawer = page.getByRole("dialog", { name: "应用导航" });
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByRole("button", { name: "新对话", exact: true })).toBeFocused();
+  await expect(drawer.getByRole("button", { name: "总览", exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
   await expect(toggle).toBeFocused();

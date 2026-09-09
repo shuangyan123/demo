@@ -409,6 +409,16 @@
   padding: 1.15rem 1.3rem;
 }
 
+.dashboard-next-action[data-dashboard-priority="next"] {
+  border-color: color-mix(in srgb, var(--foreground) 24%, var(--line));
+  background: var(--surface-muted);
+}
+
+.dashboard-next-action[data-dashboard-priority="next"] .dashboard-next-action-icon {
+  background: var(--foreground);
+  color: var(--surface);
+}
+
 .dashboard-next-action-icon {
   display: grid;
   width: 2.75rem;
@@ -432,7 +442,9 @@
 
 
 .dashboard-study-flow {
-  margin-top: 2rem;
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
 }
 
 .dashboard-study-flow > h2 {

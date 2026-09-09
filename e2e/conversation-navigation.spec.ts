@@ -75,14 +75,14 @@ test("公考默认折叠，新对话保持草稿且普通文本不显示 caret",
 
   const projectSummary = page.locator("summary").filter({ hasText: "公考" }).first();
   await expect(projectSummary).toBeVisible();
-  await expect(page.getByRole("button", { name: "学习数据" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "错题库" })).toBeHidden();
   await projectSummary.click();
-  const moduleSummary = page.locator("summary").filter({ hasText: "模块" }).first();
+  const moduleSummary = page.locator("summary").filter({ hasText: "学习" }).first();
   await expect(moduleSummary).toBeVisible();
-  await expect(page.getByRole("button", { name: "学习数据" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "错题库" })).toBeHidden();
   await moduleSummary.click();
-  await expect(page.getByRole("button", { name: "学习数据" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "学习数据" })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "错题库" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "错题库" })).toHaveCount(1);
   await expect(page.getByText("板块筛选")).toHaveCount(0);
 
   const before = await conversationCount(page);

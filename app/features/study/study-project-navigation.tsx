@@ -24,6 +24,7 @@ const StudyModuleDialog = dynamic(
 
 type StudyProjectNavigationProps = {
   children?: ReactNode;
+  dashboardOutside?: boolean;
   initiallyOpen?: boolean;
   onNotice: (message: string) => void;
   onPreloadView: (view: ViewKey) => void;
@@ -31,8 +32,8 @@ type StudyProjectNavigationProps = {
   view: ViewKey;
 };
 
-/** 公考项目树的低频管理边界；模块 registry、项目偏好和弹窗不进入主侧栏首屏入口。 */
-export function StudyProjectNavigation({ children, initiallyOpen = false, onNotice, onPreloadView, onSelectView, view }: StudyProjectNavigationProps) {
+/** 公考项目树的低频管理边界；总览可提升到项目外，模块偏好和弹窗仍保持局部管理。 */
+export function StudyProjectNavigation({ children, dashboardOutside = false, initiallyOpen = false, onNotice, onPreloadView, onSelectView, view }: StudyProjectNavigationProps) {
   const civilServiceDomain = studyDomainDefinitions[0]!;
   const [moduleDialog, setModuleDialog] = useState<"add" | "manage" | null>(null);
   const {
@@ -42,12 +43,16 @@ export function StudyProjectNavigation({ children, initiallyOpen = false, onNoti
     removeModule,
     resetDefaults,
   } = useStudyModulePreferences(civilServiceDomain.id);
-  const projectActive = view === "conversation" || isStudyModuleView(view);
+  const visibleModules = dashboardOutside ? enabledModules.filter((module) => module.id !== "dashboard") : enabledModules;
+  const projectActive = view === "conversation" || (isStudyModuleView(view) && !(dashboardOutside && view === "dashboard"));
+  const moduleGroupActive = dashboardOutside && isStudyModuleView(view) && view !== "dashboard";
   const projectRef = useRef<HTMLDetailsElement>(null);
+  const moduleGroupRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
-    if (initiallyOpen && projectRef.current) projectRef.current.open = true;
-  }, [initiallyOpen]);
+    if ((initiallyOpen || (dashboardOutside && projectActive)) && projectRef.current) projectRef.current.open = true;
+    if (moduleGroupActive && moduleGroupRef.current) moduleGroupRef.current.open = true;
+  }, [dashboardOutside, initiallyOpen, moduleGroupActive, projectActive]);
 
   function openModuleDialog(nextDialog: "add" | "manage") {
     announceInteractiveOverlayOpen();
@@ -99,9 +104,9 @@ export function StudyProjectNavigation({ children, initiallyOpen = false, onNoti
           <span className="transition group-open:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
         </summary>
         <div className="grid gap-px pl-2">
-          <details className="group/modules">
+          <details ref={moduleGroupRef} className="group/modules">
             <summary className="grid min-h-8 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center rounded-[var(--ui-radius-row)] px-2 text-[11px] font-medium text-muted hover:bg-chrome-hover max-lg:min-h-11 [&::-webkit-details-marker]:hidden" data-study-module-header="true">
-              <span>模块</span>
+              <span>学习</span>
               <button
                 aria-label="管理公考模块"
                 className="grid h-7 w-7 place-items-center rounded-[var(--ui-radius-row)] hover:bg-surface-muted hover:text-foreground max-lg:h-11 max-lg:w-11"
@@ -133,10 +138,12 @@ export function StudyProjectNavigation({ children, initiallyOpen = false, onNoti
               <span className="transition group-open/modules:rotate-90"><AppIcon name="chevronRight" size={16} /></span>
             </summary>
             <div className="grid gap-px pl-1">
-              {enabledModules.map((module) => (
+              {visibleModules.map((module) => (
                 <button
                   key={module.id}
+                  aria-current={view === module.id ? "page" : undefined}
                   data-mobile-sidebar-close="true"
+                  data-study-module-id={module.id}
                   className={`grid min-h-8 grid-cols-[16px_1fr] items-center gap-[0.45rem] rounded-[var(--ui-radius-row)] px-2 text-left text-[0.8rem] max-lg:min-h-11 ${view === module.id ? "bg-surface text-foreground" : "text-muted hover:bg-chrome-hover hover:text-foreground"}`}
                   type="button"
                   title={module.description}

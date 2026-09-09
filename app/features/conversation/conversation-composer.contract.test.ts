@@ -298,7 +298,7 @@ test("Workbench chrome removes browser product topbar while preserving native ho
   assert.match(shellStyles, /\.chrome-layout\s*\{[\s\S]*height: calc\(100dvh - var\(--chrome-topbar-height\)\)/);
   assert.match(shellStyles, /\.chrome-layout\.is-sidebar-collapsed[\s\S]*?grid-template-columns: 0 0 minmax\(0, 1fr\)/);
   assert.match(shellStyles, /\.chrome-layout\.is-sidebar-collapsed \.chrome-sidebar-boundary[\s\S]*?width: 0/);
-  assert.match(readFileSync(new URL("../review/review-workspace-app-sidebar.tsx", import.meta.url), "utf8"), /<strong>Recall<\/strong>/);
+  assert.match(readFileSync(new URL("../review/review-workspace-app-sidebar.tsx", import.meta.url), "utf8"), /RecallBrandWordmark/);
 });
 
 test("UiHint is the shared non-interactive overlay and migrated controls avoid native title conflicts", () => {

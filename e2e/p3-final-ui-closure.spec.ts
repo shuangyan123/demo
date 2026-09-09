@@ -11,7 +11,7 @@ async function ensureDetailsOpen(summary: Locator) {
 async function openDesktopModule(page: Page, name: string) {
   const sidebar = page.locator(".chrome-sidebar:visible");
   await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "公考" }).first());
-  await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "模块" }).first());
+  await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "学习" }).first());
   await sidebar.getByRole("button", { name }).click();
 }
 
@@ -34,7 +34,7 @@ test("P3 桌面薄弱分析、插件检查器与命令搜索保持真实状态",
   await page.goto("/");
   await createMistake(page);
 
-  await openDesktopModule(page, "学习数据");
+  await openDesktopModule(page, "错题库");
   await page.getByRole("button", { name: "薄弱分析", exact: true }).click();
   await expect(page.getByRole("heading", { name: "薄弱分析", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "数据不足" })).toBeVisible();

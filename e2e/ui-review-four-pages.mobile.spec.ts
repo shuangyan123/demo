@@ -60,7 +60,7 @@ test("四页审查数据在 390×844 保持移动步骤、详情层与完整操�
 
   await page.reload();
   const learningDrawer = await openDrawer(page);
-  await openStudyModule(learningDrawer, "学习数据");
+  await openStudyModule(learningDrawer, "错题库");
   await page.getByRole("button", { name: "薄弱分析", exact: true }).click();
   await expect(page.getByRole("heading", { name: "优先改进" })).toBeVisible();
   await expectNoHorizontalOverflow(page);

@@ -12,8 +12,8 @@ async function ensureOpen(summary: Locator) {
 async function openLearningInsights(page: Page) {
   const sidebar = page.locator(".chrome-sidebar:visible");
   await ensureOpen(sidebar.locator("summary").filter({ hasText: "公考" }).first());
-  await ensureOpen(sidebar.locator("summary").filter({ hasText: "模块" }).first());
-  await sidebar.getByRole("button", { name: "学习数据" }).click();
+  await ensureOpen(sidebar.locator("summary").filter({ hasText: "学习" }).first());
+  await sidebar.getByRole("button", { name: "错题库" }).click();
   await page.getByRole("button", { name: "薄弱分析", exact: true }).click();
 }
 

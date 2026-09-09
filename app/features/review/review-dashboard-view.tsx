@@ -160,13 +160,19 @@ export function DashboardView({
         <ConfigurationHealthPanel health={configurationHealth} onAction={onConfigurationHealthAction} />
       </header>
 
-      <section className="dashboard-next-action" aria-labelledby="dashboard-next-action-title">
+      <section className="dashboard-next-action" data-dashboard-priority="next" aria-labelledby="dashboard-next-action-title">
         <span className="dashboard-next-action-icon" aria-hidden="true"><AppIcon name="chevronRight" size={22} /></span>
         <div>
           <h2 id="dashboard-next-action-title">{nextAction.title}</h2>
           <p>{nextAction.description}</p>
         </div>
         <Button variant="primary" onClick={actions[nextAction.id]}>{nextAction.label}</Button>
+      </section>
+
+      <section className="dashboard-primary-stats mt-4" data-dashboard-priority="progress" aria-label="今日学习统计">
+        <article><span>今日待复盘</span><strong>{dueMistakes.length}</strong></article>
+        <article><span>今日知识训练</span><strong>{dueKnowledgeEntries.length}</strong></article>
+        <article><span>薄弱错题</span><strong>{lowMistakes.length}</strong></article>
       </section>
 
       <DashboardLearningActions
@@ -176,13 +182,9 @@ export function DashboardView({
         onOpen={onOpenLearningAction}
       />
 
-      <DashboardStudyFlow items={flowItems} />
-
-      <section className="dashboard-primary-stats" aria-label="今日学习统计">
-        <article><span>今日待复盘</span><strong>{dueMistakes.length}</strong></article>
-        <article><span>今日知识训练</span><strong>{dueKnowledgeEntries.length}</strong></article>
-        <article><span>薄弱错题</span><strong>{lowMistakes.length}</strong></article>
-      </section>
+      <div data-dashboard-priority="secondary">
+        <DashboardStudyFlow items={flowItems} />
+      </div>
 
       <section className="dashboard-disclosures" aria-label="学习详情">
         <DashboardDisclosure icon="dashboard" title="六大板块">

@@ -16,7 +16,7 @@ async function openMobileModule(page: Page, name: string) {
   await page.getByRole("button", { name: "展开侧边栏" }).click();
   const drawer = page.getByRole("dialog", { name: "应用导航" });
   await ensureDetailsOpen(drawer.locator("summary").filter({ hasText: "公考" }).first());
-  await ensureDetailsOpen(drawer.locator("summary").filter({ hasText: "模块" }).first());
+  await ensureDetailsOpen(drawer.locator("summary").filter({ hasText: "学习" }).first());
   await drawer.getByRole("button", { name }).click();
   await expect(drawer).toBeHidden();
 }
@@ -49,7 +49,7 @@ test("P1 移动端列表详情、复盘底栏和知识工作区可达", async ({
   const runtimeErrors = collectRuntimeErrors(page);
   await page.goto("/");
   await createMobileMistake(page);
-  await openMobileModule(page, "学习数据");
+  await openMobileModule(page, "错题库");
   await page.getByRole("button", { name: "批量管理" }).click();
   await expectChromeTitle(page, "错题库");
   await expect(page.locator(".learning-detail")).toBeHidden();
@@ -58,12 +58,12 @@ test("P1 移动端列表详情、复盘底栏和知识工作区可达", async ({
   await expect(page.getByRole("button", { name: "返回错题列表" })).toBeVisible();
   await page.getByRole("button", { name: "返回错题列表" }).click();
 
-  await openMobileModule(page, "开始复盘");
+  await openMobileModule(page, "错题复盘");
   await expectChromeTitle(page, "错题复盘");
   await expect(page.locator(".review-session-actions")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("p1-review-mobile.png"), fullPage: false });
 
-  await openMobileModule(page, "学习数据");
+  await openMobileModule(page, "错题库");
   await page.getByRole("button", { name: "知识演进与 Obsidian" }).click();
   await expectChromeTitle(page, "知识库");
   await page.screenshot({ path: testInfo.outputPath("p1-knowledge-mobile.png"), fullPage: false });
@@ -75,7 +75,7 @@ test("P1 移动端列表详情、复盘底栏和知识工作区可达", async ({
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await page.getByRole("button", { name: "返回", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
-  await openMobileModule(page, "学习数据");
+  await openMobileModule(page, "错题库");
   await page.getByRole("button", { name: "批量管理" }).click();
   await page.screenshot({ path: testInfo.outputPath("p1-mistakes-mobile-dark.png"), fullPage: false });
   await expectNoHorizontalOverflow(page);

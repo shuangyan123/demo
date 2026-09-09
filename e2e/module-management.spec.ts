@@ -65,14 +65,14 @@ test("项目模块可添加、移除、恢复默认并在当前模块移除时�
   sidebar = await openProjectModules(page);
   await expect(sidebar.getByRole("button", { name: "粉笔导入", exact: true })).toHaveCount(0);
   await sidebar.getByRole("button", { name: "管理公考模块", exact: true }).click();
-  await manageDialog.getByRole("button", { name: "移除 学习数据", exact: true }).click();
+  await manageDialog.getByRole("button", { name: "移除 错题库", exact: true }).click();
   await expect(manageDialog.locator('[data-study-module-row][data-study-module-id="library"]')).toHaveCount(0);
   await manageDialog.getByRole("button", { name: "恢复默认模块", exact: true }).click();
   await expect(manageDialog.locator('[data-study-module-row][data-study-module-id="library"]')).toBeVisible();
   await manageDialog.getByRole("button", { name: "关闭模块管理", exact: true }).click();
 
   sidebar = await openProjectModules(page);
-  await expect(sidebar.getByRole("button", { name: "学习数据", exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "错题库", exact: true })).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "粉笔导入", exact: true })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await expectNoFrameworkOverlay(page);

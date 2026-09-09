@@ -37,7 +37,8 @@ test("公考 registry 保留完整模块目录并声明稳定默认集合", () =
     "interview",
   ]);
   assert.deepEqual(civilServiceStudyModules.map((module) => module.id), getDefaultEnabledStudyModuleIds("civil-service"));
-  assert.equal(civilServiceStudyModuleCatalog.find((module) => module.id === "library")?.label, "学习数据");
+  assert.equal(civilServiceStudyModuleCatalog.find((module) => module.id === "library")?.label, "错题库");
+  assert.equal(civilServiceStudyModuleCatalog.find((module) => module.id === "review")?.label, "错题复盘");
   assert.equal(civilServiceStudyModuleCatalog.every((module) => module.capabilities.length > 0), true);
   assert.equal(civilServiceStudyModuleCatalog.every((module) => module.healthSignals?.length), true);
 });

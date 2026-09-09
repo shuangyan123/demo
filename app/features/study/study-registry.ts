@@ -31,7 +31,7 @@ export const civilServiceStudyModuleCatalog = [
   },
   {
     id: "library",
-    label: "学习数据",
+    label: "错题库",
     description: "统一浏览错题、知识和薄弱分析，并把上下文交给新对话。",
     icon: "library",
     capabilities: ["错题与知识", "薄弱分析", "对话交接"],
@@ -40,7 +40,7 @@ export const civilServiceStudyModuleCatalog = [
   },
   {
     id: "review",
-    label: "开始复盘",
+    label: "错题复盘",
     description: "按间隔复习队列进行错题复盘。",
     icon: "review",
     capabilities: ["复盘队列", "计时", "结果记录"],

@@ -527,6 +527,12 @@ test("应用与设置侧栏共享固定头部、独立列表滚动和固定页�
   assert.match(appSidebar, /workspace-sidebar-primary-nav/);
   assert.match(appSidebar, /workspace-sidebar-scroll/);
   assert.match(appSidebar, /workspace-sidebar-footer/);
+  assert.match(appSidebar, /RecallBrandWordmark/);
+  assert.match(appSidebar, /data-workspace-section="study"/);
+  assert.match(appSidebar, /aria-label="对话和项目"/);
+  assert.match(appSidebar, /data-workspace-material-trigger="true"/);
+  assert.match(appSidebar, /onOpenImport/);
+  assert.match(appSidebar, /onOpenEntry/);
   assert.match(settingsSidebar, /workspace-sidebar-shell settings-sidebar-shell/);
   assert.match(settingsSidebar, /data-sidebar-scroll-region="true"/);
   assert.match(settingsSidebar, /workspace-sidebar-footer/);

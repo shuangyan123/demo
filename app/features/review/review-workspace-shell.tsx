@@ -109,6 +109,8 @@ export function ReviewWorkspaceShell({
       view={view}
       onNotice={onNotice}
       onOpenConversation={onOpenConversation}
+      onOpenEntry={onOpenEntry}
+      onOpenImport={onOpenImport}
       onOpenSearch={onOpenSearch}
       onOpenSettings={onOpenSettings}
       onRefreshConversations={onRefreshConversations}
@@ -124,7 +126,7 @@ export function ReviewWorkspaceShell({
         ? "conversation-shell-content"
         : view === "automation"
           ? "review-view-automation pt-4 pb-7"
-          : `review-view-${view} py-7`)}
+          : `review-view-${view} py-6 max-sm:py-5`)}
       sidebarCollapsed={sidebarCollapsed}
       sidebarClassName={sidebarOverride ? "workspace-sidebar-host text-settings-sidebar-text" : "workspace-sidebar-host text-app-sidebar-text"}
       context={context}

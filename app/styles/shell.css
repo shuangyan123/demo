@@ -44,6 +44,24 @@
   display: none;
 }
 
+.chrome-section-title {
+  min-width: 0;
+  max-width: min(18rem, 24vw);
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .chrome-section-title {
+    max-width: 7.5rem;
+    font-size: 0.76rem;
+  }
+}
+
 .chrome-topbar-safe-area {
   width: env(titlebar-area-width, 100%);
   margin-left: env(titlebar-area-x, 0);
@@ -146,6 +164,31 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   padding-inline: 0.35rem;
 }
 
+.workspace-sidebar-wordmark,
+.workspace-sidebar-wordmark-light,
+.workspace-sidebar-wordmark-dark {
+  display: block;
+  min-width: 0;
+}
+
+.workspace-sidebar-wordmark-image {
+  display: block;
+  height: 1.8rem;
+  width: auto;
+}
+
+.workspace-sidebar-wordmark-dark {
+  display: none;
+}
+
+body[data-theme="dark"] .workspace-sidebar-wordmark-light {
+  display: none;
+}
+
+body[data-theme="dark"] .workspace-sidebar-wordmark-dark {
+  display: block;
+}
+
 .workspace-sidebar-brand strong {
   overflow: hidden;
   font-size: 0.82rem;
@@ -166,6 +209,8 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   display: grid;
   flex: none;
   gap: 0.1rem;
+  border-bottom: 1px solid var(--chrome-sidebar-footer-separator);
+  padding-bottom: 0.35rem;
 }
 
 .workspace-sidebar-scroll {
@@ -218,6 +263,36 @@ body[data-diffuse-gradient="true"] .chrome-topbar {
   font-size: 0.68rem;
   font-weight: 650;
   letter-spacing: 0.01em;
+}
+
+.workspace-sidebar-material-menu > summary {
+  list-style: none;
+}
+
+.workspace-sidebar-material-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.workspace-sidebar-material-menu[open] > summary {
+  background: var(--interactive-hover-bg);
+  color: var(--foreground);
+}
+
+.workspace-sidebar-material-menu > summary > svg:last-child {
+  color: var(--muted);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.workspace-sidebar-material-menu[open] > summary > svg:last-child {
+  transform: rotate(90deg);
+}
+
+.workspace-sidebar-material-options {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0.15rem 0 0.1rem 0.5rem;
+  border-left: 1px solid var(--chrome-sidebar-footer-separator);
+  padding-left: 0.35rem;
 }
 
 .workspace-sidebar-footer {

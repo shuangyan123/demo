@@ -26,7 +26,7 @@ async function ensureDetailsOpen(summary: Locator) {
 async function openDesktopModule(page: Page, name: string) {
   const sidebar = page.locator(".chrome-sidebar:visible");
   await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "公考" }).first());
-  await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "模块" }).first());
+  await ensureDetailsOpen(sidebar.locator("summary").filter({ hasText: "学习" }).first());
   await sidebar.getByRole("button", { name }).click();
 }
 
@@ -36,21 +36,21 @@ test("P1 桌面错题、复盘和知识工作区保持紧凑主从布局", async
   await page.goto("/");
   await createMistake(page);
 
-  await openDesktopModule(page, "学习数据");
+  await openDesktopModule(page, "错题库");
   await page.getByRole("button", { name: "批量管理" }).click();
   await expect(page.getByRole("button", { name: "返回统一浏览" })).toBeVisible();
   await expect(page.locator(".learning-master-detail")).toBeVisible();
   await expect(page.getByRole("button", { name: /某地区今年产值增长/ })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("p1-mistakes-desktop.png"), fullPage: false });
 
-  await openDesktopModule(page, "开始复盘");
+  await openDesktopModule(page, "错题复盘");
   await expect(page.getByRole("heading", { name: "错题复盘" })).toBeVisible();
   await page.getByRole("button", { name: "查看答案" }).click();
   await expect(page.getByText("现期值除以 1.12")).toBeVisible();
   await expect(page.locator(".review-session-rail")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("p1-review-desktop.png"), fullPage: false });
 
-  await openDesktopModule(page, "学习数据");
+  await openDesktopModule(page, "错题库");
   await page.getByRole("button", { name: "知识演进与 Obsidian" }).click();
   const knowledgeForm = page.locator("form").filter({ has: page.getByRole("button", { name: "保存到知识库" }) });
   await knowledgeForm.getByLabel("标题").fill("增长率与基期量换算");

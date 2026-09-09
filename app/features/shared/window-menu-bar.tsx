@@ -42,6 +42,7 @@ export function WindowMenuBar({
           onClick={onBack}
         ><AppIcon name="back" size={18} /></button>}</UiHint> : null}
         <RecallBrandMark />
+        <span aria-label={`当前工作区：${title}`} className="chrome-section-title" data-section-title={title}>{title}</span>
         <span className="chrome-product-title" data-product-title={title} aria-hidden="true" />
         <div className="ml-auto flex min-w-0 flex-none items-center justify-end gap-1">
           <SummaryPopover summary={summary} />
