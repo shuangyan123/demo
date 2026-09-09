@@ -36,7 +36,8 @@ test("桌面总览保持唯一主操作、七阶段链路和三个折叠详情�
   await expect(page.locator(".dashboard-next-action .ui-button-primary")).toHaveCount(1);
   await expect(page.locator(".dashboard-study-flow-list > li")).toHaveCount(7);
   await expect(page.locator(".dashboard-study-flow-path-desktop")).toBeVisible();
-  await expect(page.locator('[data-flow-segment="tail"]')).toHaveAttribute("stroke", "var(--study-flow-green)");
+  await expect(page.locator('.dashboard-study-flow-path-desktop')).toHaveAttribute("aria-hidden", "true");
+  await expect(page.locator('.dashboard-study-flow-path-desktop [data-flow-segment]')).toHaveCount(3);
   for (const distance of await readDesktopFlowNodeDistances(page)) expect(distance).toBeLessThanOrEqual(2);
   await expect(page.getByText("粉笔文本、文件或截图先进入可确认草稿。")).toHaveCount(0);
 
@@ -224,7 +225,7 @@ test("普通模块与独立设置工作台共享同一外层边界", async ({ pa
   await expect(page.locator(".chrome-content")).toHaveCSS("border-top-left-radius", "0px");
 });
 
-test("移动端侧栏是默认关闭的焦点抽屉，七阶段沿 S 曲线自然滚动", async ({ page }, testInfo) => {
+test("移动端侧栏是默认关闭的焦点抽屉，七阶段沿纵向路线自然滚动", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
@@ -284,4 +285,39 @@ test("深色模式下桌面与移动端保持学习路径和新对话可用", as
   await expectNoHorizontalOverflow(page);
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
+});
+
+
+test("折叠与展开时顶栏按钮、品牌和标题独立布局且键盘可达", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "总览", exact: true })).toBeVisible();
+  const title = page.locator(".chrome-section-title");
+  const initialTitle = await title.boundingBox();
+  for (const collapsed of [true, false, true, false]) {
+    const toggle = page.getByRole("button", { name: /^(收起|展开)侧边栏$/ });
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-pressed", String(collapsed));
+    await expect(toggle).toBeFocused();
+    await expect(toggle).toHaveCSS("outline-style", "solid");
+    await expect(page.locator(".chrome-sidebar")).toHaveCSS("opacity", collapsed ? "0" : "1");
+    const boxes = await page.locator(".chrome-topbar").evaluate((header) => {
+      const box = (selector: string) => {
+        const r = header.querySelector(selector)!.getBoundingClientRect();
+        return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:r.width };
+      };
+      return { toggle:box(".sidebar-toggle-button"), mark:box("img[alt='Recall']"), title:box(".chrome-section-title"), header:header.getBoundingClientRect().toJSON() };
+    });
+    expect(boxes.mark.width).toBe(28);
+    expect(boxes.toggle.right + 4).toBeLessThanOrEqual(boxes.mark.left);
+    expect(boxes.mark.right + 4).toBeLessThanOrEqual(boxes.title.left);
+    expect(boxes.toggle.top - 3).toBeGreaterThanOrEqual(boxes.header.top);
+    expect(boxes.toggle.bottom + 3).toBeLessThanOrEqual(boxes.header.bottom);
+    expect(boxes.title.left).toBe(initialTitle!.x);
+    await expect(page.locator(".chrome-topbar img[alt='Recall']")).toHaveCount(1);
+    if (collapsed) await expect.poll(async () => (await page.locator(".chrome-content-frame").boundingBox())!.x).toBe(0);
+    await page.screenshot({ path: testInfo.outputPath(collapsed ? "chrome-collapsed.png" : "chrome-expanded.png") });
+  }
+  await expectNoHorizontalOverflow(page);
 });

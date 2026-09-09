@@ -455,6 +455,8 @@
 .dashboard-study-flow-canvas {
   position: relative;
   margin-top: 0.8rem;
+  border-radius: 1rem;
+  background: radial-gradient(ellipse at 48% 42%, color-mix(in srgb, var(--study-flow-blue) 3%, transparent), transparent 68%);
 }
 
 .dashboard-study-flow-path {
@@ -465,11 +467,10 @@
   height: 100%;
   overflow: visible;
   pointer-events: none;
+  color: color-mix(in srgb, var(--muted) 36%, var(--surface));
 }
 
-.dashboard-study-flow-path-mobile {
-  display: none;
-}
+.dashboard-study-flow-path-mobile { display: none; }
 
 .dashboard-study-flow-list {
   position: relative;
@@ -481,63 +482,74 @@
   list-style: none;
 }
 
+/* 节点偏移与 SVG 的 1000×300 坐标对应，路径只经过圆心，不经过文字。 */
+.dashboard-study-flow-list li { --flow-offset: 0rem; }
+.dashboard-study-flow-list li[data-flow-index="2"] { --flow-offset: 1.25rem; }
+.dashboard-study-flow-list li[data-flow-index="3"] { --flow-offset: -0.25rem; }
+.dashboard-study-flow-list li[data-flow-index="4"] { --flow-offset: 0.875rem; }
 .dashboard-study-flow-list li[data-flow-index="5"] { grid-column: 3; grid-row: 2; }
-.dashboard-study-flow-list li[data-flow-index="6"] { grid-column: 2; grid-row: 2; }
-.dashboard-study-flow-list li[data-flow-index="7"] { grid-column: 1; grid-row: 2; }
+.dashboard-study-flow-list li[data-flow-index="6"] { grid-column: 2; grid-row: 2; --flow-offset: 1.25rem; }
+.dashboard-study-flow-list li[data-flow-index="7"] { grid-column: 1; grid-row: 2; --flow-offset: -0.375rem; }
 
 .dashboard-study-flow-list button {
   display: grid;
+  position: relative;
   width: 100%;
   min-height: 9.375rem;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 2.45rem auto auto;
   align-content: start;
   justify-items: center;
-  gap: 0.35rem 0.5rem;
+  gap: 0.4rem;
   border-radius: 0.7rem;
-  padding: 1.2695rem 0.65rem 0.65rem;
+  padding: calc(1.2695rem + var(--flow-offset)) 0.65rem 0.65rem;
   text-align: center;
 }
 
-.dashboard-study-flow-list button:hover {
-  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
+.dashboard-study-flow-list button:hover .dashboard-study-flow-node,
+.dashboard-study-flow-list button:focus-visible .dashboard-study-flow-node {
+  border-color: var(--flow-accent);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--flow-accent) 9%, transparent);
+}
+
+.dashboard-study-flow-list button:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: -2px;
 }
 
 .dashboard-study-flow-node {
   display: grid;
   width: 2.45rem;
   height: 2.45rem;
-  grid-column: 1 / -1;
   place-items: center;
-  border: 1.5px solid currentColor;
+  border: 1px solid color-mix(in srgb, var(--flow-accent) 42%, var(--line));
   border-radius: 999px;
   background: var(--surface);
-  font-size: 1rem;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--flow-accent) 5%, var(--surface));
+  color: color-mix(in srgb, var(--flow-accent) 55%, var(--foreground));
+  font-size: 0.88rem;
+  font-weight: 650;
 }
 
 .dashboard-study-flow-label {
-  grid-column: 1 / -1;
   font-size: 0.9rem;
   font-weight: 650;
 }
 
 .dashboard-study-flow-status {
-  justify-self: end;
   color: var(--muted);
   font-size: 0.75rem;
 }
 
-.dashboard-study-flow-list button > svg {
-  color: var(--muted);
-}
+.dashboard-study-flow-list button > svg { display: none; }
 
-.dashboard-study-flow-list [data-tone="teal"] .dashboard-study-flow-node { color: var(--study-flow-teal); }
-.dashboard-study-flow-list [data-tone="blue"] .dashboard-study-flow-node { color: var(--study-flow-blue); }
-.dashboard-study-flow-list [data-tone="indigo"] .dashboard-study-flow-node { color: var(--study-flow-indigo); }
-.dashboard-study-flow-list [data-tone="violet"] .dashboard-study-flow-node { color: var(--study-flow-violet); }
-.dashboard-study-flow-list [data-tone="coral"] .dashboard-study-flow-node { color: var(--study-flow-coral); }
-.dashboard-study-flow-list [data-tone="amber"] .dashboard-study-flow-node { color: var(--study-flow-amber); }
-.dashboard-study-flow-list [data-tone="green"] .dashboard-study-flow-node { color: var(--study-flow-green); }
+.dashboard-study-flow-list [data-tone="teal"] { --flow-accent: var(--study-flow-teal); }
+.dashboard-study-flow-list [data-tone="blue"] { --flow-accent: var(--study-flow-blue); }
+.dashboard-study-flow-list [data-tone="indigo"] { --flow-accent: var(--study-flow-indigo); }
+.dashboard-study-flow-list [data-tone="violet"] { --flow-accent: var(--study-flow-violet); }
+.dashboard-study-flow-list [data-tone="coral"] { --flow-accent: var(--study-flow-coral); }
+.dashboard-study-flow-list [data-tone="amber"] { --flow-accent: var(--study-flow-amber); }
+.dashboard-study-flow-list [data-tone="green"] { --flow-accent: var(--study-flow-green); }
 
 .dashboard-primary-stats {
   display: grid;
@@ -2488,67 +2500,47 @@ body[data-theme="dark"] .provider-icon[data-theme-variant="adaptive"] img {
     display: none;
   }
 
+  .dashboard-study-flow-canvas { background: none; }
+
   .dashboard-study-flow-path-mobile {
     display: block;
-    width: 6.25rem;
+    width: 4rem;
   }
 
   .dashboard-study-flow-list {
     display: block;
     min-height: 43.75rem;
-    border: 1px solid var(--line);
-    border-radius: 0.8rem;
-    background: transparent;
-    overflow: hidden;
   }
 
   .dashboard-study-flow-list li,
   .dashboard-study-flow-list li[data-flow-index="5"],
   .dashboard-study-flow-list li[data-flow-index="6"],
   .dashboard-study-flow-list li[data-flow-index="7"] {
-    position: relative;
     grid-column: auto;
     grid-row: auto;
     min-height: 6.25rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
-  }
-
-  .dashboard-study-flow-list li:last-child {
-    border-bottom: 0;
   }
 
   .dashboard-study-flow-list button {
-    display: grid;
     min-height: 6.25rem;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: 2.45rem minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
     align-items: center;
     align-content: center;
     justify-items: start;
-    gap: 0.6rem;
-    padding: 0.75rem 0.8rem 0.75rem 7.3rem;
+    gap: 0.3rem 1rem;
+    padding: 0.75rem 0.775rem;
     text-align: left;
   }
 
-  .dashboard-study-flow-node {
-    position: absolute;
-    left: 0.55rem;
-    width: 2.45rem;
-    height: 2.45rem;
-    grid-column: auto;
-  }
-
-  .dashboard-study-flow-list li:nth-child(even) .dashboard-study-flow-node {
-    left: 3.3rem;
-  }
-
-  .dashboard-study-flow-label {
-    grid-column: auto;
-    font-size: 0.95rem;
-  }
-
-  .dashboard-study-flow-status {
-    justify-self: end;
-    white-space: nowrap;
+  .dashboard-study-flow-node { grid-row: 1 / 3; }
+  .dashboard-study-flow-label { grid-column: 2; font-size: 0.95rem; }
+  .dashboard-study-flow-status { grid-column: 2; grid-row: 2; }
+  .dashboard-study-flow-list button > svg {
+    display: block;
+    grid-column: 3;
+    grid-row: 1 / 3;
+    color: var(--muted);
   }
 
   .dashboard-primary-stats article {

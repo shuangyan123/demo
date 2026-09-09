@@ -34,10 +34,13 @@ test("移动视口下关键入口可达且不会出现运行时错误或页面�
 
   await page.getByRole("button", { name: "展开侧边栏" }).click();
   await expect(page.getByRole("button", { name: "收起侧边栏" })).toBeVisible();
-  await expect(page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" })).toBeVisible();
+  const drawer = page.getByRole("dialog", { name: "应用导航" });
+  const scheduledNavigation = drawer.getByRole("region", { name: "工作台", exact: true }).getByRole("button", { name: "已安排", exact: true });
+  await expect(scheduledNavigation).toBeVisible();
 
-  await page.getByLabel("工作台快捷入口").getByRole("button", { name: "已安排" }).click();
+  await scheduledNavigation.click();
   await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
+  await expect(drawer).toBeHidden();
   await page.getByRole("button", { name: "新建任务", exact: true }).click();
   await page.getByLabel("名称").fill("移动视口回归");
   await expect(page.getByLabel("名称")).toHaveValue("移动视口回归");

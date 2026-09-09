@@ -394,6 +394,10 @@ body[data-theme="dark"] .workspace-sidebar-wordmark-dark {
 
 /* 桌面抬升面已自行绘制左侧边缘，移除侧栏直线边框，避免它从两个圆角旁露出。 */
 @media (min-width: 1025px) {
+  /* 列宽动画期间保持侧栏内容宽度；折叠立即隐藏，避免文字和品牌被逐帧挤压。 */
+  .chrome-shell .chrome-sidebar { width: var(--chrome-sidebar-width); }
+  .chrome-shell .chrome-layout.is-sidebar-collapsed .chrome-sidebar { visibility: hidden; }
+
   /* 单一底层承载左侧 Chrome 的实色与弥散，避免顶栏和侧栏各绘一层形成接缝。 */
   .chrome-shell::before {
     content: "";
@@ -469,18 +473,12 @@ body[data-theme="dark"] .workspace-sidebar-wordmark-dark {
   .chrome-shell[data-native-window="false"] > .chrome-topbar .chrome-topbar-safe-area {
     position: static;
     height: 100%;
-    padding: 0;
+    padding-inline: 0.75rem;
   }
 
-  .chrome-shell[data-native-window="false"] > .chrome-topbar > .chrome-topbar-safe-area > .ui-tooltip-anchor {
-    position: fixed;
-    z-index: 80;
-    top: 0.75rem;
-    left: calc(var(--chrome-sidebar-width) - 2.5rem);
-  }
-
-  .chrome-shell[data-native-window="false"][data-sidebar="collapsed"] > .chrome-topbar > .chrome-topbar-safe-area > .ui-tooltip-anchor {
-    left: 0.75rem;
+  /* 切换按钮留在 flex 流中，折叠前后都为品牌和标题保留真实空间。 */
+  .chrome-shell > .chrome-topbar > .chrome-topbar-safe-area > .ui-tooltip-anchor {
+    flex-shrink: 0;
   }
 
   .chrome-layout.is-sidebar-expanded .chrome-sidebar {

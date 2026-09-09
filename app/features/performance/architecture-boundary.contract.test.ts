@@ -548,14 +548,14 @@ test("新对话导航不会把 React 点击事件误传为启动上下文", asyn
   assert.doesNotMatch(source, /onClick:\s*onStartNewConversation/);
 });
 
-test("公考学习链路拆分为经过节点中心的四段桌面路径", async () => {
+test("公考星图保留语义按钮，装饰路径不进入无障碍树", async () => {
   const flowSource = await readFile(path.join(APP_ROOT, "features/review/dashboard-study-flow.tsx"), "utf8");
-
-  assert.match(flowSource, /data-flow-segment="top" d="M125 40 H875"/);
-  assert.match(flowSource, /data-flow-segment="bend" d="M875 40 C950 40 958 190 875 190"/);
-  assert.match(flowSource, /data-flow-segment="return" d="M875 190 H125"/);
-  assert.match(flowSource, /data-flow-segment="tail" d="M125 190 C70 190 70 250 110 250"/);
-  assert.match(flowSource, /dashboard-flow-gradient-return/);
+  assert.equal((flowSource.match(/aria-hidden="true"/g) ?? []).length, 3);
+  assert.equal((flowSource.match(/data-flow-segment=/g) ?? []).length, 3);
+  assert.match(flowSource, /<ol className="dashboard-study-flow-list">/);
+  assert.match(flowSource, /onClick=\{item.action\}/);
+  assert.match(flowSource, /\{item.step.label\}/);
+  assert.match(flowSource, /\{item.status\}/);
   assert.match(flowSource, /data-flow-node=\{index \+ 1\}/);
 });
 
