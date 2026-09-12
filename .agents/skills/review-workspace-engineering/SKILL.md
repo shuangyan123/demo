@@ -1,12 +1,12 @@
 ---
 
 name: review-workspace-engineering
-description: Use for implementation, refactoring, bug fixes, architecture migrations, UI changes, testing, repository maintenance, or release-ready code changes in the Review Workspace repository when the task should be carried through architecture audit, implementation, validation, commit, push, pull request, CI verification, squash merge, cleanup, and post-merge verification. Do not use for read-only questions or when the user explicitly requests analysis only or disables commit, push, PR, or merge.
+description: Use for scoped engineering write tasks in the Review Workspace repository, from investigation through the task's explicitly authorized delivery ceiling. Do not use for read-only questions or audits that do not modify files.
 ---
 
 # Review Workspace Engineering
 
-Use this Skill to deliver a scoped engineering task in the Review Workspace repository from investigation through verified GitHub merge.
+Use this Skill to deliver a scoped engineering task in the Review Workspace repository from investigation through its explicitly authorized delivery ceiling.
 
 The goal is not maximum automation.
 
@@ -39,7 +39,7 @@ Do not automatically expand the task into adjacent Roadmap phases.
 
 ## 1.1 Select the workflow mode
 
-Use exactly one of these modes before choosing a branch:
+Use exactly one of these modes before choosing a branch. The authoritative base, anchor, worktree, and ownership invariants are in `AGENTS.md` section 20.1.
 
 ### A. Read-only task
 
@@ -51,11 +51,27 @@ If no file will be modified, do not create a branch. Read the repository state a
 
 Examples: feature, fix, refactor, UI, architecture migration, maintenance, rules maintenance, docs maintenance, or test modification.
 
-This mode requires the hard preflight in section 2 and a task-specific fresh branch from the latest `origin/main` before the first file edit. Rules-only changes are still write tasks.
+This mode requires the hard preflight in section 2 and a task-specific branch/worktree before the first file edit. If no base is specified, use the validated latest `origin/main`; if the task specifies a base ref or exact SHA, that explicit base overrides the default. Rules-only changes are still write tasks.
 
-### C. Existing PR continuation
+### C. Existing task continuation
+
+If the user explicitly identifies an existing non-PR task by branch, worktree, and exact head SHA, verify all three and continue that task. Do not create another branch merely because no PR exists.
+
+### D. Existing PR continuation
 
 If the user explicitly asks to continue an existing open PR or to address its review, CI, or stabilization work, inspect and continue that PR's exact head branch. Do not create another branch or a second PR. Verify the PR head branch, local branch, and PR HEAD SHA before writing.
+
+## 1.2 Establish the delivery ceiling
+
+Read the task's explicit delivery ceiling before implementation. A lower ceiling overrides the normal workflow; implementation authorization does not authorize PR creation, PR authorization does not authorize Merge, and Merge authorization does not authorize tags or Releases. The Skill remains applicable when commit, push, PR, or Merge is disabled; it stops at the authorized ceiling.
+
+For an ordinary scoped engineering write task with no narrower instruction, the default ceiling is:
+
+```text
+implementation → proportional validation → commit → push → STOP
+```
+
+PR creation, remote CI/review inspection or waiting, Merge, cleanup, tag, Release, and publication require explicit task scope.
 
 For roadmap work, read:
 
@@ -69,7 +85,7 @@ and the relevant architecture document.
 
 # 2. HARD PREFLIGHT BEFORE WRITING
 
-For mode B, before editing, run:
+For a new write task or an existing-task continuation, before editing run the preflight required by `AGENTS.md` section 20.1:
 
 ```bash
 git status --short
@@ -77,22 +93,14 @@ git status -sb
 git branch --show-current
 git rev-parse HEAD
 git fetch origin
-git rev-parse origin/main
+git rev-parse <selected-base-ref>
 git worktree list
 git status --short
 ```
 
-The preflight must establish:
-
-* the current worktree is clean
-* the current branch is `main`
-* `HEAD` equals `origin/main`
-* there are no unknown local changes
-* no other worktree must be modified or resolved to begin this task
+The anchor may be any clean, attached branch; do not switch or modify it merely to satisfy a default-base or exact-base task. Resolve `origin/main` only when no base is specified. When a base ref or exact SHA is specified, resolve that explicit base, verify the exact SHA when supplied, and stop on drift. Verify that the target branch/worktree path is unused and that ownership is unambiguous. For an existing task or PR continuation, verify the specified branch, worktree, and exact head facts before writing.
 
 If any condition fails, STOP. Do not stash, reset, restore, clean, checkout away local changes, commit unrelated changes, delete/prune worktrees, or alter WIP branches.
-
-For mode C, inspect the existing PR first and verify its exact head branch, the local checkout, and the PR HEAD SHA. A dirty state is only continuable when it is proven to belong to that exact PR task.
 
 Never discard unknown user changes.
 
@@ -225,7 +233,11 @@ Otherwise record it as residual work.
 
 # 7. Establish or continue the task branch
 
-For mode B, after the hard preflight create and switch to a fresh task-specific branch from the validated `origin/main`:
+After the hard preflight, apply the selected mode from `AGENTS.md` section 20.1:
+
+* for DEFAULT-BASE NEW WRITE, create the task-specific branch/worktree from the validated latest `origin/main`;
+* for EXACT-BASE NEW WRITE, create it from the validated explicit base or exact SHA, using the requested fresh sibling worktree when specified;
+* for EXISTING TASK CONTINUATION or EXISTING PR CONTINUATION, continue the verified task/PR branch instead of creating another one.
 
 Use:
 
@@ -242,19 +254,13 @@ For Roadmap architecture migrations prefer:
 refactor/<phase-or-domain>
 ```
 
-Example:
-
-```bash
-git switch -c chore/<scope> origin/main
-```
-
 Confirm the branch and clean state before the first file edit. If the desired branch name already exists locally or remotely, inspect its history and ownership; never overwrite unknown history.
 
 If Git reports that the branch is already used by another worktree, STOP and report the conflicting branch, worktree path, current HEAD, and current branch. Do not switch to detached HEAD, silently use an unrelated branch, delete the worktree, or force the operation.
 
-For mode C, continue the verified exact PR head branch instead of creating a new branch. Read-only mode requires no branch.
+Read-only mode requires no branch. A clean anchor on a non-`main` branch is valid when the selected task mode preserves it.
 
-Never perform a new write task directly on `main`, detached HEAD, an unrelated feature branch, or a WIP branch.
+Never write into an unrelated feature branch, a WIP branch, or an ambiguous worktree. A new task must not write directly into `main`; use the selected task branch/worktree.
 
 ---
 
@@ -357,48 +363,19 @@ Do not invent fake transaction guarantees only to simplify tests.
 
 ---
 
-# 11. Run local quality gates
+# 11. Run proportional local quality gates
 
-For rules-only changes limited to repository instructions and the engineering Skill, run at least:
+Use the validation matrix in `AGENTS.md` section 19:
 
-```bash
-git diff --check
-```
+* rules/docs only: `git diff --check` plus any applicable repository rules, Markdown, Skill, or frontmatter validation;
+* small localized TypeScript / Service changes: targeted behavioral tests, typecheck, and lint, broadening only when the changed boundary requires it;
+* data/schema/migration/cross-layer business logic: focused and relevant full contracts, typecheck, lint, build, and migration/compatibility coverage;
+* user-visible flows: relevant Playwright, without unrelated full E2E when reliable focused coverage exists;
+* bundle, Electron, or release changes: the corresponding specific gates.
 
-Also run any repository-provided AGENTS, Skill, Markdown, or rules validation that applies. Do not mechanically run product build, Playwright, or Electron packaging when no runtime boundary changed; state the rules-only scope and the commands actually run in the PR.
+Do not mechanically run product build, Playwright, or Electron packaging for rules-only changes with no runtime boundary. Do not claim a test passed unless it actually ran and passed.
 
-For ordinary TypeScript / React / Service / Application changes run at minimum:
-
-```bash
-npm run typecheck
-npm run lint
-npm run test:contracts
-npm run build
-```
-
-For user-visible workflows run relevant E2E.
-
-If there is no reliable targeted E2E and the risk justifies it:
-
-```bash
-npm run test:e2e
-```
-
-If bundle boundaries changed:
-
-```bash
-npm run check:bundle
-```
-
-If Electron / shared desktop behavior changed:
-
-```bash
-npm run test:desktop
-```
-
-Run additional domain-specific tests discovered in the repository.
-
-Do not claim a test passed unless it actually ran and passed.
+Once a gate passes for the current exact tree/state, do not rerun it merely for ceremony. Rerun when code, base/integration tree, or material environment changed, when the previous run failed, or when unresolved risk requires broader coverage.
 
 ---
 
@@ -504,7 +481,7 @@ Never mark an entire phase complete if defined work remains pending.
 
 # 15. Commit
 
-Only commit after required local quality gates pass.
+Commit only when the delivery ceiling authorizes commit, and only after the required proportional local quality gates pass. Do not pause for another routine confirmation when commit is explicitly in scope.
 
 Use Conventional Commits.
 
@@ -536,7 +513,7 @@ final2
 
 # 16. Push
 
-Push the work branch after local verification.
+Push the work branch only when the delivery ceiling authorizes push, and only after local verification. If the ceiling stops at commit or local validation, stop there.
 
 For a new branch:
 
@@ -569,7 +546,9 @@ Do not overwrite it.
 
 # 17. Create the Pull Request
 
-Create a PR:
+Create a PR only when the delivery ceiling explicitly includes PR creation. Otherwise do not create a PR merely because the branch was pushed.
+
+When PR creation is authorized:
 
 ```text
 base: main
@@ -630,7 +609,7 @@ Only real remaining risks.
 
 # 18. Inspect remote PR state
 
-After creating the PR inspect:
+When PR creation and remote inspection are in scope, inspect:
 
 ```text
 PR HEAD SHA
@@ -646,13 +625,13 @@ branch protection
 
 Do not assume local PASS means remote PASS.
 
-If checks are pending, continue checking until they reach a terminal state when the environment permits.
+Do not busy-poll or wait indefinitely. Pending checks or review are a valid safe stopping state. Recheck reasonably only when the task explicitly authorizes waiting for CI/review and the execution environment supports it.
 
 ---
 
 # 19. Respond to review feedback
 
-If blocking review feedback appears and is within scope:
+If a PR/review is in scope and blocking feedback appears within scope:
 
 ```text
 inspect
@@ -660,7 +639,7 @@ inspect
 → test
 → commit
 → push
-→ wait for new CI
+→ recheck remote state only within the authorized ceiling
 ```
 
 Do not merge based on old CI after changing the PR HEAD.
@@ -673,9 +652,9 @@ Keep the PR focused and report the scope conflict.
 
 ---
 
-# 20. Auto-merge hard gate
+# 20. Merge hard gate
 
-Automatic Merge is allowed only when all applicable conditions are true:
+Merge is allowed only when the delivery ceiling explicitly authorizes Merge and all applicable conditions are true:
 
 ```text
 local required gates PASS
@@ -747,7 +726,7 @@ Do not use a meaningless default title.
 
 # 23. Branch cleanup
 
-After successful Merge:
+Only after a verified Merge, and only when cleanup is within the authorized task scope:
 
 check whether another open PR depends on the branch.
 
@@ -757,11 +736,13 @@ delete the merged remote work branch.
 
 Do not delete a branch that is still used as the base of stacked work.
 
+A push-only or local-only ceiling does not authorize branch/worktree cleanup.
+
 ---
 
 # 24. Sync final main
 
-After Merge:
+After a verified Merge, when final-main synchronization is within scope and the normal main worktree is safe to modify:
 
 ```bash
 git fetch origin
@@ -776,24 +757,24 @@ Do not use `reset --hard` as the default sync mechanism.
 
 # 25. Post-merge verification
 
-Run lightweight checks against final `main`.
+Post-merge verification applies only after a verified Merge. First verify the actual merged SHA/tree and remote required checks.
 
-At minimum for substantial TypeScript architecture changes:
+Rerun local gates when the merged tree differs from the validated tree, the base changed, conflict resolution changed content, integration risk warrants it, or the release/high-risk boundary requires it. Do not mechanically duplicate full validation when the merged tree is the exact validated tree.
+
+Use the proportional validation matrix for the actual change. For substantial TypeScript architecture changes, this normally includes:
 
 ```bash
 npm run typecheck
 npm run test:contracts
 ```
 
-When appropriate also:
+When the changed boundary requires it, also run:
 
 ```bash
 npm run build
 ```
 
-For high-risk workflow changes, run the relevant smoke / E2E path.
-
-This confirms the actual merged commit—not merely the feature branch—is healthy.
+For high-risk workflow changes, run the relevant smoke / E2E path. This confirms the actual merged commit—not merely the feature branch—is healthy.
 
 ---
 
@@ -858,48 +839,39 @@ unless verified.
 
 # 28. Final report
 
-After successful delivery report:
+Report only the stages reached under the authorized delivery ceiling:
 
 ```text
 Implementation
 - concise description
 
 Validation
-- typecheck: PASS/FAIL
-- lint: PASS/FAIL
-- contracts: PASS/FAIL
-- build: PASS/FAIL
-- e2e: PASS/FAIL if applicable
+- commands/checks actually run with PASS/FAIL
 
 Git
-- branch
-- commits
+- base ref/SHA when relevant
+- task branch
+- task worktree
+- commit SHA
+- remote branch SHA if pushed
 
-Pull Request
-- number
-- title
-- URL
-- remote checks
+Pull Request / remote state
+- include only when authorized and inspected
 
-Merge
-- method
-- result
-- final main SHA
-
-Post-merge
-- checks executed
+Merge / post-merge
+- include only after a verified Merge
 
 Residual risks
 - only real unresolved issues
 ```
 
-Keep the report concise.
+Do not report PR, CI, Merge, release, cleanup, or post-merge results for stages that were not authorized or did not run. Keep the report concise.
 
 ---
 
 # 29. Core completion rule
 
-The normal successful workflow is:
+The task-specific completion flow is:
 
 ```text
 Understand
@@ -908,31 +880,17 @@ Audit
 ↓
 Implement
 ↓
-Direct tests
-↓
-Local quality gates
+Proportional validation
 ↓
 Review complete diff
 ↓
-Commit
+Commit if authorized
 ↓
-Push
+Push if authorized
 ↓
-Pull Request
+PR / remote CI / Merge / post-merge only when explicitly in scope
 ↓
-Remote CI / Review
-↓
-Verify HEAD SHA
-↓
-Squash Merge
-↓
-Clean branch
-↓
-Sync main
-↓
-Post-merge verification
-↓
-STOP
+STOP at the delivery ceiling
 ```
 
 If any critical condition fails:

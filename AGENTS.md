@@ -353,25 +353,16 @@ Dexie v17
 
 保持 local-first、单机单用户；未经明确需求和迁移设计，不引入账号、多租户、云数据库或强制云同步。
 
-除非任务明确要求并有真实数据 / 性能证据：
-
-不要：
-
-* 升级 schema
-* 新增 index
-* 创建第二套业务数据库
-* 修改持久化 ID 语义
-* 进行破坏性迁移
-
-数据库 migration 逻辑集中在既有 migration 边界。
-
-任何 schema change 必须考虑：
+默认不要在没有 scoped requirement 的情况下改变 schema、index、持久化 ID 语义，创建第二套业务数据库，或进行破坏性迁移。任务可以明确授权 schema migration；获得该授权时，必须在既有 migration 边界内评估：
 
 * existing user data
 * rollback
 * upgrade path
 * backup / restore
 * Web / Electron compatibility
+* focused migration contracts
+
+数据库 migration 逻辑集中在既有 migration 边界。
 
 Backup、Restore、Health Check 与 Repair 继续遵循现有 Data Reliability contract：凭据、Cookie、目录句柄和 Vault 正文不进入备份；用户事实、凭据缺失和 Vault 冲突保持 manual-only，不猜测删除或自动修复。
 
@@ -624,46 +615,21 @@ app/features/performance/architecture-boundary.contract.test.ts
 
 ---
 
-# 19. 必要质量门
+# 19. 必要质量门与比例验证
 
-对普通 TypeScript / React / Application / Service 修改，本地至少运行：
+验证强度应与实际风险和 delivery ceiling 相称：
 
-```bash
-npm run typecheck
-npm run lint
-npm run test:contracts
-npm run build
-```
+* 规则 / 文档 only：至少运行 `git diff --check`，以及仓库中实际存在且适用的 AGENTS、Skill、Markdown 或 rules validator。不要因为没有 runtime 改动而机械运行 product build、Playwright、Electron packaging 或完整 product contracts。
+* 小范围局部 TypeScript / Service 修改：优先 targeted behavioral tests、typecheck、lint；只有 changed boundary 或风险要求时才扩大到相关 contracts 或 build。
+* Data / schema / migration / cross-layer business logic：通常需要 focused contracts、full relevant contracts、typecheck、lint、build，以及 migration / compatibility coverage。
+* User-visible flow：运行相关 Playwright；已有可靠 focused coverage 时，不自动运行无关的 full E2E。
+* Bundle / Electron / release：运行对应的 bundle、desktop、release gate。
 
-涉及真实用户流程：
-
-运行相关 Playwright。
-
-没有稳定针对性入口时，根据任务风险运行：
-
-```bash
-npm run test:e2e
-```
-
-涉及 bundle / lazy boundary：
-
-```bash
-npm run check:bundle
-```
-
-涉及 Electron / shared desktop boundary：
-
-```bash
-npm run test:desktop
-```
-
-只修改文档时不需要机械运行完整 Web 构建。
-
-不得虚构测试结果。
+不得虚构测试结果。某个 gate 已在当前 exact tree / state 通过后，不得仅为仪式重复运行；仅在代码、base/integration tree、环境发生相关变化、上次失败，或未解决风险要求更广覆盖时重跑。
 
 ---
 
-# 20. GitHub Delivery
+# 20. GitHub Delivery 与 Delivery Ceiling
 
 本仓库默认采用：
 
@@ -675,9 +641,7 @@ main
 
 不要引入长期 `develop`，除非用户明确改变分支策略。
 
-涉及实现、修复、重构、UI 修改、架构迁移、维护、规则/文档修改或发布交付时：
-
-**必须使用项目 Skill：**
+涉及实现、修复、重构、UI 修改、架构迁移、维护、规则/文档修改或发布交付时，必须使用项目 Skill：
 
 ```text
 review-workspace-engineering
@@ -689,36 +653,55 @@ review-workspace-engineering
 .agents/skills/review-workspace-engineering/SKILL.md
 ```
 
-除非用户明确要求：
+只读的 audit、review、explain 或 inspect 不需要该 write Skill。对于任何 scoped write task，即使 delivery ceiling 在 commit、push、PR 或 merge 之前停止，也仍然使用该 Skill；Skill 必须按授权 ceiling 停止。
 
-* 只分析
-* 不 commit
-* 不 push
-* 不开 PR
-* 不 merge
-
-否则默认由 Agent 完成：
+每个任务必须先确定 `DELIVERY CEILING`。可授权的上限包括：
 
 ```text
-Branch
-→ Implementation
-→ Validation
+local validation only
+commit only
+commit + push
+PR creation
+PR + CI inspection
+merge
+release activation
+```
+
+更低的 ceiling 优先；较低阶段不推导出较高阶段的权限：
+
+```text
+implementation authorization != PR authorization
+PR authorization != merge authorization
+merge authorization != tag / Release authorization
+```
+
+普通 scoped engineering write task 在没有更窄指令时，默认执行：
+
+```text
+Implementation
+→ proportional validation
 → Commit
 → Push
-→ PR
-→ CI
-→ Squash Merge
-→ Sync main
-→ Post-merge verification
+→ STOP
 ```
+
+PR 创建、CI / review inspection 或等待、Merge、tag、Release、publication 必须有明确的任务范围授权。远程状态只有在授权 ceiling 包含 remote inspection 时才检查；pending CI / review 是可以安全停止的状态，不得 busy-poll 或无限等待，除非任务明确授权等待并且执行环境支持合理重查。
 
 ## 20.1 Git branch / worktree hard invariants
 
 以下规则是仓库级硬约束，适用于产品代码、测试、文档和 Codex 项目规则维护。
 
-### New write task preflight
+### Workflow modes and preflight
 
-任何新的 write task 在第一次修改文件前必须完成：
+新的任务在第一次修改文件前必须先选择一个模式：
+
+* READ-ONLY：不进行 branch 或 worktree mutation。
+* DEFAULT-BASE NEW WRITE：任务没有指定 base 时，fetch 并使用最新 `origin/main`；从该默认 base 安全创建 task-specific branch / worktree。不得要求 anchor 当前 checkout 是 `main` 或 `HEAD == origin/main`。
+* EXACT-BASE NEW WRITE：任务明确指定 base ref 或 exact SHA 时，显式 base 覆盖 `origin/main` 默认值。anchor 可以位于任何 clean、attached branch；不得切换或修改 anchor。必须 fetch、解析指定 base，并在提供 exact SHA 时验证精确匹配；从该 exact base 创建 fresh sibling worktree / task branch，发生 drift 时 STOP。
+* EXISTING TASK CONTINUATION：任务明确指定现有 branch、worktree 和 exact head SHA 时，先核对三者，再继续该 task；没有 PR 不是另建 branch 的理由。
+* EXISTING PR CONTINUATION：保留现有 exact PR-head 安全行为，核对 PR head branch、local branch 和 PR HEAD SHA 后继续，不另建第二个 PR。
+
+新写任务的通用预检至少包括：
 
 ```bash
 git status --short
@@ -726,61 +709,36 @@ git status -sb
 git branch --show-current
 git rev-parse HEAD
 git fetch origin
-git rev-parse origin/main
+git rev-parse <selected-base-ref>
 git worktree list
 git status --short
 ```
 
-对于新的 write task，必须确认：
+`<selected-base-ref>` 在 DEFAULT-BASE 模式为 `origin/main`，在 EXACT-BASE 模式为任务指定的 ref。预检必须确认 anchor clean、目标 base 未发生 drift、目标 branch / worktree 未被占用且 ownership 不含糊；不得通过改变 anchor 来满足预检。
 
-* 当前工作区 clean
-* 当前 checkout 是 `main`
-* `HEAD` 与 `origin/main` 一致
-* 当前目录没有未提交或未知修改
-* 不需要处理其他 worktree 才能开始本任务
-
-预检通过后，必须从最新 `origin/main` 创建并切换到 task-specific fresh branch，之后才允许修改任何文件。规则维护本身也是 write task，不能因为只修改 `AGENTS.md` 或 Skill 就跳过该约束。
-
-如果预检发现 dirty state、分支不正确、HEAD 不一致或 worktree ownership conflict，必须立即 STOP。不得自行执行：
+如果预检发现 dirty state、exact-base drift、分支不正确、目标已占用或 ownership ambiguous，必须立即 STOP。不得自行执行：
 
 * `stash`
-* `reset`
+* routine `reset --hard` / `reset`
 * `restore`
 * `clean`
 * `checkout --`
 * 提交 unrelated changes
 * 删除、prune、merge 或 rebase 其他 worktree / WIP branch
 
-### Fresh branch requirement
+### Branch and worktree safety
 
-新的 implementation、refactor、fix、maintenance、rules 或 docs task 必须从最新 `origin/main` 开始，并在第一次写入前进入 task-specific branch。禁止直接在：
-
-* `main`
-* detached HEAD
-* 无关 feature branch
-* WIP branch
-
-上实现新任务。Detached HEAD 在有效 task branch 建立前只允许读操作。
-
-### Existing PR continuation
-
-如果当前任务明确是继续已有 open PR、处理该 PR 的 review/CI/stabilization，必须继续该 PR 的 exact head branch，不得另建 feature branch 或第二个 PR。写入前必须核对：
-
-* PR head branch
-* local branch
-* PR HEAD SHA
-
-三者必须对应；否则 STOP 并报告实际状态。
+默认 base 的新写任务必须从已验证的 `origin/main` 创建 task-specific branch / worktree；exact-base 任务必须从已验证的 exact SHA 创建指定的 fresh sibling worktree / branch。目标 branch 已存在时先检查 history 和 ownership，绝不覆盖未知历史。
 
 ### Worktree conflict
 
-如果目标 branch 已被其他 worktree checkout，或 Git 报告 branch/worktree ownership conflict，必须 STOP 并报告 conflicting branch、worktree path、当前 HEAD 和当前 branch。不得切到 detached HEAD、随意改用另一个 branch、删除 worktree、prune worktree 或 force 操作来绕过冲突。
+如果目标 branch 已被其他 worktree checkout、目标 path 已存在，或 Git 报告 branch/worktree ownership conflict，必须 STOP 并报告 conflicting branch、worktree path、当前 HEAD 和当前 branch。不得切到 detached HEAD、静默改用另一个 branch、删除 worktree、prune worktree 或 force 操作来绕过冲突。
 
 ### Merge and cleanup invariants
 
-不得在以下条件下 Merge：required CI pending/failed、存在冲突、Changes Requested、未解决的阻断 review、或验证后 PR HEAD 已变化。HEAD 变化后必须重新验证。
+只有当 delivery ceiling 明确包含 Merge 且所有适用 gate 满足时才可 Merge：required CI pending/failed、存在冲突、Changes Requested、未解决的阻断 review、或验证后 PR HEAD 已变化，均是 hard stop。HEAD 变化后必须重新验证。
 
-Merge 后只有在确认没有其他 open PR 依赖该 branch 时，才可删除已合并的 task branch；无关 worktree 和 WIP branch 必须保持不动。随后必须回到 `main`，执行 `git pull --ff-only origin main`，确认工作区 clean，再进行 post-merge verification。
+Merge 后只有在确认没有其他 open PR 依赖该 branch、对应 cleanup 属于授权范围且 worktree ownership 明确时，才可删除已合并的 task branch / worktree；无关 worktree 和 WIP branch 必须保持不动。只有发生并确认 Merge 后，才按需同步 `main` 并进行 post-merge verification；该验证先绑定实际 merged SHA/tree 并检查 remote required checks，只有 merged tree 与已验证 tree 不同、base 或冲突解析改变、integration/release 风险要求时才重跑本地 gate，不得把它当作每个任务的机械重复。
 
 ---
 
@@ -851,42 +809,35 @@ CHANGELOG
 
 # 24. 完成定义
 
-工程任务只有在以下适用步骤完成后才算完成：
+工程任务只完成请求范围，并停在已授权的 delivery ceiling。适用步骤为：
 
 ```text
 Implementation
 ✓
 
-Tests
+Proportional validation
 ✓
 
 Architecture boundaries
-✓
+✓ if relevant
 
 Documentation
 ✓ if required
 
 Commit
-✓
+✓ if authorized
 
 Push
-✓ unless explicitly disabled
+✓ if authorized
 
-PR
-✓ unless explicitly disabled
-
-Required CI
-✓
+PR / remote inspection / required CI
+✓ only if explicitly in scope
 
 Merge
-✓ unless explicitly disabled
+✓ only if explicitly authorized and all hard gates pass
 
-Post-merge smoke
-✓
+Post-merge verification
+✓ only after a verified Merge
 ```
 
-如果某一步被权限、环境或 GitHub policy 阻塞：
-
-停在最后一个安全状态，明确说明真实原因。
-
-不得声称已经完成未完成的步骤。
+如果某一步被权限、环境、GitHub policy 或未授权 ceiling 阻塞，停在最后一个安全状态并明确说明真实原因。不得声称已经完成未完成的步骤，也不得自动开始相邻 Roadmap 工作。
