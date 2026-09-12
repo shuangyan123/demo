@@ -29,7 +29,7 @@ package, and desktop application identifiers remain unchanged.
 
 - Next.js 16 App Router，生产构建使用 `output: "standalone"`
 - React 19、TypeScript 5、Tailwind CSS 4
-- Dexie 4 / IndexedDB，本地业务库为 `review_workspace` v16
+- Dexie 4 / IndexedDB，本地业务库为 `review_workspace` v17
 - Electron 43、electron-builder 26、NSIS；Electron Forge 7 / Squirrel.Windows 作为兼容路径
 - Node.js 24.20.0 LTS
 - Node test runner 契约测试和 Playwright E2E
@@ -114,7 +114,7 @@ npm run audit:prod     # 生产依赖安全门禁
 
 | 数据 | 存储位置 | 说明 |
 | --- | --- | --- |
-| 学习、知识、对话、自动化 | `review_workspace` IndexedDB v16 | 核心本地业务数据 |
+| 学习、知识、对话、自动化 | `review_workspace` IndexedDB v17 | 核心本地业务数据 |
 | 声明式扩展 | `review_extensions` IndexedDB v1 | 与核心 schema 隔离 |
 | 主加密密钥 | `review_workspace_secure_keys` | 不可导出的 AES-GCM `CryptoKey` |
 | 恢复事务 | `review_workspace_transfer` | 恢复完成或回滚后清理 |

@@ -1,5 +1,5 @@
 /**
- * 设置中的数据管理按业务域拆分删除范围；完整重置才删除整个 v16 数据库。
+ * 设置中的数据管理按业务域拆分删除范围；完整重置才删除整个 v17 数据库。
  */
 import Dexie, { type Table } from "dexie";
 import { reviewDb } from "../db/review-db.ts";
@@ -669,10 +669,11 @@ export const localDataManagementRepository = {
 
   /** 清理错题、复盘和指向错题的关联，不删除知识资料或训练记录主体。 */
   async clearMistakeReviews(): Promise<void> {
-    await reviewDb.transaction("rw", [reviewDb.mistakes, reviewDb.attempts, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
+    await reviewDb.transaction("rw", [reviewDb.mistakes, reviewDb.attempts, reviewDb.learningEvents, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
       await Promise.all([
         reviewDb.mistakes.clear(),
         reviewDb.attempts.clear(),
+        reviewDb.learningEvents.where("subjectType").equals("mistake").delete(),
         reviewDb.knowledgeMistakeLinks.clear(),
         reviewDb.interviewLinks.where("targetType").equals("mistake").delete(),
         reviewDb.tutoringLinks.where("targetType").equals("mistake").delete(),

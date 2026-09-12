@@ -1,6 +1,6 @@
 # 数据可靠性支持矩阵
 
-本文是 `0.4.x Data Reliability Phase 1–2` 的版本化事实源，适用于 `review_workspace` v16、`review_extensions` v1 与 `LocalDataExportV2`。它不授权 Dexie schema 升级、云同步或自动修复用户数据。
+本文是 `0.4.x Data Reliability Phase 1–2` 的版本化事实源，适用于 `review_workspace` v17、`review_extensions` v1 与 `LocalDataExportV2`。除 L1 记录的 additive LearningEvent migration 外，它不授权其他 Dexie schema 升级、云同步或自动修复用户数据。
 
 ## 数据分类与恢复等级
 
@@ -25,7 +25,7 @@
 
 | 数据资产 | Owner / source of truth | Storage | Class | Backup / restore | Exportable / rebuildable | Sensitive / external | Level | 丢失后果 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 错题、复盘、知识、导入、面试、辅导、自动化、对话 | 用户；应用业务记录 | `review_workspace` v16 | authoritative | 包含 / 包含 | 可导出 / 不可无损重建 | 否 / 否 | R3 | 学习历史或工作流丢失 |
+| 错题、复盘、知识、学习事件、导入、面试、辅导、自动化、对话 | 用户；应用业务记录 | `review_workspace` v17 | authoritative | 包含 / 包含 | 可导出 / 不可无损重建 | 否 / 否 | R3 | 学习历史或工作流丢失 |
 | AI 连接档案 | 用户；连接仓储 | `review_workspace.apiConnectionProfiles` | configuration | 仅脱敏 metadata / 包含 | metadata 可导出；凭据不可重建 | 部分敏感 / 否 | R3 + R2 | 连接名称保留，但必须重新输入凭据 |
 | 旧 AI 设置 | 应用兼容桥 | `review_workspace.apiSettings` | credential-security | 排除 / 排除 | 不可导出；由新连接重新配置 | 是 / 否 | R2 | 旧凭据需要重新配置 |
 | Vault 授权配置 | 用户与宿主授权 | `review_workspace.obsidianVaultConfigs` | external-user-owned | 排除 / 排除 | 不可导出；重新选择/授权 | 含句柄 / 是 | R4 | Vault 断开，不影响 Vault 正文 |
@@ -37,20 +37,20 @@
 | Obsidian Markdown 正文 | 用户 | 用户选择的 Vault | external-user-owned | 排除 / 排除 | 由用户拥有；重新授权后对账 | 是 / 是 | R4 | 应用不得覆盖或伪装恢复 |
 | 原始媒体、完整运行 prompt、厂商/MCP 原始事件 | 当前运行 | 内存 / 对象 URL | ephemeral | 排除 / 排除 | 不重建 | 敏感 / 可能外部 | R0 | 当前运行上下文结束；业务摘要仍按既有规则保留 |
 
-## `review_workspace` v16 表级分类
+## `review_workspace` v17 表级分类
 
 实现事实源是 `CORE_DATA_STORE_POLICIES`；契约测试将它与 Dexie 运行时表集合做完全相等比较。
 
 | Backup | Tables | 说明 |
 | --- | --- | --- |
-| included | `mistakes`, `attempts`, `importJobs`, `apiConnectionProfiles`, `apiConnectionDefaults`, `appearanceSettings`, `personalizationSettings` | 用户事实与脱敏配置 |
+| included | `mistakes`, `attempts`, `learningEvents`, `importJobs`, `apiConnectionProfiles`, `apiConnectionDefaults`, `appearanceSettings`, `personalizationSettings` | 用户事实、追加学习证据与脱敏配置 |
 | included | `knowledgeEntries`, `knowledgeAttempts`, `knowledgeMistakeLinks`, `knowledgeInternalizationDrafts` | 知识事实与训练历史 |
 | included | `importBatches`, `importDrafts` | 导入批次与未确认草稿 |
 | included | `interviewQuestions`, `interviewQuestionSets`, `interviewPracticePlans`, `interviewSessions`, `interviewTurns`, `interviewEvaluations`, `interviewLinks` | 面试资产与历史 |
 | included | `tutoringSessions`, `tutoringTurns`, `tutoringPlans`, `tutoringLinks` | 辅导资产与历史 |
 | included | `obsidianNoteMappings`, `knowledgeEvolutionProposals` | 应用侧 Vault 映射/哈希与待确认提案，不含正文 |
 | included | `automationDefinitions`, `automationRuns` | 已安排定义与脱敏运行收件箱 |
-| included | `aiProjects`, `aiConversationFolders`, `aiConversations`, `aiConversationAttachments`, `aiConversationMessages`, `aiConversationRunSteps` | 可见项目分区、对话、附件摘要和脱敏工具步骤；分区仍保留 v16 文件夹表以兼容 |
+| included | `aiProjects`, `aiConversationFolders`, `aiConversations`, `aiConversationAttachments`, `aiConversationMessages`, `aiConversationRunSteps` | 可见项目分区、对话、附件摘要和脱敏工具步骤；分区仍保留历史文件夹表以兼容 |
 | intentionally excluded | `apiSettings` | 旧凭据兼容表；原因必须保留，不能自动加入导出 |
 | intentionally excluded | `obsidianVaultConfigs` | 宿主目录授权/句柄；恢复后重新选择或授权 |
 

@@ -1,6 +1,7 @@
 import { reviewDb } from "../db/review-db.ts";
 import { buildAttempt, nextStateAfterReview, normalizeBoard, toISODate } from "../lib/review-utils.ts";
 import type { ImportJob } from "../types/domains/import.ts";
+import { learningEventFromReviewAttempt } from "../types/domains/learning-event.ts";
 import type { Mistake, ReviewResult, ReviewSnapshot } from "../types/domains/review.ts";
 
 type LegacyMistake = Mistake & {
@@ -15,10 +16,11 @@ async function cleanupDemoData(today: Date) {
     .filter((item) => !item.board)
     .toArray() as LegacyMistake[];
   const ids = demoMistakes.map((item) => item.id);
-  await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, async () => {
+  await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, reviewDb.learningEvents, async () => {
     if (ids.length) {
       await reviewDb.mistakes.bulkDelete(ids);
       await reviewDb.attempts.where("mistakeId").anyOf(ids).delete();
+      await reviewDb.learningEvents.where("[subjectType+subjectId]").anyOf(ids.map((id) => ["mistake", id] as const)).delete();
     }
     if (legacyMistakes.length) {
       await reviewDb.mistakes.bulkPut(
@@ -67,10 +69,12 @@ export const reviewRepository = {
   async recordReview(mistake: Mistake, result: ReviewResult, today: Date, durationSec?: number) {
     const nextState = nextStateAfterReview(mistake, result, today);
     const attempt = buildAttempt(mistake.id, result, nextState.mastery, today, durationSec);
+    const learningEvent = learningEventFromReviewAttempt(attempt);
 
-    await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, async () => {
+    await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, reviewDb.learningEvents, async () => {
       await reviewDb.mistakes.update(mistake.id, nextState);
       await reviewDb.attempts.add(attempt);
+      await reviewDb.learningEvents.add(learningEvent);
     });
   },
 
@@ -89,9 +93,10 @@ export const reviewRepository = {
 
   // 删除单道错题，并同步清理复盘记录、知识关联、面试关联和辅导关联；不影响知识库、导入任务或应用设置。
   async removeMistake(id: string): Promise<void> {
-    await reviewDb.transaction("rw", [reviewDb.mistakes, reviewDb.attempts, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
+    await reviewDb.transaction("rw", [reviewDb.mistakes, reviewDb.attempts, reviewDb.learningEvents, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
       await reviewDb.mistakes.delete(id);
       await reviewDb.attempts.where("mistakeId").equals(id).delete();
+      await reviewDb.learningEvents.where("[subjectType+subjectId]").equals(["mistake", id]).delete();
       await reviewDb.knowledgeMistakeLinks.where("mistakeId").equals(id).delete();
       await reviewDb.interviewLinks.where("[targetType+targetId]").equals(["mistake", id]).delete();
       await reviewDb.tutoringLinks.where("[targetType+targetId]").equals(["mistake", id]).delete();
@@ -101,9 +106,10 @@ export const reviewRepository = {
   // 批量删除错题，并在同一事务中清理复盘记录、知识关联、面试关联和辅导关联，避免留下悬空数据。
   async removeMistakes(ids: string[]): Promise<void> {
     if (!ids.length) return;
-    await reviewDb.transaction("rw", [reviewDb.mistakes, reviewDb.attempts, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
+    await reviewDb.transaction("rw", [reviewDb.mistakes, reviewDb.attempts, reviewDb.learningEvents, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
       await reviewDb.mistakes.bulkDelete(ids);
       await reviewDb.attempts.where("mistakeId").anyOf(ids).delete();
+      await reviewDb.learningEvents.where("[subjectType+subjectId]").anyOf(ids.map((id) => ["mistake", id] as const)).delete();
       await reviewDb.knowledgeMistakeLinks.where("mistakeId").anyOf(ids).delete();
       await reviewDb.interviewLinks.where("[targetType+targetId]").anyOf(ids.map((id) => ["mistake", id] as const)).delete();
       await reviewDb.tutoringLinks.where("[targetType+targetId]").anyOf(ids.map((id) => ["mistake", id] as const)).delete();
@@ -128,6 +134,7 @@ export const reviewRepository = {
       [
         reviewDb.mistakes,
         reviewDb.attempts,
+        reviewDb.learningEvents,
         reviewDb.importJobs,
         reviewDb.knowledgeMistakeLinks,
         reviewDb.importBatches,
@@ -151,6 +158,7 @@ export const reviewRepository = {
       async () => {
         await reviewDb.mistakes.clear();
         await reviewDb.attempts.clear();
+        await reviewDb.learningEvents.clear();
         await reviewDb.importJobs.clear();
         await reviewDb.knowledgeMistakeLinks.clear();
         await reviewDb.importBatches.clear();

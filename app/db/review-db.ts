@@ -2,6 +2,7 @@ import Dexie, { type Table } from "dexie";
 import type { AiConnectionDefaults, ApiConnectionProfile, ApiSetting } from "../types/domains/ai-connection.ts";
 import type { AiConversation, AiConversationAttachment, AiConversationMessage, AiConversationRunStep, AiProject, AiProjectPartition } from "../types/domains/conversation.ts";
 import type { AppearanceSettings } from "../types/domains/appearance.ts";
+import type { LearningEvent } from "../types/domains/learning-event.ts";
 import type { Attempt, Mistake } from "../types/domains/review.ts";
 import type { AutomationDefinition, AutomationRun } from "../types/domains/automation.ts";
 import type { ImportBatch, ImportJob, PersistedImportDraft } from "../types/domains/import.ts";
@@ -12,7 +13,7 @@ import type { KnowledgeMistakeLink } from "../types/domains/association.ts";
 import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import type { TutoringLink, TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 import { createProfileFromLegacySetting } from "../services/legacy-ai-settings-migration.ts";
-import { migrateToV16, REVIEW_DB_NAME } from "./review-db-migrations.ts";
+import { migrateToV16, migrateToV17, REVIEW_DB_NAME } from "./review-db-migrations.ts";
 
 // 定义错题复盘应用使用的 IndexedDB 数据库表结构。
 class ReviewDexieDatabase extends Dexie {
@@ -26,6 +27,7 @@ class ReviewDexieDatabase extends Dexie {
   personalizationSettings!: Table<PersonalizationSettings, string>;
   knowledgeEntries!: Table<KnowledgeEntry, string>;
   knowledgeAttempts!: Table<KnowledgeAttempt, string>;
+  learningEvents!: Table<LearningEvent, string>;
   knowledgeMistakeLinks!: Table<KnowledgeMistakeLink, string>;
   knowledgeInternalizationDrafts!: Table<KnowledgeInternalizationDraft, string>;
   importBatches!: Table<ImportBatch, string>;
@@ -390,6 +392,45 @@ class ReviewDexieDatabase extends Dexie {
       aiConversationMessages: "&id, conversationId, role, createdAt",
       aiConversationRunSteps: "&id, conversationId, runId, state, updatedAt",
     }).upgrade(migrateToV16);
+    this.version(17).stores({
+      mistakes: "&id, board, nextReviewAt, mastery, createdAt, updatedAt",
+      attempts: "&id, mistakeId, reviewedAt, result",
+      importJobs: "&id, type, status, createdAt",
+      apiSettings: "&id, provider, updatedAt",
+      apiConnectionProfiles: "&id, provider, updatedAt, createdAt",
+      apiConnectionDefaults: "&id, updatedAt",
+      appearanceSettings: "&id, updatedAt",
+      personalizationSettings: "&id, updatedAt",
+      knowledgeEntries: "&id, category, favorite, nextReviewAt, mastery, updatedAt, createdAt",
+      knowledgeAttempts: "&id, knowledgeId, reviewedAt, result",
+      learningEvents: "&id, sourceType, sourceId, subjectType, subjectId, observedAt, [subjectType+subjectId]",
+      knowledgeMistakeLinks: "&id, mistakeId, knowledgeId, kind, [mistakeId+knowledgeId], updatedAt, createdAt",
+      knowledgeInternalizationDrafts: "&id, mode, targetKnowledgeId, createdAt, updatedAt",
+      importBatches: "&id, source, status, createdAt, updatedAt",
+      importDrafts: "&id, batchId, board, selected, needsReview, createdAt, updatedAt",
+      interviewQuestions: "&id, type, difficulty, favorite, lastPracticedAt, practiceCount, createdAt, updatedAt",
+      interviewQuestionSets: "&id, type, createdAt, updatedAt",
+      interviewPracticePlans: "&id, type, status, sourceSetId, nextPracticeAt, createdAt, updatedAt",
+      interviewSessions: "&id, questionId, planId, type, status, stage, createdAt, updatedAt",
+      interviewTurns: "&id, sessionId, stage, createdAt",
+      interviewEvaluations: "&id, sessionId, type, createdAt, updatedAt",
+      interviewLinks: "&id, sourceType, sourceId, targetType, targetId, [sourceType+targetId], [targetType+targetId], createdAt, updatedAt",
+      tutoringSessions: "&id, mode, status, startedAt, completedAt, createdAt, updatedAt",
+      tutoringTurns: "&id, sessionId, speaker, createdAt",
+      tutoringPlans: "&id, status, nextPracticeAt, createdAt, updatedAt",
+      tutoringLinks: "&id, sourceType, sourceId, targetType, targetId, [sourceType+targetId], [targetType+targetId], createdAt, updatedAt",
+      obsidianVaultConfigs: "&id, updatedAt",
+      obsidianNoteMappings: "&path, &knowledgeId, category, status, updatedAt",
+      knowledgeEvolutionProposals: "&id, mode, status, sourceType, targetKnowledgeId, createdAt, updatedAt",
+      automationDefinitions: "&id, enabled, nextRunAt, updatedAt",
+      automationRuns: "&id, automationId, status, unread, scheduledAt, createdAt, [automationId+scheduledAt]",
+      aiProjects: "&id, studyDomainId, updatedAt, createdAt",
+      aiConversationFolders: "&id, projectId, parentId, updatedAt, [projectId+parentId+sortOrder]",
+      aiConversations: "&id, projectId, folderId, selectedConnectionId, studyDomainId, kind, status, updatedAt, createdAt, [projectId+folderId+updatedAt]",
+      aiConversationAttachments: "&id, conversationId, messageId, kind, createdAt",
+      aiConversationMessages: "&id, conversationId, role, createdAt",
+      aiConversationRunSteps: "&id, conversationId, runId, state, updatedAt",
+    }).upgrade(migrateToV17);
   }
 }
 

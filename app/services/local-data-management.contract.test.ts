@@ -95,7 +95,7 @@ test("数据管理按导入、错题复盘和对话范围独立统计与清理",
   };
   assert.equal(exported.schemaVersion, 2);
   assert.equal(exported.credentialsExcluded, true);
-  assert.equal(exported.manifest.schemaVersions.review_workspace, 16);
+  assert.equal(exported.manifest.schemaVersions.review_workspace, 17);
   assert.equal(exported.manifest.recordCounts.total, Object.values(exported.manifest.recordCounts.review_workspace).reduce((sum, count) => sum + count, 1));
   assert.deepEqual(new Set(exported.manifest.includedStores.review_workspace), new Set(Object.entries(CORE_DATA_STORE_POLICIES).filter(([, policy]) => policy.backup === "included").map(([table]) => table)));
   assert.equal(exported.databases.review_extensions.extensions.length, 1);
@@ -204,7 +204,7 @@ test("早期无 manifest 的 V2 仍可读取并规范化为当前清单", async 
   const legacy = JSON.parse(await localDataManagementRepository.exportAll()) as Partial<LocalDataExportV2>;
   delete legacy.manifest;
   const preview = await localDataManagementRepository.inspectRestore(JSON.stringify(legacy));
-  assert.equal(preview.payload.manifest.schemaVersions.review_workspace, 16);
+  assert.equal(preview.payload.manifest.schemaVersions.review_workspace, 17);
   assert.equal(preview.payload.manifest.recordCounts.total, 0);
 });
 

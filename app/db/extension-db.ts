@@ -3,7 +3,7 @@ import type { InstalledExtensionRecord } from "../types/domains/declarative-exte
 
 export const EXTENSION_DB_NAME = "review_extensions";
 
-/** 扩展使用独立数据库，避免改变核心 review_workspace v16。 */
+/** 扩展使用独立数据库，避免改变核心 review_workspace v17。 */
 class ExtensionDexieDatabase extends Dexie {
   extensions!: Table<InstalledExtensionRecord, string>;
 

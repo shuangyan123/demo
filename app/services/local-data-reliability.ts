@@ -15,12 +15,13 @@ const authoritative = (reason: string): LocalDataStorePolicy => ({ backup: "incl
 const configuration = (reason: string): LocalDataStorePolicy => ({ backup: "included", dataClass: "configuration", reason, recoveryLevel: "R3" });
 
 /**
- * review_workspace v16 的每个真实表都必须在此显式归类。导出允许列表由本表派生，
+ * review_workspace v17 的每个真实表都必须在此显式归类。导出允许列表由本表派生，
  * 契约测试再与 Dexie 运行时 schema 对照，避免新增业务表被静默漏掉。
  */
 export const CORE_DATA_STORE_POLICIES = {
   mistakes: authoritative("用户错题事实"),
   attempts: authoritative("错题复盘历史"),
+  learningEvents: authoritative("追加学习证据"),
   importJobs: authoritative("导入审计记录"),
   apiSettings: { backup: "excluded", dataClass: "credential-security", reason: "旧连接兼容表包含密文，只保留本机迁移读取", recoveryLevel: "R2" },
   apiConnectionProfiles: configuration("导出时仅保留脱敏连接元数据，凭据必须重新配置"),
@@ -86,7 +87,7 @@ export const NON_CORE_DATA_STORE_POLICIES = {
   "runtime.media-and-provider-events": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "原始媒体与厂商事件只驻留当前运行内存" },
 } as const satisfies Record<string, LocalDataStorePolicy>;
 
-export const LOCAL_DATA_SCHEMA_VERSIONS = { review_extensions: 1, review_workspace: 16 } as const;
+export const LOCAL_DATA_SCHEMA_VERSIONS = { review_extensions: 1, review_workspace: 17 } as const;
 export const LOCAL_DATA_IMPORT_MAX_RECORDS = 1_000_000;
 export const LOCAL_DATA_IMPORT_MAX_STORE_RECORDS = 250_000;
 
@@ -133,6 +134,45 @@ type ReferenceRule = {
   parentTable: string;
   optional?: boolean;
 };
+
+function idsForTable(core: Record<string, unknown[]>, table: string): Set<string> {
+  return new Set((core[table] ?? []).flatMap((record) => {
+    if (!record || typeof record !== "object" || Array.isArray(record)) return [];
+    const key = primaryKeyFor(table, record as Record<string, unknown>);
+    return key ? [key] : [];
+  }));
+}
+
+function learningEventReferenceIssues(core: Record<string, unknown[]>): LocalDataIntegrityIssue[] {
+  const idsByTable = {
+    attempts: idsForTable(core, "attempts"),
+    knowledgeAttempts: idsForTable(core, "knowledgeAttempts"),
+    mistakes: idsForTable(core, "mistakes"),
+    knowledgeEntries: idsForTable(core, "knowledgeEntries"),
+  } as const;
+  const sourceTableByType = { review_attempt: "attempts", knowledge_attempt: "knowledgeAttempts" } as const;
+  const subjectTableByType = { mistake: "mistakes", knowledge: "knowledgeEntries" } as const;
+  const issues: LocalDataIntegrityIssue[] = [];
+
+  for (const record of core.learningEvents ?? []) {
+    if (!record || typeof record !== "object" || Array.isArray(record)) continue;
+    const event = record as Record<string, unknown>;
+    const recordId = primaryKeyFor("learningEvents", event);
+    const sourceTable = typeof event.sourceType === "string" ? sourceTableByType[event.sourceType as keyof typeof sourceTableByType] : undefined;
+    const subjectTable = typeof event.subjectType === "string" ? subjectTableByType[event.subjectType as keyof typeof subjectTableByType] : undefined;
+    if (!sourceTable || typeof event.sourceId !== "string" || !event.sourceId) {
+      issues.push({ code: "invalid-reference", message: `表 learningEvents 的 sourceId/sourceType 不是有效引用`, recordId, table: "learningEvents" });
+    } else if (!idsByTable[sourceTable].has(event.sourceId)) {
+      issues.push({ code: "dangling-reference", message: `表 learningEvents 含悬空关联：sourceId=${event.sourceId}`, recordId, table: "learningEvents" });
+    }
+    if (!subjectTable || typeof event.subjectId !== "string" || !event.subjectId) {
+      issues.push({ code: "invalid-reference", message: `表 learningEvents 的 subjectId/subjectType 不是有效引用`, recordId, table: "learningEvents" });
+    } else if (!idsByTable[subjectTable].has(event.subjectId)) {
+      issues.push({ code: "dangling-reference", message: `表 learningEvents 含悬空关联：subjectId=${event.subjectId}`, recordId, table: "learningEvents" });
+    }
+  }
+  return issues;
+}
 
 export const CRITICAL_REFERENCE_RULES: readonly ReferenceRule[] = [
   { childTable: "attempts", field: "mistakeId", parentTable: "mistakes" },
@@ -201,7 +241,7 @@ export function inspectLocalDataIntegrity(core: Record<string, unknown[]>): Loca
       }
     }
   }
-  return issues;
+  return [...issues, ...learningEventReferenceIssues(core)];
 }
 
 const SENSITIVE_FIELD = /^(?:accessToken|apiKey|authorization|conflictAppMarkdown|conflictVaultMarkdown|cookie|directoryHandle|encryptedCookie|encryptedCredentials|encryptedKey|encryptedToken|encryptedTokenIv|fullPrompt|hiddenReasoning|iv|maskedKey|password|privateKey|providerRawResponse|rawProviderResponse|refreshToken|thoughtSignature|token)$/i;

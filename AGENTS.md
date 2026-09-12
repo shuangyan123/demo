@@ -193,7 +193,7 @@ Conversation migration
 deferred
 ```
 
-Conversation 当前仍属于 deferred 高频变化区。当前对话事实源是可见用户/助手消息、必要的可见工具结果与稳定的 `turnId/sequence`；diagnostic/internal steps 默认折叠，隐藏思维链、thought signature、厂商私有状态不进入上下文、学习状态或持久化。继续保持 `review_workspace` v16。
+Conversation 当前仍属于 deferred 高频变化区。当前对话事实源是可见用户/助手消息、必要的可见工具结果与稳定的 `turnId/sequence`；diagnostic/internal steps 默认折叠，隐藏思维链、thought signature、厂商私有状态不进入上下文、学习状态或持久化。继续保持 `review_workspace` v17。
 
 Automation 的 Provider retry hint 不能覆盖 Application 的副作用安全判断。遇到 rate limit、network、provider unavailable 或不确定终态时，不得自动重放可能已经产生外部副作用的 operation；manual-only 语义必须保持。
 
@@ -346,7 +346,7 @@ Electron Main：
 
 ```text
 review_workspace
-Dexie v16
+Dexie v17
 ```
 
 扩展数据使用独立的 `review_extensions` v1；不得以扩展功能为由升级核心库。

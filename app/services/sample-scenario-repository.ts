@@ -461,11 +461,12 @@ async function clearSamplesInCurrentTransaction(): Promise<void> {
       return isSampleRecordId(candidate.id);
     }).delete();
   }
+  await reviewDb.learningEvents.filter((record) => isSampleRecordId(record.subjectId)).delete();
 }
 
 export const sampleScenarioRepository = {
   async clearAll(): Promise<void> {
-    await reviewDb.transaction("rw", [...SAMPLE_TABLES], clearSamplesInCurrentTransaction);
+    await reviewDb.transaction("rw", [...SAMPLE_TABLES, reviewDb.learningEvents], clearSamplesInCurrentTransaction);
   },
 
   async countAll(): Promise<number> {

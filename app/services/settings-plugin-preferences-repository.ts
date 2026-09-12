@@ -59,7 +59,7 @@ function publishPreferenceChange(): void {
   if (typeof window !== "undefined") window.dispatchEvent(new Event("review:settings-plugin-changed"));
 }
 
-/** 内置插件偏好使用版本化小型本地配置，不触碰 review_workspace Dexie v16。 */
+/** 内置插件偏好使用版本化小型本地配置，不触碰 review_workspace Dexie v17。 */
 export const settingsPluginPreferencesRepository = {
   getSnapshot: read,
   getServerSnapshot: () => DEFAULT_PREFERENCES,

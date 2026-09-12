@@ -35,7 +35,7 @@ function isValidPrimaryKey(value: unknown): value is CryptoKey {
     && candidate.usages.includes("encrypt")
     && candidate.usages.includes("decrypt");
 }
-/** 使用独立数据库保存 CryptoKey，避免升级业务数据库 review_workspace v16。 */
+/** 使用独立数据库保存 CryptoKey，避免升级业务数据库 review_workspace v17。 */
 function openSecureKeyDatabase(): Promise<IDBDatabase> {
   if (databasePromise) return databasePromise;
   databasePromise = new Promise((resolve, reject) => {

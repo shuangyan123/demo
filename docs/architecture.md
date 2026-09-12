@@ -25,7 +25,7 @@ desktop/
 
 当前方案是 Electron + Next standalone。它直接保留现有 AI SSE、语音、Realtime、MCP、采集和粉笔同步 Route Handlers。Tauri 静态导出或 Node sidecar 会引入 Rust、WebView2 与双运行时维护，当前阶段不采用。代价是安装体积较大；只有服务端能力迁出 Next 且体积成为实测问题时再评估 Tauri。
 
-- 业务状态：React controller + Dexie v16 + repository；桌面壳不新增业务状态源。
+- 业务状态：React controller + Dexie v17 + repository；桌面壳不新增业务状态源。LearningEvent 是不参与现有决策的追加证据层。
 - 恢复状态：独立 `review_workspace_transfer` v1 只保存待提交包与旧快照，成功或回滚后删除。
 - API：保留原有同源 Route Handler 契约；桌面令牌是 loopback 内部传输头，不属于公开业务 API。
 - 公考开发示例按学习数据、复盘、知识训练和面试模块分别注册；总览不提供示例。匹配场景时仍先于业务 controller 分流到纯内存 fixture。
@@ -255,7 +255,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 
 - 页面草稿、筛选、展开和媒体状态留在 feature/controller。
 - 业务实体、会话摘要、运行结果和迁移基线存入 `review_workspace`。
-- Dexie 当前版本保持 v16；`review-db-migrations.ts` 承载幂等迁移函数，不为前端切片新增索引。
+- Dexie 当前版本为 v17；`review-db-migrations.ts` 承载幂等迁移函数，不为前端切片新增索引。LearningEvent 的 v16→v17 回填只建立可追溯的事件证据，不改变现有 learner-state。
 - AI route 使用共享 HTTP 错误边界，只返回归一化数据或脱敏错误，不透传厂商原始响应。
 
 ## 已安排外部知识采集（2026-07-21）

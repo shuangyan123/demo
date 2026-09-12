@@ -105,16 +105,19 @@ test("模块上下文和视觉工具统一进入新对话", async () => {
   assert.doesNotMatch(shellSource, /板块筛选/);
 });
 
-test("Dexie v16 只执行对话文件夹建模后的旧空草稿清理", async () => {
+test("Dexie v17 保留历史迁移并新增学习事件表", async () => {
   const source = await readSource("../../db/review-db.ts");
   const migrationSource = await readSource("../../db/review-db-migrations.ts");
 
   assert.match(source, /this\.version\(14\)\.stores/);
   assert.match(source, /this\.version\(15\)\.stores/);
   assert.match(source, /this\.version\(16\)\.stores/);
+  assert.match(source, /this\.version\(17\)\.stores/);
   assert.match(source, /aiProjects:\s*"&id, studyDomainId, updatedAt, createdAt"/);
   assert.match(source, /aiConversationFolders:\s*"&id, projectId, parentId, updatedAt, \[projectId\+parentId\+sortOrder\]"/);
   assert.match(source, /upgrade\(migrateToV16\)/);
+  assert.match(source, /upgrade\(migrateToV17\)/);
+  assert.match(source, /learningEvents:\s*"&id, sourceType, sourceId, subjectType, subjectId, observedAt, \[subjectType\+subjectId\]"/);
   assert.match(migrationSource, /conversation\.title === "新对话" && conversation\.messageCount === 0/);
   assert.match(source, /aiConversationMessages:\s*"&id, conversationId, role, createdAt"/);
   assert.match(source, /aiConversationRunSteps:\s*"&id, conversationId, runId, state, updatedAt"/);

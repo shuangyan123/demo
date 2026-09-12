@@ -1,5 +1,6 @@
 import { reviewDb } from "../db/review-db.ts";
 import { relativeDate, toISODate } from "../lib/review-utils.ts";
+import { learningEventFromKnowledgeAttempt } from "../types/domains/learning-event.ts";
 import type { KnowledgeAttempt, KnowledgeCategory, KnowledgeEntry, KnowledgeImportDraft, KnowledgeStarterTemplate, KnowledgeTrainingSnapshot } from "../types/domains/knowledge.ts";
 import type { Mistake, ReviewResult } from "../types/domains/review.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
@@ -317,19 +318,22 @@ export const knowledgeRepository = {
       confidence: nextState.mastery,
       reviewedAt: todayStamp(today),
     };
+    const learningEvent = learningEventFromKnowledgeAttempt(attempt);
 
-    await reviewDb.transaction("rw", reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, async () => {
+    await reviewDb.transaction("rw", reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, reviewDb.learningEvents, async () => {
       await reviewDb.knowledgeEntries.update(entry.id, nextState);
       await reviewDb.knowledgeAttempts.add(attempt);
+      await reviewDb.learningEvents.add(learningEvent);
     });
     notifyObsidianSyncNeeded();
   },
 
   // 删除单条知识库资料，并清理错题关联、面试关联和辅导关联；不会影响错题、复盘记录或导入任务。
   async remove(id: string): Promise<void> {
-    await reviewDb.transaction("rw", [reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
+    await reviewDb.transaction("rw", [reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, reviewDb.learningEvents, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
       await reviewDb.knowledgeEntries.delete(id);
       await reviewDb.knowledgeAttempts.where("knowledgeId").equals(id).delete();
+      await reviewDb.learningEvents.where("[subjectType+subjectId]").equals(["knowledge", id]).delete();
       await reviewDb.knowledgeMistakeLinks.where("knowledgeId").equals(id).delete();
       await reviewDb.interviewLinks.where("[targetType+targetId]").equals(["knowledge", id]).delete();
       await reviewDb.tutoringLinks.where("[targetType+targetId]").equals(["knowledge", id]).delete();
@@ -340,9 +344,10 @@ export const knowledgeRepository = {
   // 批量删除知识资料，并同步清理训练记录、错题关联、面试关联和辅导关联，保持知识库没有悬空链接。
   async removeMany(ids: string[]): Promise<void> {
     if (!ids.length) return;
-    await reviewDb.transaction("rw", [reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
+    await reviewDb.transaction("rw", [reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, reviewDb.learningEvents, reviewDb.knowledgeMistakeLinks, reviewDb.interviewLinks, reviewDb.tutoringLinks], async () => {
       await reviewDb.knowledgeEntries.bulkDelete(ids);
       await reviewDb.knowledgeAttempts.where("knowledgeId").anyOf(ids).delete();
+      await reviewDb.learningEvents.where("[subjectType+subjectId]").anyOf(ids.map((id) => ["knowledge", id] as const)).delete();
       await reviewDb.knowledgeMistakeLinks.where("knowledgeId").anyOf(ids).delete();
       await reviewDb.interviewLinks.where("[targetType+targetId]").anyOf(ids.map((id) => ["knowledge", id] as const)).delete();
       await reviewDb.tutoringLinks.where("[targetType+targetId]").anyOf(ids.map((id) => ["knowledge", id] as const)).delete();

@@ -482,7 +482,7 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
   };
 }
 
-/** 读取既有 v16 表并构造只读学习者状态；不写回推荐、模型推测或掌握分。 */
+/** 读取既有学习表并构造只读学习者状态；不写回推荐、模型推测或掌握分。 */
 export async function loadLearnerStateSnapshotFromNormalizedFacts(
   coreFacts: NormalizedLearnerStateCoreFacts,
   today = new Date(),
