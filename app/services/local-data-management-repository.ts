@@ -9,12 +9,18 @@ import {
   CORE_DATA_STORE_POLICIES,
   LOCAL_DATA_IMPORT_MAX_RECORDS,
   LOCAL_DATA_IMPORT_MAX_STORE_RECORDS,
+  LOCAL_DATA_SCHEMA_VERSIONS,
+  PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION,
   createLocalDataExportManifest,
   findSensitiveRestoreFields,
   inspectLocalDataIntegrity,
+  type LocalDataReviewWorkspaceSchemaVersion,
   type LocalDataExportManifestV2,
 } from "./local-data-reliability.ts";
 import { deleteSecureKeyStore, readSecurePrimaryKey } from "./secure-key-store.ts";
+import { learningEventFromKnowledgeAttempt, learningEventFromReviewAttempt } from "../types/domains/learning-event.ts";
+import type { KnowledgeAttempt } from "../types/domains/knowledge.ts";
+import type { Attempt } from "../types/domains/review.ts";
 
 export type LocalDataSummary = {
   importRecords: number;
@@ -39,6 +45,12 @@ export type LocalDataExportV2 = {
 export const LOCAL_DATA_IMPORT_MAX_BYTES = 100 * 1024 * 1024;
 
 const EXPORT_TABLE_ALLOWLIST = new Set(CORE_BACKUP_TABLE_NAMES);
+const CURRENT_REVIEW_WORKSPACE_SCHEMA_VERSION = LOCAL_DATA_SCHEMA_VERSIONS.review_workspace;
+const SUPPORTED_REVIEW_WORKSPACE_SCHEMA_VERSIONS = new Set<LocalDataReviewWorkspaceSchemaVersion>([
+  PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION,
+  CURRENT_REVIEW_WORKSPACE_SCHEMA_VERSION,
+]);
+const LEGACY_CORE_BACKUP_TABLE_NAMES = CORE_BACKUP_TABLE_NAMES.filter((table) => table !== "learningEvents");
 
 type TransferJob = {
   id: string;
@@ -216,11 +228,49 @@ function assertImportSize(source: string): void {
   if (new TextEncoder().encode(source).byteLength > LOCAL_DATA_IMPORT_MAX_BYTES) throw new Error("备份文件超过 100MB 限制");
 }
 
-function sameStringSet(left: string[], right: string[]): boolean {
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false;
   const sortedLeft = [...left].sort();
   const sortedRight = [...right].sort();
   return sortedLeft.every((value, index) => value === sortedRight[index]);
+}
+
+function detectReviewWorkspaceSchemaVersion(manifest: unknown, core: Record<string, unknown[]>): LocalDataReviewWorkspaceSchemaVersion {
+  if (manifest === undefined) {
+    return Object.prototype.hasOwnProperty.call(core, "learningEvents")
+      ? CURRENT_REVIEW_WORKSPACE_SCHEMA_VERSION
+      : PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION;
+  }
+  if (!manifest || typeof manifest !== "object") throw new Error("备份清单结构无效");
+  const schemaVersions = (manifest as { schemaVersions?: unknown }).schemaVersions;
+  const reviewWorkspaceSchemaVersion = schemaVersions && typeof schemaVersions === "object"
+    ? (schemaVersions as { review_workspace?: unknown }).review_workspace
+    : undefined;
+  if (typeof reviewWorkspaceSchemaVersion !== "number"
+    || !SUPPORTED_REVIEW_WORKSPACE_SCHEMA_VERSIONS.has(reviewWorkspaceSchemaVersion as LocalDataReviewWorkspaceSchemaVersion)) {
+    throw new Error("备份清单 schema 版本不受支持");
+  }
+  return reviewWorkspaceSchemaVersion as LocalDataReviewWorkspaceSchemaVersion;
+}
+
+function validateRestoreStoreShape(
+  core: Record<string, unknown[]>,
+  extensions: unknown[],
+  allowedTableNames: readonly string[],
+): void {
+  const allowedTables = new Set(allowedTableNames);
+  let totalRecords = extensions.length;
+  for (const [table, records] of Object.entries(core)) {
+    if (!allowedTables.has(table)) throw new Error(`备份包含不允许导入的表：${table}`);
+    if (!Array.isArray(records)) throw new Error(`表 ${table} 不是记录数组`);
+    if (records.length > LOCAL_DATA_IMPORT_MAX_STORE_RECORDS) throw new Error(`表 ${table} 超过 ${LOCAL_DATA_IMPORT_MAX_STORE_RECORDS} 条记录限制`);
+    totalRecords += records.length;
+  }
+  if (extensions.length > LOCAL_DATA_IMPORT_MAX_STORE_RECORDS) throw new Error(`表 extensions 超过 ${LOCAL_DATA_IMPORT_MAX_STORE_RECORDS} 条记录限制`);
+  if (totalRecords > LOCAL_DATA_IMPORT_MAX_RECORDS) throw new Error(`备份包超过 ${LOCAL_DATA_IMPORT_MAX_RECORDS} 条记录限制`);
+  for (const table of allowedTableNames) {
+    if (!Array.isArray(core[table])) throw new Error(`备份缺少必需表：${table}`);
+  }
 }
 
 function validateManifest(manifest: unknown, expected: LocalDataExportManifestV2): void {
@@ -259,18 +309,10 @@ function validateRestorePayload(value: unknown): LocalDataExportV2 {
   const extensions = extensionDatabase?.extensions;
   if (!core || typeof core !== "object" || !Array.isArray(extensions)) throw new Error("备份包数据库结构无效");
   if (!sameStringSet(Object.keys(extensionDatabase), ["extensions"])) throw new Error("备份包含不允许导入的扩展表");
-  let totalRecords = extensions.length;
-  for (const [table, records] of Object.entries(core)) {
-    if (!EXPORT_TABLE_ALLOWLIST.has(table)) throw new Error(`备份包含不允许导入的表：${table}`);
-    if (!Array.isArray(records)) throw new Error(`表 ${table} 不是记录数组`);
-    if (records.length > LOCAL_DATA_IMPORT_MAX_STORE_RECORDS) throw new Error(`表 ${table} 超过 ${LOCAL_DATA_IMPORT_MAX_STORE_RECORDS} 条记录限制`);
-    totalRecords += records.length;
-  }
-  if (extensions.length > LOCAL_DATA_IMPORT_MAX_STORE_RECORDS) throw new Error(`表 extensions 超过 ${LOCAL_DATA_IMPORT_MAX_STORE_RECORDS} 条记录限制`);
-  if (totalRecords > LOCAL_DATA_IMPORT_MAX_RECORDS) throw new Error(`备份包超过 ${LOCAL_DATA_IMPORT_MAX_RECORDS} 条记录限制`);
-  for (const table of EXPORT_TABLE_ALLOWLIST) {
-    if (!Array.isArray(core[table])) throw new Error(`备份缺少必需表：${table}`);
-  }
+  const reviewWorkspaceSchemaVersion = detectReviewWorkspaceSchemaVersion(payload.manifest, core);
+  validateRestoreStoreShape(core, extensions, reviewWorkspaceSchemaVersion === PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION
+    ? LEGACY_CORE_BACKUP_TABLE_NAMES
+    : CORE_BACKUP_TABLE_NAMES);
   const sensitiveFields = findSensitiveRestoreFields(payload.databases);
   if (sensitiveFields.length) throw new Error(`备份包含安全敏感字段：${sensitiveFields[0]}`);
   const integrityIssue = [
@@ -278,10 +320,40 @@ function validateRestorePayload(value: unknown): LocalDataExportV2 {
     ...inspectLocalDataIntegrity({ extensions }),
   ][0];
   if (integrityIssue) throw new Error(integrityIssue.message);
-  const expectedManifest = createLocalDataExportManifest(core, extensions.length);
-  // 2026-07 发布的早期 V2 没有 manifest；继续兼容读取，并为后续事务补齐规范化清单。
-  if (payload.manifest !== undefined) validateManifest(payload.manifest, expectedManifest);
-  return { ...(payload as Omit<LocalDataExportV2, "manifest">), manifest: expectedManifest };
+  const expectedInputManifest = createLocalDataExportManifest(core, extensions.length, reviewWorkspaceSchemaVersion);
+  // 2026-07 发布的早期 V2 没有 manifest；继续兼容读取。v16 有清单时仍按历史表集合严格校验。
+  if (payload.manifest !== undefined) validateManifest(payload.manifest, expectedInputManifest);
+
+  const normalizedCore = reviewWorkspaceSchemaVersion === PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION
+    ? {
+      ...core,
+      learningEvents: [
+        ...(core.attempts as Attempt[]).map(learningEventFromReviewAttempt),
+        ...(core.knowledgeAttempts as KnowledgeAttempt[]).map(learningEventFromKnowledgeAttempt),
+      ],
+    }
+    : core;
+  if (reviewWorkspaceSchemaVersion === PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION) {
+    validateRestoreStoreShape(normalizedCore, extensions, CORE_BACKUP_TABLE_NAMES);
+  }
+  const normalizedIntegrityIssue = [
+    ...inspectLocalDataIntegrity(normalizedCore),
+    ...inspectLocalDataIntegrity({ extensions }),
+  ][0];
+  if (normalizedIntegrityIssue) throw new Error(normalizedIntegrityIssue.message);
+  const normalizedManifest = createLocalDataExportManifest(
+    normalizedCore,
+    extensions.length,
+    CURRENT_REVIEW_WORKSPACE_SCHEMA_VERSION,
+  );
+  return {
+    ...(payload as Omit<LocalDataExportV2, "manifest">),
+    manifest: normalizedManifest,
+    databases: {
+      review_workspace: normalizedCore,
+      review_extensions: { extensions },
+    },
+  };
 }
 
 async function exportPayload(): Promise<LocalDataExportV2> {

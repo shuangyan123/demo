@@ -212,7 +212,7 @@ test("删除错题或知识资料会在同一事务清理对应 LearningEvent", 
   assert.equal(await learningEventRepository.listForSubject("knowledge", knowledgeItem.id).then((events) => events.length), 0);
 });
 
-test("clearAll 清理全部 LearningEvent 但保留现有知识资料删除语义", async () => {
+test("clearAll 只清理错题 LearningEvent 并保留知识训练事件", async () => {
   await resetReviewDb();
   const reviewItem = mistake("mistake-clear");
   const knowledgeItem = knowledge("knowledge-clear");
@@ -222,11 +222,13 @@ test("clearAll 清理全部 LearningEvent 但保留现有知识资料删除语�
   await knowledgeRepository.recordReview(knowledgeItem, "uncertain", today);
 
   await reviewRepository.clearAll();
-  assert.equal(await reviewDb.learningEvents.count(), 0);
   assert.equal(await reviewDb.mistakes.count(), 0);
   assert.equal(await reviewDb.attempts.count(), 0);
+  assert.equal(await learningEventRepository.listForSubject("mistake", reviewItem.id).then((events) => events.length), 0);
   assert.equal(await reviewDb.knowledgeEntries.count(), 1);
   assert.equal(await reviewDb.knowledgeAttempts.count(), 1);
+  assert.equal(await learningEventRepository.listForSubject("knowledge", knowledgeItem.id).then((events) => events.length), 1);
+  assert.equal(await reviewDb.learningEvents.count(), 1);
 });
 
 test("分域清理错题时只删除错题 LearningEvent，保留知识训练历史", async () => {

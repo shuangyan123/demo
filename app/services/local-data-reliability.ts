@@ -87,7 +87,11 @@ export const NON_CORE_DATA_STORE_POLICIES = {
   "runtime.media-and-provider-events": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "原始媒体与厂商事件只驻留当前运行内存" },
 } as const satisfies Record<string, LocalDataStorePolicy>;
 
+export const PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION = 16 as const;
 export const LOCAL_DATA_SCHEMA_VERSIONS = { review_extensions: 1, review_workspace: 17 } as const;
+export type LocalDataReviewWorkspaceSchemaVersion =
+  | typeof PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION
+  | typeof LOCAL_DATA_SCHEMA_VERSIONS.review_workspace;
 export const LOCAL_DATA_IMPORT_MAX_RECORDS = 1_000_000;
 export const LOCAL_DATA_IMPORT_MAX_STORE_RECORDS = 250_000;
 
@@ -103,21 +107,34 @@ export type LocalDataExportManifestV2 = {
     review_workspace: Record<string, number>;
     total: number;
   };
-  schemaVersions: typeof LOCAL_DATA_SCHEMA_VERSIONS;
+  schemaVersions: {
+    review_extensions: typeof LOCAL_DATA_SCHEMA_VERSIONS.review_extensions;
+    review_workspace: LocalDataReviewWorkspaceSchemaVersion;
+  };
 };
 
-export function createLocalDataExportManifest(core: Record<string, unknown[]>, extensionCount: number): LocalDataExportManifestV2 {
+export function createLocalDataExportManifest(
+  core: Record<string, unknown[]>,
+  extensionCount: number,
+  reviewWorkspaceSchemaVersion: LocalDataReviewWorkspaceSchemaVersion = LOCAL_DATA_SCHEMA_VERSIONS.review_workspace,
+): LocalDataExportManifestV2 {
   const coreCounts = Object.fromEntries(Object.entries(core).map(([table, records]) => [table, records.length]));
+  const includedCoreTables = reviewWorkspaceSchemaVersion === PREVIOUS_REVIEW_WORKSPACE_SCHEMA_VERSION
+    ? CORE_BACKUP_TABLE_NAMES.filter((table) => table !== "learningEvents")
+    : CORE_BACKUP_TABLE_NAMES;
   return {
     app: { name: "review-workspace", version: REVIEW_WORKSPACE_VERSION },
     excludedCategories: ["credentials", "master-keys", "provider-raw-events", "runtime-media", "vault-content", "vault-handles", "versioned-local-storage"],
-    includedStores: { review_extensions: ["extensions"], review_workspace: [...CORE_BACKUP_TABLE_NAMES] },
+    includedStores: { review_extensions: ["extensions"], review_workspace: [...includedCoreTables] },
     recordCounts: {
       review_extensions: { extensions: extensionCount },
       review_workspace: coreCounts,
       total: Object.values(coreCounts).reduce((sum, count) => sum + count, extensionCount),
     },
-    schemaVersions: LOCAL_DATA_SCHEMA_VERSIONS,
+    schemaVersions: {
+      review_extensions: LOCAL_DATA_SCHEMA_VERSIONS.review_extensions,
+      review_workspace: reviewWorkspaceSchemaVersion,
+    },
   };
 }
 

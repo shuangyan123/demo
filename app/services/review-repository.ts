@@ -127,7 +127,7 @@ export const reviewRepository = {
     return job;
   },
 
-  // 清空本地错题、复盘记录、导入任务、未确认草稿、面试训练和辅导记录，但保留 API 设置。
+  // 清空本地错题及其学习事件、导入任务、未确认草稿、面试训练和辅导记录，但保留知识资料与训练历史。
   async clearAll() {
     await reviewDb.transaction(
       "rw",
@@ -158,7 +158,7 @@ export const reviewRepository = {
       async () => {
         await reviewDb.mistakes.clear();
         await reviewDb.attempts.clear();
-        await reviewDb.learningEvents.clear();
+        await reviewDb.learningEvents.where("subjectType").equals("mistake").delete();
         await reviewDb.importJobs.clear();
         await reviewDb.knowledgeMistakeLinks.clear();
         await reviewDb.importBatches.clear();

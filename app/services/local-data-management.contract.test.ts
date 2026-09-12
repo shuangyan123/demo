@@ -10,6 +10,8 @@ import { encryptSecret } from "./crypto-service.ts";
 import { deleteSecureKeyStore, readSecurePrimaryKey } from "./secure-key-store.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
 import { secretContext } from "./secret-context.ts";
+import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
+import type { Attempt, Mistake } from "../types/domains/review.ts";
 
 async function resetDatabase(): Promise<void> {
   reviewDb.close();
@@ -31,6 +33,43 @@ async function withTransferDatabase<T>(run: (database: Dexie) => Promise<T>): Pr
 }
 
 const now = "2026-08-09T00:00:00.000Z";
+
+const V16_INCLUDED_STORES = [
+  "mistakes",
+  "attempts",
+  "importJobs",
+  "apiConnectionProfiles",
+  "apiConnectionDefaults",
+  "appearanceSettings",
+  "personalizationSettings",
+  "knowledgeEntries",
+  "knowledgeAttempts",
+  "knowledgeMistakeLinks",
+  "knowledgeInternalizationDrafts",
+  "importBatches",
+  "importDrafts",
+  "interviewQuestions",
+  "interviewQuestionSets",
+  "interviewPracticePlans",
+  "interviewSessions",
+  "interviewTurns",
+  "interviewEvaluations",
+  "interviewLinks",
+  "tutoringSessions",
+  "tutoringTurns",
+  "tutoringPlans",
+  "tutoringLinks",
+  "obsidianNoteMappings",
+  "knowledgeEvolutionProposals",
+  "automationDefinitions",
+  "automationRuns",
+  "aiProjects",
+  "aiConversationFolders",
+  "aiConversations",
+  "aiConversationAttachments",
+  "aiConversationMessages",
+  "aiConversationRunSteps",
+] as const;
 
 async function seedConversation(): Promise<void> {
   await reviewDb.aiProjects.put({ id: "civil-service", label: "公考", studyDomainId: "civil-service", createdAt: now, updatedAt: now } as never);
@@ -136,6 +175,12 @@ test("备份恢复拒绝错误版本、重复 ID 与悬空关联", async () => {
   wrongVersion.schemaVersion = 99;
   await assert.rejects(() => localDataManagementRepository.inspectRestore(JSON.stringify(wrongVersion)), /不支持的备份版本/);
 
+  for (const schemaVersion of [15, 18]) {
+    const unsupported = JSON.parse(emptySource) as { manifest: { schemaVersions: { review_workspace: number } } };
+    unsupported.manifest.schemaVersions.review_workspace = schemaVersion;
+    await assert.rejects(() => localDataManagementRepository.inspectRestore(JSON.stringify(unsupported)), /schema 版本不受支持/);
+  }
+
   const duplicate = JSON.parse(emptySource) as {
     databases: { review_workspace: Record<string, unknown[]> };
   };
@@ -206,6 +251,118 @@ test("早期无 manifest 的 V2 仍可读取并规范化为当前清单", async 
   const preview = await localDataManagementRepository.inspectRestore(JSON.stringify(legacy));
   assert.equal(preview.payload.manifest.schemaVersions.review_workspace, 17);
   assert.equal(preview.payload.manifest.recordCounts.total, 0);
+});
+
+test("真实 v16 V2 恢复会从 Attempt 与 KnowledgeAttempt 规范化为 v17 LearningEvent", async () => {
+  await resetDatabase();
+  const mistake: Mistake = {
+    id: "v16-mistake",
+    board: "判断推理",
+    source: "v16-contract",
+    stem: "题干",
+    answer: "A",
+    explanation: "解析",
+    reasons: ["条件关系"],
+    tags: [],
+    mastery: 2,
+    nextReviewAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const attempt: Attempt = {
+    id: "v16-attempt",
+    mistakeId: mistake.id,
+    result: "wrong",
+    confidence: 2,
+    reviewedAt: now,
+    durationSec: 41,
+  };
+  const knowledgeEntry: KnowledgeEntry = {
+    id: "v16-knowledge",
+    category: "常识判断",
+    title: "知识",
+    summary: "摘要",
+    content: "正文",
+    tags: [],
+    source: "v16-contract",
+    favorite: false,
+    mastery: 3,
+    nextReviewAt: now,
+    reviewCount: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const knowledgeAttempt: KnowledgeAttempt = {
+    id: "v16-knowledge-attempt",
+    knowledgeId: knowledgeEntry.id,
+    result: "correct",
+    confidence: 3,
+    reviewedAt: now,
+  };
+  const core: Record<string, unknown[]> = Object.fromEntries(V16_INCLUDED_STORES.map((table) => [table, []]));
+  core.mistakes = [mistake];
+  core.attempts = [attempt];
+  core.knowledgeEntries = [knowledgeEntry];
+  core.knowledgeAttempts = [knowledgeAttempt];
+  const recordCounts = Object.fromEntries(Object.entries(core).map(([table, records]) => [table, records.length]));
+  const v16Payload: LocalDataExportV2 = {
+    schemaVersion: 2,
+    exportedAt: now,
+    credentialsExcluded: true,
+    manifest: {
+      app: { name: "review-workspace", version: "0.3.0" },
+      excludedCategories: ["credentials", "master-keys", "provider-raw-events", "runtime-media", "vault-content", "vault-handles", "versioned-local-storage"],
+      includedStores: { review_extensions: ["extensions"], review_workspace: [...V16_INCLUDED_STORES] },
+      recordCounts: {
+        review_extensions: { extensions: 0 },
+        review_workspace: recordCounts,
+        total: Object.values(recordCounts).reduce((sum, count) => sum + count, 0),
+      },
+      schemaVersions: { review_extensions: 1, review_workspace: 16 },
+    },
+    databases: {
+      review_workspace: core,
+      review_extensions: { extensions: [] },
+    },
+  };
+
+  assert.equal("learningEvents" in core, false);
+  const preview = await localDataManagementRepository.inspectRestore(JSON.stringify(v16Payload));
+  assert.equal(preview.payload.manifest.schemaVersions.review_workspace, 17);
+  assert.equal(preview.payload.databases.review_workspace.learningEvents.length, 2);
+  await localDataManagementRepository.restore(preview);
+
+  assert.deepEqual(await reviewDb.mistakes.get(mistake.id), mistake);
+  assert.deepEqual(await reviewDb.attempts.get(attempt.id), attempt);
+  assert.deepEqual(await reviewDb.knowledgeEntries.get(knowledgeEntry.id), knowledgeEntry);
+  assert.deepEqual(await reviewDb.knowledgeAttempts.get(knowledgeAttempt.id), knowledgeAttempt);
+  const events = await reviewDb.learningEvents.toArray();
+  assert.equal(events.length, 2);
+  assert.deepEqual(events.find((event) => event.id === "review_attempt:v16-attempt"), {
+    id: "review_attempt:v16-attempt",
+    sourceType: "review_attempt",
+    sourceId: "v16-attempt",
+    subjectType: "mistake",
+    subjectId: "v16-mistake",
+    outcome: "wrong",
+    observedAt: now,
+    masteryAfter: 2,
+    durationSec: 41,
+  });
+  assert.deepEqual(events.find((event) => event.id === "knowledge_attempt:v16-knowledge-attempt"), {
+    id: "knowledge_attempt:v16-knowledge-attempt",
+    sourceType: "knowledge_attempt",
+    sourceId: "v16-knowledge-attempt",
+    subjectType: "knowledge",
+    subjectId: "v16-knowledge",
+    outcome: "correct",
+    observedAt: now,
+    masteryAfter: 3,
+  });
+  assert.equal("selfConfidence" in (events.find((event) => event.id === "review_attempt:v16-attempt") ?? {}), false);
+  assert.equal("selfConfidence" in (events.find((event) => event.id === "knowledge_attempt:v16-knowledge-attempt") ?? {}), false);
+  assert.equal(reviewDb.verno, 17);
+  assert.equal(reviewDb.tables.some((table) => table.name === "learningEvents"), true);
 });
 
 test("恢复应用后的 verify 失败会回滚旧快照并在完成回滚后清理事务", async () => {
