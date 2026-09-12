@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+// 复用现有 feature 合约入口，保持 package scripts 与依赖锁定。
+import "./learning-next-step.contract.test.ts";
 import { resolveDashboardNextAction, type DashboardNextActionInput } from "./dashboard-next-action.ts";
 
 const populated: DashboardNextActionInput = {

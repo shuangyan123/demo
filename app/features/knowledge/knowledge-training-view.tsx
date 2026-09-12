@@ -19,6 +19,7 @@ function QueueFilterTabs({ active, onChange }: { active: KnowledgeQueueFilter; o
 
 /** 知识训练将训练画布、队列和会话摘要拆为单一职责区域。 */
 export function KnowledgeTrainingView({
+  disabled = false,
   answerOpen,
   attemptsCount,
   correctRate,
@@ -36,6 +37,7 @@ export function KnowledgeTrainingView({
   onSelectEntry,
   onToggleAnswer,
 }: {
+  disabled?: boolean;
   answerOpen: boolean;
   attemptsCount: number;
   correctRate: number;
@@ -68,7 +70,7 @@ export function KnowledgeTrainingView({
               <p>{currentEntry.summary || "先闭卷回想这条资料的关键词、适用场景和易混点。"}</p>
               <div className="mt-4 flex flex-wrap gap-2">{currentEntry.tags.map((tag) => <Chip key={tag}>{tag}</Chip>)}</div>
             </SoftBlock>
-            <div className={styles.actions}>
+            <fieldset disabled={disabled} className={styles.actions}>
               <Button variant="outline" onClick={onToggleAnswer}>{answerOpen ? "收起资料" : "查看资料"}</Button>
               <Button variant="soft" onClick={() => onRecordReview("correct")}>会了</Button>
               <Button variant="outline" onClick={() => onRecordReview("uncertain")}>犹豫</Button>
@@ -77,7 +79,7 @@ export function KnowledgeTrainingView({
               <Button variant="outline" onClick={() => onMove(1)}>下一条</Button>
               <Button variant="outline" onClick={onSkip}>跳过本次</Button>
               <Button variant="soft" onClick={() => onOpenKnowledgeEntry(currentEntry)}>编辑资料</Button>
-            </div>
+            </fieldset>
             {answerOpen ? (
               <div className="mt-5 space-y-4 leading-relaxed">
                 <DetailBlock title="资料正文">{currentEntry.content}</DetailBlock>

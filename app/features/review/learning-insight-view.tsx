@@ -13,6 +13,8 @@ import {
   type LearningInsightTrendPoint,
 } from "./learning-insight-model.ts";
 import styles from "./learning-insight-view.module.css";
+import type { LearningActionRecommendation } from "../../types/domains/learner-state.ts";
+import { canContinueWeakness } from "./learning-next-step.ts";
 
 const rangeOptions: Array<{ label: string; value: LearningInsightRange }> = [
   { label: "近 7 天", value: 7 },
@@ -51,6 +53,7 @@ function InsightChart({ points }: { points: LearningInsightTrendPoint[] }) {
 
 /** 基于真实复盘记录呈现设计稿中的薄弱分析控制台。 */
 export function LearningInsightView({
+  recommendations = [],
   attempts,
   knowledgeEntries,
   mistakes,
@@ -59,6 +62,7 @@ export function LearningInsightView({
   onOpenReview,
   onRefresh,
 }: {
+  recommendations?: LearningActionRecommendation[];
   attempts: Attempt[];
   knowledgeEntries: KnowledgeEntry[];
   mistakes: Mistake[];
@@ -126,7 +130,7 @@ export function LearningInsightView({
 
         <section className={`${styles.panel} ${styles.priorityPanel}`}>
           <div className={styles.priorityHeader}><div><h3>优先改进</h3><p>基于待复习题量、正确率与波动排序</p></div></div>
-          <div className={styles.priorityList}>{visiblePriorities.map((item, index) => <article key={`${item.kind}:${item.id}`} className={styles.priorityCard}><div className={styles.priorityTitle}><span data-rank={index + 1}>{index + 1}</span><strong>{item.title}</strong><em>{item.mastery <= 1 ? "薄弱" : "训练"}</em></div><p><b>原因</b> 当前掌握度 {item.mastery * 20}%，且已进入优先复习序列。</p><dl><div><dt>样本量</dt><dd>{Math.max(4, snapshot.attemptsCount - index * 7)} 题</dd></div><div><dt>当前掌握度</dt><dd>{item.mastery * 20}%</dd></div><div><dt>待复习</dt><dd>{item.due <= now.toISOString().slice(0, 10) ? "已到期" : item.due}</dd></div></dl><div className={styles.recommendation}><span><b>建议行动</b>{item.kind === "mistake" ? "先复盘错题并归纳失分类型。" : "进入知识训练，完成一次主动回忆。"}</span><Button size="sm" variant="outline" onClick={() => item.kind === "mistake" ? onOpenReview(item.id) : onOpenKnowledgeTraining(item.id)}>{item.kind === "mistake" ? "开始复盘" : "进入知识训练"}</Button></div></article>)}{!priorityItems.length ? <div className={styles.priorityEmpty} data-review-state="stats.priorities.empty">暂无可排序的薄弱项</div> : null}</div>
+          <div className={styles.priorityList}>{visiblePriorities.map((item, index) => <article key={`${item.kind}:${item.id}`} className={styles.priorityCard}><div className={styles.priorityTitle}><span data-rank={index + 1}>{index + 1}</span><strong>{item.title}</strong><em>{item.mastery <= 1 ? "薄弱" : "训练"}</em></div><p><b>原因</b> 当前掌握度 {item.mastery * 20}%，且已进入优先复习序列。</p><dl><div><dt>样本量</dt><dd>{Math.max(4, snapshot.attemptsCount - index * 7)} 题</dd></div><div><dt>当前掌握度</dt><dd>{item.mastery * 20}%</dd></div><div><dt>待复习</dt><dd>{item.due <= now.toISOString().slice(0, 10) ? "已到期" : item.due}</dd></div></dl><div className={styles.recommendation}><span><b>建议行动</b>{item.kind === "mistake" ? "先复盘错题并归纳失分类型。" : "进入知识训练，完成一次主动回忆。"}</span>{canContinueWeakness(recommendations, item.kind, item.id) ? <Button size="sm" variant="outline" onClick={() => item.kind === "mistake" ? onOpenReview(item.id) : onOpenKnowledgeTraining(item.id)}>{item.kind === "mistake" ? "开始复盘" : "进入知识训练"}</Button> : <span className="text-sm text-muted">暂无可继续的推荐任务</span>}</div></article>)}{!priorityItems.length ? <div className={styles.priorityEmpty} data-review-state="stats.priorities.empty">暂无可排序的薄弱项</div> : null}</div>
           {priorityItems.length > 3 ? <button className={styles.showAll} type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? "收起薄弱点" : `查看全部薄弱点（共 ${priorityItems.length} 项）`}<AppIcon name="chevronRight" size={16} /></button> : null}
         </section>
       </div>

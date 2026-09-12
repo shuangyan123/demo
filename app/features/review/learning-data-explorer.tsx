@@ -7,11 +7,14 @@ import type { ConversationLaunchContext } from "../conversation/conversation-lau
 import { AppIcon } from "../shared/app-icon";
 import { Button, EmptyState, MasteryDots } from "../shared/ui-primitives";
 import { LearningInsightView } from "./learning-insight-view";
+import type { LearningActionRecommendation } from "../../types/domains/learner-state.ts";
 
 type ExplorerTab = "mistakes" | "knowledge" | "weak";
 type ExplorerRecord = { id: string; kind: "mistake" | "knowledge"; title: string; subtitle: string; board: string; mastery: number; tags: string[]; updatedAt: string; source: Mistake | KnowledgeEntry };
 
 type LearningDataExplorerProps = {
+  recommendations?: LearningActionRecommendation[];
+  initialMistakeId?: string;
   attempts: Attempt[];
   knowledgeEntries: KnowledgeEntry[];
   managementContent: ReactNode;
@@ -32,12 +35,12 @@ function toKnowledgeRecord(item: KnowledgeEntry): ExplorerRecord {
 }
 
 /** 统一浏览错题、知识和薄弱项；板块筛选只在此处维护一次。 */
-export function LearningDataExplorer({ attempts, knowledgeEntries, managementContent, mistakes, onOpenKnowledgeOperations, onOpenKnowledgeTraining, onOpenReview, onRefresh, onStartConversation }: LearningDataExplorerProps) {
+export function LearningDataExplorer({ attempts, initialMistakeId, recommendations, knowledgeEntries, managementContent, mistakes, onOpenKnowledgeOperations, onOpenKnowledgeTraining, onOpenReview, onRefresh, onStartConversation }: LearningDataExplorerProps) {
   const [tab, setTab] = useState<ExplorerTab>("mistakes");
   const [search, setSearch] = useState("");
   const [board, setBoard] = useState("全部");
   const [mastery, setMastery] = useState("全部");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialMistakeId ?? null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [managementOpen, setManagementOpen] = useState(false);
 
@@ -78,6 +81,7 @@ export function LearningDataExplorer({ attempts, knowledgeEntries, managementCon
       {tab === "weak" ? (
         <div className="p-5 max-sm:p-3">
           <LearningInsightView
+            recommendations={recommendations}
             attempts={attempts}
             knowledgeEntries={knowledgeEntries}
             mistakes={mistakes}
@@ -102,7 +106,7 @@ export function LearningDataExplorer({ attempts, knowledgeEntries, managementCon
           <div className="learning-record-head"><span>题目 / 知识点</span><span>板块</span><span>掌握度</span><span>最后练习</span></div>
           {records.length ? records.map((item) => <button key={`${item.kind}:${item.id}`} className={selected?.id === item.id ? "learning-record-row is-selected" : "learning-record-row"} type="button" onClick={() => setSelectedId(item.id)}><span><strong>{item.title}</strong><small>{item.subtitle}</small></span><span>{item.board}</span><MasteryDots value={item.mastery} /><time>{item.updatedAt.slice(0, 10)}</time></button>) : <EmptyState stateId="learning-explorer.results.empty"><strong>没有匹配的数据</strong><span>调整筛选条件或先导入学习资料。</span></EmptyState>}
         </div>
-        {selected ? <aside className="learning-record-detail"><button className="learning-detail-close" type="button" aria-label="关闭详情" onClick={() => setSelectedId(null)}><AppIcon name="close" size={16} /></button><p>{selected.kind === "mistake" ? "错题" : "知识"} / {selected.board}</p><h2>{selected.title}</h2><div className="learning-detail-summary">{selected.kind === "mistake" ? (selected.source as Mistake).explanation : (selected.source as KnowledgeEntry).summary}</div><section><h3>关联与标签</h3><p>{selected.tags.join("、") || "暂无标签"}</p></section><section><h3>学习状态</h3><MasteryDots value={selected.mastery} /></section><div className="learning-detail-actions"><Button variant="primary" onClick={() => startConversation(selected)}><AppIcon name="newChat" size={16} />在新对话中继续</Button>{selected.kind === "knowledge" ? <Button variant="soft" onClick={() => onOpenKnowledgeTraining(selected.id)}>加入知识训练</Button> : null}</div></aside> : <aside className="learning-record-detail grid place-items-center text-sm text-muted" data-review-state="learning-explorer.selection.empty">选择一条记录查看详情</aside>}
+        {selected ? <aside className="learning-record-detail"><button className="learning-detail-close" type="button" aria-label="关闭详情" onClick={() => setSelectedId(null)}><AppIcon name="close" size={16} /></button><p>{selected.kind === "mistake" ? "错题" : "知识"} / {selected.board}</p><h2>{selected.title}</h2><div className="learning-detail-summary">{selected.kind === "mistake" ? (selected.source as Mistake).explanation : (selected.source as KnowledgeEntry).summary}</div><section><h3>关联与标签</h3><p>{selected.tags.join("、") || "暂无标签"}</p></section><section><h3>学习状态</h3><MasteryDots value={selected.mastery} /></section><div className="learning-detail-actions"><Button variant="primary" onClick={() => startConversation(selected)}><AppIcon name="newChat" size={16} />在新对话中继续</Button>{selected.kind === "mistake" ? <Button variant="soft" onClick={() => onOpenReview(selected.id)}>开始这道复盘</Button> : null}{selected.kind === "knowledge" ? <Button variant="soft" onClick={() => onOpenKnowledgeTraining(selected.id)}>加入知识训练</Button> : null}</div></aside> : <aside className="learning-record-detail grid place-items-center text-sm text-muted" data-review-state="learning-explorer.selection.empty">选择一条记录查看详情</aside>}
       </div>
       </>
       )}

@@ -8,6 +8,7 @@ import { StatsView } from "./review-stats-view";
 import { ConversationWorkspace } from "./review-workspace-lazy-views";
 import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
 import { toISODate } from "../../lib/review-utils";
+import { LearningCompletion, LearningRefreshNotice } from "./learning-completion";
 
 /** 渲染总览、错题、复盘和历史统计等首屏核心路径。 */
 export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWorkspaceController }) {
@@ -105,6 +106,8 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
       {view === "library" ? (
         <>
           <LearningDataExplorer
+          initialMistakeId={learning.snapshot.selectedMistake?.id}
+          recommendations={data.learnerState.recommendations}
           attempts={learning.snapshot.attempts}
           knowledgeEntries={data.knowledgeEntries}
           mistakes={data.mistakes}
@@ -157,11 +160,14 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
 
       {view === "review" ? (
         <>
+          {learning.snapshot.currentReview ? <LearningRefreshNotice submission={learning.snapshot.submission} /> : null}
+          {!learning.snapshot.currentReview && learning.snapshot.submission.committedIds.length > 0 ? <LearningCompletion controller={controller} activity="review" /> :
           <ReviewView
+          disabled={learning.snapshot.submission.busy || learning.snapshot.submission.refreshFailed}
           answerOpen={learning.snapshot.answerOpen}
           associatedKnowledge={knowledge.snapshot.currentReviewLinkedEntries}
           currentReview={learning.snapshot.currentReview}
-          dueMistakes={learning.snapshot.dueMistakes}
+          dueMistakes={learning.snapshot.reviewQueue}
           relatedKnowledge={knowledge.snapshot.currentReviewKnowledge}
           reviewIndex={learning.snapshot.reviewIndex}
           timer={learning.snapshot.timer}
@@ -169,12 +175,13 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           onOpenKnowledgeEntry={knowledge.actions.openEntry}
           onRecordReview={learning.actions.recordReview}
           onToggleAnswer={() => learning.actions.setAnswerOpen((value) => !value)}
-          />
+          />}
         </>
       ) : null}
 
       {view === "stats" ? (
         <StatsView
+          recommendations={data.learnerState.recommendations}
           attempts={data.attempts}
           knowledgeEntries={data.knowledgeEntries}
           mistakes={data.mistakes}

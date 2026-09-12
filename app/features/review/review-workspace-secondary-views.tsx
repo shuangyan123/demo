@@ -14,6 +14,7 @@ import {
   TutoringWorkspace,
 } from "./review-workspace-lazy-views";
 import type { ReviewWorkspaceController } from "./use-review-workspace-controller.ts";
+import { LearningCompletion, LearningRefreshNotice } from "./learning-completion";
 
 /** 渲染训练、知识和低频专项视图，保持业务依赖由 controller 注入。 */
 export function ReviewWorkspaceSecondaryViews({ controller }: { controller: ReviewWorkspaceController }) {
@@ -25,7 +26,10 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
     <>
       {view === "knowledgeTraining" ? (
         <>
+          {knowledge.snapshot.currentTraining ? <LearningRefreshNotice submission={knowledge.snapshot.submission} /> : null}
+          {!knowledge.snapshot.currentTraining && knowledge.snapshot.submission.committedIds.length > 0 ? <LearningCompletion controller={controller} activity="knowledge" /> :
           <KnowledgeTrainingView
+          disabled={knowledge.snapshot.submission.busy || knowledge.snapshot.submission.refreshFailed}
           answerOpen={knowledge.snapshot.answerOpen}
           attemptsCount={data.knowledgeAttemptsCount}
           correctRate={knowledge.snapshot.correctRate}
@@ -40,9 +44,9 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
           onOpenKnowledgeEntry={knowledge.actions.openEntry}
           onRecordReview={knowledge.actions.recordTraining}
           onSkip={knowledge.actions.skipTraining}
-          onSelectEntry={knowledge.actions.openTraining}
+          onSelectEntry={knowledge.actions.selectTraining}
           onToggleAnswer={() => knowledge.actions.setAnswerOpen((value) => !value)}
-          />
+          />}
         </>
       ) : null}
 

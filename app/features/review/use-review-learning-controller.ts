@@ -20,6 +20,7 @@ import { reviewRepository } from "../../services/review-repository";
 import type { Attempt, Board, ExportFormat, ExportScope, Filters, Mistake } from "../../types/domains/review.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import { useReviewTimer } from "./use-review-timer.ts";
+import { useLearningSubmission } from "./use-learning-submission.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
@@ -46,6 +47,8 @@ export function useReviewLearningController(input: UseReviewLearningControllerIn
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [answerOpen, setAnswerOpen] = useState(false);
+  const [explicitReviewId, setExplicitReviewId] = useState<string | null>(null);
+  const submission = useLearningSubmission(onRefresh, onNotice);
 
   const dueMistakes = useMemo(() => buildReviewQueue(mistakes, today), [mistakes, today]);
   const lowMistakes = useMemo(() => buildLowMistakes(mistakes), [mistakes]);
@@ -59,10 +62,14 @@ export function useReviewLearningController(input: UseReviewLearningControllerIn
   );
   const activeSelectedId = resolveActiveMistakeId(selectedId, filteredMistakes);
   const selectedMistake = mistakes.find((item) => item.id === activeSelectedId) ?? null;
-  const currentReview = dueMistakes[reviewIndex] ?? null;
+  const reviewQueue = (explicitReviewId ? mistakes.filter((item) => item.id === explicitReviewId) : dueMistakes)
+    .filter((item) => !submission.committedIds.includes(item.id));
+  const currentReview = reviewQueue[reviewIndex] ?? reviewQueue[0] ?? null;
   const timer = useReviewTimer(currentReview?.id ?? null);
 
   function resetReview() {
+    submission.reset();
+    setExplicitReviewId(null);
     setReviewIndex(0);
     setAnswerOpen(false);
   }
@@ -81,18 +88,24 @@ export function useReviewLearningController(input: UseReviewLearningControllerIn
   }
 
   function openReview(id?: string) {
-    if (id) setReviewIndex(Math.max(0, dueMistakes.findIndex((item) => item.id === id)));
+    if (submission.busy || submission.refreshFailed) return;
+    if (id && !mistakes.some((item) => item.id === id)) return onNotice("这道错题已不可用，请刷新学习数据。");
+    resetReview();
+    // 明确点选未到期目标时仅复盘该题，不能回退到不相关的第一题。
+    if (id && !dueMistakes.some((item) => item.id === id)) setExplicitReviewId(id);
+    setReviewIndex(id ? Math.max(0, dueMistakes.findIndex((item) => item.id === id)) : 0);
     setAnswerOpen(false);
     onSelectView("review");
   }
 
   async function recordReview(result: "correct" | "uncertain" | "wrong") {
     if (!currentReview) return;
-    await reviewRepository.recordReview(currentReview, result, today, timer.elapsedSec);
-    setAnswerOpen(false);
-    await onRefresh();
-    timer.reset();
-    onNotice("复盘记录已保存");
+    await submission.record(currentReview.id, async () => {
+      await reviewRepository.recordReview(currentReview, result, today, timer.elapsedSec);
+      setReviewIndex(0);
+      setAnswerOpen(false);
+      timer.reset();
+    }, "复盘记录已保存");
   }
 
   async function deleteMistake(mistake: Mistake) {
@@ -182,6 +195,8 @@ export function useReviewLearningController(input: UseReviewLearningControllerIn
       boardStats,
       correctRate,
       currentReview,
+      reviewQueue,
+      submission,
       dueMistakes,
       filteredMistakes,
       filters,

@@ -25,6 +25,7 @@ import type { ExportFormat, ExportScope, Mistake, ReviewResult } from "../../typ
 import type { KnowledgeCategory, KnowledgeEntry, KnowledgeFilters, KnowledgeImportDraft, KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
+import { useLearningSubmission } from "./use-learning-submission.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
@@ -78,6 +79,8 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
   const [drafts, setDrafts] = useState<KnowledgeImportDraft[]>([]);
   const [associationSuggestions, setAssociationSuggestions] = useState<AssociationSuggestion[]>([]);
   const [associationBusy, setAssociationBusy] = useState(false);
+  const submission = useLearningSubmission(onRefresh, onNotice);
+  const [explicitTrainingId, setExplicitTrainingId] = useState<string | null>(null);
 
   const tagOptions = useMemo(() => buildKnowledgeTagOptions(entries), [entries]);
   const filteredEntries = useMemo(() => filterKnowledgeEntries(entries, filters), [entries, filters]);
@@ -97,7 +100,7 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
     () => buildKnowledgeCategorySummaries(entries, dueEntries, lowEntries),
     [dueEntries, entries, lowEntries],
   );
-  const trainingQueue = useMemo(
+  const candidateTrainingQueue = useMemo(
     () => filterKnowledgeTrainingQueue(entries, dueEntries, lowEntries, queueFilter),
     [dueEntries, entries, lowEntries, queueFilter],
   );
@@ -105,6 +108,8 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
     () => filterKnowledgeTrainingQueue(entries, dueEntries, lowEntries, "all"),
     [dueEntries, entries, lowEntries],
   );
+  const trainingQueue = (explicitTrainingId ? entries.filter((item) => item.id === explicitTrainingId) : candidateTrainingQueue)
+    .filter((item) => !submission.committedIds.includes(item.id));
   const selectedEntryMistakes = useMemo(
     () => buildLocalAssociationMatches(null, selectedEntry, entries, mistakes).relatedMistakes,
     [entries, mistakes, selectedEntry],
@@ -143,27 +148,31 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
   }
 
   function resetTraining() {
+    submission.reset();
+    setExplicitTrainingId(null);
     setTrainingIndex(0);
     setAnswerOpen(false);
   }
 
   function openTraining(entryId?: string) {
-    const activeIndex = entryId ? trainingQueue.findIndex((entry) => entry.id === entryId) : 0;
-    if (!entryId || activeIndex >= 0) setTrainingIndex(Math.max(0, activeIndex));
-    else {
-      setQueueFilter("all");
-      setTrainingIndex(Math.max(0, allTrainingQueue.findIndex((entry) => entry.id === entryId)));
-    }
+    if (submission.busy || submission.refreshFailed) return;
+    if (entryId && !entries.some((item) => item.id === entryId)) return onNotice("这条知识已不可用，请刷新学习数据。");
+    resetTraining();
+    const activeIndex = entryId ? candidateTrainingQueue.findIndex((entry) => entry.id === entryId) : 0;
+    if (entryId && activeIndex < 0) setExplicitTrainingId(entryId);
+    setTrainingIndex(Math.max(0, activeIndex));
     setAnswerOpen(false);
     onSelectView("knowledgeTraining");
   }
 
   function changeQueueFilter(filter: KnowledgeQueueFilter) {
+    if (submission.busy || submission.refreshFailed) return;
     setQueueFilter(filter);
     resetTraining();
   }
 
   function moveTraining(delta: -1 | 1) {
+    if (submission.busy || submission.refreshFailed) return;
     setTrainingIndex((current) => trainingQueue.length ? (current + delta + trainingQueue.length) % trainingQueue.length : 0);
     setAnswerOpen(false);
   }
@@ -175,10 +184,11 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
 
   async function recordTraining(result: ReviewResult) {
     if (!currentTraining) return;
-    await knowledgeRepository.recordReview(currentTraining, result, today);
-    setAnswerOpen(false);
-    await onRefresh();
-    onNotice("知识训练记录已保存");
+    await submission.record(currentTraining.id, async () => {
+      await knowledgeRepository.recordReview(currentTraining, result, today);
+      setTrainingIndex(0);
+      setAnswerOpen(false);
+    }, "知识训练记录已保存");
   }
 
   async function addEntry(event: SubmitReactEvent) {
@@ -384,6 +394,11 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
       deleteSuggestion: (id: string) => setAssociationSuggestions((current) => current.filter((item) => item.id !== id)),
       exportItems, importText, moveTraining, openCategory, openEntry, openTraining, recordTraining, removeLink,
       resetTraining, setAnswerOpen, setDrafts, setFilters, setSelectedId, skipTraining,
+      selectTraining: (id?: string) => {
+        if (submission.busy || submission.refreshFailed) return;
+        setTrainingIndex(Math.max(0, trainingQueue.findIndex((entry) => entry.id === id)));
+        setAnswerOpen(false);
+      },
       toggleFavorite,
       toggleSuggestion: (id: string, selected: boolean) => setAssociationSuggestions((current) => current.map((item) => item.id === id ? { ...item, selected } : item)),
       updateDraft, updateDraftList, updateEntry,
@@ -393,6 +408,7 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
       currentReviewKnowledge, currentTraining, drafts, dueEntries, filteredEntries, filters, internalization, lowEntries,
       queueFilter, selectedEntry, selectedEntryAssociation, selectedEntryMistakes, selectedMistakeAssociation,
       selectedMistakeKnowledge, tagOptions, trainingIndex, trainingQueue,
+      submission,
     },
   };
 }

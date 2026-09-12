@@ -6,6 +6,7 @@ import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { Mistake, ReviewResult } from "../../types/domains/review.ts";
 
 type ReviewViewProps = {
+  disabled?: boolean;
   answerOpen: boolean;
   associatedKnowledge: KnowledgeEntry[];
   currentReview: Mistake | null;
@@ -27,6 +28,7 @@ type ReviewViewProps = {
 
 // 渲染复盘页，并把已确认知识关联和本地推荐一起放到复盘侧栏中。
 export function ReviewView({
+  disabled = false,
   answerOpen,
   associatedKnowledge,
   currentReview,
@@ -78,7 +80,7 @@ export function ReviewView({
             <p>{currentReview.explanation}</p>
           </section>
         )}
-        <div className="review-session-actions">
+        <fieldset disabled={disabled} className="review-session-actions">
           <Button variant="outline" onClick={onToggleAnswer}>
             {answerOpen ? "收起答案" : "查看答案"}
           </Button>
@@ -91,7 +93,7 @@ export function ReviewView({
           <Button variant="danger" onClick={() => onRecordReview("wrong")}>
             不会
           </Button>
-        </div>
+        </fieldset>
       </article>
 
       <aside className="review-session-rail" aria-label="当前轮次">
