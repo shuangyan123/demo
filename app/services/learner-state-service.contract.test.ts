@@ -4,6 +4,7 @@ import type { InterviewPracticePlan, InterviewSession } from "../types/domains/i
 import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
 import type { Attempt, Mistake, ReviewResult } from "../types/domains/review.ts";
 import type { TutoringPlan, TutoringTurn } from "../types/domains/tutoring.ts";
+import { learningEventId, type LearningEvent } from "../types/domains/learning-event.ts";
 import { deriveLearnerStateSnapshot, masteryLevelToScore, type LearnerStateFacts } from "./learner-state-service.ts";
 
 const today = new Date("2026-08-09T08:00:00.000Z");
@@ -12,7 +13,7 @@ const future = "2026-08-12T08:00:00.000Z";
 const tutoringQuestion = { id: "q1", prompt: "问题", options: ["A", "B"], correctOptionIndex: 0, explanation: "" };
 
 function facts(patch: Partial<LearnerStateFacts> = {}): LearnerStateFacts {
-  return { mistakes: [], attempts: [], knowledgeEntries: [], knowledgeAttempts: [], interviewEvaluations: [], interviewPracticePlans: [], interviewSessions: [], tutoringSessions: [], tutoringTurns: [], tutoringPlans: [], ...patch };
+  return { mistakes: [], attempts: [], knowledgeEntries: [], knowledgeAttempts: [], learningEvents: [], interviewEvaluations: [], interviewPracticePlans: [], interviewSessions: [], tutoringSessions: [], tutoringTurns: [], tutoringPlans: [], ...patch };
 }
 
 function mistake(id: string, mastery: number, nextReviewAt = past, reasons = ["条件关系混淆"]): Mistake {
@@ -29,6 +30,19 @@ function knowledge(id: string, mastery: number, nextReviewAt = past): KnowledgeE
 
 function knowledgeAttempt(id: string, knowledgeId: string, result: ReviewResult, reviewedAt = past): KnowledgeAttempt {
   return { id, knowledgeId, result, confidence: 3, reviewedAt };
+}
+
+function learningEvent(id: string, subjectId: string, outcome: LearningEvent["outcome"], observedAt = past, patch: Partial<LearningEvent> = {}): LearningEvent {
+  return {
+    id: learningEventId("review_attempt", id),
+    sourceType: "review_attempt",
+    sourceId: id,
+    subjectType: "mistake",
+    subjectId,
+    outcome,
+    observedAt,
+    ...patch,
+  };
 }
 
 function tutoringPlan(id: string, status: TutoringPlan["status"], nextPracticeAt = past): TutoringPlan {
@@ -325,6 +339,75 @@ test("重复错因只由至少两道当前未解决错题构成，并可随稳�
     attempts: [attempt("resolved-correct", resolved.id, "correct"), attempt("resolved-2-correct", "resolved-2", "correct")],
   }), today);
   assert.equal(stable.recommendations.some((item) => item.priority === 300), false);
+});
+
+test("LearningEvent 历史提高对应板块 risk，且只映射到已有 source evidence", () => {
+  const target = mistake("event-target", 3, future);
+  const unrelated = { ...mistake("event-unrelated", 3, future), board: "资料分析" as const };
+  const targetEvent = learningEvent("event-target-history", target.id, "wrong");
+  const unrelatedEvent = learningEvent("event-unrelated-history", unrelated.id, "wrong");
+  const targetOnly = deriveLearnerStateSnapshot(facts({
+    mistakes: [target],
+    attempts: [attempt(targetEvent.sourceId, target.id, "wrong")],
+    learningEvents: [targetEvent],
+  }), today);
+  const withUnrelated = deriveLearnerStateSnapshot(facts({
+    mistakes: [target, unrelated],
+    learningEvents: [targetEvent, unrelatedEvent],
+  }), today);
+  const targetSignal = targetOnly.signals.find((signal) => signal.id === "weakness:判断推理");
+  const targetSignalWithUnrelated = withUnrelated.signals.find((signal) => signal.id === "weakness:判断推理");
+  assert.ok(targetSignal);
+  assert.ok(targetSignalWithUnrelated);
+  assert.equal(targetSignal.score, 72);
+  assert.equal(targetSignalWithUnrelated.score, targetSignal.score);
+  assert.equal(targetSignal.evidence.some((item) => item.type === "review_attempt" && item.id === targetEvent.sourceId), true);
+  assert.equal(targetOnly.sourceRecordCount, 2);
+});
+
+test("不匹配当前 facts 的 LearningEvent 不会泄漏进 learner-state subject", () => {
+  const target = mistake("scoped-target", 3, future);
+  const snapshot = deriveLearnerStateSnapshot(facts({
+    mistakes: [target],
+    learningEvents: [learningEvent("excluded-history", "sample:other-scenario:mistake-1", "wrong")],
+  }), today);
+  assert.equal(snapshot.signals.some((signal) => signal.id === "weakness:判断推理"), false);
+  assert.equal(snapshot.signals.some((signal) => signal.evidence.some((item) => item.id === "excluded-history")), false);
+});
+
+test("L4 信号分数不改变既有到期与重复错因 recommendation priority", () => {
+  const first = mistake("priority-a", 2, past);
+  const second = mistake("priority-b", 2, future);
+  const snapshot = deriveLearnerStateSnapshot(facts({
+    mistakes: [first, second],
+    attempts: [attempt("priority-a-attempt", first.id, "wrong")],
+    learningEvents: [learningEvent("priority-a-attempt", first.id, "wrong", past, { errorCause: "calculation" })],
+  }), today);
+  const dueAction = snapshot.recommendations.find((item) => item.semanticKey === "review:due");
+  const repeatedAction = snapshot.recommendations.find((item) => item.priority === 300);
+  assert.equal(dueAction?.priority, 96);
+  assert.equal(repeatedAction?.priority, 300);
+  assert.equal(snapshot.recommendations.some((item) => item.destination.module === "library" && item.title.includes("计算错误")), false);
+});
+
+test("learner-state 的 signal、evidence 和 recommendation 在 facts/events 重排后保持稳定", () => {
+  const input = facts({
+    mistakes: [mistake("stable-b", 2, future), mistake("stable-a", 3, future)],
+    attempts: [attempt("stable-b-attempt", "stable-b", "wrong")],
+    learningEvents: [
+      learningEvent("stable-a-event", "stable-a", "uncertain", past, { errorCause: "calculation" }),
+      learningEvent("stable-b-attempt", "stable-b", "wrong", past, { errorCause: "calculation" }),
+    ],
+  });
+  const first = deriveLearnerStateSnapshot(input, today);
+  const second = deriveLearnerStateSnapshot({
+    ...input,
+    mistakes: [...input.mistakes].reverse(),
+    attempts: [...input.attempts].reverse(),
+    learningEvents: [...input.learningEvents].reverse(),
+  }, today);
+  assert.deepEqual(second.signals, first.signals);
+  assert.deepEqual(second.recommendations, first.recommendations);
 });
 
 test("空事实不制造推荐；相同事实与 today 产生稳定 ID、证据和顺序", () => {

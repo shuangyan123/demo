@@ -3,14 +3,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Dexie from "dexie";
 import { reviewDb } from "../db/review-db.ts";
-import { learningEventFromKnowledgeAttempt, learningEventFromReviewAttempt, learningEventId, type LearningEvent } from "../types/domains/learning-event.ts";
-import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
+import { learningEventFromReviewAttempt, learningEventId, type LearningEvent } from "../types/domains/learning-event.ts";
+import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
 import type { Attempt, Mistake } from "../types/domains/review.ts";
 import { learningEventRepository } from "./learning-event-repository.ts";
 import { knowledgeRepository } from "./knowledge-repository.ts";
 import { loadLearnerStateSnapshot } from "./learner-state-service.ts";
 import { localDataManagementRepository, type LocalDataExportV2 } from "./local-data-management-repository.ts";
 import { reviewRepository } from "./review-repository.ts";
+import { sampleRecordId } from "./workspace-data-scope.ts";
 
 const today = new Date("2026-08-09T08:00:00.000Z");
 const date = "2026-08-09";
@@ -328,24 +329,45 @@ test("分域清理错题时只删除错题 LearningEvent，保留知识训练历
   assert.equal(await reviewDb.knowledgeEntries.count(), 1);
 });
 
-test("learner-state 仍只依赖既有 Attempt/KnowledgeAttempt，LearningEvent 存在不改变输出", async () => {
+test("learner-state 读取已有 subject 的 LearningEvent 历史且不重复 sourceRecordCount", async () => {
   await resetReviewDb();
-  const reviewItem = mistake("mistake-state");
-  const knowledgeItem = knowledge("knowledge-state");
-  const reviewAttempt: Attempt = { id: "attempt-state", mistakeId: reviewItem.id, result: "wrong", confidence: 2, reviewedAt: date };
-  const knowledgeAttempt: KnowledgeAttempt = { id: "knowledge-attempt-state", knowledgeId: knowledgeItem.id, result: "uncertain", confidence: 2, reviewedAt: date };
+  const reviewItem = { ...mistake("mistake-state", 3), nextReviewAt: "2026-08-20", updatedAt: date };
+  const knowledgeItem = { ...knowledge("knowledge-state", 3), nextReviewAt: "2026-08-20", updatedAt: date };
   await reviewDb.mistakes.put(reviewItem);
-  await reviewDb.attempts.put(reviewAttempt);
   await reviewDb.knowledgeEntries.put(knowledgeItem);
-  await reviewDb.knowledgeAttempts.put(knowledgeAttempt);
 
   const before = await loadLearnerStateSnapshot(today);
   await reviewDb.learningEvents.bulkPut([
-    learningEventFromReviewAttempt(reviewAttempt),
-    learningEventFromKnowledgeAttempt(knowledgeAttempt),
+    eventForSource("attempt-state", reviewItem.id, date, "wrong"),
+    knowledgeEventForSource("knowledge-attempt-state", knowledgeItem.id, date, "uncertain"),
   ]);
   const after = await loadLearnerStateSnapshot(today);
-  assert.deepEqual(after, before);
+  assert.equal(before.signals.some((signal) => signal.id === "weakness:判断推理"), false);
+  assert.equal(after.signals.find((signal) => signal.id === "weakness:判断推理")?.score, 72);
+  assert.equal(after.signals.find((signal) => signal.id === `weakness:knowledge-${knowledgeItem.id}`)?.score, 61);
+  assert.equal(after.sourceRecordCount, before.sourceRecordCount);
+  assert.equal(after.sourceRecordCount, 2);
+  assert.equal(after.signals.find((signal) => signal.id === "weakness:判断推理")?.evidence.some((item) => item.type === "review_attempt" && item.id === "attempt-state"), true);
+});
+
+test("scoped learner-state 只加载已通过 workspace scope 的 subject LearningEvent", async () => {
+  await resetReviewDb();
+  const includedId = sampleRecordId("l4-scope", "included");
+  const excludedId = sampleRecordId("other-scope", "excluded");
+  const included = { ...mistake(includedId, 3), nextReviewAt: "2026-08-20", updatedAt: date };
+  const excluded = { ...mistake(excludedId, 3), nextReviewAt: "2026-08-20", updatedAt: date };
+  await reviewDb.mistakes.bulkPut([included, excluded]);
+  await reviewDb.learningEvents.bulkPut([
+    eventForSource("included-history", includedId, date, "wrong"),
+    eventForSource("excluded-history", excludedId, date, "wrong"),
+  ]);
+
+  const snapshot = await loadLearnerStateSnapshot(today, { kind: "sample", scenarioId: "l4-scope" });
+  const board = snapshot.signals.find((signal) => signal.id === "weakness:判断推理");
+  assert.equal(board?.score, 72);
+  assert.equal(board?.evidence.some((item) => item.id === "included-history"), true);
+  assert.equal(board?.evidence.some((item) => item.id === "excluded-history"), false);
+  assert.equal(snapshot.sourceRecordCount, 1);
 });
 
 test("完整本地备份包含 LearningEvent，恢复可读且拒绝悬空事件", async () => {

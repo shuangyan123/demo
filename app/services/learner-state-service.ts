@@ -1,7 +1,9 @@
 import { reviewDb } from "../db/review-db.ts";
+import { deriveWeaknessIntelligence, masteryLevelToScore, type WeaknessIntelligence, type WeaknessSubjectAssessment } from "../lib/weakness-intelligence.ts";
 import type { Attempt, Board, Mistake, ReviewResult } from "../types/domains/review.ts";
 import type { InterviewEvaluation, InterviewPracticePlan, InterviewSession } from "../types/domains/interview.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
+import { learningEventFromKnowledgeAttempt, learningEventFromReviewAttempt, type LearningEvent } from "../types/domains/learning-event.ts";
 import type {
   LearnerEvidenceRef,
   LearnerStateSignal,
@@ -10,6 +12,7 @@ import type {
 } from "../types/domains/learner-state.ts";
 import type { TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 import { knowledgeRepository } from "./knowledge-repository.ts";
+import { learningEventRepository } from "./learning-event-repository.ts";
 import { reviewRepository } from "./review-repository.ts";
 import { filterWorkspaceRecords, PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "./workspace-data-scope.ts";
 
@@ -24,6 +27,7 @@ export type LearnerStateFacts = {
   attempts: Attempt[];
   knowledgeEntries: KnowledgeEntry[];
   knowledgeAttempts: KnowledgeAttempt[];
+  learningEvents: LearningEvent[];
   interviewEvaluations: InterviewEvaluation[];
   interviewPracticePlans: InterviewPracticePlan[];
   interviewSessions: InterviewSession[];
@@ -39,13 +43,8 @@ export type NormalizedLearnerStateCoreFacts = Pick<
 
 const SIGNAL_LIMIT = 18;
 const ACTION_LIMIT = 12;
-const GENERIC_MISCONCEPTION_LABELS = new Set(["待归因", "其他", "其它", "未知", "不清楚", "未分类"]);
 
-/** 持久化掌握度固定为 1..5；百分分数只用于只读排序，绝不写回领域记录。 */
-export function masteryLevelToScore(value: number): number {
-  const level = Math.max(1, Math.min(5, Number.isFinite(value) ? value : 1));
-  return Math.round(((level - 1) / 4) * 100);
-}
+export { masteryLevelToScore };
 
 /** 把派生排序分限制在稳定区间，避免异常导入数据支配上下文排序。 */
 function clampScore(value: number): number {
@@ -127,87 +126,159 @@ function latestKnowledgeAttempts(attempts: KnowledgeAttempt[]): Map<string, Know
   return latest;
 }
 
-/** 按板块聚合 1..5 掌握度和最近错误复盘，形成可核验薄弱信号。 */
-function boardWeaknessSignals(mistakes: Mistake[], latestAttempts: Map<string, ResultEvidence>): LearnerStateSignal[] {
-  const groups = new Map<Board, Mistake[]>();
+function learningEventSourceKey(event: LearningEvent): string {
+  return `${event.sourceType}:${event.sourceId}`;
+}
+
+function learningEventSignature(event: LearningEvent): string {
+  return [
+    event.id,
+    event.sourceType,
+    event.sourceId,
+    event.subjectType,
+    event.subjectId,
+    event.outcome,
+    event.observedAt,
+    event.masteryAfter ?? "",
+    event.durationSec ?? "",
+    event.selfConfidence ?? "",
+    event.hintCount ?? "",
+    event.errorCause ?? "",
+    event.attemptOrdinal ?? "",
+    event.practiceKind ?? "",
+  ].join("\u001f");
+}
+
+function compareLearningEvents(left: LearningEvent, right: LearningEvent): number {
+  return right.observedAt.localeCompare(left.observedAt)
+    || left.sourceType.localeCompare(right.sourceType)
+    || left.sourceId.localeCompare(right.sourceId)
+    || left.id.localeCompare(right.id)
+    || learningEventSignature(left).localeCompare(learningEventSignature(right));
+}
+
+/** 事件表是 Attempt 的投影；缺失投影时只在内存补齐，不制造可选字段或持久化写入。 */
+function effectiveLearningEvents(facts: LearnerStateFacts): LearningEvent[] {
+  const eventsBySource = new Map<string, LearningEvent>();
+  const supplied = (facts.learningEvents ?? []).toSorted((left, right) => (
+    learningEventSourceKey(left).localeCompare(learningEventSourceKey(right))
+      || learningEventSignature(left).localeCompare(learningEventSignature(right))
+  ));
+  for (const event of supplied) {
+    if (!eventsBySource.has(learningEventSourceKey(event))) eventsBySource.set(learningEventSourceKey(event), event);
+  }
+  const backfilled = [
+    ...facts.attempts.map(learningEventFromReviewAttempt),
+    ...facts.knowledgeAttempts.map(learningEventFromKnowledgeAttempt),
+  ];
+  for (const event of backfilled) {
+    if (!eventsBySource.has(learningEventSourceKey(event))) eventsBySource.set(learningEventSourceKey(event), event);
+  }
+  return [...eventsBySource.values()].toSorted(compareLearningEvents);
+}
+
+function assessmentKey(subjectType: "mistake" | "knowledge", subjectId: string): string {
+  return `${subjectType}:${subjectId}`;
+}
+
+function learningEventEvidence(event: LearningEvent): LearnerEvidenceRef {
+  const label = event.sourceType === "review_attempt" ? `复盘记录：${event.outcome}` : `知识训练：${event.outcome}`;
+  return { type: event.sourceType, id: event.sourceId, label, observedAt: event.observedAt };
+}
+
+/** 每个学习日取一条代表事件，保留 bounded history 的可审计性而不重复堆叠同日重试。 */
+function assessmentEventEvidence(assessment: WeaknessSubjectAssessment): LearnerEvidenceRef[] {
+  return assessment.studyDays.map((day) => {
+    const representative = day.events.find((event) => event.outcome === day.outcome) ?? day.events[0];
+    return learningEventEvidence(representative);
+  });
+}
+
+function assessmentMap(intelligence: WeaknessIntelligence): Map<string, WeaknessSubjectAssessment> {
+  return new Map(intelligence.subjects.map((assessment) => [assessmentKey(assessment.subjectType, assessment.subjectId), assessment]));
+}
+
+/** 按板块聚合当前 eligible 错题，并以 top 3 subject risk 形成单一薄弱信号。 */
+function boardWeaknessSignals(mistakes: Mistake[], intelligence: WeaknessIntelligence): LearnerStateSignal[] {
+  const assessments = assessmentMap(intelligence);
+  const groups = new Map<Board, Array<{ mistake: Mistake; assessment: WeaknessSubjectAssessment }>>();
   for (const mistake of mistakes) {
-    const attempt = latestAttempts.get(mistake.id);
-    if (mistake.mastery > 2 && attempt?.result !== "wrong" && attempt?.result !== "uncertain") continue;
-    groups.set(mistake.board, [...(groups.get(mistake.board) ?? []), mistake]);
+    const assessment = assessments.get(assessmentKey("mistake", mistake.id));
+    if (!assessment?.currentlyWeak) continue;
+    groups.set(mistake.board, [...(groups.get(mistake.board) ?? []), { mistake, assessment }]);
   }
   return [...groups.entries()].map(([board, items]) => {
-    const sorted = items.toSorted((left, right) => left.mastery - right.mastery || right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id));
-    const averageMasteryScore = sorted.reduce((sum, item) => sum + masteryLevelToScore(item.mastery), 0) / sorted.length;
-    const wrongCount = sorted.filter((item) => latestAttempts.get(item.id)?.result === "wrong").length;
+    const sorted = items.toSorted((left, right) => (
+      right.assessment.riskScore - left.assessment.riskScore
+        || right.mistake.updatedAt.localeCompare(left.mistake.updatedAt)
+        || left.mistake.id.localeCompare(right.mistake.id)
+    ));
+    const topScores = sorted.slice(0, 3).map((item) => item.assessment.riskScore);
+    const score = topScores.length ? Math.round(topScores.reduce((sum, value) => sum + value, 0) / topScores.length) : 0;
+    const crossDayWrongCount = sorted.filter((item) => item.assessment.wrongDays >= 2).length;
     return {
       id: signalId("weakness", board),
-      kind: "weakness",
+      kind: "weakness" as const,
       title: `${board}仍需巩固`,
-      summary: `${sorted.length} 道题有低掌握度或最近未通过，派生掌握分 ${Math.round(averageMasteryScore)}/100${wrongCount ? `，其中 ${wrongCount} 道最近答错` : ""}。`,
-      score: clampScore(90 - averageMasteryScore + Math.min(20, wrongCount * 4)),
-      evidence: dedupeEvidence(sorted.slice(0, 3).flatMap((item) => [mistakeEvidence(item), ...(latestAttempts.get(item.id) ? [reviewAttemptEvidence(latestAttempts.get(item.id)!)] : [])])),
+      summary: `${sorted.length} 道题仍处于薄弱状态${crossDayWrongCount ? `，其中 ${crossDayWrongCount} 道最近有跨日错误` : ""}。`,
+      score: clampScore(score),
+      evidence: dedupeEvidence(sorted.slice(0, 3).flatMap(({ mistake, assessment }) => [mistakeEvidence(mistake), ...assessmentEventEvidence(assessment)])),
+    } satisfies LearnerStateSignal;
+  }).toSorted((left, right) => left.id.localeCompare(right.id));
+}
+
+function misconceptionSignals(mistakes: Mistake[], intelligence: WeaknessIntelligence): LearnerStateSignal[] {
+  const mistakesById = new Map(mistakes.map((mistake) => [mistake.id, mistake]));
+  const repeatedReasonSignals = intelligence.repeatedReasonClusters.map((cluster) => {
+    const evidence = cluster.subjects
+      .map((subject) => mistakesById.get(subject.subjectId))
+      .filter((mistake): mistake is Mistake => Boolean(mistake))
+      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id))
+      .map(mistakeEvidence);
+    return {
+      id: signalId("misconception", cluster.key),
+      kind: "misconception" as const,
+      title: `反复错因：${cluster.label}`,
+      summary: `该错因已在 ${cluster.subjects.length} 道不同题目中出现，应先解释判断依据再继续训练。`,
+      score: clampScore(cluster.score),
+      evidence: dedupeEvidence(evidence),
     } satisfies LearnerStateSignal;
   });
+  const errorCauseSignals = intelligence.errorCauseClusters.map((cluster) => ({
+    id: signalId("misconception", `error-cause-${cluster.cause}`),
+    kind: "misconception" as const,
+    title: `反复错误模式：${cluster.label}`,
+    summary: `该错误模式出现在 ${cluster.subjects.length} 个不同学习对象的 ${cluster.recentFailureDays} 个学习日。`,
+    score: clampScore(cluster.score),
+    evidence: dedupeEvidence(cluster.evidenceEvents.map(learningEventEvidence)),
+  } satisfies LearnerStateSignal));
+  return [...repeatedReasonSignals, ...errorCauseSignals].toSorted((left, right) => left.id.localeCompare(right.id));
 }
 
-/** 只有当前仍薄弱、最近未通过或已经到期的错题，才构成可执行的未解决错因证据。 */
-function isMistakeCurrentlyUnresolved(
-  mistake: Mistake,
-  latestAttempt: ResultEvidence | undefined,
-  today: Date,
-): boolean {
-  return mistake.mastery <= 2
-    || latestAttempt?.result === "wrong"
-    || latestAttempt?.result === "uncertain"
-    || isDue(mistake.nextReviewAt, today);
-}
-
-function misconceptionSignals(
-  mistakes: Mistake[],
-  latestAttempts: Map<string, ResultEvidence>,
-  today: Date,
-): LearnerStateSignal[] {
-  const groups = new Map<string, { label: string; mistakes: Map<string, Mistake> }>();
-  for (const mistake of mistakes) {
-    if (!isMistakeCurrentlyUnresolved(mistake, latestAttempts.get(mistake.id), today)) continue;
-    for (const reason of new Set(mistake.reasons)) {
-      const label = reason.trim().slice(0, 80);
-      const key = label.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
-      if (!key || GENERIC_MISCONCEPTION_LABELS.has(label)) continue;
-      const current = groups.get(key) ?? { label, mistakes: new Map<string, Mistake>() };
-      current.mistakes.set(mistake.id, mistake);
-      groups.set(key, current);
-    }
-  }
-  return [...groups.entries()].flatMap(([key, group]) => {
-    const items = [...group.mistakes.values()];
-    if (items.length < 2) return [];
-    return [{
-      id: signalId("misconception", key),
-      kind: "misconception" as const,
-      title: `反复错因：${group.label}`,
-      summary: `该错因已在 ${items.length} 道不同题目中出现，应先解释判断依据再继续训练。`,
-      score: clampScore(56 + items.length * 7),
-      evidence: items.toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id)).slice(0, 3).map(mistakeEvidence),
-    }];
-  });
-}
-
-function knowledgeSignals(entries: KnowledgeEntry[], latestAttempts: Map<string, KnowledgeAttempt>): LearnerStateSignal[] {
+function knowledgeSignals(entries: KnowledgeEntry[], intelligence: WeaknessIntelligence): LearnerStateSignal[] {
+  const assessments = assessmentMap(intelligence);
   return entries
-    .filter((entry) => entry.mastery <= 2 || ["wrong", "uncertain"].includes(latestAttempts.get(entry.id)?.result ?? ""))
-    .toSorted((left, right) => left.mastery - right.mastery || right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id))
+    .map((entry) => ({ entry, assessment: assessments.get(assessmentKey("knowledge", entry.id)) }))
+    .filter((item): item is { entry: KnowledgeEntry; assessment: WeaknessSubjectAssessment } => Boolean(item.assessment?.currentlyWeak))
+    .toSorted((left, right) => (
+      right.assessment.riskScore - left.assessment.riskScore
+        || right.entry.updatedAt.localeCompare(left.entry.updatedAt)
+        || left.entry.id.localeCompare(right.entry.id)
+    ))
     .slice(0, 5)
-    .map((entry) => {
-      const attempt = latestAttempts.get(entry.id);
-      const masteryScore = masteryLevelToScore(entry.mastery);
+    .map(({ entry, assessment }) => {
+      const recentResults = [
+        assessment.wrongDays ? `${assessment.wrongDays} 个答错日` : "",
+        assessment.uncertainDays ? `${assessment.uncertainDays} 个不确定日` : "",
+      ].filter(Boolean).join("、");
+      const latest = assessment.latestOutcome ? `，最近结果为 ${assessment.latestOutcome}` : "";
       return {
         id: signalId("weakness", `knowledge-${entry.id}`),
         kind: "weakness" as const,
         title: `知识点待巩固：${entry.title}`,
-        summary: `${entry.category}知识掌握度 ${entry.mastery}/5（派生分 ${masteryScore}/100）${attempt ? `，最近训练结果为 ${attempt.result}` : ""}。`,
-        score: clampScore(85 - masteryScore + (attempt?.result === "wrong" ? 12 : attempt?.result === "uncertain" ? 6 : 0)),
-        evidence: dedupeEvidence([knowledgeEvidence(entry), ...(attempt ? [knowledgeAttemptEvidence(attempt)] : [])]),
+        summary: `${entry.category}知识掌握度 ${entry.mastery}/5${recentResults ? `，近期有 ${recentResults}` : ""}${latest}。`,
+        score: clampScore(assessment.riskScore),
+        evidence: dedupeEvidence([knowledgeEvidence(entry), ...assessmentEventEvidence(assessment)]),
       };
     });
 }
@@ -427,6 +498,27 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
   const latestAttempts = latestReviewAttempts(facts.attempts);
   const latestKnowledge = latestKnowledgeAttempts(facts.knowledgeAttempts);
   const latestTutoringTurns = latestCompletedTutoringTurns(facts.tutoringTurns);
+  const intelligence = deriveWeaknessIntelligence({
+    subjects: [
+      ...facts.mistakes.map((mistake) => ({
+        subjectType: "mistake" as const,
+        subjectId: mistake.id,
+        mastery: mistake.mastery,
+        nextReviewAt: mistake.nextReviewAt,
+        updatedAt: mistake.updatedAt,
+        reasons: mistake.reasons,
+      })),
+      ...facts.knowledgeEntries.map((entry) => ({
+        subjectType: "knowledge" as const,
+        subjectId: entry.id,
+        mastery: entry.mastery,
+        nextReviewAt: entry.nextReviewAt,
+        updatedAt: entry.updatedAt,
+      })),
+    ],
+    learningEvents: effectiveLearningEvents(facts),
+    today,
+  });
   const dueMistakes = facts.mistakes.filter((item) => isDue(item.nextReviewAt, today));
   const dueKnowledge = facts.knowledgeEntries.filter((item) => isDue(item.nextReviewAt, today));
   const dueTutoringPlans = facts.tutoringPlans.filter((item) => item.status === "active" && isDue(item.nextPracticeAt, today));
@@ -437,7 +529,7 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
     ...dueTutoringPlans.slice(0, 2).map((plan) => ({ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
     ...dueInterviewPlans.slice(0, 2).map((plan) => ({ type: "interview_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
   ]);
-  const misconception = misconceptionSignals(facts.mistakes, latestAttempts, today);
+  const misconception = misconceptionSignals(facts.mistakes, intelligence);
   const signals = [
     ...goalAndActionSignals(facts.tutoringPlans, facts.tutoringSessions),
     ...(dueEvidence.length ? [{
@@ -448,9 +540,9 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
       score: 92,
       evidence: dueEvidence,
     }] : []),
-    ...boardWeaknessSignals(facts.mistakes, latestAttempts),
+    ...boardWeaknessSignals(facts.mistakes, intelligence),
     ...misconception,
-    ...knowledgeSignals(facts.knowledgeEntries, latestKnowledge),
+    ...knowledgeSignals(facts.knowledgeEntries, intelligence),
     ...interviewSignals(facts.interviewEvaluations),
     ...tutoringSignals(latestTutoringTurns),
   ].toSorted((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, SIGNAL_LIMIT);
@@ -466,7 +558,18 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
     .toSorted((left, right) => left.priority - right.priority || left.id.localeCompare(right.id))
     .slice(0, ACTION_LIMIT);
   const evidenceCount = new Set(signals.flatMap((signal) => signal.evidence.map((item) => `${item.type}:${item.id}`))).size;
-  const sourceRecordCount = Object.values(facts).reduce((count, records) => count + records.length, 0);
+  const sourceRecordCount = [
+    facts.mistakes,
+    facts.attempts,
+    facts.knowledgeEntries,
+    facts.knowledgeAttempts,
+    facts.interviewEvaluations,
+    facts.interviewPracticePlans,
+    facts.interviewSessions,
+    facts.tutoringSessions,
+    facts.tutoringTurns,
+    facts.tutoringPlans,
+  ].reduce((count, records) => count + records.length, 0);
   const evaluatedSessionIds = new Set(facts.interviewEvaluations.map((evaluation) => evaluation.sessionId));
   const insufficientEvidenceCount = facts.tutoringTurns.filter((turn) => turn.microAssessment?.questions.length && !turn.microAssessment.completedAt).length
     + facts.interviewSessions.filter((session) => session.status !== "evaluated" && session.status !== "cancelled" && !evaluatedSessionIds.has(session.id)).length;
@@ -488,19 +591,34 @@ export async function loadLearnerStateSnapshotFromNormalizedFacts(
   today = new Date(),
   scope: WorkspaceDataScope = PERSONAL_WORKSPACE_DATA_SCOPE,
 ): Promise<LearnerStateSnapshot> {
-  const [interviewEvaluations, interviewPracticePlans, interviewSessions, tutoringSessions, tutoringTurns, tutoringPlans] = await Promise.all([
-    reviewDb.interviewEvaluations.toArray(),
-    reviewDb.interviewPracticePlans.toArray(),
-    reviewDb.interviewSessions.toArray(),
-    reviewDb.tutoringSessions.toArray(),
-    reviewDb.tutoringTurns.toArray(),
-    reviewDb.tutoringPlans.toArray(),
+  const scopedMistakes = filterWorkspaceRecords(coreFacts.mistakes, scope);
+  const scopedAttempts = filterWorkspaceRecords(coreFacts.attempts, scope);
+  const scopedKnowledgeEntries = filterWorkspaceRecords(coreFacts.knowledgeEntries, scope);
+  const scopedKnowledgeAttempts = filterWorkspaceRecords(coreFacts.knowledgeAttempts, scope);
+  const subjects = [
+    ...scopedMistakes.map((mistake) => ({ subjectType: "mistake" as const, subjectId: mistake.id })),
+    ...scopedKnowledgeEntries.map((entry) => ({ subjectType: "knowledge" as const, subjectId: entry.id })),
+  ];
+  const [
+    [interviewEvaluations, interviewPracticePlans, interviewSessions, tutoringSessions, tutoringTurns, tutoringPlans],
+    learningEventLists,
+  ] = await Promise.all([
+    Promise.all([
+      reviewDb.interviewEvaluations.toArray(),
+      reviewDb.interviewPracticePlans.toArray(),
+      reviewDb.interviewSessions.toArray(),
+      reviewDb.tutoringSessions.toArray(),
+      reviewDb.tutoringTurns.toArray(),
+      reviewDb.tutoringPlans.toArray(),
+    ]),
+    Promise.all(subjects.map((subject) => learningEventRepository.listForSubject(subject.subjectType, subject.subjectId))),
   ]);
   return deriveLearnerStateSnapshot({
-    mistakes: filterWorkspaceRecords(coreFacts.mistakes, scope),
-    attempts: filterWorkspaceRecords(coreFacts.attempts, scope),
-    knowledgeEntries: filterWorkspaceRecords(coreFacts.knowledgeEntries, scope),
-    knowledgeAttempts: filterWorkspaceRecords(coreFacts.knowledgeAttempts, scope),
+    mistakes: scopedMistakes,
+    attempts: scopedAttempts,
+    knowledgeEntries: scopedKnowledgeEntries,
+    knowledgeAttempts: scopedKnowledgeAttempts,
+    learningEvents: learningEventLists.flat(),
     interviewEvaluations: filterWorkspaceRecords(interviewEvaluations, scope),
     interviewPracticePlans: filterWorkspaceRecords(interviewPracticePlans, scope),
     interviewSessions: filterWorkspaceRecords(interviewSessions, scope),

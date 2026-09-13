@@ -34,6 +34,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
     attempts: [],
     knowledgeEntries: [],
     knowledgeAttempts: [],
+    learningEvents: [],
     interviewEvaluations: [],
     interviewPracticePlans: [],
     interviewSessions: [],

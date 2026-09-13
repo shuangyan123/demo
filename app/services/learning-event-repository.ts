@@ -13,7 +13,7 @@ function normalizedLimit(limit: number | undefined): number {
   return Math.max(0, Math.floor(limit));
 }
 
-/** 学习事件只提供稳定的历史读取，不参与现有 learner-state 或推荐计算。 */
+/** 学习事件只提供稳定的历史读取；learner-state 在读取边界按已过滤 subject 使用它们派生信号。 */
 export const learningEventRepository = {
   async listForSubject(subjectType: LearningEventSubjectType, subjectId: string): Promise<LearningEvent[]> {
     const events = await reviewDb.learningEvents.where("[subjectType+subjectId]").equals([subjectType, subjectId]).toArray();

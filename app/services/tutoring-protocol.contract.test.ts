@@ -38,6 +38,7 @@ function emptyFacts(patch: Partial<LearnerStateFacts> = {}): LearnerStateFacts {
     interviewSessions: [],
     knowledgeAttempts: [],
     knowledgeEntries: [],
+    learningEvents: [],
     mistakes: [],
     tutoringPlans: [],
     tutoringSessions: [],
