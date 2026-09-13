@@ -1,5 +1,6 @@
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
-import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { KnowledgeAttempt, KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { LearnerStateSnapshot } from "../../types/domains/learner-state.ts";
 import { LearningInsightView } from "./learning-insight-view";
 import type { LearningActionRecommendation } from "../../types/domains/learner-state.ts";
 
@@ -7,7 +8,9 @@ import type { LearningActionRecommendation } from "../../types/domains/learner-s
 export function StatsView({
   recommendations,
   attempts,
+  knowledgeAttempts,
   knowledgeEntries,
+  learnerState,
   mistakes,
   onOpenKnowledgeTraining,
   onOpenReview,
@@ -15,7 +18,9 @@ export function StatsView({
 }: {
   recommendations?: LearningActionRecommendation[];
   attempts: Attempt[];
+  knowledgeAttempts: KnowledgeAttempt[];
   knowledgeEntries: KnowledgeEntry[];
+  learnerState: LearnerStateSnapshot;
   mistakes: Mistake[];
   onOpenKnowledgeTraining: (entryId?: string) => void;
   onOpenReview: (mistakeId?: string) => void;
@@ -25,7 +30,9 @@ export function StatsView({
     <LearningInsightView
       recommendations={recommendations}
       attempts={attempts}
+      knowledgeAttempts={knowledgeAttempts}
       knowledgeEntries={knowledgeEntries}
+      learnerState={learnerState}
       mistakes={mistakes}
       onOpenKnowledgeTraining={onOpenKnowledgeTraining}
       onOpenReview={onOpenReview}

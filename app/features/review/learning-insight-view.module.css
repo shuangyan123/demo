@@ -314,7 +314,14 @@
 }
 
 .mastery {
-  gap: 7px;
+  gap: 2px;
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.mastery small {
+  color: var(--color-muted);
+  font-size: 9px;
 }
 
 .mastery i {

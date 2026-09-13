@@ -7,7 +7,7 @@ import { reviewRepository } from "../../services/review-repository";
 import { deriveLearnerStateSnapshot, loadLearnerStateSnapshotFromNormalizedFacts } from "../../services/learner-state-service.ts";
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
 import type { ImportJob } from "../../types/domains/import.ts";
-import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { KnowledgeAttempt, KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { KnowledgeMistakeLink } from "../../types/domains/association.ts";
 import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
@@ -24,6 +24,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
   const [correctCount, setCorrectCount] = useState(0);
   const [importJobs, setImportJobs] = useState<ImportJob[]>([]);
   const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntry[]>([]);
+  const [knowledgeAttempts, setKnowledgeAttempts] = useState<KnowledgeAttempt[]>([]);
   const [associationLinks, setAssociationLinks] = useState<KnowledgeMistakeLink[]>([]);
   const [knowledgeAttemptsCount, setKnowledgeAttemptsCount] = useState(0);
   const [knowledgeCorrectCount, setKnowledgeCorrectCount] = useState(0);
@@ -65,6 +66,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
       const scopedKnowledgeAttempts = filterWorkspaceRecords(knowledgeTraining.attempts, scope);
       setMistakes(scopedMistakes);
       setKnowledgeEntries(scopedKnowledgeEntries);
+      setKnowledgeAttempts(scopedKnowledgeAttempts);
       setAssociationLinks(scopedLinks);
       setImportJobs(scopedImportJobs);
       setAttempts(scopedAttempts);
@@ -105,6 +107,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
     importJobs,
     knowledgeAttemptsCount,
     knowledgeCorrectCount,
+    knowledgeAttempts,
     knowledgeEntries,
     learnerState,
     loading,

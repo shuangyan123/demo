@@ -109,7 +109,9 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           initialMistakeId={learning.snapshot.selectedMistake?.id}
           recommendations={data.learnerState.recommendations}
           attempts={learning.snapshot.attempts}
+          knowledgeAttempts={data.knowledgeAttempts}
           knowledgeEntries={data.knowledgeEntries}
+          learnerState={data.learnerState}
           mistakes={data.mistakes}
           onOpenKnowledgeOperations={() => workspace.switchView("knowledge")}
           onOpenKnowledgeTraining={knowledge.actions.openTraining}
@@ -183,7 +185,9 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
         <StatsView
           recommendations={data.learnerState.recommendations}
           attempts={data.attempts}
+          knowledgeAttempts={data.knowledgeAttempts}
           knowledgeEntries={data.knowledgeEntries}
+          learnerState={data.learnerState}
           mistakes={data.mistakes}
           onOpenKnowledgeTraining={knowledge.actions.openTraining}
           onOpenReview={learning.actions.openReview}

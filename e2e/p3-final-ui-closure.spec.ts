@@ -37,7 +37,8 @@ test("P3 桌面薄弱分析、插件检查器与命令搜索保持真实状态",
   await openDesktopModule(page, "错题库");
   await page.getByRole("button", { name: "薄弱分析", exact: true }).click();
   await expect(page.getByRole("heading", { name: "薄弱分析", exact: true })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "数据不足" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "数据不足" }).first()).toBeVisible();
+  await expect(page.locator("article").filter({ hasText: "暂无复盘记录。" })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("p3-insights-desktop.png"), fullPage: false });
 
   const searchTrigger = page.locator(".chrome-sidebar:visible").getByRole("button", { name: "搜索" });

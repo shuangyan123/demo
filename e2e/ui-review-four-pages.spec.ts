@@ -57,7 +57,13 @@ test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联"
   await openLearningInsights(page);
   await loadCurrentScenario(page, "library-insights-dense");
   await openLearningInsights(page);
-  await expect(page.getByText("7 天移动平均", { exact: true })).toBeVisible();
+  const rangeSelect = page.getByRole("combobox", { name: "时间范围" });
+  await expect(rangeSelect).toHaveValue("30");
+  await rangeSelect.selectOption("7");
+  await expect(rangeSelect).toHaveValue("7");
+  await rangeSelect.selectOption("all");
+  await expect(rangeSelect).toHaveValue("all");
+  await expect(page.getByText("7 天加权移动平均", { exact: true })).toBeVisible();
   await expect(page.locator("table tbody tr")).toHaveCount(6);
 
   await page.locator(".chrome-sidebar:visible").getByRole("button", { name: "插件" }).click();
