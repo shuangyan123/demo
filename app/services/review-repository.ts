@@ -69,10 +69,9 @@ export const reviewRepository = {
   // 记录一次复盘结果，并同步更新错题掌握度、下次复盘日期和本次真实用时。
   async recordReview(mistake: Mistake, result: ReviewResult, today: Date, durationSec?: number) {
     await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, reviewDb.learningEvents, async () => {
-      const priorEvents = await reviewDb.learningEvents
-        .where("[subjectType+subjectId]")
-        .equals(["mistake", mistake.id])
-        .toArray();
+      // L2 只读取同一事务内的权威尝试历史，不信任持久化事件投影。
+      const priorAttempts = await reviewDb.attempts.where("mistakeId").equals(mistake.id).toArray();
+      const priorEvents = priorAttempts.map(learningEventFromReviewAttempt);
       const decision = resolveAdaptiveReviewDecision({
         currentMastery: mistake.mastery,
         result,

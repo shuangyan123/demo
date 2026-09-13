@@ -122,6 +122,7 @@ test("reviewRepository.recordReview 只读取目标错题历史并保持 adaptiv
   const target = mistake("mistake-adaptive-target", 3);
   const unrelated = mistake("mistake-adaptive-unrelated", 3);
   await reviewDb.mistakes.bulkPut([target, unrelated]);
+  await reviewDb.attempts.put({ id: "target-history", mistakeId: target.id, result: "correct", confidence: 3, reviewedAt: "2026-08-08" });
   await reviewDb.learningEvents.bulkPut([
     eventForSource("target-history", target.id, "2026-08-08"),
     eventForSource("unrelated-lapse", unrelated.id, "2026-08-07", "wrong"),
@@ -129,7 +130,7 @@ test("reviewRepository.recordReview 只读取目标错题历史并保持 adaptiv
 
   await reviewRepository.recordReview(target, "correct", today, 41);
 
-  const [attempt] = await reviewDb.attempts.where("mistakeId").equals(target.id).toArray();
+  const attempt = (await reviewDb.attempts.where("mistakeId").equals(target.id).toArray()).find((item) => item.id !== "target-history");
   assert.ok(attempt);
   assert.equal(attempt.confidence, 4);
   assert.equal(attempt.durationSec, 41);
@@ -185,6 +186,7 @@ test("knowledgeRepository.recordReview 使用同一 adaptive policy 并保持 Kn
   await resetReviewDb();
   const entry = knowledge("knowledge-adaptive", 3);
   await reviewDb.knowledgeEntries.put(entry);
+  await reviewDb.knowledgeAttempts.put({ id: "knowledge-history", knowledgeId: entry.id, result: "correct", confidence: 4, reviewedAt: "2026-08-08" });
   await reviewDb.learningEvents.bulkPut([
     knowledgeEventForSource("knowledge-history", entry.id, "2026-08-08"),
     knowledgeEventForSource("other-knowledge-lapse", "knowledge-other", "2026-08-07", "wrong"),
@@ -192,7 +194,7 @@ test("knowledgeRepository.recordReview 使用同一 adaptive policy 并保持 Kn
 
   await knowledgeRepository.recordReview(entry, "correct", today);
 
-  const [attempt] = await reviewDb.knowledgeAttempts.where("knowledgeId").equals(entry.id).toArray();
+  const attempt = (await reviewDb.knowledgeAttempts.where("knowledgeId").equals(entry.id).toArray()).find((item) => item.id !== "knowledge-history");
   assert.ok(attempt);
   assert.equal(attempt.confidence, 4);
   assert.equal((await reviewDb.knowledgeEntries.get(entry.id))?.nextReviewAt, "2026-08-19");
@@ -336,17 +338,19 @@ test("learner-state 读取已有 subject 的 LearningEvent 历史且不重复 so
   await reviewDb.mistakes.put(reviewItem);
   await reviewDb.knowledgeEntries.put(knowledgeItem);
 
+  await reviewDb.attempts.put({ id: "attempt-state", mistakeId: reviewItem.id, result: "wrong", confidence: 3, reviewedAt: date });
+  await reviewDb.knowledgeAttempts.put({ id: "knowledge-attempt-state", knowledgeId: knowledgeItem.id, result: "uncertain", confidence: 4, reviewedAt: date });
   const before = await loadLearnerStateSnapshot(today);
   await reviewDb.learningEvents.bulkPut([
     eventForSource("attempt-state", reviewItem.id, date, "wrong"),
     knowledgeEventForSource("knowledge-attempt-state", knowledgeItem.id, date, "uncertain"),
   ]);
   const after = await loadLearnerStateSnapshot(today);
-  assert.equal(before.signals.some((signal) => signal.id === "weakness:判断推理"), false);
+  assert.deepEqual(after.signals, before.signals);
   assert.equal(after.signals.find((signal) => signal.id === "weakness:判断推理")?.score, 72);
   assert.equal(after.signals.find((signal) => signal.id === `weakness:knowledge-${knowledgeItem.id}`)?.score, 61);
   assert.equal(after.sourceRecordCount, before.sourceRecordCount);
-  assert.equal(after.sourceRecordCount, 2);
+  assert.equal(after.sourceRecordCount, 4);
   assert.equal(after.signals.find((signal) => signal.id === "weakness:判断推理")?.evidence.some((item) => item.type === "review_attempt" && item.id === "attempt-state"), true);
 });
 
@@ -357,17 +361,22 @@ test("scoped learner-state 只加载已通过 workspace scope 的 subject Learni
   const included = { ...mistake(includedId, 3), nextReviewAt: "2026-08-20", updatedAt: date };
   const excluded = { ...mistake(excludedId, 3), nextReviewAt: "2026-08-20", updatedAt: date };
   await reviewDb.mistakes.bulkPut([included, excluded]);
+  const includedAttemptId = sampleRecordId("l4-scope", "included-history");
+  await reviewDb.attempts.bulkPut([
+    { id: includedAttemptId, mistakeId: includedId, result: "wrong", confidence: 3, reviewedAt: date },
+    { id: sampleRecordId("other-scope", "excluded-history"), mistakeId: excludedId, result: "wrong", confidence: 3, reviewedAt: date },
+  ]);
   await reviewDb.learningEvents.bulkPut([
-    eventForSource("included-history", includedId, date, "wrong"),
+    eventForSource(includedAttemptId, includedId, date, "wrong"),
     eventForSource("excluded-history", excludedId, date, "wrong"),
   ]);
 
   const snapshot = await loadLearnerStateSnapshot(today, { kind: "sample", scenarioId: "l4-scope" });
   const board = snapshot.signals.find((signal) => signal.id === "weakness:判断推理");
   assert.equal(board?.score, 72);
-  assert.equal(board?.evidence.some((item) => item.id === "included-history"), true);
+  assert.equal(board?.evidence.some((item) => item.id === includedAttemptId), true);
   assert.equal(board?.evidence.some((item) => item.id === "excluded-history"), false);
-  assert.equal(snapshot.sourceRecordCount, 1);
+  assert.equal(snapshot.sourceRecordCount, 2);
 });
 
 test("完整本地备份包含 LearningEvent，恢复可读且拒绝悬空事件", async () => {

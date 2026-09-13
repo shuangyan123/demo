@@ -1,3 +1,4 @@
+import { isStudyDayDue } from "../lib/study-day.ts";
 import { reviewDb } from "../db/review-db.ts";
 import { resolveAdaptiveReviewDecision } from "../lib/adaptive-review.ts";
 import { toISODate } from "../lib/review-utils.ts";
@@ -249,8 +250,7 @@ export const knowledgeRepository = {
       reviewDb.knowledgeEntries.orderBy("updatedAt").reverse().toArray(),
       reviewDb.knowledgeAttempts.orderBy("reviewedAt").reverse().toArray(),
     ]);
-    const todayText = todayStamp(today);
-    const dueEntries = entries.filter((entry) => entry.nextReviewAt <= todayText).sort((a, b) => a.mastery - b.mastery || a.nextReviewAt.localeCompare(b.nextReviewAt));
+    const dueEntries = entries.filter((entry) => isStudyDayDue(entry.nextReviewAt, today)).sort((a, b) => a.mastery - b.mastery || a.nextReviewAt.localeCompare(b.nextReviewAt));
     const lowEntries = entries.filter((entry) => entry.mastery <= 2);
 
     return { entries, attempts, dueEntries, lowEntries };
@@ -296,10 +296,9 @@ export const knowledgeRepository = {
   // 记录一轮知识训练，原子更新资料掌握度、下次训练日期和训练历史。
   async recordReview(entry: KnowledgeEntry, result: ReviewResult, today: Date): Promise<void> {
     await reviewDb.transaction("rw", reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, reviewDb.learningEvents, async () => {
-      const priorEvents = await reviewDb.learningEvents
-        .where("[subjectType+subjectId]")
-        .equals(["knowledge", entry.id])
-        .toArray();
+      // L2 只读取同一事务内的权威尝试历史，不信任持久化事件投影。
+      const priorAttempts = await reviewDb.knowledgeAttempts.where("knowledgeId").equals(entry.id).toArray();
+      const priorEvents = priorAttempts.map(learningEventFromKnowledgeAttempt);
       const decision = resolveAdaptiveReviewDecision({
         currentMastery: entry.mastery,
         result,

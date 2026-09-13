@@ -80,7 +80,8 @@ test("审查数据幂等 upsert、参与真实界面筛选，清理不删除个�
   const firstCount = await reviewDb.mistakes.count();
   await sampleScenarioRepository.seed("dashboard-normal");
   assert.equal(await reviewDb.mistakes.count(), firstCount);
-  assert.equal(filterWorkspaceRecords(await reviewDb.mistakes.toArray()).length, 3);
+  assert.equal(filterWorkspaceRecords(await reviewDb.mistakes.toArray()).length, 1);
+  assert.equal(filterWorkspaceRecords(await reviewDb.mistakes.toArray(), { kind: "ui-review" }).length, 2);
 
   await sampleScenarioRepository.clearAll();
   assert.deepEqual((await reviewDb.mistakes.toArray()).map((item) => item.id), ["personal-mistake"]);

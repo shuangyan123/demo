@@ -65,3 +65,23 @@ export function learningEventFromKnowledgeAttempt(attempt: KnowledgeAttempt): Le
     masteryAfter: attempt.confidence,
   };
 }
+
+/** 核心事实只由来源记录决定；扩展证据不能修改该投影。 */
+export function learningEventCoreMatches(event: Partial<LearningEvent>, canonical: LearningEvent): boolean {
+  return (["id", "sourceType", "sourceId", "subjectType", "subjectId", "outcome", "observedAt", "masteryAfter", "durationSec"] as const)
+    .every((field) => event[field] === canonical[field]);
+}
+
+/** 只有完整匹配来源的事件才能补充已显式记录的有效可选证据。 */
+export function enrichCanonicalLearningEvent(canonical: LearningEvent, event?: LearningEvent): LearningEvent {
+  if (!event || !learningEventCoreMatches(event, canonical)) return { ...canonical };
+  const causes: readonly string[] = ["knowledge_gap", "memory_lapse", "method_selection", "comprehension", "calculation", "careless", "time_pressure", "changed_answer", "other"];
+  return {
+    ...canonical,
+    ...(Number.isFinite(event.selfConfidence) ? { selfConfidence: event.selfConfidence } : {}),
+    ...(Number.isInteger(event.hintCount) && event.hintCount! >= 0 ? { hintCount: event.hintCount } : {}),
+    ...(event.errorCause && causes.includes(event.errorCause) ? { errorCause: event.errorCause } : {}),
+    ...(Number.isInteger(event.attemptOrdinal) && event.attemptOrdinal! >= 1 ? { attemptOrdinal: event.attemptOrdinal } : {}),
+    ...(event.practiceKind && ["standard", "retry", "transfer"].includes(event.practiceKind) ? { practiceKind: event.practiceKind } : {}),
+  };
+}

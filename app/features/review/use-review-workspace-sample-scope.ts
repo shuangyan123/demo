@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "../../services/workspace-data-scope";
+import { PERSONAL_WORKSPACE_DATA_SCOPE, UI_REVIEW_WORKSPACE_DATA_SCOPE } from "../../services/workspace-data-scope";
 import { getSampleScenario, type SampleScenarioId } from "../shared/sample-scenario-registry";
 import type { UiReviewPackId } from "../shared/ui-review-scenario-registry.ts";
 import { setUiReviewRuntimeActive } from "../../services/ui-review-runtime-guard.ts";
@@ -17,13 +17,13 @@ const PACK_SCENARIOS: Record<UiReviewPackId, readonly SampleScenarioId[]> = {
   integrations: ["plugins-directory-dense"],
 };
 
-/** UI 审查数据写入真实本地表；只用稳定命名空间区分和清理，不切换数据作用域。 */
+/** UI 审查数据写入真实本地表；以独立作用域读取，个人事实保持隔离。 */
 export function useReviewWorkspaceSampleScope() {
-  const [scope] = useState<WorkspaceDataScope>(PERSONAL_WORKSPACE_DATA_SCOPE);
   const [controllerKey, setControllerKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [installedCount, setInstalledCount] = useState(0);
   const [reviewReady, setReviewReady] = useState(false);
+  const scope = installedCount > 0 ? UI_REVIEW_WORKSPACE_DATA_SCOPE : PERSONAL_WORKSPACE_DATA_SCOPE;
 
   const refreshCount = useCallback(async () => {
     const { sampleScenarioRepository } = await import("../../services/sample-scenario-repository");
@@ -88,12 +88,12 @@ export function useReviewWorkspaceSampleScope() {
       await uiReviewSettingsRepository.seedScenario("plugins-directory-dense");
       await uiReviewSettingsRepository.seedScenario("settings-ai-credential-recovery");
       await uiReviewSettingsRepository.seedScenario("settings-ai-connections-dense");
-      setInstalledCount(await sampleScenarioRepository.countAll() + await uiReviewSettingsRepository.count());
+      await refreshCount();
       setControllerKey((value) => value + 1);
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [refreshCount]);
 
   const clearSamples = useCallback(async () => {
     setBusy(true);

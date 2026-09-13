@@ -1,3 +1,4 @@
+import { studyDay, requireStudyDay, addStudyDays, isStudyDayDue } from "../../lib/study-day.ts";
 import { masteryLevelToScore } from "../../lib/weakness-intelligence.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { LearnerStateSignal, LearnerStateSnapshot } from "../../types/domains/learner-state.ts";
@@ -72,21 +73,13 @@ function isReviewResult(value: unknown): value is ReviewResult {
 }
 
 function timestamp(value: string): number | null {
-  const parsed = new Date(value).getTime();
+  if (studyDay(value) === null) return null;
+  const parsed = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value).getTime();
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** 所有日期都收敛为 ISO 日键，避免同日重试被当成跨日证据。 */
-function studyDate(value: string): string | null {
-  const parsed = timestamp(value);
-  return parsed === null ? null : new Date(parsed).toISOString().slice(0, 10);
-}
-
-function dateOffset(date: string, offsetDays: number): string {
-  const parsed = new Date(`${date}T00:00:00.000Z`);
-  parsed.setUTCDate(parsed.getUTCDate() + offsetDays);
-  return parsed.toISOString().slice(0, 10);
-}
+const studyDate = studyDay;
+const dateOffset = addStudyDays;
 
 function inRange(reviewedAt: string, range: LearningInsightRange, now: Date) {
   const reviewedTime = timestamp(reviewedAt);
@@ -173,7 +166,7 @@ function dailyOutcome(attempts: readonly Attempt[]) {
 }
 
 function hasRecoveryEvidence(mistake: Mistake, attempts: readonly Attempt[], today: string) {
-  if (mistake.mastery < 3 || mistake.nextReviewAt <= today) return false;
+  if (mistake.mastery < 3 || isStudyDayDue(mistake.nextReviewAt, today)) return false;
   const days = dailyOutcome(attempts);
   const latest = days[0];
   return latest?.result === "correct"
@@ -203,14 +196,14 @@ export function deriveLearningInsightSnapshot({
   board?: string;
   scope?: LearningInsightScope;
 }): LearningInsightSnapshot {
-  const today = now.toISOString().slice(0, 10);
+  const today = requireStudyDay(now);
   const scopedMistakes = mistakes.filter((mistake) => (
     (board === "全部板块" || mistake.board === board)
-    && (scope === "all" || (scope === "due" ? mistake.nextReviewAt <= today : mistake.mastery <= 2))
+    && (scope === "all" || (scope === "due" ? isStudyDayDue(mistake.nextReviewAt, today) : mistake.mastery <= 2))
   ));
   const scopedKnowledgeEntries = knowledgeEntries.filter((entry) => (
     (board === "全部板块" || entry.category === board || entry.tags.includes(board))
-    && (scope === "all" || (scope === "due" ? entry.nextReviewAt <= today : entry.mastery <= 2))
+    && (scope === "all" || (scope === "due" ? isStudyDayDue(entry.nextReviewAt, today) : entry.mastery <= 2))
   ));
   const mistakeById = new Map(scopedMistakes.map((mistake) => [mistake.id, mistake]));
   const knowledgeById = new Map(scopedKnowledgeEntries.map((entry) => [entry.id, entry]));
@@ -249,7 +242,7 @@ export function deriveLearningInsightSnapshot({
       masteryScore: boardMistakes.length
         ? Math.round(boardMistakes.reduce((sum, mistake) => sum + masteryLevelToScore(mistake.mastery), 0) / boardMistakes.length)
         : null,
-      dueCount: boardMistakes.filter((mistake) => mistake.nextReviewAt <= today).length,
+      dueCount: boardMistakes.filter((mistake) => isStudyDayDue(mistake.nextReviewAt, today)).length,
       sufficient: boardAttempts.length >= MIN_RELIABLE_ATTEMPTS,
       trend: boardTrend(boardAttempts),
     };
@@ -315,8 +308,8 @@ export function deriveLearningInsightSnapshot({
     spacedCorrectCount: spacedAttempts.filter((attempt) => attempt.result === "correct").length,
     spacedCorrectRate: rate(spacedAttempts),
     recoveredSubjectCount: orderedMistakes.filter((mistake) => hasRecoveryEvidence(mistake, attemptsByMistake.get(mistake.id) ?? [], today)).length,
-    dueCount: scopedMistakes.filter((mistake) => mistake.nextReviewAt <= today).length
-      + scopedKnowledgeEntries.filter((entry) => entry.nextReviewAt <= today).length,
+    dueCount: scopedMistakes.filter((mistake) => isStudyDayDue(mistake.nextReviewAt, today)).length
+      + scopedKnowledgeEntries.filter((entry) => isStudyDayDue(entry.nextReviewAt, today)).length,
     insufficientBoards: rows.filter((row) => !row.sufficient).length,
     trend,
     boards: rows,

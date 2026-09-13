@@ -353,6 +353,7 @@ test("LearningEvent 历史提高对应板块 risk，且只映射到已有 source
   }), today);
   const withUnrelated = deriveLearnerStateSnapshot(facts({
     mistakes: [target, unrelated],
+    attempts: [attempt(targetEvent.sourceId, target.id, "wrong"), attempt(unrelatedEvent.sourceId, unrelated.id, "wrong")],
     learningEvents: [targetEvent, unrelatedEvent],
   }), today);
   const targetSignal = targetOnly.signals.find((signal) => signal.id === "weakness:判断推理");

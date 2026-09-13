@@ -11,7 +11,7 @@ import {
   applyAppearanceSettings,
   createDefaultAppearanceSettings,
 } from "../../services/appearance-settings-repository";
-import { makeToday } from "../../lib/review-utils";
+import { useStudyDay } from "./use-study-day.ts";
 import type { AppearanceSettings } from "../../types/domains/appearance.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import type { WorkspaceDataScope } from "../../services/workspace-data-scope";
@@ -26,7 +26,7 @@ import { getSampleScenario } from "../shared/sample-scenario-registry";
 
 /** 组合领域 controller 与跨模块依赖；展示结构由独立 view router 负责。 */
 export function useReviewWorkspaceController(scope: WorkspaceDataScope) {
-  const [today] = useState(() => makeToday());
+  const today = useStudyDay();
   const { markReadFailed, markSynced, notice, setNotice } = useReviewNotice();
   const dataNotice = useMemo(() => ({ onReadFailed: markReadFailed, onSynced: markSynced }), [markReadFailed, markSynced]);
   const data = useReviewWorkspaceData(today, dataNotice, scope);

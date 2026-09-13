@@ -1,9 +1,10 @@
+import { studyDay, isStudyDayDue } from "../lib/study-day.ts";
 import { reviewDb } from "../db/review-db.ts";
 import { deriveWeaknessIntelligence, masteryLevelToScore, type WeaknessIntelligence, type WeaknessSubjectAssessment } from "../lib/weakness-intelligence.ts";
 import type { Attempt, Board, Mistake, ReviewResult } from "../types/domains/review.ts";
 import type { InterviewEvaluation, InterviewPracticePlan, InterviewSession } from "../types/domains/interview.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
-import { learningEventFromKnowledgeAttempt, learningEventFromReviewAttempt, type LearningEvent } from "../types/domains/learning-event.ts";
+import { enrichCanonicalLearningEvent, learningEventCoreMatches, learningEventFromKnowledgeAttempt, learningEventFromReviewAttempt, type LearningEvent } from "../types/domains/learning-event.ts";
 import type {
   LearnerEvidenceRef,
   LearnerStateSignal,
@@ -51,19 +52,8 @@ function clampScore(value: number): number {
   return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
 }
 
-function dateKey(value: string | undefined): string | null {
-  if (!value || Number.isNaN(Date.parse(value))) return null;
-  return value.slice(0, 10);
-}
-
-function todayKey(today: Date): string {
-  return today.toISOString().slice(0, 10);
-}
-
-function isDue(value: string | undefined, today: Date): boolean {
-  const key = dateKey(value);
-  return key !== null && key <= todayKey(today);
-}
+const dateKey = studyDay;
+const isDue = isStudyDayDue;
 
 /** 使用稳定字段构造派生 ID，便于刷新重建、测试和 UI 对照。 */
 function derivedId(prefix: string, key: string): string {
@@ -157,24 +147,22 @@ function compareLearningEvents(left: LearningEvent, right: LearningEvent): numbe
     || learningEventSignature(left).localeCompare(learningEventSignature(right));
 }
 
-/** 事件表是 Attempt 的投影；缺失投影时只在内存补齐，不制造可选字段或持久化写入。 */
-function effectiveLearningEvents(facts: LearnerStateFacts): LearningEvent[] {
-  const eventsBySource = new Map<string, LearningEvent>();
-  const supplied = (facts.learningEvents ?? []).toSorted((left, right) => (
-    learningEventSourceKey(left).localeCompare(learningEventSourceKey(right))
-      || learningEventSignature(left).localeCompare(learningEventSignature(right))
-  ));
-  for (const event of supplied) {
-    if (!eventsBySource.has(learningEventSourceKey(event))) eventsBySource.set(learningEventSourceKey(event), event);
+/** 来源记录建立核心事实；冲突或悬空投影只读忽略，不修改历史表。 */
+export function effectiveLearningEvents(facts: Pick<LearnerStateFacts, "attempts" | "knowledgeAttempts" | "learningEvents">): LearningEvent[] {
+  const supplied = new Map<string, LearningEvent[]>();
+  for (const event of facts.learningEvents ?? []) {
+    const key = learningEventSourceKey(event);
+    supplied.set(key, [...(supplied.get(key) ?? []), event]);
   }
-  const backfilled = [
+  return [
     ...facts.attempts.map(learningEventFromReviewAttempt),
     ...facts.knowledgeAttempts.map(learningEventFromKnowledgeAttempt),
-  ];
-  for (const event of backfilled) {
-    if (!eventsBySource.has(learningEventSourceKey(event))) eventsBySource.set(learningEventSourceKey(event), event);
-  }
-  return [...eventsBySource.values()].toSorted(compareLearningEvents);
+  ].map((canonical) => {
+    const matches = (supplied.get(learningEventSourceKey(canonical)) ?? [])
+      .filter((event) => learningEventCoreMatches(event, canonical))
+      .toSorted((left, right) => learningEventSignature(left).localeCompare(learningEventSignature(right)));
+    return enrichCanonicalLearningEvent(canonical, matches[0]);
+  }).toSorted(compareLearningEvents);
 }
 
 function assessmentKey(subjectType: "mistake" | "knowledge", subjectId: string): string {

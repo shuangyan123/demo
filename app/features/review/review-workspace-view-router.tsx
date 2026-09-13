@@ -91,7 +91,7 @@ export function ReviewWorkspaceViewRouter({
     content: <FenbiContextPanel onOpenImport={() => workspace.switchView("import")} />,
   }] : [];
   const context = { view: workspace.view, conversationId: activeConversation?.id ?? null };
-  const reviewControls = scope.kind === "personal" ? (
+  const reviewControls = scope.kind !== "sample" ? (
     <SampleScenarioControls
       busy={busy}
       installedCount={installedCount}

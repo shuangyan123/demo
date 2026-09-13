@@ -21,3 +21,11 @@ review completion 在更新 `Mistake`、新增 `Attempt` 的同一 Dexie transac
 ## 明确延期
 
 以下内容不属于 L1：adaptive review、AI tutor hint protocol、error-cause inference、retention metrics、learning-effect dashboard，以及任何推荐、调度或掌握度算法迁移。
+
+## Wave 2 读取完整性边界
+
+Attempt / KnowledgeAttempt 是事件核心事实的唯一来源：`id/sourceType/sourceId/subjectType/subjectId/outcome/observedAt/masteryAfter` 及 Review Attempt 投影的 `durationSec`。持久化事件只有在全部核心字段精确匹配时，才可补充有效的显式可选证据；冲突及悬空事件不进入权威学习历史，完整性检查报告问题，不重写历史数据。L2 在既有提交事务中从同一 subject 的尝试记录构造历史。
+
+L2/L4/L5 使用 `app/lib/study-day.ts`：合法日期字符串保持原民用日，时间戳按运行时本地日历日归一；日历加法不使用 24 小时毫秒步长。Workspace 在下一次本地午夜及恢复焦点/可见性时校正日期。
+
+个人 scope 排除 `sample:` 与 `ui-review:` 来源（含尝试所属对象的来源）；独立 `ui-review` scope 读取审查场景。安装/清理只切换读取上下文，不以审查数据替代个人学习事实。Dexie v17、schema 和评分公式不变。

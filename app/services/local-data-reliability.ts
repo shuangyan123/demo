@@ -1,3 +1,6 @@
+import { learningEventCoreMatches, learningEventFromReviewAttempt, learningEventFromKnowledgeAttempt, type LearningEvent } from "../types/domains/learning-event.ts";
+import type { Attempt } from "../types/domains/review.ts";
+import type { KnowledgeAttempt } from "../types/domains/knowledge.ts";
 import { REVIEW_WORKSPACE_VERSION } from "../config/app-metadata.ts";
 
 export type LocalDataClass = "authoritative" | "configuration" | "credential-security" | "derived" | "ephemeral" | "external-user-owned";
@@ -139,7 +142,7 @@ export function createLocalDataExportManifest(
 }
 
 export type LocalDataIntegrityIssue = {
-  code: "dangling-reference" | "duplicate-primary-key" | "invalid-primary-key" | "invalid-record" | "invalid-reference";
+  code: "learning-event-core-conflict" | "dangling-reference" | "duplicate-primary-key" | "invalid-primary-key" | "invalid-record" | "invalid-reference";
   message: string;
   recordId?: string;
   table: string;
@@ -181,6 +184,17 @@ function learningEventReferenceIssues(core: Record<string, unknown[]>): LocalDat
       issues.push({ code: "invalid-reference", message: `表 learningEvents 的 sourceId/sourceType 不是有效引用`, recordId, table: "learningEvents" });
     } else if (!idsByTable[sourceTable].has(event.sourceId)) {
       issues.push({ code: "dangling-reference", message: `表 learningEvents 含悬空关联：sourceId=${event.sourceId}`, recordId, table: "learningEvents" });
+    }
+    if (sourceTable) {
+      const source = (core[sourceTable] ?? []).find((item) => item && typeof item === "object" && "id" in item && item.id === event.sourceId);
+      if (source) {
+        const canonical = sourceTable === "attempts"
+          ? learningEventFromReviewAttempt(source as Attempt)
+          : learningEventFromKnowledgeAttempt(source as KnowledgeAttempt);
+        if (!learningEventCoreMatches(event as Partial<LearningEvent>, canonical)) {
+          issues.push({ code: "learning-event-core-conflict", message: "LearningEvent 核心投影与来源尝试记录不一致", recordId, table: "learningEvents" });
+        }
+      }
     }
     if (!subjectTable || typeof event.subjectId !== "string" || !event.subjectId) {
       issues.push({ code: "invalid-reference", message: `表 learningEvents 的 subjectId/subjectType 不是有效引用`, recordId, table: "learningEvents" });

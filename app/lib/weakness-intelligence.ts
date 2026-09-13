@@ -1,3 +1,4 @@
+import { studyDay, isStudyDayDue } from "./study-day.ts";
 import type {
   LearningErrorCause,
   LearningEvent,
@@ -170,17 +171,8 @@ function uniqueEvents(events: readonly LearningEvent[]): LearningEvent[] {
   return [...unique.values()].toSorted(compareEventsNewest);
 }
 
-function validStudyDate(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const date = value.slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return undefined;
-  return Number.isNaN(Date.parse(`${date}T00:00:00.000Z`)) ? undefined : date;
-}
-
-function isDue(value: string | undefined, today: Date): boolean {
-  const dueDate = validStudyDate(value);
-  return dueDate !== undefined && dueDate <= today.toISOString().slice(0, 10);
-}
+const validStudyDate = studyDay;
+const isDue = isStudyDayDue;
 
 function collapseStudyDays(events: readonly LearningEvent[]): WeaknessStudyDay[] {
   const byDate = new Map<string, LearningEvent[]>();

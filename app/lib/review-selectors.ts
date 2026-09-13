@@ -1,8 +1,9 @@
+import { isStudyDayDue } from "./study-day.ts";
 import { findRelatedKnowledgeEntries, findRelatedMistakesForKnowledge } from "../services/association-matcher";
 import { BOARD_OPTIONS, type Board, type Filters, type Mistake } from "../types/domains/review.ts";
 import type { AssociationSuggestion, KnowledgeMistakeLink } from "../types/domains/association.ts";
 import type { KnowledgeEntry, KnowledgeFilters } from "../types/domains/knowledge.ts";
-import { countBy, isDue, toISODate } from "./review-utils.ts";
+import { countBy, isDue } from "./review-utils.ts";
 
 export type BoardStat = {
   board: Board;
@@ -110,9 +111,8 @@ export function resolveActiveKnowledgeId(selectedKnowledgeId: string | null, fil
 
 // 构建知识资料训练队列的基础集合，供训练页、总览和统计页共用。
 export function buildKnowledgeDueEntries(entries: KnowledgeEntry[], today: Date): KnowledgeEntry[] {
-  const todayText = toISODate(today);
   return entries
-    .filter((entry) => entry.nextReviewAt <= todayText)
+    .filter((entry) => isStudyDayDue(entry.nextReviewAt, today))
     .sort((a, b) => a.mastery - b.mastery || a.nextReviewAt.localeCompare(b.nextReviewAt));
 }
 

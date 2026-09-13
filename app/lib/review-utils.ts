@@ -1,9 +1,10 @@
+import { addStudyDays, isStudyDayDue, requireStudyDay } from "./study-day.ts";
 import { BOARD_OPTIONS, type Attempt, type Board, type Mistake, type ReviewResult } from "../types/domains/review.ts";
 import type { LearningEvent } from "../types/domains/learning-event.ts";
 import type { ImportDraft } from "../types/domains/import.ts";
 import { resolveAdaptiveReviewDecision } from "./adaptive-review.ts";
 
-// 生成应用内统一使用的“今天”，固定到上午 8 点避免时区边界抖动。
+// 生成当前本地民用日的稳定时间锚点。
 export function makeToday(): Date {
   const date = new Date();
   date.setHours(8, 0, 0, 0);
@@ -12,14 +13,12 @@ export function makeToday(): Date {
 
 // 将 Date 转为数据库里存储和比较使用的 YYYY-MM-DD。
 export function toISODate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return requireStudyDay(date);
 }
 
 // 基于今天计算相对天数后的日期字符串。
 export function relativeDate(today: Date, days: number): string {
-  const date = new Date(today);
-  date.setDate(date.getDate() + days);
-  return toISODate(date);
+  return addStudyDays(toISODate(today), days);
 }
 
 // 把 YYYY-MM-DD 简化成列表里使用的 M/D 格式。
@@ -30,7 +29,7 @@ export function formatShortDate(dateString: string): string {
 
 // 判断错题是否已经到达本轮复盘日期。
 export function isDue(item: Mistake, today: Date): boolean {
-  return item.nextReviewAt <= toISODate(today);
+  return isStudyDayDue(item.nextReviewAt, today);
 }
 
 // 将掌握度数字转换为用户可读状态。

@@ -1,3 +1,4 @@
+import { addStudyDays, requireStudyDay, studyDay } from "./study-day.ts";
 import type { LearningEvent, LearningEventOutcome } from "../types/domains/learning-event.ts";
 import type { ReviewResult } from "../types/domains/review.ts";
 
@@ -31,23 +32,18 @@ type CollapsedStudyDay = {
 };
 
 function toDateStamp(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return requireStudyDay(date);
 }
 
 function relativeDate(today: Date, days: number): string {
-  const date = new Date(today);
-  date.setDate(date.getDate() + days);
-  return toDateStamp(date);
+  return addStudyDays(toDateStamp(today), days);
 }
 
 function clampMastery(value: number): number {
   return Math.max(MIN_MASTERY, Math.min(MAX_MASTERY, value));
 }
 
-function studyDate(observedAt: string): string | undefined {
-  const date = observedAt.slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
-}
+const studyDate = studyDay;
 
 function outcomeStrength(outcome: LearningEventOutcome): number {
   if (outcome === "wrong") return 3;
