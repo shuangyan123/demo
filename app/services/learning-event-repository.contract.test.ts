@@ -56,16 +56,29 @@ function knowledge(id: string, mastery = 2): KnowledgeEntry {
   };
 }
 
-function eventForSource(sourceId: string, subjectId: string, observedAt: string): LearningEvent {
+function eventForSource(sourceId: string, subjectId: string, observedAt: string, outcome: LearningEvent["outcome"] = "correct"): LearningEvent {
   return {
     id: learningEventId("review_attempt", sourceId),
     sourceType: "review_attempt",
     sourceId,
     subjectType: "mistake",
     subjectId,
-    outcome: "correct",
+    outcome,
     observedAt,
     masteryAfter: 3,
+  };
+}
+
+function knowledgeEventForSource(sourceId: string, subjectId: string, observedAt: string, outcome: LearningEvent["outcome"] = "correct"): LearningEvent {
+  return {
+    id: learningEventId("knowledge_attempt", sourceId),
+    sourceType: "knowledge_attempt",
+    sourceId,
+    subjectType: "knowledge",
+    subjectId,
+    outcome,
+    observedAt,
+    masteryAfter: 4,
   };
 }
 
@@ -101,6 +114,29 @@ test("reviewRepository.recordReview 保留旧签名并在同一事务写入 Atte
   assert.deepEqual(Object.keys(oldSignatureEvent).toSorted(), [
     "id", "masteryAfter", "observedAt", "outcome", "sourceId", "sourceType", "subjectId", "subjectType",
   ]);
+});
+
+test("reviewRepository.recordReview 只读取目标错题历史并保持 adaptive Attempt/LearningEvent 对齐", async () => {
+  await resetReviewDb();
+  const target = mistake("mistake-adaptive-target", 3);
+  const unrelated = mistake("mistake-adaptive-unrelated", 3);
+  await reviewDb.mistakes.bulkPut([target, unrelated]);
+  await reviewDb.learningEvents.bulkPut([
+    eventForSource("target-history", target.id, "2026-08-08"),
+    eventForSource("unrelated-lapse", unrelated.id, "2026-08-07", "wrong"),
+  ]);
+
+  await reviewRepository.recordReview(target, "correct", today, 41);
+
+  const [attempt] = await reviewDb.attempts.where("mistakeId").equals(target.id).toArray();
+  assert.ok(attempt);
+  assert.equal(attempt.confidence, 4);
+  assert.equal(attempt.durationSec, 41);
+  assert.equal((await reviewDb.mistakes.get(target.id))?.nextReviewAt, "2026-08-19");
+  assert.equal((await reviewDb.mistakes.get(unrelated.id))?.nextReviewAt, date);
+  const recordedEvent = await learningEventRepository.getBySource("review_attempt", attempt.id);
+  assert.equal(recordedEvent?.masteryAfter, attempt.confidence);
+  assert.equal("selfConfidence" in (recordedEvent ?? {}), false);
 });
 
 test("reviewRepository.recordReview 写入 LearningEvent 失败时回滚错题和 Attempt", async () => {
@@ -142,6 +178,52 @@ test("knowledgeRepository.recordReview 保留旧签名并在同一事务写入 K
     masteryAfter: 1,
   });
   assert.equal("selfConfidence" in (await learningEventRepository.getBySource("knowledge_attempt", attempt.id))!, false);
+});
+
+test("knowledgeRepository.recordReview 使用同一 adaptive policy 并保持 KnowledgeAttempt/LearningEvent 对齐", async () => {
+  await resetReviewDb();
+  const entry = knowledge("knowledge-adaptive", 3);
+  await reviewDb.knowledgeEntries.put(entry);
+  await reviewDb.learningEvents.bulkPut([
+    knowledgeEventForSource("knowledge-history", entry.id, "2026-08-08"),
+    knowledgeEventForSource("other-knowledge-lapse", "knowledge-other", "2026-08-07", "wrong"),
+  ]);
+
+  await knowledgeRepository.recordReview(entry, "correct", today);
+
+  const [attempt] = await reviewDb.knowledgeAttempts.where("knowledgeId").equals(entry.id).toArray();
+  assert.ok(attempt);
+  assert.equal(attempt.confidence, 4);
+  assert.equal((await reviewDb.knowledgeEntries.get(entry.id))?.nextReviewAt, "2026-08-19");
+  assert.equal((await reviewDb.knowledgeEntries.get(entry.id))?.reviewCount, 1);
+  assert.equal((await reviewDb.knowledgeEntries.get(entry.id))?.lastReviewedAt, date);
+  const recordedEvent = await learningEventRepository.getBySource("knowledge_attempt", attempt.id);
+  assert.equal(recordedEvent?.masteryAfter, attempt.confidence);
+  assert.equal("selfConfidence" in (recordedEvent ?? {}), false);
+});
+
+test("backfilled-shaped LearningEvent history influences a later adaptive interval without selfConfidence", async () => {
+  await resetReviewDb();
+  const item = mistake("mistake-backfilled-adaptive", 3);
+  const backfilledAttempt: Attempt = {
+    id: "attempt-backfilled-adaptive",
+    mistakeId: item.id,
+    result: "correct",
+    confidence: 4,
+    reviewedAt: "2026-08-08",
+  };
+  const backfilledEvent = learningEventFromReviewAttempt(backfilledAttempt);
+  await reviewDb.mistakes.put(item);
+  await reviewDb.attempts.put(backfilledAttempt);
+  await reviewDb.learningEvents.put(backfilledEvent);
+
+  assert.equal("selfConfidence" in backfilledEvent, false);
+  await reviewRepository.recordReview(item, "correct", today);
+
+  const updated = await reviewDb.mistakes.get(item.id);
+  assert.equal(updated?.mastery, 4);
+  assert.equal(updated?.nextReviewAt, "2026-08-19");
+  assert.equal((await learningEventRepository.listForSubject("mistake", item.id)).length, 2);
 });
 
 test("knowledgeRepository.recordReview 写入 LearningEvent 失败时回滚知识资料和 KnowledgeAttempt", async () => {

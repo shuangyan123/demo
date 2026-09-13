@@ -2,7 +2,7 @@
 
 ## 边界
 
-现有 `Attempt` / `KnowledgeAttempt` 继续作为当前产品行为的 canonical 事实源；`LearningEvent` 是新增的、追加式学习证据层。L1 不替换旧 Attempt，不参与当前 scheduling、mastery、learner-state 或推荐决策。
+现有 `Attempt` / `KnowledgeAttempt` 继续作为当前产品行为的 canonical 事实源；`LearningEvent` 是新增的、追加式学习证据层。L1 阶段不替换旧 Attempt，也不参与当时的 scheduling、mastery、learner-state 或推荐决策；L2 v1 只在 repository 内读取它来调整成功复盘间隔。
 
 旧 Attempt 中的 `confidence` 实际表示复盘后的掌握度，因此迁移到 `LearningEvent.masteryAfter`，绝不写入 `selfConfidence`。`selfConfidence` 是未来可由学习者报告的独立可选概念；当前 UI 没有真实证据时保持缺失。
 

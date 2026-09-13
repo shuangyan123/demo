@@ -1,5 +1,6 @@
 import { reviewDb } from "../db/review-db.ts";
-import { buildAttempt, nextStateAfterReview, normalizeBoard, toISODate } from "../lib/review-utils.ts";
+import { resolveAdaptiveReviewDecision } from "../lib/adaptive-review.ts";
+import { buildAttempt, normalizeBoard, toISODate } from "../lib/review-utils.ts";
 import type { ImportJob } from "../types/domains/import.ts";
 import { learningEventFromReviewAttempt } from "../types/domains/learning-event.ts";
 import type { Mistake, ReviewResult, ReviewSnapshot } from "../types/domains/review.ts";
@@ -67,11 +68,25 @@ export const reviewRepository = {
 
   // 记录一次复盘结果，并同步更新错题掌握度、下次复盘日期和本次真实用时。
   async recordReview(mistake: Mistake, result: ReviewResult, today: Date, durationSec?: number) {
-    const nextState = nextStateAfterReview(mistake, result, today);
-    const attempt = buildAttempt(mistake.id, result, nextState.mastery, today, durationSec);
-    const learningEvent = learningEventFromReviewAttempt(attempt);
-
     await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, reviewDb.learningEvents, async () => {
+      const priorEvents = await reviewDb.learningEvents
+        .where("[subjectType+subjectId]")
+        .equals(["mistake", mistake.id])
+        .toArray();
+      const decision = resolveAdaptiveReviewDecision({
+        currentMastery: mistake.mastery,
+        result,
+        today,
+        priorEvents,
+      });
+      const attempt = buildAttempt(mistake.id, result, decision.masteryAfter, today, durationSec);
+      const learningEvent = learningEventFromReviewAttempt(attempt);
+      const nextState = {
+        mastery: decision.masteryAfter,
+        nextReviewAt: decision.nextReviewAt,
+        updatedAt: toISODate(today),
+      };
+
       await reviewDb.mistakes.update(mistake.id, nextState);
       await reviewDb.attempts.add(attempt);
       await reviewDb.learningEvents.add(learningEvent);

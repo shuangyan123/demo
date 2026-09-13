@@ -1,5 +1,6 @@
 import { reviewDb } from "../db/review-db.ts";
-import { relativeDate, toISODate } from "../lib/review-utils.ts";
+import { resolveAdaptiveReviewDecision } from "../lib/adaptive-review.ts";
+import { toISODate } from "../lib/review-utils.ts";
 import { learningEventFromKnowledgeAttempt } from "../types/domains/learning-event.ts";
 import type { KnowledgeAttempt, KnowledgeCategory, KnowledgeEntry, KnowledgeImportDraft, KnowledgeStarterTemplate, KnowledgeTrainingSnapshot } from "../types/domains/knowledge.ts";
 import type { Mistake, ReviewResult } from "../types/domains/review.ts";
@@ -190,22 +191,6 @@ function contentFromMistake(mistake: Mistake): string {
   ].join("\n");
 }
 
-// 根据训练结果计算知识资料的新掌握度和下次训练日期，保持和错题复盘相近的节奏。
-function nextKnowledgeState(entry: KnowledgeEntry, result: ReviewResult, today: Date): Pick<KnowledgeEntry, "mastery" | "nextReviewAt" | "lastReviewedAt" | "reviewCount" | "updatedAt"> {
-  const delta = result === "correct" ? 1 : result === "wrong" ? -1 : 0;
-  const mastery = Math.max(1, Math.min(5, entry.mastery + delta));
-  const interval = result === "correct" ? Math.max(2, mastery * 2) : result === "uncertain" ? 1 : 0;
-  const reviewedAt = todayStamp(today);
-
-  return {
-    mastery,
-    nextReviewAt: relativeDate(today, interval),
-    lastReviewedAt: reviewedAt,
-    reviewCount: entry.reviewCount + 1,
-    updatedAt: reviewedAt,
-  };
-}
-
 export const knowledgeRepository = {
   // 根据分类生成可编辑知识库模板草稿；不直接入库，避免产生用户未确认的默认资料。
   createStarterDrafts(category?: KnowledgeCategory): KnowledgeImportDraft[] {
@@ -310,17 +295,34 @@ export const knowledgeRepository = {
 
   // 记录一轮知识训练，原子更新资料掌握度、下次训练日期和训练历史。
   async recordReview(entry: KnowledgeEntry, result: ReviewResult, today: Date): Promise<void> {
-    const nextState = nextKnowledgeState(entry, result, today);
-    const attempt: KnowledgeAttempt = {
-      id: crypto.randomUUID(),
-      knowledgeId: entry.id,
-      result,
-      confidence: nextState.mastery,
-      reviewedAt: todayStamp(today),
-    };
-    const learningEvent = learningEventFromKnowledgeAttempt(attempt);
-
     await reviewDb.transaction("rw", reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, reviewDb.learningEvents, async () => {
+      const priorEvents = await reviewDb.learningEvents
+        .where("[subjectType+subjectId]")
+        .equals(["knowledge", entry.id])
+        .toArray();
+      const decision = resolveAdaptiveReviewDecision({
+        currentMastery: entry.mastery,
+        result,
+        today,
+        priorEvents,
+      });
+      const reviewedAt = todayStamp(today);
+      const nextState = {
+        mastery: decision.masteryAfter,
+        nextReviewAt: decision.nextReviewAt,
+        lastReviewedAt: reviewedAt,
+        reviewCount: entry.reviewCount + 1,
+        updatedAt: reviewedAt,
+      };
+      const attempt: KnowledgeAttempt = {
+        id: crypto.randomUUID(),
+        knowledgeId: entry.id,
+        result,
+        confidence: decision.masteryAfter,
+        reviewedAt,
+      };
+      const learningEvent = learningEventFromKnowledgeAttempt(attempt);
+
       await reviewDb.knowledgeEntries.update(entry.id, nextState);
       await reviewDb.knowledgeAttempts.add(attempt);
       await reviewDb.learningEvents.add(learningEvent);

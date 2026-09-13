@@ -1,5 +1,7 @@
 import { BOARD_OPTIONS, type Attempt, type Board, type Mistake, type ReviewResult } from "../types/domains/review.ts";
+import type { LearningEvent } from "../types/domains/learning-event.ts";
 import type { ImportDraft } from "../types/domains/import.ts";
+import { resolveAdaptiveReviewDecision } from "./adaptive-review.ts";
 
 // 生成应用内统一使用的“今天”，固定到上午 8 点避免时区边界抖动。
 export function makeToday(): Date {
@@ -43,14 +45,18 @@ export function nextStateAfterReview(
   mistake: Mistake,
   result: ReviewResult,
   today: Date,
+  priorEvents: readonly LearningEvent[] = [],
 ): Pick<Mistake, "mastery" | "nextReviewAt" | "updatedAt"> {
-  const delta = result === "correct" ? 1 : result === "wrong" ? -1 : 0;
-  const mastery = Math.max(1, Math.min(5, mistake.mastery + delta));
-  const interval = result === "correct" ? Math.max(2, mastery * 2) : result === "uncertain" ? 1 : 0;
+  const decision = resolveAdaptiveReviewDecision({
+    currentMastery: mistake.mastery,
+    result,
+    today,
+    priorEvents,
+  });
 
   return {
-    mastery,
-    nextReviewAt: relativeDate(today, interval),
+    mastery: decision.masteryAfter,
+    nextReviewAt: decision.nextReviewAt,
     updatedAt: toISODate(today),
   };
 }
