@@ -33,7 +33,7 @@ test("Tutoring 已核验 vision 模型继续走现有多模态请求", async () 
   aiConnectionsRepository.resolveSecret = async () => "fixture-secret";
   globalThis.fetch = async (_input, init) => {
     requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-    return Response.json({ content: JSON.stringify({ teacherMessage: "继续观察", boardNotes: [], microQuiz: { questions: [] } }) });
+    return Response.json({ content: JSON.stringify({ version: "v1", kind: "explanation", content: "继续观察", nextStep: { action: "写出下一步" } }) });
   };
   try {
     const reply = await requestTutorReply({
@@ -47,6 +47,9 @@ test("Tutoring 已核验 vision 模型继续走现有多模态请求", async () 
       personalizationSettings: personalization,
     });
     assert.equal(reply.teacherMessage, "继续观察");
+    assert.equal(reply.protocol.kind, "explanation");
+    assert.equal(reply.protocolStatus, "valid");
+    assert.equal(reply.studentAction, "写出下一步");
     assert.equal(requestBody?.model, "MiniMax-M3");
     assert.equal(JSON.stringify(requestBody?.messages).includes("image_url"), true);
   } finally {

@@ -2,9 +2,9 @@ import type { AiSelectedRuntimeValues } from "../../types/domains/ai-model.ts";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import type { TutoringSession } from "../../types/domains/tutoring.ts";
-import { loadLearnerStateSnapshot } from "../../services/learner-state-service";
-import { requestTutorReply, type TutoringAiReply } from "../../services/tutoring-ai-service";
-import { tutoringRepository } from "../../services/tutoring-repository";
+import { loadLearnerStateSnapshot } from "../../services/learner-state-service.ts";
+import { requestTutorReply, type TutoringAiReply } from "../../services/tutoring-ai-service.ts";
+import { tutoringRepository } from "../../services/tutoring-repository.ts";
 import { readBlobAsDataUrl } from "./conversation-message-utils.ts";
 
 type TutorTurnInput = {
@@ -118,7 +118,7 @@ export async function finishConversationTutorSession(input: {
   personalizationSettings: PersonalizationSettings;
   selectedRuntimeValues?: AiSelectedRuntimeValues;
 }) {
-  const { requestTutorSummary } = await import("../../services/tutoring-ai-service");
+  const { requestTutorSummary } = await import("../../services/tutoring-ai-service.ts");
   const { session, turns } = await tutoringRepository.loadConversationSession(input.conversationId);
   if (!session) return false;
   const summary = await requestTutorSummary({

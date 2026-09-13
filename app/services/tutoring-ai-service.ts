@@ -5,8 +5,17 @@ import { parseAiJsonObject } from "./ai-json.ts";
 import { buildPersonaPrompt, resolvePersona } from "./personalization-settings-repository.ts";
 import { buildPersonalMemoryContext } from "./personal-memory-context.ts";
 import { buildLearningContext } from "./learning-context-assembler.ts";
+import {
+  buildTutoringProtocolInstructions,
+  parseTutoringProtocolResponse,
+  TUTORING_PROTOCOL_SCHEMA,
+  TutoringProtocolError,
+  type TutoringGeneratedMicroAssessment,
+  type TutoringProtocolFailureCode,
+  type TutoringProtocolResponse,
+} from "./tutoring-protocol.ts";
 import type { ApiConnectionProfile } from "../types/domains/ai-connection.ts";
-import type { LearnerStateSnapshot, TutoringMicroAssessment } from "../types/domains/learner-state.ts";
+import type { LearnerStateSnapshot } from "../types/domains/learner-state.ts";
 import type { PersonalizationSettings } from "../types/domains/personalization.ts";
 import type { TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 
@@ -18,7 +27,10 @@ export type TutoringAiReply = {
   nextQuestion: string;
   confidence: number;
   frameDescription: string;
-  microAssessment: TutoringMicroAssessment;
+  microAssessment: TutoringGeneratedMicroAssessment;
+  protocol: TutoringProtocolResponse;
+  protocolStatus: "valid" | "fallback";
+  protocolFallbackReason?: TutoringProtocolFailureCode;
 };
 
 export type TutoringSummaryDraft = {
@@ -35,66 +47,6 @@ function parseJsonObject(content: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-// 把未知值安全转成字符串数组，避免 AI 少字段时污染课堂笔记。
-function toStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((item) => String(item ?? "").trim()).filter(Boolean);
-}
-
-// 把 AI 置信度限制在 0-1，防止模型返回异常数字影响 UI。
-function clampConfidence(value: unknown): number {
-  const numberValue = Number(value);
-  if (!Number.isFinite(numberValue)) return 0.6;
-  return Math.max(0, Math.min(1, numberValue));
-}
-
-const TUTOR_REPLY_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    teacherMessage: { type: "string" },
-    boardNotes: { type: "array", items: { type: "string" }, maxItems: 6 },
-    detectedProblem: { type: "string" },
-    studentAction: { type: "string" },
-    nextQuestion: { type: "string" },
-    confidence: { type: "number" },
-    frameDescription: { type: "string" },
-    microQuiz: {
-      type: "array",
-      minItems: 1,
-      maxItems: 3,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          prompt: { type: "string" },
-          options: { type: "array", minItems: 3, maxItems: 4, items: { type: "string" } },
-          correctOptionIndex: { type: "integer", minimum: 0, maximum: 3 },
-          explanation: { type: "string" },
-        },
-        required: ["prompt", "options", "correctOptionIndex", "explanation"],
-      },
-    },
-  },
-  required: ["teacherMessage", "boardNotes", "detectedProblem", "studentAction", "nextQuestion", "confidence", "frameDescription", "microQuiz"],
-} as const;
-
-/** 只接受可确定评分的 1–3 道单选题，异常题目不会进入本地学习状态。 */
-function toMicroAssessment(value: unknown): TutoringMicroAssessment {
-  if (!Array.isArray(value)) return { questions: [] };
-  const questions = value.slice(0, 3).flatMap((raw, index) => {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
-    const item = raw as Record<string, unknown>;
-    const prompt = String(item.prompt ?? "").trim();
-    const options = toStringList(item.options).slice(0, 4);
-    const correctOptionIndex = Number(item.correctOptionIndex);
-    const explanation = String(item.explanation ?? "").trim();
-    if (!prompt || options.length < 3 || !Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex >= options.length) return [];
-    return [{ id: `micro-${index + 1}`, prompt, options, correctOptionIndex, explanation }];
-  });
-  return { questions };
-}
-
 // 构造低成本辅导系统提示词，强调不要求模型假装看到未发送的画面。
 function buildTutorSystemPrompt(personalizationSettings: PersonalizationSettings) {
   const persona = resolvePersona(personalizationSettings, "tutoring");
@@ -102,9 +54,7 @@ function buildTutorSystemPrompt(personalizationSettings: PersonalizationSettings
     "你是一名实时辅导老师，必须遵守下列任务与输出约束。",
     "你会根据学生文字、摄像头关键帧描述和本地资料，给出短而有操作性的讲解。",
     "不要编造没有出现在画面、文字或资料中的事实。",
-    "只输出 JSON 对象，不要输出 Markdown。",
-    "讲解后必须给 1–3 道可确定评分的单选微测；每题 3–4 个选项，只检验本轮关键概念。",
-    "不能因为自己觉得学生懂了就判定掌握，只有学生提交微测后才能更新学习状态。",
+    buildTutoringProtocolInstructions(),
     buildPersonaPrompt(persona),
     buildPersonalMemoryContext(personalizationSettings, { moduleId: "tutoring" }),
   ].join("\n");
@@ -125,16 +75,17 @@ export async function requestTutorReply(input: {
 }): Promise<TutoringAiReply> {
   const recentTranscript = input.recentTurns
     .slice(-8)
-    .map((turn) => `${turn.speaker}: ${turn.content}`)
-    .join("\n");
+    .map((turn) => `${turn.speaker}: ${turn.content.slice(0, 600)}`)
+    .join("\n")
+    .slice(0, 4_000);
   const promptText = [
-    `辅导主题：${input.session.topic || "未命名主题"}`,
-    `辅导目标：${input.session.goal || "帮助学生理解当前内容并完成下一步"}`,
-    `学生本轮输入：${input.studentText || "学生暂未输入文字，请主要根据画面关键帧判断"}`,
-    `上一帧描述：${input.frameDescription || "无"}`,
+    `辅导主题：${input.session.topic.slice(0, 240) || "未命名主题"}`,
+    `辅导目标：${input.session.goal.slice(0, 500) || "帮助学生理解当前内容并完成下一步"}`,
+    `学生本轮输入：${input.studentText.slice(0, 1_200) || "学生暂未输入文字，请主要根据画面关键帧判断"}`,
+    `上一帧描述：${input.frameDescription?.slice(0, 600) || "无"}`,
     `最近对话：\n${recentTranscript || "无"}`,
     buildLearningContext(input.learnerState, { moduleId: "tutoring", query: `${input.session.topic} ${input.studentText}`, characterLimit: 1400 }) || "暂无可核验的长期学习状态。",
-    "请像真实老师一样先诊断卡点、短讲解、要求一个学生动作，再生成本轮微测。",
+    "请根据当前对话选择最合适的协议 kind；不必每轮覆盖所有阶段。若生成题目，kind 必须为 micro_assessment；只有讲解或练习时不要附带 microAssessment。",
   ].join("\n\n");
   const content: ChatMessageContent = input.frameDataUrl
     ? [
@@ -146,23 +97,29 @@ export async function requestTutorReply(input: {
     modelId: input.modelId,
     selectedRuntimeValues: input.selectedRuntimeValues,
     maxOutputTokens: 1200,
-    structuredOutput: { name: "tutoring_reply", schema: TUTOR_REPLY_SCHEMA },
+    structuredOutput: { name: "tutoring_protocol_v1", schema: TUTORING_PROTOCOL_SCHEMA },
     messages: [
       { role: "system", content: buildTutorSystemPrompt(input.personalizationSettings) },
       { role: "user", content },
     ],
     temperature: 0.28,
   });
-  const parsed = parseJsonObject(response.content);
+  const parsed = parseTutoringProtocolResponse(response.content);
+  if (parsed.status === "failure") throw new TutoringProtocolError(parsed);
+  const protocol = parsed.response;
+  const diagnosis = protocol.diagnosis;
   return {
-    boardNotes: toStringList(parsed.boardNotes),
-    confidence: clampConfidence(parsed.confidence),
-    detectedProblem: String(parsed.detectedProblem ?? "").trim(),
-    frameDescription: String(parsed.frameDescription ?? input.frameDescription ?? "").trim(),
-    nextQuestion: String(parsed.nextQuestion ?? "").trim(),
-    studentAction: String(parsed.studentAction ?? "").trim(),
-    teacherMessage: String(parsed.teacherMessage ?? "").trim() || "我先看一下你当前的内容，我们一步一步来。",
-    microAssessment: toMicroAssessment(parsed.microQuiz),
+    boardNotes: diagnosis?.evidence ?? [],
+    confidence: diagnosis?.confidence ?? 0,
+    detectedProblem: diagnosis?.summary ?? "",
+    frameDescription: input.frameDescription?.trim() ?? "",
+    nextQuestion: protocol.nextStep?.question ?? "",
+    protocol,
+    protocolFallbackReason: parsed.status === "fallback" ? parsed.fallbackReason : undefined,
+    protocolStatus: parsed.status,
+    studentAction: protocol.nextStep?.action ?? "",
+    teacherMessage: protocol.content,
+    microAssessment: protocol.microAssessment ?? { questions: [] },
   };
 }
 
@@ -200,7 +157,7 @@ export async function requestTutorSummary(input: {
   });
   const parsed = parseJsonObject(response.content);
   return {
-    nextActions: toStringList(parsed.nextActions).slice(0, 6),
+    nextActions: Array.isArray(parsed.nextActions) ? parsed.nextActions.map((item) => String(item ?? "").trim()).filter(Boolean).slice(0, 6) : [],
     summary: String(parsed.summary ?? "").trim() || "本次辅导已完成，建议根据课堂记录整理薄弱点。",
   };
 }
