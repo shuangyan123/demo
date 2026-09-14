@@ -19,3 +19,12 @@ test("薄弱分析只呈现 L4 薄弱/错因信号及真实证据引用数", () 
   assert.doesNotMatch(source, /signal\.score/);
   assert.doesNotMatch(source, /学习效率提升|记忆率|掌握概率|遗忘概率|retention probability/i);
 });
+
+test("优先项文案区分所选范围与全部历史，错因证据不冒充当前事实", () => {
+  assert.match(source, /本范围完成 \$\{item\.metrics\.attemptCount\} 次/);
+  assert.match(source, /本范围暂无/);
+  assert.match(source, /全部历史最近结果：/);
+  assert.doesNotMatch(source, /`最近结果：/);
+  assert.doesNotMatch(source, /当前薄弱与错因/);
+  assert.match(source, /薄弱信号反映当前派生状态；错因证据可能来自近期历史失败，不证明同一错误此刻仍在发生/);
+});

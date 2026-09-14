@@ -40,6 +40,12 @@ export type LearningInsightOutcomeMetrics = {
   latestReviewedAt: string | null;
 };
 
+export type LearningInsightPriorityItem = {
+  id: string;
+  mastery: number;
+  nextReviewAt?: string;
+};
+
 /** 薄弱分析只保存可由现有记录推导的展示快照。 */
 export type LearningInsightSnapshot = {
   range: LearningInsightRange;
@@ -66,7 +72,6 @@ export type LearningInsightSnapshot = {
 };
 
 const MIN_RELIABLE_ATTEMPTS = 5;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isReviewResult(value: unknown): value is ReviewResult {
   return value === "correct" || value === "uncertain" || value === "wrong";
@@ -82,11 +87,30 @@ const studyDate = studyDay;
 const dateOffset = addStudyDays;
 
 function inRange(reviewedAt: string, range: LearningInsightRange, now: Date) {
-  const reviewedTime = timestamp(reviewedAt);
-  if (reviewedTime === null || reviewedTime > now.getTime()) return false;
+  const reviewedDate = studyDate(reviewedAt);
+  const today = requireStudyDay(now);
+  if (reviewedDate === null || reviewedDate > today) return false;
   if (range === "all") return true;
-  const threshold = now.getTime() - range * DAY_MS;
-  return reviewedTime >= threshold;
+  const firstIncludedDay = dateOffset(today, -(range - 1));
+  return reviewedDate >= firstIncludedDay;
+}
+
+function compareCanonicalDueDays(left: string | undefined, right: string | undefined): number {
+  const leftDay = studyDate(left);
+  const rightDay = studyDate(right);
+  if (leftDay === null) return rightDay === null ? 0 : 1;
+  if (rightDay === null) return -1;
+  return leftDay.localeCompare(rightDay);
+}
+
+/** 优先级只按掌握度、canonical 学习日和 ID 排序；无效日期稳定地排在有效日期之后。 */
+export function compareLearningInsightPriorityItems(
+  left: LearningInsightPriorityItem,
+  right: LearningInsightPriorityItem,
+): number {
+  return left.mastery - right.mastery
+    || compareCanonicalDueDays(left.nextReviewAt, right.nextReviewAt)
+    || left.id.localeCompare(right.id);
 }
 
 function rate<T extends { result: ReviewResult }>(attempts: readonly T[]) {
@@ -264,7 +288,7 @@ export function deriveLearningInsightSnapshot({
     }));
   const trend = rawTrend.map<LearningInsightTrendPoint>((point) => {
     const windowStart = dateOffset(point.date, -6);
-    const windowAttempts = validAttempts.filter((attempt) => {
+    const windowAttempts = historyAttempts.filter((attempt) => {
       const date = studyDate(attempt.reviewedAt);
       return date !== null && date >= windowStart && date <= point.date;
     });
@@ -314,10 +338,10 @@ export function deriveLearningInsightSnapshot({
     trend,
     boards: rows,
     priorityMistakes: [...scopedMistakes]
-      .sort((left, right) => left.mastery - right.mastery || left.nextReviewAt.localeCompare(right.nextReviewAt) || left.id.localeCompare(right.id))
+      .sort(compareLearningInsightPriorityItems)
       .slice(0, 5),
     priorityKnowledge: [...scopedKnowledgeEntries]
-      .sort((left, right) => left.mastery - right.mastery || left.nextReviewAt.localeCompare(right.nextReviewAt) || left.id.localeCompare(right.id))
+      .sort(compareLearningInsightPriorityItems)
       .slice(0, 4),
     mistakeMetrics,
     knowledgeMetrics,
