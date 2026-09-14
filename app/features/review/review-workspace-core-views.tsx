@@ -109,6 +109,7 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           initialMistakeId={learning.snapshot.selectedMistake?.id}
           recommendations={data.learnerState.recommendations}
           attempts={learning.snapshot.attempts}
+          learningEvents={data.learningEvents}
           knowledgeAttempts={data.knowledgeAttempts}
           knowledgeEntries={data.knowledgeEntries}
           learnerState={data.learnerState}
@@ -169,14 +170,17 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
           answerOpen={learning.snapshot.answerOpen}
           associatedKnowledge={knowledge.snapshot.currentReviewLinkedEntries}
           currentReview={learning.snapshot.currentReview}
+          confidence={learning.snapshot.confidence}
           dueMistakes={learning.snapshot.reviewQueue}
           relatedKnowledge={knowledge.snapshot.currentReviewKnowledge}
           reviewIndex={learning.snapshot.reviewIndex}
           timer={learning.snapshot.timer}
           onCreateKnowledgeDraft={knowledge.actions.createDraftFromMistake}
+          onClearConfidence={learning.actions.clearConfidence}
+          onSetConfidence={learning.actions.setConfidence}
           onOpenKnowledgeEntry={knowledge.actions.openEntry}
           onRecordReview={learning.actions.recordReview}
-          onToggleAnswer={() => learning.actions.setAnswerOpen((value) => !value)}
+          onToggleAnswer={learning.actions.toggleAnswer}
           />}
         </>
       ) : null}
@@ -185,6 +189,7 @@ export function ReviewWorkspaceCoreViews({ controller }: { controller: ReviewWor
         <StatsView
           recommendations={data.learnerState.recommendations}
           attempts={data.attempts}
+          learningEvents={data.learningEvents}
           knowledgeAttempts={data.knowledgeAttempts}
           knowledgeEntries={data.knowledgeEntries}
           learnerState={data.learnerState}

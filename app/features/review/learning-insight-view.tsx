@@ -6,6 +6,7 @@ import { masteryLevelToScore } from "../../lib/weakness-intelligence.ts";
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
 import { BOARD_OPTIONS } from "../../types/domains/review.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../../types/domains/knowledge.ts";
+import type { LearningEvent } from "../../types/domains/learning-event.ts";
 import type { LearnerStateSnapshot, LearningActionRecommendation } from "../../types/domains/learner-state.ts";
 import { AppIcon } from "../shared/app-icon";
 import { Button, MetricCard, StatGrid } from "../shared/ui-primitives";
@@ -20,6 +21,7 @@ import {
 } from "./learning-insight-model.ts";
 import styles from "./learning-insight-view.module.css";
 import { canContinueWeakness } from "./learning-next-step.ts";
+import { LearningEvidencePanel } from "./learning-evidence-panel";
 
 const rangeOptions: Array<{ label: string; value: LearningInsightRange }> = [
   { label: "近 7 天", value: 7 }, { label: "近 30 天", value: 30 }, { label: "近 90 天", value: 90 }, { label: "全部", value: "all" },
@@ -53,10 +55,11 @@ function InsightChart({ points }: { points: LearningInsightTrendPoint[] }) {
 
 /** 基于真实复盘记录呈现描述性学习效果与薄弱分析。 */
 export function LearningInsightView({
-  recommendations = [], attempts, knowledgeAttempts, knowledgeEntries, learnerState, mistakes, now = new Date(), onOpenKnowledgeTraining, onOpenReview, onRefresh,
+  recommendations = [], attempts, learningEvents, knowledgeAttempts, knowledgeEntries, learnerState, mistakes, now = new Date(), onOpenKnowledgeTraining, onOpenReview, onRefresh,
 }: {
   recommendations?: LearningActionRecommendation[];
   attempts: Attempt[];
+  learningEvents: LearningEvent[];
   knowledgeAttempts: KnowledgeAttempt[];
   knowledgeEntries: KnowledgeEntry[];
   learnerState: LearnerStateSnapshot;
@@ -73,7 +76,7 @@ export function LearningInsightView({
   const [refreshing, setRefreshing] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState(() => now);
   const nowTime = now.getTime();
-  const snapshot = useMemo(() => deriveLearningInsightSnapshot({ attempts, knowledgeAttempts, knowledgeEntries, mistakes, now: new Date(nowTime), range, board, scope }), [attempts, board, knowledgeAttempts, knowledgeEntries, mistakes, nowTime, range, scope]);
+  const snapshot = useMemo(() => deriveLearningInsightSnapshot({ attempts, learningEvents, knowledgeAttempts, knowledgeEntries, mistakes, now: new Date(nowTime), range, board, scope }), [attempts, board, learningEvents, knowledgeAttempts, knowledgeEntries, mistakes, nowTime, range, scope]);
   const signals = selectLearningInsightSignals(learnerState);
   const priorityItems = useMemo(() => [
     ...snapshot.priorityMistakes.map((item) => ({ id: item.id, kind: "mistake" as const, title: `${item.board} › ${item.stem}`, mastery: item.mastery, nextReviewAt: item.nextReviewAt, metrics: snapshot.mistakeMetrics.get(item.id) ?? emptyMetrics })),
@@ -98,12 +101,12 @@ export function LearningInsightView({
       <MetricCard label="复盘答对率" value={displayRate(snapshot.correctRate)} hint="当前范围" tone="text-muted" />
       <MetricCard label="完成复盘" value={`${snapshot.attemptsCount} 次`} hint={`答对 ${snapshot.correctCount} · 不确定 ${snapshot.uncertainCount} · 答错 ${snapshot.wrongCount}`} tone="text-muted" />
       <MetricCard label="学习日期" value={`${snapshot.distinctStudyDays} 天`} hint="按有效复盘日期去重" tone="text-muted" />
-      <MetricCard label="跨日复习通过率" value={displayRate(snapshot.spacedCorrectRate)} hint={snapshot.spacedAttemptCount ? `基于 ${snapshot.spacedAttemptCount} 次跨日复习` : "没有跨日复习证据"} tone="text-muted" />
       <MetricCard label="恢复证据" value={`${snapshot.recoveredSubjectCount} 项`} hint="跨日失败后答对且当前未到期" tone="text-muted" />
     </StatGrid></section>
     <div className={styles.columns}>
       <div className={styles.leftColumn}>
-        <section className={styles.panel}><div className={styles.sectionHeader}><h3>复盘正确率趋势（总体）</h3><span>{displayRate(snapshot.correctRate)}</span></div><div className={styles.trendBody}><InsightChart points={snapshot.trend} /><dl className={styles.chartMetrics}><div><dt>复盘答对率</dt><dd>{displayRate(snapshot.correctRate)}</dd></div><div><dt>学习日期</dt><dd>{snapshot.distinctStudyDays} 天</dd></div><div><dt>待复习项</dt><dd>{snapshot.dueCount} 项</dd></div></dl></div><p className={styles.note}>说明：正确率基于所选时间、板块与数据范围内的真实复盘结果；跨日通过率只统计有更早学习日的同题复盘。</p></section>
+        <section className={styles.panel}><div className={styles.sectionHeader}><h3>复盘正确率趋势（总体）</h3><span>{displayRate(snapshot.correctRate)}</span></div><div className={styles.trendBody}><InsightChart points={snapshot.trend} /><dl className={styles.chartMetrics}><div><dt>复盘答对率</dt><dd>{displayRate(snapshot.correctRate)}</dd></div><div><dt>学习日期</dt><dd>{snapshot.distinctStudyDays} 天</dd></div><div><dt>待复习项</dt><dd>{snapshot.dueCount} 项</dd></div></dl></div><p className={styles.note}>说明：正确率基于所选时间、板块与数据范围内的真实复盘结果；学习证据单独按固定协议和不同学习日派生。</p></section>
+        <LearningEvidencePanel evidence={snapshot.learningEvidence} mistakes={mistakes} knowledgeEntries={knowledgeEntries} />
         <section className={styles.panel}><div className={styles.sectionHeader}><h3>板块对比 <small>（当前掌握度）</small></h3></div><div className={styles.tableScroller}><table className={styles.table}><thead><tr><th>板块</th><th>完成复盘数</th><th>正确率</th><th>当前掌握度</th><th>待复习题</th><th>趋势</th></tr></thead><tbody>{snapshot.boards.map((row) => <tr key={row.board}><td><strong>{row.board}</strong></td><td>{row.reviewed}</td><td>{displayRate(row.correctRate)}</td><td><span className={styles.mastery}><span>{row.mastery === null ? "数据不足" : `平均 ${row.mastery}/5`}</span><small>派生掌握分 {row.masteryScore === null ? "数据不足" : `${row.masteryScore}/100`}</small><i><b style={{ width: `${row.masteryScore ?? 0}%` }} /></i></span></td><td>{row.dueCount}</td><td data-trend={row.trend ?? "insufficient"}>{row.sufficient && row.trend ? trendLabels[row.trend] : "数据不足"}</td></tr>)}</tbody></table></div><div className={styles.tableLegend}><span data-trend="up">↗ 上升</span><span data-trend="down">↘ 下降</span><span>→ 持平</span><span>ⓘ 数据不足</span></div></section>
         <section className={styles.panel}><div className={styles.sectionHeader}><h3>薄弱与错因证据</h3><span>来自当前学习状态证据</span></div>{signals.length ? <div className={styles.priorityList}>{signals.map((signal) => <article className={styles.priorityCard} key={signal.id}><div className={styles.priorityTitle}><strong>{signal.title}</strong></div><p><b>证据 {signal.evidence.length} 条</b>{signal.summary}</p></article>)}</div> : <div className={styles.priorityEmpty}>当前没有可展示的薄弱或错因信号</div>}<p className={styles.note}>说明：薄弱信号反映当前派生状态；错因证据可能来自近期历史失败，不证明同一错误此刻仍在发生。证据条数是本地证据引用数量，不代表样本显著性；信号分数不在此处解释为掌握度或概率。</p></section>
       </div>

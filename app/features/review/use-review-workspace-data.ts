@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { associationRepository } from "../../services/association-repository";
 import { knowledgeRepository } from "../../services/knowledge-repository";
+import { learningEventRepository } from "../../services/learning-event-repository";
 import { reviewRepository } from "../../services/review-repository";
 import { deriveLearnerStateSnapshot, loadLearnerStateSnapshotFromNormalizedFacts } from "../../services/learner-state-service.ts";
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
 import type { ImportJob } from "../../types/domains/import.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { KnowledgeMistakeLink } from "../../types/domains/association.ts";
+import type { LearningEvent } from "../../types/domains/learning-event.ts";
 import { filterWorkspaceRecords, type WorkspaceDataScope } from "../../services/workspace-data-scope";
 
 type ReviewWorkspaceDataNotice = {
@@ -25,6 +27,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
   const [importJobs, setImportJobs] = useState<ImportJob[]>([]);
   const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntry[]>([]);
   const [knowledgeAttempts, setKnowledgeAttempts] = useState<KnowledgeAttempt[]>([]);
+  const [learningEvents, setLearningEvents] = useState<LearningEvent[]>([]);
   const [associationLinks, setAssociationLinks] = useState<KnowledgeMistakeLink[]>([]);
   const [knowledgeAttemptsCount, setKnowledgeAttemptsCount] = useState(0);
   const [knowledgeCorrectCount, setKnowledgeCorrectCount] = useState(0);
@@ -64,9 +67,14 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
       const scopedImportJobs = filterWorkspaceRecords(snapshot.importJobs, scope);
       const scopedAttempts = filterWorkspaceRecords(snapshot.attempts, scope);
       const scopedKnowledgeAttempts = filterWorkspaceRecords(knowledgeTraining.attempts, scope);
+      const scopedLearningEvents = await learningEventRepository.listForSubjects([
+        ...scopedMistakes.map((mistake) => ({ subjectType: "mistake" as const, subjectId: mistake.id })),
+        ...scopedKnowledgeEntries.map((entry) => ({ subjectType: "knowledge" as const, subjectId: entry.id })),
+      ]);
       setMistakes(scopedMistakes);
       setKnowledgeEntries(scopedKnowledgeEntries);
       setKnowledgeAttempts(scopedKnowledgeAttempts);
+      setLearningEvents(scopedLearningEvents);
       setAssociationLinks(scopedLinks);
       setImportJobs(scopedImportJobs);
       setAttempts(scopedAttempts);
@@ -108,6 +116,7 @@ export function useReviewWorkspaceData(today: Date, notice: ReviewWorkspaceDataN
     knowledgeAttemptsCount,
     knowledgeCorrectCount,
     knowledgeAttempts,
+    learningEvents,
     knowledgeEntries,
     learnerState,
     loading,

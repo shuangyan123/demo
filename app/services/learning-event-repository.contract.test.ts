@@ -159,6 +159,7 @@ test("reviewRepository.recordReview 保留旧签名并在同一事务写入 Atte
     observedAt: attempt.reviewedAt,
     masteryAfter: 3,
     durationSec: 37,
+    practiceKind: "standard",
   });
 
   const noDuration = mistake("mistake-old-signature");
@@ -170,7 +171,7 @@ test("reviewRepository.recordReview 保留旧签名并在同一事务写入 Atte
   assert.ok(oldSignatureEvent);
   assert.equal("durationSec" in oldSignatureEvent, false);
   assert.deepEqual(Object.keys(oldSignatureEvent).toSorted(), [
-    "id", "masteryAfter", "observedAt", "outcome", "sourceId", "sourceType", "subjectId", "subjectType",
+    "id", "masteryAfter", "observedAt", "outcome", "practiceKind", "sourceId", "sourceType", "subjectId", "subjectType",
   ]);
 });
 
@@ -235,6 +236,7 @@ test("knowledgeRepository.recordReview 保留旧签名并在同一事务写入 K
     outcome: "wrong",
     observedAt: attempt.reviewedAt,
     masteryAfter: 1,
+    practiceKind: "standard",
   });
   assert.equal("selfConfidence" in (await learningEventRepository.getBySource("knowledge_attempt", attempt.id))!, false);
 });

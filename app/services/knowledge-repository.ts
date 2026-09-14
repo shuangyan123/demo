@@ -1,8 +1,8 @@
-import { isStudyDayDue } from "../lib/study-day.ts";
+import { isStudyDayDue, studyDay } from "../lib/study-day.ts";
 import { reviewDb } from "../db/review-db.ts";
 import { resolveAdaptiveReviewDecision } from "../lib/adaptive-review.ts";
 import { toISODate } from "../lib/review-utils.ts";
-import { learningEventFromKnowledgeAttempt } from "../types/domains/learning-event.ts";
+import { attachFirstPartyAttemptEvidence, learningEventFromKnowledgeAttempt, validateLearningAttemptEvidence, type LearningAttemptEvidenceInput } from "../types/domains/learning-event.ts";
 import type { KnowledgeAttempt, KnowledgeCategory, KnowledgeEntry, KnowledgeImportDraft, KnowledgeStarterTemplate, KnowledgeTrainingSnapshot } from "../types/domains/knowledge.ts";
 import type { Mistake, ReviewResult } from "../types/domains/review.ts";
 import { obsidianKnowledgeRepository } from "./obsidian-knowledge-repository.ts";
@@ -294,7 +294,8 @@ export const knowledgeRepository = {
   },
 
   // 记录一轮知识训练，原子更新资料掌握度、下次训练日期和训练历史。
-  async recordReview(entry: KnowledgeEntry, result: ReviewResult, today: Date): Promise<void> {
+  async recordReview(entry: KnowledgeEntry, result: ReviewResult, today: Date, evidence?: LearningAttemptEvidenceInput): Promise<void> {
+    const selfConfidence = validateLearningAttemptEvidence(evidence);
     await reviewDb.transaction("rw", reviewDb.knowledgeEntries, reviewDb.knowledgeAttempts, reviewDb.learningEvents, async () => {
       // L2 只读取同一事务内的权威尝试历史，不信任持久化事件投影。
       const priorAttempts = await reviewDb.knowledgeAttempts.where("knowledgeId").equals(entry.id).toArray();
@@ -320,7 +321,8 @@ export const knowledgeRepository = {
         confidence: decision.masteryAfter,
         reviewedAt,
       };
-      const learningEvent = learningEventFromKnowledgeAttempt(attempt);
+      const practiceKind = priorAttempts.some((prior) => studyDay(prior.reviewedAt) === reviewedAt) ? "retry" : "standard";
+      const learningEvent = attachFirstPartyAttemptEvidence(learningEventFromKnowledgeAttempt(attempt), practiceKind, selfConfidence);
 
       await reviewDb.knowledgeEntries.update(entry.id, nextState);
       await reviewDb.knowledgeAttempts.add(attempt);

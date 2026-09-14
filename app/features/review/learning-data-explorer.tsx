@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { BOARD_OPTIONS, type Attempt, type Mistake } from "../../types/domains/review.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { LearnerStateSnapshot } from "../../types/domains/learner-state.ts";
+import type { LearningEvent } from "../../types/domains/learning-event.ts";
 import type { ConversationLaunchContext } from "../conversation/conversation-launch-context";
 import { AppIcon } from "../shared/app-icon";
 import { Button, EmptyState, MasteryDots } from "../shared/ui-primitives";
@@ -17,6 +18,7 @@ type LearningDataExplorerProps = {
   recommendations?: LearningActionRecommendation[];
   initialMistakeId?: string;
   attempts: Attempt[];
+  learningEvents: LearningEvent[];
   knowledgeAttempts: KnowledgeAttempt[];
   knowledgeEntries: KnowledgeEntry[];
   learnerState: LearnerStateSnapshot;
@@ -38,7 +40,7 @@ function toKnowledgeRecord(item: KnowledgeEntry): ExplorerRecord {
 }
 
 /** 统一浏览错题、知识和薄弱项；板块筛选只在此处维护一次。 */
-export function LearningDataExplorer({ attempts, initialMistakeId, recommendations, knowledgeAttempts, knowledgeEntries, learnerState, managementContent, mistakes, onOpenKnowledgeOperations, onOpenKnowledgeTraining, onOpenReview, onRefresh, onStartConversation }: LearningDataExplorerProps) {
+export function LearningDataExplorer({ attempts, initialMistakeId, recommendations, learningEvents, knowledgeAttempts, knowledgeEntries, learnerState, managementContent, mistakes, onOpenKnowledgeOperations, onOpenKnowledgeTraining, onOpenReview, onRefresh, onStartConversation }: LearningDataExplorerProps) {
   const [tab, setTab] = useState<ExplorerTab>("mistakes");
   const [search, setSearch] = useState("");
   const [board, setBoard] = useState("全部");
@@ -86,6 +88,7 @@ export function LearningDataExplorer({ attempts, initialMistakeId, recommendatio
           <LearningInsightView
             recommendations={recommendations}
             attempts={attempts}
+            learningEvents={learningEvents}
             knowledgeAttempts={knowledgeAttempts}
             knowledgeEntries={knowledgeEntries}
             learnerState={learnerState}

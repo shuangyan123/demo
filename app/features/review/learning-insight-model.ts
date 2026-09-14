@@ -1,7 +1,9 @@
 import { studyDay, requireStudyDay, addStudyDays, isStudyDayDue } from "../../lib/study-day.ts";
 import { masteryLevelToScore } from "../../lib/weakness-intelligence.ts";
+import { deriveLearningEvidence, type LearningEvidence } from "../../lib/learning-calibration.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { LearnerStateSignal, LearnerStateSnapshot } from "../../types/domains/learner-state.ts";
+import type { LearningEvent } from "../../types/domains/learning-event.ts";
 import type { Attempt, Mistake, ReviewResult } from "../../types/domains/review.ts";
 
 /** 薄弱分析支持的时间范围。 */
@@ -69,6 +71,9 @@ export type LearningInsightSnapshot = {
   priorityKnowledge: KnowledgeEntry[];
   mistakeMetrics: Map<string, LearningInsightOutcomeMetrics>;
   knowledgeMetrics: Map<string, LearningInsightOutcomeMetrics>;
+  learningEvidence: LearningEvidence;
+  calibrationEvidence: LearningEvidence["calibration"];
+  delayedRecallEvidence: LearningEvidence["delayedRecall"];
 };
 
 const MIN_RELIABLE_ATTEMPTS = 5;
@@ -204,6 +209,7 @@ function hasRecoveryEvidence(mistake: Mistake, attempts: readonly Attempt[], tod
 export function deriveLearningInsightSnapshot({
   attempts,
   knowledgeAttempts = [],
+  learningEvents = [],
   knowledgeEntries,
   mistakes,
   now,
@@ -213,6 +219,7 @@ export function deriveLearningInsightSnapshot({
 }: {
   attempts: Attempt[];
   knowledgeAttempts?: KnowledgeAttempt[];
+  learningEvents?: LearningEvent[];
   knowledgeEntries: KnowledgeEntry[];
   mistakes: Mistake[];
   now: Date;
@@ -237,6 +244,13 @@ export function deriveLearningInsightSnapshot({
   const validAttempts = historyAttempts.filter((attempt) => inRange(attempt.reviewedAt, range, now));
   const historyKnowledgeAttempts = knowledgeAttempts.filter((attempt) => validKnowledgeAttempt(attempt, knowledgeIds, now));
   const validKnowledgeAttempts = historyKnowledgeAttempts.filter((attempt) => inRange(attempt.reviewedAt, range, now));
+  const learningEvidence = deriveLearningEvidence({
+    attempts: historyAttempts,
+    knowledgeAttempts: historyKnowledgeAttempts,
+    learningEvents,
+    now,
+    range,
+  });
   const attemptsByMistake = groupedAttemptsBySubject(historyAttempts, (attempt) => attempt.mistakeId);
   const rangeAttemptsByMistake = groupedAttemptsBySubject(validAttempts, (attempt) => attempt.mistakeId);
   const attemptsByKnowledge = groupedAttemptsBySubject(historyKnowledgeAttempts, (attempt) => attempt.knowledgeId);
@@ -345,6 +359,9 @@ export function deriveLearningInsightSnapshot({
       .slice(0, 4),
     mistakeMetrics,
     knowledgeMetrics,
+    learningEvidence,
+    calibrationEvidence: learningEvidence.calibration,
+    delayedRecallEvidence: learningEvidence.delayedRecall,
   };
 }
 

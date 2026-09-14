@@ -4,6 +4,9 @@ import { formatShortDate, masteryLabel } from "../../lib/review-utils";
 import type { KnowledgeEntry, KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
 import type { ReviewResult } from "../../types/domains/review.ts";
 import { Button, Chip, DetailBlock, DetailCard, EmptyState, MasteryDots, Panel, SoftBlock } from "../shared/ui-primitives";
+import { LearningConfidenceControl } from "../review/learning-confidence-control";
+import type { LearningConfidenceState } from "../review/use-learning-confidence.ts";
+import type { SelfConfidence } from "../../types/domains/learning-event.ts";
 import styles from "./knowledge-training-view.module.css";
 
 function QueueFilterTabs({ active, onChange }: { active: KnowledgeQueueFilter; onChange: (filter: KnowledgeQueueFilter) => void }) {
@@ -21,6 +24,7 @@ function QueueFilterTabs({ active, onChange }: { active: KnowledgeQueueFilter; o
 export function KnowledgeTrainingView({
   disabled = false,
   answerOpen,
+  confidence,
   attemptsCount,
   correctRate,
   currentEntry,
@@ -30,15 +34,18 @@ export function KnowledgeTrainingView({
   queueFilter,
   trainingIndex,
   onChangeQueueFilter,
+  onClearConfidence,
   onMove,
   onOpenKnowledgeEntry,
   onRecordReview,
   onSkip,
   onSelectEntry,
+  onSetConfidence,
   onToggleAnswer,
 }: {
   disabled?: boolean;
   answerOpen: boolean;
+  confidence: LearningConfidenceState;
   attemptsCount: number;
   correctRate: number;
   currentEntry: KnowledgeEntry | null;
@@ -48,11 +55,13 @@ export function KnowledgeTrainingView({
   queueFilter: KnowledgeQueueFilter;
   trainingIndex: number;
   onChangeQueueFilter: (filter: KnowledgeQueueFilter) => void;
+  onClearConfidence: () => void;
   onMove: (delta: -1 | 1) => void;
   onOpenKnowledgeEntry: (entry: KnowledgeEntry) => void;
   onRecordReview: (result: ReviewResult) => void;
   onSkip: () => void;
   onSelectEntry: (entryId?: string) => void;
+  onSetConfidence: (value: SelfConfidence) => void;
   onToggleAnswer: () => void;
 }) {
   return (
@@ -67,9 +76,18 @@ export function KnowledgeTrainingView({
             </header>
             <SoftBlock className={styles.prompt}>
               <strong>{currentEntry.title}</strong>
-              <p>{currentEntry.summary || "先闭卷回想这条资料的关键词、适用场景和易混点。"}</p>
+              <p>{confidence.feedbackRevealed ? currentEntry.summary || "资料没有摘要。" : "先闭卷回想这条资料的关键词、适用场景和易混点，再决定是否查看资料。"}</p>
               <div className="mt-4 flex flex-wrap gap-2">{currentEntry.tags.map((tag) => <Chip key={tag}>{tag}</Chip>)}</div>
             </SoftBlock>
+            <LearningConfidenceControl
+              disabled={disabled}
+              feedbackRevealed={confidence.feedbackRevealed}
+              selectedConfidence={confidence.selectedConfidence}
+              subjectId={currentEntry.id}
+              onChange={onSetConfidence}
+              onClear={onClearConfidence}
+            />
+            <p className="mt-4 text-sm text-muted">以下结果为本轮自评：自评答对 / 自评不确定 / 自评答错。</p>
             <fieldset disabled={disabled} className={styles.actions}>
               <Button variant="outline" onClick={onToggleAnswer}>{answerOpen ? "收起资料" : "查看资料"}</Button>
               <Button variant="soft" onClick={() => onRecordReview("correct")}>会了</Button>
@@ -78,7 +96,7 @@ export function KnowledgeTrainingView({
               <Button variant="outline" onClick={() => onMove(-1)}>上一条</Button>
               <Button variant="outline" onClick={() => onMove(1)}>下一条</Button>
               <Button variant="outline" onClick={onSkip}>跳过本次</Button>
-              <Button variant="soft" onClick={() => onOpenKnowledgeEntry(currentEntry)}>编辑资料</Button>
+              <Button disabled={!confidence.feedbackRevealed} variant="soft" onClick={() => onOpenKnowledgeEntry(currentEntry)}>编辑资料</Button>
             </fieldset>
             {answerOpen ? (
               <div className="mt-5 space-y-4 leading-relaxed">

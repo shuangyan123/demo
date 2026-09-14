@@ -5,6 +5,7 @@ const LEARNING_STORES = [
   "attempts",
   "knowledgeEntries",
   "knowledgeAttempts",
+  "learningEvents",
   "interviewQuestions",
   "interviewPracticePlans",
   "interviewSessions",

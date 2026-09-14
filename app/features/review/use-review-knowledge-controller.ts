@@ -22,10 +22,12 @@ import { knowledgeRepository } from "../../services/knowledge-repository";
 import type { ApiConnectionProfile } from "../../types/domains/ai-connection.ts";
 import type { AssociationSuggestion, KnowledgeMistakeLink } from "../../types/domains/association.ts";
 import type { ExportFormat, ExportScope, Mistake, ReviewResult } from "../../types/domains/review.ts";
+import type { SelfConfidence } from "../../types/domains/learning-event.ts";
 import type { KnowledgeCategory, KnowledgeEntry, KnowledgeFilters, KnowledgeImportDraft, KnowledgeQueueFilter } from "../../types/domains/knowledge.ts";
 import type { PersonalizationSettings } from "../../types/domains/personalization.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import { useLearningSubmission } from "./use-learning-submission.ts";
+import { useLearningConfidence } from "./use-learning-confidence.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
@@ -134,6 +136,7 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
   }, [currentReviewAssociation.links, entries]);
   const currentTraining = trainingQueue[trainingIndex] ?? trainingQueue[0] ?? null;
   const correctRate = calculateCorrectRate(knowledgeAttemptsCount, knowledgeCorrectCount);
+  const confidence = useLearningConfidence(currentTraining?.id ?? null);
 
   function openEntry(entry: KnowledgeEntry) {
     setFilters({ ...INITIAL_FILTERS, category: entry.category });
@@ -152,6 +155,7 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
     setExplicitTrainingId(null);
     setTrainingIndex(0);
     setAnswerOpen(false);
+    confidence.reset();
   }
 
   function openTraining(entryId?: string) {
@@ -175,6 +179,7 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
     if (submission.busy || submission.refreshFailed) return;
     setTrainingIndex((current) => trainingQueue.length ? (current + delta + trainingQueue.length) % trainingQueue.length : 0);
     setAnswerOpen(false);
+    confidence.reset();
   }
 
   function skipTraining() {
@@ -184,11 +189,22 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
 
   async function recordTraining(result: ReviewResult) {
     if (!currentTraining) return;
+    const evidence = confidence.selectedConfidence === undefined ? undefined : { selfConfidence: confidence.selectedConfidence };
     await submission.record(currentTraining.id, async () => {
-      await knowledgeRepository.recordReview(currentTraining, result, today);
+      await knowledgeRepository.recordReview(currentTraining, result, today, evidence);
       setTrainingIndex(0);
       setAnswerOpen(false);
+      confidence.reset();
     }, "知识训练记录已保存");
+  }
+
+  function toggleAnswer() {
+    if (answerOpen) {
+      setAnswerOpen(false);
+      return;
+    }
+    confidence.revealFeedback();
+    setAnswerOpen(true);
   }
 
   async function addEntry(event: SubmitReactEvent) {
@@ -394,17 +410,21 @@ export function useReviewKnowledgeController(input: UseReviewKnowledgeController
       deleteSuggestion: (id: string) => setAssociationSuggestions((current) => current.filter((item) => item.id !== id)),
       exportItems, importText, moveTraining, openCategory, openEntry, openTraining, recordTraining, removeLink,
       resetTraining, setAnswerOpen, setDrafts, setFilters, setSelectedId, skipTraining,
+      clearConfidence: confidence.clearConfidence,
+      setConfidence: (value: SelfConfidence) => confidence.setConfidence(value),
+      toggleAnswer,
       selectTraining: (id?: string) => {
         if (submission.busy || submission.refreshFailed) return;
         setTrainingIndex(Math.max(0, trainingQueue.findIndex((entry) => entry.id === id)));
         setAnswerOpen(false);
+        confidence.reset();
       },
       toggleFavorite,
       toggleSuggestion: (id: string, selected: boolean) => setAssociationSuggestions((current) => current.map((item) => item.id === id ? { ...item, selected } : item)),
       updateDraft, updateDraftList, updateEntry,
     },
     snapshot: {
-      activeId, allTrainingQueue, answerOpen, associationBusy, categorySummaries, correctRate, currentReviewLinkedEntries,
+      activeId, allTrainingQueue, answerOpen, associationBusy, categorySummaries, confidence, correctRate, currentReviewLinkedEntries,
       currentReviewKnowledge, currentTraining, drafts, dueEntries, filteredEntries, filters, internalization, lowEntries,
       queueFilter, selectedEntry, selectedEntryAssociation, selectedEntryMistakes, selectedMistakeAssociation,
       selectedMistakeKnowledge, tagOptions, trainingIndex, trainingQueue,

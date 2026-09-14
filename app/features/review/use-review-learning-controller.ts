@@ -18,9 +18,11 @@ import { toISODate } from "../../lib/review-utils";
 import { downloadExportFile, exportMistakes } from "../../services/export-service";
 import { reviewRepository } from "../../services/review-repository";
 import type { Attempt, Board, ExportFormat, ExportScope, Filters, Mistake } from "../../types/domains/review.ts";
+import type { SelfConfidence } from "../../types/domains/learning-event.ts";
 import type { ViewKey } from "../../types/domains/workspace.ts";
 import { useReviewTimer } from "./use-review-timer.ts";
 import { useLearningSubmission } from "./use-learning-submission.ts";
+import { useLearningConfidence } from "./use-learning-confidence.ts";
 
 type SubmitReactEvent = SyntheticEvent<HTMLFormElement, SubmitEvent>;
 
@@ -66,12 +68,14 @@ export function useReviewLearningController(input: UseReviewLearningControllerIn
     .filter((item) => !submission.committedIds.includes(item.id));
   const currentReview = reviewQueue[reviewIndex] ?? reviewQueue[0] ?? null;
   const timer = useReviewTimer(currentReview?.id ?? null);
+  const confidence = useLearningConfidence(currentReview?.id ?? null);
 
   function resetReview() {
     submission.reset();
     setExplicitReviewId(null);
     setReviewIndex(0);
     setAnswerOpen(false);
+    confidence.reset();
   }
 
   function openBoard(board: Board) {
@@ -100,12 +104,23 @@ export function useReviewLearningController(input: UseReviewLearningControllerIn
 
   async function recordReview(result: "correct" | "uncertain" | "wrong") {
     if (!currentReview) return;
+    const evidence = confidence.selectedConfidence === undefined ? undefined : { selfConfidence: confidence.selectedConfidence };
     await submission.record(currentReview.id, async () => {
-      await reviewRepository.recordReview(currentReview, result, today, timer.elapsedSec);
+      await reviewRepository.recordReview(currentReview, result, today, timer.elapsedSec, evidence);
       setReviewIndex(0);
       setAnswerOpen(false);
       timer.reset();
+      confidence.reset();
     }, "复盘记录已保存");
+  }
+
+  function toggleAnswer() {
+    if (answerOpen) {
+      setAnswerOpen(false);
+      return;
+    }
+    confidence.revealFeedback();
+    setAnswerOpen(true);
   }
 
   async function deleteMistake(mistake: Mistake) {
@@ -180,7 +195,10 @@ export function useReviewLearningController(input: UseReviewLearningControllerIn
       openReview,
       recordReview,
       resetReview,
+      clearConfidence: confidence.clearConfidence,
+      setConfidence: (value: SelfConfidence) => confidence.setConfidence(value),
       setAnswerOpen,
+      toggleAnswer,
       setFilters,
       setReasonFilter,
       setSelectedBoard,
@@ -190,6 +208,7 @@ export function useReviewLearningController(input: UseReviewLearningControllerIn
     snapshot: {
       activeSelectedId,
       answerOpen,
+      confidence,
       attempts,
       avgMastery,
       boardStats,

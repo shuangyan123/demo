@@ -1,8 +1,9 @@
 import { reviewDb } from "../db/review-db.ts";
 import { resolveAdaptiveReviewDecision } from "../lib/adaptive-review.ts";
 import { buildAttempt, normalizeBoard, toISODate } from "../lib/review-utils.ts";
+import { studyDay } from "../lib/study-day.ts";
 import type { ImportJob } from "../types/domains/import.ts";
-import { learningEventFromReviewAttempt } from "../types/domains/learning-event.ts";
+import { attachFirstPartyAttemptEvidence, learningEventFromReviewAttempt, validateLearningAttemptEvidence, type LearningAttemptEvidenceInput } from "../types/domains/learning-event.ts";
 import type { Mistake, ReviewResult, ReviewSnapshot } from "../types/domains/review.ts";
 
 type LegacyMistake = Mistake & {
@@ -67,7 +68,8 @@ export const reviewRepository = {
   },
 
   // 记录一次复盘结果，并同步更新错题掌握度、下次复盘日期和本次真实用时。
-  async recordReview(mistake: Mistake, result: ReviewResult, today: Date, durationSec?: number) {
+  async recordReview(mistake: Mistake, result: ReviewResult, today: Date, durationSec?: number, evidence?: LearningAttemptEvidenceInput) {
+    const selfConfidence = validateLearningAttemptEvidence(evidence);
     await reviewDb.transaction("rw", reviewDb.mistakes, reviewDb.attempts, reviewDb.learningEvents, async () => {
       // L2 只读取同一事务内的权威尝试历史，不信任持久化事件投影。
       const priorAttempts = await reviewDb.attempts.where("mistakeId").equals(mistake.id).toArray();
@@ -79,7 +81,9 @@ export const reviewRepository = {
         priorEvents,
       });
       const attempt = buildAttempt(mistake.id, result, decision.masteryAfter, today, durationSec);
-      const learningEvent = learningEventFromReviewAttempt(attempt);
+      const currentStudyDay = studyDay(attempt.reviewedAt);
+      const practiceKind = priorAttempts.some((prior) => studyDay(prior.reviewedAt) === currentStudyDay) ? "retry" : "standard";
+      const learningEvent = attachFirstPartyAttemptEvidence(learningEventFromReviewAttempt(attempt), practiceKind, selfConfidence);
       const nextState = {
         mastery: decision.masteryAfter,
         nextReviewAt: decision.nextReviewAt,

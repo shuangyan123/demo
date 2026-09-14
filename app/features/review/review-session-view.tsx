@@ -1,5 +1,8 @@
 import { RelatedKnowledgeList } from "../knowledge/knowledge-workspace";
 import { Button, CardButton, Chip, DataList, EmptyState, MasteryDots, Panel } from "../shared/ui-primitives";
+import { LearningConfidenceControl } from "./learning-confidence-control";
+import type { LearningConfidenceState } from "./use-learning-confidence.ts";
+import type { SelfConfidence } from "../../types/domains/learning-event.ts";
 import { formatTimerSeconds, type ReviewTimerMode, type ReviewTimerState } from "./use-review-timer.ts";
 import type { KnowledgeMatch } from "../../services/association-matcher";
 import type { KnowledgeEntry } from "../../types/domains/knowledge.ts";
@@ -10,6 +13,7 @@ type ReviewViewProps = {
   answerOpen: boolean;
   associatedKnowledge: KnowledgeEntry[];
   currentReview: Mistake | null;
+  confidence: LearningConfidenceState;
   dueMistakes: Mistake[];
   relatedKnowledge: KnowledgeMatch[];
   reviewIndex: number;
@@ -21,6 +25,8 @@ type ReviewViewProps = {
     setTargetSec: (seconds: number) => void;
   };
   onCreateKnowledgeDraft: (mistake: Mistake) => void;
+  onClearConfidence: () => void;
+  onSetConfidence: (value: SelfConfidence) => void;
   onOpenKnowledgeEntry: (entry: KnowledgeEntry) => void;
   onRecordReview: (result: ReviewResult) => void;
   onToggleAnswer: () => void;
@@ -32,11 +38,14 @@ export function ReviewView({
   answerOpen,
   associatedKnowledge,
   currentReview,
+  confidence,
   dueMistakes,
   relatedKnowledge,
   reviewIndex,
   timer,
   onCreateKnowledgeDraft,
+  onClearConfidence,
+  onSetConfidence,
   onOpenKnowledgeEntry,
   onRecordReview,
   onToggleAnswer,
@@ -52,7 +61,7 @@ export function ReviewView({
   return (
     <section className="learning-page">
       <header className="learning-page-header">
-        <p className="text-sm text-muted">先独立作答，再核对答案并记录掌握情况。</p>
+        <p className="text-sm text-muted">先独立作答，再核对答案；结果与把握程度都是本轮自评，不是独立评分。</p>
         <div className="learning-metrics" aria-label="复盘进度">
           <span><strong>{reviewIndex + 1}</strong>当前题</span>
           <span><strong>{dueMistakes.length}</strong>本轮队列</span>
@@ -72,6 +81,14 @@ export function ReviewView({
           ))}
           <Chip tone="yellow">掌握度 {currentReview.mastery}</Chip>
         </div>
+        <LearningConfidenceControl
+          disabled={disabled}
+          feedbackRevealed={confidence.feedbackRevealed}
+          selectedConfidence={confidence.selectedConfidence}
+          subjectId={currentReview.id}
+          onChange={(value) => onSetConfidence(value)}
+          onClear={onClearConfidence}
+        />
         {answerOpen && (
           <section className="mt-7 border-t border-line pt-5 leading-7" aria-live="polite">
             <strong className="block">答案</strong>
@@ -80,6 +97,7 @@ export function ReviewView({
             <p>{currentReview.explanation}</p>
           </section>
         )}
+        <p className="mt-4 text-sm text-muted">以下结果为本轮自评：自评答对 / 自评不确定 / 自评答错。</p>
         <fieldset disabled={disabled} className="review-session-actions">
           <Button variant="outline" onClick={onToggleAnswer}>
             {answerOpen ? "收起答案" : "查看答案"}
@@ -100,7 +118,7 @@ export function ReviewView({
         <section>
           <h3 className="font-extrabold">当前轮次</h3>
           <dl className="mt-3 grid gap-3 text-sm">
-            <div className="flex justify-between gap-3"><dt className="text-muted">当前错因</dt><dd>{currentReview.reasons.join(" / ") || "未标记"}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-muted">当前错因</dt><dd>{confidence.feedbackRevealed ? currentReview.reasons.join(" / ") || "未标记" : "查看答案后显示"}</dd></div>
             <div className="flex items-center justify-between gap-3"><dt className="text-muted">掌握情况</dt><dd><MasteryDots value={currentReview.mastery} /></dd></div>
             <div className="flex justify-between gap-3"><dt className="text-muted">剩余题目</dt><dd>{Math.max(0, dueMistakes.length - reviewIndex - 1)}</dd></div>
           </dl>
@@ -111,16 +129,16 @@ export function ReviewView({
         <details className="border-t border-line pt-4">
           <summary className="cursor-pointer font-bold">查看本轮队列（{dueMistakes.length}）</summary>
           <ol className="mt-3 grid gap-2 text-sm">
-            {dueMistakes.map((item, index) => <li key={item.id} className={index === reviewIndex ? "font-bold text-foreground" : "text-muted"}>{index + 1}. {item.board} · {item.reasons.join(" / ")}</li>)}
+            {dueMistakes.map((item, index) => <li key={item.id} className={index === reviewIndex ? "font-bold text-foreground" : "text-muted"}>{index + 1}. {item.board} · {confidence.feedbackRevealed ? item.reasons.join(" / ") : "反馈待查看"}</li>)}
           </ol>
         </details>
 
         <section className="border-t border-line pt-4">
           <h3 className="mb-3 font-extrabold">推荐资料</h3>
-          <Button className="mb-3 w-full" size="sm" variant="soft" onClick={() => onCreateKnowledgeDraft(currentReview)}>
-            沉淀当前错题
+          <Button className="mb-3 w-full" disabled={!confidence.feedbackRevealed} size="sm" variant="soft" onClick={() => onCreateKnowledgeDraft(currentReview)}>
+            {confidence.feedbackRevealed ? "沉淀当前错题" : "查看反馈后可沉淀"}
           </Button>
-          {associatedKnowledge.length > 0 && (
+          {confidence.feedbackRevealed && associatedKnowledge.length > 0 && (
             <div className="mb-3">
               <strong className="mb-2 block text-sm">已确认关联资料</strong>
               <DataList>
@@ -133,7 +151,7 @@ export function ReviewView({
               </DataList>
             </div>
           )}
-          <RelatedKnowledgeList matches={relatedKnowledge} onOpenKnowledgeEntry={onOpenKnowledgeEntry} compact />
+          {confidence.feedbackRevealed ? <RelatedKnowledgeList matches={relatedKnowledge} onOpenKnowledgeEntry={onOpenKnowledgeEntry} compact /> : <p className="text-sm leading-6 text-muted">查看答案后显示关联资料。</p>}
         </section>
       </aside>
       </div>

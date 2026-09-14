@@ -1,6 +1,7 @@
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../../types/domains/knowledge.ts";
 import type { LearnerStateSnapshot } from "../../types/domains/learner-state.ts";
+import type { LearningEvent } from "../../types/domains/learning-event.ts";
 import { LearningInsightView } from "./learning-insight-view";
 import type { LearningActionRecommendation } from "../../types/domains/learner-state.ts";
 
@@ -8,6 +9,7 @@ import type { LearningActionRecommendation } from "../../types/domains/learner-s
 export function StatsView({
   recommendations,
   attempts,
+  learningEvents,
   knowledgeAttempts,
   knowledgeEntries,
   learnerState,
@@ -18,6 +20,7 @@ export function StatsView({
 }: {
   recommendations?: LearningActionRecommendation[];
   attempts: Attempt[];
+  learningEvents: LearningEvent[];
   knowledgeAttempts: KnowledgeAttempt[];
   knowledgeEntries: KnowledgeEntry[];
   learnerState: LearnerStateSnapshot;
@@ -30,6 +33,7 @@ export function StatsView({
     <LearningInsightView
       recommendations={recommendations}
       attempts={attempts}
+      learningEvents={learningEvents}
       knowledgeAttempts={knowledgeAttempts}
       knowledgeEntries={knowledgeEntries}
       learnerState={learnerState}

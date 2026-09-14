@@ -4,6 +4,11 @@ import type { Attempt } from "./review.ts";
 export type LearningEventSourceType = "review_attempt" | "knowledge_attempt";
 export type LearningEventSubjectType = "mistake" | "knowledge";
 export type LearningEventOutcome = "correct" | "uncertain" | "wrong";
+export const SELF_CONFIDENCE_PROTOCOL_V1 = "pre_feedback_1_5_v1" as const;
+export type SelfConfidence = 1 | 2 | 3 | 4 | 5;
+export type LearningAttemptEvidenceInput = {
+  selfConfidence?: SelfConfidence;
+};
 export type LearningErrorCause =
   | "knowledge_gap"
   | "memory_lapse"
@@ -26,11 +31,47 @@ export type LearningEvent = {
   masteryAfter?: number;
   durationSec?: number;
   selfConfidence?: number;
+  selfConfidenceProtocol?: string;
   hintCount?: number;
   errorCause?: LearningErrorCause;
   attemptOrdinal?: number;
   practiceKind?: "standard" | "retry" | "transfer";
 };
+
+/** 首方复盘只接受窄化的、反馈前的 1-5 自评；不在边界处截断或隐式转换。 */
+export function validateLearningAttemptEvidence(
+  input: LearningAttemptEvidenceInput | undefined,
+): SelfConfidence | undefined {
+  if (input === undefined) return undefined;
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw new TypeError("学习自信度证据必须是可选的窄输入对象");
+  }
+  const keys = Object.keys(input as object);
+  if (keys.some((key) => key !== "selfConfidence")) {
+    throw new TypeError("学习自信度证据不接受协议或其他扩展字段");
+  }
+  const value = (input as { selfConfidence?: unknown }).selfConfidence;
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 5) {
+    throw new RangeError("反馈前自信度必须是 1 到 5 的整数");
+  }
+  return value as SelfConfidence;
+}
+
+/** 首方写入固定协议并只允许 standard/retry；transfer 永远不是复盘入口可选项。 */
+export function attachFirstPartyAttemptEvidence(
+  canonical: LearningEvent,
+  practiceKind: "standard" | "retry",
+  selfConfidence: SelfConfidence | undefined,
+): LearningEvent {
+  return {
+    ...canonical,
+    practiceKind,
+    ...(selfConfidence === undefined
+      ? {}
+      : { selfConfidence, selfConfidenceProtocol: SELF_CONFIDENCE_PROTOCOL_V1 }),
+  };
+}
 
 /** 事件 ID 只由规范化来源类型和 canonical attempt ID 构成，便于回填与幂等重建。 */
 export function learningEventId(sourceType: LearningEventSourceType, sourceId: string): string {
@@ -78,7 +119,8 @@ export function enrichCanonicalLearningEvent(canonical: LearningEvent, event?: L
   const causes: readonly string[] = ["knowledge_gap", "memory_lapse", "method_selection", "comprehension", "calculation", "careless", "time_pressure", "changed_answer", "other"];
   return {
     ...canonical,
-    ...(Number.isFinite(event.selfConfidence) ? { selfConfidence: event.selfConfidence } : {}),
+    // L6 自评属于描述性洞察；不把固定协议的值传播到 L4/LearnerState。无协议 legacy 值仍按既有通用事件兼容。
+    ...(Number.isFinite(event.selfConfidence) && event.selfConfidenceProtocol !== SELF_CONFIDENCE_PROTOCOL_V1 ? { selfConfidence: event.selfConfidence } : {}),
     ...(Number.isInteger(event.hintCount) && event.hintCount! >= 0 ? { hintCount: event.hintCount } : {}),
     ...(event.errorCause && causes.includes(event.errorCause) ? { errorCause: event.errorCause } : {}),
     ...(Number.isInteger(event.attemptOrdinal) && event.attemptOrdinal! >= 1 ? { attemptOrdinal: event.attemptOrdinal } : {}),

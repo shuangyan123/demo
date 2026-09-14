@@ -31,6 +31,7 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
           <KnowledgeTrainingView
           disabled={knowledge.snapshot.submission.busy || knowledge.snapshot.submission.refreshFailed}
           answerOpen={knowledge.snapshot.answerOpen}
+          confidence={knowledge.snapshot.confidence}
           attemptsCount={data.knowledgeAttemptsCount}
           correctRate={knowledge.snapshot.correctRate}
           currentEntry={knowledge.snapshot.currentTraining}
@@ -40,12 +41,14 @@ export function ReviewWorkspaceSecondaryViews({ controller }: { controller: Revi
           queueFilter={knowledge.snapshot.queueFilter}
           trainingIndex={knowledge.snapshot.trainingIndex}
           onChangeQueueFilter={knowledge.actions.changeQueueFilter}
+          onClearConfidence={knowledge.actions.clearConfidence}
           onMove={knowledge.actions.moveTraining}
           onOpenKnowledgeEntry={knowledge.actions.openEntry}
           onRecordReview={knowledge.actions.recordTraining}
           onSkip={knowledge.actions.skipTraining}
           onSelectEntry={knowledge.actions.selectTraining}
-          onToggleAnswer={() => knowledge.actions.setAnswerOpen((value) => !value)}
+          onSetConfidence={knowledge.actions.setConfidence}
+          onToggleAnswer={knowledge.actions.toggleAnswer}
           />}
         </>
       ) : null}
