@@ -207,3 +207,61 @@ test("errorCause 只消费 wrong/uncertain 的显式值，缺失、other、正�
   ]);
   assert.deepEqual(result.errorCauseClusters, []);
 });
+
+test("1,000 subjects 的事件分组一次完成且在输入重排后保持逐 subject 结果稳定", () => {
+  const subjects = Array.from({ length: 1_000 }, (_, index) => {
+    const subjectType: WeaknessSubjectInput["subjectType"] = index % 2 === 0 ? "mistake" : "knowledge";
+    return {
+      subjectType,
+      subjectId: `${subjectType}-scale-${String(index).padStart(4, "0")}`,
+      mastery: (index % 5) + 1,
+      nextReviewAt: future,
+      updatedAt: past,
+      ...(subjectType === "mistake" ? { reasons: [`scale-reason-${index}`] } : {}),
+    } satisfies WeaknessSubjectInput;
+  });
+  const events = subjects.flatMap((subject, subjectIndex) => {
+    const eventCount = (subjectIndex % 8) + 1;
+    return Array.from({ length: eventCount }, (_, eventIndex) => {
+      const sourceType = subject.subjectType === "mistake" ? "review_attempt" : "knowledge_attempt";
+      const sourceId = `scale-event-${subjectIndex}-${eventIndex}`;
+      const outcome: LearningEvent["outcome"] = eventIndex === eventCount - 1
+        ? "wrong"
+        : eventIndex % 2 === 0 ? "correct" : "uncertain";
+      return {
+        id: `${sourceType}:${sourceId}`,
+        sourceType,
+        sourceId,
+        subjectType: subject.subjectType,
+        subjectId: subject.subjectId,
+        outcome,
+        observedAt: new Date(Date.UTC(2026, 7, 1 + eventIndex, 8)).toISOString(),
+        masteryAfter: subject.mastery,
+      } satisfies LearningEvent;
+    });
+  });
+
+  const first = intelligence(subjects, events);
+  const shuffled = intelligence([...subjects].reverse(), [...events].reverse());
+  assert.deepEqual(shuffled, first);
+  assert.equal(first.subjects.length, subjects.length);
+  assert.equal(new Set(first.subjects.map((item) => `${item.subjectType}:${item.subjectId}`)).size, subjects.length);
+
+  const assessments = new Map(first.subjects.map((item) => [`${item.subjectType}:${item.subjectId}`, item]));
+  for (const [subjectIndex, subject] of subjects.entries()) {
+    const assessment = assessments.get(`${subject.subjectType}:${subject.subjectId}`);
+    assert.ok(assessment, `missing assessment for ${subject.subjectId}`);
+    const expectedEventCount = (subjectIndex % 8) + 1;
+    const assignedEvents = assessment.studyDays.flatMap((day) => day.events);
+    assert.equal(assignedEvents.length, expectedEventCount);
+    assert.equal(new Set(assignedEvents.map((event) => event.id)).size, expectedEventCount);
+    assert.ok(assignedEvents.every((event) => event.subjectType === subject.subjectType && event.subjectId === subject.subjectId));
+  }
+
+  const representative = assessments.get("mistake:mistake-scale-0000");
+  assert.ok(representative);
+  assert.equal(representative.latestOutcome, "wrong");
+  assert.equal(representative.wrongDays, 1);
+  assert.equal(representative.studyDays.length, 1);
+  assert.equal(representative.riskScore, 100);
+});

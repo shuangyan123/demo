@@ -6,7 +6,7 @@ import { reviewDb } from "../db/review-db.ts";
 import { learningEventFromReviewAttempt, learningEventId, type LearningEvent } from "../types/domains/learning-event.ts";
 import type { KnowledgeEntry } from "../types/domains/knowledge.ts";
 import type { Attempt, Mistake } from "../types/domains/review.ts";
-import { learningEventRepository } from "./learning-event-repository.ts";
+import { LEARNING_EVENT_BATCH_SIZE, learningEventRepository, planLearningEventSubjectBatches, type LearningEventSubjectRef } from "./learning-event-repository.ts";
 import { knowledgeRepository } from "./knowledge-repository.ts";
 import { loadLearnerStateSnapshot } from "./learner-state-service.ts";
 import { localDataManagementRepository, type LocalDataExportV2 } from "./local-data-management-repository.ts";
@@ -82,6 +82,63 @@ function knowledgeEventForSource(sourceId: string, subjectId: string, observedAt
     masteryAfter: 4,
   };
 }
+
+function subjectRef(index: number): LearningEventSubjectRef {
+  return {
+    subjectType: index % 2 === 0 ? "mistake" : "knowledge",
+    subjectId: `scale-subject-${String(index).padStart(4, "0")}`,
+  };
+}
+
+test("batch subject plan deduplicates, sorts, and keeps query count bounded", () => {
+  const queryCount = (count: number) => planLearningEventSubjectBatches(Array.from({ length: count }, (_, index) => subjectRef(index))).length;
+  assert.deepEqual([
+    queryCount(0),
+    queryCount(1),
+    queryCount(LEARNING_EVENT_BATCH_SIZE),
+    queryCount(LEARNING_EVENT_BATCH_SIZE + 1),
+    queryCount(1_000),
+  ], [0, 1, 1, 2, 4]);
+
+  const refs = Array.from({ length: 1_000 }, (_, index) => subjectRef(index));
+  const planned = planLearningEventSubjectBatches(refs);
+  assert.deepEqual(planLearningEventSubjectBatches([...refs].reverse()), planned);
+  assert.deepEqual(planLearningEventSubjectBatches([...refs, ...refs.slice(0, 300)]), planned);
+  assert.equal(new Set(planned.flat().map((ref) => `${ref.subjectType}:${ref.subjectId}`)).size, refs.length);
+  assert.ok(planned.every((batch) => batch.length <= LEARNING_EVENT_BATCH_SIZE));
+});
+
+test("listForSubjects executes one compound-index query per planned batch", async () => {
+  await resetReviewDb();
+  let queryCount = 0;
+  const originalWhere = reviewDb.learningEvents.where.bind(reviewDb.learningEvents);
+  Object.defineProperty(reviewDb.learningEvents, "where", {
+    configurable: true,
+    value: (index: string) => {
+      queryCount += 1;
+      return originalWhere(index);
+    },
+  });
+
+  try {
+    await learningEventRepository.listForSubjects([]);
+    assert.equal(queryCount, 0);
+
+    queryCount = 0;
+    await learningEventRepository.listForSubjects(Array.from({ length: LEARNING_EVENT_BATCH_SIZE }, (_, index) => subjectRef(index)));
+    assert.equal(queryCount, 1);
+
+    queryCount = 0;
+    await learningEventRepository.listForSubjects(Array.from({ length: LEARNING_EVENT_BATCH_SIZE + 1 }, (_, index) => subjectRef(index)));
+    assert.equal(queryCount, 2);
+
+    queryCount = 0;
+    await learningEventRepository.listForSubjects(Array.from({ length: 1_000 }, (_, index) => subjectRef(index)));
+    assert.equal(queryCount, 4);
+  } finally {
+    Object.defineProperty(reviewDb.learningEvents, "where", { configurable: true, value: originalWhere });
+  }
+});
 
 test("reviewRepository.recordReview 保留旧签名并在同一事务写入 Attempt 与 LearningEvent", async () => {
   await resetReviewDb();
@@ -270,6 +327,22 @@ test("LearningEvent subject/recent reads use subject filtering and deterministic
     "review_attempt:attempt-a",
     "review_attempt:attempt-b",
   ]);
+  assert.deepEqual(await learningEventRepository.listForSubjects([]), []);
+  const mixedEvents = await learningEventRepository.listForSubjects([
+    { subjectType: "mistake", subjectId: "mistake-1" },
+    { subjectType: "knowledge", subjectId: "knowledge-1" },
+    { subjectType: "mistake", subjectId: "mistake-1" },
+  ]);
+  assert.deepEqual(mixedEvents.map((event) => event.id), [
+    "knowledge_attempt:knowledge-attempt-a",
+    "review_attempt:attempt-a",
+    "review_attempt:attempt-b",
+  ]);
+  const repeatedSingleReads = [
+    ...(await learningEventRepository.listForSubject("mistake", "mistake-1")),
+    ...(await learningEventRepository.listForSubject("knowledge", "knowledge-1")),
+  ];
+  assert.deepEqual(mixedEvents.map((event) => event.id).toSorted(), repeatedSingleReads.map((event) => event.id).toSorted());
   assert.deepEqual((await learningEventRepository.listRecent(3)).map((event) => event.id), [
     "knowledge_attempt:knowledge-attempt-a",
     "review_attempt:attempt-c",
@@ -377,6 +450,42 @@ test("scoped learner-state 只加载已通过 workspace scope 的 subject Learni
   assert.equal(board?.evidence.some((item) => item.id === includedAttemptId), true);
   assert.equal(board?.evidence.some((item) => item.id === "excluded-history"), false);
   assert.equal(snapshot.sourceRecordCount, 2);
+});
+
+test("personal learner-state batch 只读取 personal mistake/knowledge subjects", async () => {
+  await resetReviewDb();
+  const personalMistake = { ...mistake("m1", 3), nextReviewAt: "2026-08-20", updatedAt: date };
+  const personalKnowledge = { ...knowledge("k1", 3), nextReviewAt: "2026-08-20", updatedAt: date };
+  const uiReviewMistake = { ...mistake("ui-review:m2", 1), nextReviewAt: date };
+  const uiReviewKnowledge = { ...knowledge("ui-review:k2", 1), nextReviewAt: date };
+  const sampleMistake = { ...mistake("sample:s:m3", 1), nextReviewAt: date };
+  await reviewDb.mistakes.bulkPut([personalMistake, uiReviewMistake, sampleMistake]);
+  await reviewDb.knowledgeEntries.bulkPut([personalKnowledge, uiReviewKnowledge]);
+  await reviewDb.attempts.bulkPut([
+    { id: "personal-attempt", mistakeId: personalMistake.id, result: "wrong", confidence: 3, reviewedAt: date },
+    { id: "ui-review:m2-attempt", mistakeId: uiReviewMistake.id, result: "wrong", confidence: 1, reviewedAt: date },
+  ]);
+  await reviewDb.knowledgeAttempts.bulkPut([
+    { id: "personal-knowledge-attempt", knowledgeId: personalKnowledge.id, result: "uncertain", confidence: 3, reviewedAt: date },
+    { id: "ui-review:k2-attempt", knowledgeId: uiReviewKnowledge.id, result: "wrong", confidence: 1, reviewedAt: date },
+  ]);
+  await reviewDb.learningEvents.bulkPut([
+    eventForSource("personal-attempt", personalMistake.id, date, "wrong"),
+    eventForSource("ui-review:m2-attempt", uiReviewMistake.id, date, "wrong"),
+    knowledgeEventForSource("personal-knowledge-attempt", personalKnowledge.id, date, "uncertain"),
+    knowledgeEventForSource("ui-review:k2-attempt", uiReviewKnowledge.id, date, "wrong"),
+    eventForSource("sample:s:m3-event", sampleMistake.id, date, "wrong"),
+  ]);
+
+  const snapshot = await loadLearnerStateSnapshot(today, { kind: "personal" });
+  const evidenceIds = snapshot.signals.flatMap((signal) => signal.evidence.map((item) => item.id));
+  assert.ok(evidenceIds.includes("personal-attempt"));
+  assert.ok(evidenceIds.includes("personal-knowledge-attempt"));
+  assert.ok(evidenceIds.every((id) => !id.startsWith("ui-review:") && !id.startsWith("sample:")));
+  assert.ok(!evidenceIds.includes("ui-review:m2-attempt"));
+  assert.ok(!evidenceIds.includes("ui-review:k2-attempt"));
+  assert.ok(!evidenceIds.includes("sample:s:m3-event"));
+  assert.equal(snapshot.sourceRecordCount, 4);
 });
 
 test("完整本地备份包含 LearningEvent，恢复可读且拒绝悬空事件", async () => {

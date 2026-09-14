@@ -348,9 +348,16 @@ function deriveErrorCauseClusters(
 export function deriveWeaknessIntelligence(input: WeaknessIntelligenceInput): WeaknessIntelligence {
   const subjects = uniqueSubjects(input.subjects);
   const events = uniqueEvents(input.learningEvents);
+  const eventsBySubject = new Map<string, LearningEvent[]>();
+  for (const event of events) {
+    const key = subjectKey(event);
+    const subjectEvents = eventsBySubject.get(key);
+    if (subjectEvents) subjectEvents.push(event);
+    else eventsBySubject.set(key, [event]);
+  }
   const assessments = subjects.map((subject) => deriveSubjectAssessment(
     subject,
-    events.filter((event) => event.subjectType === subject.subjectType && event.subjectId === subject.subjectId),
+    eventsBySubject.get(subjectKey(subject)) ?? [],
     input.today,
   ));
   return {

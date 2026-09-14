@@ -74,14 +74,21 @@ function actionId(rule: string, targetIds: string[]): string {
   return derivedId("learning-action", `${rule}-${(hash >>> 0).toString(36)}`);
 }
 
+function compareEvidenceRefs(left: LearnerEvidenceRef, right: LearnerEvidenceRef): number {
+  return right.observedAt.localeCompare(left.observedAt)
+    || left.type.localeCompare(right.type)
+    || left.id.localeCompare(right.id);
+}
+
 function dedupeEvidence(evidence: LearnerEvidenceRef[]): LearnerEvidenceRef[] {
   const unique = new Map<string, LearnerEvidenceRef>();
   for (const item of evidence) unique.set(`${item.type}:${item.id}`, item);
-  return [...unique.values()].toSorted((left, right) => (
-    right.observedAt.localeCompare(left.observedAt)
-    || left.type.localeCompare(right.type)
-    || left.id.localeCompare(right.id)
-  ));
+  return [...unique.values()].toSorted(compareEvidenceRefs);
+}
+
+/** due_review 只稳定化最终选中的 evidence subset，不改变 underlying due facts 的顺序。 */
+function selectDueEvidence<T>(items: readonly T[], toEvidence: (item: T) => LearnerEvidenceRef): LearnerEvidenceRef[] {
+  return items.map(toEvidence).toSorted(compareEvidenceRefs).slice(0, 2);
 }
 
 function mistakeEvidence(item: Mistake): LearnerEvidenceRef {
@@ -512,10 +519,10 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
   const dueTutoringPlans = facts.tutoringPlans.filter((item) => item.status === "active" && isDue(item.nextPracticeAt, today));
   const dueInterviewPlans = facts.interviewPracticePlans.filter((item) => item.status === "active" && isDue(item.nextPracticeAt, today));
   const dueEvidence = dedupeEvidence([
-    ...dueMistakes.slice(0, 2).map(mistakeEvidence),
-    ...dueKnowledge.slice(0, 2).map(knowledgeEvidence),
-    ...dueTutoringPlans.slice(0, 2).map((plan) => ({ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
-    ...dueInterviewPlans.slice(0, 2).map((plan) => ({ type: "interview_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
+    ...selectDueEvidence(dueMistakes, mistakeEvidence),
+    ...selectDueEvidence(dueKnowledge, knowledgeEvidence),
+    ...selectDueEvidence(dueTutoringPlans, (plan) => ({ type: "tutoring_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
+    ...selectDueEvidence(dueInterviewPlans, (plan) => ({ type: "interview_plan" as const, id: plan.id, label: plan.title, observedAt: plan.updatedAt })),
   ]);
   const misconception = misconceptionSignals(facts.mistakes, intelligence);
   const signals = [
@@ -589,7 +596,7 @@ export async function loadLearnerStateSnapshotFromNormalizedFacts(
   ];
   const [
     [interviewEvaluations, interviewPracticePlans, interviewSessions, tutoringSessions, tutoringTurns, tutoringPlans],
-    learningEventLists,
+    learningEvents,
   ] = await Promise.all([
     Promise.all([
       reviewDb.interviewEvaluations.toArray(),
@@ -599,14 +606,14 @@ export async function loadLearnerStateSnapshotFromNormalizedFacts(
       reviewDb.tutoringTurns.toArray(),
       reviewDb.tutoringPlans.toArray(),
     ]),
-    Promise.all(subjects.map((subject) => learningEventRepository.listForSubject(subject.subjectType, subject.subjectId))),
+    learningEventRepository.listForSubjects(subjects),
   ]);
   return deriveLearnerStateSnapshot({
     mistakes: scopedMistakes,
     attempts: scopedAttempts,
     knowledgeEntries: scopedKnowledgeEntries,
     knowledgeAttempts: scopedKnowledgeAttempts,
-    learningEvents: learningEventLists.flat(),
+    learningEvents,
     interviewEvaluations: filterWorkspaceRecords(interviewEvaluations, scope),
     interviewPracticePlans: filterWorkspaceRecords(interviewPracticePlans, scope),
     interviewSessions: filterWorkspaceRecords(interviewSessions, scope),

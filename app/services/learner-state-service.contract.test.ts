@@ -283,6 +283,59 @@ test("到期辅导与面试计划进入队列，paused/completed 计划不会被
   assert.equal(snapshot.dueReviewCount, 2);
 });
 
+test("due_review evidence 在各类别内先稳定排序再取两条，且不改变推荐语义", () => {
+  const input = facts({
+    mistakes: [
+      { ...mistake("due-mistake-old", 2), updatedAt: "2026-08-06T08:00:00.000Z" },
+      { ...mistake("due-mistake-new", 2), updatedAt: "2026-08-09T07:00:00.000Z" },
+      { ...mistake("due-mistake-middle", 2), updatedAt: "2026-08-08T09:00:00.000Z" },
+    ],
+    knowledgeEntries: [
+      { ...knowledge("due-knowledge-old", 2), updatedAt: "2026-08-06T10:00:00.000Z" },
+      { ...knowledge("due-knowledge-new", 2), updatedAt: "2026-08-09T06:00:00.000Z" },
+      { ...knowledge("due-knowledge-middle", 2), updatedAt: "2026-08-08T10:00:00.000Z" },
+    ],
+    tutoringPlans: [
+      { ...tutoringPlan("due-tutoring-old", "active"), updatedAt: "2026-08-06T11:00:00.000Z" },
+      { ...tutoringPlan("due-tutoring-new", "active"), updatedAt: "2026-08-09T05:00:00.000Z" },
+      { ...tutoringPlan("due-tutoring-middle", "active"), updatedAt: "2026-08-08T11:00:00.000Z" },
+    ],
+    interviewPracticePlans: [
+      { ...interviewPlan("due-interview-old", "active"), updatedAt: "2026-08-06T12:00:00.000Z" },
+      { ...interviewPlan("due-interview-new", "active"), updatedAt: "2026-08-09T04:00:00.000Z" },
+      { ...interviewPlan("due-interview-middle", "active"), updatedAt: "2026-08-08T12:00:00.000Z" },
+    ],
+  });
+  const first = deriveLearnerStateSnapshot(input, today);
+  const second = deriveLearnerStateSnapshot({
+    ...input,
+    mistakes: [...input.mistakes].reverse(),
+    knowledgeEntries: [...input.knowledgeEntries].reverse(),
+    tutoringPlans: [...input.tutoringPlans].reverse(),
+    interviewPracticePlans: [...input.interviewPracticePlans].reverse(),
+  }, today);
+  const firstDue = first.signals.find((signal) => signal.id === "due_review:current");
+  const secondDue = second.signals.find((signal) => signal.id === "due_review:current");
+  assert.ok(firstDue);
+  assert.ok(secondDue);
+  assert.deepEqual(secondDue, firstDue);
+  assert.equal(first.dueReviewCount, 12);
+  assert.equal(second.dueReviewCount, first.dueReviewCount);
+  const expectedEvidence = new Map([
+    ["mistake", ["due-mistake-middle", "due-mistake-new"]],
+    ["knowledge", ["due-knowledge-middle", "due-knowledge-new"]],
+    ["tutoring_plan", ["due-tutoring-middle", "due-tutoring-new"]],
+    ["interview_plan", ["due-interview-middle", "due-interview-new"]],
+  ]);
+  for (const [type, ids] of expectedEvidence) {
+    assert.deepEqual(firstDue.evidence.filter((item) => item.type === type).map((item) => item.id).toSorted(), ids);
+  }
+  assert.deepEqual(
+    second.recommendations.map((item) => ({ id: item.id, priority: item.priority, destination: item.destination })),
+    first.recommendations.map((item) => ({ id: item.id, priority: item.priority, destination: item.destination })),
+  );
+});
+
 test("未提交微测不代表掌握，失败微测生成重试，满分只保留间隔证据", () => {
   const question = { id: "q1", prompt: "问题", options: ["A", "B"], correctOptionIndex: 0, explanation: "" };
   const turns: TutoringTurn[] = [
