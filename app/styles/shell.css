@@ -278,11 +278,6 @@ body[data-theme="dark"] .workspace-sidebar-wordmark-dark {
   color: var(--foreground);
 }
 
-.workspace-sidebar-material-menu > summary > svg:last-child {
-  color: var(--muted);
-  transition: transform var(--motion-fast) var(--motion-ease);
-}
-
 .workspace-sidebar-material-menu[open] > summary > svg:last-child {
   transform: rotate(90deg);
 }
@@ -372,11 +367,6 @@ body[data-theme="dark"] .workspace-sidebar-wordmark-dark {
   overflow: hidden;
   border-top-left-radius: 0;
   border: 0;
-}
-
-.chrome-layout.is-sidebar-collapsed .chrome-sidebar-boundary {
-  opacity: 0;
-  width: 0;
 }
 
 .chrome-layout.is-sidebar-collapsed .chrome-content-frame[data-content-surface="raised-surface"] > .chrome-content {
