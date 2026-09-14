@@ -20,15 +20,17 @@ export function useLearningConfidence(subjectId: string | null) {
     : { feedbackRevealed: false };
 
   function setConfidence(value: SelfConfidence) {
-    setCapture((current) => current.subjectId === subjectId && !current.feedbackRevealed
-      ? { ...current, selectedConfidence: value }
-      : current);
+    setCapture((current) => {
+      if (current.subjectId !== subjectId) return { subjectId, feedbackRevealed: false, selectedConfidence: value };
+      return current.feedbackRevealed ? current : { ...current, selectedConfidence: value };
+    });
   }
 
   function clearConfidence() {
-    setCapture((current) => current.subjectId === subjectId && !current.feedbackRevealed
-      ? { subjectId, feedbackRevealed: false }
-      : current);
+    setCapture((current) => {
+      if (current.subjectId !== subjectId) return { subjectId, feedbackRevealed: false };
+      return current.feedbackRevealed ? current : { subjectId, feedbackRevealed: false };
+    });
   }
 
   function revealFeedback() {

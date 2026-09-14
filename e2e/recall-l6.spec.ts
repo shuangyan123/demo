@@ -65,15 +65,54 @@ test.describe("Recall L6 delayed recall and calibration", () => {
   });
 
   test("切换知识训练对象会隔离上一对象的自评", async ({ page }) => {
-    const first = l6Knowledge("isolation-first");
-    const second = l6Knowledge("isolation-second");
+    const first = l6Knowledge("isolation-a", "2026-09-01");
+    const second = l6Knowledge("isolation-b", "2026-09-02");
     await seedL6(page, { knowledgeEntries: [first, second] });
     await openL6Nav(page, "知识训练");
     await expect(page.getByRole("heading", { name: "第 1 条 / 2", exact: true })).toBeVisible();
-    await page.getByRole("radio", { name: "4 · 较有把握" }).check();
+    const firstConfidence = page.getByRole("radio", { name: "4 · 较有把握" });
+    await firstConfidence.check();
+    await expect(firstConfidence).toBeChecked();
     await page.getByRole("button", { name: "下一条", exact: true }).click();
     await expect(page.getByRole("heading", { name: "第 2 条 / 2", exact: true })).toBeVisible();
     await expect(page.getByRole("radio", { name: "4 · 较有把握" })).not.toBeChecked();
+    const secondConfidence = page.getByRole("radio", { name: "2 · 较没把握" });
+    await secondConfidence.check();
+    await expect(secondConfidence).toBeChecked();
+    await page.getByRole("button", { name: "不会", exact: true }).click();
+    await expect.poll(async () => (await readL6Event(page, "knowledge_attempt", second.id))?.selfConfidence).toBe(2);
+    const event = await readL6Event(page, "knowledge_attempt", second.id);
+    expect(event?.selfConfidence).toBe(2);
+    expect(event?.selfConfidenceProtocol).toBe("pre_feedback_1_5_v1");
+    expect(event?.selfConfidence).not.toBe(4);
+  });
+
+  test("切换错题复盘对象会接受新对象的首次自评并持久化", async ({ page }) => {
+    const first = l6Mistake("review-isolation-a", "2026-09-01");
+    const second = l6Mistake("review-isolation-b", "2026-09-02");
+    await seedL6(page, { mistakes: [first, second] });
+    await openL6Nav(page, "错题库");
+    await page.getByRole("button", { name: /L6 错题 review-isolation-a.*判断推理/ }).click();
+    await page.getByRole("button", { name: "开始这道复盘", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "L6 错题 review-isolation-a", exact: true })).toBeVisible();
+    const firstConfidence = page.getByRole("radio", { name: "5 · 很有把握" });
+    await firstConfidence.check();
+    await expect(firstConfidence).toBeChecked();
+
+    await openL6Nav(page, "错题库");
+    await page.getByRole("button", { name: /L6 错题 review-isolation-b.*判断推理/ }).click();
+    await page.getByRole("button", { name: "开始这道复盘", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "L6 错题 review-isolation-b", exact: true })).toBeVisible();
+    const secondConfidence = page.getByRole("radio", { name: "2 · 较没把握" });
+    await expect(secondConfidence).not.toBeChecked();
+    await secondConfidence.check();
+    await expect(secondConfidence).toBeChecked();
+    await page.getByRole("button", { name: "会做", exact: true }).click();
+    await expect.poll(async () => (await readL6Event(page, "review_attempt", second.id))?.selfConfidence).toBe(2);
+    const event = await readL6Event(page, "review_attempt", second.id);
+    expect(event?.selfConfidence).toBe(2);
+    expect(event?.selfConfidenceProtocol).toBe("pre_feedback_1_5_v1");
+    expect(event?.selfConfidence).not.toBe(5);
   });
 
   test("薄弱分析显示描述性 L6 学习证据而不显示旧跨日率", async ({ page }) => {
