@@ -67,9 +67,14 @@ and the relevant architecture document.
 
 ---
 
-# 2. HARD PREFLIGHT BEFORE WRITING
+# 2. STARTUP STALE-WORKTREE RECONCILIATION + HARD PREFLIGHT
 
-For mode B, before editing, run:
+For every new mode B write task, first reconcile stale disposable worktrees from
+earlier completed tasks when the local environment permits it. This startup
+housekeeping is intentionally decoupled from the lifetime of the Codex process
+that originally created the worktree.
+
+From the canonical main worktree, inspect:
 
 ```bash
 git status --short
@@ -78,21 +83,49 @@ git branch --show-current
 git rev-parse HEAD
 git fetch origin
 git rev-parse origin/main
-git worktree list
-git status --short
+git worktree list --porcelain
+npm run worktree:audit
 ```
 
-The preflight must establish:
+If and only if the invoking canonical worktree is attached, clean, free of an
+unfinished merge/rebase/cherry-pick/revert, on `main`, and can be synchronized
+without discarding user work, run:
 
-* the current worktree is clean
-* the current branch is `main`
-* `HEAD` equals `origin/main`
+```bash
+git pull --ff-only origin main
+npm run worktree:audit
+npm run worktree:cleanup
+npm run worktree:audit
+```
+
+Startup cleanup is automatic for entries classified `SAFE_TO_REMOVE`. Do not ask
+the user for a separate cleanup confirmation. The repository-owned guard is the
+authority and must fail closed. Never replace it with directory-name guesses,
+manual directory deletion, `git worktree remove --force`, `git worktree prune`,
+branch deletion, stash/reset/restore/clean, or any other operation that can discard
+or obscure user work.
+
+If startup cleanup cannot run safely because the canonical main worktree is dirty,
+detached, mid-operation, unavailable, stale in a way that cannot fast-forward, or
+otherwise ambiguous, preserve all state and skip the cleanup mutation. A skipped
+cleanup is not permission to modify the blocker. Continue the new task only when
+an independent safe task location can still be established from the exact latest
+`origin/main`; otherwise STOP and report the blocker.
+
+After startup reconciliation, the mode B preflight must establish:
+
+* latest `origin/main` SHA is known
+* the selected task location is clean and attached
+* no unfinished merge/rebase/cherry-pick/revert exists
 * there are no unknown local changes
-* no other worktree must be modified or resolved to begin this task
+* unrelated WIP/worktrees do not need to be altered
+* the fresh task branch is based on the exact verified latest `origin/main`
 
-If any condition fails, STOP. Do not stash, reset, restore, clean, checkout away local changes, commit unrelated changes, delete/prune worktrees, or alter WIP branches.
-
-For mode C, inspect the existing PR first and verify its exact head branch, the local checkout, and the PR HEAD SHA. A dirty state is only continuable when it is proven to belong to that exact PR task.
+For mode C, inspect the existing PR first and verify its exact head branch, the
+local checkout, and the PR HEAD SHA. Startup stale-worktree reconciliation is not
+required before continuing an existing PR when doing so would disturb that PR's
+checked-out worktree. A dirty state is only continuable when it is proven to belong
+to that exact PR task.
 
 Never discard unknown user changes.
 
@@ -673,9 +706,40 @@ Keep the PR focused and report the scope conflict.
 
 ---
 
-# 20. Auto-merge hard gate
+# 20. Delivery authorization and auto-merge hard gate
 
-Automatic Merge is allowed only when all applicable conditions are true:
+For an ordinary scoped repository engineering task, the user's authorization to do
+the task covers the normal delivery lifecycle through commit, push, PR, independent
+review, exact-head CI, Squash Merge, final-main verification, and safe cleanup unless
+the user explicitly narrows the boundary. Do not ask for a redundant "merge?"
+confirmation after ordinary scoped work is technically eligible.
+
+If a separate reviewer/orchestrator owns the review gate, the implementation worker
+must not treat its own implementation as independent review. It should hand off the
+exact PR HEAD and verification evidence at `READY FOR REVIEW`. The reviewer/orchestrator
+may complete Merge and cleanup when the hard gate below is satisfied.
+
+A later user instruction such as "PR only", "do not merge", "stop after tests", or
+"leave this open" narrows the task and must be obeyed.
+
+Task-specific explicit approval remains required for externally consequential actions,
+including:
+
+* package publication, GitHub Release creation, public launch, or deployment that
+  changes an external release boundary
+* paid/live provider execution or other batch operations that incur cost or transmit
+  non-public inputs
+* purchases or paid services
+* destructive or hard-to-reverse deletion of important persistent data, repositories,
+  cloud resources, or production state
+* production credentials, permissions, authentication, or security-policy changes
+* unscoped product-direction, data-migration, privacy-policy, or architecture decisions
+  with material user-data consequences
+
+If one of these actions is required but was not authorized in the current task, stop
+at `EXPLICIT APPROVAL REQUIRED`; do not perform it.
+
+Automatic Merge for ordinary scoped work is allowed only when all applicable conditions are true:
 
 ```text
 local required gates PASS
@@ -745,17 +809,36 @@ Do not use a meaningless default title.
 
 ---
 
-# 23. Branch cleanup
+# 23. Branch and worktree cleanup
 
-After successful Merge:
+After successful Merge, first confirm remote evidence that the merged PR base is
+`main`, its head SHA is the exact validated HEAD, and final `main` contains the
+merge result.
 
-check whether another open PR depends on the branch.
+For local disposable worktrees, prefer the repository-owned guard:
 
-If not:
+```bash
+npm run worktree:audit
+npm run worktree:cleanup
+npm run worktree:audit
+```
 
-delete the merged remote work branch.
+The cleanup command may remove only entries proven `SAFE_TO_REMOVE`: clean,
+attached, non-current, non-default worktrees whose unique merged PR matches the
+branch and exact HEAD, with no open/dependent PR and proven current-user ownership.
+Apply mode additionally requires execution from a clean, attached, exact latest
+`main`. It uses `git worktree remove` without `--force`.
 
-Do not delete a branch that is still used as the base of stacked work.
+If the implementation process ends before Merge, it does not need to stay alive.
+The next new-task startup reconciliation in section 2 must recover and remove any
+now-safe stale worktree.
+
+Do not manually delete a worktree directory, force-remove it, prune metadata, or
+touch dirty/ambiguous/user-owned work to achieve cleanup.
+
+Remote or local task-branch deletion is optional and separate from worktree cleanup.
+Delete a branch only when ownership is proven and no open/stacked PR depends on it.
+Do not delete a branch merely because its worktree was safely removed.
 
 ---
 
@@ -904,6 +987,8 @@ The normal successful workflow is:
 ```text
 Understand
 ↓
+Startup stale-worktree reconciliation for new write tasks when locally safe
+↓
 Audit
 ↓
 Implement
@@ -934,6 +1019,11 @@ Post-merge verification
 ↓
 STOP
 ```
+
+If a separate reviewer/orchestrator owns the review gate, the implementation worker
+may stop at `READY FOR REVIEW` after handing off the exact PR HEAD; it does not need
+to remain alive until Merge. Any stale merged worktree is reconciled by the next
+new-task startup when proven `SAFE_TO_REMOVE`.
 
 If any critical condition fails:
 
