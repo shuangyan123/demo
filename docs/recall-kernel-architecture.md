@@ -139,7 +139,7 @@ selected option == correctOptionIndex
 | `source` | adapter ID 与原始记录 refs；ref 至少包含 record type / ID，可包含真实可辨别 revision |
 | `provenance` | 归一化 / interpreter 版本、modality、作者与 key 来源、scoring method、policy version、时间精度与可用性 |
 | `payload` | 按 kind 区分的最小观察事实，不接收 canonical state patch |
-| `traceRef` | 可选 opaque 引用，指向未来受权限保护的 raw trace；不内嵌点流、路径或凭据 |
+| `traceRef` | 仅在 raw trace 经授权保留时可附带的 opaque 引用；缺失不影响 event 有效性，不内嵌点流、路径或凭据 |
 
 `provenance` 应能表达 adapter ID、original record type / ID、modality（text / selection / pen 等，无法确认则 unknown）、`modelAuthored: true / false / unknown`、scoring method（self_report / option_key_comparison / model_rubric 等）与适用版本。`false` 也不能自动表示内容已独立验证；需要独立的内容 / key 验证来源。Event 上的 policy version 标识归一化规则，Evidence 上另记解释规则，不让来源选择权威等级。
 
@@ -265,7 +265,7 @@ Hardware
     ↓
 Capture Adapter
     ↓
-Raw Trace Store
+Raw Trace / transient stream
     ↓
 Event Interpreter
     ↓
@@ -274,11 +274,27 @@ LearningEvent
 Recall Kernel
 ```
 
-Raw trace 可包含 stroke coordinates、pressure、timestamp、page coordinates、erase operation、pen tilt 与 high-frequency point stream。设备协议、采样频率、坐标系与 raw storage 不属于 Kernel。
+持久化是主路径之外的可选侧边界：
 
-Kernel 只消费 `pause.detected`、`answer.revised`、`attempt.completed` 等 semantic events。Interpreter 的观察与模型解释分别标注，不能用“停顿 8 秒”直接构造 concept misconception Evidence。
+```text
+Raw Trace / transient stream
+      └──→ optional Trace Store
+           only when retention is authorized and justified
+```
 
-Semantic event 可含 opaque `traceRef`，使未来能在授权后回看并用新版 interpreter 重新解释。重解释结果需保留 interpreter / policy version 与来源联系，不能伪造新的独立尝试。`traceRef` 本身不授予访问权，也不能把高频点流、原始媒体或设备秘密带入 Kernel、模型上下文或普通诊断。
+**Semantic event generation must not require raw-trace persistence.** Capture Adapter 的 transient stream 可以直接交由 Event Interpreter 生成语义事件；Trace Store 是 optional、policy-controlled 边界，不是 event generation 或 Kernel 的前置条件。
+
+高频 pen / stylus raw traces 可包含 handwriting、draft reasoning、coordinates、timing、pressure、erasures、pen tilt 与其他潜在敏感的学习材料。设备协议、采样频率、坐标系与 raw storage 不属于 Kernel。
+
+许多正常产品流程只需要 `pause.detected`、`answer.revised`、`erase.detected`、`attempt.completed` 等 semantic events；不能仅因 Kernel 需要这些事件就默认保留 raw traces。Interpreter 的观察与模型解释分别标注，不能用“停顿 8 秒”直接构造 concept misconception Evidence。
+
+可论证的授权保留目的包括用户授权的 replay、research / measurement、未来新版 interpreter 的重新解释，以及隐私策略允许的 debugging。这些用途仍须满足适用的授权与保留策略，不能据此自动启用 Trace Store。
+
+若 trace 未保留，semantic events 仍然有效，不携带 `traceRef`；Kernel 行为必须不依赖 `traceRef` 存在。事件仍保留自身的 semantic payload、来源与 interpreter provenance，不以 raw data 的可回放性作为有效性前提。
+
+若 trace 经授权保留，semantic event 可含 opaque `traceRef`；引用本身不授予访问权。Retention、deletion、access 与 re-interpretation 的策略及执行均在 Kernel 之外。重解释结果需保留 interpreter / policy version 与来源联系，不能伪造新的独立尝试。
+
+Raw data 不得因被保留或存在 `traceRef` 而自动进入 Kernel、AI context、diagnostics、exports、telemetry 或 Mods；引用不能成为原始点流、媒体或设备秘密的传播通道。任何 raw data 访问或使用都须由 Kernel 外的权限与隐私策略独立控制。
 
 **本任务不实现 Trace Store，也不选择硬件存储技术。** 数据保留、删除、容量、授权与重新解释策略须在稳定语义契约及真实设备需求出现后单独设计；不因这张图现在创建新数据库或硬件服务。
 
@@ -294,6 +310,7 @@ Semantic event 可含 opaque `traceRef`，使未来能在授权后回看并用�
 8. **Mods propose; Adapters observe; Kernel decides state.** adapter provenance 和 Mod 提议都必须经过规则与权限验证。
 9. **未知事实保持未知，证据不得洗白。** assistance unknown != none；多个由同一次来源派生的 Evidence != 多次独立测量；legacy mastery != canonical truth。
 10. **派生不执行。** recommendation 和 nextVerificationAt 不创建计划、不执行工具、不自动重试多系统副作用。
+11. **Semantic event generation must not require raw-trace persistence.** Trace Store 可选且由策略控制；没有 retained trace 或 `traceRef` 不影响 semantic event 有效性，Kernel 行为必须不依赖 `traceRef` 存在。
 
 继续保留当前有用的产品约束：
 
@@ -378,7 +395,7 @@ new derived Kernel state
 | D — Compatibility bridge | learner-state-service 逐步消费 Kernel 输出 | 相同 UI contract、recommendation identity / transitions、normalization owner 与 scope；可逐项回滚 | Deferred |
 | E — LearnerTargetState V1 | 在 Evidence 足够时暴露 independence / retention / transfer | unknown / conflict / insufficient evidence 可用，维度 claim 有可追溯链；仍 derived，初期不持久化 | Deferred |
 | F — first-party Mod / Adapter boundaries | 渐进拆 civil-service；Fenbi 明确 adapter；Tutor / Interview / Obsidian 逐步接入 | first-party compile-time registration、能力授权不变、无删功能或公共代码插件 runtime | Deferred |
-| G — Hardware protocol | 语义契约稳定后设计 trace storage 与 digital-pen / tablet adapters | 真实设备需求、interpreter provenance、raw / semantic 分离及存储独立评审 | Deferred |
+| G — Hardware protocol | 语义契约稳定后设计可选、policy-controlled trace storage 与 digital-pen / tablet adapters | 真实设备需求、interpreter provenance、raw / semantic 分离及授权保留的独立评审 | Deferred |
 
 **本 PR 不实现 B–G，不启动下一阶段。** 这些是迁移提议，不是批准的执行计划或已完成 roadmap 状态。
 
