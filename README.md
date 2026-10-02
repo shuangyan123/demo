@@ -177,3 +177,5 @@ scripts/             审计、bundle、standalone 与桌面打包脚本
 7. 每个阶段运行与风险相称的实际质量门，并在文档中区分自动验证、人工验证和残余风险。
 
 架构决策见 [docs/architecture.md](docs/architecture.md)，API 契约见 [docs/api.md](docs/api.md)，长期经验记录见 [docs/agents.md](docs/agents.md)。
+
+Recall 的证据与学习者状态边界提案见 [Recall Kernel Architecture RFC](docs/recall-kernel-architecture.md)（Draft，仅文档，尚未实现）。
