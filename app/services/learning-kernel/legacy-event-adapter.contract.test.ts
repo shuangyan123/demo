@@ -150,9 +150,31 @@ test("source time validation keeps unknowns and precision without a clock", () =
   assert.equal(event.provenance.timePrecision, "unknown");
 });
 
-test("unsubmitted or incomplete micro-assessments have no submitted events", () => {
+test("ordinary tutoring turns without micro-assessments produce no events or diagnostics", () => {
+  for (const speaker of ["ai_tutor", "student", "system"] as const) {
+    assert.deepEqual(adaptTutoringMicroAssessment(tutoring({ speaker, microAssessment: undefined })), { events: [], diagnostics: [] });
+  }
+});
+
+test("aggregate projection ignores ordinary student and system turns without micro-assessments", () => {
+  const ordinaryTurns = (["student", "system"] as const).map((speaker) => tutoring({ id: `${speaker}-turn`, speaker, microAssessment: undefined }));
+  assert.deepEqual(projectLegacyLearningEvents({ tutoringTurns: ordinaryTurns }), { events: [], diagnostics: [] });
+  assert.deepEqual(projectLegacyLearningEvents({ tutoringTurns: [tutoring(), ...ordinaryTurns] }), projectLegacyLearningEvents({ tutoringTurns: [tutoring()] }));
+});
+
+test("non-tutor turns containing a micro-assessment fail closed even when incomplete", () => {
+  for (const speaker of ["student", "system"] as const) {
+    for (const microAssessment of [tutoring().microAssessment!, { questions: [] }]) {
+      assert.deepEqual(adaptTutoringMicroAssessment(tutoring({ speaker, microAssessment })), {
+        events: [], diagnostics: [{ code: "unsupported_source", source: { recordType: "tutoring_turn", recordId: "turn-1" } }],
+      });
+    }
+  }
+});
+
+test("existing but incomplete micro-assessments have no submitted events", () => {
   const assessment = tutoring().microAssessment!;
-  for (const microAssessment of [undefined, { questions: [] }, { questions: assessment.questions },
+  for (const microAssessment of [{ questions: [] }, { questions: assessment.questions },
     { ...assessment, selections: undefined }, { ...assessment, correctCount: undefined }, { ...assessment, completedAt: undefined }]) {
     const output = adaptTutoringMicroAssessment(tutoring({ microAssessment }));
     assert.deepEqual(output.events, []);
@@ -275,8 +297,27 @@ test("interview workflow completion and model judgment remain distinct", () => {
   assert.equal(output.events[1].provenance.modality, "model_assessment");
   assert.equal(output.events[1].provenance.modelAuthored, true);
   assert.equal(output.events[1].provenance.scoringMethod, "model_rubric");
-  assert.deepEqual(output.events[1].payload, { totalScore: 70, evaluationType: "structured", dimensions: [{ name: "表达能力", score: 15 }] });
+  assert.deepEqual(output.events[1].payload, { totalScore: 70, evaluationType: "structured", dimensions: [{ name: "表达能力", score: 15, maxScore: 20 }] });
   assert.equal(output.diagnostics[0].code, "history_not_recoverable");
+});
+
+test("interview dimensions retain persisted denominators while private evaluation prose stays excluded", () => {
+  const record = evaluation({ dimensions: [
+    { name: "表达能力", score: 15, maxScore: 20, comment: privateText },
+    { name: "分析能力", score: 15, maxScore: 30, comment: privateText },
+  ] });
+  const session = interviewSession();
+  for (const output of [adaptInterviewEvaluation(record, session), projectLegacyLearningEvents({ interviewEvaluations: [record], interviewSessions: [session] })]) {
+    const event = output.events.find((event) => event.kind === "interview.evaluated");
+    assert.ok(event);
+    assert.deepEqual(event.payload, { totalScore: 70, evaluationType: "structured", dimensions: [
+      { name: "表达能力", score: 15, maxScore: 20 },
+      { name: "分析能力", score: 15, maxScore: 30 },
+    ] });
+    const serialized = JSON.stringify(output);
+    assert.ok(!serialized.includes(privateText));
+    assert.doesNotMatch(serialized, /"(?:comment|strengths|problems|suggestions|evidence)":/);
+  }
 });
 
 test("interview mismatch, cancellation, missing target and malformed assessment fail closed", () => {

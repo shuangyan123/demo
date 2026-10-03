@@ -87,12 +87,14 @@ export function adaptKnowledgeAttempt(attempt: KnowledgeAttempt): LegacyEventAda
 export function adaptTutoringMicroAssessment(turn: TutoringTurn): LegacyEventAdapterResult {
   const recordType = "tutoring_turn";
   const assessment = turn.microAssessment;
-  if (!assessment || !Array.isArray(assessment.questions) || !assessment.questions.length
+  if (!assessment) return { events: [], diagnostics: [] };
+  if (turn.speaker !== "ai_tutor") return rejected("unsupported_source", recordType, turn.id);
+  if (!Array.isArray(assessment.questions) || !assessment.questions.length
     || !Array.isArray(assessment.selections) || assessment.correctCount === undefined || !assessment.completedAt) {
     return rejected("incomplete_submission", recordType, turn.id);
   }
   if (!isLegacyRecordId(turn.id)) return rejected("missing_target", recordType, turn.id);
-  if (!isLegacyRecordId(turn.sessionId) || turn.speaker !== "ai_tutor") return rejected("unsupported_source", recordType, turn.id);
+  if (!isLegacyRecordId(turn.sessionId)) return rejected("unsupported_source", recordType, turn.id);
   const { questions, selections, completedAt, correctCount } = assessment;
   if (!isLearningEventInstant(completedAt) || selections.length !== questions.length
     || !Number.isInteger(correctCount) || correctCount < 0 || correctCount > questions.length) {
@@ -210,7 +212,7 @@ export function adaptInterviewEvaluation(evaluation: InterviewEvaluation, sessio
           history: "current_projection",
         },
         payload: { totalScore: evaluation.totalScore, evaluationType: evaluation.type,
-          dimensions: evaluation.dimensions.map(({ name, score }) => ({ name, score })) },
+          dimensions: evaluation.dimensions.map(({ name, score, maxScore }) => ({ name, score, maxScore })) },
       },
     ],
     diagnostics: [diagnostic("history_not_recoverable", recordType, evaluation.id)],

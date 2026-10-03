@@ -52,7 +52,7 @@ export type LearningEventPayloadsV1 = {
     totalScore: number;
     evaluationType: "structured" | "structured_group" | "leaderless_group";
     /** 模型维度标签不是 canonical skill identity。 */
-    dimensions: Array<{ name: string; score: number }>;
+    dimensions: Array<{ name: string; score: number; maxScore: number }>;
   };
 };
 
