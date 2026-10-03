@@ -173,16 +173,19 @@ EvidenceRecord 与 LearningEvent 分离：Event 保存“发生”，Evidence Po
 | 字段 / 维度 | 提议值或职责 |
 | --- | --- |
 | `schemaVersion` / `id` / `target` | V1、稳定派生身份、明确 target |
-| `claim` | correctness、understanding、independence、retention、transfer、misconception、completion |
+| `claim` | correctness、performance、understanding、independence、retention、transfer、misconception、completion |
 | `outcome` | 对该 claim 的支持 / 反证 / inconclusive，及具体测量范围；例如 matches_model_key 而非无条件 objective_correct |
 | `evidenceClass` | workflow_fact、self_report、scored_performance、human_assessment、model_assessment、sensor_observation |
 | `assistance` | unknown、none、hint、guided、solution；只有显式可靠事实才能选 none |
 | `strength` | weak、moderate、strong；对该 claim 的分类支持程度，不是概率 |
 | `sourceEventIds` | 非空、可解析的来源 event IDs |
 | `sourceRecordRefs` | 原始 record type / ID 与可用 revision；保持与 Event 链一致 |
+| `measurementGroupId` | 稳定来源测量身份；Phase C 使用 source event ID，同一次面试评价的 overall / dimension Evidence 共用一组 |
 | `policyVersion` / `provenance` | Evidence Policy 版本及作者、key、评分、辅助、时间、适用范围与限制 |
 
 Evidence Policy 是版本化纯规则，不能由模型或第三方 adapter 任意传入。Event 的来源声明需要 adapter boundary 校验；第三方声称“human graded”或“no assistance”不自动获得高权限。未知、无效、冲突来源不升级，保留理由。
+
+Phase C 的 `performance` 表示模型 rubric 对表现的测量，保留 overall / dimension、score 与 maxScore；它不等于 correctness 或 understanding。`evidence-policy/v1` 将此类 Evidence 标为 weak、model_assessment、inconclusive，不自动推进 LearnerTargetState，也不将维度标签映射为 canonical skill / weakness。纯 shadow report 仅返回固定词表计数，不持久化、不自动记录、不接入 UI 或现有 learner-state / recommendation。
 
 初始映射方向：
 
@@ -391,7 +394,7 @@ new derived Kernel state
 | --- | --- | --- | --- |
 | A — RFC only | 本文及最小索引 | 审计有源码依据、边界和未知明确、文档验证通过；Draft 供评审 | 仅此阶段交付文档，不代表设计已获批准 |
 | B — Kernel contracts | 纯 TS 类型 / 函数、legacy adapters；无 DB 变化 | fixture 验证 self_report、model key、model judgment、unknown、稳定来源 ID 与 time context | Deferred |
-| C — Evidence Engine shadow mode | 与旧 learner-state 逻辑并行解释 | 差异可解释、无用户可见 authority 改变；真实记录只读评估，不导出用户正文 | Deferred |
+| C — Evidence Engine shadow mode | 纯 Evidence V1 / Policy V1 推导与计数；测试对照旧 learner-state，不接入运行时 | 合成 fixture 的权限差异与隐私已覆盖；无用户可见 authority 改变，尚未进行真实用户记录评估 | Implemented in shadow only |
 | D — Compatibility bridge | learner-state-service 逐步消费 Kernel 输出 | 相同 UI contract、recommendation identity / transitions、normalization owner 与 scope；可逐项回滚 | Deferred |
 | E — LearnerTargetState V1 | 在 Evidence 足够时暴露 independence / retention / transfer | unknown / conflict / insufficient evidence 可用，维度 claim 有可追溯链；仍 derived，初期不持久化 | Deferred |
 | F — first-party Mod / Adapter boundaries | 渐进拆 civil-service；Fenbi 明确 adapter；Tutor / Interview / Obsidian 逐步接入 | first-party compile-time registration、能力授权不变、无删功能或公共代码插件 runtime | Deferred |

@@ -1,4 +1,4 @@
-/** Phase B 只描述观察事实；不包含 Evidence、学习状态或持久化契约。 */
+/** Kernel 仅描述观察事实与有限 Evidence；不包含学习状态或持久化契约。 */
 export type LearningTargetV1 = {
   category: "question" | "mistake" | "knowledge" | "concept" | "skill" | "interview_skill";
   namespace: string;
@@ -86,4 +86,53 @@ export type LegacyEventAdapterDiagnostic = {
 export type LegacyEventAdapterResult = {
   events: LearningEventV1[];
   diagnostics: LegacyEventAdapterDiagnostic[];
+};
+
+export type EvidenceClaimV1 = "completion" | "correctness" | "performance" | "understanding"
+  | "independence" | "retention" | "transfer" | "misconception";
+export type EvidenceClassV1 = "workflow_fact" | "self_report" | "scored_performance"
+  | "human_assessment" | "model_assessment" | "sensor_observation";
+export type EvidenceAssistanceV1 = "unknown" | "none" | "hint" | "guided" | "solution";
+export type EvidenceStrengthV1 = "weak" | "moderate" | "strong";
+export type EvidenceDirectionV1 = "supports" | "refutes" | "inconclusive";
+export type EvidenceOutcomeV1 =
+  | { kind: "workflow_completed"; direction: "supports" }
+  | { kind: "self_reported_result"; result: "correct" | "uncertain" | "wrong"; direction: EvidenceDirectionV1 }
+  | { kind: "supplied_key_comparison"; matchesSuppliedKey: boolean; direction: "supports" | "refutes" }
+  | { kind: "model_rubric_score"; scope: "overall"; score: number; maxScore: number; direction: "inconclusive" }
+  | { kind: "model_rubric_score"; scope: "dimension"; dimension: string; dimensionIndex: number;
+      score: number; maxScore: number; direction: "inconclusive" };
+export type EvidenceLimitationV1 = "self_report_only" | "no_independent_grader" | "model_authored_key"
+  | "model_assessment_only" | "assistance_unknown" | "current_projection" | "history_incomplete";
+
+/** strength 仅作用于该记录的 scoped claim；模型分数不产生权威学习状态。 */
+export type EvidenceRecordV1 = {
+  schemaVersion: 1;
+  id: string;
+  target: LearningTargetV1;
+  claim: EvidenceClaimV1;
+  outcome: EvidenceOutcomeV1;
+  evidenceClass: EvidenceClassV1;
+  assistance: EvidenceAssistanceV1;
+  strength: EvidenceStrengthV1;
+  sourceEventIds: [string, ...string[]];
+  sourceRecordRefs: LearningSourceRecordRefV1[];
+  /** 同一 Event 的多个 rubric slices 不是多个独立 attempt。 */
+  measurementGroupId: string;
+  policyVersion: "evidence-policy/v1";
+  provenance: LearningEventProvenanceV1 & {
+    adapterId: "recall-legacy/v1";
+    limitations: EvidenceLimitationV1[];
+  };
+};
+
+export type EvidencePolicyDiagnostic = {
+  code: "invalid_event" | "invalid_provenance" | "invalid_lineage" | "invalid_measurement"
+    | "conflicting_event_identity" | "identity_out_of_bounds";
+  /** 只保留合法的 opaque event identity，不复制无效 payload 或错误正文。 */
+  sourceEventId: string | null;
+};
+export type EvidenceDerivationV1 = {
+  evidence: EvidenceRecordV1[];
+  diagnostics: EvidencePolicyDiagnostic[];
 };
