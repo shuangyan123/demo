@@ -13,6 +13,7 @@ import "../../application/automation/automation-application.contract.test.ts";
 import "../../application/import/import-application.contract.test.ts";
 import "../shared/workspace-context-registry.contract.test.ts";
 import "../shared/ui-overlay-events.contract.test.ts";
+import "../../services/learning-kernel/legacy-event-adapter.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -30,6 +31,32 @@ async function sourceFiles(directory: string): Promise<string[]> {
 function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
+
+test("Recall Phase B Kernel 只依赖纯本地逻辑与 legacy domain types", async () => {
+  const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
+  const files = [path.join(APP_ROOT, "types/domains/learning-kernel.ts"), ...await sourceFiles(kernelRoot)];
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    const inspect = (node: ts.Node) => {
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        const target = path.resolve(path.dirname(file), node.moduleSpecifier.text);
+        const isKernel = target.startsWith(`${kernelRoot}${path.sep}`);
+        const isDomainType = target.startsWith(`${path.join(APP_ROOT, "types", "domains")}${path.sep}`)
+          && (ts.isImportDeclaration(node) ? node.importClause?.isTypeOnly : node.isTypeOnly);
+        assert.ok(isKernel || isDomainType, `${file} 引入非纯 Kernel 依赖：${node.moduleSpecifier.text}`);
+      }
+      if (ts.isCallExpression(node)) {
+        assert.ok(node.expression.kind !== ts.SyntaxKind.ImportKeyword, `${file} 不允许 dynamic import 绕过纯依赖边界`);
+        assert.ok(!ts.isIdentifier(node.expression) || node.expression.text !== "require", `${file} 不允许 require 绕过纯依赖边界`);
+      }
+      ts.forEachChild(node, inspect);
+    };
+    inspect(sourceFile);
+    assert.doesNotMatch(source, /\b(?:window|document|localStorage|indexedDB|fetch|XMLHttpRequest|WebSocket)\b|reviewDesktop|reviewFenbi|Date\.now\s*\(|Math\.random\s*\(|randomUUID\s*\(|new\s+Date\s*\(\s*\)/);
+    assert.doesNotMatch(source, /["']use client["']|["']use server["']/);
+  }
+});
 
 test("业务源码直接引用领域类型且核心 facade 保持预算", async () => {
   const files = await sourceFiles(APP_ROOT);
