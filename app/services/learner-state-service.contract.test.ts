@@ -50,6 +50,63 @@ function tutoringRecommendations(snapshot: ReturnType<typeof deriveLearnerStateS
   return snapshot.recommendations.filter((item) => item.kind === "retry_tutoring" && item.destination.targetIds?.includes(planId));
 }
 
+test("Tutoring latest selection retains completedAt DESC, createdAt DESC, id ASC", () => {
+  const older = "2026-08-07T08:00:00.000Z";
+  for (const turns of [
+    [completedTutoringTurn("a-passed", "tie", 1, older, future), completedTutoringTurn("z-failed", "tie", 0, past, older)],
+    [completedTutoringTurn("a-passed", "tie", 1, past, older), completedTutoringTurn("z-failed", "tie", 0, past, past)],
+    [completedTutoringTurn("z-passed", "tie", 1, past, past), completedTutoringTurn("a-failed", "tie", 0, past, past)],
+  ]) {
+    const expectedId = turns[1].id;
+    const input = facts({ tutoringTurns: turns, tutoringPlans: [tutoringPlan("auto:tie", "active", future)] });
+    const snapshot = deriveLearnerStateSnapshot(input, today);
+    const action = tutoringRecommendations(snapshot, "auto:tie")[0];
+    assert.equal(action.priority, 200);
+    assert.deepEqual(action.evidence, [{ type: "tutoring", id: expectedId, label: "微测 0/1", observedAt: past }]);
+    assert.deepEqual(snapshot.signals.find((item) => item.title === "辅导微测仍需复练"), {
+      id: `weakness:tutoring-${expectedId}`, kind: "weakness", title: "辅导微测仍需复练",
+      summary: "微测答对 0/1，需要按间隔计划复练。", score: 82, evidence: action.evidence,
+    });
+    assert.deepEqual(deriveLearnerStateSnapshot({ ...input, tutoringTurns: [...turns].reverse() }, today), snapshot);
+  }
+});
+
+test("invalid completed Tutoring cannot fall back to raw result or produce P2/weakness", () => {
+  const valid = completedTutoringTurn("invalid", "invalid-session", 0, past);
+  for (const turn of [
+    { ...valid, speaker: "student" as const },
+    { ...valid, sessionId: "" },
+    { ...valid, microAssessment: { ...valid.microAssessment!, selections: [0] } },
+    { ...valid, microAssessment: { ...valid.microAssessment!, selections: [] } },
+    { ...valid, microAssessment: { ...valid.microAssessment!, completedAt: "not-a-date" } },
+  ]) {
+    const snapshot = deriveLearnerStateSnapshot(facts({ tutoringTurns: [turn], tutoringPlans: [tutoringPlan("auto:invalid-session", "active", future)] }), today);
+    assert.deepEqual(snapshot.recommendations.map((item) => item.priority), [400]);
+    assert.ok(snapshot.signals.every((item) => item.title !== "辅导微测仍需复练"));
+    assert.ok(snapshot.recommendations.flatMap((item) => item.evidence).every((item) => item.type !== "tutoring"));
+  }
+  const older = completedTutoringTurn("older-valid", "invalid-session", 1, "2026-08-07T08:00:00.000Z");
+  const conflict = completedTutoringTurn(valid.id, valid.sessionId, 1, past);
+  for (const turns of [[older, valid, conflict], [conflict, valid, older]]) {
+    const snapshot = deriveLearnerStateSnapshot(facts({ tutoringTurns: turns, tutoringPlans: [tutoringPlan("auto:invalid-session", "active", future)] }), today);
+    assert.deepEqual(snapshot.recommendations.map((item) => item.priority), [400]);
+    assert.ok(snapshot.signals.every((item) => item.title !== "辅导微测仍需复练"));
+  }
+});
+
+test("unsubmitted assessment count remains raw workflow availability, never correctness authority", () => {
+  const turns: TutoringTurn[] = [
+    { id: "unsubmitted-workflow", sessionId: "workflow", speaker: "ai_tutor", content: "private", confidence: 1, detectedProblem: "private", microAssessment: { questions: [tutoringQuestion], selections: [0] }, createdAt: past },
+    { id: "without-assessment", sessionId: "workflow", speaker: "ai_tutor", content: "private", createdAt: past },
+  ];
+  const snapshot = deriveLearnerStateSnapshot(facts({ tutoringTurns: turns }), today);
+  assert.equal(snapshot.insufficientEvidenceCount, 1);
+  assert.equal(snapshot.evidenceCount, 0);
+  assert.deepEqual(snapshot.signals, []);
+  assert.deepEqual(snapshot.recommendations, []);
+  assert.deepEqual(deriveLearnerStateSnapshot(facts({ tutoringTurns: [...turns].reverse() }), today), snapshot);
+});
+
 test("future auto plan 与最新失败微测只保留 P2", () => {
   const planId = "auto:session-a";
   const snapshot = deriveLearnerStateSnapshot(facts({
@@ -692,4 +749,191 @@ test("Phase D Review/Knowledge preserves the complete pre-bridge snapshot and re
   };
   assert.deepEqual(deriveLearnerStateSnapshot(input, today), expected);
   assert.deepEqual(deriveLearnerStateSnapshot({ ...input, mistakes: [...input.mistakes].reverse(), attempts: [...input.attempts].reverse(), knowledgeEntries: [...input.knowledgeEntries].reverse(), knowledgeAttempts: [...input.knowledgeAttempts].reverse() }, today), expected);
+});
+
+function tutoringBridgeBaselineFacts(): LearnerStateFacts {
+  const partial = completedTutoringTurn("bridge-b-failed", "bridge-b", 0, past);
+  partial.microAssessment = {
+    questions: [tutoringQuestion, { ...tutoringQuestion, id: "q2", correctOptionIndex: 1 }],
+    selections: [0, 0], correctCount: 1, completedAt: past,
+  };
+  return facts({
+    tutoringPlans: [tutoringPlan("auto:bridge-a", "active", past), tutoringPlan("auto:bridge-b", "active", future), tutoringPlan("auto:bridge-c", "active", future)],
+    tutoringTurns: [
+      completedTutoringTurn("bridge-a-failed", "bridge-a", 0, past), partial,
+      completedTutoringTurn("bridge-b-older", "bridge-b", 1, "2026-08-07T08:00:00.000Z"),
+      completedTutoringTurn("bridge-c-passed", "bridge-c", 1, past),
+      completedTutoringTurn("bridge-c-older", "bridge-c", 0, "2026-08-07T08:00:00.000Z"),
+      { id: "bridge-unsubmitted", sessionId: "bridge-d", speaker: "ai_tutor", content: "private", microAssessment: { questions: [tutoringQuestion] }, createdAt: past },
+    ],
+  });
+}
+
+// 在 runtime 桥接改动前捕获的完整输出，仅证明 legacy 兼容性。
+test("Phase D Tutoring preserves the full pre-bridge P1/P2/P4 snapshot", () => {
+  const input = tutoringBridgeBaselineFacts();
+  const expected = {
+    "generatedAt": "2026-08-09T08:00:00.000Z",
+    "currentGoal": "巩固判断关系",
+    "dueReviewCount": 1,
+    "evidenceCount": 3,
+    "insufficientEvidenceCount": 1,
+    "sourceRecordCount": 9,
+    "signals": [
+      {
+        "id": "due_review:current",
+        "kind": "due_review",
+        "title": "存在到期学习任务",
+        "summary": "当前有 0 道错题、0 个知识点、1 个辅导任务和 0 个面试计划到期。",
+        "score": 92,
+        "evidence": [
+          {
+            "type": "tutoring_plan",
+            "id": "auto:bridge-a",
+            "label": "辅导计划 auto:bridge-a",
+            "observedAt": "2026-08-08T08:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "id": "goal:auto-bridge-a",
+        "kind": "goal",
+        "title": "辅导计划 auto:bridge-a",
+        "summary": "巩固判断关系",
+        "score": 88,
+        "evidence": [
+          {
+            "type": "tutoring_plan",
+            "id": "auto:bridge-a",
+            "label": "辅导计划 auto:bridge-a",
+            "observedAt": "2026-08-08T08:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "id": "weakness:tutoring-bridge-a-failed",
+        "kind": "weakness",
+        "title": "辅导微测仍需复练",
+        "summary": "微测答对 0/1，需要按间隔计划复练。",
+        "score": 82,
+        "evidence": [
+          {
+            "type": "tutoring",
+            "id": "bridge-a-failed",
+            "label": "微测 0/1",
+            "observedAt": "2026-08-08T08:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "id": "weakness:tutoring-bridge-b-failed",
+        "kind": "weakness",
+        "title": "辅导微测仍需复练",
+        "summary": "微测答对 1/2，需要按间隔计划复练。",
+        "score": 82,
+        "evidence": [
+          {
+            "type": "tutoring",
+            "id": "bridge-b-failed",
+            "label": "微测 1/2",
+            "observedAt": "2026-08-08T08:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "id": "next_action:auto-bridge-a",
+        "kind": "next_action",
+        "title": "下一次辅导任务",
+        "summary": "完成一次变式微测（计划时间：2026-08-08）",
+        "score": 78,
+        "evidence": [
+          {
+            "type": "tutoring_plan",
+            "id": "auto:bridge-a",
+            "label": "辅导计划 auto:bridge-a",
+            "observedAt": "2026-08-08T08:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    "recommendations": [
+      {
+        "id": "learning-action:due-tutoring-xkc1in",
+        "semanticKey": "tutoring:auto:bridge-a",
+        "kind": "retry_tutoring",
+        "title": "完成到期辅导复练",
+        "summary": "完成一次变式微测（已到期）",
+        "completionHint": "提交新的确定性微测后，系统按结果更新下一次复练。",
+        "priority": 120,
+        "priorityReason": "明确的辅导计划已经到期。",
+        "evidence": [
+          {
+            "type": "tutoring_plan",
+            "id": "auto:bridge-a",
+            "label": "辅导计划 auto:bridge-a",
+            "observedAt": "2026-08-08T08:00:00.000Z"
+          }
+        ],
+        "destination": {
+          "module": "tutoring",
+          "targetIds": [
+            "auto:bridge-a"
+          ]
+        },
+        "state": "ready"
+      },
+      {
+        "id": "learning-action:failed-tutoring-assessment-xubn7m",
+        "semanticKey": "tutoring:auto:bridge-b",
+        "kind": "retry_tutoring",
+        "title": "重试未通过的辅导微测",
+        "summary": "最近微测答对 1/2，需要换一种例子再练习。",
+        "completionHint": "提交新的确定性微测后，系统按最新结果更新复练建议。",
+        "priority": 200,
+        "priorityReason": "已提交的辅导微测未全部通过。",
+        "evidence": [
+          {
+            "type": "tutoring",
+            "id": "bridge-b-failed",
+            "label": "微测 1/2",
+            "observedAt": "2026-08-08T08:00:00.000Z"
+          }
+        ],
+        "destination": {
+          "module": "tutoring",
+          "targetIds": [
+            "auto:bridge-b"
+          ]
+        },
+        "state": "ready"
+      },
+      {
+        "id": "learning-action:active-tutoring-y4b8wl",
+        "semanticKey": "tutoring:auto:bridge-c",
+        "kind": "retry_tutoring",
+        "title": "继续辅导计划",
+        "summary": "完成一次变式微测（计划 2026-08-12）",
+        "completionHint": "提交新的确定性微测后，系统按结果更新下一次复练。",
+        "priority": 400,
+        "priorityReason": "已确认的辅导计划仍在进行中。",
+        "evidence": [
+          {
+            "type": "tutoring_plan",
+            "id": "auto:bridge-c",
+            "label": "辅导计划 auto:bridge-c",
+            "observedAt": "2026-08-08T08:00:00.000Z"
+          }
+        ],
+        "destination": {
+          "module": "tutoring",
+          "targetIds": [
+            "auto:bridge-c"
+          ]
+        },
+        "state": "ready"
+      }
+    ]
+  };
+  assert.deepEqual(deriveLearnerStateSnapshot(input, today), expected);
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...input, tutoringTurns: [...input.tutoringTurns].reverse(), tutoringPlans: [...input.tutoringPlans].reverse() }, today), expected);
 });

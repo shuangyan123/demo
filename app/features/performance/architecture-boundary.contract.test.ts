@@ -106,6 +106,11 @@ test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入
   assert.match(source, /projectLegacyResultCompatibility\(\{ reviewAttempts: facts\.attempts, knowledgeAttempts: facts\.knowledgeAttempts \}\)/);
   assert.doesNotMatch(source, /Map<string, KnowledgeAttempt>|latestReviewAttempts|latestKnowledgeAttempts/);
   assert.equal([...source.matchAll(/\bfacts\.(?:attempts|knowledgeAttempts)\b/g)].length, 2, "raw Attempt 数组只能传入 bridge，兼容派生不得另读 raw result");
+  assert.match(source, /projectLegacyTutoringCompatibility\(\{ tutoringTurns: facts\.tutoringTurns \}\)/);
+  assert.equal([...source.matchAll(/\bfacts\.tutoringTurns\b/g)].length, 2, "raw Tutoring 仅可传入 bridge 和计数未提交工作流");
+  assert.doesNotMatch(source, /microAssessment(?:\?|!)?\.(?:correctCount|selections)|Map<string, TutoringTurn>/);
+  const workflowLine = source.split("\n").find((line) => line.includes("facts.tutoringTurns.filter"));
+  assert.equal(workflowLine?.trim(), "const insufficientEvidenceCount = facts.tutoringTurns.filter((turn) => turn.microAssessment?.questions.length && !turn.microAssessment.completedAt).length");
 });
 
 test("业务源码直接引用领域类型且核心 facade 保持预算", async () => {
