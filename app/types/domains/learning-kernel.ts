@@ -1,4 +1,4 @@
-/** Kernel 仅描述观察事实与有限 Evidence；不包含学习状态或持久化契约。 */
+/** Kernel 描述观察事实、有限 Evidence 与纯派生状态；不包含持久化契约。 */
 export type LearningTargetV1 = {
   category: "question" | "mistake" | "knowledge" | "concept" | "skill" | "interview_skill";
   namespace: string;
@@ -135,4 +135,51 @@ export type EvidencePolicyDiagnostic = {
 export type EvidenceDerivationV1 = {
   evidence: EvidenceRecordV1[];
   diagnostics: EvidencePolicyDiagnostic[];
+};
+
+export type LearnerStateTimeContextV1 = {
+  /** 必须是带 timezone/offset 的有效 instant；派生不读取运行时钟。 */
+  asOf: string;
+};
+
+export type LearnerStateSourceTimeV1 = {
+  value: string;
+  precision: "date" | "instant";
+};
+
+/** Phase E 首片的分类契约；枚举可表达未来状态，不代表当前 Evidence 获准晋级。 */
+export type LearnerTargetStateV1 = {
+  schemaVersion: 1;
+  target: LearningTargetV1;
+  understanding: "unknown" | "emerging" | "developing" | "supported";
+  independence: "unknown" | "assisted" | "partial" | "independent";
+  retention: "untested" | "at_risk" | "supported";
+  transfer: "untested" | "weak" | "supported";
+  /** 只引用实际支持该维度非默认状态的 Evidence；当前 policy 全部为空。 */
+  evidenceReferences: {
+    understanding: string[];
+    independence: string[];
+    retention: string[];
+    transfer: string[];
+  };
+  /** 已校验的非 completion 来源，仅用于追溯，不表示支持任何维度晋级。 */
+  sourceEvidenceIds: string[];
+  lastEvidenceAt: LearnerStateSourceTimeV1 | null;
+  lastVerifiedAt: LearnerStateSourceTimeV1 | null;
+  nextVerificationAt: string | null;
+  policyVersion: "learner-state-policy/v1";
+  timeContext: LearnerStateTimeContextV1;
+};
+
+export type LearnerStateDerivationDiagnosticV1 = {
+  code: EvidencePolicyDiagnostic["code"] | "invalid_time_context" | "invalid_evidence"
+    | "conflicting_evidence_identity" | "orphan_evidence" | "noncanonical_evidence" | "ambiguous_evidence_time";
+  /** 诊断只保留合法 opaque IDs 与 code，不复制输入正文或错误消息。 */
+  sourceEventId: string | null;
+  sourceEvidenceId: string | null;
+};
+
+export type LearnerStateDerivationV1 = {
+  states: LearnerTargetStateV1[];
+  diagnostics: LearnerStateDerivationDiagnosticV1[];
 };

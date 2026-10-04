@@ -16,6 +16,7 @@ import "../shared/ui-overlay-events.contract.test.ts";
 import "../../services/learning-kernel/legacy-event-adapter.contract.test.ts";
 import "../../services/learning-kernel/evidence.contract.test.ts";
 import "../../services/learning-kernel/compatibility-snapshot.contract.test.ts";
+import "../../services/learning-kernel/derive-learner-state.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -34,7 +35,7 @@ function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
 
-test("Recall Phase B/C/D Kernel 只依赖纯本地逻辑与 domain types", async () => {
+test("Recall Phase B/C/D/E1 Kernel 只依赖纯本地逻辑与 domain types", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const files = [path.join(APP_ROOT, "types/domains/learning-kernel.ts"), ...await sourceFiles(kernelRoot)];
   for (const file of files) {
@@ -67,9 +68,37 @@ test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState"
     if (!file.startsWith(`${kernelRoot}${path.sep}`)) {
       assert.ok(!staticImports(source).some((specifier) => /learning-kernel\/(?:derive-evidence|evidence-policy|evidence-shadow)/.test(specifier)),
         `${file} 不得在 Phase C 接入 Evidence authority`);
-    } else {
+    } else if (file !== path.join(kernelRoot, "derive-learner-state.ts")) {
       assert.doesNotMatch(source, /LearnerTargetState|lastVerifiedAt|nextVerificationAt|canonicalWeakness|\b(?:console|telemetry)\s*\./);
     }
+  }
+});
+
+test("Recall Phase E1 learner target state 保持 shadow-only，无外层 runtime consumer", async () => {
+  const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
+  const stateModule = path.join(kernelRoot, "derive-learner-state.ts");
+  const source = await readFile(stateModule, "utf8");
+  assert.match(source, /export function deriveLearnerTargetStates\(/);
+  assert.doesNotMatch(source, /\.payload\b|\brecordedAt\s*[=:]|\b(?:console|telemetry)\s*\./,
+    "state layer 不读取 Event payload 绕过 Evidence，也不输出 telemetry");
+  const kernelFiles = await sourceFiles(kernelRoot);
+  assert.ok(!kernelFiles.includes(path.join(kernelRoot, "verification-policy.ts")), "Verification Policy 留待后续 Phase E slice");
+  for (const file of await sourceFiles(APP_ROOT)) {
+    if (file === stateModule) continue;
+    const sourceFile = ts.createSourceFile(file, await readFile(file, "utf8"), ts.ScriptTarget.Latest, true);
+    const inspect = (node: ts.Node) => {
+      let specifier: string | undefined;
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specifier = node.moduleSpecifier.text;
+      if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+        || (ts.isIdentifier(node.expression) && node.expression.text === "require")) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) specifier = node.arguments[0].text;
+      if (specifier) {
+        const target = (specifier.startsWith("@/") ? path.join(APP_ROOT, specifier.slice(2))
+          : path.resolve(path.dirname(file), specifier)).replace(/\.ts$/, "");
+        assert.notEqual(target, stateModule.replace(/\.ts$/, ""), `${file} 不得在 E1 接入 learner target state runtime（包括 compatibility bridge）`);
+      }
+      ts.forEachChild(node, inspect);
+    };
+    inspect(sourceFile);
   }
 });
 
