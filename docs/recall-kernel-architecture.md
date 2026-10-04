@@ -1,6 +1,6 @@
 # Recall Kernel Architecture RFC
 
-- 状态：Phase B 已由 [#132](https://github.com/shuangyan123/demo/pull/132) 合并完成；Phase C **Evidence Engine / Policy V1 shadow foundation 已实现，并已通过受控 production-path 持久化记录的只读 shadow 验收**（[#133](https://github.com/shuangyan123/demo/pull/133)）；Phase D **IN PROGRESS**，Review / Knowledge 自报兼容首片已合并（[#134](https://github.com/shuangyan123/demo/pull/134)），已完成 Tutoring supplied-key 第二片已合并（[#135](https://github.com/shuangyan123/demo/pull/135)）；本 PR 迁移 Interview model-assessment compatibility。Phase D implementation slices are now candidate-complete pending final architecture review；尚无独立 learner truth authority cutover。
+- 状态：Phase B 已由 [#132](https://github.com/shuangyan123/demo/pull/132) 合并完成；Phase C **Evidence Engine / Policy V1 shadow foundation 已实现，并已通过受控 production-path 持久化记录的只读 shadow 验收**（[#133](https://github.com/shuangyan123/demo/pull/133)）；**Phase D Completed.** 三片均已合并：[#134](https://github.com/shuangyan123/demo/pull/134) Review / Knowledge self-report compatibility、[#135](https://github.com/shuangyan123/demo/pull/135) completed Tutoring supplied-key compatibility、[#136](https://github.com/shuangyan123/demo/pull/136) Interview model-assessment compatibility。#136 的 exact-diff / runtime-read 架构评审已在合并前完成；尚无独立 learner-truth authority cutover。Phase E remains deferred。
 - Phase A 审计基线：`shuangyan123/demo`，`0b08ec14bf43cffbd64617b89dbea53e26bfa545`。
 - RFC 初稿日期：2026-10-02。
 - 交付边界：Phase A 交付本文和 README 索引；Phase B 已实现纯契约与 legacy adapters；#133 实现 Phase C 的纯 Evidence / Policy V1、shadow report、契约测试和架构守卫，并已完成受控 production-path 持久化记录的只读 shadow 验收；Phase D 让旧 LearnerStateSnapshot 的 Review / Knowledge latest result、已完成 Tutoring 微测结果与 Interview 模型评分展示经过 Kernel compatibility bridge，不创建 LearnerTargetState；Phase E deferred。
@@ -377,7 +377,7 @@ Phase D 第二片沿用同一 `compatibility-snapshot.ts`：TutoringTurn → `pr
 
 第二片只迁移 completed micro-assessment：`insufficientEvidenceCount` 仍按 raw 未提交 assessment 的 questions/completedAt 统计工作流 / 数据可用性，不是 learner correctness authority；不能宣称所有 Tutoring 语义均已 Kernel-derived。计划 scheduling 与 repository writers 保持原状。
 
-本 PR 的第三片沿用同一桥：InterviewEvaluation + matching InterviewSession → `projectLegacyLearningEvents()` → `interview.completed` / `interview.evaluated` → `deriveEvidence()` → `projectEvaluatedInterviewCompatibility()` → 旧 weakness-style UI，运行时入口为 `projectLegacyInterviewCompatibility()`。只接受 `performance` / `model_assessment` / `model_rubric_score`、`direction=inconclusive`，且 provenance 为 model_assessment、modelAuthored=true、model_rubric、keySource=none，含 `model_assessment_only` / `no_independent_grader` 的 Evidence；policyVersion 必须为 evidence-policy/v1，Event 通过现有 policy，source evaluation/session、target 和 measurementGroupId 全部匹配。
+#136 的第三片沿用同一桥：InterviewEvaluation + matching InterviewSession → `projectLegacyLearningEvents()` → `interview.completed` / `interview.evaluated` → `deriveEvidence()` → `projectEvaluatedInterviewCompatibility()` → 旧 weakness-style UI，运行时入口为 `projectLegacyInterviewCompatibility()`。只接受 `performance` / `model_assessment` / `model_rubric_score`、`direction=inconclusive`，且 provenance 为 model_assessment、modelAuthored=true、model_rubric、keySource=none，含 `model_assessment_only` / `no_independent_grader` 的 Evidence；policyVersion 必须为 evidence-policy/v1，Event 通过现有 policy，source evaluation/session、target 和 measurementGroupId 全部匹配。
 
 整份模型测量必须同时包含唯一 overall slice（Event totalScore / 100）与所有 `0..N-1` dimension slices，index、name、score、maxScore、source Event、lineage 和 provenance 均与现有 policy 派生结果一致。相同重复确定性折叠；冲突 Event / Evidence、缺 overall / dimension 或多余 rubric slice 整组拒绝，不从 raw score 重建。必须另有匹配的 `interview.completed` Event 与 `workflow_fact` Evidence；completion 仅证明工作流已评分，不证明表现好坏。桥不暴露 workflow-only projection，表现缺片时不制造维度信号。
 
@@ -387,7 +387,7 @@ Phase D 第二片沿用同一 `compatibility-snapshot.ts`：TutoringTurn → `pr
 
 learner-state 保留 `compatibilityUpdatedAt DESC → evaluationId ASC`、最新四份评价、每份前两个 ratio < 0.7 维度、180 字 summary、signal ID / title / score 和原始 evaluation 引用。`insufficientEvidenceCount` 的 evaluated-session fallback 只读校验后的 projection，不再直接信任 raw evaluation.sessionId；session 自身 evaluated / cancelled 状态仍是 workflow bookkeeping，畸形 / detached evaluation 不能压低 active session 的不足计数。InterviewPracticePlan 的 due / priority 130 / 410、completedSessionCount、targetSessionCount、nextPracticeAt、status 与 destination 继续由 persisted workflow / scheduling facts 决定，saveEvaluation writer 与计划转换不变。
 
-桥接完全内存派生，不持久化 Event、Evidence 或 compatibility projection，不增加 telemetry，不修改 normalization ownership、Dexie v16、UI 或依赖。只有 learner-state-service 可直接消费 compatibility bridge；Kernel 外仍禁止直接 import derive-evidence、evidence-policy 或 evidence-shadow。Phase D implementation slices are now candidate-complete pending final architecture review of the exact diff and runtime reads；本实现 PR 不将 Phase D 标为 completed，Phase E remains deferred。
+桥接完全内存派生，不持久化 Event、Evidence 或 compatibility projection，不增加 telemetry，不修改 normalization ownership、Dexie v16、UI 或依赖。只有 learner-state-service 可直接消费 compatibility bridge；Kernel 外仍禁止直接 import derive-evidence、evidence-policy 或 evidence-shadow。Phase D compatibility bridge completed after the #136 exact-diff/runtime-read architecture review；#136 已合并，Phase E remains deferred。
 
 ## 13. Persistence、legacy mastery 与回滚
 
@@ -420,12 +420,12 @@ Phase A 的 RFC 可作为单一文档变更回滚，**zero data migration**。�
 | A — RFC only | 本文及最小索引 | 审计有源码依据、边界和未知明确、文档验证通过；Draft 供评审 | RFC 已交付；不代表所有后续设计均获批准 |
 | B — Kernel contracts | 纯 TS 类型 / 函数、legacy adapters；无 DB 变化 | fixture 验证 self_report、model key、model judgment、unknown、稳定来源 ID 与 time context | Completed / merged in #132（`cd554c172a69f47fe36c65416d5a3871fd8b9563`） |
 | C — Evidence Engine shadow mode | 与旧 learner-state 逻辑并行解释；纯 Evidence V1 / Policy V1 推导与计数，不接入运行时 | 差异可解释、无用户可见 authority 改变；production-path 持久化记录只读评估，不导出用户正文 | Acceptance passed on controlled production-path persisted records（4/4 来源类别）；无 authority cutover |
-| D — Compatibility bridge | learner-state-service 逐步消费 Kernel 输出 | 相同 UI contract、recommendation identity / transitions、normalization owner 与 scope；可逐项回滚 | IN PROGRESS：#134 Review / Knowledge 与 #135 completed Tutoring 已合并；本 PR 迁移 Interview model-assessment compatibility；implementation slices candidate-complete pending final architecture review，未提交 / session / plan bookkeeping 保持 workflow facts |
+| D — Compatibility bridge | learner-state-service 逐步消费 Kernel 输出 | 相同 UI contract、recommendation identity / transitions、normalization owner 与 scope；可逐项回滚 | Completed / merged through #136；merge commit：`0f6b8857dee5499c18845da9fa8f181b91a2e15e`。Review / Knowledge、completed Tutoring 与 Interview rubric 的 authority reads 均经过 compatibility bridge；unsubmitted Tutoring、session status 与 plan scheduling 保持 workflow facts |
 | E — LearnerTargetState V1 | 在 Evidence 足够时暴露 independence / retention / transfer | unknown / conflict / insufficient evidence 可用，维度 claim 有可追溯链；仍 derived，初期不持久化 | Deferred |
 | F — first-party Mod / Adapter boundaries | 渐进拆 civil-service；Fenbi 明确 adapter；Tutor / Interview / Obsidian 逐步接入 | first-party compile-time registration、能力授权不变、无删功能或公共代码插件 runtime | Deferred |
 | G — Hardware protocol | 语义契约稳定后设计可选、policy-controlled trace storage 与 digital-pen / tablet adapters | 真实设备需求、interpreter provenance、raw / semantic 分离及授权保留的独立评审 | Deferred |
 
-**Phase B 已完成；#133 的 Phase C shadow foundation 与受控 production-path 持久化记录只读 shadow 验收均已完成；Phase D remains IN PROGRESS，implementation slices candidate-complete pending final architecture review。** Phase C 验收使用正常 packaged Electron UI / repository 持久化路径生成的 calibration records，而不是直接构造 fixture；它证明当前 Evidence / Policy V1 对真实生产数据形状保持既定 authority、privacy、determinism 与只读边界，但**不代表自然学习历史或真实学习效果验证**。Phase D 已合并 #134 Review / Knowledge 与 #135 completed Tutoring；本 PR 迁移 Interview model-assessment compatibility，保留 legacy 展示，不新增独立正确性、理解、mastery、retention 或 transfer authority。未提交微测、session 状态与计划 scheduling 继续是 workflow bookkeeping；Phase D 最终完成状态等待 exact diff 与 runtime reads 的架构评审，Phase E–G 继续 deferred，不新增持久化、UI 或 LearnerTargetState。
+**Phase B 已完成；#133 的 Phase C shadow foundation 与受控 production-path 持久化记录只读 shadow 验收均已完成；Phase D compatibility bridge 已在 #136 exact-diff/runtime-read 架构评审及合并后完成。** Phase C 验收使用正常 packaged Electron UI / repository 持久化路径生成的 calibration records，而不是直接构造 fixture；它证明当前 Evidence / Policy V1 对真实生产数据形状保持既定 authority、privacy、determinism 与只读边界，但**不代表自然学习历史或真实学习效果验证**。Phase D 的 #134 Review / Knowledge、#135 completed Tutoring 与 #136 Interview 三片均已合并并保留 legacy 展示：self-report 仍是 self-report；model-authored supplied key 仍受 `model_authored_key` / `no_independent_grader` 限制；Interview 仍是 `model_assessment` / `inconclusive`；workflow completion 不等于 learner performance。未提交微测、session 状态与计划 scheduling 继续是 workflow bookkeeping；没有创建 canonical mastery / understanding / independence / retention / transfer，也没有独立 learner-truth authority cutover。Phase E–G 继续 deferred，不新增持久化、UI 或 LearnerTargetState。
 
 验收测试应直接调用纯函数，验证模型判断保存前后权限不变、completion 不提升 skill、模型 key 的评分限制、未知 assistance、sensor interpretation、重复来源不加权、缺失 / 冲突 / 来源修订和删除、稳定排序、不同 policy / time context、兼容 bridge 的真实 commit transitions。Phase B 与 Phase C foundation 已有相应范围内的直接契约测试；Phase C production-path 持久化记录只读验收已完成，后续阶段专属验收仍待完成。沿用现有 architecture guard，不为新边界放宽规则。
 
@@ -469,6 +469,15 @@ Phase A 的原始交付只检查文档：执行 `git diff --check`，检查完�
 - 冻结分区前后均为 109 个文件，SHA-256 manifest 比对 0 项变化；补充契约测试 60/60、架构守卫 2/2 通过。
 - 已知范围限制：样本量很小，只证明当前四类 production-path 数据形状与 Evidence authority / privacy / determinism / read-only 边界；不证明对更广泛真实学习历史的统计泛化，也不证明 Recall 改善学习结果。
 
+
+### Phase D compatibility bridge closure（2026-10-04）
+
+- [#134](https://github.com/shuangyan123/demo/pull/134) 迁移 Review / Knowledge latest-result semantics；[#135](https://github.com/shuangyan123/demo/pull/135) 迁移 completed Tutoring micro-assessment semantics；[#136](https://github.com/shuangyan123/demo/pull/136) 迁移 Interview model-assessment compatibility，三片均已合并。
+- #136 exact HEAD：`22a26ff59197f07efbb20e00509b4c1ac022b6a1`。合并前最终架构评审检查 exact diff、learner-state-service runtime reads、compatibility bridge boundaries、Evidence authority、reviews / unresolved threads 与 exact-head CI。
+- Exact-head [CI run 37201574350](https://github.com/shuangyan123/demo/actions/runs/37201574350)：7 applicable jobs SUCCESS；Windows M3 Migration Contracts 与 Windows NSIS Production 为 classifier-SKIPPED。
+- #136 squash merge：`0f6b8857dee5499c18845da9fa8f181b91a2e15e`；Phase D compatibility bridge completed。
+- Raw unsubmitted Tutoring bookkeeping、Interview session status 与 plan scheduling 仍是 workflow / data-availability facts；Phase D 完成不证明学习效果。
+- Phase E has NOT started；LearnerTargetState V1、canonical independence / retention / transfer 与 Verification Policy 继续 deferred。
 
 当前语义的主要对照入口：
 
