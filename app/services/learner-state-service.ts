@@ -10,7 +10,7 @@ import type {
 } from "../types/domains/learner-state.ts";
 import type { TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 import { knowledgeRepository } from "./knowledge-repository.ts";
-import { projectLegacyResultCompatibility, type LegacyResultCompatibility } from "./learning-kernel/compatibility-snapshot.ts";
+import { projectLegacyResultCompatibility, projectLegacyTutoringCompatibility, type CompletedTutoringCompatibility, type LegacyResultCompatibility } from "./learning-kernel/compatibility-snapshot.ts";
 import { reviewRepository } from "./review-repository.ts";
 import { filterWorkspaceRecords, PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "./workspace-data-scope.ts";
 
@@ -227,16 +227,13 @@ function interviewSignals(evaluations: InterviewEvaluation[]): LearnerStateSigna
     })));
 }
 
-/** 只有已提交的确定性微测才形成辅导学习信号；模型定位或置信度本身不是掌握证据。 */
-function latestCompletedTutoringTurns(turns: TutoringTurn[]): Map<string, TutoringTurn> {
-  const latest = new Map<string, TutoringTurn>();
-  const completed = turns.filter((turn) => {
-    const assessment = turn.microAssessment;
-    return Boolean(assessment?.completedAt && assessment.questions.length && assessment.correctCount !== undefined);
-  }).toSorted((left, right) => (
-    right.microAssessment!.completedAt!.localeCompare(left.microAssessment!.completedAt!)
-    || right.createdAt.localeCompare(left.createdAt)
-    || left.id.localeCompare(right.id)
+/** 仅消费完整 model-key 兼容测量，不把比较结果提升为独立掌握证据。 */
+function latestCompletedTutoringTurns(assessments: CompletedTutoringCompatibility[]): Map<string, CompletedTutoringCompatibility> {
+  const latest = new Map<string, CompletedTutoringCompatibility>();
+  const completed = assessments.toSorted((left, right) => (
+    right.completedAt.localeCompare(left.completedAt)
+    || right.compatibilitySourceCreatedAt.localeCompare(left.compatibilitySourceCreatedAt)
+    || left.sourceTurnId.localeCompare(right.sourceTurnId)
   ));
   for (const turn of completed) {
     if (!latest.has(turn.sessionId)) latest.set(turn.sessionId, turn);
@@ -244,25 +241,21 @@ function latestCompletedTutoringTurns(turns: TutoringTurn[]): Map<string, Tutori
   return latest;
 }
 
-function failedCompletedAssessment(turn: TutoringTurn | undefined): boolean {
-  const assessment = turn?.microAssessment;
-  return Boolean(assessment?.completedAt && assessment.questions.length && assessment.correctCount !== undefined
-    && assessment.correctCount < assessment.questions.length);
+function failedCompletedAssessment(assessment: CompletedTutoringCompatibility | undefined): boolean {
+  return Boolean(assessment && assessment.correctCount < assessment.questionCount);
 }
 
-function tutoringSignals(latestTurns: Map<string, TutoringTurn>): LearnerStateSignal[] {
-  return [...latestTurns.values()].flatMap((turn) => {
-    const assessment = turn.microAssessment;
-    if (!assessment?.completedAt || !assessment.questions.length || assessment.correctCount === undefined) return [];
-    const ratio = assessment.correctCount / assessment.questions.length;
+function tutoringSignals(latestTurns: Map<string, CompletedTutoringCompatibility>): LearnerStateSignal[] {
+  return [...latestTurns.values()].flatMap((assessment) => {
+    const ratio = assessment.correctCount / assessment.questionCount;
     if (ratio >= 1) return [];
     return [{
-      id: signalId("weakness", `tutoring-${turn.id}`),
+      id: signalId("weakness", `tutoring-${assessment.sourceTurnId}`),
       kind: "weakness" as const,
       title: "辅导微测仍需复练",
-      summary: `微测答对 ${assessment.correctCount}/${assessment.questions.length}，需要按间隔计划复练。`,
+      summary: `微测答对 ${assessment.correctCount}/${assessment.questionCount}，需要按间隔计划复练。`,
       score: 82,
-      evidence: [{ type: "tutoring" as const, id: turn.id, label: `微测 ${assessment.correctCount}/${assessment.questions.length}`, observedAt: assessment.completedAt }],
+      evidence: [{ type: "tutoring" as const, id: assessment.sourceTurnId, label: `微测 ${assessment.correctCount}/${assessment.questionCount}`, observedAt: assessment.completedAt }],
     }];
   }).slice(0, 5);
 }
@@ -335,26 +328,25 @@ function dueKnowledgeAction(items: KnowledgeEntry[], latest: Map<string, ResultE
   };
 }
 
-function failedTutoringAssessmentAction(turn: TutoringTurn): LearningActionRecommendation {
-  const assessment = turn.microAssessment!;
-  const planId = `auto:${turn.sessionId}`;
+function failedTutoringAssessmentAction(assessment: CompletedTutoringCompatibility): LearningActionRecommendation {
+  const planId = `auto:${assessment.sessionId}`;
   return {
     id: actionId("failed-tutoring-assessment", [planId]),
-    semanticKey: `tutoring:auto:${turn.sessionId}`,
+    semanticKey: `tutoring:auto:${assessment.sessionId}`,
     kind: "retry_tutoring",
     title: "重试未通过的辅导微测",
-    summary: `最近微测答对 ${assessment.correctCount}/${assessment.questions.length}，需要换一种例子再练习。`,
+    summary: `最近微测答对 ${assessment.correctCount}/${assessment.questionCount}，需要换一种例子再练习。`,
     completionHint: "提交新的确定性微测后，系统按最新结果更新复练建议。",
     priority: 200,
     priorityReason: "已提交的辅导微测未全部通过。",
-    evidence: [{ type: "tutoring", id: turn.id, label: `微测 ${assessment.correctCount}/${assessment.questions.length}`, observedAt: assessment.completedAt! }],
+    evidence: [{ type: "tutoring", id: assessment.sourceTurnId, label: `微测 ${assessment.correctCount}/${assessment.questionCount}`, observedAt: assessment.completedAt }],
     destination: { module: "tutoring", targetIds: [planId] },
     state: "ready",
   };
 }
 
 /** 同一 auto plan/session 按 P1 > P2 > P4 只派生一个下一步。 */
-function tutoringActions(plans: TutoringPlan[], latestTurns: Map<string, TutoringTurn>, today: Date): LearningActionRecommendation[] {
+function tutoringActions(plans: TutoringPlan[], latestTurns: Map<string, CompletedTutoringCompatibility>, today: Date): LearningActionRecommendation[] {
   const consumedSessionIds = new Set<string>();
   const actions: LearningActionRecommendation[] = plans
     .filter((plan) => plan.status === "active" && dateKey(plan.nextPracticeAt) !== null)
@@ -379,11 +371,10 @@ function tutoringActions(plans: TutoringPlan[], latestTurns: Map<string, Tutorin
         state: "ready" as const,
       };
     });
-  for (const turn of latestTurns.values()) {
-    const assessment = turn.microAssessment;
-    if (!assessment?.completedAt || !assessment.questions.length || assessment.correctCount === undefined || assessment.correctCount === assessment.questions.length) continue;
-    if (consumedSessionIds.has(turn.sessionId)) continue;
-    actions.push(failedTutoringAssessmentAction(turn));
+  for (const assessment of latestTurns.values()) {
+    if (!failedCompletedAssessment(assessment)) continue;
+    if (consumedSessionIds.has(assessment.sessionId)) continue;
+    actions.push(failedTutoringAssessmentAction(assessment));
   }
   return actions;
 }
@@ -428,7 +419,7 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
   const compatibilityResults = projectLegacyResultCompatibility({ reviewAttempts: facts.attempts, knowledgeAttempts: facts.knowledgeAttempts });
   const latestAttempts = latestCompatibilityResults(compatibilityResults, "review_attempt");
   const latestKnowledge = latestCompatibilityResults(compatibilityResults, "knowledge_attempt");
-  const latestTutoringTurns = latestCompletedTutoringTurns(facts.tutoringTurns);
+  const latestTutoringTurns = latestCompletedTutoringTurns(projectLegacyTutoringCompatibility({ tutoringTurns: facts.tutoringTurns }));
   const dueMistakes = facts.mistakes.filter((item) => isDue(item.nextReviewAt, today));
   const dueKnowledge = facts.knowledgeEntries.filter((item) => isDue(item.nextReviewAt, today));
   const dueTutoringPlans = facts.tutoringPlans.filter((item) => item.status === "active" && isDue(item.nextPracticeAt, today));
@@ -470,6 +461,7 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
   const evidenceCount = new Set(signals.flatMap((signal) => signal.evidence.map((item) => `${item.type}:${item.id}`))).size;
   const sourceRecordCount = Object.values(facts).reduce((count, records) => count + records.length, 0);
   const evaluatedSessionIds = new Set(facts.interviewEvaluations.map((evaluation) => evaluation.sessionId));
+  // 未提交项只计工作流/数据可用性，不能提供 learner correctness 权限。
   const insufficientEvidenceCount = facts.tutoringTurns.filter((turn) => turn.microAssessment?.questions.length && !turn.microAssessment.completedAt).length
     + facts.interviewSessions.filter((session) => session.status !== "evaluated" && session.status !== "cancelled" && !evaluatedSessionIds.has(session.id)).length;
   return {
