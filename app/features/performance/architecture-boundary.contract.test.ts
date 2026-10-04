@@ -15,6 +15,7 @@ import "../shared/workspace-context-registry.contract.test.ts";
 import "../shared/ui-overlay-events.contract.test.ts";
 import "../../services/learning-kernel/legacy-event-adapter.contract.test.ts";
 import "../../services/learning-kernel/evidence.contract.test.ts";
+import "../../services/learning-kernel/compatibility-snapshot.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -33,7 +34,7 @@ function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
 
-test("Recall Phase B/C Kernel 只依赖纯本地逻辑与 domain types", async () => {
+test("Recall Phase B/C/D Kernel 只依赖纯本地逻辑与 domain types", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const files = [path.join(APP_ROOT, "types/domains/learning-kernel.ts"), ...await sourceFiles(kernelRoot)];
   for (const file of files) {
@@ -59,7 +60,7 @@ test("Recall Phase B/C Kernel 只依赖纯本地逻辑与 domain types", async (
   }
 });
 
-test("Recall Phase C Evidence 没有接入运行时 authority 或派生 LearnerTargetState", async () => {
+test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   for (const file of await sourceFiles(APP_ROOT)) {
     const source = await readFile(file, "utf8");
@@ -70,6 +71,41 @@ test("Recall Phase C Evidence 没有接入运行时 authority 或派生 LearnerT
       assert.doesNotMatch(source, /LearnerTargetState|lastVerifiedAt|nextVerificationAt|canonicalWeakness|\b(?:console|telemetry)\s*\./);
     }
   }
+});
+
+test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入", async () => {
+  const bridge = path.join(APP_ROOT, "services/learning-kernel/compatibility-snapshot.ts");
+  const consumer = path.join(APP_ROOT, "services/learner-state-service.ts");
+  const kernelRoot = path.join(APP_ROOT, "services/learning-kernel");
+  const callers = new Set<string>();
+  for (const file of await sourceFiles(APP_ROOT)) {
+    const source = await readFile(file, "utf8");
+    const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    const inspect = (node: ts.Node) => {
+      let specifier: string | undefined;
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specifier = node.moduleSpecifier.text;
+      if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+        || (ts.isIdentifier(node.expression) && node.expression.text === "require")) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) specifier = node.arguments[0].text;
+      if (specifier) {
+        const target = path.resolve(path.dirname(file), specifier).replace(/\.ts$/, "");
+        if (target === bridge.replace(/\.ts$/, "")) {
+          assert.equal(file, consumer, `${file} 不得直接消费 Phase D bridge`);
+          callers.add(file);
+        }
+        if (!file.startsWith(`${kernelRoot}${path.sep}`)) {
+          assert.ok(!["derive-evidence", "evidence-policy", "evidence-shadow"].some((name) => target === path.join(kernelRoot, name)),
+            `${file} 不得绕过 bridge 直接接入 Evidence`);
+        }
+      }
+      ts.forEachChild(node, inspect);
+    };
+    inspect(sourceFile);
+  }
+  assert.deepEqual([...callers], [consumer]);
+  const source = await readFile(consumer, "utf8");
+  assert.match(source, /projectLegacyResultCompatibility\(\{ reviewAttempts: facts\.attempts, knowledgeAttempts: facts\.knowledgeAttempts \}\)/);
+  assert.doesNotMatch(source, /Map<string, KnowledgeAttempt>|latestReviewAttempts|latestKnowledgeAttempts/);
+  assert.equal([...source.matchAll(/\bfacts\.(?:attempts|knowledgeAttempts)\b/g)].length, 2, "raw Attempt 数组只能传入 bridge，兼容派生不得另读 raw result");
 });
 
 test("业务源码直接引用领域类型且核心 facade 保持预算", async () => {

@@ -75,9 +75,10 @@ test("grouped review 通过真实复盘逐项缩小，并在 reload 后保持完
       { id: "loop-mistake-a", board: "判断推理", source: "E2E", stem: "Learning Loop 到期错题 A", answer: "A", explanation: "验证部分完成", reasons: ["条件关系混淆"], tags: [], mastery: 1, nextReviewAt: "2026-08-01", createdAt: past, updatedAt: past },
       { id: "loop-mistake-b", board: "资料分析", source: "E2E", stem: "Learning Loop 到期错题 B", answer: "B", explanation: "验证全部完成", reasons: ["单位换算"], tags: [], mastery: 2, nextReviewAt: "2026-08-01", createdAt: past, updatedAt: past },
     ],
-    attempts: [{ id: "loop-attempt", mistakeId: "loop-mistake-a", result: "wrong", confidence: 2, reviewedAt: past }],
+    // fixture 保持真实 Review / Knowledge writer 的 date-only 提交时间。
+    attempts: [{ id: "loop-attempt", mistakeId: "loop-mistake-a", result: "wrong", confidence: 2, reviewedAt: past.slice(0, 10) }],
     knowledgeEntries: [{ id: "future-knowledge", category: "常识判断", title: "未来稳定知识", summary: "尚未到期", content: "未来稳定知识正文", tags: [], source: "E2E", favorite: false, mastery: 5, nextReviewAt: "2099-01-01", reviewCount: 2, createdAt: past, updatedAt: past }],
-    knowledgeAttempts: [{ id: "future-knowledge-attempt", knowledgeId: "future-knowledge", result: "correct", confidence: 4, reviewedAt: past }],
+    knowledgeAttempts: [{ id: "future-knowledge-attempt", knowledgeId: "future-knowledge", result: "correct", confidence: 4, reviewedAt: past.slice(0, 10) }],
     interviewPracticePlans: [{ id: "loop-interview-plan", title: "结构化面试复练", type: "structured", questionIds: ["question-1"], targetSessionCount: 3, completedSessionCount: 1, nextPracticeAt: "2026-08-01T08:00:00.000Z", status: "active", reason: "保持结构表达", createdAt: past, updatedAt: past }],
   });
   await page.reload();

@@ -12,7 +12,8 @@ async function seedMobileRecommendations(page: Page): Promise<void> {
       { id: "mobile-review-due", board: "判断推理", source: "E2E", stem: "移动端需要复盘的超长条件关系错题", answer: "A", explanation: "", reasons: ["充分条件与必要条件关系混淆"], tags: [], mastery: 1, nextReviewAt: "2026-08-01", createdAt: past, updatedAt: past },
       { id: "mobile-review-pattern", board: "资料分析", source: "E2E", stem: "移动端重复错因的第二道独立证据", answer: "B", explanation: "", reasons: ["充分条件与必要条件关系混淆"], tags: [], mastery: 2, nextReviewAt: "2099-01-01", createdAt: past, updatedAt: past },
     ],
-    attempts: [{ id: "mobile-attempt", mistakeId: "mobile-review-due", result: "wrong", confidence: 2, reviewedAt: past }],
+    // 与真实 writer 一致，不用 instant fixture 绕过 legacy Event 的日期契约。
+    attempts: [{ id: "mobile-attempt", mistakeId: "mobile-review-due", result: "wrong", confidence: 2, reviewedAt: past.slice(0, 10) }],
     knowledgeEntries: [{ id: "mobile-knowledge-due", category: "常识判断", title: "移动端需要训练的超长知识资料标题", summary: "闭卷回想", content: "知识正文", tags: [], source: "E2E", favorite: false, mastery: 2, nextReviewAt: "2026-08-01", reviewCount: 0, createdAt: past, updatedAt: past }],
     interviewPracticePlans: [{ id: "mobile-interview-plan", title: "移动端结构化面试表达训练计划", type: "structured", questionIds: ["mobile-question"], targetSessionCount: 3, completedSessionCount: 0, nextPracticeAt: past, status: "active", reason: "验证移动端模块导航", createdAt: past, updatedAt: past }],
   });

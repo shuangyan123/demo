@@ -19,7 +19,7 @@ function mistake(id: string, mastery: number, nextReviewAt = past, reasons = ["�
   return { id, board: "判断推理", source: "test", stem: `完整题干-${id}-不应进入推荐证据`, answer: "A", explanation: "", reasons, tags: [], mastery, nextReviewAt, createdAt: past, updatedAt: past };
 }
 
-function attempt(id: string, mistakeId: string, result: ReviewResult, reviewedAt = past): Attempt {
+function attempt(id: string, mistakeId: string, result: ReviewResult, reviewedAt = past.slice(0, 10)): Attempt {
   return { id, mistakeId, result, confidence: 3, reviewedAt };
 }
 
@@ -27,7 +27,7 @@ function knowledge(id: string, mastery: number, nextReviewAt = past): KnowledgeE
   return { id, category: "常识判断", title: `知识标题 ${id}`, summary: "知识摘要", content: `完整知识正文-${id}-不应进入推荐证据`, tags: [], source: "test", favorite: false, mastery, nextReviewAt, reviewCount: 1, createdAt: past, updatedAt: past };
 }
 
-function knowledgeAttempt(id: string, knowledgeId: string, result: ReviewResult, reviewedAt = past): KnowledgeAttempt {
+function knowledgeAttempt(id: string, knowledgeId: string, result: ReviewResult, reviewedAt = past.slice(0, 10)): KnowledgeAttempt {
   return { id, knowledgeId, result, confidence: 3, reviewedAt };
 }
 
@@ -153,6 +153,61 @@ test("latest wrong、uncertain、correct 以固定顺序影响同级到期推荐
   const action = snapshot.recommendations.find((item) => item.kind === "review_mistakes");
   assert.deepEqual(action?.destination.targetIds, ["wrong", "uncertain", "correct"]);
   assert.match(action?.summary ?? "", /最近答错/);
+});
+
+test("Knowledge latest self-report preserves wrong > uncertain > correct due ordering", () => {
+  const input = facts({
+    knowledgeEntries: [knowledge("correct", 3), knowledge("uncertain", 3), knowledge("wrong", 3)],
+    knowledgeAttempts: [knowledgeAttempt("ka-correct", "correct", "correct"), knowledgeAttempt("ka-uncertain", "uncertain", "uncertain"), knowledgeAttempt("ka-wrong", "wrong", "wrong"), knowledgeAttempt("ka-old", "wrong", "correct", "2026-08-07")],
+  });
+  const action = deriveLearnerStateSnapshot(input, today).recommendations.find((item) => item.semanticKey === "knowledge:due");
+  assert.deepEqual(action?.destination, { module: "knowledgeTraining", targetIds: ["wrong", "uncertain", "correct"] });
+  assert.equal(action?.priority, 106);
+  assert.equal(action?.completionHint, "提交训练结果后，系统按新的训练日期重新计算剩余到期知识点。");
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...input, knowledgeAttempts: [...input.knowledgeAttempts].reverse() }, today).recommendations, deriveLearnerStateSnapshot(input, today).recommendations);
+});
+
+test("invalid latest Review/Knowledge result gains no compatibility authority or fallback", () => {
+  const entries = facts({ mistakes: [mistake("m", 4, future)], knowledgeEntries: [knowledge("k", 4, future)] });
+  const input = {
+    ...entries,
+    attempts: [attempt("valid-review", "m", "correct", "2026-08-07"), { ...attempt("invalid-review", "m", "wrong"), confidence: 0 }],
+    knowledgeAttempts: [knowledgeAttempt("valid-knowledge", "k", "correct", "2026-08-07"), { ...knowledgeAttempt("invalid-knowledge", "k", "wrong"), confidence: 0 }],
+  };
+  assert.deepEqual(deriveLearnerStateSnapshot(input, today), { ...deriveLearnerStateSnapshot(entries, today), sourceRecordCount: 6 });
+  const due = deriveLearnerStateSnapshot({
+    ...input, mistakes: [mistake("m", 4)], knowledgeEntries: [knowledge("k", 4)],
+    attempts: [input.attempts[1]], knowledgeAttempts: [input.knowledgeAttempts[1]],
+  }, today);
+  assert.deepEqual(due.recommendations.map((item) => item.priority), [100, 110]);
+  assert.ok(due.recommendations.every((item) => item.evidence.every((ref) => ref.type !== "review_attempt" && ref.type !== "knowledge_attempt")));
+  assert.ok(due.signals.every((item) => item.kind !== "weakness"));
+});
+
+test("conflicting Attempt identity cannot drive weakness or repeated misconception", () => {
+  const input = facts({
+    mistakes: [mistake("m1", 4, future), mistake("m2", 4, future)],
+    knowledgeEntries: [knowledge("k1", 4, future)],
+    attempts: [attempt("conflict", "m1", "wrong"), attempt("conflict", "m1", "correct"), attempt("m2-wrong", "m2", "wrong")],
+    knowledgeAttempts: [knowledgeAttempt("k-conflict", "k1", "wrong"), knowledgeAttempt("k-conflict", "k1", "correct")],
+  });
+  const snapshot = deriveLearnerStateSnapshot(input, today);
+  assert.equal(snapshot.signals.some((item) => item.kind === "misconception"), false);
+  assert.equal(snapshot.signals.some((item) => item.title.includes("知识标题 k1")), false);
+  assert.ok(snapshot.signals.flatMap((item) => item.evidence).every((item) => item.id !== "conflict" && item.id !== "k-conflict"));
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...input, attempts: [...input.attempts].reverse(), knowledgeAttempts: [...input.knowledgeAttempts].reverse() }, today), snapshot);
+});
+
+test("same-date latest results retain the legacy attempt-ID tie break", () => {
+  const input = facts({
+    mistakes: [mistake("m", 4, future)], knowledgeEntries: [knowledge("k", 4, future)],
+    attempts: [attempt("z", "m", "correct"), attempt("a", "m", "wrong")],
+    knowledgeAttempts: [knowledgeAttempt("z", "k", "correct"), knowledgeAttempt("a", "k", "uncertain")],
+  });
+  const snapshot = deriveLearnerStateSnapshot(input, today);
+  assert.deepEqual(snapshot.signals.flatMap((item) => item.evidence).filter((item) => item.type.endsWith("attempt")).map((item) => [item.type, item.id, item.label]), [
+    ["review_attempt", "a", "最近复盘：wrong"], ["knowledge_attempt", "a", "最近训练：uncertain"],
+  ]);
 });
 
 test("grouped 错题按持久化 due facts 缩小、保留或消失", () => {
@@ -343,4 +398,298 @@ test("空事实不制造推荐；相同事实与 today 产生稳定 ID、证据�
     assert.equal(new Set(action.evidence.map((item) => `${item.type}:${item.id}`)).size, action.evidence.length);
     assert.ok(action.evidence.every((item) => !item.label.includes("完整题干") && !item.label.includes("完整知识正文")));
   }
+});
+
+// 桥接前实现的完整输出；这里只锁定 legacy UI 兼容性，不宣称独立正确性。
+test("Phase D Review/Knowledge preserves the complete pre-bridge snapshot and reordered facts", () => {
+  const input = facts({
+    mistakes: [mistake("bridge-wrong", 4), mistake("bridge-uncertain", 4), mistake("bridge-correct", 4, future)],
+    attempts: [attempt("bridge-review-wrong", "bridge-wrong", "wrong"), attempt("bridge-review-uncertain", "bridge-uncertain", "uncertain"), attempt("bridge-review-correct", "bridge-correct", "correct"), attempt("bridge-review-older", "bridge-wrong", "correct", "2026-08-07")],
+    knowledgeEntries: [knowledge("bridge-k-wrong", 3), knowledge("bridge-k-correct", 2), knowledge("bridge-k-uncertain", 3, future)],
+    knowledgeAttempts: [knowledgeAttempt("bridge-ka-wrong", "bridge-k-wrong", "wrong"), knowledgeAttempt("bridge-ka-correct", "bridge-k-correct", "correct"), knowledgeAttempt("bridge-ka-uncertain", "bridge-k-uncertain", "uncertain")],
+  });
+  const expected = {
+    currentGoal: undefined,
+    generatedAt: "2026-08-09T08:00:00.000Z",
+    dueReviewCount: 4,
+    evidenceCount: 10,
+    insufficientEvidenceCount: 0,
+    sourceRecordCount: 13,
+    signals: [
+      {
+        id: "due_review:current",
+        kind: "due_review",
+        title: "存在到期学习任务",
+        summary: "当前有 2 道错题、2 个知识点、0 个辅导任务和 0 个面试计划到期。",
+        score: 92,
+        evidence: [
+          {
+            type: "knowledge",
+            id: "bridge-k-correct",
+            label: "常识判断 · 知识标题 bridge-k-correct",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "knowledge",
+            id: "bridge-k-wrong",
+            label: "常识判断 · 知识标题 bridge-k-wrong",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "mistake",
+            id: "bridge-uncertain",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "mistake",
+            id: "bridge-wrong",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          }
+        ]
+      },
+      {
+        id: "misconception:条件关系混淆",
+        kind: "misconception",
+        title: "反复错因：条件关系混淆",
+        summary: "该错因已在 2 道不同题目中出现，应先解释判断依据再继续训练。",
+        score: 70,
+        evidence: [
+          {
+            type: "mistake",
+            id: "bridge-uncertain",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "mistake",
+            id: "bridge-wrong",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          }
+        ]
+      },
+      {
+        id: "weakness:knowledge-bridge-k-correct",
+        kind: "weakness",
+        title: "知识点待巩固：知识标题 bridge-k-correct",
+        summary: "常识判断知识掌握度 2/5（派生分 25/100），最近训练结果为 correct。",
+        score: 60,
+        evidence: [
+          {
+            type: "knowledge",
+            id: "bridge-k-correct",
+            label: "常识判断 · 知识标题 bridge-k-correct",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "knowledge_attempt",
+            id: "bridge-ka-correct",
+            label: "最近训练：correct",
+            observedAt: "2026-08-08"
+          }
+        ]
+      },
+      {
+        id: "weakness:knowledge-bridge-k-wrong",
+        kind: "weakness",
+        title: "知识点待巩固：知识标题 bridge-k-wrong",
+        summary: "常识判断知识掌握度 3/5（派生分 50/100），最近训练结果为 wrong。",
+        score: 47,
+        evidence: [
+          {
+            type: "knowledge",
+            id: "bridge-k-wrong",
+            label: "常识判断 · 知识标题 bridge-k-wrong",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "knowledge_attempt",
+            id: "bridge-ka-wrong",
+            label: "最近训练：wrong",
+            observedAt: "2026-08-08"
+          }
+        ]
+      },
+      {
+        id: "weakness:knowledge-bridge-k-uncertain",
+        kind: "weakness",
+        title: "知识点待巩固：知识标题 bridge-k-uncertain",
+        summary: "常识判断知识掌握度 3/5（派生分 50/100），最近训练结果为 uncertain。",
+        score: 41,
+        evidence: [
+          {
+            type: "knowledge",
+            id: "bridge-k-uncertain",
+            label: "常识判断 · 知识标题 bridge-k-uncertain",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "knowledge_attempt",
+            id: "bridge-ka-uncertain",
+            label: "最近训练：uncertain",
+            observedAt: "2026-08-08"
+          }
+        ]
+      },
+      {
+        id: "weakness:判断推理",
+        kind: "weakness",
+        title: "判断推理仍需巩固",
+        summary: "2 道题有低掌握度或最近未通过，派生掌握分 75/100，其中 1 道最近答错。",
+        score: 19,
+        evidence: [
+          {
+            type: "mistake",
+            id: "bridge-uncertain",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "mistake",
+            id: "bridge-wrong",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "review_attempt",
+            id: "bridge-review-uncertain",
+            label: "最近复盘：uncertain",
+            observedAt: "2026-08-08"
+          },
+          {
+            type: "review_attempt",
+            id: "bridge-review-wrong",
+            label: "最近复盘：wrong",
+            observedAt: "2026-08-08"
+          }
+        ]
+      }
+    ],
+    recommendations: [
+      {
+        id: "learning-action:due-mistakes-3t7rey",
+        semanticKey: "review:due",
+        kind: "review_mistakes",
+        title: "复盘 2 道到期错题",
+        summary: "1 道最近答错，1 道最近不确定，最早复盘日期已到。",
+        completionHint: "提交复盘结果后，系统按新的复盘日期重新计算剩余到期错题。",
+        priority: 94,
+        priorityReason: "到期错题复盘；最近答错或不确定会在同级中提前。",
+        evidence: [
+          {
+            type: "mistake",
+            id: "bridge-uncertain",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "mistake",
+            id: "bridge-wrong",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "review_attempt",
+            id: "bridge-review-uncertain",
+            label: "最近复盘：uncertain",
+            observedAt: "2026-08-08"
+          },
+          {
+            type: "review_attempt",
+            id: "bridge-review-wrong",
+            label: "最近复盘：wrong",
+            observedAt: "2026-08-08"
+          }
+        ],
+        destination: {
+          module: "review",
+          targetIds: [
+            "bridge-wrong",
+            "bridge-uncertain"
+          ]
+        },
+        state: "ready"
+      },
+      {
+        id: "learning-action:due-knowledge-1x3la41",
+        semanticKey: "knowledge:due",
+        kind: "review_knowledge",
+        title: "训练 2 个到期知识点",
+        summary: "1 个最近训练未通过，最早训练日期已到。",
+        completionHint: "提交训练结果后，系统按新的训练日期重新计算剩余到期知识点。",
+        priority: 106,
+        priorityReason: "到期知识训练；最近错误会在同级中提前。",
+        evidence: [
+          {
+            type: "knowledge",
+            id: "bridge-k-correct",
+            label: "常识判断 · 知识标题 bridge-k-correct",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "knowledge",
+            id: "bridge-k-wrong",
+            label: "常识判断 · 知识标题 bridge-k-wrong",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "knowledge_attempt",
+            id: "bridge-ka-correct",
+            label: "最近训练：correct",
+            observedAt: "2026-08-08"
+          },
+          {
+            type: "knowledge_attempt",
+            id: "bridge-ka-wrong",
+            label: "最近训练：wrong",
+            observedAt: "2026-08-08"
+          }
+        ],
+        destination: {
+          module: "knowledgeTraining",
+          targetIds: [
+            "bridge-k-wrong",
+            "bridge-k-correct"
+          ]
+        },
+        state: "ready"
+      },
+      {
+        id: "learning-action:repeated-misconception-3t7rey",
+        semanticKey: "misconception:条件关系混淆",
+        kind: "review_mistakes",
+        title: "反复错因：条件关系混淆",
+        summary: "该错因已在 2 道不同题目中出现，应先解释判断依据再继续训练。",
+        completionHint: "当同类错因少于两道题仍处于未解决状态时，此建议会消失。",
+        priority: 300,
+        priorityReason: "至少两道独立错题呈现同一明确错因。",
+        evidence: [
+          {
+            type: "mistake",
+            id: "bridge-uncertain",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          },
+          {
+            type: "mistake",
+            id: "bridge-wrong",
+            label: "判断推理错题",
+            observedAt: "2026-08-08T08:00:00.000Z"
+          }
+        ],
+        destination: {
+          module: "library",
+          targetIds: [
+            "bridge-uncertain",
+            "bridge-wrong"
+          ]
+        },
+        state: "ready"
+      }
+    ]
+  };
+  assert.deepEqual(deriveLearnerStateSnapshot(input, today), expected);
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...input, mistakes: [...input.mistakes].reverse(), attempts: [...input.attempts].reverse(), knowledgeEntries: [...input.knowledgeEntries].reverse(), knowledgeAttempts: [...input.knowledgeAttempts].reverse() }, today), expected);
 });
