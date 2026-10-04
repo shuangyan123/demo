@@ -111,6 +111,28 @@ test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入
   assert.doesNotMatch(source, /microAssessment(?:\?|!)?\.(?:correctCount|selections)|Map<string, TutoringTurn>/);
   const workflowLine = source.split("\n").find((line) => line.includes("facts.tutoringTurns.filter"));
   assert.equal(workflowLine?.trim(), "const insufficientEvidenceCount = facts.tutoringTurns.filter((turn) => turn.microAssessment?.questions.length && !turn.microAssessment.completedAt).length");
+  assert.match(source, /projectLegacyInterviewCompatibility\(\{ interviewEvaluations: facts\.interviewEvaluations, interviewSessions: facts\.interviewSessions \}\)/);
+  assert.equal([...source.matchAll(/\bfacts\.interviewEvaluations\b/g)].length, 1, "raw InterviewEvaluation 只能传入 bridge，不能另读评分或 sessionId 权限");
+  assert.doesNotMatch(source, /\b(?:totalScore|dimension\.comment|evaluation\.updatedAt)\b|interviewSignals\(facts\./);
+  assert.match(source, /evaluatedSessionIds = new Set\(interviewCompatibility\.map/);
+  const consumerFile = ts.createSourceFile(consumer, source, ts.ScriptTarget.Latest, true);
+  const signals = consumerFile.statements.find((node): node is ts.FunctionDeclaration => (
+    ts.isFunctionDeclaration(node) && node.name?.text === "interviewSignals"
+  ));
+  assert.equal(signals?.parameters[0].type?.getText(consumerFile), "EvaluatedInterviewCompatibility[]",
+    "Interview weakness-style 展示只能读已校验 model-assessment compatibility");
+  const inspectInterviewReads = (node: ts.Node) => {
+    if ((ts.isPropertyAccessExpression(node) && node.name.text === "interviewEvaluations" && node.expression.getText(consumerFile) !== "reviewDb")
+      || (ts.isElementAccessExpression(node) && ts.isStringLiteral(node.argumentExpression)
+        && node.argumentExpression.text === "interviewEvaluations")) {
+      assert.ok(ts.isPropertyAssignment(node.parent) && ts.isObjectLiteralExpression(node.parent.parent)
+        && ts.isCallExpression(node.parent.parent.parent)
+        && node.parent.parent.parent.expression.getText(consumerFile) === "projectLegacyInterviewCompatibility",
+      "raw Interview 数组只能作为 bridge 参数，不能通过 alias 读取模型权限");
+    }
+    ts.forEachChild(node, inspectInterviewReads);
+  };
+  inspectInterviewReads(consumerFile);
 });
 
 test("业务源码直接引用领域类型且核心 facade 保持预算", async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { InterviewPracticePlan, InterviewSession } from "../types/domains/interview.ts";
+import type { InterviewEvaluation, InterviewPracticePlan, InterviewSession } from "../types/domains/interview.ts";
 import type { KnowledgeAttempt, KnowledgeEntry } from "../types/domains/knowledge.ts";
 import type { Attempt, Mistake, ReviewResult } from "../types/domains/review.ts";
 import type { TutoringPlan, TutoringTurn } from "../types/domains/tutoring.ts";
@@ -14,6 +14,101 @@ const tutoringQuestion = { id: "q1", prompt: "问题", options: ["A", "B"], corr
 function facts(patch: Partial<LearnerStateFacts> = {}): LearnerStateFacts {
   return { mistakes: [], attempts: [], knowledgeEntries: [], knowledgeAttempts: [], interviewEvaluations: [], interviewPracticePlans: [], interviewSessions: [], tutoringSessions: [], tutoringTurns: [], tutoringPlans: [], ...patch };
 }
+
+function interviewEvaluation(id: string, updatedAt = past): InterviewEvaluation {
+  return { id, sessionId: `session-${id}`, type: "structured", totalScore: 65,
+    dimensions: [
+      { name: "重复标签", score: 6, maxScore: 10, comment: `${id} 第一维` },
+      { name: "阈值", score: 7, maxScore: 10, comment: "0.7 不展示" },
+      { name: "高分", score: 9, maxScore: 10, comment: "高分不展示" },
+      { name: "重复标签", score: 12, maxScore: 20, comment: `${id} ${"长评语".repeat(80)}` },
+      { name: "第三低维", score: 0, maxScore: 10, comment: "超过两维不展示" },
+    ], strengths: [], problems: [], suggestions: [], evidence: [], createdAt: past, updatedAt };
+}
+
+function evaluatedInterviewSession(evaluation: InterviewEvaluation): InterviewSession {
+  return { id: evaluation.sessionId, questionId: "interview-question", type: evaluation.type, title: "面试",
+    questionPrompt: "private prompt", questionMaterial: "private material", transcriptText: "private transcript",
+    status: "evaluated", stage: "evaluated", totalDurationSec: 0, startedAt: past, completedAt: evaluation.createdAt,
+    createdAt: past, updatedAt: past };
+}
+
+test("Interview score threshold and score formula retain legacy model-assessment presentation", () => {
+  const evaluation = interviewEvaluation("threshold");
+  for (const score of [0, 6.9, 7, 7.1, 10]) {
+    evaluation.dimensions = [{ name: "表达", score, maxScore: 10, comment: "legacy display" }];
+    const snapshot = deriveLearnerStateSnapshot(facts({ interviewEvaluations: [evaluation],
+      interviewSessions: [evaluatedInterviewSession(evaluation)] }), today);
+    assert.deepEqual(snapshot.signals, score < 7 ? [{ id: "weakness:interview-表达", kind: "weakness",
+      title: "面试表达待提升：表达", summary: `${score}/10。legacy display`, score: 80 - score / 10 * 50,
+      evidence: [{ type: "interview", id: "threshold", label: `表达 ${score}/10`, observedAt: past }] }] : []);
+  }
+});
+
+test("Interview invalid or detached evaluations never fall back to raw score or suppress insufficient workflow count", () => {
+  const evaluation = interviewEvaluation("invalid");
+  const session = evaluatedInterviewSession(evaluation);
+  for (const pair of [
+    { interviewEvaluations: [evaluation], interviewSessions: [] },
+    { interviewEvaluations: [evaluation], interviewSessions: [{ ...session, status: "active" as const }] },
+    { interviewEvaluations: [{ ...evaluation, type: "structured_group" as const }], interviewSessions: [session] },
+    { interviewEvaluations: [{ ...evaluation, totalScore: -1 }], interviewSessions: [session] },
+    { interviewEvaluations: [{ ...evaluation, dimensions: [{ name: "表达", score: 1, maxScore: 0, comment: "raw" }] }], interviewSessions: [session] },
+    { interviewEvaluations: [evaluation, { ...evaluation, updatedAt: future }], interviewSessions: [session] },
+    { interviewEvaluations: [evaluation, { ...evaluation, dimensions: [{ ...evaluation.dimensions[0], comment: "conflict" }] }], interviewSessions: [session] },
+  ]) {
+    const snapshot = deriveLearnerStateSnapshot(facts(pair), today);
+    assert.deepEqual(snapshot.signals, []);
+    assert.equal(snapshot.evidenceCount, 0);
+    assert.equal(snapshot.insufficientEvidenceCount, pair.interviewSessions[0]?.status === "active" ? 1 : 0);
+  }
+  const active = { ...session, id: "active-with-detached-evaluation", status: "active" as const };
+  const workflowFacts = facts({ interviewEvaluations: [evaluation, { ...evaluation, id: "detached", sessionId: active.id }],
+    interviewSessions: [session, active, { ...session, id: "cancelled", status: "cancelled" }] });
+  const snapshot = deriveLearnerStateSnapshot(workflowFacts, today);
+  assert.equal(snapshot.insufficientEvidenceCount, 1);
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...workflowFacts, interviewEvaluations: [...workflowFacts.interviewEvaluations].reverse(),
+    interviewSessions: [...workflowFacts.interviewSessions].reverse() }, today), snapshot);
+});
+
+test("Interview plans keep persisted workflow scheduling, priorities and recommendation identities outside the score bridge", () => {
+  const evaluation = interviewEvaluation("plan-evaluation");
+  const plans = [interviewPlan("plan-due", "active", past), interviewPlan("plan-future", "active", future),
+    interviewPlan("plan-completed", "completed", past)];
+  const input = facts({ interviewPracticePlans: plans });
+  const baseline = deriveLearnerStateSnapshot(input, today);
+  const actions = baseline.recommendations;
+  assert.deepEqual(actions.map((action) => [action.id, action.semanticKey, action.priority, action.destination]), [
+    ["learning-action:due-interview-1qea5n1", "interview-plan:plan-due", 130, { module: "interview", targetIds: ["plan-due"] }],
+    ["learning-action:active-interview-l5s7we", "interview-plan:plan-future", 410, { module: "interview", targetIds: ["plan-future"] }],
+  ]);
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...input, interviewEvaluations: [evaluation],
+    interviewSessions: [evaluatedInterviewSession(evaluation)] }, today).recommendations, actions);
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...input, interviewEvaluations: [{ ...evaluation, totalScore: -1 }] }, today).recommendations, actions);
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...input, interviewPracticePlans: [...plans].reverse() }, today), baseline);
+});
+
+// 在 runtime 改动前验证旧输出；weakness 只是旧模型评价展示，不是 canonical 学习事实。
+test("Interview preserves pre-bridge latest-four ordering, dimension order, duplicate signal IDs and full snapshot", () => {
+  const evaluations = [interviewEvaluation("z-old", "2026-08-06T08:00:00.000Z"),
+    ...["d", "b", "c", "a"].map((id) => interviewEvaluation(id, id === "d" ? future : past))];
+  const input = facts({ interviewEvaluations: evaluations, interviewSessions: evaluations.map(evaluatedInterviewSession) });
+  const expected = {
+    generatedAt: today.toISOString(), currentGoal: undefined, dueReviewCount: 0, evidenceCount: 4,
+    insufficientEvidenceCount: 0, sourceRecordCount: 10,
+    signals: ["d", "a", "b", "c"].flatMap((id) => [
+      { id: "weakness:interview-重复标签", kind: "weakness", title: "面试表达待提升：重复标签",
+        summary: `6/10。${id} 第一维`, score: 50,
+        evidence: [{ type: "interview", id, label: "重复标签 6/10", observedAt: id === "d" ? future : past }] },
+      { id: "weakness:interview-重复标签", kind: "weakness", title: "面试表达待提升：重复标签",
+        summary: `12/20。${id} ${"长评语".repeat(80)}`.slice(0, 180), score: 50,
+        evidence: [{ type: "interview", id, label: "重复标签 12/20", observedAt: id === "d" ? future : past }] },
+    ]), recommendations: [],
+  };
+  assert.deepEqual(deriveLearnerStateSnapshot(input, today), expected);
+  assert.deepEqual(deriveLearnerStateSnapshot({ ...input, interviewEvaluations: [...evaluations].reverse(),
+    interviewSessions: [...input.interviewSessions].reverse() }, today), expected);
+});
 
 function mistake(id: string, mastery: number, nextReviewAt = past, reasons = ["条件关系混淆"]): Mistake {
   return { id, board: "判断推理", source: "test", stem: `完整题干-${id}-不应进入推荐证据`, answer: "A", explanation: "", reasons, tags: [], mastery, nextReviewAt, createdAt: past, updatedAt: past };

@@ -4,9 +4,193 @@ import type { Attempt } from "../../types/domains/review.ts";
 import type { KnowledgeAttempt } from "../../types/domains/knowledge.ts";
 import type { EvidenceRecordV1, LearningEventV1 } from "../../types/domains/learning-kernel.ts";
 import type { TutoringTurn } from "../../types/domains/tutoring.ts";
+import type { InterviewEvaluation, InterviewSession } from "../../types/domains/interview.ts";
 import { deriveEvidence } from "./derive-evidence.ts";
 import { projectLegacyLearningEvents } from "./legacy-event-adapter.ts";
-import { isLegacySelfReportResultEvidence, isTutoringSuppliedKeyEvidence, projectCompletedTutoringCompatibility, projectLegacyResultCompatibility, projectLegacyTutoringCompatibility } from "./compatibility-snapshot.ts";
+import { isInterviewModelRubricEvidence, isLegacySelfReportResultEvidence, isTutoringSuppliedKeyEvidence,
+  projectEvaluatedInterviewCompatibility, projectLegacyInterviewCompatibility, projectCompletedTutoringCompatibility,
+  projectLegacyResultCompatibility, projectLegacyTutoringCompatibility } from "./compatibility-snapshot.ts";
+
+function interviewFixture(score = 2) {
+  const time = "2026-10-02T08:00:00.000Z";
+  const evaluation: InterviewEvaluation = {
+    id: "evaluation-1", sessionId: "session-1", type: "structured", totalScore: score * 10,
+    dimensions: [{ name: "表达", score, maxScore: 10, comment: "legacy comment" },
+      { name: "表达", score: 8, maxScore: 10, comment: "second comment" }],
+    strengths: [], problems: [], suggestions: [], evidence: [], createdAt: time, updatedAt: time,
+  };
+  const session: InterviewSession = {
+    id: evaluation.sessionId, questionId: "question-1", type: "structured", title: "interview",
+    questionPrompt: "", questionMaterial: "", transcriptText: "", status: "evaluated", stage: "evaluated",
+    startedAt: time, completedAt: time, totalDurationSec: 0, createdAt: time, updatedAt: time,
+  };
+  const { events } = projectLegacyLearningEvents({ interviewEvaluations: [evaluation], interviewSessions: [session] });
+  return { evaluation, session, events, evidence: deriveEvidence(events).evidence };
+}
+
+function projectInterview(fixture: ReturnType<typeof interviewFixture>) {
+  return projectEvaluatedInterviewCompatibility(fixture.events, fixture.evidence, [fixture.evaluation], [fixture.session]);
+}
+
+test("Interview compatibility preserves model-only inconclusive authority for both low and high scores", () => {
+  for (const score of [0, 2, 7, 10]) {
+    const fixture = interviewFixture(score);
+    const result = projectInterview(fixture);
+    assert.deepEqual(result, [{ evaluationId: "evaluation-1", sessionId: "session-1",
+      evaluatedAt: fixture.evaluation.createdAt, compatibilityUpdatedAt: fixture.evaluation.updatedAt,
+      dimensions: [{ dimensionIndex: 0, name: "表达", score, maxScore: 10, compatibilityComment: "legacy comment" },
+        { dimensionIndex: 1, name: "表达", score: 8, maxScore: 10, compatibilityComment: "second comment" }],
+      authority: { kind: "legacy_model_assessment_compatibility", evidenceClass: "model_assessment",
+        direction: "inconclusive", limitations: ["model_assessment_only", "no_independent_grader"] },
+      workflow: { kind: "evaluated", evidenceClass: "workflow_fact" } }]);
+    assert.deepEqual(projectLegacyInterviewCompatibility({ interviewEvaluations: [fixture.evaluation], interviewSessions: [fixture.session] }), result);
+    const completion = fixture.evidence.find((item) => item.claim === "completion")!;
+    assert.equal(completion.evidenceClass, "workflow_fact");
+    assert.equal(completion.strength, "strong");
+    assert.equal(isInterviewModelRubricEvidence(completion), false);
+    assert.ok(fixture.evidence.filter((item) => item.claim === "performance").every(isInterviewModelRubricEvidence));
+    assert.ok(!JSON.stringify(result).includes("interview_skill"));
+  }
+});
+
+const interviewRejections: Array<[string, (fixture: ReturnType<typeof interviewFixture>) => void]> = [
+  ["completion alone", (f) => { f.evidence = f.evidence.filter((item) => item.claim === "completion"); }],
+  ["performance without workflow Evidence", (f) => { f.evidence = f.evidence.filter((item) => item.claim === "performance"); }],
+  ["performance without completion Event", (f) => { f.events = f.events.filter((event) => event.kind === "interview.evaluated"); }],
+  ["missing overall", (f) => { f.evidence = f.evidence.filter((item) => item.outcome.kind !== "model_rubric_score" || item.outcome.scope !== "overall"); }],
+  ["missing dimension", (f) => { f.evidence = f.evidence.filter((item) => item.outcome.kind !== "model_rubric_score" || item.outcome.scope !== "dimension" || item.outcome.dimensionIndex !== 1); }],
+  ["extra rubric slice", (f) => { f.evidence.push({ ...f.evidence.find((item) => item.claim === "performance")!, id: "extra-rubric-slice" }); }],
+  ["source evaluation ID", (f) => { f.evaluation.id = "detached"; }],
+  ["source session ID", (f) => { f.evaluation.sessionId = "detached"; }],
+  ["session question target", (f) => { f.session.questionId = "other-question"; }],
+  ["session type", (f) => { f.session.type = "structured_group"; }],
+  ["session status", (f) => { f.session.status = "active"; }],
+  ["workflow time", (f) => { f.session.completedAt = "2026-10-03T08:00:00.000Z"; }],
+  ["Event lineage", (f) => { f.events.find((event) => event.kind === "interview.evaluated")!.source.records[1].recordId = "other-session"; }],
+  ["conflicting duplicate Event", (f) => {
+    const event = structuredClone(f.events.find((event) => event.kind === "interview.evaluated")!);
+    event.payload.totalScore += 1; f.events.push(event);
+  }],
+  ["conflicting duplicate completion Event", (f) => {
+    const event = structuredClone(f.events.find((event) => event.kind === "interview.completed")!);
+    event.target.id = "other-question"; f.events.push(event);
+  }],
+  ["conflicting duplicate Evidence", (f) => {
+    const item = structuredClone(f.evidence.find((item) => item.claim === "performance")!);
+    item.strength = "strong"; f.evidence.push(item);
+  }],
+  ["comment dimension name", (f) => { f.evaluation.dimensions[0].name = "other-label"; }],
+  ["comment dimension score", (f) => { f.evaluation.dimensions[0].score = 3; }],
+  ["comment dimension maxScore", (f) => { f.evaluation.dimensions[0].maxScore = 20; }],
+  ["source dimension ordering", (f) => { f.evaluation.dimensions.reverse(); }],
+];
+for (const [label, patch] of interviewRejections) {
+  test(`Interview fails closed: ${label}`, () => {
+    const f = interviewFixture(); patch(f);
+    assert.deepEqual(projectInterview(f), []);
+    f.events.reverse(); f.evidence.reverse();
+    assert.deepEqual(projectInterview(f), []);
+  });
+}
+
+const rubricRejections: Array<[string, (item: EvidenceRecordV1) => void]> = [
+  ["dimension index", (item) => { Object.assign(item.outcome, { dimensionIndex: 3 }); }],
+  ["dimension name", (item) => { Object.assign(item.outcome, { dimension: "other-label" }); }],
+  ["dimension score", (item) => { Object.assign(item.outcome, { score: 3 }); }],
+  ["dimension maxScore", (item) => { Object.assign(item.outcome, { maxScore: 20 }); }],
+  ["claim", (item) => { item.claim = "correctness"; }],
+  ["evidence class", (item) => { item.evidenceClass = "scored_performance"; }],
+  ["outcome kind", (item) => { item.outcome = { kind: "workflow_completed", direction: "supports" }; }],
+  ["low score direction refutes", (item) => { Object.assign(item.outcome, { direction: "refutes" }); }],
+  ["high score direction supports", (item) => { Object.assign(item.outcome, { score: 10, direction: "supports" }); }],
+  ["modality", (item) => { item.provenance.modality = "selection"; }],
+  ["model author", (item) => { item.provenance.modelAuthored = false; }],
+  ["scoring method", (item) => { item.provenance.scoringMethod = "none"; }],
+  ["key source", (item) => { item.provenance.keySource = "model_authored"; }],
+  ["model-only limitation", (item) => { item.provenance.limitations = item.provenance.limitations.filter((v) => v !== "model_assessment_only"); }],
+  ["independent-grader limitation", (item) => { item.provenance.limitations = item.provenance.limitations.filter((v) => v !== "no_independent_grader"); }],
+  ["evaluation lineage", (item) => { item.sourceRecordRefs[0].recordId = "other-evaluation"; }],
+  ["session lineage", (item) => { item.sourceRecordRefs[1].recordId = "other-session"; }],
+  ["Event ID", (item) => { item.sourceEventIds = ["other-event"]; }],
+  ["measurement group", (item) => { item.measurementGroupId = "other-event"; }],
+  ["target", (item) => { item.target.id = "other-question"; }],
+  ["policy version", (item) => { Object.assign(item, { policyVersion: "evidence-policy/v2" }); }],
+];
+for (const [label, patch] of rubricRejections) {
+  test(`Interview rejects mismatched model Evidence: ${label}`, () => {
+    const f = interviewFixture();
+    const item = f.evidence.find((item) => item.outcome.kind === "model_rubric_score" && item.outcome.scope === "dimension")!;
+    patch(item); assert.deepEqual(projectInterview(f), []);
+  });
+}
+
+test("Interview overall score/maxScore and workflow lineage must match their Events", () => {
+  for (const patch of [{ score: 99 }, { maxScore: 99 }]) {
+    const f = interviewFixture();
+    Object.assign(f.evidence.find((item) => item.outcome.kind === "model_rubric_score" && item.outcome.scope === "overall")!.outcome, patch);
+    assert.deepEqual(projectInterview(f), []);
+  }
+  for (const patch of [{ evidenceClass: "model_assessment" }, { target: { category: "question", namespace: "interview_question", id: "other" } }]) {
+    const f = interviewFixture();
+    Object.assign(f.evidence.find((item) => item.claim === "completion")!, patch);
+    assert.deepEqual(projectInterview(f), []);
+  }
+});
+
+test("Interview identical duplicates collapse, reordered objects/inputs are byte-for-byte deterministic and immutable", (context) => {
+  context.mock.method(Date, "now", () => { throw new Error("clock forbidden"); });
+  context.mock.method(Math, "random", () => { throw new Error("random forbidden"); });
+  const f = interviewFixture(); const before = structuredClone(f); const expected = projectInterview(f);
+  const duplicate = structuredClone(f.evidence).map((item) => ({ ...item, provenance: { ...item.provenance,
+    limitations: [...item.provenance.limitations].reverse() } }));
+  assert.equal(JSON.stringify(projectEvaluatedInterviewCompatibility([...f.events].reverse().concat(f.events),
+    duplicate.concat(f.evidence).reverse(), [f.evaluation, structuredClone(f.evaluation)], [f.session])), JSON.stringify(expected));
+  const second = interviewFixture(9);
+  second.evaluation.id = "evaluation-2"; second.evaluation.sessionId = "session-2"; second.session.id = "session-2";
+  const input = { interviewEvaluations: [f.evaluation, second.evaluation], interviewSessions: [f.session, second.session] };
+  assert.equal(JSON.stringify(projectLegacyInterviewCompatibility(input)), JSON.stringify(projectLegacyInterviewCompatibility({
+    interviewEvaluations: [...input.interviewEvaluations].reverse(), interviewSessions: [...input.interviewSessions].reverse() })));
+  assert.deepEqual(f, before);
+});
+
+test("Interview duplicate raw presentation metadata conflicts fail closed independently of input order", () => {
+  for (const patch of [
+    (e: InterviewEvaluation) => { e.updatedAt = "other-order-metadata"; },
+    (e: InterviewEvaluation) => { e.sessionId = "other-session"; },
+    (e: InterviewEvaluation) => { e.dimensions.reverse(); },
+    (e: InterviewEvaluation) => { e.dimensions[0].name = "other-label"; },
+    (e: InterviewEvaluation) => { e.dimensions[0].score = 3; },
+    (e: InterviewEvaluation) => { e.dimensions[0].maxScore = 20; },
+    (e: InterviewEvaluation) => { e.dimensions[0].comment = "conflicting comment"; },
+  ]) {
+    const f = interviewFixture(); const duplicate = structuredClone(f.evaluation); patch(duplicate);
+    for (const sources of [[f.evaluation, duplicate], [duplicate, f.evaluation]]) {
+      assert.deepEqual(projectEvaluatedInterviewCompatibility(f.events, f.evidence, sources, [f.session]), []);
+      assert.deepEqual(projectLegacyInterviewCompatibility({ interviewEvaluations: sources, interviewSessions: [f.session] }), []);
+    }
+  }
+});
+
+test("Interview comments/updatedAt are presentation-only exceptions; other prose and private fields never cross", () => {
+  const f = interviewFixture();
+  f.evaluation.strengths = ["SENTINEL_STRENGTHS"]; f.evaluation.problems = ["SENTINEL_PROBLEMS"];
+  f.evaluation.suggestions = ["SENTINEL_SUGGESTIONS"]; f.evaluation.evidence = ["SENTINEL_EVIDENCE_PROSE"];
+  f.session.questionPrompt = "SENTINEL_PROMPT"; f.session.questionMaterial = "SENTINEL_MATERIAL";
+  f.session.transcriptText = "SENTINEL_TRANSCRIPT"; f.session.title = "SENTINEL_SESSION_PROSE";
+  for (const object of [f.evaluation, f.session, ...f.events, ...f.evidence, ...f.evaluation.dimensions]) {
+    Object.assign(object, { turnContent: "SENTINEL_TURN", providerOutput: "SENTINEL_PROVIDER",
+      reasoning: "SENTINEL_REASONING", credentials: "SENTINEL_CREDENTIALS", rawResponse: "SENTINEL_RAW" });
+  }
+  const projection = projectLegacyInterviewCompatibility({ interviewEvaluations: [f.evaluation], interviewSessions: [f.session] });
+  assert.equal(projection.length, 1); assert.ok(!JSON.stringify(projection).includes("SENTINEL_"));
+  assert.equal(projection[0].dimensions[0].compatibilityComment, "legacy comment");
+  const changed = structuredClone(f.evaluation); changed.updatedAt = "display-order-only"; changed.dimensions[0].comment = "new legacy comment";
+  const result = projectEvaluatedInterviewCompatibility(f.events, f.evidence, [changed], [f.session]);
+  assert.deepEqual(result[0].authority, projection[0].authority);
+  assert.equal(result[0].compatibilityUpdatedAt, "display-order-only");
+  assert.equal(result[0].dimensions[0].compatibilityComment, "new legacy comment");
+  assert.equal(result[0].dimensions[0].score, projection[0].dimensions[0].score);
+});
 
 function review(patch: Partial<Attempt> = {}): Attempt {
   return { id: "review-1", mistakeId: "mistake-1", result: "correct", confidence: 3, reviewedAt: "2026-10-02", ...patch };

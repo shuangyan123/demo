@@ -8,6 +8,7 @@ import type { Mistake } from "../types/domains/review.ts";
 import { interviewRepository } from "./interview-repository.ts";
 import { knowledgeRepository } from "./knowledge-repository.ts";
 import { loadLearnerStateSnapshot } from "./learner-state-service.ts";
+import { projectLegacyInterviewCompatibility } from "./learning-kernel/compatibility-snapshot.ts";
 import { reviewRepository } from "./review-repository.ts";
 import { tutoringRepository } from "./tutoring-repository.ts";
 
@@ -118,15 +119,30 @@ test("Interview cancel 不推进计划，saveEvaluation 的真实事务推进或
   assert.equal(afterCancel.recommendations.find((item) => item.semanticKey === `interview-plan:${continuingPlan.id}`)?.priority, 130);
   assert.equal((await reviewDb.interviewPracticePlans.get(continuingPlan.id))?.completedSessionCount, 0);
 
-  await interviewRepository.saveEvaluation({
+  const savedEvaluation = await interviewRepository.saveEvaluation({
     sessionId: evaluated.id, type: "structured", totalScore: 80,
-    dimensions: [{ name: "内容", score: 80, maxScore: 100, comment: "结构完整" }],
+    dimensions: [{ name: "内容", score: 60, maxScore: 100, comment: "模型评分兼容展示" }],
     strengths: ["结构完整"], problems: [], suggestions: [], evidence: ["本地文字稿"],
   });
   const afterEvaluation = await loadLearnerStateSnapshot(today);
   const continuing = afterEvaluation.recommendations.find((item) => item.semanticKey === `interview-plan:${continuingPlan.id}`);
   assert.equal(continuing?.priority, 410);
   assert.match(continuing?.summary ?? "", /已完成 1\/2/);
+  const savedSession = (await reviewDb.interviewSessions.get(evaluated.id))!;
+  assert.equal(savedSession.status, "evaluated");
+  assert.equal(savedSession.completedAt, savedEvaluation.createdAt);
+  assert.deepEqual(await reviewDb.interviewEvaluations.get(savedEvaluation.id), savedEvaluation);
+  const compatibility = projectLegacyInterviewCompatibility({ interviewEvaluations: [savedEvaluation], interviewSessions: [savedSession] });
+  assert.equal(compatibility[0].authority.direction, "inconclusive");
+  assert.equal(compatibility[0].authority.evidenceClass, "model_assessment");
+  assert.deepEqual(compatibility[0].workflow, { kind: "evaluated", evidenceClass: "workflow_fact" });
+  assert.deepEqual(afterEvaluation.signals.find((signal) => signal.id === "weakness:interview-内容"), {
+    id: "weakness:interview-内容", kind: "weakness", title: "面试表达待提升：内容",
+    summary: "60/100。模型评分兼容展示", score: 50,
+    evidence: [{ type: "interview", id: savedEvaluation.id, label: "内容 60/100", observedAt: savedEvaluation.updatedAt }],
+  });
+  assert.equal(afterEvaluation.insufficientEvidenceCount, 1); // 剩余 completing 场次仍未评分。
+  assert.equal(reviewDb.verno, 16);
 
   await interviewRepository.saveEvaluation({
     sessionId: completing.id, type: "structured", totalScore: 82,

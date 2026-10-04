@@ -1,9 +1,9 @@
 # Recall Kernel Architecture RFC
 
-- 状态：Phase B 已由 [#132](https://github.com/shuangyan123/demo/pull/132) 合并完成；Phase C **Evidence Engine / Policy V1 shadow foundation 已实现，并已通过受控 production-path 持久化记录的只读 shadow 验收**（[#133](https://github.com/shuangyan123/demo/pull/133)）；Phase D **IN PROGRESS**，Review / Knowledge 自报兼容首片已合并（[#134](https://github.com/shuangyan123/demo/pull/134)），本 PR 添加已完成 Tutoring supplied-key 兼容第二片；Interview 迁移仍待完成，尚无独立 learner truth authority cutover。
+- 状态：Phase B 已由 [#132](https://github.com/shuangyan123/demo/pull/132) 合并完成；Phase C **Evidence Engine / Policy V1 shadow foundation 已实现，并已通过受控 production-path 持久化记录的只读 shadow 验收**（[#133](https://github.com/shuangyan123/demo/pull/133)）；Phase D **IN PROGRESS**，Review / Knowledge 自报兼容首片已合并（[#134](https://github.com/shuangyan123/demo/pull/134)），已完成 Tutoring supplied-key 第二片已合并（[#135](https://github.com/shuangyan123/demo/pull/135)）；本 PR 迁移 Interview model-assessment compatibility。Phase D implementation slices are now candidate-complete pending final architecture review；尚无独立 learner truth authority cutover。
 - Phase A 审计基线：`shuangyan123/demo`，`0b08ec14bf43cffbd64617b89dbea53e26bfa545`。
 - RFC 初稿日期：2026-10-02。
-- 交付边界：Phase A 交付本文和 README 索引；Phase B 已实现纯契约与 legacy adapters；#133 实现 Phase C 的纯 Evidence / Policy V1、shadow report、契约测试和架构守卫，并已完成受控 production-path 持久化记录的只读 shadow 验收；Phase D 让旧 LearnerStateSnapshot 的 Review / Knowledge latest result 与已完成 Tutoring 微测结果经过 Kernel compatibility bridge，不创建 LearnerTargetState；Phase E deferred。
+- 交付边界：Phase A 交付本文和 README 索引；Phase B 已实现纯契约与 legacy adapters；#133 实现 Phase C 的纯 Evidence / Policy V1、shadow report、契约测试和架构守卫，并已完成受控 production-path 持久化记录的只读 shadow 验收；Phase D 让旧 LearnerStateSnapshot 的 Review / Knowledge latest result、已完成 Tutoring 微测结果与 Interview 模型评分展示经过 Kernel compatibility bridge，不创建 LearnerTargetState；Phase E deferred。
 - 下文既有行为审计描述 Phase A 基线；提议契约的实际实现进度以第 14 节为准。未完成阶段仍是设计提议，不代表已存在的 API 或已获批准的执行计划。
 
 ## 1. 产品定义与核心问题
@@ -375,9 +375,19 @@ Phase D 第二片沿用同一 `compatibility-snapshot.ts`：TutoringTurn → `pr
 
 为保留 legacy latest-per-session 的 `completedAt DESC → turn.createdAt DESC → turn.id ASC` 排序，完整 Kernel 校验之后额外携带 `compatibilitySourceCreatedAt`，明确为非权限兼容排序 metadata；createdAt 不影响 Evidence 权限。P1 到期 auto plan 继续优先于失败微测；future auto plan + latest failed/pass 分别保持 P2 priority 200 / P4 priority 400。微测 weakness 的文案、score、ID、证据引用及推荐的 ID、semanticKey、destination、priorityReason、completionHint 保持原状。
 
-本片只迁移 completed micro-assessment：`insufficientEvidenceCount` 仍按 raw 未提交 assessment 的 questions/completedAt 统计工作流 / 数据可用性，不是 learner correctness authority；不能宣称所有 Tutoring 语义均已 Kernel-derived。计划 scheduling 与 repository writers 保持原状。Interview compatibility migration remains pending；Phase D remains IN PROGRESS，Phase E remains deferred。桥接完全内存派生，不持久化 Event、Evidence 或 compatibility projection，不增加 telemetry，不修改 normalization ownership、Dexie v16、UI 或依赖。只有 learner-state-service 可直接消费 compatibility bridge；Kernel 外仍禁止直接 import derive-evidence、evidence-policy 或 evidence-shadow。
+第二片只迁移 completed micro-assessment：`insufficientEvidenceCount` 仍按 raw 未提交 assessment 的 questions/completedAt 统计工作流 / 数据可用性，不是 learner correctness authority；不能宣称所有 Tutoring 语义均已 Kernel-derived。计划 scheduling 与 repository writers 保持原状。
 
-模型面试 weakness 等旧信号在 Shadow / bridge 中必须标注其 legacy / model 来源，不允许把它们灌回 LearnerTargetState 假称独立验证。如何逐条转接并保持兼容，应由后续有直接测试的策略变更决定。
+本 PR 的第三片沿用同一桥：InterviewEvaluation + matching InterviewSession → `projectLegacyLearningEvents()` → `interview.completed` / `interview.evaluated` → `deriveEvidence()` → `projectEvaluatedInterviewCompatibility()` → 旧 weakness-style UI，运行时入口为 `projectLegacyInterviewCompatibility()`。只接受 `performance` / `model_assessment` / `model_rubric_score`、`direction=inconclusive`，且 provenance 为 model_assessment、modelAuthored=true、model_rubric、keySource=none，含 `model_assessment_only` / `no_independent_grader` 的 Evidence；policyVersion 必须为 evidence-policy/v1，Event 通过现有 policy，source evaluation/session、target 和 measurementGroupId 全部匹配。
+
+整份模型测量必须同时包含唯一 overall slice（Event totalScore / 100）与所有 `0..N-1` dimension slices，index、name、score、maxScore、source Event、lineage 和 provenance 均与现有 policy 派生结果一致。相同重复确定性折叠；冲突 Event / Evidence、缺 overall / dimension 或多余 rubric slice 整组拒绝，不从 raw score 重建。必须另有匹配的 `interview.completed` Event 与 `workflow_fact` Evidence；completion 仅证明工作流已评分，不证明表现好坏。桥不暴露 workflow-only projection，表现缺片时不制造维度信号。
+
+`EvaluatedInterviewCompatibility.authority` 明确为 `legacy_model_assessment_compatibility`、`model_assessment`、`inconclusive` 和两个模型限制。低分只保留旧 weakness-style 展示，高分也不生成 canonical strength / correctness / understanding / mastery / independence / retention / transfer。维度名称只是测量标签，不是 canonical skills；不新增 interview_skill 映射。
+
+完整 Event / Evidence 校验后，桥仅额外携带 `compatibilityUpdatedAt`（旧排序 / observedAt）与 `compatibilityComment`（旧维度展示）两种**非权限 presentation/order metadata**。同 index 的 raw name / score / maxScore 必须先匹配已校验维度，才附加 comment；comment 是有意保留的唯一旧模型文案例外，不进入 canonical Event / Evidence。按 evaluation ID 分组的重复来源只要 sessionId、updatedAt、维度顺序 / name / score / maxScore / comment 不同即拒绝。strengths、problems、suggestions、evaluation.evidence 文案、题干 / 材料 / transcript / turn content、provider output、reasoning、凭据与 raw response 不跨桥。
+
+learner-state 保留 `compatibilityUpdatedAt DESC → evaluationId ASC`、最新四份评价、每份前两个 ratio < 0.7 维度、180 字 summary、signal ID / title / score 和原始 evaluation 引用。`insufficientEvidenceCount` 的 evaluated-session fallback 只读校验后的 projection，不再直接信任 raw evaluation.sessionId；session 自身 evaluated / cancelled 状态仍是 workflow bookkeeping，畸形 / detached evaluation 不能压低 active session 的不足计数。InterviewPracticePlan 的 due / priority 130 / 410、completedSessionCount、targetSessionCount、nextPracticeAt、status 与 destination 继续由 persisted workflow / scheduling facts 决定，saveEvaluation writer 与计划转换不变。
+
+桥接完全内存派生，不持久化 Event、Evidence 或 compatibility projection，不增加 telemetry，不修改 normalization ownership、Dexie v16、UI 或依赖。只有 learner-state-service 可直接消费 compatibility bridge；Kernel 外仍禁止直接 import derive-evidence、evidence-policy 或 evidence-shadow。Phase D implementation slices are now candidate-complete pending final architecture review of the exact diff and runtime reads；本实现 PR 不将 Phase D 标为 completed，Phase E remains deferred。
 
 ## 13. Persistence、legacy mastery 与回滚
 
@@ -401,7 +411,7 @@ new derived Kernel state
 
 只有当契约通过真实既有产品数据验证有用，并且 hardware / trace 需求提供具体存储证据后，才考虑持久化 Event / Evidence 的单独提案。该提案还必须覆盖来源修订 / 删除、备份恢复、隐私、容量、升级和回滚；不能把需要追溯当作无条件升级 schema 的理由。
 
-Phase A 的 RFC 可作为单一文档变更回滚，**zero data migration**。后续 adoption 逐步可测试、可撤回：contracts / shadow 不影响旧输出；bridge 可恢复旧派生路径；对外 state 需有明确边界与直接验证。Phase D 目前只改变 Review / Knowledge 自报结果和已完成 Tutoring supplied-key 结果的派生路径，用户数据、UI 公共契约、v16 writers 与 Learning Loop scheduling 保持兼容。
+Phase A 的 RFC 可作为单一文档变更回滚，**zero data migration**。后续 adoption 逐步可测试、可撤回：contracts / shadow 不影响旧输出；bridge 可恢复旧派生路径；对外 state 需有明确边界与直接验证。Phase D 只改变 Review / Knowledge 自报结果、已完成 Tutoring supplied-key 结果与 Interview 模型评分兼容展示的派生路径，用户数据、UI 公共契约、v16 writers 与 Learning Loop scheduling 保持兼容。
 
 ## 14. 渐进迁移与阶段验收
 
@@ -410,12 +420,12 @@ Phase A 的 RFC 可作为单一文档变更回滚，**zero data migration**。�
 | A — RFC only | 本文及最小索引 | 审计有源码依据、边界和未知明确、文档验证通过；Draft 供评审 | RFC 已交付；不代表所有后续设计均获批准 |
 | B — Kernel contracts | 纯 TS 类型 / 函数、legacy adapters；无 DB 变化 | fixture 验证 self_report、model key、model judgment、unknown、稳定来源 ID 与 time context | Completed / merged in #132（`cd554c172a69f47fe36c65416d5a3871fd8b9563`） |
 | C — Evidence Engine shadow mode | 与旧 learner-state 逻辑并行解释；纯 Evidence V1 / Policy V1 推导与计数，不接入运行时 | 差异可解释、无用户可见 authority 改变；production-path 持久化记录只读评估，不导出用户正文 | Acceptance passed on controlled production-path persisted records（4/4 来源类别）；无 authority cutover |
-| D — Compatibility bridge | learner-state-service 逐步消费 Kernel 输出 | 相同 UI contract、recommendation identity / transitions、normalization owner 与 scope；可逐项回滚 | IN PROGRESS：Review / Knowledge self-report 首片已合并 #134；本 PR 添加 completed Tutoring supplied-key 第二片；未提交 bookkeeping 仍 raw，Interview 待迁移 |
+| D — Compatibility bridge | learner-state-service 逐步消费 Kernel 输出 | 相同 UI contract、recommendation identity / transitions、normalization owner 与 scope；可逐项回滚 | IN PROGRESS：#134 Review / Knowledge 与 #135 completed Tutoring 已合并；本 PR 迁移 Interview model-assessment compatibility；implementation slices candidate-complete pending final architecture review，未提交 / session / plan bookkeeping 保持 workflow facts |
 | E — LearnerTargetState V1 | 在 Evidence 足够时暴露 independence / retention / transfer | unknown / conflict / insufficient evidence 可用，维度 claim 有可追溯链；仍 derived，初期不持久化 | Deferred |
 | F — first-party Mod / Adapter boundaries | 渐进拆 civil-service；Fenbi 明确 adapter；Tutor / Interview / Obsidian 逐步接入 | first-party compile-time registration、能力授权不变、无删功能或公共代码插件 runtime | Deferred |
 | G — Hardware protocol | 语义契约稳定后设计可选、policy-controlled trace storage 与 digital-pen / tablet adapters | 真实设备需求、interpreter provenance、raw / semantic 分离及授权保留的独立评审 | Deferred |
 
-**Phase B 已完成；#133 的 Phase C shadow foundation 与受控 production-path 持久化记录只读 shadow 验收均已完成；Phase D remains IN PROGRESS。** Phase C 验收使用正常 packaged Electron UI / repository 持久化路径生成的 calibration records，而不是直接构造 fixture；它证明当前 Evidence / Policy V1 对真实生产数据形状保持既定 authority、privacy、determinism 与只读边界，但**不代表自然学习历史或真实学习效果验证**。Phase D 的 #134 首片保留 legacy UI 的 Review / Knowledge 自报语义，本 PR 第二片保留已完成 Tutoring 的 model-authored assessment + deterministic supplied-key comparison，不新增独立正确性、理解、mastery、retention 或 transfer authority；未提交微测的工作流 bookkeeping 仍 raw，Interview 迁移仍待完成，Phase E–G 继续 deferred，不新增持久化、UI 或 LearnerTargetState。
+**Phase B 已完成；#133 的 Phase C shadow foundation 与受控 production-path 持久化记录只读 shadow 验收均已完成；Phase D remains IN PROGRESS，implementation slices candidate-complete pending final architecture review。** Phase C 验收使用正常 packaged Electron UI / repository 持久化路径生成的 calibration records，而不是直接构造 fixture；它证明当前 Evidence / Policy V1 对真实生产数据形状保持既定 authority、privacy、determinism 与只读边界，但**不代表自然学习历史或真实学习效果验证**。Phase D 已合并 #134 Review / Knowledge 与 #135 completed Tutoring；本 PR 迁移 Interview model-assessment compatibility，保留 legacy 展示，不新增独立正确性、理解、mastery、retention 或 transfer authority。未提交微测、session 状态与计划 scheduling 继续是 workflow bookkeeping；Phase D 最终完成状态等待 exact diff 与 runtime reads 的架构评审，Phase E–G 继续 deferred，不新增持久化、UI 或 LearnerTargetState。
 
 验收测试应直接调用纯函数，验证模型判断保存前后权限不变、completion 不提升 skill、模型 key 的评分限制、未知 assistance、sensor interpretation、重复来源不加权、缺失 / 冲突 / 来源修订和删除、稳定排序、不同 policy / time context、兼容 bridge 的真实 commit transitions。Phase B 与 Phase C foundation 已有相应范围内的直接契约测试；Phase C production-path 持久化记录只读验收已完成，后续阶段专属验收仍待完成。沿用现有 architecture guard，不为新边界放宽规则。
 

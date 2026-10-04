@@ -10,7 +10,8 @@ import type {
 } from "../types/domains/learner-state.ts";
 import type { TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 import { knowledgeRepository } from "./knowledge-repository.ts";
-import { projectLegacyResultCompatibility, projectLegacyTutoringCompatibility, type CompletedTutoringCompatibility, type LegacyResultCompatibility } from "./learning-kernel/compatibility-snapshot.ts";
+import { projectLegacyInterviewCompatibility, projectLegacyResultCompatibility, projectLegacyTutoringCompatibility,
+  type CompletedTutoringCompatibility, type EvaluatedInterviewCompatibility, type LegacyResultCompatibility } from "./learning-kernel/compatibility-snapshot.ts";
 import { reviewRepository } from "./review-repository.ts";
 import { filterWorkspaceRecords, PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "./workspace-data-scope.ts";
 
@@ -213,17 +214,19 @@ function knowledgeSignals(entries: KnowledgeEntry[], latestAttempts: Map<string,
     });
 }
 
-function interviewSignals(evaluations: InterviewEvaluation[]): LearnerStateSignal[] {
-  return evaluations.toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id)).slice(0, 4).flatMap((evaluation) => evaluation.dimensions
+/** weakness 保留旧模型评价展示契约；inconclusive rubric 不代表 canonical learner weakness。 */
+function interviewSignals(evaluations: EvaluatedInterviewCompatibility[]): LearnerStateSignal[] {
+  return evaluations.toSorted((left, right) => right.compatibilityUpdatedAt.localeCompare(left.compatibilityUpdatedAt)
+    || left.evaluationId.localeCompare(right.evaluationId)).slice(0, 4).flatMap((evaluation) => evaluation.dimensions
     .filter((dimension) => dimension.maxScore > 0 && dimension.score / dimension.maxScore < 0.7)
     .slice(0, 2)
     .map((dimension) => ({
       id: signalId("weakness", `interview-${dimension.name}`),
       kind: "weakness" as const,
       title: `面试表达待提升：${dimension.name}`,
-      summary: `${dimension.score}/${dimension.maxScore}。${dimension.comment}`.slice(0, 180),
+      summary: `${dimension.score}/${dimension.maxScore}。${dimension.compatibilityComment}`.slice(0, 180),
       score: clampScore(80 - (dimension.score / dimension.maxScore) * 50),
-      evidence: [{ type: "interview" as const, id: evaluation.id, label: `${dimension.name} ${dimension.score}/${dimension.maxScore}`, observedAt: evaluation.updatedAt }],
+      evidence: [{ type: "interview" as const, id: evaluation.evaluationId, label: `${dimension.name} ${dimension.score}/${dimension.maxScore}`, observedAt: evaluation.compatibilityUpdatedAt }],
     })));
 }
 
@@ -420,6 +423,7 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
   const latestAttempts = latestCompatibilityResults(compatibilityResults, "review_attempt");
   const latestKnowledge = latestCompatibilityResults(compatibilityResults, "knowledge_attempt");
   const latestTutoringTurns = latestCompletedTutoringTurns(projectLegacyTutoringCompatibility({ tutoringTurns: facts.tutoringTurns }));
+  const interviewCompatibility = projectLegacyInterviewCompatibility({ interviewEvaluations: facts.interviewEvaluations, interviewSessions: facts.interviewSessions });
   const dueMistakes = facts.mistakes.filter((item) => isDue(item.nextReviewAt, today));
   const dueKnowledge = facts.knowledgeEntries.filter((item) => isDue(item.nextReviewAt, today));
   const dueTutoringPlans = facts.tutoringPlans.filter((item) => item.status === "active" && isDue(item.nextPracticeAt, today));
@@ -444,7 +448,7 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
     ...boardWeaknessSignals(facts.mistakes, latestAttempts),
     ...misconception,
     ...knowledgeSignals(facts.knowledgeEntries, latestKnowledge),
-    ...interviewSignals(facts.interviewEvaluations),
+    ...interviewSignals(interviewCompatibility),
     ...tutoringSignals(latestTutoringTurns),
   ].toSorted((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, SIGNAL_LIMIT);
   const recommendations = [
@@ -460,7 +464,7 @@ export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new
     .slice(0, ACTION_LIMIT);
   const evidenceCount = new Set(signals.flatMap((signal) => signal.evidence.map((item) => `${item.type}:${item.id}`))).size;
   const sourceRecordCount = Object.values(facts).reduce((count, records) => count + records.length, 0);
-  const evaluatedSessionIds = new Set(facts.interviewEvaluations.map((evaluation) => evaluation.sessionId));
+  const evaluatedSessionIds = new Set(interviewCompatibility.map((evaluation) => evaluation.sessionId));
   // 未提交项只计工作流/数据可用性，不能提供 learner correctness 权限。
   const insufficientEvidenceCount = facts.tutoringTurns.filter((turn) => turn.microAssessment?.questions.length && !turn.microAssessment.completedAt).length
     + facts.interviewSessions.filter((session) => session.status !== "evaluated" && session.status !== "cancelled" && !evaluatedSessionIds.has(session.id)).length;
