@@ -14,6 +14,7 @@ import "../../application/import/import-application.contract.test.ts";
 import "../shared/workspace-context-registry.contract.test.ts";
 import "../shared/ui-overlay-events.contract.test.ts";
 import "../../services/learning-kernel/legacy-event-adapter.contract.test.ts";
+import "../../services/learning-kernel/evidence.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -32,7 +33,7 @@ function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
 
-test("Recall Phase B Kernel 只依赖纯本地逻辑与 legacy domain types", async () => {
+test("Recall Phase B/C Kernel 只依赖纯本地逻辑与 domain types", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const files = [path.join(APP_ROOT, "types/domains/learning-kernel.ts"), ...await sourceFiles(kernelRoot)];
   for (const file of files) {
@@ -53,8 +54,21 @@ test("Recall Phase B Kernel 只依赖纯本地逻辑与 legacy domain types", as
       ts.forEachChild(node, inspect);
     };
     inspect(sourceFile);
-    assert.doesNotMatch(source, /\b(?:window|document|localStorage|indexedDB|fetch|XMLHttpRequest|WebSocket)\b|reviewDesktop|reviewFenbi|Date\.now\s*\(|Math\.random\s*\(|randomUUID\s*\(|new\s+Date\s*\(\s*\)/);
+    assert.doesNotMatch(source, /\b(?:window|document|localStorage|indexedDB|fetch|XMLHttpRequest|WebSocket)\b|reviewDesktop|reviewFenbi|Date\.now\s*\(|Math\.random\s*\(|randomUUID\s*\(|getRandomValues\s*\(|performance\.now\s*\(|new\s+Date\s*\(\s*\)/);
     assert.doesNotMatch(source, /["']use client["']|["']use server["']/);
+  }
+});
+
+test("Recall Phase C Evidence 没有接入运行时 authority 或派生 LearnerTargetState", async () => {
+  const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
+  for (const file of await sourceFiles(APP_ROOT)) {
+    const source = await readFile(file, "utf8");
+    if (!file.startsWith(`${kernelRoot}${path.sep}`)) {
+      assert.ok(!staticImports(source).some((specifier) => /learning-kernel\/(?:derive-evidence|evidence-policy|evidence-shadow)/.test(specifier)),
+        `${file} 不得在 Phase C 接入 Evidence authority`);
+    } else {
+      assert.doesNotMatch(source, /LearnerTargetState|lastVerifiedAt|nextVerificationAt|canonicalWeakness|\b(?:console|telemetry)\s*\./);
+    }
   }
 });
 
