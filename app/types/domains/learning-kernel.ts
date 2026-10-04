@@ -147,7 +147,23 @@ export type LearnerStateSourceTimeV1 = {
   precision: "date" | "instant";
 };
 
-/** Phase E 首片的分类契约；枚举可表达未来状态，不代表当前 Evidence 获准晋级。 */
+export type LearnerStateDimensionV1 = "understanding" | "independence" | "retention" | "transfer";
+
+/** 复用同义 Evidence 限制；其余 code 是状态策略的封闭 V1 词表。 */
+export type LearnerStatePromotionBlockerV1 = EvidenceLimitationV1 | "no_qualified_direct_evidence"
+  | "missing_delayed_verification" | "missing_transfer_context";
+
+export type LearnerStatePromotionEligibilityV1 = {
+  status: "blocked" | "eligible";
+  /** 候选只表示纳入权限检查，不代表支持该维度或已经满足 claim/context 要求。 */
+  candidateEvidenceIds: string[];
+  /** 多个 rubric slices 共享一个测量身份；completion 不进入候选。 */
+  candidateMeasurementGroupIds: string[];
+  eligibleEvidenceIds: string[];
+  blockers: LearnerStatePromotionBlockerV1[];
+};
+
+/** Phase E 的分类契约；枚举可表达未来状态，不代表当前 Evidence 获准晋级。 */
 export type LearnerTargetStateV1 = {
   schemaVersion: 1;
   target: LearningTargetV1;
@@ -164,6 +180,8 @@ export type LearnerTargetStateV1 = {
   };
   /** 已校验的非 completion 来源，仅用于追溯，不表示支持任何维度晋级。 */
   sourceEvidenceIds: string[];
+  /** 权限解释与状态值、实际支持引用分离；正常 blocked 不是派生错误。 */
+  promotionEligibility: Record<LearnerStateDimensionV1, LearnerStatePromotionEligibilityV1>;
   lastEvidenceAt: LearnerStateSourceTimeV1 | null;
   lastVerifiedAt: LearnerStateSourceTimeV1 | null;
   nextVerificationAt: string | null;
@@ -173,7 +191,8 @@ export type LearnerTargetStateV1 = {
 
 export type LearnerStateDerivationDiagnosticV1 = {
   code: EvidencePolicyDiagnostic["code"] | "invalid_time_context" | "invalid_evidence"
-    | "conflicting_evidence_identity" | "orphan_evidence" | "noncanonical_evidence" | "ambiguous_evidence_time";
+    | "conflicting_evidence_identity" | "orphan_evidence" | "noncanonical_evidence" | "ambiguous_evidence_time"
+    | "incomplete_evidence_scope" | "evidence_after_as_of";
   /** 诊断只保留合法 opaque IDs 与 code，不复制输入正文或错误消息。 */
   sourceEventId: string | null;
   sourceEvidenceId: string | null;

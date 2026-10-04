@@ -17,6 +17,7 @@ import "../../services/learning-kernel/legacy-event-adapter.contract.test.ts";
 import "../../services/learning-kernel/evidence.contract.test.ts";
 import "../../services/learning-kernel/compatibility-snapshot.contract.test.ts";
 import "../../services/learning-kernel/derive-learner-state.contract.test.ts";
+import "../../services/learning-kernel/learner-state-policy.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -35,7 +36,7 @@ function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
 
-test("Recall Phase B/C/D/E1 Kernel 只依赖纯本地逻辑与 domain types", async () => {
+test("Recall Phase B/C/D/E2 Kernel 只依赖纯本地逻辑与 domain types", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const files = [path.join(APP_ROOT, "types/domains/learning-kernel.ts"), ...await sourceFiles(kernelRoot)];
   for (const file of files) {
@@ -74,18 +75,31 @@ test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState"
   }
 });
 
-test("Recall Phase E1 learner target state 保持 shadow-only，无外层 runtime consumer", async () => {
+test("Recall Phase E2 state / authority policy 保持 pure shadow-only，无外层 runtime consumer", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const stateModule = path.join(kernelRoot, "derive-learner-state.ts");
+  const policyModule = path.join(kernelRoot, "learner-state-policy.ts");
   const source = await readFile(stateModule, "utf8");
   assert.match(source, /export function deriveLearnerTargetStates\(/);
+  assert.ok(staticImports(source).includes("./learner-state-policy.ts"), "派生器必须消费唯一状态权限策略");
+  const policySource = await readFile(policyModule, "utf8");
+  assert.match(policySource, /export function evaluateLearnerStatePromotionEligibility\(/);
+  assert.ok(staticImports(policySource).every((specifier) => ["../../types/domains/learning-kernel.ts", "./learning-event.ts"].includes(specifier)),
+    "小型权限策略只依赖纯 domain types / 确定性字符串 helper");
+  assert.doesNotMatch(policySource, /\.payload\b|\.outcome\b|\b(?:console|telemetry)\s*\./,
+    "有利结果或原始 payload 不能授予权限");
   assert.doesNotMatch(source, /\.payload\b|\brecordedAt\s*[=:]|\b(?:console|telemetry)\s*\./,
     "state layer 不读取 Event payload 绕过 Evidence，也不输出 telemetry");
   const kernelFiles = await sourceFiles(kernelRoot);
   assert.ok(!kernelFiles.includes(path.join(kernelRoot, "verification-policy.ts")), "Verification Policy 留待后续 Phase E slice");
   for (const file of await sourceFiles(APP_ROOT)) {
     if (file === stateModule) continue;
-    const sourceFile = ts.createSourceFile(file, await readFile(file, "utf8"), ts.ScriptTarget.Latest, true);
+    const fileSource = await readFile(file, "utf8");
+    if (!file.startsWith(`${kernelRoot}${path.sep}`) && file !== path.join(APP_ROOT, "types/domains/learning-kernel.ts")) {
+      assert.doesNotMatch(fileSource, /\b(?:LearnerTargetStateV1|LearnerStatePromotionEligibilityV1|LearnerStatePromotionBlockerV1|evaluateLearnerStatePromotionEligibility|deriveLearnerTargetStates)\b/,
+        `${file} 不得接入 Phase E state / eligibility（包括 Phase D service）`);
+    }
+    const sourceFile = ts.createSourceFile(file, fileSource, ts.ScriptTarget.Latest, true);
     const inspect = (node: ts.Node) => {
       let specifier: string | undefined;
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specifier = node.moduleSpecifier.text;
@@ -94,12 +108,15 @@ test("Recall Phase E1 learner target state 保持 shadow-only，无外层 runtim
       if (specifier) {
         const target = (specifier.startsWith("@/") ? path.join(APP_ROOT, specifier.slice(2))
           : path.resolve(path.dirname(file), specifier)).replace(/\.ts$/, "");
-        assert.notEqual(target, stateModule.replace(/\.ts$/, ""), `${file} 不得在 E1 接入 learner target state runtime（包括 compatibility bridge）`);
+        assert.ok(![stateModule, policyModule].some((module) => target === module.replace(/\.ts$/, "")),
+          `${file} 不得在 E2 接入 state / authority policy（包括 compatibility bridge）`);
       }
       ts.forEachChild(node, inspect);
     };
     inspect(sourceFile);
   }
+  const compatibility = await readFile(path.join(kernelRoot, "compatibility-snapshot.ts"), "utf8");
+  assert.doesNotMatch(compatibility, /LearnerTargetState|LearnerStatePromotion|promotionEligibility|learner-state-policy|derive-learner-state/);
 });
 
 test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入", async () => {
