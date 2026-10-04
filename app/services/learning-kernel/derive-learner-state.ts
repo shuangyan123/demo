@@ -5,8 +5,9 @@ import type {
 import { deriveEvidence } from "./derive-evidence.ts";
 import { MAX_EVIDENCE_ID_LENGTH } from "./evidence-policy.ts";
 import { compareLearningEventText, isLearningEventInstant } from "./learning-event.ts";
+import { evaluateLearnerStatePromotionEligibility, LEARNER_STATE_POLICY_VERSION } from "./learner-state-policy.ts";
 
-export const LEARNER_STATE_POLICY_VERSION = "learner-state-policy/v1";
+export { LEARNER_STATE_POLICY_VERSION } from "./learner-state-policy.ts";
 
 function isEvidenceId(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0
@@ -63,10 +64,15 @@ function latestSourceTime(records: readonly EvidenceRecordV1[], eventsById: Read
   return latest ? { value: latest.value, precision: latest.precision } : null;
 }
 
-/**
- * Phase E1 shadow floor：Evidence 决定权限，Event 只供 lineage / occurrence。
- * asOf 是显式评估上下文；本片不按时间安排验证、衰减或晋级任何 legacy Evidence。
- */
+function result(states: LearnerTargetStateV1[], diagnostics: LearnerStateDerivationV1["diagnostics"]): LearnerStateDerivationV1 {
+  const unique = new Map(diagnostics.map((item) => [JSON.stringify([item.sourceEventId, item.sourceEvidenceId, item.code]), item]));
+  return { states, diagnostics: [...unique.values()].toSorted((left, right) => (
+    compareLearningEventText(left.sourceEventId ?? "", right.sourceEventId ?? "")
+    || compareLearningEventText(left.sourceEvidenceId ?? "", right.sourceEvidenceId ?? "") || compareLearningEventText(left.code, right.code)
+  )) };
+}
+
+/** Phase E shadow API：完整 Evidence scope 是硬边界，asOf 排除未来来源；不调度或晋级。 */
 export function deriveLearnerTargetStates(
   events: readonly LearningEventV1[],
   evidence: readonly EvidenceRecordV1[],
@@ -85,16 +91,17 @@ export function deriveLearnerTargetStates(
   const acceptedEventIds = new Set(canonical.evidence.flatMap((item) => item.sourceEventIds));
   const eventsById = new Map(events.filter((event) => event && acceptedEventIds.has(event.id)).map((event) => [event.id, event]));
   const groups = new Map<string, EvidenceRecordV1[]>();
+  let invalidScope = false;
   for (const item of evidence) {
     if (!isEvidenceId(item?.id)) {
       diagnostics.push({ code: "invalid_evidence", sourceEventId: null, sourceEvidenceId: null });
+      invalidScope = true;
       continue;
     }
     const group = groups.get(item.id) ?? [];
     group.push(item);
     groups.set(item.id, group);
   }
-  const targets = new Map<string, EvidenceRecordV1[]>();
   for (const [id, group] of [...groups].toSorted(([left], [right]) => compareLearningEventText(left, right))) {
     const item = group[0];
     const expected = canonicalById.get(id);
@@ -104,8 +111,35 @@ export function deriveLearnerTargetStates(
       : !expected || !sameValue(item, expected) ? "noncanonical_evidence" : null;
     if (code || !expected) {
       diagnostics.push({ code: code ?? "noncanonical_evidence", sourceEventId: null, sourceEvidenceId: id });
-      continue;
+      invalidScope = true;
     }
+  }
+  // 即使遗漏的是 completion 或未来 Evidence，也必须先拒绝不完整输入，不能静默补齐。
+  for (const item of canonical.evidence) {
+    if (!groups.has(item.id)) {
+      diagnostics.push({ code: "incomplete_evidence_scope", sourceEventId: null, sourceEvidenceId: item.id });
+      invalidScope = true;
+    }
+  }
+  if (invalidScope) return result([], diagnostics);
+
+  const targets = new Map<string, EvidenceRecordV1[]>();
+  const asOfInstant = Date.parse(timeContext.asOf);
+  const asOfDate = timeContext.asOf.slice(0, 10);
+  for (const expected of canonical.evidence) {
+    let afterAsOf = false;
+    for (const id of expected.sourceEventIds) {
+      const event = eventsById.get(id)!;
+      const time = event.occurredAt;
+      const precision = event.provenance.timePrecision;
+      // date-only 只与 asOf 的 civil date 比较，同日不能声称早于某个精确 instant。
+      if (time !== null && (precision === "instant" ? Date.parse(time) > asOfInstant
+        : precision === "date" && compareLearningEventText(time, asOfDate) > 0)) {
+        diagnostics.push({ code: "evidence_after_as_of", sourceEventId: id, sourceEvidenceId: expected.id });
+        afterAsOf = true;
+      }
+    }
+    if (afterAsOf) continue;
     // 仅使用重算后的白名单对象；workflow-only target 不进入状态集合。
     if (expected.claim === "completion") continue;
     const target = expected.target;
@@ -122,15 +156,12 @@ export function deriveLearnerTargetStates(
       understanding: "unknown", independence: "unknown", retention: "untested", transfer: "untested",
       evidenceReferences: { understanding: [], independence: [], retention: [], transfer: [] },
       sourceEvidenceIds: records.map((item) => item.id).toSorted(compareLearningEventText),
+      promotionEligibility: evaluateLearnerStatePromotionEligibility(records),
       lastEvidenceAt: latestSourceTime(records, eventsById, diagnostics),
       lastVerifiedAt: null, nextVerificationAt: null,
       policyVersion: LEARNER_STATE_POLICY_VERSION, timeContext: { asOf: timeContext.asOf },
     };
   }).toSorted((left, right) => compareLearningEventText(left.target.category, right.target.category)
     || compareLearningEventText(left.target.namespace, right.target.namespace) || compareLearningEventText(left.target.id, right.target.id));
-  const unique = new Map(diagnostics.map((item) => [JSON.stringify([item.sourceEventId, item.sourceEvidenceId, item.code]), item]));
-  return { states, diagnostics: [...unique.values()].toSorted((left, right) => (
-    compareLearningEventText(left.sourceEventId ?? "", right.sourceEventId ?? "")
-    || compareLearningEventText(left.sourceEvidenceId ?? "", right.sourceEvidenceId ?? "") || compareLearningEventText(left.code, right.code)
-  )) };
+  return result(states, diagnostics);
 }

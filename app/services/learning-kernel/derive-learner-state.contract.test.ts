@@ -21,12 +21,12 @@ function knowledge(patch: Partial<KnowledgeAttempt> = {}): LearningEventV1[] {
   return adaptKnowledgeAttempt({ id: "knowledge-review-1", knowledgeId: "target-1", result: "correct", confidence: 4,
     reviewedAt: "2026-10-02", ...patch }).events;
 }
-function tutoring(passed: boolean): LearningEventV1[] {
+function tutoring(passed: boolean, at = instant): LearningEventV1[] {
   const turn: TutoringTurn = { id: "turn-1", sessionId: "tutor-session-1", speaker: "ai_tutor", content: privateSentinel,
     detectedProblem: privateSentinel, confidence: 0.999, frameDescription: privateSentinel,
     microAssessment: { questions: [{ id: "micro-1", prompt: privateSentinel, options: [privateSentinel, privateSentinel],
       correctOptionIndex: 1, explanation: privateSentinel }], selections: [passed ? 1 : 0], correctCount: passed ? 1 : 0,
-    completedAt: instant }, createdAt: instant };
+    completedAt: at }, createdAt: at };
   return adaptTutoringMicroAssessment(turn).events;
 }
 function interview(score = 30, id = "evaluation-1", at = instant): LearningEventV1[] {
@@ -57,24 +57,43 @@ function assertFloor(state: LearnerTargetStateV1): void {
   assert.equal(state.nextVerificationAt, null);
   assert.equal(state.policyVersion, LEARNER_STATE_POLICY_VERSION);
   assert.deepEqual(state.timeContext, timeContext);
+  for (const [dimension, eligibility] of Object.entries(state.promotionEligibility)) {
+    assert.equal(eligibility.status, "blocked");
+    assert.deepEqual(eligibility.eligibleEvidenceIds, []);
+    assert.deepEqual(eligibility.candidateEvidenceIds, state.sourceEvidenceIds);
+    assert.deepEqual(eligibility.candidateMeasurementGroupIds, eligibility.candidateMeasurementGroupIds.toSorted(compareLearningEventText));
+    assert.equal(new Set(eligibility.candidateMeasurementGroupIds).size, eligibility.candidateMeasurementGroupIds.length);
+    assert.deepEqual(eligibility.blockers, eligibility.blockers.toSorted(compareLearningEventText));
+    assert.equal(new Set(eligibility.blockers).size, eligibility.blockers.length);
+    assert.ok(eligibility.blockers.includes("no_qualified_direct_evidence"));
+    assert.ok(eligibility.blockers.includes("assistance_unknown"));
+    assert.ok(eligibility.blockers.includes("no_independent_grader"));
+    if (dimension === "retention") assert.ok(eligibility.blockers.includes("missing_delayed_verification"));
+    if (dimension === "transfer") assert.ok(eligibility.blockers.includes("missing_transfer_context"));
+  }
   assert.deepEqual(Object.keys(state).toSorted(), ["schemaVersion", "target", "understanding", "independence", "retention",
     "transfer", "evidenceReferences", "sourceEvidenceIds", "lastEvidenceAt", "lastVerifiedAt", "nextVerificationAt",
-    "policyVersion", "timeContext"].toSorted(), "不得增加 mastery/confidence/weakness/misconception 字段");
+    "policyVersion", "timeContext", "promotionEligibility"].toSorted(), "不得增加 mastery/confidence/weakness/misconception 字段");
 }
 function freeze(value: unknown): void {
   if (value && typeof value === "object") { Object.freeze(value); Object.values(value).forEach(freeze); }
 }
 
-test("empty events/evidence produce empty states; events alone do not substitute missing Evidence", () => {
+test("empty events/evidence produce empty states; events alone fail closed on incomplete Evidence scope", () => {
   assert.deepEqual(derive([], []), { states: [], diagnostics: [] });
-  assert.deepEqual(derive(allEvents(), []), { states: [], diagnostics: [] });
+  assert.deepEqual(derive(allEvents(), []), { states: [], diagnostics: deriveEvidence(allEvents()).evidence.map((item) => (
+    { code: "incomplete_evidence_scope", sourceEventId: null, sourceEvidenceId: item.id }
+  )) });
 });
 
 test("strong workflow completion alone never creates a target state for any legacy source", () => {
   const events = allEvents();
   const evidence = deriveEvidence(events).evidence.filter((item) => item.claim === "completion");
   assert.ok(evidence.length > 0 && evidence.every((item) => item.evidenceClass === "workflow_fact" && item.strength === "strong"));
-  assert.deepEqual(derive(events, evidence), { states: [], diagnostics: [] });
+  const incomplete = derive(events, evidence);
+  assert.deepEqual(incomplete.states, []);
+  assert.equal(incomplete.diagnostics.length, deriveEvidence(events).evidence.length - evidence.length);
+  assert.ok(incomplete.diagnostics.every((item) => item.code === "incomplete_evidence_scope"));
   const completionEvents = interview().filter((event) => event.kind === "interview.completed");
   assert.deepEqual(derive(completionEvents), { states: [], diagnostics: [] });
 });
@@ -99,6 +118,7 @@ for (const result of ["correct", "wrong", "uncertain"] as const) {
       assert.deepEqual(learning.outcome, { kind: "self_reported_result", result,
         direction: result === "correct" ? "supports" : result === "wrong" ? "refutes" : "inconclusive" });
       assert.deepEqual(learning.provenance.limitations, ["assistance_unknown", "no_independent_grader", "self_report_only"]);
+      assert.ok(state.promotionEligibility.understanding.blockers.includes("self_report_only"));
     });
   }
 }
@@ -118,6 +138,7 @@ for (const passed of [true, false]) {
     assert.equal(item.strength, "weak");
     assert.deepEqual(item.outcome, { kind: "supplied_key_comparison", matchesSuppliedKey: passed, direction: passed ? "supports" : "refutes" });
     assert.deepEqual(item.provenance.limitations, ["assistance_unknown", "current_projection", "history_incomplete", "model_authored_key", "no_independent_grader"]);
+    assert.ok(result.states[0].promotionEligibility.understanding.blockers.includes("model_authored_key"));
     assert.deepEqual(deriveEvidence(events), canonical);
   });
 }
@@ -138,7 +159,13 @@ for (const score of [0, 100]) {
       && item.strength === "weak" && item.outcome.direction === "inconclusive"));
     assert.deepEqual(deriveEvidence(events), canonical);
     const withoutCompletion = derive(events, learning);
-    assert.deepEqual(withoutCompletion, result, "completion 不与 model assessment 复合成更强权限");
+    assert.deepEqual(withoutCompletion.states, [], "completion 也属于必须完整提供的 canonical scope");
+    assert.ok(withoutCompletion.diagnostics.every((item) => item.code === "incomplete_evidence_scope"));
+    for (const eligibility of Object.values(result.states[0].promotionEligibility)) {
+      assert.equal(eligibility.candidateMeasurementGroupIds.length, 1, "多个 rubric slices 只是一份候选测量");
+      assert.deepEqual(eligibility.candidateEvidenceIds, learning.map((item) => item.id));
+      assert.ok(eligibility.blockers.includes("model_assessment_only"));
+    }
     assert.doesNotMatch(JSON.stringify(result.states), /"(?:score|maxScore|dimension|weakness|strength|mastery|confidence)":/);
   });
 }
@@ -157,11 +184,10 @@ test("legacy 1..5 mastery is never promoted into canonical state or a probabilit
 });
 
 test("workflow completion cannot refresh learner evidence recency", () => {
-  const learningEvents = review();
-  const completionEvents = review({ id: "workflow-later", reviewedAt: "2026-10-03" });
-  const evidence = [...deriveEvidence(learningEvents).evidence,
-    ...deriveEvidence(completionEvents).evidence.filter((item) => item.claim === "completion")];
-  assert.deepEqual(derive([...learningEvents, ...completionEvents], evidence), derive(learningEvents));
+  const learningEvents = interview().filter((event) => event.kind === "interview.evaluated");
+  const completionEvents = interview(30, "evaluation-1", "2026-10-03T08:00:00Z")
+    .filter((event) => event.kind === "interview.completed");
+  assert.deepEqual(derive([...learningEvents, ...completionEvents]), derive(learningEvents));
 });
 
 test("unknown source occurrence remains null; a known date stays a civil date", () => {
@@ -233,16 +259,19 @@ test("ordering never changes bytes, diagnostics, source IDs or default reference
   }
 });
 
-test("conflicting duplicate Event identity rejects its lineage while unrelated targets survive", () => {
+test("conflicting Event diagnostics survive; stale supplied Evidence rejects the complete scope", () => {
   const events = review();
   const conflict = review({ result: "wrong" })[0];
   const other = knowledge();
   const evidence = deriveEvidence([...events, ...other]).evidence;
   const result = derive([...events, conflict, ...other], evidence);
-  assert.equal(result.states.length, 1);
-  assert.equal(result.states[0].target.category, "knowledge");
+  assert.deepEqual(result.states, []);
   assert.ok(result.diagnostics.some((item) => item.code === "conflicting_event_identity"));
   assert.deepEqual(result, derive([...other, conflict, ...events], [...evidence].reverse()));
+  const exact = derive([...events, conflict, ...other]);
+  assert.equal(exact.states.length, 1, "只提供重算后完整 canonical Evidence 时无关 target 可保留");
+  assert.equal(exact.states[0].target.category, "knowledge");
+  assert.deepEqual(exact.diagnostics, [{ code: "conflicting_event_identity", sourceEventId: events[0].id, sourceEvidenceId: null }]);
 });
 
 const mutations: Array<[string, (item: EvidenceRecordV1) => EvidenceRecordV1]> = [
@@ -263,24 +292,27 @@ const mutations: Array<[string, (item: EvidenceRecordV1) => EvidenceRecordV1]> =
 for (const [name, mutate] of mutations) {
   test(`forged Evidence ${name} fails closed, including same-ID conflict in either order`, () => {
     const events = review();
-    const canonical = deriveEvidence(events).evidence.find((item) => item.claim !== "completion")!;
+    const evidence = deriveEvidence(events).evidence;
+    const canonical = evidence.find((item) => item.claim !== "completion")!;
+    const completion = evidence.filter((item) => item.claim === "completion");
     const forged = mutate(structuredClone(canonical));
-    const alone = derive(events, [forged]);
+    const alone = derive(events, [...completion, forged]);
     assert.deepEqual(alone.states, []);
     assert.deepEqual(alone.diagnostics, [{ code: "noncanonical_evidence", sourceEventId: null, sourceEvidenceId: canonical.id }]);
-    const conflict = derive(events, [canonical, forged]);
+    const conflict = derive(events, [...completion, canonical, forged]);
     assert.deepEqual(conflict.states, []);
     assert.deepEqual(conflict.diagnostics, [{ code: "conflicting_evidence_identity", sourceEventId: null, sourceEvidenceId: canonical.id }]);
-    assert.deepEqual(conflict, derive(events, [forged, canonical]));
+    assert.deepEqual(conflict, derive(events, [forged, canonical, ...completion]));
   });
 }
 
 test("orphan, substituted or augmented sourceEventIds cannot borrow another Event's authority", () => {
   const events = [...review(), ...knowledge()];
-  const item = deriveEvidence(events).evidence.find((item) => item.claim === "correctness" && item.target.category === "mistake")!;
+  const evidence = deriveEvidence(events).evidence;
+  const item = evidence.find((item) => item.claim === "correctness" && item.target.category === "mistake")!;
   for (const ids of [["orphan"], [events[1].id], [events[0].id, events[1].id]]) {
     const forged = { ...item, sourceEventIds: ids } as EvidenceRecordV1;
-    const result = derive(events, [forged]);
+    const result = derive(events, evidence.map((candidate) => candidate.id === item.id ? forged : candidate));
     assert.deepEqual(result.states, []);
     assert.equal(result.diagnostics[0].code, ids[0] === "orphan" ? "orphan_evidence" : "noncanonical_evidence");
   }
@@ -325,6 +357,9 @@ test("inputs are immutable and every output target, reference array and time con
     assert.notEqual(state.timeContext, context);
   }
   result.states[0].sourceEvidenceIds.push("output-mutation");
+  result.states[0].promotionEligibility.understanding.candidateEvidenceIds.push("output-mutation");
+  result.states[0].promotionEligibility.understanding.candidateMeasurementGroupIds.push("output-mutation");
+  result.states[0].promotionEligibility.understanding.blockers.length = 0;
   result.states[0].target.id = "output-mutation";
   result.states[0].timeContext.asOf = "output-mutation";
   assert.deepEqual({ events, evidence, context }, before);
@@ -364,4 +399,128 @@ test("private-content sentinels in sources, Events and time context never enter 
   const serialized = JSON.stringify(result);
   assert.ok(!serialized.includes(privateSentinel));
   for (const field of fields) assert.ok(!serialized.includes(`"${field}":`));
+});
+
+for (const omittedClaim of ["completion", "correctness"] as const) {
+  test(`omitting canonical ${omittedClaim} Evidence rejects all states, including unrelated targets`, () => {
+    const events = [...review(), ...knowledge()];
+    const evidence = deriveEvidence(events).evidence;
+    const omitted = evidence.find((item) => item.claim === omittedClaim && item.target.category === "mistake")!;
+    assert.deepEqual(derive(events, evidence.filter((item) => item.id !== omitted.id)), {
+      states: [], diagnostics: [{ code: "incomplete_evidence_scope", sourceEventId: null, sourceEvidenceId: omitted.id }],
+    });
+  });
+}
+
+test("omitting contrary Evidence cannot select only a favorable history", () => {
+  const events = [...review({ id: "pass" }), ...review({ id: "fail", result: "wrong" }), ...knowledge()];
+  const evidence = deriveEvidence(events).evidence;
+  const negative = evidence.find((item) => item.outcome.direction === "refutes")!;
+  assert.ok(negative);
+  assert.deepEqual(derive(events, evidence.filter((item) => item.id !== negative.id)), {
+    states: [], diagnostics: [{ code: "incomplete_evidence_scope", sourceEventId: null, sourceEvidenceId: negative.id }],
+  });
+  derive(events, evidence).states.forEach(assertFloor);
+});
+
+test("unexpected and conflicting Evidence fail the entire scope even with full valid unrelated Evidence", () => {
+  const events = allEvents();
+  const evidence = deriveEvidence(events).evidence;
+  const item = evidence.find((item) => item.claim === "correctness")!;
+  for (const extra of [{ ...item, id: "unexpected-evidence" }, { ...item, strength: "strong" as const }]) {
+    const result = derive(events, [...evidence, extra]);
+    assert.deepEqual(result.states, []);
+    assert.deepEqual(result.diagnostics, [{ code: extra.id === item.id ? "conflicting_evidence_identity" : "noncanonical_evidence",
+      sourceEventId: null, sourceEvidenceId: extra.id }]);
+    assert.deepEqual(result, derive([...events].reverse(), [extra, ...evidence].reverse()));
+  }
+});
+
+for (const [name, at, usable] of [
+  ["before", "2026-10-04T08:59:59.999+08:00", true],
+  ["exactly at", timeContext.asOf, true],
+  ["same instant with another offset", "2026-10-04T01:00:00Z", true],
+  ["after", "2026-10-04T01:00:00.001Z", false],
+] as const) {
+  test(`instant Evidence ${name} asOf uses actual offset ordering for targets, candidates and recency`, () => {
+    const events = interview(100, "temporal", at);
+    const evidence = deriveEvidence(events).evidence;
+    const result = derive(events, evidence);
+    if (usable) {
+      assert.equal(result.states.length, 1);
+      assertFloor(result.states[0]);
+      assert.deepEqual(result.states[0].lastEvidenceAt, { value: at, precision: "instant" });
+      assert.deepEqual(result.diagnostics, []);
+    } else {
+      assert.deepEqual(result.states, []);
+      assert.equal(result.diagnostics.length, evidence.length);
+      assert.ok(result.diagnostics.every((item) => item.code === "evidence_after_as_of"));
+      assert.deepEqual(new Set(result.diagnostics.map((item) => item.sourceEvidenceId)), new Set(evidence.map((item) => item.id)));
+    }
+    assert.deepEqual(derive([...events].reverse(), [...evidence].reverse()), result);
+  });
+}
+
+test("future Evidence cannot enter an existing target's sources, eligibility or lastEvidenceAt", () => {
+  const past = interview(0, "past", "2026-10-03T08:00:00Z");
+  const future = interview(100, "future", "2026-10-04T01:00:00.001Z");
+  const events = [...past, ...future];
+  const evidence = deriveEvidence(events).evidence;
+  const result = derive(events, evidence);
+  assert.deepEqual(result.states, derive(past).states);
+  assert.ok(result.diagnostics.every((item) => item.code === "evidence_after_as_of"));
+  assert.equal(result.diagnostics.length, deriveEvidence(future).evidence.length);
+  assert.deepEqual(result, derive([...events].reverse(), [...evidence].reverse()));
+  // 完整 scope 校验在 cutoff 前；调用方不能用时间过滤隐藏未提供的 Evidence。
+  const incomplete = derive(events, deriveEvidence(past).evidence);
+  assert.deepEqual(incomplete.states, []);
+  assert.ok(incomplete.diagnostics.every((item) => item.code === "incomplete_evidence_scope"));
+});
+
+for (const source of [review, knowledge]) {
+  for (const [at, usable] of [["2026-10-03", true], ["2026-10-04", true], ["2026-10-05", false]] as const) {
+    test(`${source.name} civil date ${at} compares only with the asOf civil date`, () => {
+      const events = source({ reviewedAt: at });
+      const context = { asOf: "2026-10-04T00:00:00+14:00" };
+      const result = deriveLearnerTargetStates(events, deriveEvidence(events).evidence, context);
+      if (usable) {
+        assert.equal(result.states.length, 1);
+        assert.deepEqual(result.states[0].lastEvidenceAt, { value: at, precision: "date" });
+        assert.deepEqual(result.diagnostics, []);
+        assert.equal(result.states[0].lastVerifiedAt, null);
+      } else {
+        assert.deepEqual(result.states, []);
+        assert.ok(result.diagnostics.every((item) => item.code === "evidence_after_as_of"));
+        assert.equal(result.diagnostics.length, 2);
+      }
+      assert.deepEqual(result, deriveLearnerTargetStates([...events].reverse(), [...deriveEvidence(events).evidence].reverse(), context));
+    });
+  }
+}
+
+test("unknown-time canonical candidates remain non-temporal without synthesizing occurrence", () => {
+  const events = review({ reviewedAt: "" });
+  const evidence = deriveEvidence(events).evidence;
+  const result = deriveLearnerTargetStates(events, evidence, { asOf: "2000-01-01T00:00:00Z" });
+  assert.equal(result.states.length, 1);
+  assert.equal(result.states[0].lastEvidenceAt, null);
+  assert.equal(result.states[0].lastVerifiedAt, null);
+  assert.ok(Object.values(result.states[0].promotionEligibility).every((item) => item.status === "blocked"));
+  assert.deepEqual(result.states[0].promotionEligibility.understanding.candidateEvidenceIds,
+    evidence.filter((item) => item.claim !== "completion").map((item) => item.id));
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("repeated model-authored quizzes and self-report history never establish retention or transfer", () => {
+  const events = [...tutoring(true, "2026-10-01T08:00:00Z"), ...tutoring(true, "2026-10-02T08:00:00Z"),
+    ...tutoring(true, "2026-10-03T08:00:00Z"), ...review({ id: "first", reviewedAt: "2026-09-01" }),
+    ...review({ id: "second", reviewedAt: "2026-10-01" })];
+  const result = derive(events);
+  assert.equal(result.states.length, 2);
+  result.states.forEach(assertFloor);
+  assert.deepEqual(result.diagnostics, []);
+  const quiz = result.states.find((state) => state.target.category === "question")!;
+  assert.equal(quiz.promotionEligibility.retention.candidateMeasurementGroupIds.length, 3);
+  assert.ok(quiz.promotionEligibility.retention.blockers.includes("missing_delayed_verification"));
+  assert.ok(quiz.promotionEligibility.transfer.blockers.includes("missing_transfer_context"));
 });
