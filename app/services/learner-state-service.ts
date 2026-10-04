@@ -10,6 +10,7 @@ import type {
 } from "../types/domains/learner-state.ts";
 import type { TutoringPlan, TutoringSession, TutoringTurn } from "../types/domains/tutoring.ts";
 import { knowledgeRepository } from "./knowledge-repository.ts";
+import { projectLegacyResultCompatibility, type LegacyResultCompatibility } from "./learning-kernel/compatibility-snapshot.ts";
 import { reviewRepository } from "./review-repository.ts";
 import { filterWorkspaceRecords, PERSONAL_WORKSPACE_DATA_SCOPE, type WorkspaceDataScope } from "./workspace-data-scope.ts";
 
@@ -107,27 +108,27 @@ function knowledgeEvidence(item: KnowledgeEntry): LearnerEvidenceRef {
   return { type: "knowledge", id: item.id, label: `${item.category} · ${item.title.slice(0, 48)}`, observedAt: item.updatedAt };
 }
 
-function knowledgeAttemptEvidence(attempt: KnowledgeAttempt): LearnerEvidenceRef {
-  return { type: "knowledge_attempt", id: attempt.id, label: `最近训练：${attempt.result}`, observedAt: attempt.reviewedAt };
+function knowledgeAttemptEvidence(attempt: ResultEvidence): LearnerEvidenceRef {
+  return { type: "knowledge_attempt", id: attempt.id, label: `最近训练：${attempt.result}`, observedAt: attempt.observedAt };
 }
 
-function latestReviewAttempts(attempts: Attempt[]): Map<string, ResultEvidence> {
+/** 仅消费 Kernel 校验后的 legacy 自报兼容视图；不回退原始 Attempt.result。 */
+function latestCompatibilityResults(
+  results: LegacyResultCompatibility[],
+  recordType: LegacyResultCompatibility["source"]["recordType"],
+): Map<string, ResultEvidence> {
   const latest = new Map<string, ResultEvidence>();
-  for (const attempt of attempts.toSorted((left, right) => right.reviewedAt.localeCompare(left.reviewedAt) || left.id.localeCompare(right.id))) {
-    if (!latest.has(attempt.mistakeId)) latest.set(attempt.mistakeId, { id: attempt.id, result: attempt.result, observedAt: attempt.reviewedAt });
+  const sorted = results.filter((item) => item.source.recordType === recordType).toSorted((left, right) => (
+    (right.observedAt ?? "").localeCompare(left.observedAt ?? "") || left.source.recordId.localeCompare(right.source.recordId)
+  ));
+  for (const item of sorted) {
+    // 未知时间在旧 UI 引用中保持空值，不补造日期或访问原始记录。
+    if (!latest.has(item.target.id)) latest.set(item.target.id, { id: item.source.recordId, result: item.reportedResult, observedAt: item.observedAt ?? "" });
   }
   return latest;
 }
 
-function latestKnowledgeAttempts(attempts: KnowledgeAttempt[]): Map<string, KnowledgeAttempt> {
-  const latest = new Map<string, KnowledgeAttempt>();
-  for (const attempt of attempts.toSorted((left, right) => right.reviewedAt.localeCompare(left.reviewedAt) || left.id.localeCompare(right.id))) {
-    if (!latest.has(attempt.knowledgeId)) latest.set(attempt.knowledgeId, attempt);
-  }
-  return latest;
-}
-
-/** 按板块聚合 1..5 掌握度和最近错误复盘，形成可核验薄弱信号。 */
+/** 按旧 1..5 heuristic 和最近自报复盘聚合兼容薄弱信号，不代表独立正确性。 */
 function boardWeaknessSignals(mistakes: Mistake[], latestAttempts: Map<string, ResultEvidence>): LearnerStateSignal[] {
   const groups = new Map<Board, Mistake[]>();
   for (const mistake of mistakes) {
@@ -193,7 +194,7 @@ function misconceptionSignals(
   });
 }
 
-function knowledgeSignals(entries: KnowledgeEntry[], latestAttempts: Map<string, KnowledgeAttempt>): LearnerStateSignal[] {
+function knowledgeSignals(entries: KnowledgeEntry[], latestAttempts: Map<string, ResultEvidence>): LearnerStateSignal[] {
   return entries
     .filter((entry) => entry.mastery <= 2 || ["wrong", "uncertain"].includes(latestAttempts.get(entry.id)?.result ?? ""))
     .toSorted((left, right) => left.mastery - right.mastery || right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id))
@@ -311,7 +312,7 @@ function dueMistakeAction(items: Mistake[], latest: Map<string, ResultEvidence>)
   };
 }
 
-function dueKnowledgeAction(items: KnowledgeEntry[], latest: Map<string, KnowledgeAttempt>): LearningActionRecommendation | null {
+function dueKnowledgeAction(items: KnowledgeEntry[], latest: Map<string, ResultEvidence>): LearningActionRecommendation | null {
   if (!items.length) return null;
   const sorted = items.toSorted((left, right) => {
     const resultRank = (item: KnowledgeEntry) => latest.get(item.id)?.result === "wrong" ? 0 : latest.get(item.id)?.result === "uncertain" ? 1 : 2;
@@ -424,8 +425,9 @@ function misconceptionActions(signals: LearnerStateSignal[]): LearningActionReco
 
 /** 从显式本地事实纯派生学习状态与行动队列；相同 facts + today 必须产生相同 ID 和顺序。 */
 export function deriveLearnerStateSnapshot(facts: LearnerStateFacts, today = new Date()): LearnerStateSnapshot {
-  const latestAttempts = latestReviewAttempts(facts.attempts);
-  const latestKnowledge = latestKnowledgeAttempts(facts.knowledgeAttempts);
+  const compatibilityResults = projectLegacyResultCompatibility({ reviewAttempts: facts.attempts, knowledgeAttempts: facts.knowledgeAttempts });
+  const latestAttempts = latestCompatibilityResults(compatibilityResults, "review_attempt");
+  const latestKnowledge = latestCompatibilityResults(compatibilityResults, "knowledge_attempt");
   const latestTutoringTurns = latestCompletedTutoringTurns(facts.tutoringTurns);
   const dueMistakes = facts.mistakes.filter((item) => isDue(item.nextReviewAt, today));
   const dueKnowledge = facts.knowledgeEntries.filter((item) => isDue(item.nextReviewAt, today));
