@@ -178,4 +178,4 @@ scripts/             审计、bundle、standalone 与桌面打包脚本
 
 架构决策见 [docs/architecture.md](docs/architecture.md)，API 契约见 [docs/api.md](docs/api.md)，长期经验记录见 [docs/agents.md](docs/agents.md)。
 
-Recall 的证据与学习者状态边界及阶段进度见 [Recall Kernel Architecture RFC](docs/recall-kernel-architecture.md)：Phase B 已在 #132 合并；#133 的 Evidence Engine / Policy V1 shadow foundation 已实现，真实记录只读 shadow 评估仍待完成，尚无 authority cutover。
+Recall 的证据与学习者状态边界及阶段进度见 [Recall Kernel Architecture RFC](docs/recall-kernel-architecture.md)：Phase B 已在 #132 合并；#133 的 Evidence Engine / Policy V1 shadow foundation 已实现，并已通过受控 production-path 持久化记录的只读 shadow 验收；尚无 authority cutover。该验收覆盖真实 packaged Electron 持久化路径，不代表自然学习历史或真实学习效果验证。

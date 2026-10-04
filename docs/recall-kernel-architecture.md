@@ -1,9 +1,9 @@
 # Recall Kernel Architecture RFC
 
-- 状态：Phase B 已由 [#132](https://github.com/shuangyan123/demo/pull/132) 合并完成；[#133](https://github.com/shuangyan123/demo/pull/133) 保持 Draft，**Evidence Engine / Policy V1 implementation complete in shadow foundation; real-record read-only evaluation pending**。
+- 状态：Phase B 已由 [#132](https://github.com/shuangyan123/demo/pull/132) 合并完成；[#133](https://github.com/shuangyan123/demo/pull/133) 保持 Draft，Phase C **Evidence Engine / Policy V1 shadow foundation 已实现，并已通过受控 production-path 持久化记录的只读 shadow 验收**；尚无 authority cutover。
 - Phase A 审计基线：`shuangyan123/demo`，`0b08ec14bf43cffbd64617b89dbea53e26bfa545`。
 - RFC 初稿日期：2026-10-02。
-- 交付边界：Phase A 交付本文和 README 索引；Phase B 已实现纯契约与 legacy adapters；#133 实现 Phase C 的纯 Evidence / Policy V1、shadow report、契约测试和架构守卫，尚未完成真实记录只读 shadow 评估。
+- 交付边界：Phase A 交付本文和 README 索引；Phase B 已实现纯契约与 legacy adapters；#133 实现 Phase C 的纯 Evidence / Policy V1、shadow report、契约测试和架构守卫，并已完成受控 production-path 持久化记录的只读 shadow 验收；未接入 runtime authority、LearnerTargetState 或后续阶段。
 - 下文既有行为审计描述 Phase A 基线；提议契约的实际实现进度以第 14 节为准。未完成阶段仍是设计提议，不代表已存在的 API 或已获批准的执行计划。
 
 ## 1. 产品定义与核心问题
@@ -395,15 +395,15 @@ new derived Kernel state
 | --- | --- | --- | --- |
 | A — RFC only | 本文及最小索引 | 审计有源码依据、边界和未知明确、文档验证通过；Draft 供评审 | RFC 已交付；不代表所有后续设计均获批准 |
 | B — Kernel contracts | 纯 TS 类型 / 函数、legacy adapters；无 DB 变化 | fixture 验证 self_report、model key、model judgment、unknown、稳定来源 ID 与 time context | Completed / merged in #132（`cd554c172a69f47fe36c65416d5a3871fd8b9563`） |
-| C — Evidence Engine shadow mode | 与旧 learner-state 逻辑并行解释；纯 Evidence V1 / Policy V1 推导与计数，不接入运行时 | 差异可解释、无用户可见 authority 改变；真实记录只读评估，不导出用户正文 | Evidence Engine / Policy V1 implementation complete in shadow foundation; real-record read-only evaluation pending |
+| C — Evidence Engine shadow mode | 与旧 learner-state 逻辑并行解释；纯 Evidence V1 / Policy V1 推导与计数，不接入运行时 | 差异可解释、无用户可见 authority 改变；production-path 持久化记录只读评估，不导出用户正文 | Acceptance passed on controlled production-path persisted records（4/4 来源类别）；无 authority cutover |
 | D — Compatibility bridge | learner-state-service 逐步消费 Kernel 输出 | 相同 UI contract、recommendation identity / transitions、normalization owner 与 scope；可逐项回滚 | Deferred |
 | E — LearnerTargetState V1 | 在 Evidence 足够时暴露 independence / retention / transfer | unknown / conflict / insufficient evidence 可用，维度 claim 有可追溯链；仍 derived，初期不持久化 | Deferred |
 | F — first-party Mod / Adapter boundaries | 渐进拆 civil-service；Fenbi 明确 adapter；Tutor / Interview / Obsidian 逐步接入 | first-party compile-time registration、能力授权不变、无删功能或公共代码插件 runtime | Deferred |
 | G — Hardware protocol | 语义契约稳定后设计可选、policy-controlled trace storage 与 digital-pen / tablet adapters | 真实设备需求、interpreter provenance、raw / semantic 分离及授权保留的独立评审 | Deferred |
 
-**Phase B 已完成，#133 只实现 Phase C 的 shadow foundation；真实记录只读 shadow 评估仍是 Phase C 的必要验收条件，合成 fixture 不能替代该条件。** 当前不宣告 Phase C 整体完成，也不启动 Phase D–G，不新增 runtime hooks、持久化、UI、LearnerTargetState 或 authority cutover。
+**Phase B 已完成；#133 的 Phase C shadow foundation 与受控 production-path 持久化记录只读 shadow 验收均已完成。** 该验收使用正常 packaged Electron UI / repository 持久化路径生成的 calibration records，而不是直接构造 fixture；它证明当前 Evidence / Policy V1 对真实生产数据形状保持既定 authority、privacy、determinism 与只读边界，但**不代表自然学习历史或真实学习效果验证**。当前不启动 Phase D–G，不新增 runtime hooks、持久化、UI、LearnerTargetState 或 authority cutover。
 
-验收测试应直接调用纯函数，验证模型判断保存前后权限不变、completion 不提升 skill、模型 key 的评分限制、未知 assistance、sensor interpretation、重复来源不加权、缺失 / 冲突 / 来源修订和删除、稳定排序、不同 policy / time context、兼容 bridge 的真实 commit transitions。Phase B 与 Phase C foundation 已有相应范围内的直接契约测试；真实记录只读评估及后续阶段专属验收仍待完成。沿用现有 architecture guard，不为新边界放宽规则。
+验收测试应直接调用纯函数，验证模型判断保存前后权限不变、completion 不提升 skill、模型 key 的评分限制、未知 assistance、sensor interpretation、重复来源不加权、缺失 / 冲突 / 来源修订和删除、稳定排序、不同 policy / time context、兼容 bridge 的真实 commit transitions。Phase B 与 Phase C foundation 已有相应范围内的直接契约测试；Phase C production-path 持久化记录只读验收已完成，后续阶段专属验收仍待完成。沿用现有 architecture guard，不为新边界放宽规则。
 
 ## 15. Non-goals 与待定问题
 
@@ -429,9 +429,22 @@ new derived Kernel state
 
 这些问题不阻止已交付的 RFC 或纯 shadow foundation，但不得在没有新授权、契约与证据时默默补成 runtime 实现。
 
-## 16. Phase A 验证记录与可核查来源
+## 16. 验证记录与可核查来源
 
-Phase A 的原始交付只检查文档：执行 `git diff --check`，检查完整 diff、授权文件集合、相对链接、Markdown 结构、当前 / 提议标签及源码语义。仓库没有专用 Markdown / docs validator，当时未机械运行产品 build、Playwright 或 Electron packaging。后续 Phase B / C foundation 的实际验证见各自 PR；真实记录只读评估仍 pending，本文不把未来验收写成已运行 PASS。
+Phase A 的原始交付只检查文档：执行 `git diff --check`，检查完整 diff、授权文件集合、相对链接、Markdown 结构、当前 / 提议标签及源码语义。仓库没有专用 Markdown / docs validator，当时未机械运行产品 build、Playwright 或 Electron packaging。后续 Phase B / C foundation 的实际验证见各自 PR。
+
+### Phase C controlled production-path persisted-record acceptance（2026-10-04）
+
+在 #133 exact HEAD `940c11fa2950b66f6a06be021c43b820e690592a` 上，从同一 HEAD 构建 packaged Electron，并在独立 Windows 测试账户通过正常 UI / repository 路径生成受控 calibration records；应用退出后冻结 `persist:review-workspace` 分区副本，并只读评估现有 Phase B adapter 与 Phase C Evidence / Policy V1。此样本**不是自然学习历史，也不是学习效果验证**。
+
+- production-path 来源覆盖 4/4：Review attempt 1、Knowledge attempt 1、Tutoring turns 2（含微测 1 / 完成微测 1）、Interview session 1 / evaluation 1。
+- 纯函数生成 5 个 LearningEvent、9 条 Evidence、5 个 measurement groups；Evidence diagnostics 0，拒绝 / 冲突 0。
+- Evidence class：`workflow_fact=4`、`self_report=2`、`scored_performance=1`、`model_assessment=2`；claim：`completion=4`、`correctness=3`、`performance=2`。
+- authority audit 9/9：Review / Knowledge 保持 self-report；Tutoring 仅为 model-authored supplied-key comparison；Interview 仅为 model-assessment performance；completion 不升级为学习成功；未知 assistance 保持 unknown。
+- privacy 扫描通过；两次推导的完整序列化与归一化输出一致。
+- 冻结分区前后均为 109 个文件，SHA-256 manifest 比对 0 项变化；补充契约测试 60/60、架构守卫 2/2 通过。
+- 已知范围限制：样本量很小，只证明当前四类 production-path 数据形状与 Evidence authority / privacy / determinism / read-only 边界；不证明对更广泛真实学习历史的统计泛化，也不证明 Recall 改善学习结果。
+
 
 当前语义的主要对照入口：
 
