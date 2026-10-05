@@ -3,7 +3,7 @@ import type {
   EvidenceRecordV1, LearningEventV1,
 } from "../../types/domains/learning-kernel.ts";
 import { compareLearningEventText } from "./learning-event.ts";
-import { EVIDENCE_POLICY_VERSION, isEvidenceSourceEventId, MAX_EVIDENCE_ID_LENGTH, validateEvidenceEvent } from "./evidence-policy.ts";
+import { EVIDENCE_POLICY_VERSION, VERIFIED_EVIDENCE_POLICY_VERSION, isEvidenceSourceEventId, MAX_EVIDENCE_ID_LENGTH, validateEvidenceEvent } from "./evidence-policy.ts";
 
 /** 仅用于内存中的冲突检测；不输出源内容。排序键避免对象属性顺序影响去重。 */
 function fingerprint(value: unknown, ancestors = new Set<object>(), depth = 0): string {
@@ -23,24 +23,32 @@ function fingerprint(value: unknown, ancestors = new Set<object>(), depth = 0): 
   }
 }
 
+/** 用于权限策略的完整 canonical 比较；附加正文或矛盾事实不能获得权限。 */
+export function sameCanonicalEvidence(left: EvidenceRecordV1, right: EvidenceRecordV1): boolean {
+  try { return fingerprint(left) === fingerprint(right); } catch { return false; }
+}
+
 function record(event: LearningEventV1, claim: EvidenceClaimV1, outcome: EvidenceOutcomeV1,
   evidenceClass: EvidenceRecordV1["evidenceClass"], slice: string, extra: EvidenceLimitationV1[] = []): EvidenceRecordV1 | null {
-  const id = [EVIDENCE_POLICY_VERSION, event.id, event.target.category, event.target.namespace, event.target.id, claim, slice]
+  const verified = event.kind === "verification.assessed";
+  const policyVersion = verified ? VERIFIED_EVIDENCE_POLICY_VERSION : EVIDENCE_POLICY_VERSION;
+  const id = [policyVersion, event.id, event.target.category, event.target.namespace, event.target.id, claim, slice]
     .map((part) => encodeURIComponent(part)).join("/");
   if (id.length > MAX_EVIDENCE_ID_LENGTH) return null;
   const p = event.provenance;
-  const limitations: EvidenceLimitationV1[] = ["assistance_unknown", ...extra];
+  const limitations: EvidenceLimitationV1[] = [...(verified ? [] : ["assistance_unknown" as const]), ...extra];
   if (p.history === "current_projection") limitations.push("current_projection", "history_incomplete");
   return {
     schemaVersion: 1, id,
     target: { category: event.target.category, namespace: event.target.namespace, id: event.target.id },
-    claim, outcome, evidenceClass, assistance: "unknown", strength: claim === "completion" ? "strong" : "weak",
+    claim, outcome, evidenceClass, assistance: verified ? event.payload.assistance : "unknown",
+    strength: verified || claim === "completion" ? "strong" : "weak",
     sourceEventIds: [event.id],
     sourceRecordRefs: event.source.records.map((ref) => ({ recordType: ref.recordType, recordId: ref.recordId,
       ...(ref.revision === undefined ? {} : { revision: ref.revision }) })),
-    measurementGroupId: event.id, policyVersion: EVIDENCE_POLICY_VERSION,
+    measurementGroupId: event.id, policyVersion,
     // 显式白名单投影，绝不 spread 输入 provenance、target 或 source 的附加私有字段。
-    provenance: { adapterId: "recall-legacy/v1", normalizationVersion: p.normalizationVersion,
+    provenance: { adapterId: event.source.adapterId, normalizationVersion: p.normalizationVersion,
       modality: p.modality, modelAuthored: p.modelAuthored, keySource: p.keySource,
       scoringMethod: p.scoringMethod, timePrecision: p.timePrecision, history: p.history,
       limitations: limitations.toSorted(compareLearningEventText) },
@@ -50,6 +58,11 @@ function record(event: LearningEventV1, claim: EvidenceClaimV1, outcome: Evidenc
 function mapEvent(event: LearningEventV1): Array<EvidenceRecordV1 | null> {
   const completion = () => record(event, "completion", { kind: "workflow_completed", direction: "supports" }, "workflow_fact", "completion");
   switch (event.kind) {
+    case "verification.assessed":
+      // 只描述单题 correctness，不在 Evidence Engine 推断任何学习维度；不附加 completion。
+      return [record(event, "correctness", { kind: "verified_key_comparison",
+        matchesVerifiedKey: event.payload.matchesVerifiedKey, direction: event.payload.matchesVerifiedKey ? "supports" : "refutes" },
+      "scored_performance", "correctness")];
     case "review.completed":
     case "knowledge_review.completed": {
       const result = event.payload.reportedResult;

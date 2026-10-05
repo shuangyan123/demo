@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import type { InterviewEvaluation, InterviewSession } from "../../types/domains/interview.ts";
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
 import type { KnowledgeAttempt } from "../../types/domains/knowledge.ts";
@@ -12,6 +13,7 @@ import { deriveEvidence } from "./derive-evidence.ts";
 import { buildEvidenceShadowReport } from "./evidence-shadow.ts";
 import { EVIDENCE_POLICY_VERSION, MAX_EVIDENCE_ID_LENGTH, validateEvidenceEvent } from "./evidence-policy.ts";
 import { legacyLearningEventId } from "./learning-event.ts";
+import { adaptVerifiedAssessment } from "./verified-assessment-adapter.ts";
 
 const instant = "2026-10-02T08:00:00.000Z";
 const secret = "PRIVATE-SENTINEL-MUST-NOT-LEAK";
@@ -61,6 +63,47 @@ function facts(patch: Partial<LearnerStateFacts> = {}): LearnerStateFacts {
 }
 function freeze(value: unknown): void {
   if (value && typeof value === "object") { Object.freeze(value); Object.values(value).forEach(freeze); }
+}
+
+test("legacy v1 Evidence bytes remain identical to the 2e870fb baseline for all four source families", () => {
+  // 在修改前基线 deriveEvidence 上核对的完整 JSON 摘要：覆盖 IDs、provenance、limitations 与 outcome。
+  const evidence = deriveEvidence(allEvents()).evidence;
+  assert.equal(evidence.length, 12);
+  assert.ok(evidence.every((item) => item.policyVersion === "evidence-policy/v1"));
+  assert.equal(createHash("sha256").update(JSON.stringify(evidence)).digest("hex"),
+    "ba50bbb380eec9e5e1a3f963c15d789ec6c1b0af743bad7d17297ff8caa76985");
+});
+
+for (const matches of [true, false]) {
+  for (const assistance of ["none", "hint", "guided", "solution"] as const) {
+    test(`verified ${matches ? "correct" : "wrong"} with ${assistance} is v2 strong scoped correctness only`, () => {
+      const events = adaptVerifiedAssessment({ schemaVersion: 1, id: "verified-item", optionCount: 2, verifiedCorrectOptionIndex: 1 },
+        { schemaVersion: 1, id: "verified-attempt", specId: "verified-item", selectedOptionIndex: matches ? 1 : 0,
+          occurredAt: instant, assistance }).events;
+      const result = deriveEvidence(events);
+      assert.deepEqual(result.diagnostics, []);
+      assert.equal(result.evidence.length, 1, "本来源不额外发 completion");
+      const item = result.evidence[0];
+      assert.equal(item.policyVersion, "evidence-policy/v2");
+      assert.equal(item.claim, "correctness");
+      assert.equal(item.evidenceClass, "scored_performance");
+      assert.equal(item.strength, "strong");
+      assert.equal(item.assistance, assistance);
+      assert.deepEqual(item.outcome, { kind: "verified_key_comparison", matchesVerifiedKey: matches,
+        direction: matches ? "supports" : "refutes" });
+      assert.deepEqual(item.provenance.limitations, []);
+      assert.equal(item.provenance.adapterId, "recall-verified-assessment/v1");
+      assert.deepEqual(item.sourceRecordRefs, events[0].source.records);
+      assert.deepEqual(item.sourceEventIds, [events[0].id]);
+      assert.equal(item.measurementGroupId, events[0].id);
+      const mixed = deriveEvidence([...allEvents(), ...events]);
+      assert.deepEqual(mixed.evidence.filter((record) => record.policyVersion === "evidence-policy/v1"), deriveEvidence(allEvents()).evidence);
+      assert.equal(buildEvidenceShadowReport(events, result).policyVersion, "evidence-policy/v2");
+      assert.equal(buildEvidenceShadowReport(events, result).countsByEventKind["verification.assessed"], 1);
+      assert.equal(report().policyVersion, "evidence-policy/v1");
+      assert.equal(Object.hasOwn(report().countsByEventKind, "verification.assessed"), false);
+    });
+  }
 }
 
 test("identical and shuffled inputs produce byte/deep equal evidence, diagnostics and counts without clock/random", (context) => {

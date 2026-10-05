@@ -1,9 +1,9 @@
 # Recall Kernel Architecture RFC
 
-- 状态：Phase B 已由 [#132](https://github.com/shuangyan123/demo/pull/132) 合并完成；Phase C **Evidence Engine / Policy V1 shadow foundation 已实现，并已通过受控 production-path 持久化记录的只读 shadow 验收**（[#133](https://github.com/shuangyan123/demo/pull/133)）；**Phase D Completed.** 三片均已合并：[#134](https://github.com/shuangyan123/demo/pull/134) Review / Knowledge self-report compatibility、[#135](https://github.com/shuangyan123/demo/pull/135) completed Tutoring supplied-key compatibility、[#136](https://github.com/shuangyan123/demo/pull/136) Interview model-assessment compatibility。#136 的 exact-diff / runtime-read 架构评审已在合并前完成；尚无独立 learner-truth authority cutover。Phase E **IN PROGRESS**：首片建立 LearnerTargetStateV1 保守纯派生；第二片补全完整 Evidence scope、asOf 因果边界与显式 blocked promotion eligibility，无 actual promotion 或 runtime cutover；Verification Policy 仍 deferred。
+- 状态：Phase B 已由 [#132](https://github.com/shuangyan123/demo/pull/132) 合并完成；Phase C **Evidence Engine / Policy V1 shadow foundation 已实现，并已通过受控 production-path 持久化记录的只读 shadow 验收**（[#133](https://github.com/shuangyan123/demo/pull/133)）；**Phase D Completed.** 三片均已合并：[#134](https://github.com/shuangyan123/demo/pull/134) Review / Knowledge self-report compatibility、[#135](https://github.com/shuangyan123/demo/pull/135) completed Tutoring supplied-key compatibility、[#136](https://github.com/shuangyan123/demo/pull/136) Interview model-assessment compatibility。#136 的 exact-diff / runtime-read 架构评审已在合并前完成；尚无独立 learner-truth authority cutover。Phase E **IN PROGRESS — third slice**：前两片建立保守纯派生、完整 Evidence scope、asOf 因果边界与权限解释；第三片新增 verified spec + attempt 的单题直接测量，只有 verified correct + assistance none 可晋级 emerging / scoped independent。仍无 runtime/UI/persistence cutover；Verification Policy deferred。
 - Phase A 审计基线：`shuangyan123/demo`，`0b08ec14bf43cffbd64617b89dbea53e26bfa545`。
 - RFC 初稿日期：2026-10-02。
-- 交付边界：Phase A 交付本文和 README 索引；Phase B 已实现纯契约与 legacy adapters；#133 实现 Phase C 的纯 Evidence / Policy V1、shadow report、契约测试和架构守卫，并已完成受控 production-path 持久化记录的只读 shadow 验收；Phase D 让旧 LearnerStateSnapshot 的 Review / Knowledge latest result、已完成 Tutoring 微测结果与 Interview 模型评分展示经过 Kernel compatibility bridge，不创建 LearnerTargetState；Phase E 前两片建立纯/shadow-only LearnerTargetStateV1 与 authority policy，要求完整 Evidence scope 并排除 asOf 后的来源；当前 Evidence 全部 blocked，不接入既有 learner-state、UI 或持久化，Verification Policy deferred。
+- 交付边界：Phase A 交付本文和 README 索引；Phase B 已实现纯契约与 legacy adapters；#133 实现 Phase C 的纯 Evidence / Policy V1、shadow report、契约测试和架构守卫，并已完成受控 production-path 持久化记录的只读 shadow 验收；Phase D 让旧 LearnerStateSnapshot 的 Review / Knowledge latest result、已完成 Tutoring 微测结果与 Interview 模型评分展示经过 Kernel compatibility bridge，不创建 LearnerTargetState；Phase E 前三片保持 pure/shadow-only：保留完整 Evidence scope 与 asOf 边界，新增首个 verified direct correctness 来源和 learner-state-policy/v2 的有限晋级；legacy Evidence 全部 blocked，不接入既有 learner-state、UI 或持久化，Verification Policy deferred。
 - 下文既有行为审计描述 Phase A 基线；提议契约的实际实现进度以第 14 节为准。未完成阶段仍是设计提议，不代表已存在的 API 或已获批准的执行计划。
 
 ## 1. 产品定义与核心问题
@@ -203,7 +203,7 @@ V1 不定义精确统计概率，也不把 weak / moderate / strong 映射为百
 
 ## 7. 提议：LearnerTargetStateV1
 
-当前 [LearnerStateSnapshot](../app/types/domains/learner-state.ts) 是用于 signals 和 recommendations 的 derived read model，不扩展为 canonical state object。Phase E 首片另建纯派生 LearnerTargetStateV1；下表分类契约已定义，晋级语义仍需后续有权 Evidence 与策略：
+当前 [LearnerStateSnapshot](../app/types/domains/learner-state.ts) 是用于 signals 和 recommendations 的 derived read model，不扩展为 canonical state object。Phase E 首片另建纯派生 LearnerTargetStateV1；下表分类契约已定义；第三片仅授权 emerging / scoped independent，更强状态与 retention / transfer 晋级仍 deferred：
 
 | 维度 | 提议分类 | 解释 |
 | --- | --- | --- |
@@ -224,9 +224,9 @@ V1 不定义精确统计概率，也不把 weak / moderate / strong 映射为百
 
 不定义单一 canonical 0–100 mastery score。少量且来源不同的观察无法支持“理解 83%”之类精度；理解、辅助、保持与迁移也不能无损压成一个数字。保留分类和 Evidence 链，比不可校准的精确数字更容易解释、质疑和更新。
 
-### Phase E first / second slices — conservative derivation and authority policy
+### Phase E first / second slices — historical conservative baseline
 
-**Phase E IN PROGRESS，second slice；Phase D remains Completed。** #138 建立 [LearnerTargetStateV1](../app/types/domains/learning-kernel.ts) 与 [deriveLearnerTargetStates](../app/services/learning-kernel/derive-learner-state.ts) 的保守纯派生基线。第二片加入 [learner-state-policy.ts](../app/services/learning-kernel/learner-state-policy.ts) 的显式晋级资格解释、完整 Evidence scope 与 `asOf` 因果边界；仍不接入 UI、既有 LearnerStateSnapshot、推荐或 runtime，不持久化状态。Verification Policy 仍 deferred；不创建 `verification-policy.ts`，不安排验证。
+**前两片基线（#138 / #139）；Phase D remains Completed。** 以下描述进入第三片之前的 learner-state-policy/v1；第三片的变更见下一节。 #138 建立 [LearnerTargetStateV1](../app/types/domains/learning-kernel.ts) 与 [deriveLearnerTargetStates](../app/services/learning-kernel/derive-learner-state.ts) 的保守纯派生基线。第二片加入 [learner-state-policy.ts](../app/services/learning-kernel/learner-state-policy.ts) 的显式晋级资格解释、完整 Evidence scope 与 `asOf` 因果边界；仍不接入 UI、既有 LearnerStateSnapshot、推荐或 runtime，不持久化状态。Verification Policy 仍 deferred；不创建 `verification-policy.ts`，不安排验证。
 
 - 输入为显式 Events、Evidence 与 `LearnerStateTimeContextV1 { asOf }`。`asOf` 必须是带 timezone/offset 的有效 instant，并成为实际因果边界。source occurrence 的 instant 晚于 `asOf` 时整条 Evidence 排除；date-only 只与 `asOf` 字符串的 civil date 部分比较，晚于该日期时排除。同日 civil date 可参与非时间权限检查，但不声明它早于精确 instant，不补午夜 UTC；未知 source time 可保留为非时间候选，不能支持任何依赖时间的晋级。未来 Evidence 不创建 target、不进入来源或 eligibility、不刷新 `lastEvidenceAt`，并产生 `evidence_after_as_of`。本片仍不计算 retention timing、decay 或调度，不访问时钟、随机或全局可变状态。
 - 内部重跑唯一 `deriveEvidence(events)`；显式 Evidence 参数必须与**完整 canonical Evidence 集合**的 IDs / 内容完全一致，允许相同重复确定性折叠与对象属性重排。遗漏 completion、learning、反证或未来 Evidence 都产生逐 ID 的 `incomplete_evidence_scope` 并返回空状态，不静默补齐。冲突 supplied Evidence、无效/意外/noncanonical Evidence 或孤立 lineage 同样使**整个 scope**返回空状态；伪造 class/strength/assistance/limitations/outcome/claim/target/measurement/policy 不授予权限。Event policy diagnostics 继续确定性透传；被 Event policy 拒绝的来源不属于 canonical 集合，调用方准确提供剩余完整集合时可保留无关 target。完整性检查先于时间排除，不任选输入顺序 winner，也不读取 Event payload 绕过 Evidence。诊断只含 codes 与 opaque IDs；正常权限不足不报错。
@@ -240,7 +240,25 @@ V1 不定义精确统计概率，也不把 weak / moderate / strong 映射为百
 
 未来实际晋级必须另外证明 canonical Evidence、被授权的 evidence class、明确 grader/key provenance、独立评分与内容有效性、无 `no_independent_grader` 限制、适当 assistance fact、兼容 claim、有效 target 与适用 time/context semantics。`human_assessment` 类型形状本身不能满足这些要求；当前来源不能证明就继续 blocked。本片不新增评估 writer、Event kind、transferContext 或 target mappings 来制造 eligible 样本。
 
-契约测试与架构守卫覆盖默认权限、完整 scope、反证遗漏、asOf 边界、测量去重、Phase C 不变、输入不变、冲突/伪造/孤立血缘、确定性、时间精度与隐私白名单，并禁止任何外层生产模块消费派生器或权限策略（包括 Phase D compatibility bridge / learner-state-service）。剩余 Phase E 工作包含 Verification Policy、真实有权来源的晋级语义与后续独立批准的 runtime adoption；本片无 actual promotion、runtime/UI/persistence cutover、Dexie v16 或依赖变化，不宣告 Phase E complete，Phase F/G 状态不变。
+契约测试与架构守卫覆盖默认权限、完整 scope、反证遗漏、asOf 边界、测量去重、Phase C 不变、输入不变、冲突/伪造/孤立血缘、确定性、时间精度与隐私白名单，并禁止任何外层生产模块消费派生器或权限策略（包括 Phase D compatibility bridge / learner-state-service）。前两片不含 actual promotion；第三片在下文单独定义首个有权来源与有限晋级。剩余 Phase E 工作仍包含 Verification Policy、后续状态策略与独立批准的 runtime adoption；不宣告 Phase E complete，Phase F/G 状态不变。
+
+### Phase E third slice — verified direct assessment and first qualified promotion
+
+**Phase E IN PROGRESS — third slice；Verification Policy deferred。** 新来源只在纯 Kernel / shadow 契约中存在，没有生产 writer。[verified-assessment-adapter.ts](../app/services/learning-kernel/verified-assessment-adapter.ts) 分开接受 `VerifiedAssessmentSpecV1` 与 `VerifiedAssessmentAttemptV1`：规格拥有稳定单题 identity、optionCount 与 verified key；attempt 引用 exact spec identity，提供稳定 attempt ID、选择位置、offset-aware instant 和明确的 `none / hint / guided / solution` assistance。unknown、缺失 assistance、date-only 或无 timezone 时间均拒绝。
+
+规格的独立核验是未来授权 source owner 的责任，本片不提供任意对象“自称 verified/correct”或内容核验服务。adapter 自行比较选择与 verified key，白名单赋予 `recall-verified-assessment/v1`、`verified-assessment/v1`、selection、modelAuthored=false、keySource=verified_assessment、scoringMethod=verified_key_comparison、instant、complete_record；输入附加字段不能覆盖这些事实。`verification.assessed` 与 legacy `assessment.submitted` 分开。
+
+- target 固定为 `question / verified_assessment_question / spec.id`；不推断 concept、skill 或 interview_skill mapping。attempt revision 为 `[specId, selectedOptionIndex, assistance, occurredAt]`，spec revision 为 `[optionCount, verifiedCorrectOptionIndex]`。Event identity 编码双方 ID/revision；Evidence policy 重建并验证 bounds、关联、revision、payload、target、provenance 和 comparison，冲突身份整组拒绝。
+- **版本分开：** 新 Event 产生 `evidence-policy/v2` 的单条 correctness / scored_performance / strong Evidence，其 outcome 仅含 `verified_key_comparison`、matchesVerifiedKey 与 supports/refutes。保留实际 assistance，不复制选择位置或正文到 Evidence outcome，不额外发 completion，也不在 Evidence Engine 推断 understanding/retention/transfer。不存在 legacy 的 no_independent_grader、model_authored_key、assistance_unknown、current_projection 或 history_incomplete 限制时 limitations=[]。Review / Knowledge / Tutoring / Interview 的 Evidence 仍为 `evidence-policy/v1`，IDs、provenance、limitations 与 Phase D compatibility 不变。
+- **canonical Evidence != promotion-eligible Evidence。** 类型、class、strong、none 或空 limitations 本身不授权。完整 canonical scope 与 asOf 检查之后，state policy 仍要求 recognized verification kind / adapter / exact provenance / 双 lineage / canonical Evidence 相等。资格解释分 candidate、eligible direct measurements、eligibleSupportingEvidenceIds、eligibleRefutingEvidenceIds 与封闭 blockers；所有 IDs 排序去重，按 measurementGroupId 去重。
+- 真正晋级语义使状态策略明确升级到 `learner-state-policy/v2`，schemaVersion 仍为 1。只有 verified correct + assistance=none、且无 qualified refutation 时，`understanding=emerging`、`independence=independent`；仅限该单题 target。实际 dimension evidenceReferences 只包含导致晋级的 qualified supporting unassisted Evidence IDs。
+- hint/guided/solution 的成功测量仍 canonical / qualified direct，但不独立促成晋级，缺少无辅助支持时给出 `assistance_present`。wrong 是真实 qualified refuting Evidence；单独存在时 unknown / unknown，并给出 `no_qualified_supporting_evidence`，区别于无 qualified measurement 的 `no_qualified_direct_evidence`。同 target 任何 qualified support/refute（包括已知辅助）冲突时给出 `conflicting_qualified_evidence`，unknown / unknown、dimension refs=[]，保留全部正反证 IDs；不平均、不按顺序或 latest-wins 选择结论。
+- `lastVerifiedAt` 明确定义为 asOf 内**最新 qualified direct verification measurement** 的 occurrence instant，不限成功或无辅助。wrong、受辅助以及冲突测量均可刷新；self-report、model key、model rubric、workflow completion 均不能刷新。offset 真实时间排序与等时词法 tie break 延续原规则。未来 verified Evidence 不创建 target、不进入 source/eligibility、不能晋级或刷新 lastEvidenceAt/lastVerifiedAt；完整 scope 检查仍先于 asOf 排除。
+- 任意多个 clean supports 都最多 emerging / scoped independent；不新增 developing/supported、负面 mastery state、百分比或数量阈值。retention/transfer 继续 untested，分别 blocked by `missing_delayed_verification` / `missing_transfer_context`，对应 refs=[]、nextVerificationAt=null。不设置延迟、衰减、transfer mapping 或调度。
+- Fenbi 当前账户同步是 wrong-only → ImportDraft → legacy mistake/import。上游 userAnswer/answer 不证明可靠 occurrence time、assistance、verified spec lineage、target mapping 或完整独立表现历史；它不自动获得此 adapter 的 authority。本片不修改 Fenbi runtime。
+- 新 Event/Evidence/state/eligibility/diagnostics 不复制题干、选项正文、解释、推理、导入正文、provider 响应、凭据、transcript 或 raw media。Event revision 仅含所需结构化整数、封闭 assistance、instant 与 opaque ID；诊断只含 code / opaque IDs。
+
+契约和架构守卫覆盖上述正反证、辅助、scope、asOf、版本、确定性与隐私，并禁止外层 runtime / UI / repository / Dexie / network / AI / Automation 接入新来源、state derivation 或 policy。Phase D compatibility-snapshot 与 learner-state-service 保持原有职责，`verification-policy.ts` 不存在；核心库仍 v16，无 schema、dependency 或 runtime adoption。Phase E 未完成，不开始 Phase F/G。
 
 ## 8. 提议：Verification Policy 与动作权限
 
@@ -345,7 +363,7 @@ unsubmitted micro-assessment != mastery evidence
 
 ## 12. 提议：最小代码位置与兼容 facade
 
-以下为最小代码位置：领域契约、`learning-event.ts` 和 `legacy-event-adapter.ts` 已在 #132 完成；`evidence-policy.ts`、`derive-evidence.ts` 及 `evidence-shadow.ts` 在 #133 实现 shadow foundation。Phase D 首片新增 `compatibility-snapshot.ts`；Phase E 前两片新增纯/shadow-only `derive-learner-state.ts` 与 `learner-state-policy.ts`，Verification 模块仍是未来建议：
+以下为最小代码位置：领域契约、`learning-event.ts` 和 `legacy-event-adapter.ts` 已在 #132 完成；`evidence-policy.ts`、`derive-evidence.ts` 及 `evidence-shadow.ts` 在 #133 实现 shadow foundation。Phase D 首片新增 `compatibility-snapshot.ts`；Phase E 前两片新增纯/shadow-only `derive-learner-state.ts` 与 `learner-state-policy.ts`；第三片新增 `verified-assessment-adapter.ts`，Verification 模块仍是未来建议：
 
 ```text
 app/types/domains/learning-kernel.ts
@@ -356,8 +374,9 @@ app/services/learning-kernel/
   evidence-policy.ts
   derive-evidence.ts
   evidence-shadow.ts
-  derive-learner-state.ts  (Phase E first / second slices, pure/shadow-only)
-  learner-state-policy.ts (Phase E second slice, blocked promotion eligibility)
+  derive-learner-state.ts  (Phase E first / second / third slices, pure/shadow-only)
+  learner-state-policy.ts (Phase E third slice, narrowly authorized promotion v2)
+  verified-assessment-adapter.ts (Phase E third slice, spec + attempt contract only)
   verification-policy.ts  (deferred)
   compatibility-snapshot.ts
 ```
@@ -406,7 +425,7 @@ Phase D 第二片沿用同一 `compatibility-snapshot.ts`：TutoringTurn → `pr
 
 learner-state 保留 `compatibilityUpdatedAt DESC → evaluationId ASC`、最新四份评价、每份前两个 ratio < 0.7 维度、180 字 summary、signal ID / title / score 和原始 evaluation 引用。`insufficientEvidenceCount` 的 evaluated-session fallback 只读校验后的 projection，不再直接信任 raw evaluation.sessionId；session 自身 evaluated / cancelled 状态仍是 workflow bookkeeping，畸形 / detached evaluation 不能压低 active session 的不足计数。InterviewPracticePlan 的 due / priority 130 / 410、completedSessionCount、targetSessionCount、nextPracticeAt、status 与 destination 继续由 persisted workflow / scheduling facts 决定，saveEvaluation writer 与计划转换不变。
 
-桥接完全内存派生，不持久化 Event、Evidence 或 compatibility projection，不增加 telemetry，不修改 normalization ownership、Dexie v16、UI 或依赖。只有 learner-state-service 可直接消费 compatibility bridge；Kernel 外仍禁止直接 import derive-evidence、evidence-policy 或 evidence-shadow。Phase D compatibility bridge completed after the #136 exact-diff/runtime-read architecture review；#136 已合并，Phase E **IN PROGRESS**：首片建立 LearnerTargetStateV1 保守纯派生；第二片补全完整 Evidence scope、asOf 因果边界与显式 blocked promotion eligibility，无 actual promotion 或 runtime cutover；Verification Policy 仍 deferred。
+桥接完全内存派生，不持久化 Event、Evidence 或 compatibility projection，不增加 telemetry，不修改 normalization ownership、Dexie v16、UI 或依赖。只有 learner-state-service 可直接消费 compatibility bridge；Kernel 外仍禁止直接 import derive-evidence、evidence-policy 或 evidence-shadow。Phase D compatibility bridge completed after the #136 exact-diff/runtime-read architecture review；#136 已合并，Phase E **IN PROGRESS — third slice**：前两片建立保守纯派生、完整 Evidence scope、asOf 因果边界与权限解释；第三片新增 verified spec + attempt 的单题直接测量，只有 verified correct + assistance none 可晋级 emerging / scoped independent。仍无 runtime/UI/persistence cutover；Verification Policy deferred。
 
 ## 13. Persistence、legacy mastery 与回滚
 
@@ -440,11 +459,11 @@ Phase A 的 RFC 可作为单一文档变更回滚，**zero data migration**。�
 | B — Kernel contracts | 纯 TS 类型 / 函数、legacy adapters；无 DB 变化 | fixture 验证 self_report、model key、model judgment、unknown、稳定来源 ID 与 time context | Completed / merged in #132（`cd554c172a69f47fe36c65416d5a3871fd8b9563`） |
 | C — Evidence Engine shadow mode | 与旧 learner-state 逻辑并行解释；纯 Evidence V1 / Policy V1 推导与计数，不接入运行时 | 差异可解释、无用户可见 authority 改变；production-path 持久化记录只读评估，不导出用户正文 | Acceptance passed on controlled production-path persisted records（4/4 来源类别）；无 authority cutover |
 | D — Compatibility bridge | learner-state-service 逐步消费 Kernel 输出 | 相同 UI contract、recommendation identity / transitions、normalization owner 与 scope；可逐项回滚 | Completed / merged through #136；merge commit：`0f6b8857dee5499c18845da9fa8f181b91a2e15e`。Review / Knowledge、completed Tutoring 与 Interview rubric 的 authority reads 均经过 compatibility bridge；unsubmitted Tutoring、session status 与 plan scheduling 保持 workflow facts |
-| E — LearnerTargetState V1 | 前两片：V1 保守纯派生、authority policy、完整 Evidence scope 与 asOf 因果边界；后续才实现真实有权维度晋级与 Verification Policy | canonical Evidence != promotion eligibility；缺片 fail closed、未来来源排除、当前全部 blocked、测量去重与隐私；无 runtime/UI/persistence cutover | **IN PROGRESS — second slice**；Verification Policy deferred；Phase E 未完成 |
+| E — LearnerTargetState V1 | 第三片：verified spec + attempt、Evidence v2、state policy v2；correct + none → emerging / scoped independent | canonical Evidence != promotion eligibility；完整 scope、asOf、冲突 fail closed；legacy blocked，retention/transfer untested；无 runtime/UI/persistence cutover | **IN PROGRESS — third slice**；Verification Policy deferred；Phase E 未完成 |
 | F — first-party Mod / Adapter boundaries | 渐进拆 civil-service；Fenbi 明确 adapter；Tutor / Interview / Obsidian 逐步接入 | first-party compile-time registration、能力授权不变、无删功能或公共代码插件 runtime | Deferred |
 | G — Hardware protocol | 语义契约稳定后设计可选、policy-controlled trace storage 与 digital-pen / tablet adapters | 真实设备需求、interpreter provenance、raw / semantic 分离及授权保留的独立评审 | Deferred |
 
-**Phase B 已完成；#133 的 Phase C shadow foundation 与受控 production-path 持久化记录只读 shadow 验收均已完成；Phase D compatibility bridge 已在 #136 exact-diff/runtime-read 架构评审及合并后完成。** Phase C 验收使用正常 packaged Electron UI / repository 持久化路径生成的 calibration records，而不是直接构造 fixture；它证明当前 Evidence / Policy V1 对真实生产数据形状保持既定 authority、privacy、determinism 与只读边界，但**不代表自然学习历史或真实学习效果验证**。Phase D 的 #134 Review / Knowledge、#135 completed Tutoring 与 #136 Interview 三片均已合并并保留 legacy 展示：self-report 仍是 self-report；model-authored supplied key 仍受 `model_authored_key` / `no_independent_grader` 限制；Interview 仍是 `model_assessment` / `inconclusive`；workflow completion 不等于 learner performance。未提交微测、session 状态与计划 scheduling 继续是 workflow bookkeeping；没有创建 canonical mastery / understanding / independence / retention / transfer，也没有独立 learner-truth authority cutover。Phase E 前两片建立 LearnerTargetStateV1 保守纯派生及显式 authority policy，完整 Evidence scope 必须提供，asOf 成为因果边界；当前 legacy Evidence 全部 blocked，无 actual dimension promotion；Verification Policy、runtime cutover 与状态持久化 deferred。Phase F/G 继续 Deferred。
+**Phase B 已完成；#133 的 Phase C shadow foundation 与受控 production-path 持久化记录只读 shadow 验收均已完成；Phase D compatibility bridge 已在 #136 exact-diff/runtime-read 架构评审及合并后完成。** Phase C 验收使用正常 packaged Electron UI / repository 持久化路径生成的 calibration records，而不是直接构造 fixture；它证明当前 Evidence / Policy V1 对真实生产数据形状保持既定 authority、privacy、determinism 与只读边界，但**不代表自然学习历史或真实学习效果验证**。Phase D 的 #134 Review / Knowledge、#135 completed Tutoring 与 #136 Interview 三片均已合并并保留 legacy 展示：self-report 仍是 self-report；model-authored supplied key 仍受 `model_authored_key` / `no_independent_grader` 限制；Interview 仍是 `model_assessment` / `inconclusive`；workflow completion 不等于 learner performance。未提交微测、session 状态与计划 scheduling 继续是 workflow bookkeeping；没有创建 canonical mastery / understanding / independence / retention / transfer，也没有独立 learner-truth authority cutover。Phase E 前三片保留完整 Evidence scope / asOf 因果边界；新增 verified direct correctness 的首个有限晋级（correct + none → emerging / scoped independent），当前 legacy Evidence 全部 blocked；Verification Policy、runtime cutover 与状态持久化 deferred。Phase F/G 继续 Deferred。
 
 验收测试应直接调用纯函数，验证模型判断保存前后权限不变、completion 不提升 skill、模型 key 的评分限制、未知 assistance、sensor interpretation、重复来源不加权、缺失 / 冲突 / 来源修订和删除、稳定排序、不同 policy / time context、兼容 bridge 的真实 commit transitions。Phase B 与 Phase C foundation 已有相应范围内的直接契约测试；Phase C production-path 持久化记录只读验收已完成，后续阶段专属验收仍待完成。沿用现有 architecture guard，不为新边界放宽规则。
 
@@ -496,7 +515,7 @@ Phase A 的原始交付只检查文档：执行 `git diff --check`，检查完�
 - Exact-head [CI run 37201574350](https://github.com/shuangyan123/demo/actions/runs/37201574350)：7 applicable jobs SUCCESS；Windows M3 Migration Contracts 与 Windows NSIS Production 为 classifier-SKIPPED。
 - #136 squash merge：`0f6b8857dee5499c18845da9fa8f181b91a2e15e`；Phase D compatibility bridge completed。
 - Raw unsubmitted Tutoring bookkeeping、Interview session status 与 plan scheduling 仍是 workflow / data-availability facts；Phase D 完成不证明学习效果。
-- Phase D closure 时 Phase E 尚未开始；当前 Phase E 前两片进度见第 7/14 节。Phase D remains Completed；Verification Policy 与有权维度晋级仍 deferred。
+- Phase D closure 时 Phase E 尚未开始；当前 Phase E 第三片进度见第 7/14 节。Phase D remains Completed；仅首次有限晋级已实现，Verification Policy / 更强维度晋级仍 deferred。
 
 当前语义的主要对照入口：
 

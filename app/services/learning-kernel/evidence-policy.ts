@@ -1,7 +1,9 @@
 import type { EvidencePolicyDiagnostic, LearningEventV1 } from "../../types/domains/learning-kernel.ts";
 import { isLegacyRecordId, legacyLearningEventId, legacyLearningEventTime, MAX_LEARNING_EVENT_ID_LENGTH } from "./learning-event.ts";
+import { validateVerifiedAssessmentEvent } from "./verified-assessment-adapter.ts";
 
 export const EVIDENCE_POLICY_VERSION = "evidence-policy/v1";
+export const VERIFIED_EVIDENCE_POLICY_VERSION = "evidence-policy/v2";
 export const MAX_EVIDENCE_ID_LENGTH = 16384;
 
 export function isEvidenceSourceEventId(value: unknown): value is string {
@@ -53,10 +55,11 @@ function validMicroRevision(event: LearningEventV1<"assessment.submitted">): boo
   }
 }
 
-/** 类型声明不授予权限；只接受已知 legacy adapter 的完整、相容事实。 */
+/** 类型声明不授予权限；分别校验已知 adapter 的完整、相容事实。 */
 export function validateEvidenceEvent(input: unknown): EvidencePolicyDiagnostic["code"] | null {
   if (!object(input) || input.schemaVersion !== 1 || !isEvidenceSourceEventId(input.id)
     || !object(input.target) || !object(input.source) || !object(input.provenance) || !object(input.payload)) return "invalid_event";
+  if (input.kind === "verification.assessed") return validateVerifiedAssessmentEvent(input as LearningEventV1<"verification.assessed">);
   const kinds = ["review.completed", "knowledge_review.completed", "assessment.submitted", "interview.completed", "interview.evaluated"];
   if (!kinds.includes(input.kind as string)) return "invalid_event";
   const event = input as LearningEventV1;
