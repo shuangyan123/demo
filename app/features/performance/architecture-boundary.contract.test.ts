@@ -106,8 +106,14 @@ test("Recall Phase E5 state / authority / verification policy 保持 pure shadow
   assert.ok(staticImports(verificationSource).every((specifier) =>
     ["../../types/domains/learning-kernel.ts", "./learning-event.ts"].includes(specifier)),
     "Verification Policy 只消费 state 摘要与纯校验 helper，不重新解释 Evidence");
-  assert.doesNotMatch(verificationSource, /EvidenceRecordV1|LearningEventV1|LearnerTargetState|canonicalWeakness|deriveEvidence|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility|historicalQualifiedEvidenceIds|eligibleSupportingEvidenceIds|eligibleRefutingEvidenceIds|\.payload\b|\b(?:console|telemetry)\s*\.|\bDate\b|nextVerificationAt/,
+  assert.doesNotMatch(verificationSource, /EvidenceRecordV1|LearningEventV1|LearnerTargetState|canonicalWeakness|deriveEvidence|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility|\.payload\b|\b(?:console|telemetry)\s*\.|\bDate\b|nextVerificationAt/,
     "WHAT-only policy 不重算历史或 state、不评分、不调度、不输出日志");
+  const verificationAst = ts.createSourceFile(verificationModule, verificationSource, ts.ScriptTarget.Latest, true);
+  const decision = verificationAst.statements.find((node): node is ts.FunctionDeclaration =>
+    ts.isFunctionDeclaration(node) && node.name?.text === "decideNextVerification");
+  assert.ok(decision?.body);
+  assert.doesNotMatch(decision.body.getText(verificationAst), /candidateEvidenceIds|candidateMeasurementGroupIds|eligibleEvidenceIds|eligibleSupportingEvidenceIds|eligibleRefutingEvidenceIds|historicalQualifiedEvidenceIds|QUALIFICATION_ID_FIELDS/,
+    "candidate/eligible/history 字段仅允许纯摘要校验 helper 使用，不能直接用于 target 选择");
   for (const file of await sourceFiles(APP_ROOT)) {
     if (file === stateModule) continue;
     const fileSource = await readFile(file, "utf8");

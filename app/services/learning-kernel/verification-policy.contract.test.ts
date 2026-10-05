@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {
-  LearnerStateDerivationV1, LearningEventV1, LearningTargetV1, VerificationDecisionV1, VerifiedAssessmentAssistanceV1,
+  LearnerStateDerivationV1, LearnerStatePromotionEligibilityV1, LearningEventV1, LearningTargetV1,
+  VerificationDecisionV1, VerifiedAssessmentAssistanceV1,
 } from "../../types/domains/learning-kernel.ts";
 import { adaptVerifiedAssessment } from "./verified-assessment-adapter.ts";
 import { adaptReviewAttempt } from "./legacy-event-adapter.ts";
@@ -143,6 +144,7 @@ test("inconsistent effective qualification, references or status cannot authoriz
     (state) => { state.states[0].evidenceReferences.understanding = ["unrelated"]; },
     (state) => { state.states[0].understanding = "emerging"; },
     (state) => { state.states[0].evidenceReferences.retention = ["unrelated"]; },
+    (state) => { state.states[0].promotionEligibility.transfer.effectiveSupportingEvidenceIds = ["unrelated"]; },
   ];
   for (const mutate of mutations) {
     const state = structuredClone(valid);
@@ -159,7 +161,6 @@ test("unimplemented dimension states and qualification contexts are explicitly u
     (state) => { state.states[0].retention = "at_risk"; },
     (state) => { state.states[0].transfer = "weak"; },
     (state) => { state.states[0].promotionEligibility.retention.status = "eligible"; },
-    (state) => { state.states[0].promotionEligibility.transfer.effectiveSupportingEvidenceIds = ["unrelated"]; },
     (state) => { Reflect.set(state.states[0], "policyVersion", "learner-state-policy/future"); },
   ];
   for (const mutate of mutations) {
@@ -169,6 +170,104 @@ test("unimplemented dimension states and qualification contexts are explicitly u
   }
 });
 
+const summaryMutations: Array<{
+  name: string; mutate: (value: LearnerStatePromotionEligibilityV1) => void;
+}> = [
+  { name: "empty eligible IDs cannot contain current supporting IDs", mutate: (value) => { value.eligibleEvidenceIds = []; } },
+  { name: "effective support must remain in eligible support even when all partitions are otherwise intact", mutate: (value) => {
+    value.candidateEvidenceIds.push("unexpected");
+    value.eligibleEvidenceIds.push("unexpected");
+    value.eligibleRefutingEvidenceIds.push("unexpected");
+    value.effectiveEvidenceIds.push("unexpected");
+    value.effectiveSupportingEvidenceIds.push("unexpected");
+  } },
+  { name: "effective refutation must remain in eligible refutation", mutate: (value) => {
+    value.candidateEvidenceIds.push("unexpected");
+    value.eligibleEvidenceIds.push("unexpected");
+    value.eligibleSupportingEvidenceIds.push("unexpected");
+    value.effectiveEvidenceIds.push("unexpected");
+    value.effectiveRefutingEvidenceIds.push("unexpected");
+  } },
+  { name: "historical and effective IDs cannot overlap", mutate: (value) => {
+    value.historicalQualifiedEvidenceIds.push(value.effectiveEvidenceIds[0]);
+  } },
+  { name: "historical IDs must belong to eligible IDs", mutate: (value) => { value.historicalQualifiedEvidenceIds.push("unexpected"); } },
+  { name: "eligible support and refutation cannot overlap", mutate: (value) => {
+    value.eligibleRefutingEvidenceIds.push(value.eligibleSupportingEvidenceIds[0]);
+  } },
+  { name: "eligible IDs must equal the supporting/refuting union", mutate: (value) => { value.eligibleSupportingEvidenceIds = []; } },
+  { name: "effective IDs must remain eligible even with a valid eligible partition", mutate: (value) => {
+    const current = value.effectiveEvidenceIds[0];
+    value.eligibleEvidenceIds = value.eligibleEvidenceIds.filter((id) => id !== current);
+    value.eligibleSupportingEvidenceIds = value.eligibleSupportingEvidenceIds.filter((id) => id !== current);
+  } },
+  { name: "effective plus historical must exhaust eligible IDs", mutate: (value) => { value.historicalQualifiedEvidenceIds = []; } },
+];
+
+for (const { name, mutate } of summaryMutations) {
+  test(`qualification summary invariant: ${name}`, () => {
+    const state = derive([...events("old-support", true, "none", "2026-10-01T08:00:00Z"),
+      ...events("old-refute", false, "none", "2026-10-02T08:00:00Z"), ...events("assisted", true, "hint")]);
+    assert.deepEqual(decideNextVerification(state, target), verify);
+    // 同时修改两个直接维度；不能只靠两维相等检查偶然拒绝内部矛盾。
+    mutate(state.states[0].promotionEligibility.understanding);
+    mutate(state.states[0].promotionEligibility.independence);
+    // 保持四维 candidate 摘要一致，使测试真正检验分区/subset，不被跨维不一致提前拒绝。
+    for (const dimension of ["retention", "transfer"] as const) {
+      state.states[0].promotionEligibility[dimension].candidateEvidenceIds = [...state.states[0].promotionEligibility.understanding.candidateEvidenceIds];
+      state.states[0].promotionEligibility[dimension].candidateMeasurementGroupIds = [...state.states[0].promotionEligibility.understanding.candidateMeasurementGroupIds];
+    }
+    freeze(state);
+    assert.deepEqual(decideNextVerification(state, target), { kind: "none", reason: "ambiguous_evidence_qualification" });
+  });
+}
+
+test("eligible IDs cannot escape candidates even when all dimensions share the same candidate summary", () => {
+  const state = derive(events("assisted", true, "hint"));
+  for (const value of Object.values(state.states[0].promotionEligibility)) value.candidateEvidenceIds = [];
+  assert.deepEqual(decideNextVerification(state, target), { kind: "none", reason: "ambiguous_evidence_qualification" });
+});
+
+for (const field of ["candidateEvidenceIds", "candidateMeasurementGroupIds"] as const) {
+  for (const dimension of ["independence", "retention", "transfer"] as const) {
+    test(`${dimension} must share v3 ${field} with understanding`, () => {
+      const state = derive(events("assisted", true, "hint"));
+      state.states[0].promotionEligibility[dimension][field].push("unexpected");
+      assert.deepEqual(decideNextVerification(state, target), { kind: "none", reason: "ambiguous_evidence_qualification" });
+    });
+  }
+}
+
+test("understanding and independence must share eligible/historical sets even when each summary is internally consistent", () => {
+  const state = derive([...events("old-support", true, "none", "2026-10-01T08:00:00Z"), ...events("assisted", true, "hint")]);
+  const independent = state.states[0].promotionEligibility.independence;
+  independent.eligibleEvidenceIds = [...independent.effectiveEvidenceIds];
+  independent.eligibleSupportingEvidenceIds = [...independent.effectiveSupportingEvidenceIds];
+  independent.historicalQualifiedEvidenceIds = [];
+  assert.deepEqual(decideNextVerification(state, target), { kind: "none", reason: "ambiguous_evidence_qualification" });
+});
+
+test("retention and transfer cannot carry qualified historical IDs in v3", () => {
+  for (const dimension of ["retention", "transfer"] as const) {
+    const state = derive([...events("old-support", true, "none", "2026-10-01T08:00:00Z"), ...events("assisted", true, "hint")]);
+    const value = state.states[0].promotionEligibility[dimension];
+    const historical = state.states[0].promotionEligibility.understanding.historicalQualifiedEvidenceIds[0];
+    value.eligibleEvidenceIds = [historical];
+    value.eligibleSupportingEvidenceIds = [historical];
+    value.historicalQualifiedEvidenceIds = [historical];
+    assert.deepEqual(decideNextVerification(state, target), { kind: "none", reason: "ambiguous_evidence_qualification" });
+  }
+});
+
+for (const field of ["candidateEvidenceIds", "candidateMeasurementGroupIds", "eligibleEvidenceIds",
+  "eligibleSupportingEvidenceIds", "eligibleRefutingEvidenceIds", "historicalQualifiedEvidenceIds"] as const) {
+  test(`missing qualification summary field ${field} fails closed`, () => {
+    const state = derive(events("assisted", true, "hint"));
+    Reflect.deleteProperty(state.states[0].promotionEligibility.understanding, field);
+    assert.deepEqual(decideNextVerification(state, target), { kind: "none", reason: "incomplete_effective_state" });
+  });
+}
+
 test("decision bytes are deterministic across repeated calls, reordered summaries and duplicate source measurements", () => {
   const input = [...events("history", true, "none", "2026-10-01T08:00:00Z"),
     ...events("current-a", true, "hint"), ...events("current-b", true, "solution")];
@@ -177,9 +276,7 @@ test("decision bytes are deterministic across repeated calls, reordered summarie
   for (let i = 0; i < 5; i++) assert.equal(JSON.stringify(decideNextVerification(state, target)), expected);
   assert.equal(JSON.stringify(decideNextVerification(derive([...input, ...input].toReversed()), target)), expected);
   for (const eligibility of Object.values(state.states[0].promotionEligibility)) {
-    eligibility.effectiveEvidenceIds.reverse();
-    eligibility.effectiveSupportingEvidenceIds.reverse();
-    eligibility.blockers.reverse();
+    for (const value of Object.values(eligibility)) if (Array.isArray(value)) value.reverse();
   }
   assert.equal(JSON.stringify(decideNextVerification(state, target)), expected);
 });

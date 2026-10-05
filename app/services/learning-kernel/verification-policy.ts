@@ -13,17 +13,49 @@ function sameIds(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((id) => other.has(id));
 }
 
+const QUALIFICATION_ID_FIELDS = [
+  "candidateEvidenceIds", "candidateMeasurementGroupIds", "eligibleEvidenceIds",
+  "eligibleSupportingEvidenceIds", "eligibleRefutingEvidenceIds", "effectiveEvidenceIds",
+  "effectiveSupportingEvidenceIds", "effectiveRefutingEvidenceIds", "historicalQualifiedEvidenceIds",
+] as const;
+
 function complete(value: LearnerStatePromotionEligibilityV1 | undefined): value is LearnerStatePromotionEligibilityV1 {
   return Boolean(value && (value.status === "eligible" || value.status === "blocked")
-    && ids(value.effectiveEvidenceIds) && ids(value.effectiveSupportingEvidenceIds)
-    && ids(value.effectiveRefutingEvidenceIds) && ids(value.blockers));
+    && QUALIFICATION_ID_FIELDS.every((field) => ids(value[field])) && ids(value.blockers));
 }
 
-function partitioned(value: LearnerStatePromotionEligibilityV1): boolean {
-  const support = value.effectiveSupportingEvidenceIds;
-  const refute = value.effectiveRefutingEvidenceIds;
-  return !support.some((id) => refute.includes(id))
-    && sameIds(value.effectiveEvidenceIds, [...support, ...refute]);
+function subset(child: readonly string[], parent: readonly string[]): boolean {
+  const allowed = new Set(parent);
+  return child.every((id) => allowed.has(id));
+}
+
+function partition(all: readonly string[], left: readonly string[], right: readonly string[]): boolean {
+  return !left.some((id) => right.includes(id)) && sameIds(all, [...left, ...right]);
+}
+
+/** 仅校验 v3 摘要的集合关系；历史方向不参与当前 target 选择，也不凭 IDs 建立 Evidence authority。 */
+function consistent(value: LearnerStatePromotionEligibilityV1): boolean {
+  return partition(value.eligibleEvidenceIds, value.eligibleSupportingEvidenceIds, value.eligibleRefutingEvidenceIds)
+    && partition(value.effectiveEvidenceIds, value.effectiveSupportingEvidenceIds, value.effectiveRefutingEvidenceIds)
+    && partition(value.eligibleEvidenceIds, value.effectiveEvidenceIds, value.historicalQualifiedEvidenceIds)
+    && subset(value.effectiveSupportingEvidenceIds, value.eligibleSupportingEvidenceIds)
+    && subset(value.effectiveRefutingEvidenceIds, value.eligibleRefutingEvidenceIds)
+    && subset(value.eligibleEvidenceIds, value.candidateEvidenceIds);
+}
+
+function sameCandidates(left: LearnerStatePromotionEligibilityV1, right: LearnerStatePromotionEligibilityV1): boolean {
+  return sameIds(left.candidateEvidenceIds, right.candidateEvidenceIds)
+    && sameIds(left.candidateMeasurementGroupIds, right.candidateMeasurementGroupIds);
+}
+
+function sharedQualification(left: LearnerStatePromotionEligibilityV1, right: LearnerStatePromotionEligibilityV1): boolean {
+  return QUALIFICATION_ID_FIELDS.every((field) => sameIds(left[field], right[field]))
+    && sameIds(left.blockers, right.blockers) && left.status === right.status;
+}
+
+function qualifiedEmpty(value: LearnerStatePromotionEligibilityV1): boolean {
+  // consistent 已保证 eligible 是 effective/historical 及正反证的完备分区。
+  return value.eligibleEvidenceIds.length === 0;
 }
 
 /** 消费完整 state derivation 的受信输出；不重新评分、授权或解释历史 Evidence，不调度或执行。 */
@@ -53,6 +85,10 @@ export function decideNextVerification(
     || !ids(refs.understanding) || !ids(refs.independence) || !ids(refs.retention) || !ids(refs.transfer)
     || !isLearningEventInstant(state.timeContext?.asOf) || state.understanding == null || state.independence == null
     || state.retention == null || state.transfer == null) return none("incomplete_effective_state");
+  if (![understanding, independence, retention, transfer].every(consistent)
+    || !sharedQualification(understanding, independence)
+    || !sameCandidates(understanding, retention) || !sameCandidates(understanding, transfer)
+    || !qualifiedEmpty(retention) || !qualifiedEmpty(transfer)) return none("ambiguous_evidence_qualification");
   if (!["unknown", "emerging"].includes(state.understanding)
     || !["unknown", "independent"].includes(state.independence)
     || state.retention !== "untested" || state.transfer !== "untested"
@@ -62,13 +98,7 @@ export function decideNextVerification(
     || transfer.effectiveSupportingEvidenceIds.length || transfer.effectiveRefutingEvidenceIds.length
     || !retention.blockers.includes("missing_delayed_verification")
     || !transfer.blockers.includes("missing_transfer_context")) return none("unsupported_effective_state");
-  // v3 的两个直接维度共享 effective set；不一致的摘要不能暗中获得 target 优先级。
-  if (!partitioned(understanding) || !partitioned(independence)
-    || !sameIds(understanding.effectiveEvidenceIds, independence.effectiveEvidenceIds)
-    || !sameIds(understanding.effectiveSupportingEvidenceIds, independence.effectiveSupportingEvidenceIds)
-    || !sameIds(understanding.effectiveRefutingEvidenceIds, independence.effectiveRefutingEvidenceIds)
-    || !sameIds(understanding.blockers, independence.blockers) || understanding.status !== independence.status
-    || !sameIds(refs.understanding, refs.independence) || refs.retention.length || refs.transfer.length)
+  if (!sameIds(refs.understanding, refs.independence) || refs.retention.length || refs.transfer.length)
     return none("ambiguous_evidence_qualification");
   const effective = understanding.effectiveEvidenceIds;
   const supports = understanding.effectiveSupportingEvidenceIds;

@@ -279,7 +279,9 @@ Historical Evidence 是不可变、可审计的观察历史；当前 LearnerTarg
 
 **Phase E IN PROGRESS — fifth slice。** Verification Policy decides what should be verified next from the current effective verification state; it does not schedule or execute verification.
 
-`decideNextVerification(derivation: LearnerStateDerivationV1, learningTarget: LearningTargetV1): VerificationDecisionV1` 消费 `deriveLearnerTargetStates` 的完整受信结果，为一个 exact category/namespace/id 的学习对象决定下一次验证维度。调用方不得自行拼装摘要来绕过 canonical scope / asOf / qualification。Policy 不接受 Events 或 Evidence、不重新评分、不重算 qualified/effective set、不读取历史 audit IDs，也不更改 state policy v3 或 Evidence v1/v2。
+`decideNextVerification(derivation: LearnerStateDerivationV1, learningTarget: LearningTargetV1): VerificationDecisionV1` 消费 `deriveLearnerTargetStates` 的完整受信结果，为一个 exact category/namespace/id 的学习对象决定下一次验证维度。调用方不得自行拼装摘要来绕过 canonical scope / asOf / qualification。Policy 不接受 Events 或 Evidence、不重新评分、不重算 qualified/effective set；candidate/eligible/historical IDs 仅用于摘要自洽性检查，不用于当前 target 选择，也不更改 state policy v3 或 Evidence v1/v2。
+
+摘要校验遵循 v3 已有不变量：eligible support/refute 是互斥完备分区；effective/historical 是 eligible 的互斥完备分区，effective 的方向子集必须属于对应 eligible 方向，eligible 必须属于 candidate。understanding/independence 的全部 candidate/eligible/effective/historical 集合、status 和 blockers 一致；四维 candidate IDs/measurement groups 一致，retention/transfer 的 qualified 集合为空。缺失字段继续返回 incomplete_effective_state；内部集合矛盾返回 ambiguous_evidence_qualification。摘要没有 Evidence-to-measurement-group 映射，校验不猜测该关联，也不独立建立 Evidence authority。
 
 V1 只授权一个能由当前模型明确区分的目标：最新 effective set 全部为 supporting、状态 unknown/unknown、两维 blocked 且唯一 blocker 是 `assistance_present` 时，返回 `{ kind: "verify", target: "independence", reason: "assistance_present" }`。这说明需要验证 independence；如何产生合格无辅助测量属于本片之外的 HOW，不表示 assisted correctness 已经证明 understanding。Policy 不先经过 understanding 阶段，也不把历史成功当不可逆 progress。
 
