@@ -141,6 +141,9 @@ test("Windows risks include shared storage, credentials, Host consumers and Wind
   ]) assert.equal(classifyChangedFiles([file]).windows_runtime_sensitive, true, file);
   for (const file of [
     "package.json", "package-lock.json", ".github/workflows/ci.yml", "app/unclassified/new.ts",
+    "playwright.config.ts", "next.config.ts", "postcss.config.mjs", "tailwind.config.ts",
+    "scripts/read-windows-authenticode-signature.ps1", "scripts/windows-future-storage.ps1",
+    "scripts/release-artifact-provenance.mjs", "scripts/finalize-release-artifact.mjs", "scripts/verify-release-artifact.mjs",
     "scripts/new-storage-helper.mjs", "scripts/classify-ci-changes.mjs",
     "scripts/ci-cost-classification.contract.test.mjs", "app/features/performance/architecture-boundary.contract.test.ts",
     "app/services/learning-kernel/unknown-module.ts", "app/services/verification-source/new-owner.ts",
@@ -229,6 +232,9 @@ test("actual job expressions separate PR classification from main push, failing 
     [["desktop/preload.cts"], ["windows-e2e", "windows-nsis-production"]],
     [["electron-builder.nsis.cjs"], ["windows-e2e", "windows-m3", "windows-nsis-production"]],
     [["package.json"], jobs], [[".github/workflows/ci.yml"], jobs], [["app/unknown.ts"], jobs],
+    [["playwright.config.ts"], jobs], [["next.config.ts"], jobs],
+    [["scripts/read-windows-authenticode-signature.ps1"], jobs],
+    [["scripts/release-artifact-provenance.mjs"], jobs],
     [["app/services/learning-kernel/derive-learner-state.ts", "app/features/shared/ui-primitives.tsx"], ["e2e"]],
   ];
   for (const [files, expected] of cases) {
