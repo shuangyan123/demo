@@ -41,7 +41,7 @@ The four outputs are `browser_runtime_sensitive`, `windows_runtime_sensitive`,
 | Desktop main / migration / installer configuration | no | yes | yes | yes |
 | Public packaged asset | yes | yes | no | yes |
 | E2E tests | yes | yes | no | no |
-| Dependency/runtime pins, workflow, classifier, architecture guard | yes | yes | yes | yes |
+| Dependency/runtime pins, framework/Playwright config, workflow, classifier, architecture guard | yes | yes | yes | yes |
 | Unknown path / malformed input / classifier failure | yes | yes | yes | yes |
 | Pure Recall + runtime consumer | runtime file determines the union of gates | | | |
 
@@ -63,6 +63,8 @@ storage, credentials and server/Host code. Settings/Fenbi and native shell/theme
 consumers are also covered. Desktop/installer paths imply Windows E2E; existing
 installer and migration boundaries are retained. Unrecognized scripts enable all
 gates; recognized Windows scripts always enable Windows verification.
+Authenticode, release finalization and other unclassified provenance helpers
+remain full-gate changes, so a Windows-only label cannot suppress NSIS readback.
 
 The classifier is loaded from the PR base SHA and receives the NUL-delimited
 base-to-head path diff. Its own policy changes cannot reduce that PR's gates.

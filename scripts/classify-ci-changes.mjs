@@ -39,6 +39,7 @@ const RECALL_RUNTIME_PATHS = new Set([
 
 const WORKFLOW_PATH = /^\.github\/workflows(?:\/|$)/;
 const DEPENDENCY_OR_RUNTIME_CONFIG_PATH = /^(?:package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|pnpm-lock\.yml|bun\.lockb|\.npmrc|\.nvmrc|\.node-version)$/;
+const SHARED_VALIDATION_CONFIG_PATH = /^(?:next|postcss|tailwind|playwright)\.config\.[^/]+$/;
 const INSTALLER_PATHS = [
   /^desktop(?:\/|$)/,
   /^public(?:\/|$)/,
@@ -68,7 +69,6 @@ const WINDOWS_PATHS = [
   /^app\/features\/(?:settings|fenbi)(?:\/|$)/,
   /^app\/features\/shared\/(?:workspace-shell\.|[^/]*desktop[^/]*)/,
   /^e2e(?:\/|$)/,
-  /^scripts\/(?:windows[^/]*|read-windows[^/]*|release-artifact[^/]*|finalize-release[^/]*|verify-release-artifact[^/]*)$/,
 ];
 const GATE_POLICY_PATHS = new Set([
   "scripts/classify-ci-changes.mjs",
@@ -122,6 +122,7 @@ export function classifyChangedFiles(files) {
     if (
       WORKFLOW_PATH.test(path)
       || DEPENDENCY_OR_RUNTIME_CONFIG_PATH.test(path)
+      || SHARED_VALIDATION_CONFIG_PATH.test(path)
       || GATE_POLICY_PATHS.has(path)
     ) return allGatesTrue();
 
