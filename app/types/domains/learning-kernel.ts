@@ -195,10 +195,17 @@ export type LearnerStatePromotionEligibilityV1 = {
   candidateEvidenceIds: string[];
   /** 多个 rubric slices 共享一个测量身份；completion 不进入候选。 */
   candidateMeasurementGroupIds: string[];
+  /** 全部合格直接测量的审计集合，包含历史项；retention / transfer 尚未授权，继续为空。 */
   eligibleEvidenceIds: string[];
   /** 权限合格的直接测量按方向分开；assistance 仍可阻断正向晋级。 */
   eligibleSupportingEvidenceIds: string[];
   eligibleRefutingEvidenceIds: string[];
+  /** 最新实际 occurrence instant 的合格测量集合；仅此集合解释当前晋级与冲突。 */
+  effectiveEvidenceIds: string[];
+  effectiveSupportingEvidenceIds: string[];
+  effectiveRefutingEvidenceIds: string[];
+  /** 早于 effective instant 的合格直接 Evidence；仍保留在 eligible 与来源审计历史中。 */
+  historicalQualifiedEvidenceIds: string[];
   blockers: LearnerStatePromotionBlockerV1[];
 };
 
@@ -224,7 +231,7 @@ export type LearnerTargetStateV1 = {
   lastEvidenceAt: LearnerStateSourceTimeV1 | null;
   lastVerifiedAt: LearnerStateSourceTimeV1 | null;
   nextVerificationAt: string | null;
-  policyVersion: "learner-state-policy/v2";
+  policyVersion: "learner-state-policy/v3";
   timeContext: LearnerStateTimeContextV1;
 };
 

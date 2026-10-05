@@ -26,8 +26,8 @@ function rubricEvidence(): EvidenceRecordV1[] {
   return deriveEvidence(adaptInterviewEvaluation(evaluation, session).events).evidence;
 }
 
-test("V2 preserves legacy blocked explanations before runtime adoption", () => {
-  assert.equal(LEARNER_STATE_POLICY_VERSION, "learner-state-policy/v2");
+test("V3 preserves legacy blocked explanations before runtime adoption", () => {
+  assert.equal(LEARNER_STATE_POLICY_VERSION, "learner-state-policy/v3");
   const policy = evaluateLearnerStatePromotionEligibility(reviewEvidence());
   assert.deepEqual(Object.keys(policy), ["understanding", "independence", "retention", "transfer"]);
   assert.deepEqual(policy.understanding.blockers,
@@ -40,14 +40,18 @@ test("V2 preserves legacy blocked explanations before runtime adoption", () => {
   for (const eligibility of Object.values(policy)) {
     assert.equal(eligibility.status, "blocked");
     assert.deepEqual(eligibility.eligibleEvidenceIds, []);
+    assert.deepEqual(eligibility.effectiveEvidenceIds, []);
+    assert.deepEqual(eligibility.effectiveSupportingEvidenceIds, []);
+    assert.deepEqual(eligibility.effectiveRefutingEvidenceIds, []);
+    assert.deepEqual(eligibility.historicalQualifiedEvidenceIds, []);
     assert.equal(eligibility.candidateEvidenceIds.length, 1);
     assert.equal(eligibility.candidateMeasurementGroupIds.length, 1);
   }
 });
 
-function verified(id: string, matches = true, assistance: "none" | "hint" | "guided" | "solution" = "none") {
+function verified(id: string, matches = true, assistance: "none" | "hint" | "guided" | "solution" = "none", at = instant) {
   return adaptVerifiedAssessment({ schemaVersion: 1, id: "item", optionCount: 2, verifiedCorrectOptionIndex: 1 },
-    { schemaVersion: 1, id, specId: "item", selectedOptionIndex: matches ? 1 : 0, occurredAt: instant, assistance }).events;
+    { schemaVersion: 1, id, specId: "item", selectedOptionIndex: matches ? 1 : 0, occurredAt: at, assistance }).events;
 }
 
 test("only canonical verified lineage qualifies; Evidence shape alone including the new adapter grants no authority", () => {
@@ -119,6 +123,74 @@ test("qualified support/refute conflict preserves all IDs; order and duplicate m
   assert.equal(policy.understanding.status, "blocked");
   assert.deepEqual(evaluateLearnerStatePromotionEligibility([...evidence, ...evidence].reverse(), [...events, ...events].reverse()), policy);
   assert.equal(JSON.stringify(evaluateLearnerStatePromotionEligibility([...evidence].reverse(), [...events].reverse())), JSON.stringify(policy));
+});
+
+for (const [oldMatches, newMatches, assistance, blockers] of [
+  [false, true, "none", []],
+  [true, false, "none", ["no_qualified_supporting_evidence"]],
+  [true, true, "hint", ["assistance_present"]],
+  [false, true, "hint", ["assistance_present"]],
+] as const) {
+  test(`temporal policy ${oldMatches} -> ${newMatches}/${assistance} preserves qualified audit IDs and uses only effective blockers`, () => {
+    const old = verified("old", oldMatches, "none", "2026-10-01T08:00:00Z");
+    const current = verified("current", newMatches, assistance, "2026-10-03T08:00:00Z");
+    const events = [...old, ...current];
+    const evidence = deriveEvidence(events).evidence;
+    const oldIds = deriveEvidence(old).evidence.map((item) => item.id);
+    const currentIds = deriveEvidence(current).evidence.map((item) => item.id);
+    const policy = evaluateLearnerStatePromotionEligibility(evidence, events);
+    for (const dimension of ["understanding", "independence"] as const) {
+      assert.equal(policy[dimension].status, blockers.length ? "blocked" : "eligible");
+      assert.deepEqual(policy[dimension].blockers, blockers);
+      assert.deepEqual(policy[dimension].eligibleEvidenceIds, evidence.map((item) => item.id));
+      assert.deepEqual(policy[dimension].eligibleSupportingEvidenceIds, evidence.filter((item) => item.outcome.direction === "supports").map((item) => item.id));
+      assert.deepEqual(policy[dimension].eligibleRefutingEvidenceIds, evidence.filter((item) => item.outcome.direction === "refutes").map((item) => item.id));
+      assert.deepEqual(policy[dimension].effectiveEvidenceIds, currentIds);
+      assert.deepEqual(policy[dimension].effectiveSupportingEvidenceIds, newMatches ? currentIds : []);
+      assert.deepEqual(policy[dimension].effectiveRefutingEvidenceIds, newMatches ? [] : currentIds);
+      assert.deepEqual(policy[dimension].historicalQualifiedEvidenceIds, oldIds);
+    }
+    for (const dimension of ["retention", "transfer"] as const) {
+      assert.deepEqual(policy[dimension].effectiveEvidenceIds, []);
+      assert.deepEqual(policy[dimension].historicalQualifiedEvidenceIds, []);
+    }
+    assert.deepEqual(evaluateLearnerStatePromotionEligibility([...evidence, ...evidence].reverse(), [...events, ...events].reverse()), policy);
+    for (const eligibility of Object.values(policy)) {
+      for (const values of Object.values(eligibility).filter((value): value is string[] => Array.isArray(value))) {
+        assert.deepEqual(values, [...new Set(values)].toSorted(compareLearningEventText));
+      }
+    }
+    policy.understanding.effectiveEvidenceIds.push("output-mutation");
+    policy.understanding.historicalQualifiedEvidenceIds.push("output-mutation");
+    assert.deepEqual(policy.independence, evaluateLearnerStatePromotionEligibility(evidence, events).independence);
+  });
+}
+
+test("effective policy compares parsed instants, includes every tied measurement and never uses lexical latest", () => {
+  const early = verified("early", false, "none", "2026-10-03T09:00:00+09:00");
+  const late = verified("late", true, "none", "2026-10-03T01:00:00Z");
+  const events = [...early, ...late];
+  const evidence = deriveEvidence(events).evidence;
+  const policy = evaluateLearnerStatePromotionEligibility(evidence, events);
+  assert.equal(policy.understanding.status, "eligible");
+  assert.deepEqual(policy.understanding.effectiveEvidenceIds, deriveEvidence(late).evidence.map((item) => item.id));
+  const tied = verified("tied", false, "none", "2026-10-03T09:00:00+08:00");
+  const tiedEvents = [...events, ...tied];
+  const tiedPolicy = evaluateLearnerStatePromotionEligibility(deriveEvidence(tiedEvents).evidence, tiedEvents);
+  assert.deepEqual(tiedPolicy.understanding.blockers, ["conflicting_qualified_evidence"]);
+  assert.deepEqual(tiedPolicy.understanding.effectiveEvidenceIds, deriveEvidence([...late, ...tied]).evidence.map((item) => item.id));
+  assert.deepEqual(tiedPolicy.understanding.historicalQualifiedEvidenceIds, deriveEvidence(early).evidence.map((item) => item.id));
+});
+
+test("same attempt identity with a later timestamp remains source conflict, not temporal succession", () => {
+  const events = [...verified("same", true, "none", "2026-10-01T08:00:00Z"), ...verified("same", false)];
+  const stale = events.flatMap((event) => deriveEvidence([event]).evidence);
+  assert.deepEqual(deriveEvidence(events).evidence, []);
+  const policy = evaluateLearnerStatePromotionEligibility(stale, events);
+  assert.deepEqual(policy.understanding.eligibleEvidenceIds, []);
+  assert.deepEqual(policy.understanding.effectiveEvidenceIds, []);
+  assert.deepEqual(policy.understanding.historicalQualifiedEvidenceIds, []);
+  assert.deepEqual(policy.understanding.blockers, ["no_qualified_direct_evidence"]);
 });
 
 test("empty or strong completion-only scope has no candidate learning measurements", () => {

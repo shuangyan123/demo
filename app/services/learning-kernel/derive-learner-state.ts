@@ -72,7 +72,7 @@ function result(states: LearnerTargetStateV1[], diagnostics: LearnerStateDerivat
   )) };
 }
 
-/** Phase E shadow API：完整 Evidence scope 与 asOf 是硬边界，仅执行明确授权的首次晋级，不调度。 */
+/** Phase E shadow API：完整 Evidence scope、asOf、有效验证集合依次约束当前有限晋级，不调度。 */
 export function deriveLearnerTargetStates(
   events: readonly LearningEventV1[],
   evidence: readonly EvidenceRecordV1[],
@@ -152,7 +152,7 @@ export function deriveLearnerTargetStates(
     const target = records[0].target;
     const sourceEvents = [...new Set(records.flatMap((item) => item.sourceEventIds))].map((id) => eventsById.get(id)!);
     const promotionEligibility = evaluateLearnerStatePromotionEligibility(records, sourceEvents);
-    const supportingIds = promotionEligibility.understanding.eligibleSupportingEvidenceIds;
+    const supportingIds = promotionEligibility.understanding.effectiveSupportingEvidenceIds;
     const supporting = records.filter((item) => supportingIds.includes(item.id) && item.assistance === "none")
       .map((item) => item.id).toSorted(compareLearningEventText);
     const understandingEligible = promotionEligibility.understanding.status === "eligible";
@@ -167,7 +167,7 @@ export function deriveLearnerTargetStates(
       sourceEvidenceIds: records.map((item) => item.id).toSorted(compareLearningEventText),
       promotionEligibility,
       lastEvidenceAt: latestSourceTime(records, eventsById, diagnostics),
-      lastVerifiedAt: latestSourceTime(records.filter((item) => promotionEligibility.understanding.eligibleEvidenceIds.includes(item.id)),
+      lastVerifiedAt: latestSourceTime(records.filter((item) => promotionEligibility.understanding.effectiveEvidenceIds.includes(item.id)),
         eventsById, diagnostics),
       nextVerificationAt: null,
       policyVersion: LEARNER_STATE_POLICY_VERSION, timeContext: { asOf: timeContext.asOf },
