@@ -718,7 +718,7 @@ Branch
 
 ### New write task preflight
 
-任何新的 write task 在第一次修改文件前必须完成：
+任何新的 write task 在第一次修改文件前，先按项目 Skill 执行 startup stale-worktree reconciliation。标准检查入口：
 
 ```bash
 git status --short
@@ -727,21 +727,32 @@ git branch --show-current
 git rev-parse HEAD
 git fetch origin
 git rev-parse origin/main
-git worktree list
-git status --short
+git worktree list --porcelain
+npm run worktree:audit
 ```
 
-对于新的 write task，必须确认：
+只有 canonical main worktree clean、attached、无未完成 Git 操作且可以安全 fast-forward 到最新 `origin/main` 时，才允许执行：
 
-* 当前工作区 clean
-* 当前 checkout 是 `main`
-* `HEAD` 与 `origin/main` 一致
+```bash
+git pull --ff-only origin main
+npm run worktree:audit
+npm run worktree:cleanup
+npm run worktree:audit
+```
+
+其中 cleanup 只能删除 repository guard 判定为 `SAFE_TO_REMOVE` 的已合并旧 task worktree；不需要额外询问用户。若 main dirty、detached、mid-operation、无法安全 fast-forward 或状态有歧义，则保留全部状态并跳过 cleanup，不得用强制手段绕过。
+
+完成 reconciliation 后，新 write task 必须确认：
+
+* 最新 `origin/main` SHA 已知
+* 本轮 task location clean、attached 且无未完成 Git 操作
 * 当前目录没有未提交或未知修改
-* 不需要处理其他 worktree 才能开始本任务
+* 不需要修改 unrelated WIP/worktree 才能开始本任务
+* fresh task branch 精确基于最新 `origin/main`
 
 预检通过后，必须从最新 `origin/main` 创建并切换到 task-specific fresh branch，之后才允许修改任何文件。规则维护本身也是 write task，不能因为只修改 `AGENTS.md` 或 Skill 就跳过该约束。
 
-如果预检发现 dirty state、分支不正确、HEAD 不一致或 worktree ownership conflict，必须立即 STOP。不得自行执行：
+如果预检发现 dirty state、分支不正确、HEAD 不一致或 worktree ownership conflict，必须立即 STOP 或按 Skill 的安全隔离规则选择独立 task location。不得自行执行：
 
 * `stash`
 * `reset`
@@ -749,7 +760,7 @@ git status --short
 * `clean`
 * `checkout --`
 * 提交 unrelated changes
-* 删除、prune、merge 或 rebase 其他 worktree / WIP branch
+* 手动删除、force-remove、prune、merge 或 rebase 其他 worktree / WIP branch
 
 ### Fresh branch requirement
 
@@ -778,9 +789,21 @@ git status --short
 
 ### Merge and cleanup invariants
 
-不得在以下条件下 Merge：required CI pending/failed、存在冲突、Changes Requested、未解决的阻断 review、或验证后 PR HEAD 已变化。HEAD 变化后必须重新验证。
+普通 scoped engineering task 默认覆盖完整 delivery lifecycle；除非用户明确限制阶段或触及 Skill 定义的外部高影响操作，不需要在技术上可合并后再次询问“是否 Merge”。
 
-Merge 后只有在确认没有其他 open PR 依赖该 branch 时，才可删除已合并的 task branch；无关 worktree 和 WIP branch 必须保持不动。随后必须回到 `main`，执行 `git pull --ff-only origin main`，确认工作区 clean，再进行 post-merge verification。
+不得在以下条件下 Merge：required CI pending/failed、存在冲突、Changes Requested、未解决的阻断 review、或验证后 PR HEAD 已变化。HEAD 变化后必须重新验证。实现者与独立 reviewer/orchestrator 分离时，实现者不得把自己的实现当成独立 review，可在 `READY FOR REVIEW` 交接 exact PR HEAD。
+
+Merge 后，本地 disposable worktree 只能通过项目 guard：
+
+```bash
+npm run worktree:audit
+npm run worktree:cleanup
+npm run worktree:audit
+```
+
+清理。若实现进程在 Merge 前结束，下一次新 write task 启动时必须按 startup reconciliation 回收已证明 `SAFE_TO_REMOVE` 的旧 worktree。不得 force-remove、手动删目录、prune metadata 或触碰 dirty/ambiguous/user-owned worktree。
+
+task branch 删除与 worktree cleanup 分离；只有确认 branch ownership 且没有其他 open/stacked PR 依赖时才可删除。随后在安全的 canonical `main` 上执行 `git pull --ff-only origin main`，确认工作区 clean，再进行 post-merge verification。
 
 ---
 
