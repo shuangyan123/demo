@@ -248,3 +248,10 @@ export type LearnerStateDerivationV1 = {
   states: LearnerTargetStateV1[];
   diagnostics: LearnerStateDerivationDiagnosticV1[];
 };
+
+/** WHAT-only；target 是验证维度，学习对象由调用方的 LearningTargetV1 指定。 */
+export type VerificationDecisionV1 =
+  | { kind: "verify"; target: Extract<LearnerStateDimensionV1, "independence">; reason: "assistance_present" }
+  | { kind: "none"; reason: "incomplete_effective_state" | "unsupported_effective_state"
+      | "ambiguous_evidence_qualification" | "no_qualified_direct_evidence"
+      | "ambiguous_verification_target" | "no_authorized_verification_target" };

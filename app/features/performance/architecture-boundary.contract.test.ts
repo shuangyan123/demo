@@ -19,6 +19,7 @@ import "../../services/learning-kernel/compatibility-snapshot.contract.test.ts";
 import "../../services/learning-kernel/derive-learner-state.contract.test.ts";
 import "../../services/learning-kernel/learner-state-policy.contract.test.ts";
 import "../../services/learning-kernel/verified-assessment-adapter.contract.test.ts";
+import "../../services/learning-kernel/verification-policy.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -38,7 +39,7 @@ function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
 
-test("Recall Phase B/C/D/E4 Kernel 只依赖纯本地逻辑与 domain types", async () => {
+test("Recall Phase B/C/D/E5 Kernel 只依赖纯本地逻辑与 domain types", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const files = [path.join(APP_ROOT, "types/domains/learning-kernel.ts"), ...await sourceFiles(kernelRoot)];
   for (const file of files) {
@@ -71,16 +72,17 @@ test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState"
     if (!file.startsWith(`${kernelRoot}${path.sep}`)) {
       assert.ok(!staticImports(source).some((specifier) => /learning-kernel\/(?:derive-evidence|evidence-policy|evidence-shadow)/.test(specifier)),
         `${file} 不得在 Phase C 接入 Evidence authority`);
-    } else if (file !== path.join(kernelRoot, "derive-learner-state.ts")) {
+    } else if (!["derive-learner-state.ts", "verification-policy.ts"].some((name) => file === path.join(kernelRoot, name))) {
       assert.doesNotMatch(source, /LearnerTargetState|lastVerifiedAt|nextVerificationAt|canonicalWeakness|\b(?:console|telemetry)\s*\./);
     }
   }
 });
 
-test("Recall Phase E4 state / authority policy 保持 pure shadow-only，无外层 runtime consumer", async () => {
+test("Recall Phase E5 state / authority / verification policy 保持 pure shadow-only，无外层 runtime consumer", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const stateModule = path.join(kernelRoot, "derive-learner-state.ts");
   const policyModule = path.join(kernelRoot, "learner-state-policy.ts");
+  const verificationModule = path.join(kernelRoot, "verification-policy.ts");
   const source = await readFile(stateModule, "utf8");
   assert.match(source, /export function deriveLearnerTargetStates\(/);
   assert.ok(staticImports(source).includes("./learner-state-policy.ts"), "派生器必须消费唯一状态权限策略");
@@ -99,13 +101,24 @@ test("Recall Phase E4 state / authority policy 保持 pure shadow-only，无外�
     "必须先核对 canonical authority，再解释 scoped outcome；不能读取原始 payload");
   assert.doesNotMatch(source, /\.payload\b|\brecordedAt\s*[=:]|\b(?:console|telemetry)\s*\./,
     "state layer 不读取 Event payload 绕过 Evidence，也不输出 telemetry");
-  const kernelFiles = await sourceFiles(kernelRoot);
-  assert.ok(!kernelFiles.includes(path.join(kernelRoot, "verification-policy.ts")), "Verification Policy 留待后续 Phase E slice");
+  const verificationSource = await readFile(verificationModule, "utf8");
+  assert.match(verificationSource, /export function decideNextVerification\(/);
+  assert.ok(staticImports(verificationSource).every((specifier) =>
+    ["../../types/domains/learning-kernel.ts", "./learning-event.ts"].includes(specifier)),
+    "Verification Policy 只消费 state 摘要与纯校验 helper，不重新解释 Evidence");
+  assert.doesNotMatch(verificationSource, /EvidenceRecordV1|LearningEventV1|LearnerTargetState|canonicalWeakness|deriveEvidence|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility|\.payload\b|\b(?:console|telemetry)\s*\.|\bDate\b|nextVerificationAt/,
+    "WHAT-only policy 不重算历史或 state、不评分、不调度、不输出日志");
+  const verificationAst = ts.createSourceFile(verificationModule, verificationSource, ts.ScriptTarget.Latest, true);
+  const decision = verificationAst.statements.find((node): node is ts.FunctionDeclaration =>
+    ts.isFunctionDeclaration(node) && node.name?.text === "decideNextVerification");
+  assert.ok(decision?.body);
+  assert.doesNotMatch(decision.body.getText(verificationAst), /candidateEvidenceIds|candidateMeasurementGroupIds|eligibleEvidenceIds|eligibleSupportingEvidenceIds|eligibleRefutingEvidenceIds|historicalQualifiedEvidenceIds|QUALIFICATION_ID_FIELDS/,
+    "candidate/eligible/history 字段仅允许纯摘要校验 helper 使用，不能直接用于 target 选择");
   for (const file of await sourceFiles(APP_ROOT)) {
     if (file === stateModule) continue;
     const fileSource = await readFile(file, "utf8");
     if (!file.startsWith(`${kernelRoot}${path.sep}`) && file !== path.join(APP_ROOT, "types/domains/learning-kernel.ts")) {
-      assert.doesNotMatch(fileSource, /\b(?:LearnerTargetStateV1|LearnerStatePromotionEligibilityV1|LearnerStatePromotionBlockerV1|evaluateLearnerStatePromotionEligibility|deriveLearnerTargetStates|effectiveEvidenceIds|effectiveSupportingEvidenceIds|effectiveRefutingEvidenceIds|historicalQualifiedEvidenceIds)\b/,
+      assert.doesNotMatch(fileSource, /\b(?:LearnerTargetStateV1|LearnerStatePromotionEligibilityV1|LearnerStatePromotionBlockerV1|VerificationDecisionV1|decideNextVerification|evaluateLearnerStatePromotionEligibility|deriveLearnerTargetStates|effectiveEvidenceIds|effectiveSupportingEvidenceIds|effectiveRefutingEvidenceIds|historicalQualifiedEvidenceIds)\b/,
         `${file} 不得接入 Phase E state / eligibility（包括 Phase D service）`);
     }
     const sourceFile = ts.createSourceFile(file, fileSource, ts.ScriptTarget.Latest, true);
@@ -117,8 +130,8 @@ test("Recall Phase E4 state / authority policy 保持 pure shadow-only，无外�
       if (specifier) {
         const target = (specifier.startsWith("@/") ? path.join(APP_ROOT, specifier.slice(2))
           : path.resolve(path.dirname(file), specifier)).replace(/\.ts$/, "");
-        assert.ok(![stateModule, policyModule].some((module) => target === module.replace(/\.ts$/, "")),
-          `${file} 不得在 E4 接入 state / authority policy（包括 compatibility bridge）`);
+        assert.ok(![stateModule, policyModule, verificationModule].some((module) => target === module.replace(/\.ts$/, "")),
+          `${file} 不得在 E5 接入 state / authority / verification policy（包括 compatibility bridge）`);
       }
       ts.forEachChild(node, inspect);
     };
@@ -138,7 +151,7 @@ test("Recall verified assessment adapter 无 production writer，Fenbi wrong-onl
   for (const file of runtimeFiles) {
     const source = await readFile(file, "utf8");
     if (file.startsWith(`${kernelRoot}${path.sep}`) || file === path.join(APP_ROOT, "types/domains/learning-kernel.ts")) continue;
-    assert.doesNotMatch(source, /VerifiedAssessment|adaptVerifiedAssessment|verification\.assessed|recall-verified-assessment\/v1|LearnerTargetStateV1|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility/,
+    assert.doesNotMatch(source, /VerifiedAssessment|adaptVerifiedAssessment|verification\.assessed|recall-verified-assessment\/v1|LearnerTargetStateV1|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility|VerificationDecisionV1|decideNextVerification/,
       `${file} 不得接入新验证来源、state authority 或产生 verified Event`);
     const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
     const inspect = (node: ts.Node) => {
@@ -149,7 +162,8 @@ test("Recall verified assessment adapter 无 production writer，Fenbi wrong-onl
       if (specifier) {
         const target = (specifier.startsWith("@/") ? path.join(APP_ROOT, specifier.slice(2))
           : path.resolve(path.dirname(file), specifier)).replace(/\.ts$/, "");
-        assert.ok(![adapter, path.join(kernelRoot, "derive-learner-state.ts"), path.join(kernelRoot, "learner-state-policy.ts")]
+        assert.ok(![adapter, path.join(kernelRoot, "derive-learner-state.ts"), path.join(kernelRoot, "learner-state-policy.ts"),
+          path.join(kernelRoot, "verification-policy.ts")]
           .some((module) => target === module.replace(/\.ts$/, "")), `${file} 不得 import/re-export/dynamic import 新来源或 state authority`);
       }
       ts.forEachChild(node, inspect);
