@@ -72,7 +72,7 @@ function result(states: LearnerTargetStateV1[], diagnostics: LearnerStateDerivat
   )) };
 }
 
-/** Phase E shadow API：完整 Evidence scope 是硬边界，asOf 排除未来来源；不调度或晋级。 */
+/** Phase E shadow API：完整 Evidence scope 与 asOf 是硬边界，仅执行明确授权的首次晋级，不调度。 */
 export function deriveLearnerTargetStates(
   events: readonly LearningEventV1[],
   evidence: readonly EvidenceRecordV1[],
@@ -150,15 +150,26 @@ export function deriveLearnerTargetStates(
   }
   const states = [...targets.values()].map((records): LearnerTargetStateV1 => {
     const target = records[0].target;
+    const sourceEvents = [...new Set(records.flatMap((item) => item.sourceEventIds))].map((id) => eventsById.get(id)!);
+    const promotionEligibility = evaluateLearnerStatePromotionEligibility(records, sourceEvents);
+    const supportingIds = promotionEligibility.understanding.eligibleSupportingEvidenceIds;
+    const supporting = records.filter((item) => supportingIds.includes(item.id) && item.assistance === "none")
+      .map((item) => item.id).toSorted(compareLearningEventText);
+    const understandingEligible = promotionEligibility.understanding.status === "eligible";
+    const independenceEligible = promotionEligibility.independence.status === "eligible";
     return {
       schemaVersion: 1, target: { category: target.category, namespace: target.namespace, id: target.id },
-      // 当前所有 legacy 来源均无独立验证权限；正反结果与多片累加都不晋级。
-      understanding: "unknown", independence: "unknown", retention: "untested", transfer: "untested",
-      evidenceReferences: { understanding: [], independence: [], retention: [], transfer: [] },
+      // 只授权独立完成的正确单题测量；反证冲突保持默认，重复成功不推断更强状态。
+      understanding: understandingEligible ? "emerging" : "unknown",
+      independence: independenceEligible ? "independent" : "unknown", retention: "untested", transfer: "untested",
+      evidenceReferences: { understanding: understandingEligible ? [...supporting] : [],
+        independence: independenceEligible ? [...supporting] : [], retention: [], transfer: [] },
       sourceEvidenceIds: records.map((item) => item.id).toSorted(compareLearningEventText),
-      promotionEligibility: evaluateLearnerStatePromotionEligibility(records),
+      promotionEligibility,
       lastEvidenceAt: latestSourceTime(records, eventsById, diagnostics),
-      lastVerifiedAt: null, nextVerificationAt: null,
+      lastVerifiedAt: latestSourceTime(records.filter((item) => promotionEligibility.understanding.eligibleEvidenceIds.includes(item.id)),
+        eventsById, diagnostics),
+      nextVerificationAt: null,
       policyVersion: LEARNER_STATE_POLICY_VERSION, timeContext: { asOf: timeContext.asOf },
     };
   }).toSorted((left, right) => compareLearningEventText(left.target.category, right.target.category)

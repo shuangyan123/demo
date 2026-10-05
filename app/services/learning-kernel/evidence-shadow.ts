@@ -6,22 +6,24 @@ import { EVIDENCE_POLICY_VERSION } from "./evidence-policy.ts";
 
 export type EvidenceShadowReportV1 = {
   schemaVersion: 1;
-  policyVersion: typeof EVIDENCE_POLICY_VERSION;
+  policyVersion: "evidence-policy/v1" | "evidence-policy/v2";
   /** 输入行数包含重复与拒绝项；evidenceCount 是去重且校验后的记录数。 */
   eventCount: number;
   evidenceCount: number;
   measurementGroupCount: number;
-  countsByEventKind: Record<LearningEventKindV1, number>;
+  countsByEventKind: Record<Exclude<LearningEventKindV1, "verification.assessed">, number> & { "verification.assessed"?: number };
   countsByEvidenceClass: Record<EvidenceClassV1, number>;
   countsByClaim: Record<EvidenceClaimV1, number>;
-  diagnosticsByCode: Record<EvidencePolicyDiagnostic["code"], number>;
+  diagnosticsByCode: Record<Exclude<EvidencePolicyDiagnostic["code"], "conflicting_source_identity">, number>
+    & { conflicting_source_identity?: number };
   authorityLimitationCounts: Record<EvidenceLimitationV1, number>;
 };
 
 /** 只返回固定词表的计数；不包含 target、rubric 标签、来源正文或运行时行为。 */
 export function buildEvidenceShadowReport(events: readonly LearningEventV1[], derivation: EvidenceDerivationV1): EvidenceShadowReportV1 {
   const report: EvidenceShadowReportV1 = {
-    schemaVersion: 1, policyVersion: EVIDENCE_POLICY_VERSION,
+    schemaVersion: 1, policyVersion: derivation.evidence.some((item) => item.policyVersion === "evidence-policy/v2")
+      ? "evidence-policy/v2" : EVIDENCE_POLICY_VERSION,
     eventCount: events.length, evidenceCount: derivation.evidence.length,
     measurementGroupCount: new Set(derivation.evidence.map((item) => item.measurementGroupId)).size,
     countsByEventKind: { "review.completed": 0, "knowledge_review.completed": 0, "assessment.submitted": 0,
@@ -34,6 +36,8 @@ export function buildEvidenceShadowReport(events: readonly LearningEventV1[], de
       model_assessment_only: 0, assistance_unknown: 0, current_projection: 0, history_incomplete: 0 },
   };
   for (const event of events) {
+    // legacy-only report 保持原有字段与字节形状；只有新来源出现时才增加其计数。
+    if (event?.kind === "verification.assessed") report.countsByEventKind["verification.assessed"] ??= 0;
     if (event && Object.hasOwn(report.countsByEventKind, event.kind)) report.countsByEventKind[event.kind]++;
   }
   for (const item of derivation.evidence) {
@@ -41,6 +45,9 @@ export function buildEvidenceShadowReport(events: readonly LearningEventV1[], de
     report.countsByClaim[item.claim]++;
     for (const limitation of item.provenance.limitations) report.authorityLimitationCounts[limitation]++;
   }
-  for (const diagnostic of derivation.diagnostics) report.diagnosticsByCode[diagnostic.code]++;
+  for (const diagnostic of derivation.diagnostics) {
+    // 新来源的拒绝计数按需增加，legacy-only report 的字段与字节形状不变。
+    report.diagnosticsByCode[diagnostic.code] = (report.diagnosticsByCode[diagnostic.code] ?? 0) + 1;
+  }
   return report;
 }

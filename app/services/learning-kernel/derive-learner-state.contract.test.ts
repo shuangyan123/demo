@@ -9,6 +9,7 @@ import { deriveEvidence } from "./derive-evidence.ts";
 import { deriveLearnerTargetStates, LEARNER_STATE_POLICY_VERSION } from "./derive-learner-state.ts";
 import { adaptReviewAttempt, adaptKnowledgeAttempt, adaptTutoringMicroAssessment, adaptInterviewEvaluation } from "./legacy-event-adapter.ts";
 import { compareLearningEventText } from "./learning-event.ts";
+import { adaptVerifiedAssessment } from "./verified-assessment-adapter.ts";
 
 const instant = "2026-10-02T08:00:00.000Z";
 const timeContext = { asOf: "2026-10-04T09:00:00+08:00" };
@@ -523,4 +524,244 @@ test("repeated model-authored quizzes and self-report history never establish re
   assert.equal(quiz.promotionEligibility.retention.candidateMeasurementGroupIds.length, 3);
   assert.ok(quiz.promotionEligibility.retention.blockers.includes("missing_delayed_verification"));
   assert.ok(quiz.promotionEligibility.transfer.blockers.includes("missing_transfer_context"));
+});
+
+function verified(id = "verified-attempt", matches = true,
+  assistance: "none" | "hint" | "guided" | "solution" = "none", at = instant, specId = "verified-item"): LearningEventV1[] {
+  return adaptVerifiedAssessment({ schemaVersion: 1, id: specId, optionCount: 2, verifiedCorrectOptionIndex: 1 },
+    { schemaVersion: 1, id, specId, selectedOptionIndex: matches ? 1 : 0, assistance, occurredAt: at }).events;
+}
+function assertUnscheduled(state: LearnerTargetStateV1): void {
+  assert.equal(state.schemaVersion, 1);
+  assert.equal(state.policyVersion, "learner-state-policy/v2");
+  assert.equal(state.retention, "untested");
+  assert.equal(state.transfer, "untested");
+  assert.equal(state.nextVerificationAt, null);
+  assert.deepEqual(state.evidenceReferences.retention, []);
+  assert.deepEqual(state.evidenceReferences.transfer, []);
+  assert.ok(state.promotionEligibility.retention.blockers.includes("missing_delayed_verification"));
+  assert.ok(state.promotionEligibility.transfer.blockers.includes("missing_transfer_context"));
+}
+
+test("one unassisted verified correct measurement causes emerging and scoped independent with exact supporting references", () => {
+  const events = verified();
+  const evidence = deriveEvidence(events).evidence;
+  const result = derive(events, evidence);
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.states.length, 1);
+  const state = result.states[0];
+  assert.equal(state.understanding, "emerging");
+  assert.equal(state.independence, "independent");
+  assert.deepEqual(state.target, { category: "question", namespace: "verified_assessment_question", id: "verified-item" });
+  assert.deepEqual(state.evidenceReferences.understanding, [evidence[0].id]);
+  assert.deepEqual(state.evidenceReferences.independence, [evidence[0].id]);
+  assert.deepEqual(state.sourceEvidenceIds, [evidence[0].id]);
+  assert.deepEqual(state.lastEvidenceAt, { value: instant, precision: "instant" });
+  assert.deepEqual(state.lastVerifiedAt, { value: instant, precision: "instant" });
+  assertUnscheduled(state);
+});
+
+for (const assistance of ["none", "hint", "guided", "solution"] as const) {
+  for (const matches of [true, false]) {
+    test(`verified ${matches ? "correct" : "wrong"}/${assistance} preserves direct measurement and applies only authorized promotion`, () => {
+      const events = verified("single", matches, assistance);
+      const evidence = deriveEvidence(events).evidence;
+      const state = derive(events, evidence).states[0];
+      const promotes = matches && assistance === "none";
+      assert.equal(state.understanding, promotes ? "emerging" : "unknown");
+      assert.equal(state.independence, promotes ? "independent" : "unknown");
+      assert.deepEqual(state.evidenceReferences.understanding, promotes ? [evidence[0].id] : []);
+      assert.deepEqual(state.evidenceReferences.independence, promotes ? [evidence[0].id] : []);
+      assert.deepEqual(state.promotionEligibility.understanding.eligibleEvidenceIds, [evidence[0].id]);
+      assert.deepEqual(state.promotionEligibility.understanding.eligibleRefutingEvidenceIds, matches ? [] : [evidence[0].id]);
+      assert.deepEqual(state.lastVerifiedAt, { value: instant, precision: "instant" });
+      assert.ok(!state.promotionEligibility.understanding.blockers.includes("no_qualified_direct_evidence"));
+      if (!matches) assert.ok(state.promotionEligibility.understanding.blockers.includes("no_qualified_supporting_evidence"));
+      if (matches && assistance !== "none") assert.ok(state.promotionEligibility.understanding.blockers.includes("assistance_present"));
+      assertUnscheduled(state);
+    });
+  }
+}
+
+for (const wrongAssistance of ["none", "hint", "guided", "solution"] as const) {
+  test(`qualified supporting/refuting conflict (${wrongAssistance}) never averages or uses latest winner`, () => {
+    const events = [...verified("correct", true, "none", "2026-10-01T08:00:00Z"),
+      ...verified("wrong", false, wrongAssistance, "2026-10-03T08:00:00Z")];
+    const evidence = deriveEvidence(events).evidence;
+    const result = derive(events, evidence);
+    const state = result.states[0];
+    assert.equal(state.understanding, "unknown");
+    assert.equal(state.independence, "unknown");
+    assert.deepEqual(state.evidenceReferences, { understanding: [], independence: [], retention: [], transfer: [] });
+    assert.deepEqual(state.promotionEligibility.understanding.blockers, ["conflicting_qualified_evidence"]);
+    assert.deepEqual(state.promotionEligibility.independence.blockers, ["conflicting_qualified_evidence"]);
+    assert.equal(state.promotionEligibility.understanding.eligibleSupportingEvidenceIds.length, 1);
+    assert.equal(state.promotionEligibility.understanding.eligibleRefutingEvidenceIds.length, 1);
+    assert.deepEqual(state.promotionEligibility.understanding.eligibleEvidenceIds, evidence.map((item) => item.id));
+    assert.deepEqual(state.lastVerifiedAt, { value: "2026-10-03T08:00:00Z", precision: "instant" });
+    assertUnscheduled(state);
+    assert.deepEqual(derive([...events].reverse(), [...evidence].reverse()), result);
+    // 交换正反证发生时间仍冲突，不能使用 latest-wins。
+    assert.equal(derive([...verified("wrong", false, wrongAssistance, "2026-10-01T08:00:00Z"),
+      ...verified("correct", true, "none", "2026-10-03T08:00:00Z")]).states[0].understanding, "unknown");
+  });
+}
+
+for (const assistance of ["hint", "guided", "solution"] as const) {
+  test(`one logical attempt with ${assistance} and none revisions never gains understanding or independence`, () => {
+    const events = [...verified("same-attempt", true, assistance), ...verified("same-attempt", true, "none")];
+    const canonical = deriveEvidence(events);
+    assert.deepEqual(canonical.evidence, []);
+    assert.ok(canonical.diagnostics.every((item) => item.code === "conflicting_source_identity"));
+    const result = derive(events, canonical.evidence);
+    assert.deepEqual(result.states, []);
+    assert.deepEqual(result.diagnostics, canonical.diagnostics.map((item) => ({ ...item, sourceEvidenceId: null })));
+    assert.deepEqual(derive([...events].reverse(), []), result);
+    // 调用方分别派生后拼接、或只供应有利修订，都不能恢复已冲突来源的权限。
+    for (const stale of [events.flatMap((event) => deriveEvidence([event]).evidence), deriveEvidence([events[1]]).evidence]) {
+      const rejected = derive(events, stale);
+      assert.deepEqual(rejected.states, []);
+      assert.ok(rejected.diagnostics.some((item) => item.code === "orphan_evidence"));
+      assert.deepEqual(derive([...events].reverse(), [...stale].reverse()), rejected);
+    }
+  });
+}
+
+test("verified source identity validation precedes asOf without weakening complete canonical scope", () => {
+  const past = verified("same-attempt", true, "hint", "2026-10-01T08:00:00Z");
+  const futureRevision = verified("same-attempt", true, "none", "2026-10-05T08:00:00Z");
+  const events = [...past, ...futureRevision, ...knowledge()];
+  const canonical = deriveEvidence(events);
+  assert.deepEqual(canonical.evidence, deriveEvidence(knowledge()).evidence);
+  const result = derive(events, canonical.evidence);
+  assert.equal(result.states.length, 1);
+  assertFloor(result.states[0]);
+  assert.equal(result.states[0].target.category, "knowledge");
+  assert.equal(result.diagnostics.length, 2);
+  assert.ok(result.diagnostics.every((item) => item.code === "conflicting_source_identity"));
+  assert.deepEqual(derive([...events].reverse(), [...canonical.evidence].reverse()), result);
+  const incomplete = derive(events, canonical.evidence.filter((item) => item.claim !== "completion"));
+  assert.deepEqual(incomplete.states, []);
+  assert.ok(incomplete.diagnostics.some((item) => item.code === "incomplete_evidence_scope"));
+});
+
+test("multiple clean supports never exceed emerging; assisted support is excluded from actual dimension references", () => {
+  const events = [...Array.from({ length: 5 }, (_, i) => verified(`correct-${i}`, true, "none", `2026-09-0${i + 1}T08:00:00Z`)).flat(),
+    ...verified("assisted", true, "hint", "2026-10-03T08:00:00Z")];
+  const evidence = deriveEvidence(events).evidence;
+  const state = derive(events, evidence).states[0];
+  assert.equal(state.understanding, "emerging");
+  assert.equal(state.independence, "independent");
+  assert.deepEqual(state.evidenceReferences.understanding, evidence.filter((item) => item.assistance === "none").map((item) => item.id));
+  assert.deepEqual(state.evidenceReferences.independence, state.evidenceReferences.understanding);
+  assert.equal(state.promotionEligibility.understanding.candidateMeasurementGroupIds.length, 6);
+  assert.deepEqual(state.lastVerifiedAt, { value: "2026-10-03T08:00:00Z", precision: "instant" });
+  assertUnscheduled(state);
+  assert.deepEqual(derive([...events, ...events].reverse(), [...evidence, ...structuredClone(evidence)].reverse()), derive(events, evidence));
+});
+
+test("verified targets never generalize to concept/skill or pool other questions and legacy namespaces", () => {
+  const events = [...verified("first", true, "none", instant, "target-1"),
+    ...verified("other", false, "none", instant, "target-2"), ...allEvents()];
+  const result = derive(events);
+  assert.equal(result.states.length, 6);
+  const legacy = result.states.filter((state) => state.target.namespace !== "verified_assessment_question");
+  legacy.forEach(assertFloor);
+  assert.equal(result.states.find((state) => state.target.namespace === "verified_assessment_question" && state.target.id === "target-1")!.understanding, "emerging");
+  assert.equal(result.states.find((state) => state.target.id === "target-2")!.understanding, "unknown");
+  assert.ok(result.states.every((state) => ["question", "mistake", "knowledge"].includes(state.target.category)));
+});
+
+for (const [name, at, usable] of [
+  ["before", "2026-10-04T00:59:59.999Z", true], ["exact", timeContext.asOf, true],
+  ["same instant other offset", "2026-10-04T01:00:00Z", true], ["after", "2026-10-04T01:00:00.001Z", false],
+] as const) {
+  test(`verified ${name} asOf controls target, eligibility, promotion and both recency fields`, () => {
+    const events = verified("time", true, "none", at);
+    const result = derive(events);
+    if (usable) {
+      assert.equal(result.states[0].understanding, "emerging");
+      assert.deepEqual(result.states[0].lastVerifiedAt, { value: at, precision: "instant" });
+      assert.deepEqual(result.diagnostics, []);
+    } else {
+      assert.deepEqual(result.states, []);
+      assert.equal(result.diagnostics.length, 1);
+      assert.equal(result.diagnostics[0].code, "evidence_after_as_of");
+    }
+  });
+}
+
+test("future correct/refuting measurements cannot refresh an existing target or alter promotion", () => {
+  for (const matches of [true, false]) {
+    const past = verified("past", true, "none", "2026-10-01T08:00:00Z");
+    const future = verified("future", matches, "none", "2026-10-04T01:00:00.001Z");
+    const events = [...past, ...future];
+    assert.deepEqual(derive(events).states, derive(past).states);
+    assert.equal(derive(events).diagnostics[0].code, "evidence_after_as_of");
+    const omitted = derive(events, deriveEvidence(past).evidence);
+    assert.deepEqual(omitted.states, []);
+    assert.equal(omitted.diagnostics[0].code, "incomplete_evidence_scope");
+  }
+});
+
+test("complete scope rejects omitting verified refutation or legacy completion/correctness even before asOf filtering", () => {
+  const events = [...verified("correct"), ...verified("wrong", false), ...review(),
+    ...verified("future", true, "none", "2026-10-04T01:00:00.001Z")];
+  const evidence = deriveEvidence(events).evidence;
+  for (const omitted of evidence) {
+    const result = derive(events, evidence.filter((item) => item.id !== omitted.id));
+    assert.deepEqual(result.states, []);
+    assert.deepEqual(result.diagnostics, [{ code: "incomplete_evidence_scope", sourceEventId: null, sourceEvidenceId: omitted.id }]);
+  }
+});
+
+test("forged verified Evidence or Event facts fail canonical scope rather than laundering direct authority", () => {
+  const events = verified();
+  const evidence = deriveEvidence(events).evidence;
+  for (const [, mutate] of mutations) {
+    const forged = mutate(structuredClone(evidence[0]));
+    // 'strong' 或 'none' 已是 verified canonical 值；只测试真正改变事实的 mutations。
+    if (JSON.stringify(forged) === JSON.stringify(evidence[0])) continue;
+    const result = derive(events, [forged]);
+    assert.deepEqual(result.states, []);
+    assert.equal(result.diagnostics[0].code, "noncanonical_evidence");
+  }
+  for (const patch of [{ assistance: "hint" }, { strength: "weak" }, { policyVersion: "evidence-policy/v1" }]) {
+    assert.deepEqual(derive(events, [{ ...evidence[0], ...patch } as EvidenceRecordV1]).states, []);
+  }
+  const event = events[0] as LearningEventV1<"verification.assessed">;
+  for (const forged of [{ ...event, source: { ...event.source, adapterId: "recall-legacy/v1" as const } },
+    { ...event, provenance: { ...event.provenance, modelAuthored: true } },
+    { ...event, payload: { ...event.payload, assistance: "hint" as const } }]) {
+    assert.deepEqual(derive([forged], evidence).states, []);
+    assert.ok(derive([forged], evidence).diagnostics.length > 0);
+  }
+});
+
+test("verified pipeline is immutable, private-content-free and byte deterministic with reordered objects and no clock/random/locale", (context) => {
+  const events = [...verified("pass"), ...verified("wrong", false), ...allEvents()];
+  const privateFields = { questionText: privateSentinel, optionText: privateSentinel, explanation: privateSentinel,
+    learnerReasoning: privateSentinel, providerResponse: privateSentinel, credentials: privateSentinel,
+    transcript: privateSentinel, rawMedia: privateSentinel, traceRef: privateSentinel };
+  const privateEvents = events.map((event) => ({ ...event, ...privateFields,
+    payload: { ...event.payload, ...privateFields } } as LearningEventV1));
+  const evidence = deriveEvidence(privateEvents).evidence;
+  const before = structuredClone({ events: privateEvents, evidence });
+  freeze(privateEvents); freeze(evidence);
+  const expected = derive(privateEvents, evidence);
+  const fail = () => { throw new Error("clock/random/locale forbidden"); };
+  context.mock.method(Date, "now", fail); context.mock.method(Math, "random", fail);
+  context.mock.method(globalThis.crypto, "randomUUID", fail); context.mock.method(String.prototype, "localeCompare", fail);
+  context.mock.method(globalThis, "Date", new Proxy(Date, {
+    construct(target, args) { if (!args.length) fail(); return Reflect.construct(target, args); }, apply() { return fail(); },
+  }));
+  const reorder = (value: unknown): unknown => value && typeof value === "object"
+    ? Array.isArray(value) ? value.map(reorder) : Object.fromEntries(Object.entries(value).reverse().map(([key, item]) => [key, reorder(item)])) : value;
+  const result = derive(reorder([...privateEvents].reverse()) as LearningEventV1[], reorder([...evidence].reverse()) as EvidenceRecordV1[]);
+  assert.deepEqual(result, expected);
+  assert.equal(JSON.stringify(result), JSON.stringify(expected));
+  assert.equal(JSON.stringify([adaptVerifiedAssessment({ schemaVersion: 1, id: "spec", optionCount: 2, verifiedCorrectOptionIndex: 1,
+    ...privateFields }, { schemaVersion: 1, id: "attempt", specId: "spec", selectedOptionIndex: 1,
+    assistance: "none", occurredAt: instant, ...privateFields }), evidence, result]).includes(privateSentinel), false);
+  assert.deepEqual({ events: privateEvents, evidence }, before);
 });

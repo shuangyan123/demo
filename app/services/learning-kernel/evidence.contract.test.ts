@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import type { InterviewEvaluation, InterviewSession } from "../../types/domains/interview.ts";
 import type { Attempt, Mistake } from "../../types/domains/review.ts";
 import type { KnowledgeAttempt } from "../../types/domains/knowledge.ts";
 import type { TutoringTurn, TutoringPlan } from "../../types/domains/tutoring.ts";
-import type { LearningEventV1 } from "../../types/domains/learning-kernel.ts";
+import type { LearningEventV1, VerifiedAssessmentAttemptV1, VerifiedAssessmentSpecV1 } from "../../types/domains/learning-kernel.ts";
 import { nextStateAfterReview } from "../../lib/review-utils.ts";
 import { deriveLearnerStateSnapshot, type LearnerStateFacts } from "../learner-state-service.ts";
 import { adaptReviewAttempt, adaptKnowledgeAttempt, adaptTutoringMicroAssessment, adaptInterviewEvaluation, projectLegacyLearningEvents } from "./legacy-event-adapter.ts";
@@ -12,6 +13,7 @@ import { deriveEvidence } from "./derive-evidence.ts";
 import { buildEvidenceShadowReport } from "./evidence-shadow.ts";
 import { EVIDENCE_POLICY_VERSION, MAX_EVIDENCE_ID_LENGTH, validateEvidenceEvent } from "./evidence-policy.ts";
 import { legacyLearningEventId } from "./learning-event.ts";
+import { adaptVerifiedAssessment } from "./verified-assessment-adapter.ts";
 
 const instant = "2026-10-02T08:00:00.000Z";
 const secret = "PRIVATE-SENTINEL-MUST-NOT-LEAK";
@@ -62,6 +64,132 @@ function facts(patch: Partial<LearnerStateFacts> = {}): LearnerStateFacts {
 function freeze(value: unknown): void {
   if (value && typeof value === "object") { Object.freeze(value); Object.values(value).forEach(freeze); }
 }
+
+test("legacy v1 Evidence bytes remain identical to the 2e870fb baseline for all four source families", () => {
+  // 在修改前基线 deriveEvidence 上核对的完整 JSON 摘要：覆盖 IDs、provenance、limitations 与 outcome。
+  const evidence = deriveEvidence(allEvents()).evidence;
+  assert.equal(evidence.length, 12);
+  assert.ok(evidence.every((item) => item.policyVersion === "evidence-policy/v1"));
+  assert.equal(createHash("sha256").update(JSON.stringify(evidence)).digest("hex"),
+    "ba50bbb380eec9e5e1a3f963c15d789ec6c1b0af743bad7d17297ff8caa76985");
+});
+
+for (const matches of [true, false]) {
+  for (const assistance of ["none", "hint", "guided", "solution"] as const) {
+    test(`verified ${matches ? "correct" : "wrong"} with ${assistance} is v2 strong scoped correctness only`, () => {
+      const events = adaptVerifiedAssessment({ schemaVersion: 1, id: "verified-item", optionCount: 2, verifiedCorrectOptionIndex: 1 },
+        { schemaVersion: 1, id: "verified-attempt", specId: "verified-item", selectedOptionIndex: matches ? 1 : 0,
+          occurredAt: instant, assistance }).events;
+      const result = deriveEvidence(events);
+      assert.deepEqual(result.diagnostics, []);
+      assert.equal(result.evidence.length, 1, "本来源不额外发 completion");
+      const item = result.evidence[0];
+      assert.equal(item.policyVersion, "evidence-policy/v2");
+      assert.equal(item.claim, "correctness");
+      assert.equal(item.evidenceClass, "scored_performance");
+      assert.equal(item.strength, "strong");
+      assert.equal(item.assistance, assistance);
+      assert.deepEqual(item.outcome, { kind: "verified_key_comparison", matchesVerifiedKey: matches,
+        direction: matches ? "supports" : "refutes" });
+      assert.deepEqual(item.provenance.limitations, []);
+      assert.equal(item.provenance.adapterId, "recall-verified-assessment/v1");
+      assert.deepEqual(item.sourceRecordRefs, events[0].source.records);
+      assert.deepEqual(item.sourceEventIds, [events[0].id]);
+      assert.equal(item.measurementGroupId, events[0].id);
+      const mixed = deriveEvidence([...allEvents(), ...events]);
+      assert.deepEqual(mixed.evidence.filter((record) => record.policyVersion === "evidence-policy/v1"), deriveEvidence(allEvents()).evidence);
+      assert.equal(buildEvidenceShadowReport(events, result).policyVersion, "evidence-policy/v2");
+      assert.equal(buildEvidenceShadowReport(events, result).countsByEventKind["verification.assessed"], 1);
+      assert.equal(report().policyVersion, "evidence-policy/v1");
+      assert.equal(Object.hasOwn(report().countsByEventKind, "verification.assessed"), false);
+    });
+  }
+}
+
+function verifiedSourceEvent(attempt: Partial<VerifiedAssessmentAttemptV1> = {}, spec: Partial<VerifiedAssessmentSpecV1> = {}) {
+  return adaptVerifiedAssessment({ schemaVersion: 1, id: "stable-item", optionCount: 2, verifiedCorrectOptionIndex: 1, ...spec },
+    { schemaVersion: 1, id: "stable-attempt", specId: "stable-item", selectedOptionIndex: 1,
+      occurredAt: instant, assistance: "none", ...attempt }).events[0];
+}
+
+for (const [name, revision] of [
+  ["attempt assistance", verifiedSourceEvent({ assistance: "hint" })],
+  ["attempt selected option", verifiedSourceEvent({ selectedOptionIndex: 0 })],
+  ["attempt occurrence", verifiedSourceEvent({ occurredAt: "2026-10-03T08:00:00Z" })],
+  ["attempt spec association", verifiedSourceEvent({ specId: "other-item" }, { id: "other-item" })],
+  ["spec verified key", verifiedSourceEvent({ id: "other-attempt", selectedOptionIndex: 0 }, { verifiedCorrectOptionIndex: 0 })],
+  ["spec option count", verifiedSourceEvent({ id: "other-attempt" }, { optionCount: 3 })],
+] as const) {
+  test(`verified source identity rejects conflicting ${name} revisions across different Event IDs`, () => {
+    const events = [verifiedSourceEvent(), revision];
+    assert.notEqual(events[0].id, events[1].id, "不同 revision 的 Event ID 不再绕过稳定来源身份约束");
+    events.forEach((event) => assert.equal(validateEvidenceEvent(event), null));
+    const expected = { evidence: [], diagnostics: events.map((event) => event.id).toSorted().map((sourceEventId) => (
+      { code: "conflicting_source_identity", sourceEventId }
+    )) };
+    for (const input of [events, [...events].reverse(), [...events, ...structuredClone(events)].reverse()]) {
+      assert.deepEqual(deriveEvidence(input), expected);
+      assert.equal(JSON.stringify(deriveEvidence(input)), JSON.stringify(expected));
+    }
+    const mixed = deriveEvidence([...allEvents(), ...events]);
+    assert.deepEqual(mixed.evidence, deriveEvidence(allEvents()).evidence, "legacy Evidence 全部保持原值");
+    assert.deepEqual(mixed.diagnostics, expected.diagnostics);
+    assert.equal(buildEvidenceShadowReport(events, deriveEvidence(events)).diagnosticsByCode.conflicting_source_identity, 2);
+    assert.equal(Object.hasOwn(report().diagnosticsByCode, "conflicting_source_identity"), false);
+  });
+}
+
+test("verified source identity permits distinct attempts sharing one immutable spec and collapses identical duplicates", () => {
+  const events = [verifiedSourceEvent({ id: "stable-item" }), verifiedSourceEvent({ id: "other-attempt" })];
+  const expected = deriveEvidence(events);
+  assert.deepEqual(expected.diagnostics, []);
+  assert.equal(expected.evidence.length, 2);
+  assert.equal(new Set(expected.evidence.map((item) => item.measurementGroupId)).size, 2);
+  assert.deepEqual(events[0].source.records[1], events[1].source.records[1]);
+  const reordered = events.map((event) => ({ ...Object.fromEntries(Object.entries(event).reverse()),
+    source: { ...event.source, records: event.source.records.map((ref) => Object.fromEntries(Object.entries(ref).reverse())) },
+  }) as LearningEventV1);
+  const input = [...events, ...structuredClone(events), ...reordered].reverse();
+  const before = structuredClone(input);
+  freeze(input);
+  assert.deepEqual(deriveEvidence(input), expected);
+  assert.equal(JSON.stringify(deriveEvidence(input)), JSON.stringify(expected));
+  assert.deepEqual(input, before);
+});
+
+test("verified source identity conflict rejects only implicated records and diagnostics never expose private content", () => {
+  const privateFields = { questionText: secret, explanation: secret, providerResponse: secret };
+  const events = [verifiedSourceEvent(), verifiedSourceEvent({ assistance: "hint" }), verifiedSourceEvent({ id: "independent-attempt" })]
+    .map((event) => ({ ...event, ...privateFields, payload: { ...event.payload, ...privateFields } }));
+  const result = deriveEvidence(events);
+  assert.deepEqual(result.evidence, deriveEvidence([events[2]]).evidence);
+  assert.equal(result.diagnostics.length, 2);
+  result.diagnostics.forEach((item) => assert.deepEqual(Object.keys(item).toSorted(), ["code", "sourceEventId"]));
+  assert.equal(JSON.stringify([result, buildEvidenceShadowReport(events, result)]).includes(secret), false);
+  assert.deepEqual(deriveEvidence([...events].reverse()), result);
+});
+
+test("verified source identity conflicts cannot be hidden by dropping an Event-ID-conflicting group first", () => {
+  const assisted = verifiedSourceEvent({ assistance: "hint" });
+  const invalid = { ...assisted, payload: { ...assisted.payload, assistance: "none" as const } };
+  const unassisted = verifiedSourceEvent();
+  const events = [assisted, invalid, unassisted];
+  const result = deriveEvidence(events);
+  assert.deepEqual(result.evidence, []);
+  assert.deepEqual(result.diagnostics.map((item) => item.code).toSorted(), ["conflicting_event_identity", "conflicting_source_identity"]);
+  assert.deepEqual(deriveEvidence([...events].reverse()), result);
+});
+
+test("verified source identity cannot ignore a separately invalid event's contradictory source revision", () => {
+  const valid = verifiedSourceEvent();
+  const invalid = { ...valid, id: "invalid-revision", source: { ...valid.source,
+    records: [{ ...valid.source.records[0], revision: secret }, valid.source.records[1]] } };
+  const result = deriveEvidence([valid, invalid]);
+  assert.deepEqual(result.evidence, []);
+  assert.deepEqual(result.diagnostics.map((item) => item.code).toSorted(), ["conflicting_source_identity", "invalid_lineage"]);
+  assert.equal(JSON.stringify(result).includes(secret), false);
+  assert.deepEqual(deriveEvidence([invalid, valid]), result);
+});
 
 test("identical and shuffled inputs produce byte/deep equal evidence, diagnostics and counts without clock/random", (context) => {
   const fail = () => { throw new Error("clock/random forbidden"); };

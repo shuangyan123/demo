@@ -18,16 +18,18 @@ import "../../services/learning-kernel/evidence.contract.test.ts";
 import "../../services/learning-kernel/compatibility-snapshot.contract.test.ts";
 import "../../services/learning-kernel/derive-learner-state.contract.test.ts";
 import "../../services/learning-kernel/learner-state-policy.contract.test.ts";
+import "../../services/learning-kernel/verified-assessment-adapter.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
 /** 递归读取应用源码，用于建立不依赖第三方工具的架构守卫。 */
-async function sourceFiles(directory: string): Promise<string[]> {
+async function sourceFiles(directory: string, includeJavaScript = false): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const nested = await Promise.all(entries.map((entry) => {
     const target = path.join(directory, entry.name);
-    if (entry.isDirectory()) return sourceFiles(target);
-    return /\.(?:ts|tsx)$/.test(entry.name) && !entry.name.endsWith(".test.ts") ? [target] : [];
+    if (entry.isDirectory()) return sourceFiles(target, includeJavaScript);
+    const sourceExtension = includeJavaScript ? /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/ : /\.(?:ts|tsx)$/;
+    return sourceExtension.test(entry.name) && !/\.test\.(?:ts|mts|cts|js|mjs|cjs)$/.test(entry.name) ? [target] : [];
   }));
   return nested.flat();
 }
@@ -36,7 +38,7 @@ function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
 
-test("Recall Phase B/C/D/E2 Kernel 只依赖纯本地逻辑与 domain types", async () => {
+test("Recall Phase B/C/D/E3 Kernel 只依赖纯本地逻辑与 domain types", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const files = [path.join(APP_ROOT, "types/domains/learning-kernel.ts"), ...await sourceFiles(kernelRoot)];
   for (const file of files) {
@@ -57,7 +59,7 @@ test("Recall Phase B/C/D/E2 Kernel 只依赖纯本地逻辑与 domain types", as
       ts.forEachChild(node, inspect);
     };
     inspect(sourceFile);
-    assert.doesNotMatch(source, /\b(?:window|document|localStorage|indexedDB|fetch|XMLHttpRequest|WebSocket)\b|reviewDesktop|reviewFenbi|Date\.now\s*\(|Math\.random\s*\(|randomUUID\s*\(|getRandomValues\s*\(|performance\.now\s*\(|new\s+Date\s*\(\s*\)/);
+    assert.doesNotMatch(source, /\b(?:window|document|localStorage|indexedDB|fetch|XMLHttpRequest|WebSocket)\b|reviewDesktop|reviewFenbi|Date\.now\s*\(|Math\.random\s*\(|randomUUID\s*\(|getRandomValues\s*\(|performance\.now\s*\(|new\s+Date\s*\(\s*\)|\.localeCompare\s*\(/);
     assert.doesNotMatch(source, /["']use client["']|["']use server["']/);
   }
 });
@@ -75,7 +77,7 @@ test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState"
   }
 });
 
-test("Recall Phase E2 state / authority policy 保持 pure shadow-only，无外层 runtime consumer", async () => {
+test("Recall Phase E3 state / authority policy 保持 pure shadow-only，无外层 runtime consumer", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const stateModule = path.join(kernelRoot, "derive-learner-state.ts");
   const policyModule = path.join(kernelRoot, "learner-state-policy.ts");
@@ -84,10 +86,13 @@ test("Recall Phase E2 state / authority policy 保持 pure shadow-only，无外�
   assert.ok(staticImports(source).includes("./learner-state-policy.ts"), "派生器必须消费唯一状态权限策略");
   const policySource = await readFile(policyModule, "utf8");
   assert.match(policySource, /export function evaluateLearnerStatePromotionEligibility\(/);
-  assert.ok(staticImports(policySource).every((specifier) => ["../../types/domains/learning-kernel.ts", "./learning-event.ts"].includes(specifier)),
-    "小型权限策略只依赖纯 domain types / 确定性字符串 helper");
-  assert.doesNotMatch(policySource, /\.payload\b|\.outcome\b|\b(?:console|telemetry)\s*\./,
-    "有利结果或原始 payload 不能授予权限");
+  assert.ok(staticImports(policySource).every((specifier) => ["../../types/domains/learning-kernel.ts", "./learning-event.ts",
+    "./derive-evidence.ts", "./evidence-policy.ts"].includes(specifier)),
+    "权限策略只允许纯 domain、确定性 helper 与 canonical Evidence engine/version");
+  assert.match(policySource, /deriveEvidence\(events\)/);
+  assert.match(policySource, /sameCanonicalEvidence\(item, expected\)/);
+  assert.doesNotMatch(policySource, /\.payload\b|\b(?:console|telemetry)\s*\./,
+    "必须先核对 canonical authority，再解释 scoped outcome；不能读取原始 payload");
   assert.doesNotMatch(source, /\.payload\b|\brecordedAt\s*[=:]|\b(?:console|telemetry)\s*\./,
     "state layer 不读取 Event payload 绕过 Evidence，也不输出 telemetry");
   const kernelFiles = await sourceFiles(kernelRoot);
@@ -109,7 +114,7 @@ test("Recall Phase E2 state / authority policy 保持 pure shadow-only，无外�
         const target = (specifier.startsWith("@/") ? path.join(APP_ROOT, specifier.slice(2))
           : path.resolve(path.dirname(file), specifier)).replace(/\.ts$/, "");
         assert.ok(![stateModule, policyModule].some((module) => target === module.replace(/\.ts$/, "")),
-          `${file} 不得在 E2 接入 state / authority policy（包括 compatibility bridge）`);
+          `${file} 不得在 E3 接入 state / authority policy（包括 compatibility bridge）`);
       }
       ts.forEachChild(node, inspect);
     };
@@ -117,6 +122,47 @@ test("Recall Phase E2 state / authority policy 保持 pure shadow-only，无外�
   }
   const compatibility = await readFile(path.join(kernelRoot, "compatibility-snapshot.ts"), "utf8");
   assert.doesNotMatch(compatibility, /LearnerTargetState|LearnerStatePromotion|promotionEligibility|learner-state-policy|derive-learner-state/);
+});
+
+test("Recall verified assessment adapter 无 production writer，Fenbi wrong-only ImportDraft 不获验证权限", async () => {
+  const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
+  const adapter = path.join(kernelRoot, "verified-assessment-adapter.ts");
+  assert.match(await readFile(adapter, "utf8"), /export function adaptVerifiedAssessment\(/);
+  const runtimeFiles = [...await sourceFiles(APP_ROOT),
+    ...await sourceFiles(path.resolve(process.cwd(), "desktop"), true),
+    ...await sourceFiles(path.resolve(process.cwd(), "scripts"), true)];
+  for (const file of runtimeFiles) {
+    const source = await readFile(file, "utf8");
+    if (file.startsWith(`${kernelRoot}${path.sep}`) || file === path.join(APP_ROOT, "types/domains/learning-kernel.ts")) continue;
+    assert.doesNotMatch(source, /VerifiedAssessment|adaptVerifiedAssessment|verification\.assessed|recall-verified-assessment\/v1|LearnerTargetStateV1|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility/,
+      `${file} 不得接入新验证来源、state authority 或产生 verified Event`);
+    const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    const inspect = (node: ts.Node) => {
+      let specifier: string | undefined;
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specifier = node.moduleSpecifier.text;
+      if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+        || (ts.isIdentifier(node.expression) && node.expression.text === "require")) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) specifier = node.arguments[0].text;
+      if (specifier) {
+        const target = (specifier.startsWith("@/") ? path.join(APP_ROOT, specifier.slice(2))
+          : path.resolve(path.dirname(file), specifier)).replace(/\.ts$/, "");
+        assert.ok(![adapter, path.join(kernelRoot, "derive-learner-state.ts"), path.join(kernelRoot, "learner-state-policy.ts")]
+          .some((module) => target === module.replace(/\.ts$/, "")), `${file} 不得 import/re-export/dynamic import 新来源或 state authority`);
+      }
+      ts.forEachChild(node, inspect);
+    };
+    inspect(sourceFile);
+  }
+  const fenbi = await readFile(path.join(APP_ROOT, "server/import/fenbi-account-import-adapter.ts"), "utf8");
+  assert.match(fenbi, /Promise<ImportDraft\[\]>/);
+  assert.match(fenbi, /normalizeFenbiDraft\(toDraftInput/);
+  assert.match(fenbi, /\/api\/xingce\/errors\?/);
+  assert.match(await readFile(path.join(APP_ROOT, "types/domains/fenbi-import.ts"), "utf8"), /wrongOnly: true/);
+  const parser = await readFile(path.join(APP_ROOT, "services/fenbi-parser.ts"), "utf8");
+  assert.match(parser, /normalizeFenbiDraft\(input: FenbiDraftInput\): ImportDraft/);
+  for (const name of ["compatibility-snapshot.ts", "../learner-state-service.ts"]) {
+    const source = await readFile(path.join(kernelRoot, name), "utf8");
+    assert.doesNotMatch(source, /VerifiedAssessment|verification\.assessed|verified-assessment|learner-state-policy|derive-learner-state/);
+  }
 });
 
 test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入", async () => {

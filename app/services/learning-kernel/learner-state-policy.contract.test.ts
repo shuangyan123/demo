@@ -6,6 +6,7 @@ import { deriveEvidence } from "./derive-evidence.ts";
 import { adaptReviewAttempt, adaptInterviewEvaluation } from "./legacy-event-adapter.ts";
 import { evaluateLearnerStatePromotionEligibility, LEARNER_STATE_POLICY_VERSION } from "./learner-state-policy.ts";
 import { compareLearningEventText } from "./learning-event.ts";
+import { adaptVerifiedAssessment } from "./verified-assessment-adapter.ts";
 
 const instant = "2026-10-02T08:00:00Z";
 const sentinel = "PRIVATE-POLICY-CONTENT-MUST-NOT-LEAK";
@@ -25,8 +26,8 @@ function rubricEvidence(): EvidenceRecordV1[] {
   return deriveEvidence(adaptInterviewEvaluation(evaluation, session).events).evidence;
 }
 
-test("V1 is completed before runtime adoption; blocked explanations are separate from dimension values", () => {
-  assert.equal(LEARNER_STATE_POLICY_VERSION, "learner-state-policy/v1");
+test("V2 preserves legacy blocked explanations before runtime adoption", () => {
+  assert.equal(LEARNER_STATE_POLICY_VERSION, "learner-state-policy/v2");
   const policy = evaluateLearnerStatePromotionEligibility(reviewEvidence());
   assert.deepEqual(Object.keys(policy), ["understanding", "independence", "retention", "transfer"]);
   assert.deepEqual(policy.understanding.blockers,
@@ -42,6 +43,82 @@ test("V1 is completed before runtime adoption; blocked explanations are separate
     assert.equal(eligibility.candidateEvidenceIds.length, 1);
     assert.equal(eligibility.candidateMeasurementGroupIds.length, 1);
   }
+});
+
+function verified(id: string, matches = true, assistance: "none" | "hint" | "guided" | "solution" = "none") {
+  return adaptVerifiedAssessment({ schemaVersion: 1, id: "item", optionCount: 2, verifiedCorrectOptionIndex: 1 },
+    { schemaVersion: 1, id, specId: "item", selectedOptionIndex: matches ? 1 : 0, occurredAt: instant, assistance }).events;
+}
+
+test("only canonical verified lineage qualifies; Evidence shape alone including the new adapter grants no authority", () => {
+  const events = verified("pass");
+  const evidence = deriveEvidence(events).evidence;
+  const policy = evaluateLearnerStatePromotionEligibility(evidence, events);
+  for (const dimension of ["understanding", "independence"] as const) {
+    assert.equal(policy[dimension].status, "eligible");
+    assert.deepEqual(policy[dimension].eligibleEvidenceIds, [evidence[0].id]);
+    assert.deepEqual(policy[dimension].eligibleSupportingEvidenceIds, [evidence[0].id]);
+    assert.deepEqual(policy[dimension].eligibleRefutingEvidenceIds, []);
+    assert.deepEqual(policy[dimension].blockers, []);
+  }
+  assert.deepEqual(policy.retention.eligibleEvidenceIds, []);
+  assert.deepEqual(policy.retention.blockers, ["missing_delayed_verification"]);
+  assert.deepEqual(policy.transfer.eligibleEvidenceIds, []);
+  assert.deepEqual(policy.transfer.blockers, ["missing_transfer_context"]);
+  assert.equal(evaluateLearnerStatePromotionEligibility(evidence).understanding.status, "blocked");
+  for (const forged of [{ ...evidence[0], strength: "weak" as const }, { ...evidence[0], assistance: "hint" as const },
+    { ...evidence[0], evidenceClass: "human_assessment" as const }, { ...evidence[0], claim: "understanding" as const },
+    { ...evidence[0], provenance: { ...evidence[0].provenance, modelAuthored: true } }]) {
+    assert.deepEqual(evaluateLearnerStatePromotionEligibility([forged], events).understanding.eligibleEvidenceIds, []);
+  }
+});
+
+test("one logical attempt cannot acquire authority through assisted and unassisted source revisions", () => {
+  const events = [...verified("same-attempt", true, "hint"), ...verified("same-attempt", true, "none")];
+  // 每条孤立投影曾可 canonical；完整来源 scope 中两条修订互斥，旧 Evidence 也不能借 shape 授权。
+  const staleEvidence = events.flatMap((event) => deriveEvidence([event]).evidence);
+  assert.equal(staleEvidence.length, 2);
+  const result = evaluateLearnerStatePromotionEligibility(staleEvidence, events);
+  for (const dimension of ["understanding", "independence"] as const) {
+    assert.equal(result[dimension].status, "blocked");
+    assert.deepEqual(result[dimension].eligibleEvidenceIds, []);
+    assert.deepEqual(result[dimension].eligibleSupportingEvidenceIds, []);
+    assert.deepEqual(result[dimension].eligibleRefutingEvidenceIds, []);
+    assert.ok(result[dimension].blockers.includes("no_qualified_direct_evidence"));
+  }
+  assert.deepEqual(evaluateLearnerStatePromotionEligibility([...staleEvidence].reverse(), [...events].reverse()), result);
+});
+
+test("qualified refuting and assisted measurements remain visible but blocked from positive promotion", () => {
+  for (const assistance of ["none", "hint", "guided", "solution"] as const) {
+    for (const matches of [true, false]) {
+      const events = verified("measurement", matches, assistance);
+      const evidence = deriveEvidence(events).evidence;
+      const policy = evaluateLearnerStatePromotionEligibility(evidence, events);
+      for (const dimension of ["understanding", "independence"] as const) {
+        const eligibility = policy[dimension];
+        assert.deepEqual(eligibility.eligibleEvidenceIds, [evidence[0].id]);
+        assert.deepEqual(eligibility.eligibleSupportingEvidenceIds, matches ? [evidence[0].id] : []);
+        assert.deepEqual(eligibility.eligibleRefutingEvidenceIds, matches ? [] : [evidence[0].id]);
+        assert.deepEqual(eligibility.blockers, !matches ? ["no_qualified_supporting_evidence"]
+          : assistance !== "none" ? ["assistance_present"] : []);
+        assert.equal(eligibility.status, matches && assistance === "none" ? "eligible" : "blocked");
+      }
+    }
+  }
+});
+
+test("qualified support/refute conflict preserves all IDs; order and duplicate measurements do not select a winner", () => {
+  const events = [...verified("pass"), ...verified("fail", false)];
+  const evidence = deriveEvidence(events).evidence;
+  const policy = evaluateLearnerStatePromotionEligibility(evidence, events);
+  assert.deepEqual(policy.understanding.blockers, ["conflicting_qualified_evidence"]);
+  assert.deepEqual(policy.understanding.eligibleEvidenceIds, evidence.map((item) => item.id));
+  assert.equal(policy.understanding.eligibleSupportingEvidenceIds.length, 1);
+  assert.equal(policy.understanding.eligibleRefutingEvidenceIds.length, 1);
+  assert.equal(policy.understanding.status, "blocked");
+  assert.deepEqual(evaluateLearnerStatePromotionEligibility([...evidence, ...evidence].reverse(), [...events, ...events].reverse()), policy);
+  assert.equal(JSON.stringify(evaluateLearnerStatePromotionEligibility([...evidence].reverse(), [...events].reverse())), JSON.stringify(policy));
 });
 
 test("empty or strong completion-only scope has no candidate learning measurements", () => {
