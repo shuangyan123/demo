@@ -607,6 +607,44 @@ for (const wrongAssistance of ["none", "hint", "guided", "solution"] as const) {
   });
 }
 
+for (const assistance of ["hint", "guided", "solution"] as const) {
+  test(`one logical attempt with ${assistance} and none revisions never gains understanding or independence`, () => {
+    const events = [...verified("same-attempt", true, assistance), ...verified("same-attempt", true, "none")];
+    const canonical = deriveEvidence(events);
+    assert.deepEqual(canonical.evidence, []);
+    assert.ok(canonical.diagnostics.every((item) => item.code === "conflicting_source_identity"));
+    const result = derive(events, canonical.evidence);
+    assert.deepEqual(result.states, []);
+    assert.deepEqual(result.diagnostics, canonical.diagnostics.map((item) => ({ ...item, sourceEvidenceId: null })));
+    assert.deepEqual(derive([...events].reverse(), []), result);
+    // 调用方分别派生后拼接、或只供应有利修订，都不能恢复已冲突来源的权限。
+    for (const stale of [events.flatMap((event) => deriveEvidence([event]).evidence), deriveEvidence([events[1]]).evidence]) {
+      const rejected = derive(events, stale);
+      assert.deepEqual(rejected.states, []);
+      assert.ok(rejected.diagnostics.some((item) => item.code === "orphan_evidence"));
+      assert.deepEqual(derive([...events].reverse(), [...stale].reverse()), rejected);
+    }
+  });
+}
+
+test("verified source identity validation precedes asOf without weakening complete canonical scope", () => {
+  const past = verified("same-attempt", true, "hint", "2026-10-01T08:00:00Z");
+  const futureRevision = verified("same-attempt", true, "none", "2026-10-05T08:00:00Z");
+  const events = [...past, ...futureRevision, ...knowledge()];
+  const canonical = deriveEvidence(events);
+  assert.deepEqual(canonical.evidence, deriveEvidence(knowledge()).evidence);
+  const result = derive(events, canonical.evidence);
+  assert.equal(result.states.length, 1);
+  assertFloor(result.states[0]);
+  assert.equal(result.states[0].target.category, "knowledge");
+  assert.equal(result.diagnostics.length, 2);
+  assert.ok(result.diagnostics.every((item) => item.code === "conflicting_source_identity"));
+  assert.deepEqual(derive([...events].reverse(), [...canonical.evidence].reverse()), result);
+  const incomplete = derive(events, canonical.evidence.filter((item) => item.claim !== "completion"));
+  assert.deepEqual(incomplete.states, []);
+  assert.ok(incomplete.diagnostics.some((item) => item.code === "incomplete_evidence_scope"));
+});
+
 test("multiple clean supports never exceed emerging; assisted support is excluded from actual dimension references", () => {
   const events = [...Array.from({ length: 5 }, (_, i) => verified(`correct-${i}`, true, "none", `2026-09-0${i + 1}T08:00:00Z`)).flat(),
     ...verified("assisted", true, "hint", "2026-10-03T08:00:00Z")];

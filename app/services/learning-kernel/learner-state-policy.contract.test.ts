@@ -73,6 +73,22 @@ test("only canonical verified lineage qualifies; Evidence shape alone including 
   }
 });
 
+test("one logical attempt cannot acquire authority through assisted and unassisted source revisions", () => {
+  const events = [...verified("same-attempt", true, "hint"), ...verified("same-attempt", true, "none")];
+  // 每条孤立投影曾可 canonical；完整来源 scope 中两条修订互斥，旧 Evidence 也不能借 shape 授权。
+  const staleEvidence = events.flatMap((event) => deriveEvidence([event]).evidence);
+  assert.equal(staleEvidence.length, 2);
+  const result = evaluateLearnerStatePromotionEligibility(staleEvidence, events);
+  for (const dimension of ["understanding", "independence"] as const) {
+    assert.equal(result[dimension].status, "blocked");
+    assert.deepEqual(result[dimension].eligibleEvidenceIds, []);
+    assert.deepEqual(result[dimension].eligibleSupportingEvidenceIds, []);
+    assert.deepEqual(result[dimension].eligibleRefutingEvidenceIds, []);
+    assert.ok(result[dimension].blockers.includes("no_qualified_direct_evidence"));
+  }
+  assert.deepEqual(evaluateLearnerStatePromotionEligibility([...staleEvidence].reverse(), [...events].reverse()), result);
+});
+
 test("qualified refuting and assisted measurements remain visible but blocked from positive promotion", () => {
   for (const assistance of ["none", "hint", "guided", "solution"] as const) {
     for (const matches of [true, false]) {

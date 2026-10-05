@@ -2,8 +2,9 @@ import type {
   EvidenceClaimV1, EvidenceDerivationV1, EvidenceLimitationV1, EvidenceOutcomeV1,
   EvidenceRecordV1, LearningEventV1,
 } from "../../types/domains/learning-kernel.ts";
-import { compareLearningEventText } from "./learning-event.ts";
+import { compareLearningEventText, isLegacyRecordId } from "./learning-event.ts";
 import { EVIDENCE_POLICY_VERSION, VERIFIED_EVIDENCE_POLICY_VERSION, isEvidenceSourceEventId, MAX_EVIDENCE_ID_LENGTH, validateEvidenceEvent } from "./evidence-policy.ts";
+import { VERIFIED_ASSESSMENT_ADAPTER_ID } from "./verified-assessment-adapter.ts";
 
 /** 仅用于内存中的冲突检测；不输出源内容。排序键避免对象属性顺序影响去重。 */
 function fingerprint(value: unknown, ancestors = new Set<object>(), depth = 0): string {
@@ -88,8 +89,22 @@ function mapEvent(event: LearningEventV1): Array<EvidenceRecordV1 | null> {
 /** Phase C 只产生有限 Evidence；冲突身份整组拒绝，不选择输入顺序 winner。 */
 export function deriveEvidence(events: readonly LearningEventV1[]): EvidenceDerivationV1 {
   const groups = new Map<string, { event: LearningEventV1; fingerprint: string | null; conflict: boolean }>();
+  const verifiedSources = new Map<string, { revision: string; conflict: boolean }>();
   const diagnostics: EvidenceDerivationV1["diagnostics"] = [];
   for (const event of events) {
+    // 先锁定整个输入 scope 的来源身份；不能先丢弃 Event 冲突组或未来项后让另一个修订获权。
+    if (event?.kind === "verification.assessed" && event.source?.adapterId === VERIFIED_ASSESSMENT_ADAPTER_ID
+      && Array.isArray(event.source.records)) {
+      for (const ref of event.source.records) {
+        if ((ref?.recordType !== "verification_attempt" && ref?.recordType !== "verification_spec")
+          || !isLegacyRecordId(ref.recordId) || typeof ref.revision !== "string"
+          || ref.revision.length > 4096 || !ref.revision.isWellFormed()) continue;
+        const key = JSON.stringify([ref.recordType, ref.recordId]);
+        const previous = verifiedSources.get(key);
+        if (previous) previous.conflict ||= previous.revision !== ref.revision;
+        else verifiedSources.set(key, { revision: ref.revision, conflict: false });
+      }
+    }
     if (!event || !isEvidenceSourceEventId(event.id)) {
       diagnostics.push({ code: "invalid_event", sourceEventId: null });
       continue;
@@ -106,6 +121,13 @@ export function deriveEvidence(events: readonly LearningEventV1[]): EvidenceDeri
       : group.fingerprint === null ? "invalid_event" : validateEvidenceEvent(group.event);
     if (error) {
       diagnostics.push({ code: error, sourceEventId: id });
+      continue;
+    }
+    // 无 spec-version / attempt-supersession 契约时，同一稳定来源的不同 revision 整组拒绝。
+    if (group.event.kind === "verification.assessed" && group.event.source.records.some((ref) => (
+      verifiedSources.get(JSON.stringify([ref.recordType, ref.recordId]))?.conflict
+    ))) {
+      diagnostics.push({ code: "conflicting_source_identity", sourceEventId: id });
       continue;
     }
     const records = mapEvent(group.event);

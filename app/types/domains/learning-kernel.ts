@@ -163,7 +163,7 @@ export type EvidenceRecordV1 = {
 
 export type EvidencePolicyDiagnostic = {
   code: "invalid_event" | "invalid_provenance" | "invalid_lineage" | "invalid_measurement"
-    | "conflicting_event_identity" | "identity_out_of_bounds";
+    | "conflicting_event_identity" | "conflicting_source_identity" | "identity_out_of_bounds";
   /** 只保留合法的 opaque event identity，不复制无效 payload 或错误正文。 */
   sourceEventId: string | null;
 };

@@ -14,7 +14,8 @@ export type EvidenceShadowReportV1 = {
   countsByEventKind: Record<Exclude<LearningEventKindV1, "verification.assessed">, number> & { "verification.assessed"?: number };
   countsByEvidenceClass: Record<EvidenceClassV1, number>;
   countsByClaim: Record<EvidenceClaimV1, number>;
-  diagnosticsByCode: Record<EvidencePolicyDiagnostic["code"], number>;
+  diagnosticsByCode: Record<Exclude<EvidencePolicyDiagnostic["code"], "conflicting_source_identity">, number>
+    & { conflicting_source_identity?: number };
   authorityLimitationCounts: Record<EvidenceLimitationV1, number>;
 };
 
@@ -44,6 +45,9 @@ export function buildEvidenceShadowReport(events: readonly LearningEventV1[], de
     report.countsByClaim[item.claim]++;
     for (const limitation of item.provenance.limitations) report.authorityLimitationCounts[limitation]++;
   }
-  for (const diagnostic of derivation.diagnostics) report.diagnosticsByCode[diagnostic.code]++;
+  for (const diagnostic of derivation.diagnostics) {
+    // 新来源的拒绝计数按需增加，legacy-only report 的字段与字节形状不变。
+    report.diagnosticsByCode[diagnostic.code] = (report.diagnosticsByCode[diagnostic.code] ?? 0) + 1;
+  }
   return report;
 }
