@@ -83,35 +83,39 @@ Historical M5-F originally froze the `0.3.0` production tuple. A subsequent
 activation attempt failed the trusted Windows release E2E gate; the exact
 `v0.3.0` tag at SHA `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` remains an
 immutable unpublished failed candidate and has no GitHub Release. It must never
-be deleted, moved, retagged, reused or published. The current PR #125 is
-**M5-G RECOVERY FIX** for source candidate `0.3.1`; expected tag `v0.3.1` is
-absent. The final main SHA remains dynamically bound by the later freeze/main
-state and cannot be hard-coded in the pre-squash PR. M5-H/I/J remain incomplete,
-and the current classification is **WINDOWS PRODUCTION RELEASE READY: NO**.
+be deleted, moved, retagged, reused or published. PR #125 is the
+**MERGED M5-G RECOVERY IMPLEMENTATION** for `0.3.1`; it was not the production
+freeze. The current dedicated `0.3.1` production tuple re-freeze is **UNDER
+REVIEW**; expected tag `v0.3.1` is absent. The final main SHA remains
+dynamically bound by this later freeze/main state and cannot be hard-coded in
+the pre-squash PR. M5-H/I/J remain incomplete, and the current classification is
+**WINDOWS PRODUCTION RELEASE READY: NO**.
 
-## M5-G recovery fix and later activation protocol
+## M5-G recovery implementation, re-freeze, and later activation protocol
 
-PR #125 must remain Draft and must not create `v0.3.1`, create a Draft Release,
-publish anything, or perform M5-H Level 3 acceptance. Its exact Windows + Node
-`24.20.0` full E2E gate is recovery evidence only. If PR #125 merges, the
-recovery source changes are on `main`, but the `0.3.1` production tuple is still
-**NOT YET FROZEN**.
+PR #125 is already merged and did not create `v0.3.1`, a Draft Release, or any
+publication. The current dedicated re-freeze PR must remain Draft and must not
+create `v0.3.1`, create a Draft Release, publish anything, or perform M5-H
+Level 3 acceptance. Its static tuple definition is under review; operational
+freeze is not complete until this PR is reviewed, owner-authorized and merged,
+and the exact post-freeze `main` CI passes. The exact Windows + Node `24.20.0`
+full E2E gate from PR #125 remains recovery evidence only.
 
 The trusted owner/operator must complete this sequence before any real M5-G
 activation:
 
-1. Record a successful exact post-merge `main` CI run for the merged PR #125
-   recovery source.
-2. Open a separate, dedicated `0.3.1` production tuple re-freeze milestone. In
-   a reviewed and merged freeze change, record every static field listed in
+1. Preserve the successful exact post-merge `main` CI run for merged PR #125 as
+   recovery evidence.
+2. Review the current dedicated `0.3.1` production tuple re-freeze PR. It records
+   every static field listed in
    [`windows-production-v1-release-policy.md`](../windows-production-v1-release-policy.md),
    including package/tag/installer identity, Windows x64 stable NSIS per-user
    mode, Electron and both Node versions, electron-builder, app identity,
    intentionally unsigned/Authenticode state, `publish=null`, no-updater
    metadata, and the strict fuse tuple.
-3. Require the exact post-freeze `main` CI to pass. The exact main SHA produced
-   by that freeze merge is the only source SHA eligible for the later activation;
-   PR #125 is not the production freeze.
+3. After owner-authorized merge, require the exact post-freeze `main` CI to pass.
+   The exact main SHA produced by that freeze merge is the only source SHA eligible
+   for the later activation; PR #125 is not the production freeze.
 4. After owner authorization, confirm `v0.3.1` and its Release are absent, and
    confirm immutable `v0.3.0` still points to
    `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` with no Release.
@@ -169,7 +173,8 @@ arbitrary code to reach production publication.**
   Authenticode-backed identity or integrity.
 - Rollback and Draft Release asset round-trip remain M5 concerns. M5-D's
   production NSIS cutover, M5-E's unsigned staged-artifact/checksum provenance,
-  and M5-G's `0.3.1` recovery candidate/tuple update are implemented; the
+  PR #125's `0.3.1` recovery implementation is merged and the dedicated
+  production tuple re-freeze is under review; the
   historical M5-F `0.3.0` tuple remains historical, while its subsequent exact
   `v0.3.0` activation outcome is an immutable failed unpublished candidate; auto-updater behavior is intentionally excluded from production-v1 and remains
   a separate future milestone. The unsigned

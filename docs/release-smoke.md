@@ -9,10 +9,11 @@
 
 当前 canonical release workflow 是
 `.github/workflows/trusted-desktop-release.yml`：它由成功的 `CI` main
-`workflow_run` 驱动，并创建待人工确认的 Draft Release。历史
+`workflow_run` 驱动，并在后续授权阶段创建待人工确认的 Draft Release。历史
 `.github/workflows/desktop-release.yml` 已从当前 tree 删除，GitHub Actions
 API 当前状态为 `deleted`，仅保留为 SEC-04 历史证据。当前 package/runtime recovery
-candidate 为 `0.3.1` / Electron `43.4.1`；原 `v0.3.0`（SHA
+PR #125 的 package/runtime recovery implementation 已合并；当前 `0.3.1` static production tuple re-freeze
+正在 **UNDER REVIEW** / Electron `43.4.1`；原 `v0.3.0`（SHA
 `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3`）是 unpublished failed candidate，必须
 保持 immutable、不得 retag；实际 Electron embedded Node readback
 为 `24.18.1`，bundled Node 为 `24.20.0`；生产/default installer 现为
@@ -23,8 +24,8 @@ source/staged/evidence reconciliation、实际 unsigned Authenticode 检查，�
 exact-SHA Actions artifact 下载后的 checksum verification；M5-G 现在还会使用
 `--verify-tag` 创建或安全恢复 Draft、read back 实际 Release metadata、按 asset ID
 下载两项 GitHub asset 到独立目录，并完成跨目录 SHA/byte-size reconciliation；真实
-activation 不能由 PR #125 直接触发；合并后的 exact main CI 之后，仍必须先完成
-新的 `0.3.1` production tuple re-freeze，并通过该 freeze merge 后的 exact main CI。
+activation 不能由 PR #125 直接触发；当前 re-freeze change 必须先完成 review、
+owner-authorized merge，并通过该 freeze merge 后的 exact main CI。
 
 ## Historical M5-F · final 0.3.0 production tuple freeze
 
@@ -47,10 +48,10 @@ outcome：**v0.3.0 IMMUTABLE FAILED UNPUBLISHED CANDIDATE**。
 - M5-E checksum/manifest and unsigned Authenticode boundaries remain intact。
   M5-G real activation、M5-H/I/J remain incomplete；**WINDOWS PRODUCTION RELEASE READY: NO**。
 
-## Current M5-G · 0.3.1 recovery E2E and exact-SHA Draft Release asset round-trip
+## Current 0.3.1 production tuple re-freeze · pending M5-G activation
 
-状态：**M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
-NOT TAGGED / NOT ACTIVATED; PR #125 DRAFT**；当前仍为
+状态：**0.3.1 PRODUCTION TUPLE RE-FREEZE — UNDER REVIEW /
+v0.3.1 — NOT TAGGED / M5-G ACTIVATION — NOT STARTED**；当前仍为
 **WINDOWS PRODUCTION RELEASE READY: NO**。
 
 - Release job 使用 `out/release-canonical/` 保存 exact-SHA Actions artifact，使用
@@ -62,16 +63,15 @@ NOT TAGGED / NOT ACTIVATED; PR #125 DRAFT**；当前仍为
 - 机器可读 evidence 记录 package version、expected tag、authorized source SHA、tag
   commit、Actions artifact identity、Draft Release ID/status、asset IDs、两次 byte
   size/SHA-256 与 reconciliation result；不记录凭据。
-- PR #125 adds the PR-only Windows `windows-latest` + Node `24.20.0` full E2E
-  gate with exact-head verification, `npm ci`, production build, Playwright
-  Chromium and `CI=1`; its GitHub result is required recovery evidence and is
-  not replaced by local Node 26 runs or Ubuntu E2E.
-- 当前 source candidate package version 为 `0.3.1`；本轮只验证代码、契约和 E2E，
-  不创建 `v0.3.1` tag、Draft Release 或 GitHub Release。
-- 本实现 PR 不创建真实 tag、Draft Release 或 publication。PR #125 合并后，恢复
-  source changes 在 main 上，但 `0.3.1` production tuple 仍 **NOT YET FROZEN**。
-  必须先完成新的 dedicated production tuple re-freeze、review/merge freeze change
-  并通过 exact post-freeze main CI；只有之后 owner authorization 才能确认
+- PR #125 已提供并合并 PR-only Windows `windows-latest` + Node `24.20.0` full E2E
+  gate；其 exact-head、production build、Playwright Chromium 和 `CI=1` 结果是
+  recovery evidence，不由 local Node 26 或 Ubuntu E2E 替代。
+- 当前 static production tuple package version 为 `0.3.1`；本次 re-freeze 只记录
+  静态身份和治理边界，不创建 `v0.3.1` tag、Draft Release 或 GitHub Release。
+- PR #125 的 recovery source changes 已在 main 上；当前 dedicated re-freeze PR
+  正在 review。静态 tuple 已写入 repository contract，但 operational freeze 只有
+  在本 PR review、owner-authorized merge 和 exact post-freeze main CI 完成后才成立。
+  只有之后 owner authorization 才能确认
   `v0.3.1` tag/Release absent、在 exact frozen main SHA 创建 tag、验证 tag，并重新
   运行同一成功 main CI。tag push 单独不授予 release authority。成功后仍停在 Draft，
   M5-H Level 3、M5-I runbook 与 M5-J publication 不能由本流程代替。
@@ -81,7 +81,7 @@ NOT TAGGED / NOT ACTIVATED; PR #125 DRAFT**；当前仍为
 状态：**M5-E UNSIGNED ARTIFACT / CHECKSUM PROVENANCE COMPLETE**；Windows production release remains **NOT READY**。
 
 - Canonical builder：`electron-builder 26.16.0` + bundled NSIS，Windows x64、per-user、assisted installer。
-- Canonical installer：`ReviewWorkspace-${version}-Windows-x64-Setup.exe`；当前 source candidate package version 为 `0.3.1`。
+- Canonical installer：`ReviewWorkspace-${version}-Windows-x64-Setup.exe`；当前 frozen static tuple package version 为 `0.3.1`。
 - Trusted release build：成功的 `CI` main `workflow_run` 通过 exact authorized SHA checkout 后，执行 `desktop:prepare`、NSIS unpacked/bundle、source/evidence/artifact readback，再由唯一 finalizer 清空 `out/release/`、复制 canonical installer、从最终 staged bytes 生成并自校验 `SHA256SUMS.txt`、核对 source/staged/evidence hash、在 Windows 上确认 `NotSigned` 且无 signer/timestamp signer，并在 upload 前确认 public boundary 只有 installer + `SHA256SUMS.txt`；production-v1 保持 intentionally unsigned，`CSC_IDENTITY_AUTO_DISCOVERY=false`。
 - Exact-SHA artifact readback：release job checkout 授权 SHA 后下载 Actions artifact，重新校验目录边界、canonical filename、manifest syntax 与 downloaded installer SHA-256，失败时不会进入 Draft creation。
 - Squirrel：`desktop:make`、Forge/MakerSquirrel、`out/make`、历史 `.nupkg` 和 M3/M4 contracts 继续保留，但不再是 trusted production builder。

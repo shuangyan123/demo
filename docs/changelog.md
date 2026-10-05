@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-07 — 0.3.1 production tuple re-freeze under review
+
+- Recorded the complete static Windows x64 stable per-user NSIS production tuple
+  for package `0.3.1`, including Electron `43.4.1`, embedded Node `24.18.1`,
+  bundled Node `24.20.0`, electron-builder `26.16.0`, application identity,
+  intentionally unsigned Authenticode state, `publish=null`, no-updater
+  metadata, and the strict Electron fuse tuple.
+- Reclassified PR #125 as the **MERGED M5-G RECOVERY IMPLEMENTATION**; its
+  recovery source and exact post-merge CI are not the production freeze.
+- The current dedicated re-freeze PR is Draft and **UNDER REVIEW**. Its final
+  operational freeze requires review, owner-authorized merge, and exact
+  post-freeze `main` CI. The final source SHA remains the exact squash/merge
+  result and is not hard-coded.
+- This change creates no `v0.3.1` tag, Draft Release or GitHub Release.
+  M5-G activation is **NOT STARTED**. The immutable failed unpublished
+  `v0.3.0` candidate remains unchanged.
+
 ## 2026-09-07 — M5-G Windows release E2E recovery candidate 0.3.1
 
 - Replaced the reload conversation click race with a state-based persisted Sidebar
@@ -10,14 +27,13 @@
   production tuple contracts to source candidate `0.3.1`.
 - Added a PR-only `windows-latest` + Node `24.20.0` full E2E gate with exact PR-head
   verification, `npm ci`, production build, Playwright Chromium and explicit `CI=1`.
-- Corrected the release-governance boundary: PR #125 is a recovery fix only, and a
-  dedicated reviewed/merged `0.3.1` production tuple re-freeze plus exact
-  post-freeze main CI is mandatory before M5-G activation.
+- Corrected the release-governance boundary: PR #125 was a recovery fix only and
+  has since merged; a separate reviewed/merged `0.3.1` production tuple
+  re-freeze plus exact post-freeze main CI is mandatory before M5-G activation.
 - `v0.3.0` at `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3` remains an immutable,
   unpublished failed candidate; its exact tag and no-Release state must remain
-  unchanged. This task creates no `v0.3.1` tag, Draft Release or GitHub Release;
-  PR #125 remains **M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
-  NOT TAGGED / NOT ACTIVATED**.
+- unchanged. The PR #125 implementation created no `v0.3.1` tag, Draft Release
+  or GitHub Release and did not freeze the production tuple.
 
 ## 2026-09-06 — M5-G exact-SHA Draft Release round-trip pipeline
 
@@ -32,7 +48,8 @@
   unsigned/no-updater policy, and the no-tag/no-publication boundary. The later
   `v0.3.0` activation attempt and trusted Windows E2E failure remain historical
   context for the immutable unpublished failed candidate. The `0.3.1` recovery
-  source requires a new production tuple re-freeze before activation; M5-H Level 3,
+  source is merged; its dedicated production tuple re-freeze is now under review
+  before activation; M5-H Level 3,
   M5-I runbook and M5-J publication remain pending.
 
 ## 2026-09-06 — M5-F 0.3.0 production tuple freeze
