@@ -61,6 +61,10 @@ function assertFloor(state: LearnerTargetStateV1): void {
   for (const [dimension, eligibility] of Object.entries(state.promotionEligibility)) {
     assert.equal(eligibility.status, "blocked");
     assert.deepEqual(eligibility.eligibleEvidenceIds, []);
+    assert.deepEqual(eligibility.effectiveEvidenceIds, []);
+    assert.deepEqual(eligibility.effectiveSupportingEvidenceIds, []);
+    assert.deepEqual(eligibility.effectiveRefutingEvidenceIds, []);
+    assert.deepEqual(eligibility.historicalQualifiedEvidenceIds, []);
     assert.deepEqual(eligibility.candidateEvidenceIds, state.sourceEvidenceIds);
     assert.deepEqual(eligibility.candidateMeasurementGroupIds, eligibility.candidateMeasurementGroupIds.toSorted(compareLearningEventText));
     assert.equal(new Set(eligibility.candidateMeasurementGroupIds).size, eligibility.candidateMeasurementGroupIds.length);
@@ -533,7 +537,7 @@ function verified(id = "verified-attempt", matches = true,
 }
 function assertUnscheduled(state: LearnerTargetStateV1): void {
   assert.equal(state.schemaVersion, 1);
-  assert.equal(state.policyVersion, "learner-state-policy/v2");
+  assert.equal(state.policyVersion, "learner-state-policy/v3");
   assert.equal(state.retention, "untested");
   assert.equal(state.transfer, "untested");
   assert.equal(state.nextVerificationAt, null);
@@ -584,8 +588,8 @@ for (const assistance of ["none", "hint", "guided", "solution"] as const) {
 }
 
 for (const wrongAssistance of ["none", "hint", "guided", "solution"] as const) {
-  test(`qualified supporting/refuting conflict (${wrongAssistance}) never averages or uses latest winner`, () => {
-    const events = [...verified("correct", true, "none", "2026-10-01T08:00:00Z"),
+  test(`same-instant qualified supporting/refuting conflict (${wrongAssistance}) never averages or selects one item`, () => {
+    const events = [...verified("correct", true, "none", "2026-10-03T08:00:00Z"),
       ...verified("wrong", false, wrongAssistance, "2026-10-03T08:00:00Z")];
     const evidence = deriveEvidence(events).evidence;
     const result = derive(events, evidence);
@@ -601,9 +605,6 @@ for (const wrongAssistance of ["none", "hint", "guided", "solution"] as const) {
     assert.deepEqual(state.lastVerifiedAt, { value: "2026-10-03T08:00:00Z", precision: "instant" });
     assertUnscheduled(state);
     assert.deepEqual(derive([...events].reverse(), [...evidence].reverse()), result);
-    // 交换正反证发生时间仍冲突，不能使用 latest-wins。
-    assert.equal(derive([...verified("wrong", false, wrongAssistance, "2026-10-01T08:00:00Z"),
-      ...verified("correct", true, "none", "2026-10-03T08:00:00Z")]).states[0].understanding, "unknown");
   });
 }
 
@@ -645,8 +646,8 @@ test("verified source identity validation precedes asOf without weakening comple
   assert.ok(incomplete.diagnostics.some((item) => item.code === "incomplete_evidence_scope"));
 });
 
-test("multiple clean supports never exceed emerging; assisted support is excluded from actual dimension references", () => {
-  const events = [...Array.from({ length: 5 }, (_, i) => verified(`correct-${i}`, true, "none", `2026-09-0${i + 1}T08:00:00Z`)).flat(),
+test("multiple current clean supports never exceed emerging; assisted support is excluded from actual dimension references", () => {
+  const events = [...Array.from({ length: 5 }, (_, i) => verified(`correct-${i}`, true, "none", "2026-10-03T08:00:00Z")).flat(),
     ...verified("assisted", true, "hint", "2026-10-03T08:00:00Z")];
   const evidence = deriveEvidence(events).evidence;
   const state = derive(events, evidence).states[0];
@@ -739,7 +740,8 @@ test("forged verified Evidence or Event facts fail canonical scope rather than l
 });
 
 test("verified pipeline is immutable, private-content-free and byte deterministic with reordered objects and no clock/random/locale", (context) => {
-  const events = [...verified("pass"), ...verified("wrong", false), ...allEvents()];
+  const events = [...verified("historical-wrong", false, "none", "2026-09-01T08:00:00Z"),
+    ...verified("pass"), ...verified("assisted", true, "hint"), ...allEvents()];
   const privateFields = { questionText: privateSentinel, optionText: privateSentinel, explanation: privateSentinel,
     learnerReasoning: privateSentinel, providerResponse: privateSentinel, credentials: privateSentinel,
     transcript: privateSentinel, rawMedia: privateSentinel, traceRef: privateSentinel };
@@ -764,4 +766,138 @@ test("verified pipeline is immutable, private-content-free and byte deterministi
     ...privateFields }, { schemaVersion: 1, id: "attempt", specId: "spec", selectedOptionIndex: 1,
     assistance: "none", occurredAt: instant, ...privateFields }), evidence, result]).includes(privateSentinel), false);
   assert.deepEqual({ events: privateEvents, evidence }, before);
+});
+
+for (const [oldMatches, newMatches, assistance, promotes, blocker] of [
+  [false, true, "none", true, null],
+  [true, false, "none", false, "no_qualified_supporting_evidence"],
+  [true, true, "hint", false, "assistance_present"],
+  [false, true, "hint", false, "assistance_present"],
+  [true, true, "guided", false, "assistance_present"],
+  [true, true, "solution", false, "assistance_present"],
+] as const) {
+  test(`new attempt ${oldMatches} -> ${newMatches}/${assistance} controls current state while preserving historical Evidence`, () => {
+    const old = verified("old", oldMatches, "none", "2026-09-01T08:00:00Z");
+    const current = verified("new", newMatches, assistance, "2026-10-03T08:00:00Z");
+    const events = [...old, ...current];
+    const canonical = deriveEvidence(events);
+    const evidence = canonical.evidence;
+    const result = derive(events, evidence);
+    assert.deepEqual(result.diagnostics, []);
+    const state = result.states[0];
+    assert.equal(state.understanding, promotes ? "emerging" : "unknown");
+    assert.equal(state.independence, promotes ? "independent" : "unknown");
+    const currentIds = deriveEvidence(current).evidence.map((item) => item.id);
+    const historicalIds = deriveEvidence(old).evidence.map((item) => item.id);
+    assert.deepEqual(state.sourceEvidenceIds, evidence.map((item) => item.id));
+    for (const dimension of ["understanding", "independence"] as const) {
+      assert.deepEqual(state.promotionEligibility[dimension].effectiveEvidenceIds, currentIds);
+      assert.deepEqual(state.promotionEligibility[dimension].historicalQualifiedEvidenceIds, historicalIds);
+      assert.deepEqual(state.promotionEligibility[dimension].eligibleEvidenceIds, state.sourceEvidenceIds);
+      assert.deepEqual(state.promotionEligibility[dimension].blockers, blocker ? [blocker] : []);
+      assert.deepEqual(state.evidenceReferences[dimension], promotes ? currentIds : []);
+      assert.ok(state.evidenceReferences[dimension].every((id) => !historicalIds.includes(id)));
+    }
+    assert.deepEqual(state.lastEvidenceAt, { value: "2026-10-03T08:00:00Z", precision: "instant" });
+    assert.deepEqual(state.lastVerifiedAt, state.lastEvidenceAt);
+    assertUnscheduled(state);
+    assert.deepEqual(deriveEvidence(events), canonical, "历史 Evidence 与 IDs 不被状态解释重写");
+    // 被 supersede 的支持或反证仍属于完整 scope，遗漏不能被时间语义掩盖。
+    assert.deepEqual(derive(events, evidence.filter((item) => !historicalIds.includes(item.id))), {
+      states: [], diagnostics: historicalIds.map((sourceEvidenceId) => ({
+        code: "incomplete_evidence_scope", sourceEventId: null, sourceEvidenceId,
+      })),
+    });
+    const reordered = derive([...events, ...structuredClone(events)].reverse(), [...evidence, ...structuredClone(evidence)].reverse());
+    assert.deepEqual(reordered, result);
+    assert.equal(JSON.stringify(reordered), JSON.stringify(result));
+  });
+}
+
+test("latest actual instant wins over lexical timestamp ordering; equivalent offsets share the effective conflict set", () => {
+  const early = verified("early", false, "none", "2026-10-03T09:00:00+09:00");
+  const late = verified("late", true, "none", "2026-10-03T01:00:00Z");
+  const state = derive([...early, ...late]).states[0];
+  assert.equal(state.understanding, "emerging");
+  assert.deepEqual(state.lastVerifiedAt, { value: "2026-10-03T01:00:00Z", precision: "instant" });
+  const tied = verified("equal-offset", false, "none", "2026-10-03T09:00:00+08:00");
+  const events = [...early, ...late, ...tied];
+  const result = derive(events);
+  const conflict = result.states[0];
+  assert.equal(conflict.understanding, "unknown");
+  assert.equal(conflict.independence, "unknown");
+  assert.deepEqual(conflict.promotionEligibility.understanding.blockers, ["conflicting_qualified_evidence"]);
+  assert.deepEqual(conflict.promotionEligibility.understanding.effectiveEvidenceIds, deriveEvidence([...late, ...tied]).evidence.map((item) => item.id));
+  assert.deepEqual(conflict.promotionEligibility.understanding.historicalQualifiedEvidenceIds, deriveEvidence(early).evidence.map((item) => item.id));
+  assert.deepEqual(conflict.evidenceReferences, { understanding: [], independence: [], retention: [], transfer: [] });
+  assert.deepEqual(conflict.lastVerifiedAt, state.lastVerifiedAt, "等时来源字符串使用既有固定词法 tie break，保持原值");
+  assert.deepEqual(derive([...events].reverse()), result);
+  assertUnscheduled(conflict);
+});
+
+for (const assists of [["hint", "guided", "solution"], ["hint", "none", "solution"]] as const) {
+  test(`latest support set ${assists.join("/")} uses only current unassisted support without accumulating historical authority`, () => {
+    const history = Array.from({ length: 10 }, (_, i) => verified(`history-${i}`, i >= 5, "none", `2026-09-${String(i + 1).padStart(2, "0")}T08:00:00Z`)).flat();
+    const current = assists.flatMap((assistance, i) => verified(`current-${i}`, true, assistance, "2026-10-03T08:00:00Z"));
+    const events = [...history, ...current];
+    const state = derive(events).states[0];
+    const supports = deriveEvidence(current).evidence.filter((item) => item.assistance === "none").map((item) => item.id);
+    assert.equal(state.understanding, supports.length ? "emerging" : "unknown");
+    assert.equal(state.independence, supports.length ? "independent" : "unknown");
+    assert.deepEqual(state.evidenceReferences.understanding, supports);
+    assert.deepEqual(state.evidenceReferences.independence, supports);
+    assert.deepEqual(state.promotionEligibility.understanding.blockers, supports.length ? [] : ["assistance_present"]);
+    assert.equal(state.sourceEvidenceIds.length, 13);
+    assert.equal(state.promotionEligibility.understanding.historicalQualifiedEvidenceIds.length, 10);
+    assert.deepEqual(state.promotionEligibility.understanding.effectiveEvidenceIds, deriveEvidence(current).evidence.map((item) => item.id));
+    assertUnscheduled(state);
+  });
+}
+
+test("asOf exclusion precedes effective selection; later evaluation deterministically supersedes past support", () => {
+  const past = verified("past", true, "none", "2026-10-01T08:00:00Z");
+  const future = verified("future", false, "none", "2026-10-10T08:00:00Z");
+  const events = [...past, ...future];
+  const evidence = deriveEvidence(events).evidence;
+  const at = (asOf: string) => deriveLearnerTargetStates(events, evidence, { asOf });
+  const early = at("2026-10-05T08:00:00Z");
+  assert.deepEqual(early.states, deriveLearnerTargetStates(past, deriveEvidence(past).evidence, { asOf: "2026-10-05T08:00:00Z" }).states);
+  assert.equal(early.diagnostics[0].code, "evidence_after_as_of");
+  const later = at("2026-10-11T08:00:00Z");
+  assert.deepEqual(later.diagnostics, []);
+  assert.equal(later.states[0].understanding, "unknown");
+  assert.equal(later.states[0].independence, "unknown");
+  assert.deepEqual(later.states[0].promotionEligibility.understanding.effectiveEvidenceIds, deriveEvidence(future).evidence.map((item) => item.id));
+  assert.deepEqual(later.states[0].lastVerifiedAt, { value: "2026-10-10T08:00:00Z", precision: "instant" });
+  assert.deepEqual(later.states[0].evidenceReferences.understanding, []);
+  assertUnscheduled(later.states[0]);
+  assert.deepEqual(at("2026-10-05T08:00:00Z"), early);
+});
+
+test("same attempt with later occurrence is malformed source history; a new attempt permits legitimate succession", () => {
+  const old = verified("attempt", false, "none", "2026-09-01T08:00:00Z");
+  const revision = verified("attempt", true, "none", "2026-10-03T08:00:00Z");
+  const conflicted = [...old, ...revision];
+  const result = derive(conflicted);
+  assert.deepEqual(result.states, []);
+  assert.equal(result.diagnostics.length, 2);
+  assert.ok(result.diagnostics.every((item) => item.code === "conflicting_source_identity"));
+  assert.deepEqual(derive([...conflicted].reverse()), result);
+  assert.deepEqual(derive(conflicted, deriveEvidence(old).evidence).states, []);
+  const legitimate = derive([...old, ...verified("new-attempt", true, "none", "2026-10-03T08:00:00Z")]);
+  assert.deepEqual(legitimate.diagnostics, []);
+  assert.equal(legitimate.states[0].understanding, "emerging");
+  assert.equal(legitimate.states[0].independence, "independent");
+  assert.equal(legitimate.states[0].sourceEvidenceIds.length, 2);
+});
+
+test("five historical refutations plus a later independent success still only establish emerging", () => {
+  const history = Array.from({ length: 5 }, (_, i) => verified(`wrong-${i}`, false, "none", `2026-09-0${i + 1}T08:00:00Z`)).flat();
+  const events = [...history, ...verified("later-correct", true, "none", "2026-10-03T08:00:00Z")];
+  const state = derive(events).states[0];
+  assert.equal(state.understanding, "emerging");
+  assert.equal(state.independence, "independent");
+  assert.equal(state.promotionEligibility.understanding.historicalQualifiedEvidenceIds.length, 5);
+  assert.equal(state.evidenceReferences.understanding.length, 1);
+  assertUnscheduled(state);
 });

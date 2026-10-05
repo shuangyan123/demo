@@ -6,7 +6,7 @@ import { compareLearningEventText } from "./learning-event.ts";
 import { deriveEvidence, sameCanonicalEvidence } from "./derive-evidence.ts";
 import { VERIFIED_EVIDENCE_POLICY_VERSION } from "./evidence-policy.ts";
 
-export const LEARNER_STATE_POLICY_VERSION = "learner-state-policy/v2";
+export const LEARNER_STATE_POLICY_VERSION = "learner-state-policy/v3";
 
 const LIMITATIONS: readonly EvidenceLimitationV1[] = [
   "self_report_only", "no_independent_grader", "model_authored_key", "model_assessment_only",
@@ -52,12 +52,21 @@ export function evaluateLearnerStatePromotionEligibility(
   const qualified = qualifiedVerifiedAssessmentEvidence(evidence, events);
   const supporting = qualified.filter((item) => item.outcome.direction === "supports");
   const refuting = qualified.filter((item) => item.outcome.direction === "refutes");
+  // qualified 的单 Event 血缘与 offset-aware instant 已经 canonical 校验；不按字符串或插入顺序选测量。
+  const eventsById = new Map(events.filter((event) => event?.kind === "verification.assessed").map((event) => [event.id, event]));
+  const timed = qualified.map((item) => ({ item, instant: Date.parse(eventsById.get(item.sourceEventIds[0])!.occurredAt!) }));
+  const effectiveInstant = timed.reduce((latest, measurement) => Math.max(latest, measurement.instant), -Infinity);
+  // 等实际时刻的所有测量共同决定当前状态；历史合格 Evidence 不删除，也不永久制造当前冲突。
+  const effective = timed.filter((measurement) => measurement.instant === effectiveInstant).map(({ item }) => item);
+  const historical = timed.filter((measurement) => measurement.instant < effectiveInstant).map(({ item }) => item);
+  const effectiveSupporting = effective.filter((item) => item.outcome.direction === "supports");
+  const effectiveRefuting = effective.filter((item) => item.outcome.direction === "refutes");
   const blockers: LearnerStatePromotionBlockerV1[] = [];
   if (!qualified.length) blockers.push("no_qualified_direct_evidence", ...legacyBlockers);
   else {
-    if (!supporting.length) blockers.push("no_qualified_supporting_evidence");
-    if (supporting.length && refuting.length) blockers.push("conflicting_qualified_evidence");
-    if (supporting.length && !supporting.some((item) => item.assistance === "none")) blockers.push("assistance_present");
+    if (!effectiveSupporting.length) blockers.push("no_qualified_supporting_evidence");
+    if (effectiveSupporting.length && effectiveRefuting.length) blockers.push("conflicting_qualified_evidence");
+    if (effectiveSupporting.length && !effectiveSupporting.some((item) => item.assistance === "none")) blockers.push("assistance_present");
   }
   const eligibility = (extra: LearnerStatePromotionBlockerV1[] = []): LearnerStatePromotionEligibilityV1 => ({
     status: blockers.length || extra.length ? "blocked" : "eligible",
@@ -66,9 +75,13 @@ export function evaluateLearnerStatePromotionEligibility(
     eligibleEvidenceIds: extra.length ? [] : qualified.map((item) => item.id),
     eligibleSupportingEvidenceIds: extra.length ? [] : supporting.map((item) => item.id),
     eligibleRefutingEvidenceIds: extra.length ? [] : refuting.map((item) => item.id),
+    effectiveEvidenceIds: extra.length ? [] : effective.map((item) => item.id),
+    effectiveSupportingEvidenceIds: extra.length ? [] : effectiveSupporting.map((item) => item.id),
+    effectiveRefutingEvidenceIds: extra.length ? [] : effectiveRefuting.map((item) => item.id),
+    historicalQualifiedEvidenceIds: extra.length ? [] : historical.map((item) => item.id),
     blockers: [...new Set([...blockers, ...extra])].toSorted(compareLearningEventText),
   });
-  // 不按测量数量晋级，也不以最新测量覆盖反证；更强状态与 temporal supersession 留待独立策略。
+  // 当前只授权 emerging / independent；重复测量与时间间隔不增加 authority。
   return {
     understanding: eligibility(), independence: eligibility(),
     retention: eligibility(["missing_delayed_verification"]),

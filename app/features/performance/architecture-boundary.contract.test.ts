@@ -38,7 +38,7 @@ function staticImports(source: string): string[] {
   return [...source.matchAll(/(?:import|export)\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)].map((match) => match[1]);
 }
 
-test("Recall Phase B/C/D/E3 Kernel 只依赖纯本地逻辑与 domain types", async () => {
+test("Recall Phase B/C/D/E4 Kernel 只依赖纯本地逻辑与 domain types", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const files = [path.join(APP_ROOT, "types/domains/learning-kernel.ts"), ...await sourceFiles(kernelRoot)];
   for (const file of files) {
@@ -77,7 +77,7 @@ test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState"
   }
 });
 
-test("Recall Phase E3 state / authority policy 保持 pure shadow-only，无外层 runtime consumer", async () => {
+test("Recall Phase E4 state / authority policy 保持 pure shadow-only，无外层 runtime consumer", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const stateModule = path.join(kernelRoot, "derive-learner-state.ts");
   const policyModule = path.join(kernelRoot, "learner-state-policy.ts");
@@ -91,6 +91,10 @@ test("Recall Phase E3 state / authority policy 保持 pure shadow-only，无外�
     "权限策略只允许纯 domain、确定性 helper 与 canonical Evidence engine/version");
   assert.match(policySource, /deriveEvidence\(events\)/);
   assert.match(policySource, /sameCanonicalEvidence\(item, expected\)/);
+  assert.match(policySource, /LEARNER_STATE_POLICY_VERSION = "learner-state-policy\/v3"/);
+  assert.match(source, /promotionEligibility\.understanding\.effectiveSupportingEvidenceIds/,
+    "维度引用必须消费当前有效支持集合，不能继续使用全部历史合格支持");
+  assert.doesNotMatch(source, /promotionEligibility\.understanding\.eligibleSupportingEvidenceIds/);
   assert.doesNotMatch(policySource, /\.payload\b|\b(?:console|telemetry)\s*\./,
     "必须先核对 canonical authority，再解释 scoped outcome；不能读取原始 payload");
   assert.doesNotMatch(source, /\.payload\b|\brecordedAt\s*[=:]|\b(?:console|telemetry)\s*\./,
@@ -101,7 +105,7 @@ test("Recall Phase E3 state / authority policy 保持 pure shadow-only，无外�
     if (file === stateModule) continue;
     const fileSource = await readFile(file, "utf8");
     if (!file.startsWith(`${kernelRoot}${path.sep}`) && file !== path.join(APP_ROOT, "types/domains/learning-kernel.ts")) {
-      assert.doesNotMatch(fileSource, /\b(?:LearnerTargetStateV1|LearnerStatePromotionEligibilityV1|LearnerStatePromotionBlockerV1|evaluateLearnerStatePromotionEligibility|deriveLearnerTargetStates)\b/,
+      assert.doesNotMatch(fileSource, /\b(?:LearnerTargetStateV1|LearnerStatePromotionEligibilityV1|LearnerStatePromotionBlockerV1|evaluateLearnerStatePromotionEligibility|deriveLearnerTargetStates|effectiveEvidenceIds|effectiveSupportingEvidenceIds|effectiveRefutingEvidenceIds|historicalQualifiedEvidenceIds)\b/,
         `${file} 不得接入 Phase E state / eligibility（包括 Phase D service）`);
     }
     const sourceFile = ts.createSourceFile(file, fileSource, ts.ScriptTarget.Latest, true);
@@ -114,7 +118,7 @@ test("Recall Phase E3 state / authority policy 保持 pure shadow-only，无外�
         const target = (specifier.startsWith("@/") ? path.join(APP_ROOT, specifier.slice(2))
           : path.resolve(path.dirname(file), specifier)).replace(/\.ts$/, "");
         assert.ok(![stateModule, policyModule].some((module) => target === module.replace(/\.ts$/, "")),
-          `${file} 不得在 E3 接入 state / authority policy（包括 compatibility bridge）`);
+          `${file} 不得在 E4 接入 state / authority policy（包括 compatibility bridge）`);
       }
       ts.forEachChild(node, inspect);
     };
