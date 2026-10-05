@@ -20,17 +20,18 @@ import "../../services/learning-kernel/derive-learner-state.contract.test.ts";
 import "../../services/learning-kernel/learner-state-policy.contract.test.ts";
 import "../../services/learning-kernel/verified-assessment-adapter.contract.test.ts";
 import "../../services/learning-kernel/verification-policy.contract.test.ts";
+import "../../services/verification-source/verification-source-admission.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
 /** 递归读取应用源码，用于建立不依赖第三方工具的架构守卫。 */
-async function sourceFiles(directory: string, includeJavaScript = false): Promise<string[]> {
+async function sourceFiles(directory: string, includeJavaScript = false, includeTests = false): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const nested = await Promise.all(entries.map((entry) => {
     const target = path.join(directory, entry.name);
-    if (entry.isDirectory()) return sourceFiles(target, includeJavaScript);
+    if (entry.isDirectory()) return sourceFiles(target, includeJavaScript, includeTests);
     const sourceExtension = includeJavaScript ? /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/ : /\.(?:ts|tsx)$/;
-    return sourceExtension.test(entry.name) && !/\.test\.(?:ts|mts|cts|js|mjs|cjs)$/.test(entry.name) ? [target] : [];
+    return sourceExtension.test(entry.name) && (includeTests || !/\.test\.(?:ts|mts|cts|js|mjs|cjs)$/.test(entry.name)) ? [target] : [];
   }));
   return nested.flat();
 }
@@ -150,7 +151,9 @@ test("Recall verified assessment adapter 无 production writer，Fenbi wrong-onl
     ...await sourceFiles(path.resolve(process.cwd(), "scripts"), true)];
   for (const file of runtimeFiles) {
     const source = await readFile(file, "utf8");
-    if (file.startsWith(`${kernelRoot}${path.sep}`) || file === path.join(APP_ROOT, "types/domains/learning-kernel.ts")) continue;
+    if (file.startsWith(`${kernelRoot}${path.sep}`) || ["types/domains/learning-kernel.ts", "types/domains/verification-source.ts",
+      "services/verification-source/verification-source-admission-core.ts", "services/verification-source/verification-source-admission.ts"]
+      .some((name) => file === path.join(APP_ROOT, name))) continue;
     assert.doesNotMatch(source, /VerifiedAssessment|adaptVerifiedAssessment|verification\.assessed|recall-verified-assessment\/v1|LearnerTargetStateV1|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility|VerificationDecisionV1|decideNextVerification/,
       `${file} 不得接入新验证来源、state authority 或产生 verified Event`);
     const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
@@ -181,6 +184,123 @@ test("Recall verified assessment adapter 无 production writer，Fenbi wrong-onl
     const source = await readFile(path.join(kernelRoot, name), "utf8");
     assert.doesNotMatch(source, /VerifiedAssessment|verification\.assessed|verified-assessment|learner-state-policy|derive-learner-state/);
   }
+});
+
+const VERIFICATION_SOURCE_ROOT = path.join(APP_ROOT, "services/verification-source");
+const ADMISSION_CORE = path.join(VERIFICATION_SOURCE_ROOT, "verification-source-admission-core.ts");
+const ADMISSION_ENTRY = path.join(VERIFICATION_SOURCE_ROOT, "verification-source-admission.ts");
+const ADMISSION_TEST = path.join(VERIFICATION_SOURCE_ROOT, "verification-source-admission.contract.test.ts");
+
+/** AST 覆盖 alias/re-export/import type/dynamic import/require；受信 resolver 只能在窄边界与专用测试中使用。 */
+function verificationSourceImportViolations(file: string, source: string): string[] {
+  const kernelRoot = path.join(APP_ROOT, "services/learning-kernel");
+  const isTest = /\.test\.(?:ts|mts|cts|js|mjs|cjs)$/.test(file);
+  const dedicatedTest = file === ADMISSION_TEST || (file.startsWith(`${kernelRoot}${path.sep}`) && file.endsWith(".contract.test.ts"));
+  const kernelInternal = file.startsWith(`${kernelRoot}${path.sep}`) && !isTest;
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const violations: string[] = [];
+  const inspect = (node: ts.Node) => {
+    let specifier: string | undefined;
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier))
+      specifier = node.moduleSpecifier.text;
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal))
+      specifier = node.argument.literal.text;
+    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)
+      && node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression)) specifier = node.moduleReference.expression.text;
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+      || (ts.isIdentifier(node.expression) && node.expression.text === "require")) && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]))
+      specifier = node.arguments[0].text;
+    if (specifier) {
+      const target = (specifier.startsWith("@/") ? path.resolve(APP_ROOT, "..", specifier.slice(2))
+        : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
+      if (target === path.join(kernelRoot, "verified-assessment-adapter") && !kernelInternal && !dedicatedTest && file !== ADMISSION_CORE)
+        violations.push("raw_adapter_bypass");
+      if (target === ADMISSION_CORE.replace(/\.ts$/, "") && file !== ADMISSION_ENTRY && file !== ADMISSION_TEST)
+        violations.push("arbitrary_owner_resolver");
+      if (target.endsWith(".test") && !isTest) violations.push("test_owner_in_production");
+      if (target === ADMISSION_ENTRY.replace(/\.ts$/, "") && !dedicatedTest)
+        violations.push("runtime_adoption_before_source_approval");
+    }
+    ts.forEachChild(node, inspect);
+  };
+  inspect(ast);
+  return violations;
+}
+
+test("Recall source admission 保持纯依赖、空生产 owner 集合且无注册或外层 runtime 入口", async () => {
+  const core = await readFile(ADMISSION_CORE, "utf8");
+  const entry = await readFile(ADMISSION_ENTRY, "utf8");
+  const allowedImports = new Map([
+    [ADMISSION_CORE, ["../../types/domains/verification-source.ts", "../../types/domains/learning-kernel.ts",
+      "../learning-kernel/learning-event.ts", "../learning-kernel/verified-assessment-adapter.ts"]],
+    [ADMISSION_ENTRY, ["../../types/domains/verification-source.ts", "./verification-source-admission-core.ts"]],
+  ]);
+  for (const [file, source] of [[ADMISSION_CORE, core], [ADMISSION_ENTRY, entry]]) {
+    const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    const inspect = (node: ts.Node) => {
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        assert.ok(allowedImports.get(file)!.includes(node.moduleSpecifier.text), `${file} 不得依赖 runtime/DB/Provider`);
+        if (node.moduleSpecifier.text.includes("/types/")) assert.ok(ts.isImportDeclaration(node) && node.importClause?.isTypeOnly);
+      }
+      if (ts.isCallExpression(node)) assert.ok(node.expression.kind !== ts.SyntaxKind.ImportKeyword
+        && (!ts.isIdentifier(node.expression) || node.expression.text !== "require"), `${file} 不允许隐藏运行时依赖`);
+      ts.forEachChild(node, inspect);
+    };
+    inspect(ast);
+    assert.doesNotMatch(source, /\b(?:window|document|localStorage|indexedDB|fetch|XMLHttpRequest|WebSocket)\b|reviewDesktop|reviewFenbi|Date\.now\s*\(|Math\.random\s*\(|randomUUID\s*\(|getRandomValues\s*\(|performance\.now\s*\(|new\s+Date\s*\(\s*\)|\.localeCompare\s*\(|\b(?:console|telemetry)\s*\./);
+  }
+  const entryAst = ts.createSourceFile(ADMISSION_ENTRY, entry, ts.ScriptTarget.Latest, true);
+  const declarations = entryAst.statements.flatMap((node) => ts.isVariableStatement(node) ? [...node.declarationList.declarations] : []);
+  const owners = declarations.find((node) => ts.isIdentifier(node.name) && node.name.text === "AUTHORIZED_VERIFICATION_SOURCE_OWNERS");
+  assert.ok(owners?.initializer && ts.isCallExpression(owners.initializer));
+  assert.equal(owners.initializer.expression.getText(entryAst), "Object.freeze");
+  assert.equal(owners.initializer.arguments.length, 1);
+  assert.ok(ts.isArrayLiteralExpression(owners.initializer.arguments[0]));
+  assert.equal(owners.initializer.arguments[0].elements.length, 0, "不得在 E6 注册任何 production/test owner");
+  assert.ok(ts.isVariableStatement(owners.parent.parent));
+  assert.equal(owners.parent.parent.declarationList.flags & ts.NodeFlags.Const, ts.NodeFlags.Const);
+  assert.ok(!owners.parent.parent.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+  const exports = entryAst.statements.filter((node) => ts.canHaveModifiers(node)
+    && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+  assert.equal(exports.length, 1, "公共入口不导出注册 API、owner 或 resolver");
+  assert.ok(ts.isFunctionDeclaration(exports[0]));
+  assert.equal(exports[0].name?.text, "admitVerifiedAssessment");
+  assert.equal(exports[0].parameters.length, 1, "普通 caller 不能传 owner/resolver");
+
+  const files = [...await sourceFiles(APP_ROOT, true, true), ...await sourceFiles(path.resolve(APP_ROOT, "../desktop"), true, true),
+    ...await sourceFiles(path.resolve(APP_ROOT, "../scripts"), true, true)];
+  for (const file of files) {
+    if (file === path.resolve(process.cwd(), "app/features/performance/architecture-boundary.contract.test.ts")) continue;
+    const source = await readFile(file, "utf8");
+    assert.deepEqual(verificationSourceImportViolations(file, source), [], `${file} 绕过 source admission 或泄漏 test owner`);
+    if (![ADMISSION_CORE, ADMISSION_ENTRY, ADMISSION_TEST].includes(file))
+      assert.doesNotMatch(source, /\b(?:AuthorizedVerificationSourceOwner|admitFromAuthorizedSource|AUTHORIZED_VERIFICATION_SOURCE_OWNERS)\b/,
+        `${file} 不得私建/注册 owner 或访问受信 resolver`);
+  }
+});
+
+test("Recall source admission AST guard 拒绝 alias/re-export/dynamic/type/require 和 test-owner bypass", () => {
+  const outside = path.join(APP_ROOT, "services/admission-bypass.ts");
+  for (const source of [
+    'import { adaptVerifiedAssessment as normalize } from "./learning-kernel/verified-assessment-adapter.ts";',
+    'export * from "@/app/services/learning-kernel/verified-assessment-adapter";',
+    'const normalize = await import("./learning-kernel/verified-assessment-adapter.ts");',
+    'const normalize = require("./learning-kernel/verified-assessment-adapter.ts");',
+    'type Adapter = typeof import("./learning-kernel/verified-assessment-adapter.ts");',
+  ]) assert.ok(verificationSourceImportViolations(outside, source).includes("raw_adapter_bypass"));
+  for (const source of [
+    'import { admitFromAuthorizedSource as admit } from "./verification-source/verification-source-admission-core.ts";',
+    'export * from "./verification-source/verification-source-admission-core";',
+    'import core = require("./verification-source/verification-source-admission-core.ts");',
+  ]) assert.ok(verificationSourceImportViolations(outside, source).includes("arbitrary_owner_resolver"));
+  assert.ok(verificationSourceImportViolations(outside,
+    'import "./verification-source/verification-source-admission.contract.test.ts";').includes("test_owner_in_production"));
+  assert.ok(verificationSourceImportViolations(outside,
+    'import { admitVerifiedAssessment } from "./verification-source/verification-source-admission.ts";').includes("runtime_adoption_before_source_approval"));
+  const adapterImport = 'import { adaptVerifiedAssessment } from "../learning-kernel/verified-assessment-adapter.ts";';
+  assert.deepEqual(verificationSourceImportViolations(ADMISSION_CORE, adapterImport), []);
+  assert.deepEqual(verificationSourceImportViolations(ADMISSION_TEST, adapterImport), []);
+  assert.ok(verificationSourceImportViolations(path.join(VERIFICATION_SOURCE_ROOT, "arbitrary.test.ts"), adapterImport).includes("raw_adapter_bypass"));
 });
 
 test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入", async () => {
