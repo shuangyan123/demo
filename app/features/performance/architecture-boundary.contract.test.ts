@@ -21,6 +21,7 @@ import "../../services/learning-kernel/learner-state-policy.contract.test.ts";
 import "../../services/learning-kernel/verified-assessment-adapter.contract.test.ts";
 import "../../services/learning-kernel/verification-policy.contract.test.ts";
 import "../../services/verification-source/verification-source-admission.contract.test.ts";
+import "../../services/first-party-diagnostic/spec-authority.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -301,6 +302,124 @@ test("Recall source admission AST guard 拒绝 alias/re-export/dynamic/type/requ
   assert.deepEqual(verificationSourceImportViolations(ADMISSION_CORE, adapterImport), []);
   assert.deepEqual(verificationSourceImportViolations(ADMISSION_TEST, adapterImport), []);
   assert.ok(verificationSourceImportViolations(path.join(VERIFICATION_SOURCE_ROOT, "arbitrary.test.ts"), adapterImport).includes("raw_adapter_bypass"));
+});
+
+const DIAGNOSTIC_SPEC_ROOT = path.join(APP_ROOT, "services/first-party-diagnostic");
+const DIAGNOSTIC_SPEC_TEST = path.join(DIAGNOSTIC_SPEC_ROOT, "spec-authority.contract.test.ts");
+const DIAGNOSTIC_SPEC_EDGES = new Map([
+  [path.join(APP_ROOT, "types/domains/first-party-diagnostic.ts"), ["./learning-kernel.ts", "./verification-source.ts"]],
+  [path.join(DIAGNOSTIC_SPEC_ROOT, "spec-catalog.ts"), ["../../types/domains/first-party-diagnostic.ts"]],
+  [path.join(DIAGNOSTIC_SPEC_ROOT, "spec-authority-core.ts"), ["../../types/domains/first-party-diagnostic.ts",
+    "../learning-kernel/learning-event.ts", "./spec-catalog.ts"]],
+  [path.join(DIAGNOSTIC_SPEC_ROOT, "spec-authority.ts"), ["./spec-authority-core.ts"]],
+]);
+
+/** Spec capability 仅限固定内部边界与专用测试；不能由 UI、插件、其他测试或 admission 偷接 capture。 */
+function diagnosticSpecImportViolations(file: string, source: string): string[] {
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const violations: string[] = [];
+  const inspect = (node: ts.Node) => {
+    let specifier: string | undefined;
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier))
+      specifier = node.moduleSpecifier.text;
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal))
+      specifier = node.argument.literal.text;
+    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)
+      && node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression)) specifier = node.moduleReference.expression.text;
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+      || (ts.isIdentifier(node.expression) && node.expression.text === "require")) && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]))
+      specifier = node.arguments[0].text;
+    if (specifier) {
+      if (DIAGNOSTIC_SPEC_EDGES.has(file) && !DIAGNOSTIC_SPEC_EDGES.get(file)!.includes(specifier))
+        violations.push("non_spec_dependency");
+      const target = (specifier.startsWith("@/") ? path.resolve(APP_ROOT, "..", specifier.slice(2))
+        : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
+      if (target.startsWith(`${DIAGNOSTIC_SPEC_ROOT}${path.sep}`)) {
+        if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file)) violations.push("spec_capability_outside_boundary");
+        if (target.endsWith(".test")) violations.push("spec_test_owner_leak");
+      }
+    }
+    if (DIAGNOSTIC_SPEC_EDGES.has(file) && (ts.isImportTypeNode(node) || ts.isImportEqualsDeclaration(node)
+      || (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+        || (ts.isIdentifier(node.expression) && node.expression.text === "require"))))) violations.push("hidden_spec_dependency");
+    ts.forEachChild(node, inspect);
+  };
+  inspect(ast);
+  return violations;
+}
+
+test("Recall first-party spec authority 只有纯规格依赖与内部能力，没有 capture/注册/runtime consumer", async () => {
+  const files = await sourceFiles(DIAGNOSTIC_SPEC_ROOT);
+  assert.deepEqual(files.toSorted(), [...DIAGNOSTIC_SPEC_EDGES.keys()].filter((file) => file.startsWith(`${DIAGNOSTIC_SPEC_ROOT}${path.sep}`)).toSorted());
+  const expectedExports = new Map([
+    ["first-party-diagnostic.ts", ["FirstPartyDiagnosticSpecV1", "FirstPartyDiagnosticSpecResolutionV1"]],
+    ["spec-catalog.ts", ["PUBLISHED_ADDITION_SPEC"]],
+    ["spec-authority-core.ts", ["isPublishedDiagnosticSpec", "recomputeAdditionKey", "resolvePublishedDiagnosticSpec"]],
+    ["spec-authority.ts", ["FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER"]],
+  ]);
+  for (const file of DIAGNOSTIC_SPEC_EDGES.keys()) {
+    const source = await readFile(file, "utf8");
+    assert.deepEqual(diagnosticSpecImportViolations(file, source), []);
+    assert.doesNotMatch(source, /\b(?:window|document|localStorage|indexedDB|fetch|XMLHttpRequest|WebSocket|process)\b|reviewDesktop|reviewFenbi|Date\.now\s*\(|Math\.random\s*\(|randomUUID|getRandomValues|performance\.now|new\s+Date|\b(?:console|telemetry)\s*\./);
+    assert.doesNotMatch(source, /LearningEvent|EvidenceRecord|deriveEvidence|LearnerTargetState|deriveLearnerTargetStates|decideNextVerification|verification\.assessed|resolveAttempt|["']use (?:client|server)["']/);
+    const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    for (const node of ast.statements) if (ts.isImportDeclaration(node) && node.moduleSpecifier
+      && ts.isStringLiteral(node.moduleSpecifier) && (file.includes(`${path.sep}types${path.sep}`)
+        || node.moduleSpecifier.text.includes("/types/"))) assert.ok(node.importClause?.isTypeOnly);
+    if (expectedExports.has(path.basename(file))) {
+      const exports = ast.statements.filter((node) => ts.canHaveModifiers(node)
+        && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+        .flatMap((node) => ts.isFunctionDeclaration(node) || ts.isTypeAliasDeclaration(node) ? [node.name?.text]
+          : ts.isVariableStatement(node) ? node.declarationList.declarations.map((declaration) => declaration.name.getText(ast)) : ["unexpected_export"]);
+      assert.deepEqual(exports.toSorted(), expectedExports.get(path.basename(file))!.toSorted(), "不能导出任意注册、resolver injection 或 capture API");
+    }
+  }
+  const runtimeFiles = [...await sourceFiles(APP_ROOT, true, true), ...await sourceFiles(path.resolve(APP_ROOT, "../desktop"), true, true),
+    ...await sourceFiles(path.resolve(APP_ROOT, "../scripts"), true, true)];
+  for (const file of runtimeFiles) {
+    if (file === path.resolve(process.cwd(), "app/features/performance/architecture-boundary.contract.test.ts")) continue;
+    const source = await readFile(file, "utf8");
+    assert.deepEqual(diagnosticSpecImportViolations(file, source), [], `${file} 不得注入规格或将 spec-only 能力当 capture authority`);
+    if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file))
+      assert.doesNotMatch(source, /\b(?:FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER|PUBLISHED_ADDITION_SPEC|isPublishedDiagnosticSpec|resolvePublishedDiagnosticSpec|recomputeAdditionKey)\b/);
+  }
+});
+
+test("Recall diagnostic spec AST guard 拒绝 UI/Planning/DB/Fenbi/LLM 与外层能力泄漏", () => {
+  const core = path.join(DIAGNOSTIC_SPEC_ROOT, "spec-authority-core.ts");
+  for (const specifier of ["../../features/review/view", "../preparation/derive-preparation-snapshot.ts",
+    "../exam-planning/exam-next-task-policy.ts", "../review-repository.ts", "../../db/review-db.ts",
+    "../fenbi-import-service.ts", "../../server/ai/provider-adapter.ts", "../learning-kernel/derive-evidence.ts"])
+    assert.ok(diagnosticSpecImportViolations(core, `import type { Value } from "${specifier}";`).includes("non_spec_dependency"));
+  const outside = path.join(APP_ROOT, "services/spec-bypass.ts");
+  for (const source of [
+    'import { FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER as owner } from "./first-party-diagnostic/spec-authority.ts";',
+    'export * from "@/app/services/first-party-diagnostic/spec-authority";',
+    'const owner = await import("./first-party-diagnostic/spec-authority.ts");',
+    'const owner = require("./first-party-diagnostic/spec-authority.ts");',
+    'import owner = require("./first-party-diagnostic/spec-authority.ts");',
+    'type Owner = typeof import("./first-party-diagnostic/spec-authority.ts");',
+  ]) assert.ok(diagnosticSpecImportViolations(outside, source).includes("spec_capability_outside_boundary"));
+  assert.ok(diagnosticSpecImportViolations(ADMISSION_ENTRY,
+    'import { FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER } from "../first-party-diagnostic/spec-authority.ts";').includes("spec_capability_outside_boundary"));
+  assert.ok(diagnosticSpecImportViolations(outside,
+    'import "./first-party-diagnostic/spec-authority.contract.test.ts";').includes("spec_test_owner_leak"));
+});
+
+test("Recall E7 冻结 #141/#142/#143 关键 API 与 admission 语义", async () => {
+  const pins = new Map([
+    ["types/domains/learning-kernel.ts", "f8dd65bb031e63394c467c22977cf421e970906cde5758e9fdb42ee09d5a6bb7"],
+    ["types/domains/verification-source.ts", "ff17c1dbf36495b21b941e2fb7c9a008ec3f0312ddc85830e9b515f791b31daa"],
+    ["services/verification-source/verification-source-admission.ts", "57efa729226aa2fc7b48c6d6f0a81bc344b3585e5b36d49ec04fa7208ab20db2"],
+    ["services/verification-source/verification-source-admission-core.ts", "98c8ff9b015bc326659de02cf5b49febe4626fbebfb82052a7a5f803b028bd55"],
+    ["services/learning-kernel/verified-assessment-adapter.ts", "4bb74ded75d21c71ac46f8ae08a72cf812804bb142e58fb71dc097aaa94b3d4c"],
+    ["services/learning-kernel/derive-evidence.ts", "a1295c5675ee8c0e90247f40e90cef9910703a1ddd9d39d1e38e287f39f0bfaf"],
+    ["services/learning-kernel/derive-learner-state.ts", "50b901aae6913481a3d76d297fd1e59a454b90aef7d2a184a0dabaae99bac60c"],
+    ["services/learning-kernel/learner-state-policy.ts", "ab1e9ccd592d8a785a8ec88c51f19b3ad56101d036e29d7e0c88df0c04b15a95"],
+    ["services/learning-kernel/verification-policy.ts", "14ee81579febec9eed4e3eb3ec30c519ac5a075558553b8fe06ff4c6f6f5c009"],
+  ]);
+  for (const [file, expected] of pins) assert.equal(createHash("sha256").update((await readFile(path.join(APP_ROOT, file), "utf8"))
+    .replace(/\r\n/g, "\n")).digest("hex"), expected, `${file} 的既有语义不属于 E7 修改范围`);
 });
 
 test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入", async () => {

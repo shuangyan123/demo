@@ -31,7 +31,7 @@ function freeze(value: unknown): void {
 }
 
 test("production authorized set remains empty for every existing product source and the test fixture", () => {
-  for (const id of [sourceOwnerId, "tutoring", "review", "knowledge", "interview", "fenbi", "manual-import", "arbitrary"])
+  for (const id of [sourceOwnerId, "recall-diagnostic", "tutoring", "review", "knowledge", "interview", "fenbi", "manual-import", "arbitrary"])
     reject("unknown_source_owner", admitVerifiedAssessment({ ...request, sourceOwnerId: id }));
   reject("unknown_source_owner", admitVerifiedAssessment({ ...request, owner: fixture(), resolver: () => fixture(),
     verified: true, canonicalSpec: spec, capturedAttempt: attempt }));
