@@ -31,8 +31,8 @@ function freeze(value: unknown): void {
   if (value && typeof value === "object") { Object.freeze(value); Object.values(value).forEach(freeze); }
 }
 
-test("production authorized set remains empty for every existing product source and the test fixture", () => {
-  for (const id of [sourceOwnerId, "recall-diagnostic", "tutoring", "review", "knowledge", "interview", "fenbi", "manual-import", "arbitrary"])
+test("production authorized set rejects every non-diagnostic source and test fixture", () => {
+  for (const id of [sourceOwnerId, "tutoring", "review", "knowledge", "interview", "fenbi", "manual-import", "arbitrary"])
     reject("unknown_source_owner", admitVerifiedAssessment({ ...request, sourceOwnerId: id }));
   reject("unknown_source_owner", admitVerifiedAssessment({ ...request, owner: fixture(), resolver: () => fixture(),
     verified: true, canonicalSpec: spec, capturedAttempt: attempt }));
@@ -49,8 +49,8 @@ test("E8 mechanism captures cannot become production admitted assessments or Evi
   assert.equal(captured.assistance, "unknown");
   const input = { sourceOwnerId: "recall-diagnostic", specId: captured.specId,
     specRevision: captured.specRevision, attemptId: captured.id };
-  reject("unknown_source_owner", admitVerifiedAssessment(input));
-  reject("unknown_source_owner", admitVerifiedAssessment({ ...input, verified: true, assistance: "none",
+  reject("invalid_attempt", admitVerifiedAssessment(input));
+  reject("invalid_attempt", admitVerifiedAssessment({ ...input, verified: true, assistance: "none",
     key: "five", target: "caller", capturedAttempt: { ...captured, assistance: "none" } }));
   // 仅测试内部 owner contract 的拒绝：测试桥接不等于真实 production capture/acceptance。
   const contractOwner: AuthorizedVerificationSourceOwner = { id: input.sourceOwnerId,

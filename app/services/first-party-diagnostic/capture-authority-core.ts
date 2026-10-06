@@ -34,6 +34,19 @@ export function createDiagnosticCaptureMechanism(dependencies: {
   readonly generateAttemptId: () => string;
   readonly now: () => number;
 }): DiagnosticCaptureCapabilityV1 {
+  return createMechanism(dependencies, false);
+}
+
+/** 仅固定 server surface runtime 可构造；不是 caller 可传入的 assistance flag。 */
+export function createControlledDiagnosticCaptureMechanism(dependencies: {
+  readonly generateAttemptId: () => string;
+  readonly now: () => number;
+}): DiagnosticCaptureCapabilityV1 {
+  return createMechanism(dependencies, true);
+}
+
+function createMechanism(dependencies: { readonly generateAttemptId: () => string; readonly now: () => number }, controlled: boolean)
+  : DiagnosticCaptureCapabilityV1 {
   const generateAttemptId = dependencies.generateAttemptId;
   const now = dependencies.now;
   // 仅保存本 mechanism instance 实际封存的记录，没有导入、注册或 fixture fallback。
@@ -83,10 +96,12 @@ export function createDiagnosticCaptureMechanism(dependencies: {
                 schemaVersion: 1, id, sourceOwnerId: FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER.id,
                 specId: spec.id, specRevision: spec.revision, contentRevision: spec.contentRevision,
                 optionIds: [...spec.optionIds], responseFormat: { ...spec.responseFormat }, selectedOptionId,
-                // 没有受控展示/辅助 runtime，service API 不提供 hints 也不能据此推出 none。
-                assistance: "unknown", occurredAt,
-                provenance: { mechanism: "first-party-diagnostic-capture/v1", presentation: "canonical_snapshot_issued",
-                  assistanceBasis: "uncontrolled_surface", ordering: "submitted_before_reveal" },
+                // none 仅表示固定 server surface 未提供内建辅助；普通 service 调用仍为 unknown。
+                assistance: controlled ? "none" : "unknown", occurredAt,
+                provenance: { mechanism: "first-party-diagnostic-capture/v1",
+                  presentation: controlled ? "controlled_surface_delivered" : "canonical_snapshot_issued",
+                  assistanceBasis: controlled ? "controlled_surface_no_builtin_assistance" : "uncontrolled_surface",
+                  ordering: "submitted_before_reveal" },
               });
               attempts.set(id, attempt);
               state = "captured";
@@ -106,7 +121,9 @@ export function createDiagnosticCaptureMechanism(dependencies: {
               return rejected("lifecycle_invalidated");
             }
             state = "reveal_allowed";
-            return { kind: "revealed", correctOptionId: spec.verifiedCorrectOptionId, explanation: spec.authority.rationale };
+            const correct = spec.content.options.find((option) => option.id === spec.verifiedCorrectOptionId)!;
+            return { kind: "revealed", correctOptionId: spec.verifiedCorrectOptionId,
+              explanation: `${spec.authority.operands[0]} + ${spec.authority.operands[1]} = ${correct.text}。` };
           },
         });
         return { kind: "started", session };

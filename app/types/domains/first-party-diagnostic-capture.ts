@@ -11,7 +11,7 @@ export type DiagnosticPresentationV1 = {
   readonly responseFormat: Readonly<{ kind: "single_option_id"; schemaVersion: 1 }>;
 };
 
-/** 未接入受控 surface 的 capture facts 不具有 admission 所要求的 assistance authority。 */
+/** 辅助事实只描述 owner 控制的 surface，不证明现实世界不存在外部帮助。 */
 export type DiagnosticCapturedAttemptV1 = {
   readonly schemaVersion: 1;
   readonly id: string;
@@ -22,12 +22,12 @@ export type DiagnosticCapturedAttemptV1 = {
   readonly optionIds: readonly string[];
   readonly responseFormat: DiagnosticPresentationV1["responseFormat"];
   readonly selectedOptionId: string;
-  readonly assistance: "unknown";
+  readonly assistance: "unknown" | "none";
   readonly occurredAt: string;
   readonly provenance: {
     readonly mechanism: "first-party-diagnostic-capture/v1";
-    readonly presentation: "canonical_snapshot_issued";
-    readonly assistanceBasis: "uncontrolled_surface";
+    readonly presentation: "canonical_snapshot_issued" | "controlled_surface_delivered";
+    readonly assistanceBasis: "uncontrolled_surface" | "controlled_surface_no_builtin_assistance";
     readonly ordering: "submitted_before_reveal";
   };
 };

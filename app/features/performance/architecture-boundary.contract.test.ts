@@ -23,6 +23,7 @@ import "../../services/learning-kernel/verification-policy.contract.test.ts";
 import "../../services/verification-source/verification-source-admission.contract.test.ts";
 import "../../services/first-party-diagnostic/spec-authority.contract.test.ts";
 import "../../services/first-party-diagnostic/capture-authority.contract.test.ts";
+import "../../server/diagnostic/assessment-runtime.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -72,7 +73,7 @@ test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState"
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   for (const file of await sourceFiles(APP_ROOT)) {
     const source = await readFile(file, "utf8");
-    if (!file.startsWith(`${kernelRoot}${path.sep}`)) {
+    if (!file.startsWith(`${kernelRoot}${path.sep}`) && file !== path.join(APP_ROOT, "server/diagnostic/assessment-submission.ts")) {
       assert.ok(!staticImports(source).some((specifier) => /learning-kernel\/(?:derive-evidence|evidence-policy|evidence-shadow)/.test(specifier)),
         `${file} 不得在 Phase C 接入 Evidence authority`);
     } else if (!["derive-learner-state.ts", "verification-policy.ts"].some((name) => file === path.join(kernelRoot, name))) {
@@ -144,7 +145,7 @@ test("Recall Phase E5 state / authority / verification policy 保持 pure shadow
   assert.doesNotMatch(compatibility, /LearnerTargetState|LearnerStatePromotion|promotionEligibility|learner-state-policy|derive-learner-state/);
 });
 
-test("Recall verified assessment adapter 无 production writer，Fenbi wrong-only ImportDraft 不获验证权限", async () => {
+test("Recall verified assessment 仅允许固定 diagnostic runtime，Fenbi wrong-only ImportDraft 不获验证权限", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const adapter = path.join(kernelRoot, "verified-assessment-adapter.ts");
   assert.match(await readFile(adapter, "utf8"), /export function adaptVerifiedAssessment\(/);
@@ -154,7 +155,8 @@ test("Recall verified assessment adapter 无 production writer，Fenbi wrong-onl
   for (const file of runtimeFiles) {
     const source = await readFile(file, "utf8");
     if (file.startsWith(`${kernelRoot}${path.sep}`) || ["types/domains/learning-kernel.ts", "types/domains/verification-source.ts",
-      "services/verification-source/verification-source-admission-core.ts", "services/verification-source/verification-source-admission.ts"]
+      "services/verification-source/verification-source-admission-core.ts", "services/verification-source/verification-source-admission.ts",
+      "server/diagnostic/assessment-submission.ts"]
       .some((name) => file === path.join(APP_ROOT, name))) continue;
     assert.doesNotMatch(source, /VerifiedAssessment|adaptVerifiedAssessment|verification\.assessed|recall-verified-assessment\/v1|LearnerTargetStateV1|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility|VerificationDecisionV1|decideNextVerification/,
       `${file} 不得接入新验证来源、state authority 或产生 verified Event`);
@@ -192,12 +194,17 @@ const VERIFICATION_SOURCE_ROOT = path.join(APP_ROOT, "services/verification-sour
 const ADMISSION_CORE = path.join(VERIFICATION_SOURCE_ROOT, "verification-source-admission-core.ts");
 const ADMISSION_ENTRY = path.join(VERIFICATION_SOURCE_ROOT, "verification-source-admission.ts");
 const ADMISSION_TEST = path.join(VERIFICATION_SOURCE_ROOT, "verification-source-admission.contract.test.ts");
+const DIAGNOSTIC_RUNTIME_ROOT = path.join(APP_ROOT, "server/diagnostic");
+const DIAGNOSTIC_RUNTIME_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-runtime.contract.test.ts");
+const DIAGNOSTIC_SOURCE_OWNER = path.join(DIAGNOSTIC_RUNTIME_ROOT, "source-owner.ts");
+const DIAGNOSTIC_SUBMISSION = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-submission.ts");
 
 /** AST 覆盖 alias/re-export/import type/dynamic import/require；受信 resolver 只能在窄边界与专用测试中使用。 */
 function verificationSourceImportViolations(file: string, source: string): string[] {
   const kernelRoot = path.join(APP_ROOT, "services/learning-kernel");
   const isTest = /\.test\.(?:ts|mts|cts|js|mjs|cjs)$/.test(file);
-  const dedicatedTest = file === ADMISSION_TEST || (file.startsWith(`${kernelRoot}${path.sep}`) && file.endsWith(".contract.test.ts"));
+  const dedicatedTest = file === ADMISSION_TEST || file === DIAGNOSTIC_RUNTIME_TEST
+    || (file.startsWith(`${kernelRoot}${path.sep}`) && file.endsWith(".contract.test.ts"));
   const kernelInternal = file.startsWith(`${kernelRoot}${path.sep}`) && !isTest;
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const violations: string[] = [];
@@ -215,12 +222,12 @@ function verificationSourceImportViolations(file: string, source: string): strin
     if (specifier) {
       const target = (specifier.startsWith("@/") ? path.resolve(APP_ROOT, "..", specifier.slice(2))
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
-      if (target === path.join(kernelRoot, "verified-assessment-adapter") && !kernelInternal && !dedicatedTest && file !== ADMISSION_CORE)
+      if (target === path.join(kernelRoot, "verified-assessment-adapter") && !kernelInternal && !dedicatedTest && file !== ADMISSION_CORE && file !== DIAGNOSTIC_SUBMISSION)
         violations.push("raw_adapter_bypass");
-      if (target === ADMISSION_CORE.replace(/\.ts$/, "") && file !== ADMISSION_ENTRY && file !== ADMISSION_TEST)
+      if (target === ADMISSION_CORE.replace(/\.ts$/, "") && file !== ADMISSION_ENTRY && file !== ADMISSION_TEST && file !== DIAGNOSTIC_SOURCE_OWNER)
         violations.push("arbitrary_owner_resolver");
       if (target.endsWith(".test") && !isTest) violations.push("test_owner_in_production");
-      if (target === ADMISSION_ENTRY.replace(/\.ts$/, "") && !dedicatedTest)
+      if (target === ADMISSION_ENTRY.replace(/\.ts$/, "") && !dedicatedTest && file !== DIAGNOSTIC_SUBMISSION)
         violations.push("runtime_adoption_before_source_approval");
     }
     ts.forEachChild(node, inspect);
@@ -229,13 +236,13 @@ function verificationSourceImportViolations(file: string, source: string): strin
   return violations;
 }
 
-test("Recall source admission 保持纯依赖、空生产 owner 集合且无注册或外层 runtime 入口", async () => {
+test("Recall source admission core 保持纯依赖，registry 只有固定 controlled diagnostic owner 且无注册 API", async () => {
   const core = await readFile(ADMISSION_CORE, "utf8");
   const entry = await readFile(ADMISSION_ENTRY, "utf8");
   const allowedImports = new Map([
     [ADMISSION_CORE, ["../../types/domains/verification-source.ts", "../../types/domains/learning-kernel.ts",
       "../learning-kernel/learning-event.ts", "../learning-kernel/verified-assessment-adapter.ts"]],
-    [ADMISSION_ENTRY, ["../../types/domains/verification-source.ts", "./verification-source-admission-core.ts"]],
+    [ADMISSION_ENTRY, ["../../types/domains/verification-source.ts", "./verification-source-admission-core.ts", "../../server/diagnostic/source-owner.ts"]],
   ]);
   for (const [file, source] of [[ADMISSION_CORE, core], [ADMISSION_ENTRY, entry]]) {
     const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
@@ -258,7 +265,8 @@ test("Recall source admission 保持纯依赖、空生产 owner 集合且无注�
   assert.equal(owners.initializer.expression.getText(entryAst), "Object.freeze");
   assert.equal(owners.initializer.arguments.length, 1);
   assert.ok(ts.isArrayLiteralExpression(owners.initializer.arguments[0]));
-  assert.equal(owners.initializer.arguments[0].elements.length, 0, "不得在 E6 注册任何 production/test owner");
+  assert.equal(owners.initializer.arguments[0].elements.length, 1, "E9 只允许已接通的固定 diagnostic owner");
+  assert.equal(owners.initializer.arguments[0].elements[0].getText(entryAst), "FIRST_PARTY_DIAGNOSTIC_SOURCE_OWNER");
   assert.ok(ts.isVariableStatement(owners.parent.parent));
   assert.equal(owners.parent.parent.declarationList.flags & ts.NodeFlags.Const, ts.NodeFlags.Const);
   assert.ok(!owners.parent.parent.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
@@ -268,6 +276,9 @@ test("Recall source admission 保持纯依赖、空生产 owner 集合且无注�
   assert.ok(ts.isFunctionDeclaration(exports[0]));
   assert.equal(exports[0].name?.text, "admitVerifiedAssessment");
   assert.equal(exports[0].parameters.length, 1, "普通 caller 不能传 owner/resolver");
+  assert.equal(exports[0].body?.getText(entryAst).replace(/\s+/g, ""),
+    "{returnadmitFromAuthorizedSource(request,(id)=>AUTHORIZED_VERIFICATION_SOURCE_OWNERS.find((owner)=>owner.id===id));}",
+    "E9 只变更固定 owner 集合，不修改既有 admission facade 行为");
 
   const files = [...await sourceFiles(APP_ROOT, true, true), ...await sourceFiles(path.resolve(APP_ROOT, "../desktop"), true, true),
     ...await sourceFiles(path.resolve(APP_ROOT, "../scripts"), true, true)];
@@ -275,7 +286,7 @@ test("Recall source admission 保持纯依赖、空生产 owner 集合且无注�
     if (file === path.resolve(process.cwd(), "app/features/performance/architecture-boundary.contract.test.ts")) continue;
     const source = await readFile(file, "utf8");
     assert.deepEqual(verificationSourceImportViolations(file, source), [], `${file} 绕过 source admission 或泄漏 test owner`);
-    if (![ADMISSION_CORE, ADMISSION_ENTRY, ADMISSION_TEST].includes(file))
+    if (![ADMISSION_CORE, ADMISSION_ENTRY, ADMISSION_TEST, DIAGNOSTIC_SOURCE_OWNER].includes(file))
       assert.doesNotMatch(source, /\b(?:AuthorizedVerificationSourceOwner|admitFromAuthorizedSource|AUTHORIZED_VERIFICATION_SOURCE_OWNERS)\b/,
         `${file} 不得私建/注册 owner 或访问受信 resolver`);
   }
@@ -346,7 +357,7 @@ function diagnosticSpecImportViolations(file: string, source: string): string[] 
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
       if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_SPEC_ROOT}${path.sep}`)
         && ![DIAGNOSTIC_CAPTURE_CORE, DIAGNOSTIC_CAPTURE_ENTRY, DIAGNOSTIC_CAPTURE_TEST].some((capture) => target === capture.replace(/\.ts$/, ""))) {
-        if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE)
+        if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE && file !== DIAGNOSTIC_SOURCE_OWNER)
           violations.push("spec_capability_outside_boundary");
         if (target.endsWith(".test")) violations.push("spec_test_owner_leak");
       }
@@ -360,7 +371,7 @@ function diagnosticSpecImportViolations(file: string, source: string): string[] 
   return violations;
 }
 
-test("Recall first-party spec authority 保持纯规格依赖与 spec-only API，仅内部 capture 可消费规格", async () => {
+test("Recall first-party spec authority 保持纯规格依赖与 spec-only API，仅内部 capture/固定 owner 可消费规格", async () => {
   const files = await sourceFiles(DIAGNOSTIC_SPEC_ROOT);
   assert.deepEqual(files.toSorted(), [...DIAGNOSTIC_SPEC_EDGES.keys(), ...DIAGNOSTIC_CAPTURE_EDGES.keys()]
     .filter((file) => file.startsWith(`${DIAGNOSTIC_SPEC_ROOT}${path.sep}`)).toSorted());
@@ -393,7 +404,7 @@ test("Recall first-party spec authority 保持纯规格依赖与 spec-only API�
     if (file === path.resolve(process.cwd(), "app/features/performance/architecture-boundary.contract.test.ts")) continue;
     const source = await readFile(file, "utf8");
     assert.deepEqual(diagnosticSpecImportViolations(file, source), [], `${file} 不得注入规格或将 spec-only 能力当 capture authority`);
-    if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE)
+    if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE && file !== DIAGNOSTIC_SOURCE_OWNER)
       assert.doesNotMatch(source, /\b(?:FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER|PUBLISHED_ADDITION_SPEC|isPublishedDiagnosticSpec|resolvePublishedDiagnosticSpec|recomputeAdditionKey)\b/);
   }
 });
@@ -420,7 +431,8 @@ function diagnosticCaptureImportViolations(file: string, source: string): string
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
       if (target === DIAGNOSTIC_CAPTURE_CORE.replace(/\.ts$/, "") && file !== DIAGNOSTIC_CAPTURE_ENTRY && file !== DIAGNOSTIC_CAPTURE_TEST)
         violations.push("capture_dependency_injection");
-      if (target === DIAGNOSTIC_CAPTURE_ENTRY.replace(/\.ts$/, "") && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST)
+      if (target === DIAGNOSTIC_CAPTURE_ENTRY.replace(/\.ts$/, "") && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST
+        && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"))
         violations.push("capture_runtime_adoption");
       if (target === DIAGNOSTIC_CAPTURE_TEST.replace(/\.ts$/, "")) violations.push("capture_test_leak");
     }
@@ -433,12 +445,12 @@ function diagnosticCaptureImportViolations(file: string, source: string): string
   return violations;
 }
 
-test("Recall E8 capture 只有 canonical spec 与内部 clock/identity 依赖，无 UI/runtime/owner 注册", async () => {
+test("Recall E8 capture 只有 canonical spec 与内部 clock/identity 依赖，仅固定 server surface 可调用", async () => {
   const expectedExports = new Map([
     ["first-party-diagnostic-capture.ts", ["DiagnosticPresentationV1", "DiagnosticCapturedAttemptV1", "DiagnosticCaptureRejectionV1",
       "DiagnosticCaptureSessionV1", "DiagnosticCaptureCapabilityV1"]],
-    ["capture-authority-core.ts", ["createDiagnosticCaptureMechanism"]],
-    ["capture-authority.ts", ["FIRST_PARTY_DIAGNOSTIC_CAPTURE"]],
+    ["capture-authority-core.ts", ["createDiagnosticCaptureMechanism", "createControlledDiagnosticCaptureMechanism"]],
+    ["capture-authority.ts", ["FIRST_PARTY_DIAGNOSTIC_CAPTURE", "createControlledDiagnosticCapture"]],
   ]);
   for (const file of DIAGNOSTIC_CAPTURE_EDGES.keys()) {
     const source = await readFile(file, "utf8");
@@ -461,8 +473,9 @@ test("Recall E8 capture 只有 canonical spec 与内部 clock/identity 依赖，
     if (file === path.resolve(process.cwd(), "app/features/performance/architecture-boundary.contract.test.ts")) continue;
     const source = await readFile(file, "utf8");
     assert.deepEqual(diagnosticCaptureImportViolations(file, source), [], `${file} 不得接入 capture 或泄漏可注入 authority`);
-    if (!DIAGNOSTIC_CAPTURE_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST)
-      assert.doesNotMatch(source, /\b(?:createDiagnosticCaptureMechanism|FIRST_PARTY_DIAGNOSTIC_CAPTURE)\b/);
+    if (!DIAGNOSTIC_CAPTURE_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST
+      && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"))
+      assert.doesNotMatch(source, /\b(?:createDiagnosticCaptureMechanism|createControlledDiagnosticCaptureMechanism|createControlledDiagnosticCapture|FIRST_PARTY_DIAGNOSTIC_CAPTURE)\b/);
   }
 });
 
@@ -485,6 +498,87 @@ test("Recall E8 capture AST guard 拒绝外层 factory、runtime、test 与隐�
     "../fenbi-import-service.ts", "../../server/ai/provider-adapter.ts", "../verification-source/verification-source-admission-core.ts"])
     assert.ok(diagnosticCaptureImportViolations(DIAGNOSTIC_CAPTURE_CORE, `import type { Value } from "${specifier}";`).includes("non_capture_dependency"));
   assert.ok(diagnosticCaptureImportViolations(DIAGNOSTIC_CAPTURE_CORE, 'const hidden = await import("./spec-authority.ts");').includes("hidden_capture_dependency"));
+});
+
+const DIAGNOSTIC_RUNTIME_EDGES = new Map([
+  [path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"), ["node:crypto", "../../types/domains/first-party-diagnostic-capture.ts",
+    "../../services/first-party-diagnostic/capture-authority.ts"]],
+  [DIAGNOSTIC_SOURCE_OWNER, ["../../services/verification-source/verification-source-admission-core.ts",
+    "../../services/first-party-diagnostic/spec-authority.ts", "./assessment-store.ts"]],
+  [DIAGNOSTIC_SUBMISSION, ["./assessment-store.ts", "../../services/verification-source/verification-source-admission.ts",
+    "../../services/learning-kernel/verified-assessment-adapter.ts", "../../services/learning-kernel/derive-evidence.ts"]],
+  [path.join(APP_ROOT, "diagnostic/page.tsx"), ["next/link", "../server/diagnostic/assessment-store.ts"]],
+  [path.join(APP_ROOT, "api/diagnostic/submit/route.ts"), ["../../../server/http/route-security.ts", "../../../server/diagnostic/assessment-submission.ts"]],
+]);
+
+function diagnosticRuntimeImportViolations(file: string, source: string): string[] {
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const violations: string[] = [];
+  const inspect = (node: ts.Node) => {
+    let specifier: string | undefined;
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specifier = node.moduleSpecifier.text;
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) specifier = node.argument.literal.text;
+    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)
+      && node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression)) specifier = node.moduleReference.expression.text;
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+      || (ts.isIdentifier(node.expression) && node.expression.text === "require")) && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0])) specifier = node.arguments[0].text;
+    if (specifier) {
+      if (DIAGNOSTIC_RUNTIME_EDGES.has(file) && !DIAGNOSTIC_RUNTIME_EDGES.get(file)!.includes(specifier)) violations.push("non_controlled_surface_dependency");
+      const target = (specifier.startsWith("@/") ? path.resolve(APP_ROOT, "..", specifier.slice(2))
+        : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
+      if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)) {
+        const permitted = file === DIAGNOSTIC_RUNTIME_TEST || DIAGNOSTIC_RUNTIME_EDGES.has(file)
+          || (file === ADMISSION_ENTRY && target === DIAGNOSTIC_SOURCE_OWNER.replace(/\.ts$/, ""));
+        if (!permitted || target.endsWith(".test")) violations.push("controlled_runtime_leak");
+      }
+      if (file === DIAGNOSTIC_SOURCE_OWNER && specifier.includes("admission-core")
+        && (!ts.isImportDeclaration(node) || !node.importClause?.isTypeOnly)) violations.push("owner_core_value_access");
+    }
+    if (DIAGNOSTIC_RUNTIME_EDGES.has(file) && (ts.isImportTypeNode(node) || ts.isImportEqualsDeclaration(node)
+      || (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+        || (ts.isIdentifier(node.expression) && node.expression.text === "require"))))) violations.push("hidden_controlled_dependency");
+    ts.forEachChild(node, inspect);
+  };
+  inspect(ast);
+  return violations;
+}
+
+test("Recall E9 只有固定 server surface→capture→owner→admission→Evidence 路径，UI 无低层 authority", async () => {
+  assert.deepEqual((await sourceFiles(DIAGNOSTIC_RUNTIME_ROOT)).toSorted(),
+    [...DIAGNOSTIC_RUNTIME_EDGES.keys()].filter((file) => file.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)).toSorted());
+  const files = [...await sourceFiles(APP_ROOT, true, true), ...await sourceFiles(path.resolve(APP_ROOT, "../desktop"), true, true),
+    ...await sourceFiles(path.resolve(APP_ROOT, "../scripts"), true, true)];
+  for (const file of files) {
+    if (file === path.resolve(process.cwd(), "app/features/performance/architecture-boundary.contract.test.ts")) continue;
+    const source = await readFile(file, "utf8");
+    assert.deepEqual(diagnosticRuntimeImportViolations(file, source), [], `${file} 不得扩大 controlled source 边界`);
+    if (DIAGNOSTIC_RUNTIME_EDGES.has(file)) {
+      assert.doesNotMatch(source, /["']use client["']|Fenbi|Preparation|Planning|Provider|LearnerTargetState|deriveLearnerTargetStates|decideNextVerification|reviewDesktop|indexedDB|localStorage|\b(?:console|telemetry)\s*\./);
+      if (file === path.join(APP_ROOT, "diagnostic/page.tsx")) assert.doesNotMatch(source, /verifiedCorrectOption|keyRule|hint|guided|tutoring|AiActivityPanel/);
+    }
+  }
+  const core = await readFile(ADMISSION_CORE, "utf8");
+  assert.match(core, /captured\.assistance/);
+  const submission = await readFile(DIAGNOSTIC_SUBMISSION, "utf8");
+  assert.ok(submission.indexOf("const captured = submitDiagnostic") < submission.indexOf("const admitted = admitVerifiedAssessment"));
+  assert.ok(submission.indexOf('admitted.kind !== "admitted"') < submission.indexOf("const adapted = adaptVerifiedAssessment"));
+});
+
+test("Recall E9 AST guard 拒绝任意 runtime/owner consumer、UI assistance channel 与值级 core bypass", () => {
+  const outside = path.join(APP_ROOT, "features/review/diagnostic-bypass.ts");
+  for (const source of [
+    'import { issueDiagnostic } from "../../server/diagnostic/assessment-store.ts";',
+    'export * from "@/app/server/diagnostic/source-owner";',
+    'type Store = typeof import("../../server/diagnostic/assessment-store.ts");',
+    'const store = await import("../../server/diagnostic/assessment-store.ts");',
+    'const store = require("../../server/diagnostic/assessment-store.ts");',
+    'import store = require("../../server/diagnostic/assessment-store.ts");',
+  ]) assert.ok(diagnosticRuntimeImportViolations(outside, source).includes("controlled_runtime_leak"));
+  assert.ok(diagnosticRuntimeImportViolations(DIAGNOSTIC_SOURCE_OWNER,
+    'import { admitFromAuthorizedSource } from "../../services/verification-source/verification-source-admission-core.ts";').includes("owner_core_value_access"));
+  for (const specifier of ["../features/tutoring/tutoring-workspace", "../services/preparation/preparation-task-policy.ts",
+    "../services/exam-planning/exam-next-task-policy.ts", "../server/ai/provider-adapter.ts"])
+    assert.ok(diagnosticRuntimeImportViolations(path.join(APP_ROOT, "diagnostic/page.tsx"), `import value from "${specifier}";`).includes("non_controlled_surface_dependency"));
 });
 
 test("Recall E8 保留 Slice 7 spec authority source freeze", async () => {
@@ -523,7 +617,6 @@ test("Recall E7 冻结 #141/#142/#143 关键 API 与 admission 语义", async ()
   const pins = new Map([
     ["types/domains/learning-kernel.ts", "f8dd65bb031e63394c467c22977cf421e970906cde5758e9fdb42ee09d5a6bb7"],
     ["types/domains/verification-source.ts", "ff17c1dbf36495b21b941e2fb7c9a008ec3f0312ddc85830e9b515f791b31daa"],
-    ["services/verification-source/verification-source-admission.ts", "57efa729226aa2fc7b48c6d6f0a81bc344b3585e5b36d49ec04fa7208ab20db2"],
     ["services/verification-source/verification-source-admission-core.ts", "98c8ff9b015bc326659de02cf5b49febe4626fbebfb82052a7a5f803b028bd55"],
     ["services/learning-kernel/verified-assessment-adapter.ts", "4bb74ded75d21c71ac46f8ae08a72cf812804bb142e58fb71dc097aaa94b3d4c"],
     ["services/learning-kernel/derive-evidence.ts", "a1295c5675ee8c0e90247f40e90cef9910703a1ddd9d39d1e38e287f39f0bfaf"],
@@ -555,7 +648,8 @@ test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入
           callers.add(file);
         }
         if (!file.startsWith(`${kernelRoot}${path.sep}`)) {
-          assert.ok(!["derive-evidence", "evidence-policy", "evidence-shadow"].some((name) => target === path.join(kernelRoot, name)),
+          assert.ok(!["derive-evidence", "evidence-policy", "evidence-shadow"].some((name) => target === path.join(kernelRoot, name))
+            || (file === DIAGNOSTIC_SUBMISSION && target === path.join(kernelRoot, "derive-evidence")),
             `${file} 不得绕过 bridge 直接接入 Evidence`);
         }
       }
