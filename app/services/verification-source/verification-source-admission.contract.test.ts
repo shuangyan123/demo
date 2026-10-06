@@ -7,6 +7,7 @@ import { adaptVerifiedAssessment } from "../learning-kernel/verified-assessment-
 import { deriveEvidence } from "../learning-kernel/derive-evidence.ts";
 import { deriveLearnerTargetStates } from "../learning-kernel/derive-learner-state.ts";
 import { decideNextVerification } from "../learning-kernel/verification-policy.ts";
+import { FIRST_PARTY_DIAGNOSTIC_CAPTURE } from "../first-party-diagnostic/capture-authority.ts";
 
 // 仅条件性 contract fixture；没有真实内容核验或 capture，不是获准生产来源。
 const sourceOwnerId = "contract-test";
@@ -35,6 +36,34 @@ test("production authorized set remains empty for every existing product source 
     reject("unknown_source_owner", admitVerifiedAssessment({ ...request, sourceOwnerId: id }));
   reject("unknown_source_owner", admitVerifiedAssessment({ ...request, owner: fixture(), resolver: () => fixture(),
     verified: true, canonicalSpec: spec, capturedAttempt: attempt }));
+});
+
+test("E8 mechanism captures cannot become production admitted assessments or Evidence", () => {
+  const started = FIRST_PARTY_DIAGNOSTIC_CAPTURE.begin({ specId: "int-add-2-3", specRevision: "r1" });
+  assert.equal(started.kind, "started");
+  if (started.kind !== "started") throw new Error("start rejected");
+  const result = started.session.submit({ selectedOptionId: "five" });
+  assert.equal(result.kind, "captured");
+  if (result.kind !== "captured") throw new Error("capture rejected");
+  const captured = result.attempt;
+  assert.equal(captured.assistance, "unknown");
+  const input = { sourceOwnerId: "recall-diagnostic", specId: captured.specId,
+    specRevision: captured.specRevision, attemptId: captured.id };
+  reject("unknown_source_owner", admitVerifiedAssessment(input));
+  reject("unknown_source_owner", admitVerifiedAssessment({ ...input, verified: true, assistance: "none",
+    key: "five", target: "caller", capturedAttempt: { ...captured, assistance: "none" } }));
+  // 仅测试内部 owner contract 的拒绝：测试桥接不等于真实 production capture/acceptance。
+  const contractOwner: AuthorizedVerificationSourceOwner = { id: input.sourceOwnerId,
+    resolveSpec: () => ({ schemaVersion: 1, id: captured.specId, revision: captured.specRevision,
+      contentRevision: captured.contentRevision, optionIds: captured.optionIds, verifiedCorrectOptionId: "five" }),
+    resolveAttempt: (id) => id === captured.id ? captured : undefined };
+  reject("invalid_attempt", admitFromAuthorizedSource(input, () => contractOwner));
+  reject("invalid_attempt", admitFromAuthorizedSource({ ...input, assistance: "none", verified: true }, () => contractOwner));
+  reject("invalid_attempt", admitFromAuthorizedSource({ ...input, attemptId: "unknown" }, () => contractOwner));
+  const adapted = adaptVerifiedAssessment({ schemaVersion: 1, id: "contract-only", optionCount: 3, verifiedCorrectOptionIndex: 1 },
+    { ...captured, specId: "contract-only", selectedOptionIndex: 1 });
+  assert.deepEqual(adapted.events, []);
+  assert.deepEqual(deriveEvidence(adapted.events).evidence, []);
 });
 
 test("request must identify exact source/spec/revision/attempt; malformed identities are rejected", () => {
