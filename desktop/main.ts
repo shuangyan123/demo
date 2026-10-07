@@ -12,6 +12,7 @@ import { installFenbiSessionIpc } from "./fenbi-session-ipc.js";
 import { createFenbiWebContentsController } from "./fenbi-web-contents-controller.js";
 import { installFenbiWebContentsIpc } from "./fenbi-web-contents-ipc.js";
 import { resolveDesktopManagedStorage } from "./managed-storage.js";
+import type { ManagedStorageHostConfig } from "../app/platform/managed-storage.js";
 
 registerDesktopScheme();
 
@@ -56,7 +57,7 @@ function disposeFenbiWebContents(): void {
   fenbiViewController = undefined;
 }
 
-async function createMainWindow(): Promise<void> {
+async function createMainWindow(storageConfig: ManagedStorageHostConfig): Promise<void> {
   const developmentUrl = process.env.ELECTRON_RENDERER_URL;
   const partition = "persist:review-workspace";
   const workspaceSession = session.fromPartition(partition);
@@ -65,7 +66,7 @@ async function createMainWindow(): Promise<void> {
   installDesktopCredentialStorageIpc(developmentUrl);
   installDesktopVaultIpc(developmentUrl);
   if (isPackagedDesktop()) {
-    runtime = await startDesktopRuntime();
+    runtime = await startDesktopRuntime(storageConfig);
     installDesktopProtocol(runtime.baseUrl, runtime.token, workspaceSession.protocol);
   }
   mainWindow = new BrowserWindow({
@@ -125,10 +126,10 @@ async function cleanupFailedLaunch(): Promise<void> {
   await failedRuntime.stop();
 }
 
-async function launchMainWindowWithRecovery(): Promise<void> {
+async function launchMainWindowWithRecovery(storageConfig: ManagedStorageHostConfig): Promise<void> {
   while (true) {
     try {
-      await createMainWindow();
+      await createMainWindow(storageConfig);
       return;
     } catch (error) {
       await cleanupFailedLaunch();
@@ -158,7 +159,7 @@ if (isSquirrelLifecycleInvocation(process.argv)) {
         mainWindow.focus();
       });
       app.whenReady()
-        .then(launchMainWindowWithRecovery)
+        .then(() => launchMainWindowWithRecovery(storageState.config))
         .catch(() => app.quit());
       app.on("window-all-closed", () => app.quit());
       app.on("before-quit", (event) => {

@@ -8,6 +8,7 @@ const root = process.cwd();
 const allowed = new Set([
   "desktop/main.ts", "desktop/managed-storage.ts", "desktop/storage-bootstrap.ts", "desktop/storage-bootstrap-record.ts", "desktop/storage-bootstrap-io.ts",
   "app/server/diagnostic/history/repository.ts", "app/server/diagnostic/history/repository-core.ts",
+  "desktop/runtime.ts", "desktop/storage-runtime-config.ts", "app/server/diagnostic/storage-config.ts", "app/server/diagnostic/runtime-core.ts",
 ]);
 const isStorage = (target: string) => /(?:^|\/)(?:managed-storage|storage-bootstrap(?:-record|-io)?)(?:\.(?:d\.)?(?:ts|js))?$/.test(target);
 
@@ -30,7 +31,7 @@ function violations(file: string, source: string): string[] {
       if (file.startsWith("app/") && resolved.startsWith(path.join(root, "desktop") + path.sep)) issues.push("desktop_path_in_app");
     }
     if ((ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) && node.type.getText(ast).includes("ManagedStorageHostConfig")
-      && file !== "desktop/storage-bootstrap-record.ts") issues.push("forged_host_configuration");
+      && !["desktop/storage-bootstrap-record.ts", "app/server/diagnostic/storage-config.ts"].includes(file)) issues.push("forged_host_configuration");
     ts.forEachChild(node, inspect);
   };
   inspect(ast);

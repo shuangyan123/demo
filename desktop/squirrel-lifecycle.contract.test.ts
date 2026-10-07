@@ -36,7 +36,7 @@ test("lifecycle exit is decided before single-instance lock and app readiness", 
   assert.ok(lifecycleCheck >= 0);
   assert.ok(lock > lifecycleCheck);
   assert.ok(ready > lifecycleCheck);
-  assert.match(main, /app\.whenReady\(\)\s*\.then\(launchMainWindowWithRecovery\)/);
+  assert.match(main, /app\.whenReady\(\)\s*\.then\(\(\) => launchMainWindowWithRecovery\(storageState\.config\)\)/);
   assert.match(main, /if \(isSquirrelLifecycleInvocation\(process\.argv\)\) \{[\s\S]*?app\.quit\(\)/);
 });
 

@@ -1,10 +1,27 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { before, after } from "node:test";
 import { spawnSync } from "node:child_process";
 import { issueDiagnostic, readDiagnostic, resolveDiagnosticAttempt, submitDiagnostic } from "./assessment-store.ts";
 import { commitDiagnosticSubmission } from "./assessment-submission.ts";
 import { admitVerifiedAssessment } from "../../services/verification-source/verification-source-admission.ts";
 import { POST } from "../../api/diagnostic/submit/route.ts";
+import { closeDiagnosticRuntime, initializeDiagnosticRuntime } from "./runtime.ts";
+import { diagnosticStorageFixture } from "../../../test-support/diagnostic-storage.ts";
+
+let storage: ReturnType<typeof diagnosticStorageFixture>;
+let previousPayload: string | undefined;
+before(() => {
+  storage = diagnosticStorageFixture();
+  previousPayload = process.env.RECALL_MANAGED_STORAGE_BOOTSTRAP;
+  process.env.RECALL_MANAGED_STORAGE_BOOTSTRAP = storage.payload;
+  assert.equal(initializeDiagnosticRuntime().readiness().kind, "ready");
+});
+after(() => {
+  closeDiagnosticRuntime();
+  if (previousPayload === undefined) delete process.env.RECALL_MANAGED_STORAGE_BOOTSTRAP;
+  else process.env.RECALL_MANAGED_STORAGE_BOOTSTRAP = previousPayload;
+  storage.cleanup();
+});
 
 function issue() {
   const result = issueDiagnostic();
@@ -56,7 +73,7 @@ test("real controlled submission uses capture authority, internal occurrence, pr
   const { issued, result } = submitted();
   const after = Date.now();
   const attempt = result.attempt;
-  assert.equal(resolveDiagnosticAttempt(attempt.id), attempt);
+  assert.deepEqual(resolveDiagnosticAttempt(attempt.id), attempt);
   assert.notEqual(attempt.id, issued.sessionId);
   assert.ok(Date.parse(attempt.occurredAt) >= before && Date.parse(attempt.occurredAt) <= after);
   assert.equal(attempt.assistance, "none");
@@ -147,24 +164,25 @@ test("native no-referrer form requires complete same-origin navigation metadata"
   assert.equal(readDiagnostic(issued.sessionId).kind, "revealed");
 });
 
-test("unknown or expired sessions cannot be restored by caller facts or production owner fallback", (context) => {
+test("unknown/expired sessions fail closed while durable historical authority survives session TTL", (context) => {
   assert.deepEqual(readDiagnostic("unknown"), { kind: "unavailable" });
   assert.deepEqual(submitDiagnostic({ sessionId: "unknown", selectedOptionId: "five" }), { kind: "rejected", reason: "unknown_session" });
   const { issued, result } = submitted();
   const later = Date.now() + 31 * 60 * 1000;
   context.mock.method(Date, "now", () => later);
   assert.deepEqual(readDiagnostic(issued.sessionId), { kind: "unavailable" });
-  assert.equal(resolveDiagnosticAttempt(result.attempt.id), undefined);
-  assert.equal(admitVerifiedAssessment({ sourceOwnerId: "recall-diagnostic", specId: "int-add-2-3", specRevision: "r1", attemptId: result.attempt.id }).kind, "rejected");
+  assert.deepEqual(resolveDiagnosticAttempt(result.attempt.id), result.attempt);
+  assert.equal(admitVerifiedAssessment({ sourceOwnerId: "recall-diagnostic", specId: "int-add-2-3", specRevision: "r1", attemptId: result.attempt.id }).kind, "admitted");
 });
 
-test("a fresh server process cannot resolve the previous process's captured attempt", () => {
+test("independent server process reloads validated history and resolves the prior durable attempt", () => {
   const { result } = submitted();
-  const script = 'import { admitVerifiedAssessment } from "./app/services/verification-source/verification-source-admission.ts"; '
+  const script = 'import { initializeDiagnosticRuntime } from "./app/server/diagnostic/runtime.ts"; initializeDiagnosticRuntime(); '
+    + 'import { admitVerifiedAssessment } from "./app/services/verification-source/verification-source-admission.ts"; '
     + 'process.stdout.write(JSON.stringify(admitVerifiedAssessment({ sourceOwnerId: "recall-diagnostic", specId: "int-add-2-3", specRevision: "r1", attemptId: process.argv[1] })));';
   const child = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script, result.attempt.id],
     { cwd: process.cwd(), encoding: "utf8", timeout: 10000 });
   assert.equal(child.status, 0, child.stderr);
-  assert.deepEqual(JSON.parse(child.stdout), { kind: "rejected", reason: "invalid_attempt", policyVersion: "source-admission/v1" });
-  assert.equal(resolveDiagnosticAttempt(result.attempt.id), result.attempt, "the original process still owns its record");
+  assert.deepEqual(JSON.parse(child.stdout), result.admitted);
+  assert.deepEqual(resolveDiagnosticAttempt(result.attempt.id), result.attempt);
 });

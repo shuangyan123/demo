@@ -41,8 +41,16 @@ export async function POST(request: Request): Promise<Response> {
       throw new RouteSecurityError("invalid_form", "提交字段无效", 400);
     const sessionId = form.get("sessionId")!;
     const result = commitDiagnosticSubmission({ sessionId, selectedOptionId: form.get("selectedOptionId")! });
-    if (result.kind !== "submitted") return apiErrorResponse(undefined, { code: "submission_rejected",
-      message: "本次提交未完成，请重新开始。", status: result.kind === "rejected" ? 409 : 503 });
+    if (result.kind !== "submitted") {
+      const sealed = result.kind === "captured_not_durable" || result.kind === "durable_not_admitted" || result.kind === "durable_without_evidence";
+      if (sealed) return new Response(`<!doctype html><html lang="zh-CN"><title>提交未完成</title><main>
+        <p role="alert">答案已锁定，提交尚未完成。</p>
+        <a href="/diagnostic?session=${encodeURIComponent(sessionId)}">返回作答页</a></main></html>`,
+        { status: 503, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+      return apiErrorResponse(undefined, { code: "submission_rejected",
+        message: "本次提交未完成。",
+        status: result.kind === "rejected" ? 409 : 503 });
+    }
     return new Response(null, { status: 303, headers: {
       location: `/diagnostic?session=${encodeURIComponent(sessionId)}`, "cache-control": "no-store", "x-content-type-options": "nosniff",
     } });

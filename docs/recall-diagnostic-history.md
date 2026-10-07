@@ -2,6 +2,8 @@
 
 基线为 Slice 1 `d2d80e68756058feb8bae57805110637bd6fbd3a`。本片只交付 source-owned repository authority，
 不接 production submit、source owner reload、Event/Evidence history、learner state、decision 或 UI。
+以上为 Slice 2 交付边界；后续 [Slice 3 production durable submission/owner recovery](recall-durable-diagnostic-submission.md)
+已接通 Main→Next trusted composition、完整 owner index 与 submit→Evidence→reveal。下文保留 repository contract。
 Phase E 保持 COMPLETE；Phase F 整体和 DOGFOOD READY 均未成立。
 
 ## 路径与 identity
@@ -13,7 +15,7 @@ temp 或环境变量，不接 renderer root。Tests 也通过真实 Host resolve
 
 Snapshot 绑定 `profileId + epochId`；位置不是身份。未来同一 profile 换路径仍保留两者；显式 reset/replace 才改变 epoch。
 reopen 身份不匹配返回 corrupt，不导入旧 epoch。没有 repositoryId。
-本片不传 Main→Next config；Slice 3 仍需显式可信 composition，不能用环境/cwd 猜路径。
+Slice 2 本片不传 Main→Next config；后续 Slice 3 通过严格 process composition 显式传入，不用环境/cwd 猜路径。
 
 ## 完整快照与源事实
 
@@ -99,5 +101,5 @@ SHA-256 不是 authenticity proof；不抵抗有本地文件写权限的恶意�
 迁移 policy 仍 managed-files，仅表达未来需求，不执行 copy/move。
 
 Architecture contracts 保护 repository 仅内部 server 使用、Host config 输入、Kernel/Evidence/state/policy 隔离、
-spec/capture storage independence、writer capability 和无 production owner/admission 改动。
-后续 Slice 3 才接 production submit → durable commit → durable owner resolution；本片不加载 Event/Evidence 或运行 Kernel state。
+spec/capture storage independence 与 writer capability。Slice 2 本片无 production owner/admission 改动；
+后续 Slice 3 已接 production submit → durable commit → durable owner resolution → Evidence；仍不加载完整 Event/Evidence history 或运行 Kernel state。

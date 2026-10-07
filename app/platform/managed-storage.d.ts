@@ -1,4 +1,4 @@
-/** 只由 Desktop bootstrap resolver 产生；不通过 preload/HTTP 接收路径。 */
+/** 由 Host resolver 或受信 process composition 重建；不通过 preload/HTTP 接收路径。 */
 declare const trustedStorageResolution: unique symbol;
 export type ManagedStorageHostConfig = Readonly<{
   [trustedStorageResolution]: true;

@@ -6,6 +6,7 @@ import ts from "typescript";
 
 const root = process.cwd();
 const history = path.join(root, "app/server/diagnostic/history");
+const runtimeCore = path.join(root, "app/server/diagnostic/runtime-core.ts");
 function imports(source: string, file: string): string[] {
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const result: string[] = [];
@@ -27,7 +28,9 @@ function violations(file: string, source: string): string[] {
       : specifier.startsWith(".") ? path.resolve(path.dirname(file), specifier) : "";
     const historyDependency = target.startsWith(history + path.sep)
       || target.replace(/\.(?:ts|js)$/, "") === path.join(root, "app/types/domains/diagnostic-history");
-    if (historyDependency && !file.startsWith(history + path.sep)) result.push("repository_outside_boundary");
+    const permittedComposition = file === runtimeCore && [path.join(history, "repository"), path.join(root, "app/types/domains/diagnostic-history")]
+      .includes(target.replace(/\.(?:ts|js)$/, ""));
+    if (historyDependency && !file.startsWith(history + path.sep) && !permittedComposition) result.push("repository_outside_boundary");
     if (file.startsWith(history + path.sep) && (target.startsWith(path.join(root, "desktop") + path.sep)
       || /(?:derive-evidence|evidence-policy|derive-learner-state|learner-state-policy|verification-policy|verified-assessment-adapter|verification-source-admission)/.test(specifier))) result.push("repository_authority_expansion");
   }

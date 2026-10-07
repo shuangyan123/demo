@@ -25,10 +25,12 @@ import "../../services/verification-source/verification-source-admission.contrac
 import "../../services/first-party-diagnostic/spec-authority.contract.test.ts";
 import "../../services/first-party-diagnostic/capture-authority.contract.test.ts";
 import "../../server/diagnostic/assessment-runtime.contract.test.ts";
+import "../../server/diagnostic/durable-submission.contract.test.ts";
 import "../../services/storage-domain-registry.contract.test.ts";
 import "./managed-storage-boundary.contract.test.ts";
 import "../../server/diagnostic/history/repository.contract.test.ts";
 import "./diagnostic-history-boundary.contract.test.ts";
+import "./durable-runtime-boundary.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -201,6 +203,7 @@ const ADMISSION_ENTRY = path.join(VERIFICATION_SOURCE_ROOT, "verification-source
 const ADMISSION_TEST = path.join(VERIFICATION_SOURCE_ROOT, "verification-source-admission.contract.test.ts");
 const DIAGNOSTIC_RUNTIME_ROOT = path.join(APP_ROOT, "server/diagnostic");
 const DIAGNOSTIC_RUNTIME_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-runtime.contract.test.ts");
+const DIAGNOSTIC_DURABLE_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "durable-submission.contract.test.ts");
 const DIAGNOSTIC_SOURCE_OWNER = path.join(DIAGNOSTIC_RUNTIME_ROOT, "source-owner.ts");
 const DIAGNOSTIC_SUBMISSION = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-submission.ts");
 
@@ -208,7 +211,7 @@ const DIAGNOSTIC_SUBMISSION = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-sub
 function verificationSourceImportViolations(file: string, source: string): string[] {
   const kernelRoot = path.join(APP_ROOT, "services/learning-kernel");
   const isTest = /\.test\.(?:ts|mts|cts|js|mjs|cjs)$/.test(file);
-  const dedicatedTest = file === ADMISSION_TEST || file === DIAGNOSTIC_RUNTIME_TEST
+  const dedicatedTest = file === ADMISSION_TEST || file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST
     || (file.startsWith(`${kernelRoot}${path.sep}`) && file.endsWith(".contract.test.ts"));
   const kernelInternal = file.startsWith(`${kernelRoot}${path.sep}`) && !isTest;
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
@@ -450,7 +453,7 @@ function diagnosticCaptureImportViolations(file: string, source: string): string
         if (!guardOnly) violations.push("capture_dependency_injection");
       }
       if (target === DIAGNOSTIC_CAPTURE_ENTRY.replace(/\.ts$/, "") && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST
-        && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"))
+        && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime-core.ts"))
         violations.push("capture_runtime_adoption");
       if (target === DIAGNOSTIC_CAPTURE_TEST.replace(/\.ts$/, "")) violations.push("capture_test_leak");
     }
@@ -493,7 +496,7 @@ test("Recall E8 capture 只有 canonical spec 与内部 clock/identity 依赖，
     assert.deepEqual(diagnosticCaptureImportViolations(file, source), [], `${file} 不得接入 capture 或泄漏可注入 authority`);
     if (!DIAGNOSTIC_CAPTURE_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST
       && file !== DIAGNOSTIC_HISTORY_TEST
-      && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"))
+      && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime-core.ts"))
       assert.doesNotMatch(source, /\b(?:createDiagnosticCaptureMechanism|createControlledDiagnosticCaptureMechanism|createControlledDiagnosticCapture|FIRST_PARTY_DIAGNOSTIC_CAPTURE)\b/);
   }
 });
@@ -520,11 +523,15 @@ test("Recall E8 capture AST guard 拒绝外层 factory、runtime、test 与隐�
 });
 
 const DIAGNOSTIC_RUNTIME_EDGES = new Map([
-  [path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"), ["node:crypto", "../../types/domains/first-party-diagnostic-capture.ts",
-    "../../services/first-party-diagnostic/capture-authority.ts"]],
+  [path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"), ["./runtime.ts"]],
+  [path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime.ts"), ["./runtime-core.ts", "./storage-config.ts"]],
+  [path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime-core.ts"), ["node:crypto", "../../platform/managed-storage.js",
+    "../../types/domains/diagnostic-history.ts", "../../types/domains/first-party-diagnostic-capture.ts",
+    "../../services/first-party-diagnostic/capture-authority.ts", "./history/repository.ts"]],
+  [path.join(DIAGNOSTIC_RUNTIME_ROOT, "storage-config.ts"), ["node:path", "../../platform/managed-storage.js"]],
   [DIAGNOSTIC_SOURCE_OWNER, ["../../services/verification-source/verification-source-admission-core.ts",
     "../../services/first-party-diagnostic/spec-authority.ts", "./assessment-store.ts"]],
-  [DIAGNOSTIC_SUBMISSION, ["./assessment-store.ts", "../../services/verification-source/verification-source-admission.ts",
+  [DIAGNOSTIC_SUBMISSION, ["./runtime.ts", "./runtime-core.ts", "../../services/verification-source/verification-source-admission.ts",
     "../../services/learning-kernel/verified-assessment-adapter.ts", "../../services/learning-kernel/derive-evidence.ts"]],
   [path.join(APP_ROOT, "diagnostic/page.tsx"), ["next/link", "../server/diagnostic/assessment-store.ts"]],
   [path.join(APP_ROOT, "api/diagnostic/submit/route.ts"), ["../../../server/http/route-security.ts", "../../../server/diagnostic/assessment-submission.ts"]],
@@ -547,8 +554,9 @@ function diagnosticRuntimeImportViolations(file: string, source: string): string
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
       if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)) {
         const permitted = target.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`)
-          ? file.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`)
-          : file === DIAGNOSTIC_RUNTIME_TEST || DIAGNOSTIC_RUNTIME_EDGES.has(file)
+          ? file.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`) || file === DIAGNOSTIC_DURABLE_TEST
+            || (file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime-core.ts") && target === path.join(DIAGNOSTIC_HISTORY_ROOT, "repository"))
+          : file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || DIAGNOSTIC_RUNTIME_EDGES.has(file)
             || (file === ADMISSION_ENTRY && target === DIAGNOSTIC_SOURCE_OWNER.replace(/\.ts$/, ""));
         if (!permitted || target.endsWith(".test")) violations.push("controlled_runtime_leak");
       }
@@ -582,7 +590,9 @@ test("Recall E9 只有固定 server surface→capture→owner→admission→Evid
   const core = await readFile(ADMISSION_CORE, "utf8");
   assert.match(core, /captured\.assistance/);
   const submission = await readFile(DIAGNOSTIC_SUBMISSION, "utf8");
-  assert.ok(submission.indexOf("const captured = submitDiagnostic") < submission.indexOf("const admitted = admitVerifiedAssessment"));
+  assert.ok(submission.indexOf("const captured = runtime.capture") < submission.indexOf("const durable = runtime.append"));
+  assert.ok(submission.indexOf("const durable = runtime.append") < submission.indexOf("const admitted = admit("));
+  assert.ok(submission.indexOf("const derived = deriveEvidence") < submission.indexOf("runtime.allowReveal"));
   assert.ok(submission.indexOf('admitted.kind !== "admitted"') < submission.indexOf("const adapted = adaptVerifiedAssessment"));
 });
 

@@ -6,6 +6,8 @@ import { createServer } from "node:net";
 import path from "node:path";
 import { app } from "electron";
 import { classifyRuntimeSpawnFailure, isRetryableRuntimeSpawnFailure, type RuntimeSpawnFailureCode } from "./runtime-spawn.js";
+import type { ManagedStorageHostConfig } from "../app/platform/managed-storage.js";
+import { serializeStorageRuntimeConfig } from "./storage-runtime-config.js";
 
 type IntegrityManifest = {
   algorithm: "sha256";
@@ -59,13 +61,13 @@ const FIRSTRUN_GRACE_MS = 750;
 const DIAGNOSTIC_FILE_LIMIT = 64 * 1024;
 
 /** 启动前验证 Node 与 standalone 资源，随后只监听随机 loopback 端口。 */
-export async function startDesktopRuntime(): Promise<DesktopRuntime> {
+export async function startDesktopRuntime(storageConfig: ManagedStorageHostConfig): Promise<DesktopRuntime> {
   const root = path.join(process.resourcesPath, ".desktop-runtime");
   if (process.argv.includes("--squirrel-firstrun")) await delay(FIRSTRUN_GRACE_MS);
   await verifyRuntimeIntegrity(root);
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      return await startDesktopRuntimeAttempt(root, attempt);
+      return await startDesktopRuntimeAttempt(root, attempt, storageConfig);
     } catch (error) {
       if (
         error instanceof DesktopRuntimeError
@@ -81,7 +83,7 @@ export async function startDesktopRuntime(): Promise<DesktopRuntime> {
   throw new DesktopRuntimeError("RUNTIME_SPAWN_UNKNOWN", "桌面运行进程启动失败", { attempts: 2 });
 }
 
-async function startDesktopRuntimeAttempt(root: string, attempt: number): Promise<DesktopRuntime> {
+async function startDesktopRuntimeAttempt(root: string, attempt: number, storageConfig: ManagedStorageHostConfig): Promise<DesktopRuntime> {
   const port = await reserveLoopbackPort();
   const token = randomBytes(32).toString("base64url");
   const executable = path.join(root, "node", "node.exe");
@@ -98,6 +100,7 @@ async function startDesktopRuntimeAttempt(root: string, attempt: number): Promis
         HOSTNAME: "127.0.0.1",
         PORT: String(port),
         REVIEW_DESKTOP_RUNTIME_TOKEN: token,
+        RECALL_MANAGED_STORAGE_BOOTSTRAP: serializeStorageRuntimeConfig(storageConfig),
       },
     });
   } catch (error) {

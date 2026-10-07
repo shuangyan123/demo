@@ -29,7 +29,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "cross-env PORT=4320 HOSTNAME=127.0.0.1 npm run start:standalone",
+    command: "cross-env PORT=4320 HOSTNAME=127.0.0.1 node --experimental-strip-types scripts/start-diagnostic-test-server.mts",
     url: "http://127.0.0.1:4320",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

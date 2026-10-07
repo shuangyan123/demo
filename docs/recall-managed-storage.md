@@ -4,7 +4,8 @@
 Slice 1 只建立 Host storage foundation；该片未实现 diagnostic durable repository、迁移、位置选择 UI 或 learner-state persistence。
 
 后续 [Slice 2 Diagnostic Durable Capture Repository](recall-diagnostic-history.md) 已建立独立 repository authority；
-下文记录 Slice 1 的 foundation 范围。Production profile relocation 与 durable submit/owner integration 仍 deferred。
+下文记录 Slice 1 的 foundation 范围。[Slice 3](recall-durable-diagnostic-submission.md) 已接通 trusted Main→Next
+与 durable submit/owner recovery；production profile relocation 仍 deferred。
 
 ## Bootstrap 与 identity
 
@@ -123,7 +124,7 @@ Cache、temp、OS secrets 与 logs 不默认迁移；将来 logs 需独立显式
 
 `diagnostic-history` 在 Slice 1 登记为 reserved；Slice 2 repository 实现后更新为 current。
 first-party-diagnostic owner、managed-durable、managed-files physical unit 与 backup/reset/migration relevance 不变；
-当前 backup/reset 标记 `not-implemented`，production durable submit/owner integration 仍未接通。
+当前 backup/reset 标记 `not-implemented`；production durable submit/owner integration 已在 Slice 3 接通。
 
 既有 V2 export/restore 与 resetAll 行为不变：
 

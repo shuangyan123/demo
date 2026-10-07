@@ -5,7 +5,9 @@ storage policy registry 见 [Managed Data Root Foundation](recall-managed-storag
 既有 Dexie v16、partition、origin、凭据与 Vault 数据路径保持不变。
 
 Recall Phase F Slice 2 的 [Diagnostic Durable Capture Repository](recall-diagnostic-history.md) 保存并严格恢复 source-owned captures。
-它仅内部 server repository authority，不接 production submit/owner、Event/Evidence history 或 learner-state UI。
+Slice 3 的 [Production Durable Diagnostic Submission & Owner Recovery](recall-durable-diagnostic-submission.md)
+接通 trusted Main→Next composition、启动完整快照、durable-confirmed owner index 与 submit→Evidence→reveal。
+完整 Event/Evidence history→state/WHAT、位置迁移与全局 backup/reset integration 仍未实现。
 
 ## Electron 桌面架构（2026-07-28）
 
