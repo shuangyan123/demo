@@ -10,12 +10,12 @@ export function commitDiagnosticSubmission(input: unknown) {
 }
 
 /** 内部故障测试 seam；production facade 固定 runtime/admission，不接受 caller dependencies。 */
-export function continueDiagnosticSubmission(input: unknown, runtime: DiagnosticRuntime,
+export async function continueDiagnosticSubmission(input: unknown, runtime: DiagnosticRuntime,
   admit: typeof admitVerifiedAssessment = admitVerifiedAssessment) {
   const captured = runtime.capture(input);
   if (captured.kind !== "captured") return captured;
   const attempt = captured.attempt;
-  const durable = runtime.append(attempt);
+  const durable = await runtime.append(attempt);
   if (durable.kind !== "committed" && durable.kind !== "confirmed")
     return { kind: "captured_not_durable", attempt, failure: durable } as const;
   const admitted = admit({ sourceOwnerId: attempt.sourceOwnerId,

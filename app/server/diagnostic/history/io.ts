@@ -88,6 +88,7 @@ export function diagnosticDurabilityFailure(result: object): DiagnosticDurabilit
 export const historyUnavailable = (reason: string): DiagnosticHistoryFailure => ({ kind: "unavailable", code: "storage_unavailable", reason });
 export const diagnosticHistoryIO = {
   replacementPlatform: process.platform,
+  replacementNow: () => performance.now(),
   waitForReplacementRetry: waitForDiagnosticReplacementRetry,
   directoryState(directory: string, observe?: IOFailureObserver): "available" | "missing" | "unavailable" {
     try { return lstatSync(directory).isDirectory() ? "available" : "unavailable"; }
@@ -127,18 +128,10 @@ export type DiagnosticHistoryIO = typeof diagnosticHistoryIO;
 
 /** 小型 server snapshot primitive；不依赖 Desktop，不原地覆盖、不删除旧 record 来降级发布。 */
 export function publishDiagnosticSnapshot(file: string, text: string, mode: "create" | "replace", io: DiagnosticHistoryIO,
-  observation?: DiagnosticPublicationObservation, binding?: { base: DiagnosticHistorySnapshotV1; expected: DiagnosticHistorySnapshotV1 }): void {
+  observation?: DiagnosticPublicationObservation, binding?: { base: DiagnosticHistorySnapshotV1; expected: DiagnosticHistorySnapshotV1 }): void | Promise<void> {
   const temporary = `${file}.${randomUUID()}.tmp`;
   let operation: DiagnosticIOOperation = "writeFileSync";
-  try {
-    io.writeTemporary(temporary, text);
-    operation = mode === "create" ? "linkSync" : "renameSync";
-    if (mode === "create") io.publishNew(temporary, file);
-    else if (binding) publishDiagnosticReplacement(temporary, file, binding.base, binding.expected, io,
-      error => diagnosticIOFailure(error, "renameSync"), detail => { if (observation) observation.replacement = detail; });
-    else io.publishReplacement(temporary, file);
-    if (observation) observation.publication = "reported_success";
-  } catch (error) {
+  function failed(error: unknown): never {
     if (observation) {
       const failure = diagnosticIOFailure(error, operation);
       const stages = { open: "temporary_open", write: "temporary_write", fsync: "temporary_fsync", close: "temporary_close" } as const;
@@ -150,13 +143,26 @@ export function publishDiagnosticSnapshot(file: string, text: string, mode: "cre
         sourceExists: pathExistsAfterFailure(temporary), destinationExists: pathExistsAfterFailure(file), existenceObservedAt: "post_failure" });
     }
     throw error;
-  } finally {
+  }
+  function cleanup() {
     try { io.removeTemporary(temporary); }
     catch (error) {
       if (observation) observation.cleanupFailure = diagnosticIOFailure(error, "unlinkSync");
       // orphan temp 不参与读取；cleanup 仍是非致命，不自动修复或清理历史。
     }
   }
+  function succeeded() { if (observation) observation.publication = "reported_success"; }
+  let pending: void | Promise<void> = undefined;
+  try {
+    io.writeTemporary(temporary, text);
+    operation = mode === "create" ? "linkSync" : "renameSync";
+    if (mode === "create") io.publishNew(temporary, file);
+    else if (binding) pending = publishDiagnosticReplacement(temporary, file, binding.base, binding.expected, io,
+      error => diagnosticIOFailure(error, "renameSync"), detail => { if (observation) observation.replacement = detail; });
+    else io.publishReplacement(temporary, file);
+  } catch (error) { try { failed(error); } finally { cleanup(); } }
+  if (pending instanceof Promise) return pending.then(succeeded, failed).finally(cleanup);
+  succeeded(); cleanup();
 }
 
 function pathExistsAfterFailure(file: string): boolean | null {

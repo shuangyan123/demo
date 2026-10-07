@@ -30,17 +30,17 @@ function facts(attempt) {
 }
 let result;
 if (input.mode === 'submit') {
- result = ['five', 'four'].map(selectedOptionId => {
+ result = []; for (const selectedOptionId of ['five', 'four']) {
    const issued = runtime.issue();
    if (issued.kind !== 'issued') throw Error('child_issue_failed');
-   const submitted = commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId });
+   const submitted = await commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId });
    if (submitted.kind !== 'submitted') throw Error('child_submit_failed');
-   return { ...facts(submitted.attempt), sessionId: issued.sessionId };
- });
+   result.push({ ...facts(submitted.attempt), sessionId: issued.sessionId });
+ }
 } else if (input.mode === 'crash') {
  const issued = runtime.issue();
  const captured = runtime.capture({ sessionId: issued.sessionId, selectedOptionId: 'four' });
- if (captured.kind !== 'captured' || runtime.append(captured.attempt).kind !== 'committed') throw Error('child_commit_failed');
+ if (captured.kind !== 'captured' || (await runtime.append(captured.attempt)).kind !== 'committed') throw Error('child_commit_failed');
  result = captured.attempt; // 进程在 durable commit 后、admission/HTTP 成功前退出。
 } else {
  result = input.attempts.map(attempt => {
@@ -106,19 +106,19 @@ describe("production durable submission and owner recovery", () => {
     assert.equal(active.issue().kind, "unavailable");
     assert.equal(existsSync(storage.file), false);
   });
-  test("capture failure writes no attempt and permits no reveal", () => {
+  test("capture failure writes no attempt and permits no reveal", async () => {
     const active = runtime(); const input = issue(active);
-    assert.equal(commitDiagnosticSubmission({ ...input, selectedOptionId: "impossible" }).kind, "rejected");
+    assert.equal((await commitDiagnosticSubmission({ ...input, selectedOptionId: "impossible" })).kind, "rejected");
     assert.deepEqual(record().captures, []);
     assert.equal(active.read(input.sessionId).kind, "issued");
   });
-  for (const selectedOptionId of ["five", "four"]) test(`${selectedOptionId}: durable confirmation precedes owner/admission/Evidence/reveal`, () => {
+  for (const selectedOptionId of ["five", "four"]) test(`${selectedOptionId}: durable confirmation precedes owner/admission/Evidence/reveal`, async () => {
     const active = runtime(); const input = { ...issue(active), selectedOptionId };
-    const result = continueDiagnosticSubmission(input, active, request => {
+    const result = (await continueDiagnosticSubmission(input, active, request => {
       assert.equal(record().captures.length, 1);
       assert.equal(active.read(input.sessionId).kind, "pending");
       return admitVerifiedAssessment(request);
-    });
+    }));
     assert.equal(result.kind, "submitted");
     if (result.kind !== "submitted") throw new Error("submit failed");
     assert.deepEqual(active.resolveAttempt(result.attempt.id), result.attempt);
@@ -132,7 +132,7 @@ describe("production durable submission and owner recovery", () => {
       ...diagnosticHistoryIO, publishReplacement(from, to) { if (failing) throw new Error("disk unavailable"); diagnosticHistoryIO.publishReplacement(from, to); },
     }));
     const input = issue(active); failing = true;
-    const result = commitDiagnosticSubmission(input);
+    const result = (await commitDiagnosticSubmission(input));
     assert.equal(result.kind, "captured_not_durable");
     if (result.kind !== "captured_not_durable") throw new Error("expected sealed capture");
     assert.deepEqual(record().captures, []);
@@ -146,21 +146,21 @@ describe("production durable submission and owner recovery", () => {
     const body = await response.text();
     assert.match(body, /返回作答页/);
     assert.doesNotMatch(body, /saved|已提交|正确答案|explanation/);
-    assert.deepEqual(commitDiagnosticSubmission({ ...input, selectedOptionId: "four" }), { kind: "rejected", reason: "sealed_response_conflict" });
+    assert.deepEqual((await commitDiagnosticSubmission({ ...input, selectedOptionId: "four" })), { kind: "rejected", reason: "sealed_response_conflict" });
     const now = Date.now(); context.mock.method(Date, "now", () => now + 1000);
-    const again = commitDiagnosticSubmission(input);
+    const again = (await commitDiagnosticSubmission(input));
     assert.equal(again.kind, "captured_not_durable");
     if (again.kind !== "captured_not_durable") throw new Error("retry failed");
     assert.equal(again.attempt, result.attempt, "same sealed object; ID/time/assistance/provenance unchanged");
     failing = false;
-    const continued = commitDiagnosticSubmission(input);
+    const continued = (await commitDiagnosticSubmission(input));
     assert.equal(continued.kind, "submitted");
     if (continued.kind !== "submitted") throw new Error("continuation failed");
     assert.equal(continued.attempt, result.attempt);
     assert.equal(record().captures.length, 1);
     assert.equal(record().generation, 1);
   });
-  test("unconfirmed publication can be manually confirmed idempotently without creating another attempt", () => {
+  test("unconfirmed publication can be manually confirmed idempotently without creating another attempt", async () => {
     let fault = false;
     const active = composeDiagnosticRuntime(storage.config, config => createDiagnosticHistoryRepository(config, {
       ...diagnosticHistoryIO, publishReplacement(from, to) {
@@ -168,18 +168,18 @@ describe("production durable submission and owner recovery", () => {
       },
     }));
     const input = issue(active); fault = true;
-    const result = commitDiagnosticSubmission(input);
+    const result = (await commitDiagnosticSubmission(input));
     assert.equal(result.kind, "captured_not_durable");
     if (result.kind !== "captured_not_durable") throw new Error("expected unconfirmed");
     assert.equal(record().captures.length, 1);
     assert.equal(active.resolveAttempt(result.attempt.id), undefined, "published but unconfirmed is not owner authority");
     fault = false;
-    assert.equal(commitDiagnosticSubmission(input).kind, "submitted");
+    assert.equal((await commitDiagnosticSubmission(input)).kind, "submitted");
     assert.equal(record().generation, 1);
   });
-  test("durable then admission failure keeps record, no reveal; restart still re-admits", () => {
+  test("durable then admission failure keeps record, no reveal; restart still re-admits", async () => {
     const active = runtime(); const input = issue(active);
-    const result = continueDiagnosticSubmission(input, active, () => ({ kind: "rejected", reason: "invalid_attempt", policyVersion: "source-admission/v1" }));
+    const result = (await continueDiagnosticSubmission(input, active, () => ({ kind: "rejected", reason: "invalid_attempt", policyVersion: "source-admission/v1" })));
     assert.equal(result.kind, "durable_not_admitted");
     if (result.kind !== "durable_not_admitted") throw new Error("expected durable failure");
     assert.equal(record().captures[0].id, result.attempt.id);
@@ -190,23 +190,23 @@ describe("production durable submission and owner recovery", () => {
     assert.equal(restored[0].attempt.id, result.attempt.id);
     assert.equal(record().generation, 1);
   });
-  test("already durable continuation uses repository confirmation and cannot replace captured facts", () => {
+  test("already durable continuation uses repository confirmation and cannot replace captured facts", async () => {
     const active = runtime(); const input = issue(active);
-    const failed = continueDiagnosticSubmission(input, active, () => ({ kind: "rejected", reason: "invalid_attempt", policyVersion: "source-admission/v1" }));
+    const failed = (await continueDiagnosticSubmission(input, active, () => ({ kind: "rejected", reason: "invalid_attempt", policyVersion: "source-admission/v1" })));
     assert.equal(failed.kind, "durable_not_admitted");
     if (failed.kind !== "durable_not_admitted") throw new Error("expected durable failure");
-    const confirmed = commitDiagnosticSubmission(input);
+    const confirmed = (await commitDiagnosticSubmission(input));
     assert.equal(confirmed.kind, "submitted");
     if (confirmed.kind !== "submitted") throw new Error("continuation failed");
     assert.equal(confirmed.attempt, failed.attempt);
     assert.equal(record().generation, 1);
   });
-  test("owner admission is synchronous over loaded complete index, with no repository read at admission", () => {
+  test("owner admission is synchronous over loaded complete index, with no repository read at admission", async () => {
     let reads = 0;
     const active = composeDiagnosticRuntime(storage.config, config => createDiagnosticHistoryRepository(config, {
       ...diagnosticHistoryIO, read(file) { reads += 1; return diagnosticHistoryIO.read(file); },
     }));
-    const result = commitDiagnosticSubmission(issue(active));
+    const result = (await commitDiagnosticSubmission(issue(active)));
     assert.equal(result.kind, "submitted");
     if (result.kind !== "submitted") throw new Error("submit failed");
     const before = reads;
@@ -241,8 +241,8 @@ describe("production durable submission and owner recovery", () => {
     assert.equal(readFileSync(storage.file, "utf8"), before);
     assert.equal(admitVerifiedAssessment(locator({ id: "unknown" })).kind, "rejected");
   });
-  test("unknown/corrupt durable capture prevents whole snapshot admission", () => {
-    runtime(); const result = commitDiagnosticSubmission(issue());
+  test("unknown/corrupt durable capture prevents whole snapshot admission", async () => {
+    runtime(); const result = (await commitDiagnosticSubmission(issue()));
     assert.equal(result.kind, "submitted");
     if (result.kind !== "submitted") throw new Error("submit failed");
     closeDiagnosticRuntime();

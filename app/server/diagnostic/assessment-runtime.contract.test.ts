@@ -29,9 +29,9 @@ function issue() {
   if (result.kind !== "issued") throw new Error("issue failed");
   return result;
 }
-function submitted(selectedOptionId = "five") {
+async function submitted(selectedOptionId = "five") {
   const issued = issue();
-  const result = commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId });
+  const result = (await commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId }));
   assert.equal(result.kind, "submitted");
   if (result.kind !== "submitted") throw new Error("submit failed");
   return { issued, result };
@@ -68,9 +68,9 @@ test("controlled runtime rejects caller authority fields instead of promoting th
   assert.equal(readDiagnostic(issued.sessionId).kind, "issued");
 });
 
-test("real controlled submission uses capture authority, internal occurrence, production admission and existing Evidence", () => {
+test("real controlled submission uses capture authority, internal occurrence, production admission and existing Evidence", async () => {
   const before = Date.now();
-  const { issued, result } = submitted();
+  const { issued, result } = (await submitted());
   const after = Date.now();
   const attempt = result.attempt;
   assert.deepEqual(resolveDiagnosticAttempt(attempt.id), attempt);
@@ -94,27 +94,27 @@ test("real controlled submission uses capture authority, internal occurrence, pr
   assert.equal(revealed.explanation, "2 + 3 = 5。");
 });
 
-test("wrong answer remains wrong and produces existing refuting Evidence", () => {
-  const { result } = submitted("four");
+test("wrong answer remains wrong and produces existing refuting Evidence", async () => {
+  const { result } = (await submitted("four"));
   assert.equal(result.attempt.selectedOptionId, "four");
   assert.equal(result.evidence[0].outcome.direction, "refutes");
 });
 
-test("duplicate submit, reload/reveal and new lifecycle cannot mutate the original capture", () => {
-  const { issued, result } = submitted("four");
+test("duplicate submit, reload/reveal and new lifecycle cannot mutate the original capture", async () => {
+  const { issued, result } = (await submitted("four"));
   const before = JSON.stringify(result.attempt);
-  assert.deepEqual(commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId: "five" }),
+  assert.deepEqual((await commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId: "five" })),
     { kind: "rejected", reason: "already_submitted" });
   const revealed = readDiagnostic(issued.sessionId);
   assert.deepEqual(readDiagnostic(issued.sessionId), revealed, "reload in this process resolves the original session");
   assert.equal(Reflect.set(result.attempt, "assistance", "unknown"), false);
   assert.equal(Reflect.set(result.attempt.optionIds, "0", "five"), false);
   assert.equal(JSON.stringify(result.attempt), before);
-  assert.notEqual(submitted().result.attempt.id, result.attempt.id);
+  assert.notEqual((await submitted()).result.attempt.id, result.attempt.id);
 });
 
-test("production admission ignores caller-added key/target/verified/time and rejects wrong tuple or unknown attempts", () => {
-  const { result } = submitted();
+test("production admission ignores caller-added key/target/verified/time and rejects wrong tuple or unknown attempts", async () => {
+  const { result } = (await submitted());
   const attempt = result.attempt;
   const locators = { sourceOwnerId: attempt.sourceOwnerId, specId: attempt.specId, specRevision: attempt.specRevision, attemptId: attempt.id };
   assert.deepEqual(admitVerifiedAssessment({ ...locators, verified: true, key: "four", target: "caller", assistance: "solution", occurredAt: "caller" }), result.admitted);
@@ -164,10 +164,10 @@ test("native no-referrer form requires complete same-origin navigation metadata"
   assert.equal(readDiagnostic(issued.sessionId).kind, "revealed");
 });
 
-test("unknown/expired sessions fail closed while durable historical authority survives session TTL", (context) => {
+test("unknown/expired sessions fail closed while durable historical authority survives session TTL", async (context) => {
   assert.deepEqual(readDiagnostic("unknown"), { kind: "unavailable" });
   assert.deepEqual(submitDiagnostic({ sessionId: "unknown", selectedOptionId: "five" }), { kind: "rejected", reason: "unknown_session" });
-  const { issued, result } = submitted();
+  const { issued, result } = (await submitted());
   const later = Date.now() + 31 * 60 * 1000;
   context.mock.method(Date, "now", () => later);
   assert.deepEqual(readDiagnostic(issued.sessionId), { kind: "unavailable" });
@@ -175,8 +175,8 @@ test("unknown/expired sessions fail closed while durable historical authority su
   assert.equal(admitVerifiedAssessment({ sourceOwnerId: "recall-diagnostic", specId: "int-add-2-3", specRevision: "r1", attemptId: result.attempt.id }).kind, "admitted");
 });
 
-test("independent server process reloads validated history and resolves the prior durable attempt", () => {
-  const { result } = submitted();
+test("independent server process reloads validated history and resolves the prior durable attempt", async () => {
+  const { result } = (await submitted());
   const script = 'import { initializeDiagnosticRuntime } from "./app/server/diagnostic/runtime.ts"; initializeDiagnosticRuntime(); '
     + 'import { admitVerifiedAssessment } from "./app/services/verification-source/verification-source-admission.ts"; '
     + 'process.stdout.write(JSON.stringify(admitVerifiedAssessment({ sourceOwnerId: "recall-diagnostic", specId: "int-add-2-3", specRevision: "r1", attemptId: process.argv[1] })));';

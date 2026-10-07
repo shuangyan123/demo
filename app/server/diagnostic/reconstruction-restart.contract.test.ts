@@ -26,7 +26,7 @@ if (input.mode === 'submit') {
     now = input.times[index];
     const issued = runtime.issue();
     if (issued.kind !== 'issued') throw Error('child_issue_failed');
-    const submitted = commitDiagnosticSubmission({sessionId: issued.sessionId, selectedOptionId: input.answers[index]});
+    const submitted = await commitDiagnosticSubmission({sessionId: issued.sessionId, selectedOptionId: input.answers[index]});
     if (submitted.kind !== 'submitted') throw Error('child_submit_failed');
     events.push(...adaptVerifiedAssessment(submitted.admitted.spec, submitted.admitted.attempt).events);
     singleEvidence.push(...submitted.evidence);

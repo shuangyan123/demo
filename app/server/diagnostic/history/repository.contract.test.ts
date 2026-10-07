@@ -81,11 +81,11 @@ function captureRecord(record: Record<string, unknown>): Record<string, unknown>
   return record.captures[0] as Record<string, unknown>;
 }
 
-test("trusted capture append/close/reopen recovers exact facts, immutable complete snapshot and lookup", (t) => {
+test("trusted capture append/close/reopen recovers exact facts, immutable complete snapshot and lookup", async (t) => {
   const { config, repository } = fixture(t);
   const attempt = capture("attempt-a");
   assert.equal(repository.initialize().kind, "complete");
-  assert.equal(repository.appendCapturedAttempt(attempt).kind, "committed");
+  assert.equal((await repository.appendCapturedAttempt(attempt)).kind, "committed");
   repository.close();
   const reopened = opened(t, openDiagnosticHistoryRepository(config));
   const snapshot = complete(reopened);
@@ -97,11 +97,11 @@ test("trusted capture append/close/reopen recovers exact facts, immutable comple
     snapshot.captures[0].responseFormat, snapshot.captures[0].provenance]) assert.ok(Object.isFrozen(value));
 });
 
-test("fresh Node process recovers complete committed facts without original capture mechanism or memory", (t) => {
+test("fresh Node process recovers complete committed facts without original capture mechanism or memory", async (t) => {
   const { paths, repository } = fixture(t);
   repository.initialize();
   const attempt = capture("cross-process-attempt");
-  repository.appendCapturedAttempt(attempt);
+  (await repository.appendCapturedAttempt(attempt));
   const expected = complete(repository);
   repository.close();
   const bootstrap = pathToFileURL(path.resolve("desktop/storage-bootstrap.ts")).href;
@@ -120,25 +120,25 @@ test("fresh Node process recovers complete committed facts without original capt
 });
 
 for (const options of [["four", "five"], ["five", "four"]]) {
-  test(`retry sequence ${options.join(" then ")} retains both captures after reopen without Kernel derivation`, (t) => {
+  test(`retry sequence ${options.join(" then ")} retains both captures after reopen without Kernel derivation`, async (t) => {
     const { config, repository } = fixture(t);
     repository.initialize();
     const attempts = options.map((option, index) => capture(`attempt-${index}`, option));
-    for (const attempt of attempts) assert.equal(repository.appendCapturedAttempt(attempt).kind, "committed");
+    for (const attempt of attempts) assert.equal((await repository.appendCapturedAttempt(attempt)).kind, "committed");
     repository.close();
     assert.deepEqual(complete(opened(t, openDiagnosticHistoryRepository(config))).captures, attempts);
   });
 }
 
-test("same identity/same canonical facts confirms idempotently, different IDs at same instant remain distinct", (t) => {
+test("same identity/same canonical facts confirms idempotently, different IDs at same instant remain distinct", async (t) => {
   const { file, repository } = fixture(t);
   repository.initialize();
   const attempt = capture("same-id");
-  repository.appendCapturedAttempt(attempt);
+  (await repository.appendCapturedAttempt(attempt));
   const before = readFileSync(file, "utf8");
-  assert.equal(repository.appendCapturedAttempt(capture("same-id")).kind, "confirmed");
+  assert.equal((await repository.appendCapturedAttempt(capture("same-id"))).kind, "confirmed");
   assert.equal(readFileSync(file, "utf8"), before);
-  assert.equal(repository.appendCapturedAttempt(capture("retry-id")).kind, "committed");
+  assert.equal((await repository.appendCapturedAttempt(capture("retry-id"))).kind, "committed");
   const snapshot = complete(repository);
   assert.equal(snapshot.captures.length, 2);
   assert.equal(snapshot.captures[0].occurredAt, snapshot.captures[1].occurredAt);
@@ -149,33 +149,33 @@ for (const [name, replacement] of [
   ["occurredAt", () => capture("same-id", "four", instant + 1000)],
   ["assistance/provenance", () => capture("same-id", "four", instant, false)],
 ] as const) {
-  test(`same attempt ID changed ${name} rejects genuine conflicting capture and preserves original`, (t) => {
+  test(`same attempt ID changed ${name} rejects genuine conflicting capture and preserves original`, async (t) => {
     const { file, repository } = fixture(t);
     repository.initialize();
     const original = capture("same-id");
-    repository.appendCapturedAttempt(original);
+    (await repository.appendCapturedAttempt(original));
     const before = readFileSync(file, "utf8");
-    assert.deepEqual(repository.appendCapturedAttempt(replacement()), { kind: "conflict", reason: "attempt_identity_conflict" });
+    assert.deepEqual((await repository.appendCapturedAttempt(replacement())), { kind: "conflict", reason: "attempt_identity_conflict" });
     assert.equal(readFileSync(file, "utf8"), before);
     assert.deepEqual(complete(repository).captures, [original]);
   });
 }
 
-test("raw JSON, spread copies and cast flags cannot become issued writer capability", (t) => {
+test("raw JSON, spread copies and cast flags cannot become issued writer capability", async (t) => {
   const { repository } = fixture(t);
   repository.initialize();
   const original = capture("trusted");
   for (const fake of [JSON.parse(JSON.stringify(original)), { ...original }, { ...original, verified: true },
     { ...original, provenance: { ...original.provenance, ordering: "after_reveal" } }]) {
-    assert.deepEqual(repository.appendCapturedAttempt(fake), { kind: "rejected", reason: "untrusted_capture" });
+    assert.deepEqual((await repository.appendCapturedAttempt(fake)), { kind: "rejected", reason: "untrusted_capture" });
   }
   assert.equal(complete(repository).generation, 0);
 });
 
 for (const field of ["profileId", "epochId"] as const) {
-  test(`reopen rejects stored ${field} mismatch even with recomputed ordinary digest`, (t) => {
+  test(`reopen rejects stored ${field} mismatch even with recomputed ordinary digest`, async (t) => {
     const { config, file, repository } = fixture(t);
-    repository.initialize(); repository.appendCapturedAttempt(capture("attempt")); repository.close();
+    repository.initialize(); (await repository.appendCapturedAttempt(capture("attempt"))); repository.close();
     mutate(file, (record) => { record[field] = randomUUID(); });
     assert.deepEqual(opened(t, openDiagnosticHistoryRepository(config)).readCompleteSnapshot(), { kind: "corrupt", reason: field === "profileId" ? "profile_mismatch" : "epoch_mismatch" });
   });
@@ -199,12 +199,12 @@ const invalidFacts: ReadonlyArray<readonly [string, (attempt: Record<string, unk
   ["extra derived authority", (a) => { a.correctness = "correct"; }],
 ];
 for (const [name, change] of invalidFacts) {
-  test(`strict reopen rejects changed ${name} without digest becoming authority`, (t) => {
+  test(`strict reopen rejects changed ${name} without digest becoming authority`, async (t) => {
     const { config, file, repository } = fixture(t);
     // 先报告原始 setup 失败；不能让未确认的 append 变成后续 captures[0] 的无信息 TypeError。
     const initialized = repository.initialize();
     assert.equal(initialized.kind, "complete", JSON.stringify({ kind: initialized.kind, durabilityFailure: diagnosticDurabilityFailure(initialized) }));
-    const appended = repository.appendCapturedAttempt(capture("attempt"));
+    const appended = (await repository.appendCapturedAttempt(capture("attempt")));
     assert.equal(appended.kind, "committed", JSON.stringify({ kind: appended.kind, durabilityFailure: diagnosticDurabilityFailure(appended) }));
     repository.close();
     mutate(file, (record) => change(captureRecord(record)));
@@ -212,9 +212,9 @@ for (const [name, change] of invalidFacts) {
   });
 }
 
-test("conflicting duplicate attempt IDs and missing generation members fail complete snapshot validation", (t) => {
+test("conflicting duplicate attempt IDs and missing generation members fail complete snapshot validation", async (t) => {
   const { config, file, repository } = fixture(t);
-  repository.initialize(); repository.appendCapturedAttempt(capture("same-id")); repository.close();
+  repository.initialize(); (await repository.appendCapturedAttempt(capture("same-id"))); repository.close();
   mutate(file, (record) => { record.captures = [capture("same-id"), capture("same-id", "five")]; record.generation = 2; });
   const reopened = opened(t, openDiagnosticHistoryRepository(config));
   assert.deepEqual(reopened.readCompleteSnapshot(), { kind: "corrupt", reason: "duplicate_attempt_identity" });
@@ -223,9 +223,9 @@ test("conflicting duplicate attempt IDs and missing generation members fail comp
 });
 
 for (const damage of ["malformed", "truncated", "unsupported", "extra-field", "duplicate-key", "digest", "oversized"]) {
-  test(`${damage} history never becomes complete-empty`, (t) => {
+  test(`${damage} history never becomes complete-empty`, async (t) => {
     const { config, file, repository } = fixture(t);
-    repository.initialize(); repository.appendCapturedAttempt(capture("attempt")); repository.close();
+    repository.initialize(); (await repository.appendCapturedAttempt(capture("attempt"))); repository.close();
     const before = readFileSync(file, "utf8");
     if (damage === "malformed") writeFileSync(file, "{");
     if (damage === "truncated") writeFileSync(file, before.slice(0, -3));
@@ -239,10 +239,10 @@ for (const damage of ["malformed", "truncated", "unsupported", "extra-field", "d
   });
 }
 
-test("read never initializes; explicit initialization alone creates verified complete-empty", (t) => {
+test("read never initializes; explicit initialization alone creates verified complete-empty", async (t) => {
   const { config, directory, repository } = fixture(t);
   assert.deepEqual(repository.readCompleteSnapshot(), { kind: "uninitialized" });
-  assert.deepEqual(repository.appendCapturedAttempt(capture("attempt")), { kind: "uninitialized" });
+  assert.deepEqual((await repository.appendCapturedAttempt(capture("attempt"))), { kind: "uninitialized" });
   assert.ok(!existsSync(config.managedFilesRoot));
   assert.equal(repository.initialize().kind, "complete");
   assert.ok(existsSync(directory));
@@ -253,9 +253,9 @@ test("read never initializes; explicit initialization alone creates verified com
   assert.deepEqual(complete(opened(t, openDiagnosticHistoryRepository(config))).captures, []);
 });
 
-test("initialized history later missing is incomplete across reopen and cannot reinitialize empty", (t) => {
+test("initialized history later missing is incomplete across reopen and cannot reinitialize empty", async (t) => {
   const { config, file, repository } = fixture(t);
-  repository.initialize(); repository.appendCapturedAttempt(capture("attempt"));
+  repository.initialize(); (await repository.appendCapturedAttempt(capture("attempt")));
   rmSync(file);
   assert.deepEqual(repository.readCompleteSnapshot(), { kind: "incomplete", reason: "history_record_missing" });
   repository.close();
@@ -265,9 +265,9 @@ test("initialized history later missing is incomplete across reopen and cannot r
 });
 
 for (const phase of ["partial-temp", "before-publish", "after-publish"]) {
-  test(`interrupted ${phase} publication reopens only previous or new complete snapshot`, (t) => {
+  test(`interrupted ${phase} publication reopens only previous or new complete snapshot`, async (t) => {
     const { config, file, repository } = fixture(t);
-    repository.initialize(); repository.appendCapturedAttempt(capture("first")); repository.close();
+    repository.initialize(); (await repository.appendCapturedAttempt(capture("first"))); repository.close();
     const io = { ...diagnosticHistoryIO,
       writeTemporary: (temporary: string, text: string) => {
         if (phase === "partial-temp") { writeFileSync(temporary, "{"); throw new Error("interrupted"); }
@@ -280,7 +280,7 @@ for (const phase of ["partial-temp", "before-publish", "after-publish"]) {
       },
     };
     const interrupted = opened(t, createDiagnosticHistoryRepository(config, io));
-    assert.deepEqual(interrupted.appendCapturedAttempt(capture("second")), { kind: "unavailable", code: "storage_unavailable", reason: "commit_unconfirmed" });
+    assert.deepEqual((await interrupted.appendCapturedAttempt(capture("second"))), { kind: "unavailable", code: "storage_unavailable", reason: "commit_unconfirmed" });
     interrupted.close();
     writeFileSync(`${file}.orphan.tmp`, "{");
     const snapshot = complete(opened(t, openDiagnosticHistoryRepository(config)));
@@ -298,7 +298,7 @@ test("interrupted initialization retains reservation and fails incomplete across
   assert.equal(reopened.initialize().kind, "incomplete");
 });
 
-test("finite capacity returns explicit failure without eviction, truncation or generation change", (t) => {
+test("finite capacity returns explicit failure without eviction, truncation or generation change", async (t) => {
   const { config, file, repository } = fixture(t);
   repository.initialize(); repository.close();
   const captures = Array.from({ length: DIAGNOSTIC_HISTORY_MAX_CAPTURES }, (_, index) => capture(`attempt-${index}`));
@@ -307,22 +307,22 @@ test("finite capacity returns explicit failure without eviction, truncation or g
   const before = encodeDiagnosticSnapshot(snapshot);
   writeFileSync(file, before);
   const reopened = opened(t, openDiagnosticHistoryRepository(config));
-  assert.deepEqual(reopened.appendCapturedAttempt(capture("overflow")), { kind: "rejected", reason: "capacity_exceeded" });
+  assert.deepEqual((await reopened.appendCapturedAttempt(capture("overflow"))), { kind: "rejected", reason: "capacity_exceeded" });
   assert.equal(readFileSync(file, "utf8"), before);
   assert.equal(complete(reopened).captures.length, captures.length);
 });
 
-test("repository path uses trusted managed-files domain; serialized record excludes derived authority and content", (t) => {
+test("repository path uses trusted managed-files domain; serialized record excludes derived authority and content", async (t) => {
   const { config, file, repository } = fixture(t);
-  repository.initialize(); repository.appendCapturedAttempt(capture("attempt"));
+  repository.initialize(); (await repository.appendCapturedAttempt(capture("attempt")));
   assert.equal(file, path.join(config.managedFilesRoot, "diagnostic-history", "history.json"));
   assert.doesNotMatch(readFileSync(file, "utf8"), /correctness|verifiedCorrectOptionId|answerKey|explanation|learningTarget|LearningEvent|Evidence|LearnerTargetState|VerificationDecision|"complete"|"prompt"|"text"/);
   assert.equal(STORAGE_DOMAIN_REGISTRY.filter((domain) => domain.domainId === "diagnostic-history").length, 1);
 });
 
-test("same profile/epoch at a different trusted location preserves history identity", (t) => {
+test("same profile/epoch at a different trusted location preserves history identity", async (t) => {
   const first = fixture(t);
-  first.repository.initialize(); first.repository.appendCapturedAttempt(capture("attempt")); first.repository.close();
+  first.repository.initialize(); (await first.repository.appendCapturedAttempt(capture("attempt"))); first.repository.close();
   const next = fixture(t, first.config); next.repository.close();
   mkdirSync(next.config.managedFilesRoot);
   cpSync(first.directory, next.directory, { recursive: true }); // contract fixture only，生产无 copy/migration。
@@ -364,14 +364,14 @@ function instrumentedFixture(t: Context, override: Partial<DiagnosticHistoryIO>)
 
 for (const [syscall, stage] of [["open", "temporary_open"], ["write", "temporary_write"],
   ["fsync", "temporary_fsync"], ["close", "temporary_close"], ["unknown", "temporary_write_or_flush"]] as const) {
-  test(`instrumentation classifies temp ${syscall}, with no publication/retry and unchanged external failure`, t => {
+  test(`instrumentation classifies temp ${syscall}, with no publication/retry and unchanged external failure`, async t => {
     const calls: string[] = [];
     const { repository } = instrumentedFixture(t, {
       writeTemporary() { calls.push("write"); throw ioError("EIO", syscall); },
       publishReplacement() { calls.push("rename"); },
       removeTemporary() { calls.push("cleanup"); },
     });
-    const result = repository.appendCapturedAttempt(capture("diagnostic-attempt"));
+    const result = (await repository.appendCapturedAttempt(capture("diagnostic-attempt")));
     assert.deepEqual(result, unconfirmed);
     assert.deepEqual(calls, ["write", "cleanup"]);
     const detail = diagnosticDurabilityFailure(result);
@@ -386,13 +386,13 @@ for (const [syscall, stage] of [["open", "temporary_open"], ["write", "temporary
   });
 }
 
-test("instrumentation retains original native temp open EEXIST classification without replacing write/flush primitive", t => {
+test("instrumentation retains original native temp open EEXIST classification without replacing write/flush primitive", async t => {
   const { repository, file } = instrumentedFixture(t, { writeTemporary(temporary, text) {
     writeFileSync(temporary, "synthetic collision");
     diagnosticHistoryIO.writeTemporary(temporary, text);
   } });
   const before = readFileSync(file, "utf8");
-  const result = repository.appendCapturedAttempt(capture("collision-attempt"));
+  const result = (await repository.appendCapturedAttempt(capture("collision-attempt")));
   assert.deepEqual(result, unconfirmed);
   const detail = diagnosticDurabilityFailure(result);
   assert.equal(detail?.stage, "temporary_open"); assert.equal(detail?.io?.ioCode, "EEXIST");
@@ -421,16 +421,16 @@ test("instrumentation distinguishes first link publication and preserves reserva
 });
 
 for (const afterPublication of [false, true]) {
-  test(`instrumentation retains rename failure; exact NEW ${afterPublication} controls bounded recovery`, t => {
-    const { repository, file } = instrumentedFixture(t, { replacementPlatform: "win32", waitForReplacementRetry() {}, publishReplacement(from, to) {
+  test(`instrumentation retains rename failure; exact NEW ${afterPublication} controls bounded recovery`, async t => {
+    const { repository, file } = instrumentedFixture(t, { replacementPlatform: "win32", async waitForReplacementRetry() {}, publishReplacement(from, to) {
       if (afterPublication) diagnosticHistoryIO.publishReplacement(from, to);
       throw ioError("EPERM", "rename");
     } });
-    const result = repository.appendCapturedAttempt(capture("rename-attempt"));
+    const result = (await repository.appendCapturedAttempt(capture("rename-attempt")));
     const replacement = diagnosticReplacementObservation(result);
     assert.equal(replacement?.failures[0].io.ioCode, "EPERM");
-    assert.equal(replacement?.terminalReason, afterPublication ? "already_published" : "retry_exhausted");
-    assert.equal(replacement?.attemptCount, afterPublication ? 1 : 4);
+    assert.equal(replacement?.terminalReason, afterPublication ? "already_published" : "attempt_cap_exhausted");
+    assert.equal(replacement?.attemptCount, afterPublication ? 1 : 9);
     if (afterPublication) {
       assert.equal(result.kind, "committed");
       assert.equal(diagnosticDurabilityFailure(result), null);
@@ -448,30 +448,30 @@ for (const afterPublication of [false, true]) {
   });
 }
 
-test("cleanup failure is secondary and cannot override primary rename failure", t => {
+test("cleanup failure is secondary and cannot override primary rename failure", async t => {
   const calls: string[] = [];
   const { repository } = instrumentedFixture(t, {
-    replacementPlatform: "win32", waitForReplacementRetry() {},
+    replacementPlatform: "win32", async waitForReplacementRetry() {},
     writeTemporary(file, text) { calls.push("write"); diagnosticHistoryIO.writeTemporary(file, text); },
     publishReplacement() { calls.push("rename"); throw ioError("EPERM", "rename"); },
     removeTemporary() { calls.push("cleanup"); throw ioError("EACCES", "unlink"); },
   });
-  const result = repository.appendCapturedAttempt(capture("cleanup-attempt"));
+  const result = (await repository.appendCapturedAttempt(capture("cleanup-attempt")));
   assert.deepEqual(result, unconfirmed);
   const detail = diagnosticDurabilityFailure(result);
   assert.equal(detail?.stage, "replacement_rename"); assert.equal(detail?.io?.ioCode, "EPERM");
   assert.equal(detail?.cleanupFailure?.operation, "unlinkSync"); assert.equal(detail?.cleanupFailure?.ioCode, "EACCES");
-  assert.deepEqual(calls, ["write", "rename", "rename", "rename", "rename", "cleanup"]);
+  assert.deepEqual(calls, ["write", ...Array(9).fill("rename"), "cleanup"]);
 });
 
-test("cleanup-only failure remains nonfatal after successful publication and confirmation", t => {
+test("cleanup-only failure remains nonfatal after successful publication and confirmation", async t => {
   const { repository } = instrumentedFixture(t, { removeTemporary() { throw ioError("EPERM", "unlink"); } });
-  const result = repository.appendCapturedAttempt(capture("committed-despite-cleanup"));
+  const result = (await repository.appendCapturedAttempt(capture("committed-despite-cleanup")));
   assert.equal(result.kind, "committed"); assert.equal(diagnosticDurabilityFailure(result), null);
   assert.equal(complete(repository).generation, 1);
 });
 
-test("instrumentation distinguishes confirmation reopen/read failure after publication returned success", t => {
+test("instrumentation distinguishes confirmation reopen/read failure after publication returned success", async t => {
   let published = false;
   const { repository, file } = instrumentedFixture(t, {
     publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
@@ -481,7 +481,7 @@ test("instrumentation distinguishes confirmation reopen/read failure after publi
       return { kind: "unavailable", code: "storage_unavailable", reason: "snapshot_read_failed" };
     },
   });
-  const result = repository.appendCapturedAttempt(capture("read-failure-attempt"));
+  const result = (await repository.appendCapturedAttempt(capture("read-failure-attempt")));
   assert.deepEqual(result, unconfirmed);
   const detail = diagnosticDurabilityFailure(result);
   assert.equal(detail?.stage, "confirmation_read"); assert.equal(detail?.operation, "openSync");
@@ -490,13 +490,13 @@ test("instrumentation distinguishes confirmation reopen/read failure after publi
   assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, 1);
 });
 
-test("native missing confirmation record retains ENOENT and does not initialize/repair/retry", t => {
+test("native missing confirmation record retains ENOENT and does not initialize/repair/retry", async t => {
   let published = false;
   const { repository, file } = instrumentedFixture(t, {
     publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); rmSync(to); published = true; },
     read(file, observe) { return diagnosticHistoryIO.read(file, published ? observe : undefined); },
   });
-  const result = repository.appendCapturedAttempt(capture("missing-after-publication"));
+  const result = (await repository.appendCapturedAttempt(capture("missing-after-publication")));
   assert.deepEqual(result, unconfirmed);
   const detail = diagnosticDurabilityFailure(result);
   assert.equal(detail?.publication, "reported_success"); assert.equal(detail?.stage, "confirmation_read");
@@ -510,7 +510,7 @@ for (const [damage, expectedFailure, expectedReason] of [
   ["generation", "generation_mismatch", "invalid_snapshot_generation"],
   ["unsupported", "other_validation_failure", "unsupported_version"],
 ] as const) {
-  test(`instrumentation distinguishes confirmation ${damage} validation failure`, t => {
+  test(`instrumentation distinguishes confirmation ${damage} validation failure`, async t => {
     let published = false;
     const { repository } = instrumentedFixture(t, {
       publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
@@ -526,7 +526,7 @@ for (const [damage, expectedFailure, expectedReason] of [
         return { kind: "record", text: damage === "malformed" ? "{" : JSON.stringify(record) };
       },
     });
-    const result = repository.appendCapturedAttempt(capture("validation-attempt"));
+    const result = (await repository.appendCapturedAttempt(capture("validation-attempt")));
     assert.deepEqual(result, unconfirmed);
     const detail = diagnosticDurabilityFailure(result);
     assert.equal(detail?.stage, "confirmation_validation"); assert.equal(detail?.operation, "parseDiagnosticSnapshot");
@@ -536,7 +536,7 @@ for (const [damage, expectedFailure, expectedReason] of [
 }
 
 for (const damage of ["generation_mismatch", "expected_capture_missing", "content_mismatch"] as const) {
-  test(`valid confirmation snapshot ${damage} is distinct from parse/integrity failure`, t => {
+  test(`valid confirmation snapshot ${damage} is distinct from parse/integrity failure`, async t => {
     let published = false;
     const { repository } = instrumentedFixture(t, {
       publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
@@ -550,7 +550,7 @@ for (const damage of ["generation_mismatch", "expected_capture_missing", "conten
           epochId: actual.epochId, generation: captures.length, captures }) };
       },
     });
-    const result = repository.appendCapturedAttempt(capture("comparison-attempt", "four"));
+    const result = (await repository.appendCapturedAttempt(capture("comparison-attempt", "four")));
     assert.deepEqual(result, unconfirmed);
     const detail = diagnosticDurabilityFailure(result);
     assert.equal(detail?.stage, "confirmation_compare"); assert.equal(detail?.operation, "compare_snapshot");
@@ -579,7 +579,7 @@ test("diagnostic observer cannot replace native missing-file result", t => {
 });
 
 for (const parsed of [false, true]) {
-  test(`confirmation capacity failure originates from ${parsed ? "parser" : "fstat"}, not an invented IO exception`, t => {
+  test(`confirmation capacity failure originates from ${parsed ? "parser" : "fstat"}, not an invented IO exception`, async t => {
     let published = false;
     const { repository } = instrumentedFixture(t, {
       publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
@@ -591,7 +591,7 @@ for (const parsed of [false, true]) {
         return diagnosticHistoryIO.read(file, observe);
       },
     });
-    const result = repository.appendCapturedAttempt(capture("capacity-confirmation-attempt"));
+    const result = (await repository.appendCapturedAttempt(capture("capacity-confirmation-attempt")));
     assert.deepEqual(result, unconfirmed);
     const detail = diagnosticDurabilityFailure(result);
     assert.equal(detail?.stage, parsed ? "confirmation_validation" : "confirmation_read");
@@ -600,9 +600,9 @@ for (const parsed of [false, true]) {
   });
 }
 
-test("non-error publication throw retains unknown sanitized IO and the same external failure", t => {
+test("non-error publication throw retains unknown sanitized IO and the same external failure", async t => {
   const { repository } = instrumentedFixture(t, { writeTemporary() { throw "synthetic private thrown string"; } });
-  const result = repository.appendCapturedAttempt(capture("unknown-io-attempt"));
+  const result = (await repository.appendCapturedAttempt(capture("unknown-io-attempt")));
   assert.deepEqual(result, unconfirmed);
   const detail = diagnosticDurabilityFailure(result);
   assert.equal(detail?.stage, "temporary_write_or_flush"); assert.equal(detail?.publication, "not_attempted");

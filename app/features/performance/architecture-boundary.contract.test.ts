@@ -615,8 +615,8 @@ test("Recall E9 只有固定 server surface→capture→owner→admission→Evid
   const core = await readFile(ADMISSION_CORE, "utf8");
   assert.match(core, /captured\.assistance/);
   const submission = await readFile(DIAGNOSTIC_SUBMISSION, "utf8");
-  assert.ok(submission.indexOf("const captured = runtime.capture") < submission.indexOf("const durable = runtime.append"));
-  assert.ok(submission.indexOf("const durable = runtime.append") < submission.indexOf("const admitted = admit("));
+  assert.ok(submission.indexOf("const captured = runtime.capture") < submission.indexOf("const durable = await runtime.append"));
+  assert.ok(submission.indexOf("const durable = await runtime.append") < submission.indexOf("const admitted = admit("));
   assert.ok(submission.indexOf("const derived = deriveEvidence") < submission.indexOf("runtime.allowReveal"));
   assert.ok(submission.indexOf('admitted.kind !== "admitted"') < submission.indexOf("const adapted = adaptVerifiedAssessment"));
 });

@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { ManagedStorageHostConfig } from "../../../platform/managed-storage.js";
 import type { IssuedDiagnosticCapturedAttemptV1 } from "../../../types/domains/first-party-diagnostic-capture.ts";
-import type { DiagnosticHistoryOpen, DiagnosticHistoryRead, DiagnosticHistorySnapshotV1 } from "../../../types/domains/diagnostic-history.ts";
+import type { DiagnosticHistoryOpen, DiagnosticHistoryRead, DiagnosticHistoryAppend, DiagnosticHistorySnapshotV1 } from "../../../types/domains/diagnostic-history.ts";
 import { isIssuedDiagnosticCapture } from "../../../services/first-party-diagnostic/capture-authority-core.ts";
 import { isLegacyRecordId } from "../../../services/learning-kernel/learning-event.ts";
 import { diagnosticHistoryIO, historyUnavailable, publishDiagnosticSnapshot, rememberDiagnosticDurabilityFailure,
@@ -22,10 +22,10 @@ export function createDiagnosticHistoryRepository(config: ManagedStorageHostConf
   let committing = false;
   let initialized = false;
 
-  function read(observation?: ConfirmationObservation): DiagnosticHistoryRead {
+  function read(observation?: ConfirmationObservation, confirming = false): DiagnosticHistoryRead {
     const observe = observation ? (failure: DiagnosticIOFailure) => { observation.io = failure; } : undefined;
-    if (closed) return { kind: "closed" };
-    if (committing) return historyUnavailable("operation_in_progress");
+    if (closed && !confirming) return { kind: "closed" };
+    if (committing && !confirming) return historyUnavailable("operation_in_progress");
     if (io.directoryState(config.managedRoot, observe) !== "available" || io.directoryState(config.profileRoot, observe) !== "available")
       return historyUnavailable("active_profile_unavailable");
     const state = io.directoryState(directory, observe);
@@ -39,7 +39,9 @@ export function createDiagnosticHistoryRepository(config: ManagedStorageHostConf
     return parseDiagnosticSnapshot(record.text, config);
   }
 
-  function commit(snapshot: DiagnosticHistorySnapshotV1, mode: "create" | "replace", base?: DiagnosticHistorySnapshotV1): DiagnosticHistoryRead {
+  function commit(snapshot: DiagnosticHistorySnapshotV1, mode: "create"): DiagnosticHistoryRead;
+  function commit(snapshot: DiagnosticHistorySnapshotV1, mode: "replace", base: DiagnosticHistorySnapshotV1): DiagnosticHistoryRead | Promise<DiagnosticHistoryRead>;
+  function commit(snapshot: DiagnosticHistorySnapshotV1, mode: "create" | "replace", base?: DiagnosticHistorySnapshotV1): DiagnosticHistoryRead | Promise<DiagnosticHistoryRead> {
     const text = encodeDiagnosticSnapshot(snapshot);
     if (Buffer.byteLength(text, "utf8") > DIAGNOSTIC_HISTORY_MAX_BYTES) return { kind: "rejected", reason: "capacity_exceeded" };
     const publication: DiagnosticPublicationObservation = { publication: "not_attempted", failure: null, cleanupFailure: null };
@@ -55,13 +57,22 @@ export function createDiagnosticHistoryRepository(config: ManagedStorageHostConf
         ...(publication.replacement ? { replacement: publication.replacement } : {}),
       }), publication.replacement);
     }
+    function confirm(): DiagnosticHistoryRead {
+      const result = read(confirmation, true);
+      if (result.kind !== "complete" || JSON.stringify(result.snapshot) !== JSON.stringify(snapshot)) return unconfirmed(result);
+      return rememberDiagnosticReplacement(result, publication.replacement);
+    }
+    function release() {
+      committing = false;
+      // close 不取消已封存的 commit，也不能在 continuation 结束前放走同路径 writer。
+      if (closed) activeRepositories.delete(writerKey);
+    }
     committing = true;
-    try { publishDiagnosticSnapshot(file, text, mode, io, publication, base ? { base, expected: snapshot } : undefined); }
-    catch { return unconfirmed(); }
-    finally { committing = false; }
-    const result = read(confirmation);
-    if (result.kind !== "complete" || JSON.stringify(result.snapshot) !== JSON.stringify(snapshot)) return unconfirmed(result);
-    return rememberDiagnosticReplacement(result, publication.replacement);
+    let pending: void | Promise<void>;
+    try { pending = publishDiagnosticSnapshot(file, text, mode, io, publication, base ? { base, expected: snapshot } : undefined); }
+    catch { try { return unconfirmed(); } finally { release(); } }
+    if (pending instanceof Promise) return pending.then(confirm, () => unconfirmed()).finally(release);
+    try { return confirm(); } finally { release(); }
   }
 
   return { kind: "opened", repository: Object.freeze({
@@ -89,10 +100,11 @@ export function createDiagnosticHistoryRepository(config: ManagedStorageHostConf
       if (current.snapshot.captures.length >= DIAGNOSTIC_HISTORY_MAX_CAPTURES) return { kind: "rejected", reason: "capacity_exceeded" };
       const result = commit(Object.freeze({ ...current.snapshot, generation: current.snapshot.generation + 1,
         captures: Object.freeze([...current.snapshot.captures, validated.attempt]) }), "replace", current.snapshot);
-      return result.kind === "complete" ? rememberDiagnosticReplacement({ kind: "committed", snapshot: result.snapshot },
-        diagnosticReplacementObservation(result) ?? undefined) : result;
+      const appended = (read: DiagnosticHistoryRead): DiagnosticHistoryAppend => read.kind === "complete"
+        ? rememberDiagnosticReplacement({ kind: "committed", snapshot: read.snapshot }, diagnosticReplacementObservation(read) ?? undefined) : read;
+      return result instanceof Promise ? result.then(appended) : appended(result);
     },
-    readCompleteSnapshot: read,
+    readCompleteSnapshot: () => read(),
     resolveCapturedAttempt(attemptId: string) {
       const current = read();
       if (current.kind !== "complete") return current;
@@ -101,7 +113,7 @@ export function createDiagnosticHistoryRepository(config: ManagedStorageHostConf
       return attempt ? { kind: "resolved", attempt, generation: current.snapshot.generation }
         : { kind: "not_found", generation: current.snapshot.generation };
     },
-    close() { if (!closed) { closed = true; activeRepositories.delete(writerKey); } },
+    close() { if (!closed) { closed = true; if (!committing) activeRepositories.delete(writerKey); } },
   }) };
 }
 

@@ -108,18 +108,37 @@ orphan temp 不参与 reads，不后台清理；不原地覆盖，不先删除�
 * 任意其他状态（含合法但不匹配的 generation/content、缺失、malformed、identity/integrity/format/capacity 失败）：
   fail closed，不覆盖 target，不重新生成 temp 或 capture。
 
-最多 4 次 rename，间隔固定 50/150/300ms。Node 中专用 helper 使用 `Atomics.wait`，累计请求的同步等待上限 500ms；
-此路径额外最多 14 次严格文件读取/解析（每份沿用 4MiB/4096 captures 上限），另加最多 4 次 native rename，
-原有 temp 写入、cleanup 与最终 confirmation。操作次数和等待预算有限；OS IO 与调度可能延迟返回，
-因此不能承诺总墙钟耗时硬上限。正常首次成功没有等待或 recovery reads。
-70ms 与 300ms 的候选等待预算均在真实 Windows 验收遇到连续四次 EPERM、exact OLD/NEW 有效但预算耗尽；
-后一次在首次失败后约 356ms 仍被拒绝。因此保留 4 次操作上限，累计等待增加到 500ms，
-以给更长的短暂拒绝一个有限窗口；它不保证所有环境中的拒绝都会在预算内解除。
-这不是对具体 actor 或最大拒绝时长的证明；没有 jitter、后台任务或通用 retry framework。
+首次候选失败后进入局部 async continuation，以 `performance.now()` 的单调时钟计时。
+deadline 为 2000ms，目标探测 offsets 为 0/50/150/300/500/750/1000/1500/2000ms；0 为首次失败，
+最多 9 次 native rename（含首次尝试，即最多 8 次 retries）。自然测量曾要求连续 7 次失败后第 8 次在约
+1509ms 成功；attempt ceiling 不会提前截断该情形。offsets 是目标时间，不是保证的实际执行时间。
+每次失败后先严格核对 OLD/NEW，再检查 elapsed；elapsed >=2000ms 不安排新 timer。
+deadline 前已安排的 probe 在 timer 返回并完成再次严格核对后，仅在 elapsed <=2100ms 时可执行，
+这 100ms scheduling grace 只允许该已安排 probe，不授权 deadline 后继续安排探测。
+原有独立 confirmation 仍必需。全部候选失败通常在最终约 2000ms 探测后以 deadline exhausted 结束；
+timer 不推进时仍受 9 次操作 cap 保护。没有 jitter、后台任务或通用 retry framework。
+
+等待使用 Promise/setTimeout，即使目标 offset 已过也用 0ms timer 让出 event loop。正常首次成功仍同步
+完成 publication/confirmation，没有 timer 或 recovery reads；F3 编排付出最小 Promise 成本。
+rare tail 预期增加约 2s 请求等待，宽限最多 100ms；有限的同步 native IO、严格读取/解析与调度仍有开销，
+所以 recovery deadline 不是总墙钟硬上限。每份读取沿用 4MiB/4096 captures 上限；最多 9 次 native rename，
+候选恢复最多 34 次严格读取，另加原有 temp 写入、cleanup 与独立 confirmation。没有长窗口同步 sleep。
+
+repository append 只有候选恢复返回 Promise；initialize/read/resolve 保持同步，F3/runtime append 与 HTTP
+request 等待整个 durability result 后再发布 owner、同步 admission、Event/Evidence 和 reveal。
+committing 占用跨 await 保留到 confirmation/cleanup 完成；并发 append/initialize/read fail closed 为
+operation_in_progress，不排队。runtime 同时阻止新 session；重复同答案仍复用原 sealed attempt，不能 interleave。
+close 拒绝后续操作，但不取消已开始的 commit，并保留同路径 open-handle 占用直到该 continuation 终结；
+关闭的 runtime 不恢复 owner 索引或 reveal。HTTP body 接收并 capture 后，不以 request.signal/disconnect
+取消 filesystem commit；同一请求等待结果，没有先告知失败再后台成功。进程退出/崩溃仍不能保证完成。
+
+旧 500ms 同步窗口已有自然耗尽证据；5 个自然 duration episodes 中 3 个 >500ms、2 个 >1s，最大约1509ms。
+这些有限样本不能证明所有环境的拒绝都在 2s 内解除，也不识别具体 actor。
 
 预算耗尽仍为 `commit_unconfirmed`。cleanup 次要；F3 不获得 owner/admission/Evidence/reveal，
 既有 sealed same-attempt manual continuation 保留，不 recapture。retry 成功或 exact NEW recovery 不绕过提交确认。
-内部 WeakMap 诊断记录 attempt/budget、每次 sanitized IO failure、失败后/等待后 disk-state 与 terminal reason；
+内部 WeakMap 诊断记录首次失败的 monotonic time、target/actual offset、attempt/cap/deadline/grace、成功、
+每次 sanitized IO failure、失败后/等待后 disk-state 与 terminal reason（deadline/cap/state failure 区分）；
 不扩充 public result，不记录 snapshot 正文。此恢复不提供跨进程锁或消除外部 writer 的检查/覆盖竞态。
 
 ## Threat model 与 policy

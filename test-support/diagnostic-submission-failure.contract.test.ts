@@ -31,7 +31,7 @@ test("synthetic formatter preserves required fields in stable readable diagnosti
   assert.equal(decoded.clock.mockedNowIsCurrent, true);
 });
 
-test("synthetic non-submitted diagnosis only reads normal successful fixture state", context => {
+test("synthetic non-submitted diagnosis only reads normal successful fixture state", async context => {
   const storage = diagnosticStorageFixture();
   const baselineNow = Date.now;
   const envBefore = { ...process.env };
@@ -41,7 +41,7 @@ test("synthetic non-submitted diagnosis only reads normal successful fixture sta
     const mockedNow = context.mock.method(Date, "now", () => Date.parse("2026-10-07T08:00:00.000Z"));
     const issued = runtime.issue();
     assert.equal(issued.kind, "issued"); if (issued.kind !== "issued") throw Error("normal self-check issue failed");
-    const successful = commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId: "five" });
+    const successful = (await commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId: "five" }));
     assert.equal(successful.kind, "submitted"); if (successful.kind !== "submitted") throw Error("normal self-check submit failed");
     const before = readFileSync(storage.file, "utf8");
     const ownerBefore = diagnosticOwnerAttempt(successful.attempt.id);
@@ -183,7 +183,7 @@ test("synthetic session rejection reports uncertain boundary instead of claiming
       limitation: "capture return does not expose the runtime/session validation boundary" });
 });
 
-for (const phase of ["publication", "confirmation"] as const) test(`synthetic ${phase} failure reaches preserved receipt through internal query without widening submission result`, context => {
+for (const phase of ["publication", "confirmation"] as const) test(`synthetic ${phase} failure reaches preserved receipt through internal query without widening submission result`, async context => {
   const storage = diagnosticStorageFixture(); const run = failureRunRoot();
   const baselineNow = Date.now; const envBefore = { ...process.env };
   closeDiagnosticRuntime();
@@ -206,7 +206,7 @@ for (const phase of ["publication", "confirmation"] as const) test(`synthetic ${
     const issued = runtime.issue(); assert.equal(issued.kind, "issued");
     if (issued.kind !== "issued") throw Error("self-check issue failed");
     const before = readFileSync(storage.file, "utf8");
-    const result = commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId: "four" });
+    const result = (await commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId: "four" }));
     assert.equal(result.kind, "captured_not_durable");
     if (result.kind !== "captured_not_durable") throw Error("expected synthetic publication failure");
     assert.deepEqual(result.failure, { kind: "unavailable", code: "storage_unavailable", reason: "commit_unconfirmed" });

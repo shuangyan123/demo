@@ -22,7 +22,7 @@ export type DiagnosticHistoryRead = Readonly<{ kind: "complete"; snapshot: Diagn
 export type DiagnosticHistoryAppend = Readonly<{ kind: "committed" | "confirmed"; snapshot: DiagnosticHistorySnapshotV1 }> | DiagnosticHistoryFailure;
 export type DiagnosticHistoryRepository = Readonly<{
   initialize: () => DiagnosticHistoryRead;
-  appendCapturedAttempt: (attempt: IssuedDiagnosticCapturedAttemptV1) => DiagnosticHistoryAppend;
+  appendCapturedAttempt: (attempt: IssuedDiagnosticCapturedAttemptV1) => DiagnosticHistoryAppend | Promise<DiagnosticHistoryAppend>;
   readCompleteSnapshot: () => DiagnosticHistoryRead;
   resolveCapturedAttempt: (attemptId: string) =>
     | Readonly<{ kind: "resolved"; attempt: DiagnosticCapturedAttemptV1; generation: number }>

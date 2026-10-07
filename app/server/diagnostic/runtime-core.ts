@@ -26,6 +26,8 @@ export function createDiagnosticRuntime(config: ManagedStorageHostConfig | undef
   let readiness: DiagnosticReadiness = { kind: "storage_config_unavailable" };
   let index = new Map<string, DiagnosticCapturedAttemptV1>();
   const entries = new Map<string, Entry>();
+  let appending = false;
+  let closed = false;
   const opened = config ? open(config) : undefined;
   const repository = opened?.kind === "opened" ? opened.repository : undefined;
   function load(snapshot: DiagnosticHistorySnapshotV1) {
@@ -57,7 +59,7 @@ export function createDiagnosticRuntime(config: ManagedStorageHostConfig | undef
       return read;
     },
     issue() {
-      if (readiness.kind !== "ready" || sessions().size >= MAX_SESSIONS) return { kind: "unavailable" } as const;
+      if (appending || closed || readiness.kind !== "ready" || sessions().size >= MAX_SESSIONS) return { kind: "unavailable" } as const;
       const mechanism = createControlledDiagnosticCapture();
       const started = mechanism.begin({ specId: "int-add-2-3", specRevision: "r1" });
       if (started.kind !== "started") return { kind: "unavailable" } as const;
@@ -78,18 +80,24 @@ export function createDiagnosticRuntime(config: ManagedStorageHostConfig | undef
       if (entry.attempt) return entry.attempt.selectedOptionId === fields.selectedOptionId.value
         ? { kind: "captured", attempt: entry.attempt, sessionId } as const
         : { kind: "rejected", reason: "sealed_response_conflict" } as const;
-      if (readiness.kind !== "ready") return { kind: "runtime_unavailable", readiness } as const;
+      if (appending || closed || readiness.kind !== "ready") return { kind: "runtime_unavailable", readiness } as const;
       const result = entry.session.submit({ selectedOptionId: fields.selectedOptionId.value });
       if (result.kind !== "captured") return result;
       entry.attempt = result.attempt;
       return { ...result, sessionId } as const;
     },
-    append(attempt: IssuedDiagnosticCapturedAttemptV1) {
+    async append(attempt: IssuedDiagnosticCapturedAttemptV1) {
       if (!repository) return { kind: "unavailable", code: "storage_unavailable", reason: "runtime_unavailable" } as const;
-      const result = repository.appendCapturedAttempt(attempt);
-      if ("snapshot" in result) load(result.snapshot);
-      else { readiness = failureState(result); index.clear(); }
-      return result;
+      if (closed || appending) return { kind: "unavailable", code: "storage_unavailable", reason: "operation_in_progress" } as const;
+      appending = true;
+      try {
+        const result = await repository.appendCapturedAttempt(attempt);
+        if (!closed) {
+          if ("snapshot" in result) load(result.snapshot);
+          else { readiness = failureState(result); index.clear(); }
+        }
+        return result;
+      } finally { appending = false; }
     },
     allowReveal(sessionId: string, attemptId: string) {
       const entry = sessions().get(sessionId);
@@ -110,7 +118,7 @@ export function createDiagnosticRuntime(config: ManagedStorageHostConfig | undef
         correctOptionId: reveal.correctOptionId, explanation: reveal.explanation } as const;
     },
     resolveAttempt(attemptId: string) { return readiness.kind === "ready" ? index.get(attemptId) : undefined; },
-    close() { repository?.close(); entries.clear(); index.clear(); readiness = { kind: "storage_unavailable" }; },
+    close() { closed = true; repository?.close(); entries.clear(); index.clear(); readiness = { kind: "storage_unavailable" }; },
   });
 }
 export type DiagnosticRuntime = ReturnType<typeof createDiagnosticRuntime>;

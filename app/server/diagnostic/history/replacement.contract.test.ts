@@ -8,7 +8,7 @@ import { createDiagnosticHistoryRepository } from "./repository-core.ts";
 import { diagnosticHistoryIO, diagnosticDurabilityFailure, diagnosticReplacementObservation, type DiagnosticHistoryIO } from "./io.ts";
 import { encodeDiagnosticSnapshot, parseDiagnosticSnapshot } from "./record.ts";
 import type { DiagnosticHistorySnapshotV1 } from "../../../types/domains/diagnostic-history.ts";
-import { DIAGNOSTIC_REPLACEMENT_ATTEMPT_BUDGET, DIAGNOSTIC_REPLACEMENT_DELAYS_MS } from "./replacement.ts";
+import { DIAGNOSTIC_REPLACEMENT_ATTEMPT_BUDGET, DIAGNOSTIC_REPLACEMENT_OFFSETS_MS } from "./replacement.ts";
 
 const unconfirmed = { kind: "unavailable", code: "storage_unavailable", reason: "commit_unconfirmed" };
 const failure = (code = "EPERM") => Object.assign(Error("private native error"), { code, syscall: "rename", errno: -4048 });
@@ -27,9 +27,9 @@ function capture(id = "retry-attempt") {
 }
 function fixture(context: { after(fn: () => void): void }, override: Partial<DiagnosticHistoryIO> = {}) {
   const storage = diagnosticStorageFixture();
-  const waits: number[] = [];
+  const waits: number[] = []; let clock = 100;
   const opened = createDiagnosticHistoryRepository(storage.config, { ...diagnosticHistoryIO,
-    replacementPlatform: "win32", waitForReplacementRetry(ms) { waits.push(ms); }, ...override });
+    replacementPlatform: "win32", replacementNow: () => clock, async waitForReplacementRetry(ms) { waits.push(ms); clock += ms; }, ...override });
   if (opened.kind !== "opened") throw Error("repository setup");
   const repository = opened.repository;
   context.after(() => { repository.close(); storage.cleanup(); });
@@ -37,14 +37,16 @@ function fixture(context: { after(fn: () => void): void }, override: Partial<Dia
   return { ...storage, repository, waits, disk: () => JSON.parse(readFileSync(storage.file, "utf8")) };
 }
 
-test("replacement succeeds on first attempt; normal confirmation and exact capture facts remain unchanged", context => {
+test("replacement succeeds on first attempt; normal confirmation and exact capture facts remain unchanged", async context => {
   let readsAfterPublication = 0; let published = false;
   const state = fixture(context, {
     publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
     read(file, observe) { if (published) readsAfterPublication++; return diagnosticHistoryIO.read(file, observe); },
   });
   const attempt = capture();
-  const result = state.repository.appendCapturedAttempt(attempt);
+  const immediate = state.repository.appendCapturedAttempt(attempt);
+  assert.equal(immediate instanceof Promise, false, "no delayed continuation on first native success");
+  const result = await immediate;
   assert.equal(result.kind, "committed"); assert.equal(readsAfterPublication, 1); assert.deepEqual(state.waits, []);
   assert.deepEqual(state.disk().captures, [attempt]); assert.equal(state.disk().generation, 1);
   assert.equal(diagnosticReplacementObservation(result)?.attemptCount, 1);
@@ -53,7 +55,7 @@ test("replacement succeeds on first attempt; normal confirmation and exact captu
 });
 
 for (const code of ["EPERM", "EBUSY", "EACCES"]) for (const failures of [1, 2, 3]) {
-  test(`${code} ${failures} times then success: every retry revalidates OLD and NEW, one canonical commit`, context => {
+  test(`${code} ${failures} times then success: every retry revalidates OLD and NEW, one canonical commit`, async context => {
     let attempts = 0; let temporary: string | undefined; const reads: string[] = [];
     const state = fixture(context, {
       publishReplacement(from, to) {
@@ -63,12 +65,12 @@ for (const code of ["EPERM", "EBUSY", "EACCES"]) for (const failures of [1, 2, 3
       },
       read(file, observe) { reads.push(file); return diagnosticHistoryIO.read(file, observe); },
     });
-    const attempt = capture(); const result = state.repository.appendCapturedAttempt(attempt);
+    const attempt = capture(); const result = (await state.repository.appendCapturedAttempt(attempt));
     assert.equal(result.kind, "committed"); assert.equal(attempts, failures + 1);
-    assert.deepEqual(state.waits, DIAGNOSTIC_REPLACEMENT_DELAYS_MS.slice(0, failures));
+    assert.deepEqual(state.waits, DIAGNOSTIC_REPLACEMENT_OFFSETS_MS.slice(1, failures + 1).map((offset, index) => offset - DIAGNOSTIC_REPLACEMENT_OFFSETS_MS[index]));
     assert.deepEqual(state.disk().captures, [attempt]); assert.equal(state.disk().generation, 1);
     const detail = diagnosticReplacementObservation(result)!;
-    assert.equal(detail.terminalReason, "succeeded"); assert.equal(detail.attemptBudget, 4); assert.equal(detail.waitBudgetMs, 500);
+    assert.equal(detail.terminalReason, "succeeded"); assert.equal(detail.attemptBudget, 9); assert.equal(detail.waitBudgetMs, 2000);
     assert.ok(detail.failures.every(item => item.io.ioCode === code && item.diskState === "expected_old" && item.beforeRetryState === "expected_old"));
     assert.equal(reads.filter(file => file === temporary).length, failures * 2, "temp checked after failure and after wait");
     assert.ok(Object.isFrozen(detail) && Object.isFrozen(detail.failures) && detail.failures.every(Object.isFrozen));
@@ -76,26 +78,26 @@ for (const code of ["EPERM", "EBUSY", "EACCES"]) for (const failures of [1, 2, 3
   });
 }
 
-test("permanent EPERM exhausts exactly four attempts and 500ms wait budget, OLD remains valid and cleanup is secondary", context => {
+test("permanent EPERM exhausts exactly nine attempts and 2000ms recovery deadline, OLD remains valid and cleanup is secondary", async context => {
   let attempts = 0;
   const state = fixture(context, { publishReplacement() { attempts++; throw failure(); } });
-  const before = readFileSync(state.file, "utf8"); const result = state.repository.appendCapturedAttempt(capture());
+  const before = readFileSync(state.file, "utf8"); const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.deepEqual(result, unconfirmed); assert.equal(attempts, DIAGNOSTIC_REPLACEMENT_ATTEMPT_BUDGET);
-  assert.deepEqual(state.waits, [50, 150, 300]); assert.equal(readFileSync(state.file, "utf8"), before);
+  assert.deepEqual(state.waits, [50, 100, 150, 200, 250, 250, 500, 500]); assert.equal(readFileSync(state.file, "utf8"), before);
   assert.equal(state.repository.readCompleteSnapshot().kind, "complete");
   assert.deepEqual(readdirSync(path.dirname(state.file)), ["history.json"]);
   const detail = diagnosticDurabilityFailure(result)!;
-  assert.equal(detail.replacement?.terminalReason, "retry_exhausted"); assert.equal(detail.replacement?.failures.length, 4);
+  assert.equal(detail.replacement?.terminalReason, "deadline_exhausted"); assert.equal(detail.replacement?.failures.length, 9);
   assert.equal(detail.stage, "replacement_rename"); assert.equal(detail.io?.ioCode, "EPERM");
 });
 
-test("reported EPERM after native publication accepts exact NEW, no second rename or temp required, still confirms", context => {
+test("reported EPERM after native publication accepts exact NEW, no second rename or temp required, still confirms", async context => {
   let attempts = 0; let readsAfterPublication = 0; let published = false;
   const state = fixture(context, {
     publishReplacement(from, to) { attempts++; diagnosticHistoryIO.publishReplacement(from, to); published = true; throw failure(); },
     read(file, observe) { if (published) readsAfterPublication++; return diagnosticHistoryIO.read(file, observe); },
   });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.equal(result.kind, "committed"); assert.equal(attempts, 1); assert.deepEqual(state.waits, []);
   assert.equal(readsAfterPublication, 2, "strict recovery read plus existing commit confirmation");
   assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "already_published");
@@ -103,7 +105,7 @@ test("reported EPERM after native publication accepts exact NEW, no second renam
 });
 
 for (const damage of ["other_generation", "same_generation_content", "malformed", "missing", "profile", "epoch", "integrity", "unsupported", "capacity"] as const) {
-  test(`EPERM with unexpected target ${damage} never retries or overwrites it`, context => {
+  test(`EPERM with unexpected target ${damage} never retries or overwrites it`, async context => {
     let attempts = 0; let unexpected = ""; let armed = false;
     const state = fixture(context, { publishReplacement(from, to) {
       if (damage === "same_generation_content" && !armed) { diagnosticHistoryIO.publishReplacement(from, to); return; }
@@ -118,9 +120,9 @@ for (const damage of ["other_generation", "same_generation_content", "malformed"
       if (damage === "missing") unlinkSync(to); else writeFileSync(to, unexpected);
       throw failure();
     } });
-    if (damage === "same_generation_content") assert.equal(state.repository.appendCapturedAttempt(capture("base")).kind, "committed");
+    if (damage === "same_generation_content") assert.equal((await state.repository.appendCapturedAttempt(capture("base"))).kind, "committed");
     armed = true;
-    const result = state.repository.appendCapturedAttempt(capture());
+    const result = (await state.repository.appendCapturedAttempt(capture()));
     assert.deepEqual(result, unconfirmed); assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "state_changed");
     if (damage === "other_generation" || damage === "same_generation_content")
       assert.equal(parseDiagnosticSnapshot(unexpected, state.config).kind, "complete", "unexpected target is valid, not merely malformed");
@@ -130,7 +132,7 @@ for (const damage of ["other_generation", "same_generation_content", "malformed"
 }
 
 for (const damage of ["missing", "malformed", "wrong_capture", "wrong_profile", "wrong_generation", "integrity"] as const) {
-  test(`EPERM with temp ${damage} fails closed without retry`, context => {
+  test(`EPERM with temp ${damage} fails closed without retry`, async context => {
     let attempts = 0;
     const state = fixture(context, { publishReplacement(from) {
       attempts++;
@@ -145,117 +147,219 @@ for (const damage of ["missing", "malformed", "wrong_capture", "wrong_profile", 
       }
       throw failure();
     } });
-    const before = readFileSync(state.file, "utf8"); const result = state.repository.appendCapturedAttempt(capture());
+    const before = readFileSync(state.file, "utf8"); const result = (await state.repository.appendCapturedAttempt(capture()));
     assert.deepEqual(result, unconfirmed); assert.equal(attempts, 1); assert.deepEqual(state.waits, []);
     assert.equal(readFileSync(state.file, "utf8"), before); assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "temp_invalid");
   });
 }
 
-test("state changing during wait is revalidated before retry", context => {
+test("state changing during wait is revalidated before retry", async context => {
   let target = ""; let attempts = 0;
   const state = fixture(context, {
     publishReplacement(_from, to) { target = to; attempts++; throw failure(); },
-    waitForReplacementRetry() { const value = payload(target); writeFileSync(target, encodeDiagnosticSnapshot({ ...value, generation: 1, captures: [capture("other")] })); },
+    async waitForReplacementRetry() { const value = payload(target); writeFileSync(target, encodeDiagnosticSnapshot({ ...value, generation: 1, captures: [capture("other")] })); },
   });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.deepEqual(result, unconfirmed); assert.equal(attempts, 1);
   assert.equal(diagnosticReplacementObservation(result)?.failures[0].beforeRetryState, "unexpected");
 });
 
-test("exact NEW appearing during wait is accepted and confirmed without a second rename", context => {
+test("exact NEW appearing during wait is accepted and confirmed without a second rename", async context => {
   let source = ""; let target = ""; let attempts = 0;
   const state = fixture(context, {
     publishReplacement(from, to) { source = from; target = to; attempts++; throw failure(); },
-    waitForReplacementRetry() { diagnosticHistoryIO.publishReplacement(source, target); },
+    async waitForReplacementRetry() { diagnosticHistoryIO.publishReplacement(source, target); },
   });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.equal(result.kind, "committed"); assert.equal(attempts, 1);
   assert.equal(diagnosticReplacementObservation(result)?.failures[0].beforeRetryState, "expected_new");
 });
 
 for (const code of ["ENOSPC", "EIO", "ENOENT", "EINVAL", "EROFS", "EEXIST"]) {
-  test(`${code} never retries or runs recovery reads`, context => {
+  test(`${code} never retries or runs recovery reads`, async context => {
     let attempts = 0; let reads = 0;
     const state = fixture(context, {
       publishReplacement() { attempts++; throw failure(code); },
       read(file, observe) { reads++; return diagnosticHistoryIO.read(file, observe); },
     });
-    reads = 0; const result = state.repository.appendCapturedAttempt(capture());
+    reads = 0; const result = (await state.repository.appendCapturedAttempt(capture()));
     assert.deepEqual(result, unconfirmed); assert.equal(attempts, 1); assert.equal(reads, 1); assert.deepEqual(state.waits, []);
     assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "non_retryable");
   });
 }
 
-test("non-Windows replacement retains one attempt even for EPERM", context => {
+test("non-Windows replacement retains one attempt even for EPERM", async context => {
   let attempts = 0;
   const state = fixture(context, { replacementPlatform: "linux", publishReplacement() { attempts++; throw failure(); } });
-  assert.deepEqual(state.repository.appendCapturedAttempt(capture()), unconfirmed); assert.equal(attempts, 1); assert.deepEqual(state.waits, []);
+  assert.deepEqual((await state.repository.appendCapturedAttempt(capture())), unconfirmed); assert.equal(attempts, 1); assert.deepEqual(state.waits, []);
 });
 
 test("initial link failure is never retried", context => {
   const storage = diagnosticStorageFixture(); let links = 0;
   const opened = createDiagnosticHistoryRepository(storage.config, { ...diagnosticHistoryIO,
-    publishNew() { links++; throw failure(); }, waitForReplacementRetry() { assert.fail("creation must not wait"); } });
+    publishNew() { links++; throw failure(); }, async waitForReplacementRetry() { assert.fail("creation must not wait"); } });
   if (opened.kind !== "opened") throw Error("setup");
   context.after(() => { opened.repository.close(); storage.cleanup(); });
   assert.deepEqual(opened.repository.initialize(), unconfirmed); assert.equal(links, 1);
 });
 
-test("retry success still fails if final confirmation cannot read NEW", context => {
+test("retry success still fails if final confirmation cannot read NEW", async context => {
   let calls = 0; let published = false;
   const state = fixture(context, {
     publishReplacement(from, to) { if (++calls === 1) throw failure(); diagnosticHistoryIO.publishReplacement(from, to); published = true; },
     read(file, observe) { return published ? { kind: "unavailable", code: "storage_unavailable", reason: "snapshot_read_failed" } : diagnosticHistoryIO.read(file, observe); },
   });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.deepEqual(result, unconfirmed); assert.equal(calls, 2);
   assert.equal(diagnosticDurabilityFailure(result)?.stage, "confirmation_read");
   assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "succeeded");
 });
 
-test("already-NEW recovery never bypasses final confirmation", context => {
+test("already-NEW recovery never bypasses final confirmation", async context => {
   let afterPublicationReads = 0; let published = false;
   const state = fixture(context, {
     publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; throw failure(); },
     read(file, observe) { if (published && ++afterPublicationReads > 1) return { kind: "missing" }; return diagnosticHistoryIO.read(file, observe); },
   });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.deepEqual(result, unconfirmed); assert.equal(diagnosticDurabilityFailure(result)?.confirmationFailure, "file_missing");
 });
 
-test("cleanup failure cannot override exhausted rename failure", context => {
+test("cleanup failure cannot override exhausted rename failure", async context => {
   const state = fixture(context, { publishReplacement() { throw failure(); }, removeTemporary() { throw failure("EACCES"); } });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.deepEqual(result, unconfirmed); const detail = diagnosticDurabilityFailure(result)!;
   assert.equal(detail.io?.ioCode, "EPERM"); assert.equal(detail.cleanupFailure?.ioCode, "EACCES");
-  assert.equal(detail.replacement?.terminalReason, "retry_exhausted");
+  assert.equal(detail.replacement?.terminalReason, "deadline_exhausted");
 });
 
-test("read/close exception during state inspection fails closed without a retry", context => {
+test("read/close exception during state inspection fails closed without a retry", async context => {
   let failed = false; let attempts = 0;
   const state = fixture(context, {
     publishReplacement() { attempts++; failed = true; throw failure(); },
     read(file, observe) { if (failed) throw Error("close failed"); return diagnosticHistoryIO.read(file, observe); },
   });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.deepEqual(result, unconfirmed); assert.equal(attempts, 1); assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "state_changed");
 });
 
-test("wait failure terminates without another rename and retains the original candidate", context => {
+test("wait failure terminates without another rename and retains the original candidate", async context => {
   let attempts = 0;
-  const state = fixture(context, { publishReplacement() { attempts++; throw failure(); }, waitForReplacementRetry() { throw Error("wait unavailable"); } });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const state = fixture(context, { publishReplacement() { attempts++; throw failure(); }, async waitForReplacementRetry() { throw Error("wait unavailable"); } });
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.deepEqual(result, unconfirmed); assert.equal(attempts, 1);
   assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "wait_failed");
   assert.equal(diagnosticDurabilityFailure(result)?.io?.ioCode, "EPERM");
 });
 
-test("untrusted code getter never authorizes retry or escapes IO sanitization", context => {
+test("untrusted code getter never authorizes retry or escapes IO sanitization", async context => {
   let attempts = 0; let getterCalls = 0;
   const state = fixture(context, { publishReplacement() {
     attempts++; throw Object.defineProperty(Error("private"), "code", { get() { getterCalls++; return "EPERM"; } });
   } });
-  const result = state.repository.appendCapturedAttempt(capture());
+  const result = (await state.repository.appendCapturedAttempt(capture()));
   assert.deepEqual(result, unconfirmed); assert.equal(attempts, 1); assert.equal(getterCalls, 0);
   assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "non_retryable");
+});
+
+for (const failures of [5, 6, 7]) test(`${failures} failures then success at ${DIAGNOSTIC_REPLACEMENT_OFFSETS_MS[failures]}ms admits measured tail without cap preemption`, async context => {
+  let calls = 0;
+  const state = fixture(context, { publishReplacement(from, to) {
+    if (++calls <= failures) throw failure();
+    diagnosticHistoryIO.publishReplacement(from, to);
+  } });
+  const attempt = capture();
+  const result = await state.repository.appendCapturedAttempt(attempt);
+  assert.equal(result.kind, "committed"); assert.equal(calls, failures + 1);
+  assert.deepEqual(state.disk().captures, [attempt]);
+  const detail = diagnosticReplacementObservation(result)!;
+  assert.equal(detail.firstFailureTimeMs, 100);
+  assert.deepEqual(detail.attempts.map(item => item.actualOffsetMs), DIAGNOSTIC_REPLACEMENT_OFFSETS_MS.slice(0, failures + 1));
+  assert.equal(detail.attempts.at(-1)?.succeeded, true);
+  assert.ok(detail.failures.every(item => item.diskState === "expected_old" && item.beforeRetryState === "expected_old"));
+});
+
+for (const drift of [20, 100, 101]) test(`final reserved probe has finite scheduling grace: ${drift}ms drift`, async context => {
+  let clock = 0; let calls = 0;
+  const state = fixture(context, { replacementNow: () => clock,
+    async waitForReplacementRetry(ms) { clock += ms; if (clock === 2000) clock += drift; },
+    publishReplacement(from, to) { if (++calls < 9) throw failure(); diagnosticHistoryIO.publishReplacement(from, to); },
+  });
+  const result = await state.repository.appendCapturedAttempt(capture());
+  assert.equal(calls, drift <= 100 ? 9 : 8);
+  assert.equal(result.kind, drift <= 100 ? "committed" : "unavailable");
+  assert.equal(diagnosticReplacementObservation(result)?.terminalReason, drift <= 100 ? "succeeded" : "deadline_exhausted");
+});
+
+test("validation consuming the deadline schedules no new wait; already NEW still needs independent confirmation", async context => {
+  let clock = 0; let failed = false; let waits = 0; let calls = 0;
+  const state = fixture(context, { replacementNow: () => clock,
+    publishReplacement() { calls++; failed = true; throw failure(); },
+    read(file, observe) { const result = diagnosticHistoryIO.read(file, observe); if (failed) clock = 2000; return result; },
+    async waitForReplacementRetry() { waits++; },
+  });
+  const result = await state.repository.appendCapturedAttempt(capture());
+  assert.deepEqual(result, unconfirmed); assert.equal(calls, 1); assert.equal(waits, 0);
+  assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "deadline_exhausted");
+});
+
+test("attempt ceiling remains finite even when a faulty timer never advances its clock", async context => {
+  let calls = 0;
+  const state = fixture(context, { replacementNow: () => 0, async waitForReplacementRetry() {},
+    publishReplacement() { calls++; throw failure(); } });
+  const result = await state.repository.appendCapturedAttempt(capture());
+  assert.deepEqual(result, unconfirmed); assert.equal(calls, 9);
+  assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "attempt_cap_exhausted");
+});
+
+test("temp changed across async wait is revalidated without a second native attempt", async context => {
+  let source = ""; let calls = 0;
+  const state = fixture(context, { publishReplacement(from) { source = from; calls++; throw failure(); },
+    async waitForReplacementRetry() { await Promise.resolve(); writeFileSync(source, "{broken"); },
+  });
+  const result = await state.repository.appendCapturedAttempt(capture());
+  assert.deepEqual(result, unconfirmed); assert.equal(calls, 1);
+  assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "temp_invalid");
+  assert.equal(diagnosticReplacementObservation(result)?.failures[0].beforeRetryState, "unexpected");
+});
+
+test("pending writer rejects interleaving append/read/initialize; close retains path ownership until confirmation", async context => {
+  let release!: () => void; let calls = 0;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const state = fixture(context, { async waitForReplacementRetry() { await waiting; },
+    publishReplacement(from, to) { if (++calls === 1) throw failure(); diagnosticHistoryIO.publishReplacement(from, to); },
+  });
+  const attempt = capture(); const pending = state.repository.appendCapturedAttempt(attempt);
+  assert.ok(pending instanceof Promise);
+  const busy = { kind: "unavailable", code: "storage_unavailable", reason: "operation_in_progress" };
+  assert.deepEqual(await state.repository.appendCapturedAttempt(capture("second")), busy);
+  assert.deepEqual(state.repository.readCompleteSnapshot(), busy); assert.deepEqual(state.repository.initialize(), busy);
+  assert.deepEqual(Reflect.apply(state.repository.readCompleteSnapshot, state.repository, [undefined, true]), busy,
+    "public read cannot borrow the private confirmation bypass");
+  state.repository.close();
+  assert.deepEqual(createDiagnosticHistoryRepository(state.config), { kind: "unavailable", code: "storage_unavailable", reason: "repository_already_open" });
+  release(); assert.equal((await pending).kind, "committed"); assert.equal(calls, 2);
+  assert.deepEqual(state.disk().captures, [attempt]);
+  const reopened = createDiagnosticHistoryRepository(state.config);
+  assert.equal(reopened.kind, "opened");
+  if (reopened.kind === "opened") { assert.equal(reopened.repository.readCompleteSnapshot().kind, "complete"); reopened.repository.close(); }
+});
+
+test("production timer yields to another scheduled task during the measured 1.5s recovery", async context => {
+  let calls = 0; let ranDuringWait = false;
+  const state = fixture(context, { replacementNow: diagnosticHistoryIO.replacementNow,
+    waitForReplacementRetry: diagnosticHistoryIO.waitForReplacementRetry,
+    publishReplacement(from, to) {
+      if (++calls <= 7) throw failure();
+      assert.equal(ranDuringWait, true);
+      diagnosticHistoryIO.publishReplacement(from, to);
+    },
+  });
+  const scheduled = new Promise<void>(resolve => setTimeout(() => {
+    assert.ok(calls >= 1 && calls < 8, "scheduled task runs before recovery completes"); assert.equal(state.disk().generation, 0);
+    ranDuringWait = true; resolve();
+  }, 1200));
+  const result = await state.repository.appendCapturedAttempt(capture());
+  await scheduled;
+  assert.equal(result.kind, "committed"); assert.equal(calls, 8);
 });

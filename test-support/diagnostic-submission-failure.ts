@@ -10,7 +10,7 @@ import { admitVerifiedAssessment } from "../app/services/verification-source/ver
 import type { diagnosticStorageFixture } from "./diagnostic-storage.ts";
 import { FAILURE_MARKER, PRESERVED_MARKER, PRESERVATION_ENV, preserveFirstDiagnosticFailure, safeIOCode } from "./diagnostic-failure-preservation.ts";
 
-export type NonSubmittedResult = Exclude<ReturnType<typeof commitDiagnosticSubmission>, { kind: "submitted" }>;
+export type NonSubmittedResult = Exclude<Awaited<ReturnType<typeof commitDiagnosticSubmission>>, { kind: "submitted" }>;
 type Storage = ReturnType<typeof diagnosticStorageFixture>;
 type ProbeFailure = { kind: "probe_failed"; ioCode: string };
 function probe<T>(read: () => T): T | ProbeFailure {

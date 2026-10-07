@@ -40,7 +40,8 @@ export async function POST(request: Request): Promise<Response> {
     if (fields.length !== 2 || !form.has("sessionId") || !form.has("selectedOptionId"))
       throw new RouteSecurityError("invalid_form", "提交字段无效", 400);
     const sessionId = form.get("sessionId")!;
-    const result = commitDiagnosticSubmission({ sessionId, selectedOptionId: form.get("selectedOptionId")! });
+    // capture 后的 commit 不绑定 request.signal；客户端断开也等待有界恢复和确认，避免模糊历史。
+    const result = await commitDiagnosticSubmission({ sessionId, selectedOptionId: form.get("selectedOptionId")! });
     if (result.kind !== "submitted") {
       const sealed = result.kind === "captured_not_durable" || result.kind === "durable_not_admitted" || result.kind === "durable_without_evidence";
       if (sealed) return new Response(`<!doctype html><html lang="zh-CN"><title>提交未完成</title><main>
