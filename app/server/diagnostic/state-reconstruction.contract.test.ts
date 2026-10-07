@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test, { describe, beforeEach, afterEach } from "node:test";
 import { diagnosticStorageFixture } from "../../../test-support/diagnostic-storage.ts";
+import { SubmissionFixtureFailure } from "../../../test-support/diagnostic-submission-failure.ts";
+import { PRESERVED_MARKER } from "../../../test-support/diagnostic-failure-preservation.ts";
 import { composeDiagnosticRuntime, closeDiagnosticRuntime } from "./runtime.ts";
 import { commitDiagnosticSubmission } from "./assessment-submission.ts";
 import { loadCompleteDiagnosticLearningHistory } from "./learning-history.ts";
@@ -13,11 +15,21 @@ import { decideNextVerification } from "../../services/learning-kernel/verificat
 const request = { specId: "int-add-2-3", specRevision: "r1", asOf: "2026-10-07T10:00:00.000Z" };
 const early = Date.parse("2026-10-07T08:00:00.000Z");
 const late = early + 60000;
+const baselineNow = Date.now;
 
 describe("complete diagnostic history → state → WHAT", () => {
   let storage: ReturnType<typeof diagnosticStorageFixture>;
-  beforeEach(() => { closeDiagnosticRuntime(); storage = diagnosticStorageFixture(); });
-  afterEach(() => { closeDiagnosticRuntime(); storage.cleanup(); });
+  let failure: SubmissionFixtureFailure | undefined;
+  let precedingTest: string | null = null;
+  beforeEach(() => { closeDiagnosticRuntime(); storage = diagnosticStorageFixture(); failure = undefined; });
+  afterEach(context => {
+    closeDiagnosticRuntime();
+    // 只保留已原子领取的首个 submission failure；普通运行与其余 fixtures 正常清理。
+    if (failure?.preservation.keep) {
+      if ("diagnostic" in context) context.diagnostic(`${PRESERVED_MARKER} ${storage.root}`);
+    } else storage.cleanup();
+    precedingTest = context.name;
+  });
   function result(input = request) {
     const value = reconstructDiagnosticLearnerState(input);
     assert.equal(value.kind, "complete");
@@ -28,7 +40,7 @@ describe("complete diagnostic history → state → WHAT", () => {
   }
   function submit(context: test.TestContext, answers: string[], times: number[]) {
     let instant = early;
-    context.mock.method(Date, "now", () => instant);
+    const mockedNow = context.mock.method(Date, "now", () => instant);
     let active = composeDiagnosticRuntime(storage.config);
     return answers.map((selectedOptionId, index) => {
       if (index && index % 200 === 0) { closeDiagnosticRuntime(); active = composeDiagnosticRuntime(storage.config); }
@@ -36,7 +48,12 @@ describe("complete diagnostic history → state → WHAT", () => {
       const issued = active.issue();
       if (issued.kind !== "issued") throw new Error("issue failed");
       const value = commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId });
-      if (value.kind !== "submitted") throw new Error(`submit failed: ${JSON.stringify(value)}`);
+      if (value.kind !== "submitted") {
+        failure = new SubmissionFixtureFailure({ result: value, runtime: active, storage, sessionId: issued.sessionId,
+          clock: { baselineNow, mockedNow, expectedFakeTime: instant },
+          test: { name: context.name, precedingTest, submissionIndex: index, submissionCount: answers.length } });
+        throw failure;
+      }
       return value;
     });
   }
