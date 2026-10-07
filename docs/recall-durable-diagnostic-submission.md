@@ -2,6 +2,7 @@
 
 本片从 Slice 2 exact HEAD `735ac2b249a0c03f6e4b5f83a3f294265a589ccf` 开始，接通固定 `recall-diagnostic`
 production source 到 durable capture → admission → Evidence → reveal。Phase E 保持 COMPLETE，Phase F 整体与 DOGFOOD READY 未成立。
+后续 [Slice 4](recall-diagnostic-state-reconstruction.md) 已接通当前 source epoch 的完整 history→State→WHAT 内部只读重建；下文保留 Slice 3 交付时的边界。
 
 ## Trusted process composition
 

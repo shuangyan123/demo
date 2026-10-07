@@ -7,7 +7,9 @@ storage policy registry 见 [Managed Data Root Foundation](recall-managed-storag
 Recall Phase F Slice 2 的 [Diagnostic Durable Capture Repository](recall-diagnostic-history.md) 保存并严格恢复 source-owned captures。
 Slice 3 的 [Production Durable Diagnostic Submission & Owner Recovery](recall-durable-diagnostic-submission.md)
 接通 trusted Main→Next composition、启动完整快照、durable-confirmed owner index 与 submit→Evidence→reveal。
-完整 Event/Evidence history→state/WHAT、位置迁移与全局 backup/reset integration 仍未实现。
+Slice 4 的 [Complete Diagnostic History → Learner State → WHAT](recall-diagnostic-state-reconstruction.md)
+接通当前 profile/epoch/source 的完整 durable generation→重新准入→canonical target history→State→WHAT 内部只读 API。
+完整源验证后才分组；失败不等于空 Evidence 或 unknown state。派生结果不落盘；位置迁移与全局 backup/reset integration 仍未实现。
 
 ## Electron 桌面架构（2026-07-28）
 

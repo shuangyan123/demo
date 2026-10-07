@@ -31,8 +31,17 @@ import "./managed-storage-boundary.contract.test.ts";
 import "../../server/diagnostic/history/repository.contract.test.ts";
 import "./diagnostic-history-boundary.contract.test.ts";
 import "./durable-runtime-boundary.contract.test.ts";
+import "../../server/diagnostic/state-reconstruction.contract.test.ts";
+import "../../server/diagnostic/reconstruction-failure.contract.test.ts";
+import "../../server/diagnostic/reconstruction-restart.contract.test.ts";
+import "./diagnostic-reconstruction-boundary.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
+const DIAGNOSTIC_HISTORY_LOADER = path.join(APP_ROOT, "server/diagnostic/learning-history.ts");
+const DIAGNOSTIC_RECONSTRUCTION = path.join(APP_ROOT, "server/diagnostic/state-reconstruction.ts");
+const DIAGNOSTIC_RECONSTRUCTION_TYPES = path.join(APP_ROOT, "server/diagnostic/reconstruction-types.ts");
+const DIAGNOSTIC_RECONSTRUCTION_TESTS = new Set(["state-reconstruction.contract.test.ts", "reconstruction-failure.contract.test.ts",
+  "reconstruction-restart.contract.test.ts"].map(name => path.join(APP_ROOT, "server/diagnostic", name)));
 
 /** 递归读取应用源码，用于建立不依赖第三方工具的架构守卫。 */
 async function sourceFiles(directory: string, includeJavaScript = false, includeTests = false): Promise<string[]> {
@@ -80,7 +89,7 @@ test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState"
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   for (const file of await sourceFiles(APP_ROOT)) {
     const source = await readFile(file, "utf8");
-    if (!file.startsWith(`${kernelRoot}${path.sep}`) && file !== path.join(APP_ROOT, "server/diagnostic/assessment-submission.ts")) {
+    if (!file.startsWith(`${kernelRoot}${path.sep}`) && file !== path.join(APP_ROOT, "server/diagnostic/assessment-submission.ts") && file !== DIAGNOSTIC_HISTORY_LOADER) {
       assert.ok(!staticImports(source).some((specifier) => /learning-kernel\/(?:derive-evidence|evidence-policy|evidence-shadow)/.test(specifier)),
         `${file} 不得在 Phase C 接入 Evidence authority`);
     } else if (!["derive-learner-state.ts", "verification-policy.ts"].some((name) => file === path.join(kernelRoot, name))) {
@@ -89,7 +98,7 @@ test("Recall Phase C Evidence 保持内部边界且不派生 LearnerTargetState"
   }
 });
 
-test("Recall Phase E5 state / authority / verification policy 保持 pure shadow-only，无外层 runtime consumer", async () => {
+test("Recall state / authority / WHAT 保持 pure；F4 只允许固定只读 server reconstruction consumer", async () => {
   const kernelRoot = path.join(APP_ROOT, "services", "learning-kernel");
   const stateModule = path.join(kernelRoot, "derive-learner-state.ts");
   const policyModule = path.join(kernelRoot, "learner-state-policy.ts");
@@ -128,7 +137,8 @@ test("Recall Phase E5 state / authority / verification policy 保持 pure shadow
   for (const file of await sourceFiles(APP_ROOT)) {
     if (file === stateModule) continue;
     const fileSource = await readFile(file, "utf8");
-    if (!file.startsWith(`${kernelRoot}${path.sep}`) && file !== path.join(APP_ROOT, "types/domains/learning-kernel.ts")) {
+    if (!file.startsWith(`${kernelRoot}${path.sep}`) && file !== path.join(APP_ROOT, "types/domains/learning-kernel.ts")
+      && file !== DIAGNOSTIC_RECONSTRUCTION && file !== DIAGNOSTIC_RECONSTRUCTION_TYPES) {
       assert.doesNotMatch(fileSource, /\b(?:LearnerTargetStateV1|LearnerStatePromotionEligibilityV1|LearnerStatePromotionBlockerV1|VerificationDecisionV1|decideNextVerification|evaluateLearnerStatePromotionEligibility|deriveLearnerTargetStates|effectiveEvidenceIds|effectiveSupportingEvidenceIds|effectiveRefutingEvidenceIds|historicalQualifiedEvidenceIds)\b/,
         `${file} 不得接入 Phase E state / eligibility（包括 Phase D service）`);
     }
@@ -141,7 +151,8 @@ test("Recall Phase E5 state / authority / verification policy 保持 pure shadow
       if (specifier) {
         const target = (specifier.startsWith("@/") ? path.join(APP_ROOT, specifier.slice(2))
           : path.resolve(path.dirname(file), specifier)).replace(/\.ts$/, "");
-        assert.ok(![stateModule, policyModule, verificationModule].some((module) => target === module.replace(/\.ts$/, "")),
+        const f4Consumer = file === DIAGNOSTIC_RECONSTRUCTION && [stateModule, verificationModule].some(module => target === module.replace(/\.ts$/, ""));
+        assert.ok(f4Consumer || ![stateModule, policyModule, verificationModule].some((module) => target === module.replace(/\.ts$/, "")),
           `${file} 不得在 E5 接入 state / authority / verification policy（包括 compatibility bridge）`);
       }
       ts.forEachChild(node, inspect);
@@ -163,7 +174,8 @@ test("Recall verified assessment 仅允许固定 diagnostic runtime，Fenbi wron
     const source = await readFile(file, "utf8");
     if (file.startsWith(`${kernelRoot}${path.sep}`) || ["types/domains/learning-kernel.ts", "types/domains/verification-source.ts",
       "services/verification-source/verification-source-admission-core.ts", "services/verification-source/verification-source-admission.ts",
-      "server/diagnostic/assessment-submission.ts"]
+      "server/diagnostic/assessment-submission.ts", "server/diagnostic/learning-history.ts", "server/diagnostic/state-reconstruction.ts",
+      "server/diagnostic/reconstruction-types.ts"]
       .some((name) => file === path.join(APP_ROOT, name))) continue;
     assert.doesNotMatch(source, /VerifiedAssessment|adaptVerifiedAssessment|verification\.assessed|recall-verified-assessment\/v1|LearnerTargetStateV1|deriveLearnerTargetStates|evaluateLearnerStatePromotionEligibility|VerificationDecisionV1|decideNextVerification/,
       `${file} 不得接入新验证来源、state authority 或产生 verified Event`);
@@ -211,7 +223,7 @@ const DIAGNOSTIC_SUBMISSION = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-sub
 function verificationSourceImportViolations(file: string, source: string): string[] {
   const kernelRoot = path.join(APP_ROOT, "services/learning-kernel");
   const isTest = /\.test\.(?:ts|mts|cts|js|mjs|cjs)$/.test(file);
-  const dedicatedTest = file === ADMISSION_TEST || file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST
+  const dedicatedTest = file === ADMISSION_TEST || file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file)
     || (file.startsWith(`${kernelRoot}${path.sep}`) && file.endsWith(".contract.test.ts"));
   const kernelInternal = file.startsWith(`${kernelRoot}${path.sep}`) && !isTest;
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
@@ -230,12 +242,12 @@ function verificationSourceImportViolations(file: string, source: string): strin
     if (specifier) {
       const target = (specifier.startsWith("@/") ? path.resolve(APP_ROOT, "..", specifier.slice(2))
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
-      if (target === path.join(kernelRoot, "verified-assessment-adapter") && !kernelInternal && !dedicatedTest && file !== ADMISSION_CORE && file !== DIAGNOSTIC_SUBMISSION)
+      if (target === path.join(kernelRoot, "verified-assessment-adapter") && !kernelInternal && !dedicatedTest && file !== ADMISSION_CORE && file !== DIAGNOSTIC_SUBMISSION && file !== DIAGNOSTIC_HISTORY_LOADER)
         violations.push("raw_adapter_bypass");
       if (target === ADMISSION_CORE.replace(/\.ts$/, "") && file !== ADMISSION_ENTRY && file !== ADMISSION_TEST && file !== DIAGNOSTIC_SOURCE_OWNER)
         violations.push("arbitrary_owner_resolver");
       if (target.endsWith(".test") && !isTest) violations.push("test_owner_in_production");
-      if (target === ADMISSION_ENTRY.replace(/\.ts$/, "") && !dedicatedTest && file !== DIAGNOSTIC_SUBMISSION)
+      if (target === ADMISSION_ENTRY.replace(/\.ts$/, "") && !dedicatedTest && file !== DIAGNOSTIC_SUBMISSION && file !== DIAGNOSTIC_HISTORY_LOADER)
         violations.push("runtime_adoption_before_source_approval");
     }
     ts.forEachChild(node, inspect);
@@ -370,7 +382,7 @@ function diagnosticSpecImportViolations(file: string, source: string): string[] 
       if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_SPEC_ROOT}${path.sep}`)
         && ![DIAGNOSTIC_CAPTURE_CORE, DIAGNOSTIC_CAPTURE_ENTRY, DIAGNOSTIC_CAPTURE_TEST].some((capture) => target === capture.replace(/\.ts$/, ""))) {
         if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE && file !== DIAGNOSTIC_SOURCE_OWNER
-          && file !== DIAGNOSTIC_HISTORY_RECORD)
+          && file !== DIAGNOSTIC_HISTORY_RECORD && file !== DIAGNOSTIC_HISTORY_LOADER && file !== DIAGNOSTIC_RECONSTRUCTION && !DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file))
           violations.push("spec_capability_outside_boundary");
         if (target.endsWith(".test")) violations.push("spec_test_owner_leak");
       }
@@ -418,7 +430,7 @@ test("Recall first-party spec authority 保持纯规格依赖与 spec-only API�
     const source = await readFile(file, "utf8");
     assert.deepEqual(diagnosticSpecImportViolations(file, source), [], `${file} 不得注入规格或将 spec-only 能力当 capture authority`);
     if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE && file !== DIAGNOSTIC_SOURCE_OWNER
-      && file !== DIAGNOSTIC_HISTORY_RECORD)
+      && file !== DIAGNOSTIC_HISTORY_RECORD && file !== DIAGNOSTIC_HISTORY_LOADER && file !== DIAGNOSTIC_RECONSTRUCTION && !DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file))
       assert.doesNotMatch(source, /\b(?:FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER|PUBLISHED_ADDITION_SPEC|isPublishedDiagnosticSpec|resolvePublishedDiagnosticSpec|recomputeAdditionKey)\b/);
   }
 });
@@ -533,6 +545,12 @@ const DIAGNOSTIC_RUNTIME_EDGES = new Map([
     "../../services/first-party-diagnostic/spec-authority.ts", "./assessment-store.ts"]],
   [DIAGNOSTIC_SUBMISSION, ["./runtime.ts", "./runtime-core.ts", "../../services/verification-source/verification-source-admission.ts",
     "../../services/learning-kernel/verified-assessment-adapter.ts", "../../services/learning-kernel/derive-evidence.ts"]],
+  [DIAGNOSTIC_HISTORY_LOADER, ["../../types/domains/learning-kernel.ts", "./reconstruction-types.ts",
+    "../../services/first-party-diagnostic/spec-authority.ts", "../../services/verification-source/verification-source-admission.ts",
+    "../../services/learning-kernel/verified-assessment-adapter.ts", "../../services/learning-kernel/derive-evidence.ts", "./runtime.ts"]],
+  [DIAGNOSTIC_RECONSTRUCTION, ["./reconstruction-types.ts", "./learning-history.ts", "../../services/first-party-diagnostic/spec-authority.ts",
+    "../../services/learning-kernel/learning-event.ts", "../../services/learning-kernel/derive-learner-state.ts", "../../services/learning-kernel/verification-policy.ts"]],
+  [DIAGNOSTIC_RECONSTRUCTION_TYPES, ["../../types/domains/learning-kernel.ts"]],
   [path.join(APP_ROOT, "diagnostic/page.tsx"), ["next/link", "../server/diagnostic/assessment-store.ts"]],
   [path.join(APP_ROOT, "api/diagnostic/submit/route.ts"), ["../../../server/http/route-security.ts", "../../../server/diagnostic/assessment-submission.ts"]],
 ]);
@@ -554,9 +572,9 @@ function diagnosticRuntimeImportViolations(file: string, source: string): string
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
       if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)) {
         const permitted = target.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`)
-          ? file.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`) || file === DIAGNOSTIC_DURABLE_TEST
+          ? file.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`) || file === DIAGNOSTIC_DURABLE_TEST || file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "reconstruction-failure.contract.test.ts")
             || (file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime-core.ts") && target === path.join(DIAGNOSTIC_HISTORY_ROOT, "repository"))
-          : file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || DIAGNOSTIC_RUNTIME_EDGES.has(file)
+          : file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file) || DIAGNOSTIC_RUNTIME_EDGES.has(file)
             || (file === ADMISSION_ENTRY && target === DIAGNOSTIC_SOURCE_OWNER.replace(/\.ts$/, ""));
         if (!permitted || target.endsWith(".test")) violations.push("controlled_runtime_leak");
       }
@@ -583,7 +601,9 @@ test("Recall E9 只有固定 server surface→capture→owner→admission→Evid
     const source = await readFile(file, "utf8");
     assert.deepEqual(diagnosticRuntimeImportViolations(file, source), [], `${file} 不得扩大 controlled source 边界`);
     if (DIAGNOSTIC_RUNTIME_EDGES.has(file)) {
-      assert.doesNotMatch(source, /["']use client["']|Fenbi|Preparation|Planning|Provider|LearnerTargetState|deriveLearnerTargetStates|decideNextVerification|reviewDesktop|indexedDB|localStorage|\b(?:console|telemetry)\s*\./);
+      assert.doesNotMatch(source, /["']use client["']|Fenbi|Preparation|Planning|Provider|reviewDesktop|indexedDB|localStorage|\b(?:console|telemetry)\s*\./);
+      if (file !== DIAGNOSTIC_RECONSTRUCTION && file !== DIAGNOSTIC_RECONSTRUCTION_TYPES)
+        assert.doesNotMatch(source, /LearnerTargetState|deriveLearnerTargetStates|decideNextVerification/);
       if (file === path.join(APP_ROOT, "diagnostic/page.tsx")) assert.doesNotMatch(source, /verifiedCorrectOption|keyRule|hint|guided|tutoring|AiActivityPanel/);
     }
   }
@@ -681,7 +701,7 @@ test("Recall Phase D compatibility bridge 只允许 learner-state-service 接入
         }
         if (!file.startsWith(`${kernelRoot}${path.sep}`)) {
           assert.ok(!["derive-evidence", "evidence-policy", "evidence-shadow"].some((name) => target === path.join(kernelRoot, name))
-            || (file === DIAGNOSTIC_SUBMISSION && target === path.join(kernelRoot, "derive-evidence")),
+            || ([DIAGNOSTIC_SUBMISSION, DIAGNOSTIC_HISTORY_LOADER].includes(file) && target === path.join(kernelRoot, "derive-evidence")),
             `${file} 不得绕过 bridge 直接接入 Evidence`);
         }
       }

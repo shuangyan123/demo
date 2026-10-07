@@ -47,6 +47,15 @@ export function createDiagnosticRuntime(config: ManagedStorageHostConfig | undef
   }
   return Object.freeze({
     readiness: () => readiness,
+    readHistory() {
+      if (!repository) return { kind: "unavailable", code: "storage_unavailable",
+        reason: config ? "storage_open_failed" : "storage_config_unavailable" } as const;
+      // F4 只读重验整个 source snapshot；不 initialize/repair，成功后同步更新固定 owner 的完整索引。
+      const read = repository.readCompleteSnapshot();
+      if (read.kind === "complete") load(read.snapshot);
+      else { readiness = failureState(read); index.clear(); }
+      return read;
+    },
     issue() {
       if (readiness.kind !== "ready" || sessions().size >= MAX_SESSIONS) return { kind: "unavailable" } as const;
       const mechanism = createControlledDiagnosticCapture();
