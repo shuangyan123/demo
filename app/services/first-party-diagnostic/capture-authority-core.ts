@@ -1,10 +1,16 @@
 import type {
   DiagnosticCaptureCapabilityV1, DiagnosticCaptureRejectionV1, DiagnosticCaptureSessionV1,
-  DiagnosticCapturedAttemptV1, DiagnosticPresentationV1,
+  DiagnosticCapturedAttemptV1, DiagnosticPresentationV1, IssuedDiagnosticCapturedAttemptV1,
 } from "../../types/domains/first-party-diagnostic-capture.ts";
 import { isLearningEventInstant, isLegacyRecordId } from "../learning-kernel/learning-event.ts";
 import { FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER } from "./spec-authority.ts";
 import { isPublishedDiagnosticSpec } from "./spec-authority-core.ts";
+
+const issuedCaptures = new WeakSet<object>();
+/** 只确认本 authority 实际签发的对象；JSON clone、类型断言与 caller flags 都不能取得写入 capability。 */
+export function isIssuedDiagnosticCapture(value: unknown): value is IssuedDiagnosticCapturedAttemptV1 {
+  return value !== null && typeof value === "object" && issuedCaptures.has(value);
+}
 
 function fields(value: unknown, expected: readonly string[]): Record<string, unknown> | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)
@@ -92,7 +98,7 @@ function createMechanism(dependencies: { readonly generateAttemptId: () => strin
                 state = "invalidated";
                 return rejected("invalid_capture_facts");
               }
-              const attempt: DiagnosticCapturedAttemptV1 = freeze({
+              const attempt = freeze<DiagnosticCapturedAttemptV1>({
                 schemaVersion: 1, id, sourceOwnerId: FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER.id,
                 specId: spec.id, specRevision: spec.revision, contentRevision: spec.contentRevision,
                 optionIds: [...spec.optionIds], responseFormat: { ...spec.responseFormat }, selectedOptionId,
@@ -102,7 +108,8 @@ function createMechanism(dependencies: { readonly generateAttemptId: () => strin
                   presentation: controlled ? "controlled_surface_delivered" : "canonical_snapshot_issued",
                   assistanceBasis: controlled ? "controlled_surface_no_builtin_assistance" : "uncontrolled_surface",
                   ordering: "submitted_before_reveal" },
-              });
+              }) as IssuedDiagnosticCapturedAttemptV1;
+              issuedCaptures.add(attempt);
               attempts.set(id, attempt);
               state = "captured";
               return { kind: "captured", attempt };

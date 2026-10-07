@@ -6,7 +6,8 @@
 
 Recall Phase E 已在其限定来源闭环内 COMPLETE；Phase F Slice 1 交付范围为
 [Managed Data Root Foundation](recall-managed-storage.md)。它只建立 Host metadata/configuration/registry，
-不表示 Phase F 整体完成或 diagnostic durable history 已实现。
+不表示 Phase F 整体完成。后续 [Slice 2 Diagnostic Durable Capture Repository](recall-diagnostic-history.md)
+已建立独立 durable repository；production submit/owner reload、完整 Event/Evidence history 和 learner-state integration 仍未交付。
 
 通用约束：
 

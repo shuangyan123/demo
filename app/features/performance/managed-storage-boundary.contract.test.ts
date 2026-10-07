@@ -7,6 +7,7 @@ import ts from "typescript";
 const root = process.cwd();
 const allowed = new Set([
   "desktop/main.ts", "desktop/managed-storage.ts", "desktop/storage-bootstrap.ts", "desktop/storage-bootstrap-record.ts", "desktop/storage-bootstrap-io.ts",
+  "app/server/diagnostic/history/repository.ts", "app/server/diagnostic/history/repository-core.ts",
 ]);
 const isStorage = (target: string) => /(?:^|\/)(?:managed-storage|storage-bootstrap(?:-record|-io)?)(?:\.(?:d\.)?(?:ts|js))?$/.test(target);
 
@@ -43,7 +44,7 @@ async function sources(directory: string): Promise<string[]> {
   }))).flat();
 }
 
-test("managed storage authority stays in narrow Host boundary; no renderer/Kernel consumer", async () => {
+test("managed storage authority stays in Host and internal repository boundary; no renderer/Kernel consumer", async () => {
   for (const file of [...await sources(path.join(root, "app")), ...await sources(path.join(root, "desktop"))]) {
     assert.deepEqual(violations(path.relative(root, file).replace(/\\/g, "/"), await readFile(file, "utf8")), [], file);
   }

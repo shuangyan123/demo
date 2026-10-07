@@ -32,6 +32,12 @@ export type DiagnosticCapturedAttemptV1 = {
   };
 };
 
+declare const diagnosticCaptureIssuer: unique symbol;
+/** 内存写入 capability；brand 不序列化，磁盘记录必须由 repository 重新校验。 */
+export type IssuedDiagnosticCapturedAttemptV1 = DiagnosticCapturedAttemptV1 & {
+  readonly [diagnosticCaptureIssuer]: true;
+};
+
 export type DiagnosticCaptureRejectionV1 = {
   readonly kind: "rejected";
   readonly reason: "invalid_request" | "unknown_spec" | "spec_revision_mismatch" | "invalid_spec"
@@ -42,7 +48,7 @@ export type DiagnosticCaptureRejectionV1 = {
 export type DiagnosticCaptureSessionV1 = {
   readonly presentation: DiagnosticPresentationV1;
   readonly submit: (response: unknown) =>
-    | { readonly kind: "captured"; readonly attempt: DiagnosticCapturedAttemptV1 }
+    | { readonly kind: "captured"; readonly attempt: IssuedDiagnosticCapturedAttemptV1 }
     | DiagnosticCaptureRejectionV1;
   readonly reveal: () =>
     | { readonly kind: "revealed"; readonly correctOptionId: string; readonly explanation: string }

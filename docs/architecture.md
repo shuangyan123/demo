@@ -4,6 +4,9 @@ Recall Phase F Slice 1 的 Host bootstrap、稳定 profile/epoch identity、lega
 storage policy registry 见 [Managed Data Root Foundation](recall-managed-storage.md)。当前 production profile relocation deferred，
 既有 Dexie v16、partition、origin、凭据与 Vault 数据路径保持不变。
 
+Recall Phase F Slice 2 的 [Diagnostic Durable Capture Repository](recall-diagnostic-history.md) 保存并严格恢复 source-owned captures。
+它仅内部 server repository authority，不接 production submit/owner、Event/Evidence history 或 learner-state UI。
+
 ## Electron 桌面架构（2026-07-28）
 
 ```text

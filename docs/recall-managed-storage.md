@@ -1,7 +1,10 @@
 # Recall Managed Data Root Foundation — Phase F Slice 1
 
 本片从 Phase E COMPLETE integration `5002f27cc7f535e1442078eb0b11a69794a26585` 开始。
-Phase F 只建立 Host storage foundation；diagnostic durable repository、迁移、位置选择 UI 和 learner-state persistence 均未实现。
+Slice 1 只建立 Host storage foundation；该片未实现 diagnostic durable repository、迁移、位置选择 UI 或 learner-state persistence。
+
+后续 [Slice 2 Diagnostic Durable Capture Repository](recall-diagnostic-history.md) 已建立独立 repository authority；
+下文记录 Slice 1 的 foundation 范围。Production profile relocation 与 durable submit/owner integration 仍 deferred。
 
 ## Bootstrap 与 identity
 
@@ -118,8 +121,9 @@ Ephemeral lifetime 不证明 public；cache、额度快照、临时事件均按�
 外部 Vault 正文、用户保存的导出/下载文件属于 external user-owned；默认迁移只涉及 Vault 引用/应用状态，不搬正文。
 Cache、temp、OS secrets 与 logs 不默认迁移；将来 logs 需独立显式选择。
 
-`diagnostic-history` 为 **reserved**、first-party-diagnostic owner、managed-durable、managed-files physical unit；
-backup/reset/migration 均 relevant，但当前 backup/reset 标记 `not-implemented`，不声称 durable history 已存在。
+`diagnostic-history` 在 Slice 1 登记为 reserved；Slice 2 repository 实现后更新为 current。
+first-party-diagnostic owner、managed-durable、managed-files physical unit 与 backup/reset/migration relevance 不变；
+当前 backup/reset 标记 `not-implemented`，production durable submit/owner integration 仍未接通。
 
 既有 V2 export/restore 与 resetAll 行为不变：
 

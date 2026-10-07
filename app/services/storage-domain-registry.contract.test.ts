@@ -65,12 +65,12 @@ test("reset relevance is independent of backup and ephemeral lifetime never mean
   assert.equal(profiles.migration.policy, "protected-profile-unit");
 });
 
-test("diagnostic-history is reserved managed-files, relevant for backup/reset/migration without durable claim", () => {
+test("diagnostic-history repository uses existing managed-files domain; backup/reset remain unimplemented", () => {
   const domain = STORAGE_DOMAIN_REGISTRY.find((item) => item.domainId === "diagnostic-history")!;
   assert.equal(domain.owner, "first-party-diagnostic");
   assert.equal(domain.storageClass, "managed-durable");
   assert.equal(domain.rootType, "managed-files");
-  assert.equal(domain.implementation, "reserved");
+  assert.equal(domain.implementation, "current");
   assert.deepEqual(domain.backup, { current: "not-implemented", relevant: true });
   assert.deepEqual(domain.reset, { current: "not-implemented", relevant: true });
   assert.deepEqual(domain.migration, { policy: "managed-files", relevant: true });

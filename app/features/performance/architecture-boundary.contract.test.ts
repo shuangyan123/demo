@@ -27,6 +27,8 @@ import "../../services/first-party-diagnostic/capture-authority.contract.test.ts
 import "../../server/diagnostic/assessment-runtime.contract.test.ts";
 import "../../services/storage-domain-registry.contract.test.ts";
 import "./managed-storage-boundary.contract.test.ts";
+import "../../server/diagnostic/history/repository.contract.test.ts";
+import "./diagnostic-history-boundary.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 
@@ -331,6 +333,10 @@ const DIAGNOSTIC_SPEC_EDGES = new Map([
 const DIAGNOSTIC_CAPTURE_CORE = path.join(DIAGNOSTIC_SPEC_ROOT, "capture-authority-core.ts");
 const DIAGNOSTIC_CAPTURE_ENTRY = path.join(DIAGNOSTIC_SPEC_ROOT, "capture-authority.ts");
 const DIAGNOSTIC_CAPTURE_TEST = path.join(DIAGNOSTIC_SPEC_ROOT, "capture-authority.contract.test.ts");
+const DIAGNOSTIC_HISTORY_ROOT = path.join(APP_ROOT, "server/diagnostic/history");
+const DIAGNOSTIC_HISTORY_RECORD = path.join(DIAGNOSTIC_HISTORY_ROOT, "record.ts");
+const DIAGNOSTIC_HISTORY_CORE = path.join(DIAGNOSTIC_HISTORY_ROOT, "repository-core.ts");
+const DIAGNOSTIC_HISTORY_TEST = path.join(DIAGNOSTIC_HISTORY_ROOT, "repository.contract.test.ts");
 const DIAGNOSTIC_CAPTURE_EDGES = new Map([
   [path.join(APP_ROOT, "types/domains/first-party-diagnostic-capture.ts"), [] as string[]],
   [DIAGNOSTIC_CAPTURE_CORE, ["../../types/domains/first-party-diagnostic-capture.ts",
@@ -360,7 +366,8 @@ function diagnosticSpecImportViolations(file: string, source: string): string[] 
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
       if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_SPEC_ROOT}${path.sep}`)
         && ![DIAGNOSTIC_CAPTURE_CORE, DIAGNOSTIC_CAPTURE_ENTRY, DIAGNOSTIC_CAPTURE_TEST].some((capture) => target === capture.replace(/\.ts$/, ""))) {
-        if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE && file !== DIAGNOSTIC_SOURCE_OWNER)
+        if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE && file !== DIAGNOSTIC_SOURCE_OWNER
+          && file !== DIAGNOSTIC_HISTORY_RECORD)
           violations.push("spec_capability_outside_boundary");
         if (target.endsWith(".test")) violations.push("spec_test_owner_leak");
       }
@@ -407,7 +414,8 @@ test("Recall first-party spec authority 保持纯规格依赖与 spec-only API�
     if (file === path.resolve(process.cwd(), "app/features/performance/architecture-boundary.contract.test.ts")) continue;
     const source = await readFile(file, "utf8");
     assert.deepEqual(diagnosticSpecImportViolations(file, source), [], `${file} 不得注入规格或将 spec-only 能力当 capture authority`);
-    if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE && file !== DIAGNOSTIC_SOURCE_OWNER)
+    if (file !== DIAGNOSTIC_SPEC_TEST && !DIAGNOSTIC_SPEC_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_CORE && file !== DIAGNOSTIC_SOURCE_OWNER
+      && file !== DIAGNOSTIC_HISTORY_RECORD)
       assert.doesNotMatch(source, /\b(?:FIRST_PARTY_DIAGNOSTIC_SPEC_OWNER|PUBLISHED_ADDITION_SPEC|isPublishedDiagnosticSpec|resolvePublishedDiagnosticSpec|recomputeAdditionKey)\b/);
   }
 });
@@ -432,8 +440,15 @@ function diagnosticCaptureImportViolations(file: string, source: string): string
         violations.push("non_capture_dependency");
       const target = (specifier.startsWith("@/") ? path.resolve(APP_ROOT, "..", specifier.slice(2))
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
-      if (target === DIAGNOSTIC_CAPTURE_CORE.replace(/\.ts$/, "") && file !== DIAGNOSTIC_CAPTURE_ENTRY && file !== DIAGNOSTIC_CAPTURE_TEST)
-        violations.push("capture_dependency_injection");
+      if (target === DIAGNOSTIC_CAPTURE_CORE.replace(/\.ts$/, "") && file !== DIAGNOSTIC_CAPTURE_ENTRY && file !== DIAGNOSTIC_CAPTURE_TEST
+        && file !== DIAGNOSTIC_HISTORY_TEST) {
+        const guardOnly = file === DIAGNOSTIC_HISTORY_CORE && ts.isImportDeclaration(node)
+          && !node.importClause?.name
+          && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)
+          && node.importClause.namedBindings.elements.length === 1
+          && (node.importClause.namedBindings.elements[0].propertyName ?? node.importClause.namedBindings.elements[0].name).text === "isIssuedDiagnosticCapture";
+        if (!guardOnly) violations.push("capture_dependency_injection");
+      }
       if (target === DIAGNOSTIC_CAPTURE_ENTRY.replace(/\.ts$/, "") && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST
         && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"))
         violations.push("capture_runtime_adoption");
@@ -450,9 +465,9 @@ function diagnosticCaptureImportViolations(file: string, source: string): string
 
 test("Recall E8 capture 只有 canonical spec 与内部 clock/identity 依赖，仅固定 server surface 可调用", async () => {
   const expectedExports = new Map([
-    ["first-party-diagnostic-capture.ts", ["DiagnosticPresentationV1", "DiagnosticCapturedAttemptV1", "DiagnosticCaptureRejectionV1",
+    ["first-party-diagnostic-capture.ts", ["DiagnosticPresentationV1", "DiagnosticCapturedAttemptV1", "IssuedDiagnosticCapturedAttemptV1", "DiagnosticCaptureRejectionV1",
       "DiagnosticCaptureSessionV1", "DiagnosticCaptureCapabilityV1"]],
-    ["capture-authority-core.ts", ["createDiagnosticCaptureMechanism", "createControlledDiagnosticCaptureMechanism"]],
+    ["capture-authority-core.ts", ["createDiagnosticCaptureMechanism", "createControlledDiagnosticCaptureMechanism", "isIssuedDiagnosticCapture"]],
     ["capture-authority.ts", ["FIRST_PARTY_DIAGNOSTIC_CAPTURE", "createControlledDiagnosticCapture"]],
   ]);
   for (const file of DIAGNOSTIC_CAPTURE_EDGES.keys()) {
@@ -477,6 +492,7 @@ test("Recall E8 capture 只有 canonical spec 与内部 clock/identity 依赖，
     const source = await readFile(file, "utf8");
     assert.deepEqual(diagnosticCaptureImportViolations(file, source), [], `${file} 不得接入 capture 或泄漏可注入 authority`);
     if (!DIAGNOSTIC_CAPTURE_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST
+      && file !== DIAGNOSTIC_HISTORY_TEST
       && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-store.ts"))
       assert.doesNotMatch(source, /\b(?:createDiagnosticCaptureMechanism|createControlledDiagnosticCaptureMechanism|createControlledDiagnosticCapture|FIRST_PARTY_DIAGNOSTIC_CAPTURE)\b/);
   }
@@ -530,8 +546,10 @@ function diagnosticRuntimeImportViolations(file: string, source: string): string
       const target = (specifier.startsWith("@/") ? path.resolve(APP_ROOT, "..", specifier.slice(2))
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
       if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)) {
-        const permitted = file === DIAGNOSTIC_RUNTIME_TEST || DIAGNOSTIC_RUNTIME_EDGES.has(file)
-          || (file === ADMISSION_ENTRY && target === DIAGNOSTIC_SOURCE_OWNER.replace(/\.ts$/, ""));
+        const permitted = target.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`)
+          ? file.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`)
+          : file === DIAGNOSTIC_RUNTIME_TEST || DIAGNOSTIC_RUNTIME_EDGES.has(file)
+            || (file === ADMISSION_ENTRY && target === DIAGNOSTIC_SOURCE_OWNER.replace(/\.ts$/, ""));
         if (!permitted || target.endsWith(".test")) violations.push("controlled_runtime_leak");
       }
       if (file === DIAGNOSTIC_SOURCE_OWNER && specifier.includes("admission-core")
@@ -548,7 +566,8 @@ function diagnosticRuntimeImportViolations(file: string, source: string): string
 
 test("Recall E9 只有固定 server surface→capture→owner→admission→Evidence 路径，UI 无低层 authority", async () => {
   assert.deepEqual((await sourceFiles(DIAGNOSTIC_RUNTIME_ROOT)).toSorted(),
-    [...DIAGNOSTIC_RUNTIME_EDGES.keys()].filter((file) => file.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)).toSorted());
+    [...DIAGNOSTIC_RUNTIME_EDGES.keys(), ...["repository.ts", "repository-core.ts", "record.ts", "io.ts"].map((name) => path.join(DIAGNOSTIC_HISTORY_ROOT, name))]
+      .filter((file) => file.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)).toSorted());
   const files = [...await sourceFiles(APP_ROOT, true, true), ...await sourceFiles(path.resolve(APP_ROOT, "../desktop"), true, true),
     ...await sourceFiles(path.resolve(APP_ROOT, "../scripts"), true, true)];
   for (const file of files) {

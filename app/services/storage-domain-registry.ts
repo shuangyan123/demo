@@ -46,7 +46,9 @@ const localStorageOwners = {
 } satisfies Record<(typeof LOCAL_STORAGE_DATA_POLICIES)[number]["pattern"], string>;
 
 type Metadata = Pick<StorageDomainPolicy, "owner" | "rootType" | "physicalUnit"> & Partial<Pick<StorageDomainPolicy,
-  "storageClass" | "regenerable" | "implementation" | "sensitivity">> & { resetCovered?: boolean; resetRelevant?: boolean; migration?: StorageDomainPolicy["migration"]["policy"] };
+  "storageClass" | "regenerable" | "implementation" | "sensitivity">> & { resetCovered?: boolean; resetRelevant?: boolean;
+    backupCurrent?: StorageDomainPolicy["backup"]["current"]; resetCurrent?: StorageDomainPolicy["reset"]["current"];
+    migration?: StorageDomainPolicy["migration"]["policy"] };
 const nonCoreMetadata = {
   "review_extensions.extensions": { owner: "extensions", rootType: "chromium-profile", physicalUnit: "chromium-profile", resetCovered: true },
   "review_workspace_secure_keys.keys": { owner: "secure-key", rootType: "chromium-profile", physicalUnit: "chromium-profile", resetCovered: true },
@@ -66,7 +68,8 @@ const nonCoreMetadata = {
   "runtime.temporary-state": { owner: "runtime", rootType: "runtime", physicalUnit: "process-memory", regenerable: false },
   "desktop.runtime-log": { owner: "desktop-runtime", rootType: "os-logs", physicalUnit: "desktop-logs", storageClass: "diagnostics" },
   "runtime.diagnostic-state": { owner: "runtime-diagnostics", rootType: "os-logs", physicalUnit: "desktop-logs", storageClass: "diagnostics" },
-  "diagnostic-history": { owner: "first-party-diagnostic", rootType: "managed-files", physicalUnit: "managed-files", implementation: "reserved", migration: "managed-files" },
+  "diagnostic-history": { owner: "first-party-diagnostic", rootType: "managed-files", physicalUnit: "managed-files", implementation: "current",
+    backupCurrent: "not-implemented", resetCurrent: "not-implemented", migration: "managed-files" },
 } satisfies Record<keyof typeof NON_CORE_DATA_STORE_POLICIES, Metadata>;
 
 function domain(domainId: string, policy: LocalDataStorePolicy, metadata: Metadata): StorageDomainPolicy {
@@ -81,8 +84,8 @@ function domain(domainId: string, policy: LocalDataStorePolicy, metadata: Metada
     ? storageClass === "protected-security" ? "protected-profile-unit" : storageClass === "ephemeral" ? "excluded" : "profile-unit" : "excluded");
   return Object.freeze({ domainId, owner: metadata.owner, storageClass, rootType: metadata.rootType, physicalUnit: metadata.physicalUnit,
     implementation: metadata.implementation ?? "current",
-    backup: Object.freeze({ current: reserved ? "not-implemented" : policy.backup === "included" ? "sanitized" : "excluded", relevant: backupRelevant }),
-    reset: Object.freeze({ current: reserved ? "not-implemented" : metadata.resetCovered ? "covered" : "not-covered", relevant: resetRelevant }),
+    backup: Object.freeze({ current: metadata.backupCurrent ?? (reserved ? "not-implemented" : policy.backup === "included" ? "sanitized" : "excluded"), relevant: backupRelevant }),
+    reset: Object.freeze({ current: metadata.resetCurrent ?? (reserved ? "not-implemented" : metadata.resetCovered ? "covered" : "not-covered"), relevant: resetRelevant }),
     migration: Object.freeze({ policy: migration, relevant: migration !== "excluded" }),
     // ephemeral 只描述 lifetime，不证明 public；cache、额度与原始 runtime 事件仍可能含私有数据。
     sensitivity: metadata.sensitivity ?? (storageClass === "protected-security" ? "protected" : "user-data"),
