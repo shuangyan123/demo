@@ -5,6 +5,7 @@ import type { DiagnosticHistoryOpen, DiagnosticHistoryRead, DiagnosticHistorySna
 import { isIssuedDiagnosticCapture } from "../../../services/first-party-diagnostic/capture-authority-core.ts";
 import { isLegacyRecordId } from "../../../services/learning-kernel/learning-event.ts";
 import { diagnosticHistoryIO, historyUnavailable, publishDiagnosticSnapshot, rememberDiagnosticDurabilityFailure,
+  rememberDiagnosticReplacement, diagnosticReplacementObservation,
   type DiagnosticHistoryIO, type DiagnosticIOFailure, type DiagnosticPublicationObservation, type DiagnosticDurabilityFailure } from "./io.ts";
 import { DIAGNOSTIC_HISTORY_MAX_BYTES, DIAGNOSTIC_HISTORY_MAX_CAPTURES, encodeDiagnosticSnapshot, parseDiagnosticSnapshot, validateDiagnosticCapture } from "./record.ts";
 
@@ -38,28 +39,29 @@ export function createDiagnosticHistoryRepository(config: ManagedStorageHostConf
     return parseDiagnosticSnapshot(record.text, config);
   }
 
-  function commit(snapshot: DiagnosticHistorySnapshotV1, mode: "create" | "replace"): DiagnosticHistoryRead {
+  function commit(snapshot: DiagnosticHistorySnapshotV1, mode: "create" | "replace", base?: DiagnosticHistorySnapshotV1): DiagnosticHistoryRead {
     const text = encodeDiagnosticSnapshot(snapshot);
     if (Buffer.byteLength(text, "utf8") > DIAGNOSTIC_HISTORY_MAX_BYTES) return { kind: "rejected", reason: "capacity_exceeded" };
     const publication: DiagnosticPublicationObservation = { publication: "not_attempted", failure: null, cleanupFailure: null };
     const confirmation: ConfirmationObservation = { io: null, parsed: false };
     function unconfirmed(result?: DiagnosticHistoryRead): DiagnosticHistoryRead {
       const classified = confirmationClassification(result, snapshot, confirmation.parsed);
-      return rememberDiagnosticDurabilityFailure(historyUnavailable("commit_unconfirmed"), {
+      return rememberDiagnosticReplacement(rememberDiagnosticDurabilityFailure(historyUnavailable("commit_unconfirmed"), {
         externalReason: "commit_unconfirmed", mode, publication: publication.publication,
         stage: publication.failure?.stage ?? classified.stage,
         operation: publication.failure?.io.operation ?? confirmation.io?.operation ?? classified.operation,
         io: publication.failure?.io ?? confirmation.io, confirmationFailure: publication.failure ? null : classified.failure,
         validationReason: classified.validationReason, publicationFailure: publication.failure, cleanupFailure: publication.cleanupFailure,
-      });
+        ...(publication.replacement ? { replacement: publication.replacement } : {}),
+      }), publication.replacement);
     }
     committing = true;
-    try { publishDiagnosticSnapshot(file, text, mode, io, publication); }
+    try { publishDiagnosticSnapshot(file, text, mode, io, publication, base ? { base, expected: snapshot } : undefined); }
     catch { return unconfirmed(); }
     finally { committing = false; }
     const result = read(confirmation);
     if (result.kind !== "complete" || JSON.stringify(result.snapshot) !== JSON.stringify(snapshot)) return unconfirmed(result);
-    return result;
+    return rememberDiagnosticReplacement(result, publication.replacement);
   }
 
   return { kind: "opened", repository: Object.freeze({
@@ -86,8 +88,9 @@ export function createDiagnosticHistoryRepository(config: ManagedStorageHostConf
         ? { kind: "confirmed", snapshot: current.snapshot } : { kind: "conflict", reason: "attempt_identity_conflict" };
       if (current.snapshot.captures.length >= DIAGNOSTIC_HISTORY_MAX_CAPTURES) return { kind: "rejected", reason: "capacity_exceeded" };
       const result = commit(Object.freeze({ ...current.snapshot, generation: current.snapshot.generation + 1,
-        captures: Object.freeze([...current.snapshot.captures, validated.attempt]) }), "replace");
-      return result.kind === "complete" ? { kind: "committed", snapshot: result.snapshot } : result;
+        captures: Object.freeze([...current.snapshot.captures, validated.attempt]) }), "replace", current.snapshot);
+      return result.kind === "complete" ? rememberDiagnosticReplacement({ kind: "committed", snapshot: result.snapshot },
+        diagnosticReplacementObservation(result) ?? undefined) : result;
     },
     readCompleteSnapshot: read,
     resolveCapturedAttempt(attemptId: string) {

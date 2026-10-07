@@ -79,7 +79,8 @@ V1 不承诺抵抗本机所有者同时删除 initialization evidence 或执行�
 
 ## Commit 与 recovery 保证
 
-同步 whole-snapshot commit：同目录 exclusive temp 完整写入 + file fsync；初次发布 hard link，替换发布 rename。
+同步 whole-snapshot commit：同目录 exclusive temp 通过既有 `writeFileSync(..., { flush: true })` 完整写入；
+初次发布 hard link，替换发布 rename。本片不改变 temp 写入/flush primitive，不增加硬件持久化保证。
 成功后再读取并验证 exact snapshot，只有确认新 generation 完整可读才报告 committed。
 模拟 temp 写入中断、publish 前中断、publish 后中断，reopen 只返回旧或新完整快照。
 orphan temp 不参与 reads，不后台清理；不原地覆盖，不先删除旧 record，不静默降级 publish。
@@ -89,6 +90,37 @@ orphan temp 不参与 reads，不后台清理；不原地覆盖，不先删除�
 依据为 [Node 24 fs API](https://nodejs.org/docs/latest-v24.x/api/fs.html)。验证固定 Node 24.20.0 / npm 11.19.0。
 同一进程同一路径只允许一个 open handle；额外 handle 返回 unavailable。没有跨进程锁、多 writer 或 merge protocol，
 后续 composition 必须保证独占 writer；V1 不支持多进程同时打开同一 history。
+
+### Windows replacement 的有限恢复
+
+仅 Windows replacement `renameSync` 的 `EPERM`、`EBUSY`、`EACCES` 是候选；初次 link、temp 写入、
+其他 IO 错误、解析/身份/内容/容量/格式失败都不重试。
+[Node 24.20.0 内置 libuv](https://github.com/nodejs/node/blob/v24.20.0/deps/uv/src/win/error.c)
+分别将 access denied / privilege not held 映射为 EPERM、sharing / lock violation 等映射为 EBUSY，
+将 elevation required / cannot access file 等映射为 EACCES。
+[同版本 Windows rename](https://github.com/nodejs/node/blob/v24.20.0/deps/uv/src/win/fs.c)
+使用 `MoveFileExW(..., MOVEFILE_REPLACE_EXISTING)`。这些分类不证明具体 actor 或瞬态原因。
+
+保留本次 commit 的 immutable canonical OLD 与 NEW。每次候选失败后通过现有严格 read/parse/digest 规则：
+
+* target 为 exact NEW：接受 publication，停止 rename，仍执行原有独立 post-publication confirmation。
+* target 为 exact OLD 且 temp 为 exact NEW：允许等待；等待后、下一次 rename 前再次严格核对两者。
+* 任意其他状态（含合法但不匹配的 generation/content、缺失、malformed、identity/integrity/format/capacity 失败）：
+  fail closed，不覆盖 target，不重新生成 temp 或 capture。
+
+最多 4 次 rename，间隔固定 50/150/300ms。Node 中专用 helper 使用 `Atomics.wait`，累计请求的同步等待上限 500ms；
+此路径额外最多 14 次严格文件读取/解析（每份沿用 4MiB/4096 captures 上限），另加最多 4 次 native rename，
+原有 temp 写入、cleanup 与最终 confirmation。操作次数和等待预算有限；OS IO 与调度可能延迟返回，
+因此不能承诺总墙钟耗时硬上限。正常首次成功没有等待或 recovery reads。
+70ms 与 300ms 的候选等待预算均在真实 Windows 验收遇到连续四次 EPERM、exact OLD/NEW 有效但预算耗尽；
+后一次在首次失败后约 356ms 仍被拒绝。因此保留 4 次操作上限，累计等待增加到 500ms，
+以给更长的短暂拒绝一个有限窗口；它不保证所有环境中的拒绝都会在预算内解除。
+这不是对具体 actor 或最大拒绝时长的证明；没有 jitter、后台任务或通用 retry framework。
+
+预算耗尽仍为 `commit_unconfirmed`。cleanup 次要；F3 不获得 owner/admission/Evidence/reveal，
+既有 sealed same-attempt manual continuation 保留，不 recapture。retry 成功或 exact NEW recovery 不绕过提交确认。
+内部 WeakMap 诊断记录 attempt/budget、每次 sanitized IO failure、失败后/等待后 disk-state 与 terminal reason；
+不扩充 public result，不记录 snapshot 正文。此恢复不提供跨进程锁或消除外部 writer 的检查/覆盖竞态。
 
 ## Threat model 与 policy
 

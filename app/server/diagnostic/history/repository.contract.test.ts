@@ -14,7 +14,7 @@ import { resolveManagedStorage, storageBootstrapPath, storageIdentityPath } from
 import { writeStorageRecord } from "../../../../desktop/storage-bootstrap-io.ts";
 import { openDiagnosticHistoryRepository } from "./repository.ts";
 import { createDiagnosticHistoryRepository } from "./repository-core.ts";
-import { diagnosticHistoryIO, diagnosticDurabilityFailure, diagnosticIOFailure, type DiagnosticHistoryIO } from "./io.ts";
+import { diagnosticHistoryIO, diagnosticDurabilityFailure, diagnosticReplacementObservation, diagnosticIOFailure, type DiagnosticHistoryIO } from "./io.ts";
 import { DIAGNOSTIC_HISTORY_MAX_BYTES, DIAGNOSTIC_HISTORY_MAX_CAPTURES, encodeDiagnosticSnapshot } from "./record.ts";
 
 type Context = { after: (fn: () => void) => void };
@@ -421,12 +421,22 @@ test("instrumentation distinguishes first link publication and preserves reserva
 });
 
 for (const afterPublication of [false, true]) {
-  test(`instrumentation distinguishes replacement operation failure, publication completion ${afterPublication} remains uncertain`, t => {
-    const { repository, file } = instrumentedFixture(t, { publishReplacement(from, to) {
+  test(`instrumentation retains rename failure; exact NEW ${afterPublication} controls bounded recovery`, t => {
+    const { repository, file } = instrumentedFixture(t, { replacementPlatform: "win32", waitForReplacementRetry() {}, publishReplacement(from, to) {
       if (afterPublication) diagnosticHistoryIO.publishReplacement(from, to);
       throw ioError("EPERM", "rename");
     } });
     const result = repository.appendCapturedAttempt(capture("rename-attempt"));
+    const replacement = diagnosticReplacementObservation(result);
+    assert.equal(replacement?.failures[0].io.ioCode, "EPERM");
+    assert.equal(replacement?.terminalReason, afterPublication ? "already_published" : "retry_exhausted");
+    assert.equal(replacement?.attemptCount, afterPublication ? 1 : 4);
+    if (afterPublication) {
+      assert.equal(result.kind, "committed");
+      assert.equal(diagnosticDurabilityFailure(result), null);
+      assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, 1);
+      return;
+    }
     assert.deepEqual(result, unconfirmed);
     const detail = diagnosticDurabilityFailure(result);
     assert.equal(detail?.stage, "replacement_rename"); assert.equal(detail?.operation, "renameSync");
@@ -441,6 +451,7 @@ for (const afterPublication of [false, true]) {
 test("cleanup failure is secondary and cannot override primary rename failure", t => {
   const calls: string[] = [];
   const { repository } = instrumentedFixture(t, {
+    replacementPlatform: "win32", waitForReplacementRetry() {},
     writeTemporary(file, text) { calls.push("write"); diagnosticHistoryIO.writeTemporary(file, text); },
     publishReplacement() { calls.push("rename"); throw ioError("EPERM", "rename"); },
     removeTemporary() { calls.push("cleanup"); throw ioError("EACCES", "unlink"); },
@@ -450,7 +461,7 @@ test("cleanup failure is secondary and cannot override primary rename failure", 
   const detail = diagnosticDurabilityFailure(result);
   assert.equal(detail?.stage, "replacement_rename"); assert.equal(detail?.io?.ioCode, "EPERM");
   assert.equal(detail?.cleanupFailure?.operation, "unlinkSync"); assert.equal(detail?.cleanupFailure?.ioCode, "EACCES");
-  assert.deepEqual(calls, ["write", "rename", "cleanup"]);
+  assert.deepEqual(calls, ["write", "rename", "rename", "rename", "rename", "cleanup"]);
 });
 
 test("cleanup-only failure remains nonfatal after successful publication and confirmation", t => {

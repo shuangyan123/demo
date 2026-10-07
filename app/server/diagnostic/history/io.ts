@@ -1,16 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { closeSync, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import type { DiagnosticHistoryFailure } from "../../../types/domains/diagnostic-history.ts";
+import type { DiagnosticHistoryFailure, DiagnosticHistorySnapshotV1 } from "../../../types/domains/diagnostic-history.ts";
 import { DIAGNOSTIC_HISTORY_MAX_BYTES } from "./record.ts";
+import { publishDiagnosticReplacement, waitForDiagnosticReplacementRetry, type DiagnosticReplacementObservation } from "./replacement.ts";
+import type { DiagnosticIOOperation, DiagnosticIOFailure } from "./io-types.ts";
+export type { DiagnosticIOOperation, DiagnosticIOFailure } from "./io-types.ts";
 
-export type DiagnosticIOOperation = "lstatSync" | "openSync" | "fstatSync" | "readFileSync" | "closeSync"
-  | "writeFileSync" | "linkSync" | "renameSync" | "unlinkSync";
-export type DiagnosticIOFailure = Readonly<{
-  operation: DiagnosticIOOperation;
-  ioCode: string | null;
-  syscall: string | null;
-  errno: number | null;
-}>;
 export type DiagnosticPublicationObservation = {
   publication: "not_attempted" | "reported_failure" | "reported_success";
   failure: Readonly<{
@@ -24,6 +19,7 @@ export type DiagnosticPublicationObservation = {
     existenceObservedAt: "post_failure";
   }> | null;
   cleanupFailure: DiagnosticIOFailure | null;
+  replacement?: DiagnosticReplacementObservation;
 };
 export type DiagnosticDurabilityFailure = Readonly<{
   externalReason: "commit_unconfirmed";
@@ -40,6 +36,7 @@ export type DiagnosticDurabilityFailure = Readonly<{
   validationReason: string | null;
   publicationFailure: DiagnosticPublicationObservation["failure"];
   cleanupFailure: DiagnosticIOFailure | null;
+  replacement?: DiagnosticReplacementObservation;
 }>;
 
 const ioCodes = new Set(["EACCES", "EAGAIN", "EBADF", "EBUSY", "EDQUOT", "EEXIST", "EFBIG", "EINTR", "EINVAL",
@@ -72,6 +69,14 @@ function observeFailure(observer: IOFailureObserver | undefined, error: unknown,
 
 // 按结果对象关联，只读内部查询；不增加可枚举字段、序列化 payload 或 repository 权限。
 const durabilityFailures = new WeakMap<object, DiagnosticDurabilityFailure>();
+const replacements = new WeakMap<object, DiagnosticReplacementObservation>();
+export function rememberDiagnosticReplacement<T extends object>(result: T, detail: DiagnosticReplacementObservation | undefined): T {
+  if (detail) replacements.set(result, detail);
+  return result;
+}
+export function diagnosticReplacementObservation(result: object): DiagnosticReplacementObservation | null {
+  return replacements.get(result) ?? null;
+}
 export function rememberDiagnosticDurabilityFailure<T extends object>(result: T, detail: DiagnosticDurabilityFailure): T {
   durabilityFailures.set(result, Object.freeze(detail));
   return result;
@@ -82,6 +87,8 @@ export function diagnosticDurabilityFailure(result: object): DiagnosticDurabilit
 
 export const historyUnavailable = (reason: string): DiagnosticHistoryFailure => ({ kind: "unavailable", code: "storage_unavailable", reason });
 export const diagnosticHistoryIO = {
+  replacementPlatform: process.platform,
+  waitForReplacementRetry: waitForDiagnosticReplacementRetry,
   directoryState(directory: string, observe?: IOFailureObserver): "available" | "missing" | "unavailable" {
     try { return lstatSync(directory).isDirectory() ? "available" : "unavailable"; }
     catch (error) {
@@ -120,13 +127,15 @@ export type DiagnosticHistoryIO = typeof diagnosticHistoryIO;
 
 /** 小型 server snapshot primitive；不依赖 Desktop，不原地覆盖、不删除旧 record 来降级发布。 */
 export function publishDiagnosticSnapshot(file: string, text: string, mode: "create" | "replace", io: DiagnosticHistoryIO,
-  observation?: DiagnosticPublicationObservation): void {
+  observation?: DiagnosticPublicationObservation, binding?: { base: DiagnosticHistorySnapshotV1; expected: DiagnosticHistorySnapshotV1 }): void {
   const temporary = `${file}.${randomUUID()}.tmp`;
   let operation: DiagnosticIOOperation = "writeFileSync";
   try {
     io.writeTemporary(temporary, text);
     operation = mode === "create" ? "linkSync" : "renameSync";
     if (mode === "create") io.publishNew(temporary, file);
+    else if (binding) publishDiagnosticReplacement(temporary, file, binding.base, binding.expected, io,
+      error => diagnosticIOFailure(error, "renameSync"), detail => { if (observation) observation.replacement = detail; });
     else io.publishReplacement(temporary, file);
     if (observation) observation.publication = "reported_success";
   } catch (error) {

@@ -216,6 +216,7 @@ const ADMISSION_TEST = path.join(VERIFICATION_SOURCE_ROOT, "verification-source-
 const DIAGNOSTIC_RUNTIME_ROOT = path.join(APP_ROOT, "server/diagnostic");
 const DIAGNOSTIC_RUNTIME_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-runtime.contract.test.ts");
 const DIAGNOSTIC_DURABLE_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "durable-submission.contract.test.ts");
+const DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "replacement-submission.contract.test.ts");
 const DIAGNOSTIC_SOURCE_OWNER = path.join(DIAGNOSTIC_RUNTIME_ROOT, "source-owner.ts");
 const DIAGNOSTIC_SUBMISSION = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-submission.ts");
 
@@ -223,7 +224,8 @@ const DIAGNOSTIC_SUBMISSION = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-sub
 function verificationSourceImportViolations(file: string, source: string): string[] {
   const kernelRoot = path.join(APP_ROOT, "services/learning-kernel");
   const isTest = /\.test\.(?:ts|mts|cts|js|mjs|cjs)$/.test(file);
-  const dedicatedTest = file === ADMISSION_TEST || file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file)
+  const dedicatedTest = file === ADMISSION_TEST || file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST
+    || file === DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST || DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file)
     || (file.startsWith(`${kernelRoot}${path.sep}`) && file.endsWith(".contract.test.ts"));
   const kernelInternal = file.startsWith(`${kernelRoot}${path.sep}`) && !isTest;
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
@@ -352,6 +354,7 @@ const DIAGNOSTIC_HISTORY_ROOT = path.join(APP_ROOT, "server/diagnostic/history")
 const DIAGNOSTIC_HISTORY_RECORD = path.join(DIAGNOSTIC_HISTORY_ROOT, "record.ts");
 const DIAGNOSTIC_HISTORY_CORE = path.join(DIAGNOSTIC_HISTORY_ROOT, "repository-core.ts");
 const DIAGNOSTIC_HISTORY_TEST = path.join(DIAGNOSTIC_HISTORY_ROOT, "repository.contract.test.ts");
+const DIAGNOSTIC_REPLACEMENT_TEST = path.join(DIAGNOSTIC_HISTORY_ROOT, "replacement.contract.test.ts");
 const DIAGNOSTIC_CAPTURE_EDGES = new Map([
   [path.join(APP_ROOT, "types/domains/first-party-diagnostic-capture.ts"), [] as string[]],
   [DIAGNOSTIC_CAPTURE_CORE, ["../../types/domains/first-party-diagnostic-capture.ts",
@@ -456,7 +459,7 @@ function diagnosticCaptureImportViolations(file: string, source: string): string
       const target = (specifier.startsWith("@/") ? path.resolve(APP_ROOT, "..", specifier.slice(2))
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
       if (target === DIAGNOSTIC_CAPTURE_CORE.replace(/\.ts$/, "") && file !== DIAGNOSTIC_CAPTURE_ENTRY && file !== DIAGNOSTIC_CAPTURE_TEST
-        && file !== DIAGNOSTIC_HISTORY_TEST) {
+        && file !== DIAGNOSTIC_HISTORY_TEST && file !== DIAGNOSTIC_REPLACEMENT_TEST) {
         const guardOnly = file === DIAGNOSTIC_HISTORY_CORE && ts.isImportDeclaration(node)
           && !node.importClause?.name
           && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)
@@ -507,7 +510,7 @@ test("Recall E8 capture 只有 canonical spec 与内部 clock/identity 依赖，
     const source = await readFile(file, "utf8");
     assert.deepEqual(diagnosticCaptureImportViolations(file, source), [], `${file} 不得接入 capture 或泄漏可注入 authority`);
     if (!DIAGNOSTIC_CAPTURE_EDGES.has(file) && file !== DIAGNOSTIC_CAPTURE_TEST && file !== ADMISSION_TEST
-      && file !== DIAGNOSTIC_HISTORY_TEST
+      && file !== DIAGNOSTIC_HISTORY_TEST && file !== DIAGNOSTIC_REPLACEMENT_TEST
       && file !== path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime-core.ts"))
       assert.doesNotMatch(source, /\b(?:createDiagnosticCaptureMechanism|createControlledDiagnosticCaptureMechanism|createControlledDiagnosticCapture|FIRST_PARTY_DIAGNOSTIC_CAPTURE)\b/);
   }
@@ -572,9 +575,11 @@ function diagnosticRuntimeImportViolations(file: string, source: string): string
         : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/, "");
       if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)) {
         const permitted = target.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`)
-          ? file.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`) || file === DIAGNOSTIC_DURABLE_TEST || file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "reconstruction-failure.contract.test.ts")
+          ? file.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`) || file === DIAGNOSTIC_DURABLE_TEST
+            || file === DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST || file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "reconstruction-failure.contract.test.ts")
             || (file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime-core.ts") && target === path.join(DIAGNOSTIC_HISTORY_ROOT, "repository"))
-          : file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file) || DIAGNOSTIC_RUNTIME_EDGES.has(file)
+          : file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || file === DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST
+            || DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file) || DIAGNOSTIC_RUNTIME_EDGES.has(file)
             || (file === ADMISSION_ENTRY && target === DIAGNOSTIC_SOURCE_OWNER.replace(/\.ts$/, ""));
         if (!permitted || target.endsWith(".test")) violations.push("controlled_runtime_leak");
       }
@@ -592,7 +597,7 @@ function diagnosticRuntimeImportViolations(file: string, source: string): string
 
 test("Recall E9 只有固定 server surface→capture→owner→admission→Evidence 路径，UI 无低层 authority", async () => {
   assert.deepEqual((await sourceFiles(DIAGNOSTIC_RUNTIME_ROOT)).toSorted(),
-    [...DIAGNOSTIC_RUNTIME_EDGES.keys(), ...["repository.ts", "repository-core.ts", "record.ts", "io.ts"].map((name) => path.join(DIAGNOSTIC_HISTORY_ROOT, name))]
+    [...DIAGNOSTIC_RUNTIME_EDGES.keys(), ...["repository.ts", "repository-core.ts", "record.ts", "io.ts", "io-types.ts", "replacement.ts"].map((name) => path.join(DIAGNOSTIC_HISTORY_ROOT, name))]
       .filter((file) => file.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)).toSorted());
   const files = [...await sourceFiles(APP_ROOT, true, true), ...await sourceFiles(path.resolve(APP_ROOT, "../desktop"), true, true),
     ...await sourceFiles(path.resolve(APP_ROOT, "../scripts"), true, true)];
