@@ -4,6 +4,10 @@
 
 本文描述 ReviewWorkspace 从 `0.2.x` 功能快速迭代阶段进入产品化阶段的版本边界。它不是功能愿望清单：每个阶段都包含目标、非目标、风险、验收标准和回滚边界。
 
+Recall Phase E 已在其限定来源闭环内 COMPLETE；Phase F Slice 1 交付范围为
+[Managed Data Root Foundation](recall-managed-storage.md)。它只建立 Host metadata/configuration/registry，
+不表示 Phase F 整体完成或 diagnostic durable history 已实现。
+
 通用约束：
 
 - 保持 Electron、Next.js、React、Dexie 和 local-first 技术路线。

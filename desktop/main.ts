@@ -11,6 +11,7 @@ import { initializeFenbiSession } from "./fenbi-session.js";
 import { installFenbiSessionIpc } from "./fenbi-session-ipc.js";
 import { createFenbiWebContentsController } from "./fenbi-web-contents-controller.js";
 import { installFenbiWebContentsIpc } from "./fenbi-web-contents-ipc.js";
+import { resolveDesktopManagedStorage } from "./managed-storage.js";
 
 registerDesktopScheme();
 
@@ -146,22 +147,28 @@ if (isSquirrelLifecycleInvocation(process.argv)) {
   if (!singleInstance) {
     app.quit();
   } else {
-    app.on("second-instance", () => {
-      if (!mainWindow) return;
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    });
-    app.whenReady()
-      .then(launchMainWindowWithRecovery)
-      .catch(() => app.quit());
-    app.on("window-all-closed", () => app.quit());
-    app.on("before-quit", (event) => {
-      if (!runtime) return;
-      event.preventDefault();
-      const activeRuntime = runtime;
-      runtime = undefined;
-      void activeRuntime.stop().finally(() => app.quit());
-    });
+    // 存储失败不进入 renderer/runtime 重试循环；禁止默认空 profile 隐式替代已有历史。
+    const storageState = resolveDesktopManagedStorage();
+    if (storageState.kind !== "ready" && storageState.kind !== "legacy_existing_profile") {
+      app.exit(1);
+    } else {
+      app.on("second-instance", () => {
+        if (!mainWindow) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      });
+      app.whenReady()
+        .then(launchMainWindowWithRecovery)
+        .catch(() => app.quit());
+      app.on("window-all-closed", () => app.quit());
+      app.on("before-quit", (event) => {
+        if (!runtime) return;
+        event.preventDefault();
+        const activeRuntime = runtime;
+        runtime = undefined;
+        void activeRuntime.stop().finally(() => app.quit());
+      });
+    }
   }
 }
 

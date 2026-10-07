@@ -25,6 +25,8 @@ import "../../services/verification-source/verification-source-admission.contrac
 import "../../services/first-party-diagnostic/spec-authority.contract.test.ts";
 import "../../services/first-party-diagnostic/capture-authority.contract.test.ts";
 import "../../server/diagnostic/assessment-runtime.contract.test.ts";
+import "../../services/storage-domain-registry.contract.test.ts";
+import "./managed-storage-boundary.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 

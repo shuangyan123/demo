@@ -73,6 +73,7 @@ export const LOCAL_STORAGE_DATA_POLICIES = [
   { pattern: "review_provider_models_v4:*", backup: "excluded", dataClass: "derived", recoveryLevel: "R1", reason: "可重新发现的模型目录缓存" },
   { pattern: "review_connection_test_model_v1:*", backup: "excluded", dataClass: "configuration", recoveryLevel: "R2", reason: "连接测试偏好，不影响业务恢复" },
   { pattern: "review-workspace:sidebar:v1", backup: "excluded", dataClass: "configuration", recoveryLevel: "R2", reason: "可重新设置的界面偏好" },
+  { pattern: "review-workspace:study-module-preferences:v1", backup: "excluded", dataClass: "configuration", recoveryLevel: "R2", reason: "项目模块偏好；当前 V2 不导出，用户可重新设置" },
   { pattern: "review_settings_plugins_v1", backup: "excluded", dataClass: "configuration", recoveryLevel: "R2", reason: "可重新设置的内置插件启停偏好" },
   { pattern: "review-workspace:ui-review-*", backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "开发审查运行状态，不属于生产用户资产" },
 ] as const satisfies readonly (LocalDataStorePolicy & { pattern: string })[];
@@ -84,6 +85,19 @@ export const NON_CORE_DATA_STORE_POLICIES = {
   "versioned-localStorage": { backup: "excluded", dataClass: "configuration", recoveryLevel: "R2", reason: "当前 V2 不导出 localStorage；各键按上方策略重新配置或重建" },
   "obsidian-vault.files": { backup: "excluded", dataClass: "external-user-owned", recoveryLevel: "R4", reason: "Vault 正文由用户外部拥有，只能重新授权并对账" },
   "runtime.media-and-provider-events": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "原始媒体与厂商事件只驻留当前运行内存" },
+  "storage.bootstrap": { backup: "excluded", dataClass: "configuration", recoveryLevel: "R2", reason: "OS 稳定位置的少量定位 metadata，不属于 portable 学习备份" },
+  "storage.profile-identity": { backup: "excluded", dataClass: "configuration", recoveryLevel: "R2", reason: "profile 内随机 identity anchor；不含学习历史，重建 bootstrap 时保留身份" },
+  "desktop.vault-reference": { backup: "excluded", dataClass: "configuration", recoveryLevel: "R4", reason: "Desktop userData 下的 Vault 授权引用；仅迁移应用引用，不拥有外部正文" },
+  "external.user-files": { backup: "excluded", dataClass: "external-user-owned", recoveryLevel: "R4", reason: "用户保存的导出或下载文件由用户拥有" },
+  "host.os-secrets": { backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "OS 保护能力/秘密不是普通 managed-file；credential envelopes 另归 profile 域" },
+  "chromium.cache": { backup: "excluded", dataClass: "derived", recoveryLevel: "R1", reason: "与 profile 共存的可重建缓存不默认迁移" },
+  "workspace.session": { backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "Workspace partition 的 Cookie、origin 和权限状态不进入 portable 备份" },
+  "fenbi.session": { backup: "excluded", dataClass: "credential-security", recoveryLevel: "R2", reason: "Fenbi 独立持久 session 的登录材料不进入 portable 备份" },
+  "next.cache": { backup: "excluded", dataClass: "derived", recoveryLevel: "R1", reason: "安装 runtime 的 Next 缓存可重建" },
+  "runtime.temporary-state": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "包括 diagnostic TTL sessions；无跨进程或重启持久保证" },
+  "desktop.runtime-log": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "Desktop 运行日志不默认进入学习备份或迁移" },
+  "runtime.diagnostic-state": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "Desktop logs 位置的诊断 JSON 不作为学习事实；临时内存快照另归 runtime.temporary-state" },
+  "diagnostic-history": { backup: "excluded", dataClass: "authoritative", recoveryLevel: "R3", reason: "未来 reserved managed-files 域；durable repository 尚未实现，当前备份无此数据" },
 } as const satisfies Record<string, LocalDataStorePolicy>;
 
 export const LOCAL_DATA_SCHEMA_VERSIONS = { review_extensions: 1, review_workspace: 16 } as const;

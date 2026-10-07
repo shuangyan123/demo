@@ -1,5 +1,9 @@
 # 应用架构
 
+Recall Phase F Slice 1 的 Host bootstrap、稳定 profile/epoch identity、legacy adoption、startup availability gate 和
+storage policy registry 见 [Managed Data Root Foundation](recall-managed-storage.md)。当前 production profile relocation deferred，
+既有 Dexie v16、partition、origin、凭据与 Vault 数据路径保持不变。
+
 ## Electron 桌面架构（2026-07-28）
 
 ```text
