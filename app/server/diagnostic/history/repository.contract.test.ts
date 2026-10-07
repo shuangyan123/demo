@@ -14,7 +14,7 @@ import { resolveManagedStorage, storageBootstrapPath, storageIdentityPath } from
 import { writeStorageRecord } from "../../../../desktop/storage-bootstrap-io.ts";
 import { openDiagnosticHistoryRepository } from "./repository.ts";
 import { createDiagnosticHistoryRepository } from "./repository-core.ts";
-import { diagnosticHistoryIO } from "./io.ts";
+import { diagnosticHistoryIO, diagnosticDurabilityFailure, diagnosticIOFailure, type DiagnosticHistoryIO } from "./io.ts";
 import { DIAGNOSTIC_HISTORY_MAX_BYTES, DIAGNOSTIC_HISTORY_MAX_CAPTURES, encodeDiagnosticSnapshot } from "./record.ts";
 
 type Context = { after: (fn: () => void) => void };
@@ -201,7 +201,12 @@ const invalidFacts: ReadonlyArray<readonly [string, (attempt: Record<string, unk
 for (const [name, change] of invalidFacts) {
   test(`strict reopen rejects changed ${name} without digest becoming authority`, (t) => {
     const { config, file, repository } = fixture(t);
-    repository.initialize(); repository.appendCapturedAttempt(capture("attempt")); repository.close();
+    // 先报告原始 setup 失败；不能让未确认的 append 变成后续 captures[0] 的无信息 TypeError。
+    const initialized = repository.initialize();
+    assert.equal(initialized.kind, "complete", JSON.stringify({ kind: initialized.kind, durabilityFailure: diagnosticDurabilityFailure(initialized) }));
+    const appended = repository.appendCapturedAttempt(capture("attempt"));
+    assert.equal(appended.kind, "committed", JSON.stringify({ kind: appended.kind, durabilityFailure: diagnosticDurabilityFailure(appended) }));
+    repository.close();
     mutate(file, (record) => change(captureRecord(record)));
     assert.equal(opened(t, openDiagnosticHistoryRepository(config)).readCompleteSnapshot().kind, "corrupt");
   });
@@ -342,4 +347,254 @@ test("offline active profile is unavailable and cannot recreate/fallback; close 
   assert.ok(!existsSync(config.managedFilesRoot));
   assert.ok(existsSync(renamedProfile));
   assert.deepEqual(readdirSync(root).sort(), ["offline-profile", "os-config"]);
+});
+
+const unconfirmed = { kind: "unavailable", code: "storage_unavailable", reason: "commit_unconfirmed" } as const;
+function ioError(code: string, syscall: string, errno = -4048) {
+  return Object.assign(new Error("synthetic private message C:/private/secret/history.json"), {
+    code, syscall, errno, path: "C:/private/source", dest: "C:/private/destination", cause: "private cause",
+  });
+}
+function instrumentedFixture(t: Context, override: Partial<DiagnosticHistoryIO>) {
+  const base = fixture(t);
+  assert.equal(base.repository.initialize().kind, "complete");
+  base.repository.close();
+  return { ...base, repository: opened(t, createDiagnosticHistoryRepository(base.config, { ...diagnosticHistoryIO, ...override })) };
+}
+
+for (const [syscall, stage] of [["open", "temporary_open"], ["write", "temporary_write"],
+  ["fsync", "temporary_fsync"], ["close", "temporary_close"], ["unknown", "temporary_write_or_flush"]] as const) {
+  test(`instrumentation classifies temp ${syscall}, with no publication/retry and unchanged external failure`, t => {
+    const calls: string[] = [];
+    const { repository } = instrumentedFixture(t, {
+      writeTemporary() { calls.push("write"); throw ioError("EIO", syscall); },
+      publishReplacement() { calls.push("rename"); },
+      removeTemporary() { calls.push("cleanup"); },
+    });
+    const result = repository.appendCapturedAttempt(capture("diagnostic-attempt"));
+    assert.deepEqual(result, unconfirmed);
+    assert.deepEqual(calls, ["write", "cleanup"]);
+    const detail = diagnosticDurabilityFailure(result);
+    assert.ok(detail);
+    assert.equal(detail.stage, stage); assert.equal(detail.publication, "not_attempted");
+    assert.equal(detail.operation, "writeFileSync"); assert.equal(detail.io?.ioCode, "EIO");
+    assert.equal(detail.io?.syscall, syscall === "unknown" ? null : syscall);
+    assert.equal(detail.mode, "replace"); assert.equal(detail.confirmationFailure, null);
+    assert.doesNotMatch(JSON.stringify(detail), /private|secret|message|cause|C:\//);
+    assert.deepEqual(Reflect.ownKeys(result).sort(), ["kind", "code", "reason"].sort());
+    assert.equal(diagnosticDurabilityFailure({ ...result }), null);
+  });
+}
+
+test("instrumentation retains original native temp open EEXIST classification without replacing write/flush primitive", t => {
+  const { repository, file } = instrumentedFixture(t, { writeTemporary(temporary, text) {
+    writeFileSync(temporary, "synthetic collision");
+    diagnosticHistoryIO.writeTemporary(temporary, text);
+  } });
+  const before = readFileSync(file, "utf8");
+  const result = repository.appendCapturedAttempt(capture("collision-attempt"));
+  assert.deepEqual(result, unconfirmed);
+  const detail = diagnosticDurabilityFailure(result);
+  assert.equal(detail?.stage, "temporary_open"); assert.equal(detail?.io?.ioCode, "EEXIST");
+  assert.equal(detail?.io?.syscall, "open"); assert.equal(typeof detail?.io?.errno, "number");
+  assert.equal(detail?.publicationFailure?.sourceExists, true); assert.equal(detail?.publicationFailure?.destinationExists, true);
+  assert.equal(readFileSync(file, "utf8"), before);
+});
+
+test("instrumentation distinguishes first link publication and preserves reservation/cleanup semantics", t => {
+  const base = fixture(t); base.repository.close();
+  const calls: string[] = [];
+  const repository = opened(t, createDiagnosticHistoryRepository(base.config, { ...diagnosticHistoryIO,
+    publishNew() { calls.push("link"); throw ioError("EEXIST", "link"); },
+    removeTemporary(file) { calls.push("cleanup"); diagnosticHistoryIO.removeTemporary(file); },
+  }));
+  const result = repository.initialize();
+  assert.deepEqual(result, unconfirmed);
+  const detail = diagnosticDurabilityFailure(result);
+  assert.equal(detail?.stage, "publication_link"); assert.equal(detail?.operation, "linkSync");
+  assert.equal(detail?.mode, "create"); assert.equal(detail?.publication, "reported_failure");
+  assert.equal(detail?.io?.ioCode, "EEXIST"); assert.equal(detail?.confirmationFailure, null);
+  assert.equal(detail?.publicationFailure?.sourceExists, true); assert.equal(detail?.publicationFailure?.destinationExists, false);
+  assert.match(detail?.publicationFailure?.sourceFile ?? "", /^history\.json\.[a-f0-9-]+\.tmp$/);
+  assert.equal(detail?.publicationFailure?.destinationFile, "history.json");
+  assert.deepEqual(calls, ["link", "cleanup"]); assert.ok(existsSync(base.directory)); assert.ok(!existsSync(base.file));
+});
+
+for (const afterPublication of [false, true]) {
+  test(`instrumentation distinguishes replacement operation failure, publication completion ${afterPublication} remains uncertain`, t => {
+    const { repository, file } = instrumentedFixture(t, { publishReplacement(from, to) {
+      if (afterPublication) diagnosticHistoryIO.publishReplacement(from, to);
+      throw ioError("EPERM", "rename");
+    } });
+    const result = repository.appendCapturedAttempt(capture("rename-attempt"));
+    assert.deepEqual(result, unconfirmed);
+    const detail = diagnosticDurabilityFailure(result);
+    assert.equal(detail?.stage, "replacement_rename"); assert.equal(detail?.operation, "renameSync");
+    assert.equal(detail?.publication, "reported_failure"); assert.equal(detail?.mode, "replace");
+    assert.equal(detail?.io?.ioCode, "EPERM"); assert.equal(detail?.confirmationFailure, null);
+    assert.equal(detail?.publicationFailure?.sourceExists, !afterPublication);
+    assert.equal(detail?.publicationFailure?.destinationExists, true);
+    assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, afterPublication ? 1 : 0);
+  });
+}
+
+test("cleanup failure is secondary and cannot override primary rename failure", t => {
+  const calls: string[] = [];
+  const { repository } = instrumentedFixture(t, {
+    writeTemporary(file, text) { calls.push("write"); diagnosticHistoryIO.writeTemporary(file, text); },
+    publishReplacement() { calls.push("rename"); throw ioError("EPERM", "rename"); },
+    removeTemporary() { calls.push("cleanup"); throw ioError("EACCES", "unlink"); },
+  });
+  const result = repository.appendCapturedAttempt(capture("cleanup-attempt"));
+  assert.deepEqual(result, unconfirmed);
+  const detail = diagnosticDurabilityFailure(result);
+  assert.equal(detail?.stage, "replacement_rename"); assert.equal(detail?.io?.ioCode, "EPERM");
+  assert.equal(detail?.cleanupFailure?.operation, "unlinkSync"); assert.equal(detail?.cleanupFailure?.ioCode, "EACCES");
+  assert.deepEqual(calls, ["write", "rename", "cleanup"]);
+});
+
+test("cleanup-only failure remains nonfatal after successful publication and confirmation", t => {
+  const { repository } = instrumentedFixture(t, { removeTemporary() { throw ioError("EPERM", "unlink"); } });
+  const result = repository.appendCapturedAttempt(capture("committed-despite-cleanup"));
+  assert.equal(result.kind, "committed"); assert.equal(diagnosticDurabilityFailure(result), null);
+  assert.equal(complete(repository).generation, 1);
+});
+
+test("instrumentation distinguishes confirmation reopen/read failure after publication returned success", t => {
+  let published = false;
+  const { repository, file } = instrumentedFixture(t, {
+    publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
+    read(file, observe) {
+      if (!published) return diagnosticHistoryIO.read(file, observe);
+      observe?.(diagnosticIOFailure(ioError("EACCES", "open"), "openSync"));
+      return { kind: "unavailable", code: "storage_unavailable", reason: "snapshot_read_failed" };
+    },
+  });
+  const result = repository.appendCapturedAttempt(capture("read-failure-attempt"));
+  assert.deepEqual(result, unconfirmed);
+  const detail = diagnosticDurabilityFailure(result);
+  assert.equal(detail?.stage, "confirmation_read"); assert.equal(detail?.operation, "openSync");
+  assert.equal(detail?.publication, "reported_success"); assert.equal(detail?.confirmationFailure, "reopen_or_read_failed");
+  assert.equal(detail?.io?.ioCode, "EACCES"); assert.equal(detail?.io?.syscall, "open");
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, 1);
+});
+
+test("native missing confirmation record retains ENOENT and does not initialize/repair/retry", t => {
+  let published = false;
+  const { repository, file } = instrumentedFixture(t, {
+    publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); rmSync(to); published = true; },
+    read(file, observe) { return diagnosticHistoryIO.read(file, published ? observe : undefined); },
+  });
+  const result = repository.appendCapturedAttempt(capture("missing-after-publication"));
+  assert.deepEqual(result, unconfirmed);
+  const detail = diagnosticDurabilityFailure(result);
+  assert.equal(detail?.publication, "reported_success"); assert.equal(detail?.stage, "confirmation_read");
+  assert.equal(detail?.confirmationFailure, "file_missing"); assert.equal(detail?.operation, "lstatSync");
+  assert.equal(detail?.io?.ioCode, "ENOENT"); assert.ok(!existsSync(file));
+});
+
+for (const [damage, expectedFailure, expectedReason] of [
+  ["malformed", "malformed_snapshot", "malformed_snapshot"], ["integrity", "integrity_mismatch", "integrity_mismatch"],
+  ["profile", "identity_mismatch", "profile_mismatch"], ["epoch", "identity_mismatch", "epoch_mismatch"],
+  ["generation", "generation_mismatch", "invalid_snapshot_generation"],
+  ["unsupported", "other_validation_failure", "unsupported_version"],
+] as const) {
+  test(`instrumentation distinguishes confirmation ${damage} validation failure`, t => {
+    let published = false;
+    const { repository } = instrumentedFixture(t, {
+      publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
+      read(file, observe) {
+        const result = diagnosticHistoryIO.read(file, observe);
+        if (!published || result.kind !== "record") return result;
+        const record = JSON.parse(result.text);
+        if (damage === "integrity") record.integrity = "0".repeat(64);
+        if (damage === "profile") record.profileId = randomUUID();
+        if (damage === "epoch") record.epochId = randomUUID();
+        if (damage === "generation") record.generation = 0;
+        if (damage === "unsupported") record.formatVersion = 2;
+        return { kind: "record", text: damage === "malformed" ? "{" : JSON.stringify(record) };
+      },
+    });
+    const result = repository.appendCapturedAttempt(capture("validation-attempt"));
+    assert.deepEqual(result, unconfirmed);
+    const detail = diagnosticDurabilityFailure(result);
+    assert.equal(detail?.stage, "confirmation_validation"); assert.equal(detail?.operation, "parseDiagnosticSnapshot");
+    assert.equal(detail?.publication, "reported_success"); assert.equal(detail?.confirmationFailure, expectedFailure);
+    assert.equal(detail?.validationReason, expectedReason); assert.equal(detail?.io, null);
+  });
+}
+
+for (const damage of ["generation_mismatch", "expected_capture_missing", "content_mismatch"] as const) {
+  test(`valid confirmation snapshot ${damage} is distinct from parse/integrity failure`, t => {
+    let published = false;
+    const { repository } = instrumentedFixture(t, {
+      publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
+      read(file, observe) {
+        const result = diagnosticHistoryIO.read(file, observe);
+        if (!published || result.kind !== "record") return result;
+        const actual = JSON.parse(result.text);
+        const captures = damage === "generation_mismatch" ? []
+          : [capture(damage === "expected_capture_missing" ? "different-attempt" : "comparison-attempt", "five")];
+        return { kind: "record", text: encodeDiagnosticSnapshot({ formatVersion: 1, profileId: actual.profileId,
+          epochId: actual.epochId, generation: captures.length, captures }) };
+      },
+    });
+    const result = repository.appendCapturedAttempt(capture("comparison-attempt", "four"));
+    assert.deepEqual(result, unconfirmed);
+    const detail = diagnosticDurabilityFailure(result);
+    assert.equal(detail?.stage, "confirmation_compare"); assert.equal(detail?.operation, "compare_snapshot");
+    assert.equal(detail?.publication, "reported_success"); assert.equal(detail?.confirmationFailure, damage);
+    assert.equal(detail?.validationReason, null); assert.equal(detail?.io, null);
+  });
+}
+
+test("IO sanitization rejects getters, raw paths/messages, unknown codes/syscalls and non-error throws", () => {
+  let getterCalls = 0;
+  const hostile = Object.defineProperties({}, { code: { get() { getterCalls++; return "EPERM"; } },
+    syscall: { value: "C:/private/syscall" }, errno: { value: "private" }, message: { value: "private message" } });
+  assert.deepEqual(diagnosticIOFailure(hostile, "renameSync"), { operation: "renameSync", ioCode: null, syscall: null, errno: null });
+  assert.equal(getterCalls, 0);
+  for (const error of ["private thrown string", null, ioError("PRIVATE_CODE", "private", Number.NaN),
+    new Proxy({}, { getOwnPropertyDescriptor() { throw Error("private proxy failure"); } })]) {
+    assert.deepEqual(diagnosticIOFailure(error, "linkSync"), { operation: "linkSync", ioCode: null, syscall: null, errno: null });
+  }
+});
+
+test("diagnostic observer cannot replace native missing-file result", t => {
+  const { root } = fixture(t);
+  const file = path.join(root, "not-present");
+  assert.deepEqual(diagnosticHistoryIO.read(file, () => { throw Error("synthetic observer failure"); }), { kind: "missing" });
+  assert.equal(diagnosticHistoryIO.directoryState(file, () => { throw Error("synthetic observer failure"); }), "missing");
+});
+
+for (const parsed of [false, true]) {
+  test(`confirmation capacity failure originates from ${parsed ? "parser" : "fstat"}, not an invented IO exception`, t => {
+    let published = false;
+    const { repository } = instrumentedFixture(t, {
+      publishReplacement(from, to) { diagnosticHistoryIO.publishReplacement(from, to); published = true; },
+      read(file, observe) {
+        if (!published) return diagnosticHistoryIO.read(file, observe);
+        const oversized = " ".repeat(DIAGNOSTIC_HISTORY_MAX_BYTES + 1);
+        if (parsed) return { kind: "record", text: oversized };
+        writeFileSync(file, oversized); // fault fixture only：让既有 native fstat 边界拒绝。
+        return diagnosticHistoryIO.read(file, observe);
+      },
+    });
+    const result = repository.appendCapturedAttempt(capture("capacity-confirmation-attempt"));
+    assert.deepEqual(result, unconfirmed);
+    const detail = diagnosticDurabilityFailure(result);
+    assert.equal(detail?.stage, parsed ? "confirmation_validation" : "confirmation_read");
+    assert.equal(detail?.operation, parsed ? "parseDiagnosticSnapshot" : "fstatSync");
+    assert.equal(detail?.confirmationFailure, "snapshot_capacity_exceeded"); assert.equal(detail?.io, null);
+  });
+}
+
+test("non-error publication throw retains unknown sanitized IO and the same external failure", t => {
+  const { repository } = instrumentedFixture(t, { writeTemporary() { throw "synthetic private thrown string"; } });
+  const result = repository.appendCapturedAttempt(capture("unknown-io-attempt"));
+  assert.deepEqual(result, unconfirmed);
+  const detail = diagnosticDurabilityFailure(result);
+  assert.equal(detail?.stage, "temporary_write_or_flush"); assert.equal(detail?.publication, "not_attempted");
+  assert.deepEqual(detail?.io, { operation: "writeFileSync", ioCode: null, syscall: null, errno: null });
+  assert.doesNotMatch(JSON.stringify(detail), /private|synthetic/);
 });

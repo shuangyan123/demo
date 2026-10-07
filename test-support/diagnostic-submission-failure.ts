@@ -3,7 +3,7 @@ import path from "node:path";
 import type { commitDiagnosticSubmission } from "../app/server/diagnostic/assessment-submission.ts";
 import type { DiagnosticRuntime } from "../app/server/diagnostic/runtime-core.ts";
 import { FIRST_PARTY_DIAGNOSTIC_SOURCE_OWNER } from "../app/server/diagnostic/source-owner.ts";
-import { diagnosticHistoryIO } from "../app/server/diagnostic/history/io.ts";
+import { diagnosticHistoryIO, diagnosticDurabilityFailure } from "../app/server/diagnostic/history/io.ts";
 import { parseDiagnosticSnapshot } from "../app/server/diagnostic/history/record.ts";
 import { parseDiagnosticStorageConfig } from "../app/server/diagnostic/storage-config.ts";
 import { admitVerifiedAssessment } from "../app/services/verification-source/verification-source-admission.ts";
@@ -19,6 +19,8 @@ function probe<T>(read: () => T): T | ProbeFailure {
 
 export function submissionFailureStage(result: NonSubmittedResult) {
   if (result.kind === "captured_not_durable") {
+    const detail = diagnosticDurabilityFailure(result.failure);
+    if (detail) return { category: detail.stage, exact: detail.stage !== "unknown" && detail.stage !== "temporary_write_or_flush" };
     if ("reason" in result.failure && result.failure.reason === "commit_unconfirmed")
       return { category: "durable_append_or_confirmation", exact: false,
         limitation: "commit_unconfirmed does not expose publication versus confirmation or underlying IO exception" };
@@ -99,6 +101,7 @@ export function collectSubmissionFailure(input: SubmissionFailureInput) {
   return { formatVersion: 1, marker: FAILURE_MARKER, result,
     resultCategory: { kind: result.kind, code: "code" in result ? result.code : null,
       reason: "reason" in result ? result.reason : null, failure: "failure" in result ? result.failure : null },
+    durabilityFailure: result.kind === "captured_not_durable" ? diagnosticDurabilityFailure(result.failure) : null,
     stage: submissionFailureStage(result), timestamp: new Date().toISOString(), test: input.test,
     process: { pid: process.pid, ppid: process.ppid, nodeVersion: process.version },
     runtime: { singletonPresent: singleton !== undefined, singletonMatchesFixtureRuntime: singleton === runtime,

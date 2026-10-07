@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { commitDiagnosticSubmission } from "../app/server/diagnostic/assessment-submission.ts";
+import { createDiagnosticHistoryRepository } from "../app/server/diagnostic/history/repository-core.ts";
+import { diagnosticHistoryIO, diagnosticIOFailure } from "../app/server/diagnostic/history/io.ts";
 import { closeDiagnosticRuntime, composeDiagnosticRuntime, diagnosticOwnerAttempt } from "../app/server/diagnostic/runtime.ts";
 import { diagnosticStorageFixture } from "./diagnostic-storage.ts";
 import { collectSubmissionFailure, diagnosticTestEnvironment, formatSubmissionFixtureFailure,
@@ -179,4 +181,54 @@ test("synthetic session rejection reports uncertain boundary instead of claiming
   assert.deepEqual(submissionFailureStage({ kind: "rejected", reason: "unknown_session" }),
     { category: "session_validation_or_capture", exact: false,
       limitation: "capture return does not expose the runtime/session validation boundary" });
+});
+
+for (const phase of ["publication", "confirmation"] as const) test(`synthetic ${phase} failure reaches preserved receipt through internal query without widening submission result`, context => {
+  const storage = diagnosticStorageFixture(); const run = failureRunRoot();
+  const baselineNow = Date.now; const envBefore = { ...process.env };
+  closeDiagnosticRuntime();
+  try {
+    let published = false;
+    const syntheticIOError = Object.assign(new Error("synthetic private filesystem message"), { code: "EPERM", syscall: "rename", errno: -4048,
+      path: "C:/private/source", dest: "C:/private/destination" });
+    const runtime = composeDiagnosticRuntime(storage.config, config => createDiagnosticHistoryRepository(config, {
+      ...diagnosticHistoryIO, publishReplacement(from, to) {
+        if (phase === "publication") throw syntheticIOError;
+        diagnosticHistoryIO.publishReplacement(from, to); published = true;
+      },
+      read(file, observe) {
+        if (!published) return diagnosticHistoryIO.read(file, observe);
+        observe?.(diagnosticIOFailure(Object.assign(syntheticIOError, { code: "EACCES", syscall: "open" }), "openSync"));
+        return { kind: "unavailable", code: "storage_unavailable", reason: "snapshot_read_failed" };
+      },
+    }));
+    const mockedNow = context.mock.method(Date, "now", () => Date.parse("2026-10-07T08:00:00.000Z"));
+    const issued = runtime.issue(); assert.equal(issued.kind, "issued");
+    if (issued.kind !== "issued") throw Error("self-check issue failed");
+    const before = readFileSync(storage.file, "utf8");
+    const result = commitDiagnosticSubmission({ sessionId: issued.sessionId, selectedOptionId: "four" });
+    assert.equal(result.kind, "captured_not_durable");
+    if (result.kind !== "captured_not_durable") throw Error("expected synthetic publication failure");
+    assert.deepEqual(result.failure, { kind: "unavailable", code: "storage_unavailable", reason: "commit_unconfirmed" });
+    assert.deepEqual(Object.keys(result).sort(), ["kind", "attempt", "failure"].sort());
+    assert.equal(diagnosticOwnerAttempt(result.attempt.id), undefined);
+    const afterFailure = readFileSync(storage.file, "utf8");
+    if (phase === "publication") assert.equal(afterFailure, before);
+    else assert.equal(JSON.parse(afterFailure).generation, 1);
+    const input = { result, runtime, storage, sessionId: issued.sessionId, clock: { baselineNow, mockedNow, expectedFakeTime: Date.now() },
+      test: { name: context.name, precedingTest: null, submissionIndex: 0, submissionCount: 1 } };
+    const error = new SubmissionFixtureFailure(input, run.root);
+    assert.equal(error.preservation.keep, true); assert.ok(error.preservation.receipt);
+    const report = error.diagnostics;
+    assert.equal(report.stage.category, phase === "publication" ? "replacement_rename" : "confirmation_read"); assert.equal(report.stage.exact, true);
+    assert.equal(report.durabilityFailure?.publication, phase === "publication" ? "reported_failure" : "reported_success");
+    assert.equal(report.durabilityFailure?.operation, phase === "publication" ? "renameSync" : "openSync");
+    assert.equal(report.durabilityFailure?.io?.ioCode, phase === "publication" ? "EPERM" : "EACCES");
+    assert.doesNotMatch(JSON.stringify(report.durabilityFailure), /private|filesystem message|C:\//);
+    const receipt = JSON.parse(readFileSync(error.preservation.receipt, "utf8"));
+    assert.deepEqual(receipt.evidence.durabilityFailure, report.durabilityFailure);
+    assert.deepEqual(receipt.evidence.result.failure, result.failure);
+    assert.equal(readFileSync(storage.file, "utf8"), afterFailure); assert.equal(diagnosticOwnerAttempt(result.attempt.id), undefined);
+    assert.deepEqual(runtime.readiness(), { kind: "storage_unavailable" }); assert.deepEqual({ ...process.env }, envBefore);
+  } finally { context.mock.restoreAll(); closeDiagnosticRuntime(); storage.cleanup(); run.cleanup(); }
 });
