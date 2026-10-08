@@ -44,5 +44,6 @@ export default async function DiagnosticPage({ searchParams }: {
         <Link className="mt-6 inline-block underline" href="/diagnostic" prefetch={false}>重新作答</Link>
       </section>}
     </>}
+    <Link className="mt-6 block text-sm underline" href="/diagnostic/resume" prefetch={false}>查看已保存作答</Link>
   </main>;
 }

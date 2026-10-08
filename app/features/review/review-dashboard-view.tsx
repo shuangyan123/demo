@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { BoardStat } from "../../lib/review-selectors";
 import type { Board, Mistake } from "../../types/domains/review.ts";
 import type { KnowledgeCategory, KnowledgeCategorySummary, KnowledgeEntry } from "../../types/domains/knowledge.ts";
@@ -156,6 +157,7 @@ export function DashboardView({
         <div>
           <p>{dateLabel} · {notice}</p>
           <h1>总览</h1>
+          <Link href="/diagnostic/resume" prefetch={false} className="mt-2 inline-block text-sm underline">诊断与已保存作答</Link>
         </div>
         <ConfigurationHealthPanel health={configurationHealth} onAction={onConfigurationHealthAction} />
       </header>

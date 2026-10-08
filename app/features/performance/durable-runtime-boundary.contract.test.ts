@@ -7,7 +7,7 @@ import ts from "typescript";
 const root = process.cwd();
 const runtimeRoot = path.join(root, "app/server/diagnostic");
 const testFiles = new Set(["assessment-runtime.contract.test.ts", "durable-submission.contract.test.ts", "state-reconstruction.contract.test.ts",
-  "reconstruction-failure.contract.test.ts", "reconstruction-restart.contract.test.ts"].map(name => path.join(runtimeRoot, name)));
+  "reconstruction-failure.contract.test.ts", "reconstruction-restart.contract.test.ts", "resume-view.contract.test.ts"].map(name => path.join(runtimeRoot, name)));
 const internal = (file: string) => path.join(runtimeRoot, file);
 const edges = new Map<string, Map<string, string[]>>([
   [internal("assessment-store.ts"), new Map([["runtime", ["initializeDiagnosticRuntime", "diagnosticOwnerAttempt"]]])],
@@ -18,7 +18,10 @@ const edges = new Map<string, Map<string, string[]>>([
     ["reconstruction-types", ["DiagnosticLearningHistory", "DiagnosticReconstructionFailure"]]])],
   [internal("state-reconstruction.ts"), new Map([["learning-history", ["loadCompleteDiagnosticLearningHistory"]],
     ["reconstruction-types", ["DiagnosticStateReconstruction"]]])],
+  [internal("resume-view.ts"), new Map([["state-reconstruction", ["reconstructDiagnosticLearnerState"]],
+    ["reconstruction-types", ["DiagnosticReconstructionFailure", "DiagnosticStateReconstruction"]]])],
   [path.join(root, "app/diagnostic/page.tsx"), new Map([["assessment-store", ["issueDiagnostic", "readDiagnostic"]]])],
+  [path.join(root, "app/diagnostic/resume/page.tsx"), new Map([["resume-view", ["loadDiagnosticResumeView"]]])],
   [path.join(root, "app/api/diagnostic/submit/route.ts"), new Map([["assessment-submission", ["commitDiagnosticSubmission"]]])],
 ]);
 
@@ -35,7 +38,7 @@ function violations(file: string, source: string) {
     if (specifier) {
       const target = (specifier.startsWith("@/") ? path.resolve(root, specifier.slice(2)) : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|js)$/, "");
       const protectedModules = ["runtime", "runtime-core", "storage-config", "assessment-store", "assessment-submission",
-        "learning-history", "state-reconstruction", "reconstruction-types"].map(name => path.join(runtimeRoot, name));
+        "learning-history", "state-reconstruction", "reconstruction-types", "resume-view"].map(name => path.join(runtimeRoot, name));
       if (protectedModules.includes(target) && !testFiles.has(file)) {
         const startup = file === path.join(root, "instrumentation.ts") && target === path.join(runtimeRoot, "runtime")
           && ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword;
@@ -78,6 +81,8 @@ test("durable seam guard rejects renderer aliases, hidden imports and production
   assert.ok(violations(path.join(runtimeRoot, "assessment-store.ts"), 'import { composeDiagnosticRuntime } from "./runtime.ts";').length);
   assert.ok(violations(path.join(runtimeRoot, "state-reconstruction.ts"), 'import { loadDiagnosticLearningHistoryWith } from "./learning-history.ts";').length);
   assert.ok(violations(outside, 'import { reconstructDiagnosticLearnerState } from "../../server/diagnostic/state-reconstruction.ts";').length);
+  assert.ok(violations(outside, 'import { loadDiagnosticResumeView } from "../../server/diagnostic/resume-view.ts";').length);
+  assert.ok(violations(path.join(root, "app/diagnostic/resume/page.tsx"), 'import { projectDiagnosticResumeView } from "../../server/diagnostic/resume-view.ts";').length);
   assert.ok(violations(outside, 'const root = process.env.RECALL_MANAGED_STORAGE_BOOTSTRAP;').includes("process_transport_outside_boundary"));
 });
 test("Main explicitly transports trusted config and startup owner resolution never reads filesystem", async () => {

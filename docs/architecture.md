@@ -11,6 +11,10 @@ Slice 4 的 [Complete Diagnostic History → Learner State → WHAT](recall-diag
 接通当前 profile/epoch/source 的完整 durable generation→重新准入→canonical target history→State→WHAT 内部只读 API。
 完整源验证后才分组；失败不等于空 Evidence 或 unknown state。派生结果不落盘；位置迁移与全局 backup/reset integration 仍未实现。
 
+F5 的 [Diagnostic-first Resume Slice 1](recall-diagnostic-resume.md) 增加总览入口与独立只读恢复页。
+固定 server facade 只投影 F4 的安全展示字段；renderer 不接 authority 或 raw history。
+显式再次作答复用既有 source，不增加 WHAT/WHEN/HOW。仅支持已有有效 managed profiles。
+
 ## Electron 桌面架构（2026-07-28）
 
 ```text
