@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, unlinkSync, existsSync, readdirSync } from "node:fs";
 import test from "node:test";
 import path from "node:path";
 import { diagnosticStorageFixture } from "../../../../test-support/diagnostic-storage.ts";
+import { replacementFailureEvidenceIO, withReplacementFailureEvidence } from "../../../../test-support/replacement-failure-diagnostics.ts";
 import { createControlledDiagnosticCaptureMechanism } from "../../../services/first-party-diagnostic/capture-authority-core.ts";
 import { createDiagnosticHistoryRepository } from "./repository-core.ts";
-import { diagnosticHistoryIO, diagnosticDurabilityFailure, diagnosticReplacementObservation, type DiagnosticHistoryIO } from "./io.ts";
+import { diagnosticHistoryIO, diagnosticDurabilityFailure, diagnosticReplacementObservation, diagnosticIOFailure, type DiagnosticHistoryIO } from "./io.ts";
 import { encodeDiagnosticSnapshot, parseDiagnosticSnapshot } from "./record.ts";
 import type { DiagnosticHistorySnapshotV1 } from "../../../types/domains/diagnostic-history.ts";
 import { DIAGNOSTIC_REPLACEMENT_ATTEMPT_BUDGET, DIAGNOSTIC_REPLACEMENT_OFFSETS_MS } from "./replacement.ts";
@@ -25,14 +27,14 @@ function capture(id = "retry-attempt") {
   if (captured.kind !== "captured") throw Error("capture setup");
   return captured.attempt;
 }
-function fixture(context: { after(fn: () => void): void }, override: Partial<DiagnosticHistoryIO> = {}) {
+function fixture(context: { after(fn: () => void): void }, override: Partial<DiagnosticHistoryIO> = {}, preserve = () => false) {
   const storage = diagnosticStorageFixture();
   const waits: number[] = []; let clock = 100;
   const opened = createDiagnosticHistoryRepository(storage.config, { ...diagnosticHistoryIO,
     replacementPlatform: "win32", replacementNow: () => clock, async waitForReplacementRetry(ms) { waits.push(ms); clock += ms; }, ...override });
   if (opened.kind !== "opened") throw Error("repository setup");
   const repository = opened.repository;
-  context.after(() => { repository.close(); storage.cleanup(); });
+  context.after(() => { repository.close(); if (!preserve()) storage.cleanup(); });
   assert.equal(repository.initialize().kind, "complete");
   return { ...storage, repository, waits, disk: () => JSON.parse(readFileSync(storage.file, "utf8")) };
 }
@@ -93,15 +95,93 @@ test("permanent EPERM exhausts exactly nine attempts and 2000ms recovery deadlin
 
 test("reported EPERM after native publication accepts exact NEW, no second rename or temp required, still confirms", async context => {
   let attempts = 0; let readsAfterPublication = 0; let published = false;
+  const lifecycle = { preserve: true };
+  const trace: unknown[] = [];
+  const candidates: Array<{ name: string; text: string }> = [];
   const state = fixture(context, {
-    publishReplacement(from, to) { attempts++; diagnosticHistoryIO.publishReplacement(from, to); published = true; throw failure(); },
-    read(file, observe) { if (published) readsAfterPublication++; return diagnosticHistoryIO.read(file, observe); },
+    writeTemporary(file, text) {
+      candidates.push({ name: path.basename(file), text });
+      try { diagnosticHistoryIO.writeTemporary(file, text); }
+      catch (error) { trace.push(diagnosticIOFailure(error, "writeFileSync")); throw error; }
+    },
+    publishReplacement(from, to) {
+      attempts++;
+      try { diagnosticHistoryIO.publishReplacement(from, to); }
+      catch (error) { trace.push({ phase: "native_publication", ...diagnosticIOFailure(error, "renameSync") }); throw error; }
+      published = true;
+      trace.push({ phase: "native_publication", operation: "renameSync", result: "success", followedBy: "synthetic_EPERM" });
+      throw failure();
+    },
+    directoryState(file, observe) {
+      const result = diagnosticHistoryIO.directoryState(file, detail => { trace.push(detail); observe?.(detail); });
+      trace.push({ operation: "directoryState", name: path.basename(file), result });
+      return result;
+    },
+    read(file, observe) {
+      if (published) readsAfterPublication++;
+      try {
+        const result = diagnosticHistoryIO.read(file, detail => { trace.push(detail); observe?.(detail); });
+        trace.push({ operation: "read", name: path.basename(file), result: result.kind, afterPublication: published });
+        return result;
+      }
+      catch (error) { trace.push(diagnosticIOFailure(error, "closeSync")); throw error; }
+    },
+    removeTemporary(file) {
+      try { diagnosticHistoryIO.removeTemporary(file); trace.push({ operation: "unlinkSync", name: path.basename(file), result: "success" }); }
+      catch (error) { trace.push(diagnosticIOFailure(error, "unlinkSync")); throw error; }
+    },
+  }, () => lifecycle.preserve);
+  let result: Awaited<ReturnType<typeof state.repository.appendCapturedAttempt>> | undefined;
+  await withReplacementFailureEvidence(context, { ...state, lifecycle, candidates }, () => ({
+    result: result ?? null, durability: result ? diagnosticDurabilityFailure(result) : null,
+    replacement: result ? diagnosticReplacementObservation(result) : null,
+    attempts, waits: state.waits, published, readsAfterPublication, trace,
+  }), async () => {
+    result = await state.repository.appendCapturedAttempt(capture());
+    assert.equal(result.kind, "committed"); assert.equal(attempts, 1); assert.deepEqual(state.waits, []);
+    assert.equal(readsAfterPublication, 2, "strict recovery read plus existing commit confirmation");
+    assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "already_published");
+    assert.equal(diagnosticReplacementObservation(result)?.failures[0].diskState, "expected_new");
   });
-  const result = (await state.repository.appendCapturedAttempt(capture()));
-  assert.equal(result.kind, "committed"); assert.equal(attempts, 1); assert.deepEqual(state.waits, []);
-  assert.equal(readsAfterPublication, 2, "strict recovery read plus existing commit confirmation");
-  assert.equal(diagnosticReplacementObservation(result)?.terminalReason, "already_published");
-  assert.equal(diagnosticReplacementObservation(result)?.failures[0].diskState, "expected_new");
+  lifecycle.preserve = false;
+});
+
+const diagnosticFaults: Array<[string, (io: typeof replacementFailureEvidenceIO) => typeof replacementFailureEvidenceIO]> = [
+  ["OLD read", io => { let first = true; return { ...io, read(file) { if (first) { first = false; throw failure("EIO"); } return io.read(file); } }; }],
+  ["directory enumeration", io => ({ ...io, list() { throw failure("EACCES"); } })],
+  ["hashing", io => ({ ...io, hash() { throw failure("EIO"); } })],
+  ["evidence write", io => ({ ...io, write() { throw failure("ENOSPC"); } })],
+  ["multiple observations", io => ({ ...io, read() { throw failure("EIO"); }, list() { throw failure("EACCES"); },
+    hash() { throw failure("EIO"); }, write() { throw failure("ENOSPC"); } })],
+];
+for (const [name, inject] of diagnosticFaults) test(`failure diagnostics preserve primary error and fixture despite ${name} failure`, async context => {
+  const hooks: Array<() => void> = [], lifecycle = { preserve: false };
+  const state = fixture({ after(fn) { hooks.push(fn); } }, {}, () => lifecycle.preserve);
+  const original = Object.assign(new Error("synthetic primary test failure"), { code: "TEST_PRIMARY_FAILURE" });
+  const messages: string[] = [];
+  context.after(() => { state.repository.close(); assert.equal(existsSync(state.root), true); });
+  const candidates = [{ name: "synthetic-new.tmp", text: "synthetic NEW only" }];
+  const damagedBytes = Buffer.from([0xff, 0x00, 0xfe]);
+  writeFileSync(path.join(path.dirname(state.file), candidates[0].name), damagedBytes);
+  await assert.rejects(withReplacementFailureEvidence({ diagnostic(text) { messages.push(text); } },
+    { ...state, lifecycle, candidates }, () => ({ result: { kind: "unavailable", reason: "synthetic_primary" } }),
+    async () => { throw original; }, inject(replacementFailureEvidenceIO)), error => error === original);
+  for (const hook of hooks) hook();
+  assert.equal(lifecycle.preserve, true); assert.equal(existsSync(state.file), true);
+  assert.ok(messages.some(text => text.includes(state.root)), "retained location remains visible");
+  assert.ok(messages.some(text => text.includes("diagnostic collection failure")), "secondary diagnostics are reported separately");
+  assert.doesNotMatch(messages.join("\n"), /private native error|synthetic NEW|selectedOptionId|TEST_PRIMARY_FAILURE/);
+  if (name !== "evidence write" && name !== "multiple observations") {
+    const evidence = JSON.parse(readFileSync(path.join(state.root, "failure-evidence.json"), "utf8"));
+    assert.equal(evidence.result.reason, "synthetic_primary"); assert.ok(evidence.collectionFailures.length > 0);
+    if (name !== "hashing") {
+      const observed = evidence.files.find((file: { name: string }) => file.name === candidates[0].name);
+      assert.equal(observed.bytes, damagedBytes.byteLength);
+      assert.equal(observed.sha256, createHash("sha256").update(damagedBytes).digest("hex"), "hash actual file bytes without UTF-8 replacement");
+    }
+    assert.doesNotMatch(JSON.stringify(evidence), /synthetic NEW only|private native error/);
+  }
+  context.diagnostic(`Expected diagnostic-failure fixture retained: ${state.root}`);
 });
 
 for (const damage of ["other_generation", "same_generation_content", "malformed", "missing", "profile", "epoch", "integrity", "unsupported", "capacity"] as const) {
