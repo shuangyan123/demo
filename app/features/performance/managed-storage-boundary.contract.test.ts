@@ -9,6 +9,7 @@ const allowed = new Set([
   "desktop/main.ts", "desktop/managed-storage.ts", "desktop/storage-bootstrap.ts", "desktop/storage-bootstrap-record.ts", "desktop/storage-bootstrap-io.ts",
   "app/server/diagnostic/history/repository.ts", "app/server/diagnostic/history/repository-core.ts",
   "desktop/runtime.ts", "desktop/storage-runtime-config.ts", "app/server/diagnostic/storage-config.ts", "app/server/diagnostic/runtime-core.ts",
+  "desktop/profile-initialization.ts", "desktop/storage-inspection.ts",
 ]);
 const isStorage = (target: string) => /(?:^|\/)(?:managed-storage|storage-bootstrap(?:-record|-io)?)(?:\.(?:d\.)?(?:ts|js))?$/.test(target);
 
@@ -29,6 +30,19 @@ function violations(file: string, source: string): string[] {
       const resolved = specifier.startsWith("@/") ? path.resolve(root, specifier.slice(2))
         : specifier.startsWith(".") ? path.resolve(root, path.dirname(file), specifier) : "";
       if (file.startsWith("app/") && resolved.startsWith(path.join(root, "desktop") + path.sep)) issues.push("desktop_path_in_app");
+      const initial = resolved.replace(/\.(?:ts|js)$/, "") === path.join(root, "desktop/profile-initialization");
+      if (resolved.replace(/\.(?:ts|js)$/, "") === path.join(root, "desktop/managed-storage") && file !== "desktop/main.ts")
+        issues.push("initialization_authority_outside_main");
+      if (initial) {
+        const consumers: Record<string, string[]> = {
+          "desktop/main.ts": ["completeInitialProfileDecision", "FreshProfileCandidate"],
+          "desktop/managed-storage.ts": ["createInitialProfile", "inspectInitialProfile", "FreshProfileCandidate"],
+        };
+        const named = ts.isImportDeclaration(node) && !node.importClause?.name && node.importClause?.namedBindings
+          && ts.isNamedImports(node.importClause.namedBindings) ? node.importClause.namedBindings.elements : undefined;
+        if (!named || !consumers[file] || !named.every(item => consumers[file].includes((item.propertyName ?? item.name).text)))
+          issues.push("initialization_authority_outside_main");
+      }
     }
     if ((ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) && node.type.getText(ast).includes("ManagedStorageHostConfig")
       && !["desktop/storage-bootstrap-record.ts", "app/server/diagnostic/storage-config.ts"].includes(file)) issues.push("forged_host_configuration");
@@ -76,12 +90,25 @@ test("startup gate resolves synchronously after single-instance lock and before 
   const resolve = main.indexOf("const storageState = resolveDesktopManagedStorage()", lock);
   const ready = main.indexOf("app.whenReady()", resolve);
   assert.ok(lifecycle >= 0 && lock > lifecycle && resolve > lock && ready > resolve);
-  assert.match(main.slice(resolve, ready), /storageState\.kind !== "ready" && storageState\.kind !== "legacy_existing_profile"[\s\S]*app\.exit\(1\)/);
+  assert.match(main.slice(resolve, ready), /storageState\.kind !== "ready" && storageState\.kind !== "legacy_existing_profile"[\s\S]*storageState\.kind === "uninitialized"[\s\S]*inspected\.kind === "eligible"/);
+  assert.match(main, /else \{ showStorageFailure\([\s\S]*?app\.exit\(1\)/);
+  assert.match(main, /app\.whenReady\(\)\.then\(\(\) => launchInitialProfile\(inspected\.candidate\)\)/);
+  assert.match(main, /defaultId: 1, cancelId: 1/);
   assert.doesNotMatch(seam, /\basync\b|whenReady|fromPartition|process\.env|process\.cwd|resourcesPath/);
   assert.doesNotMatch(main + seam, /app\.setPath\s*\(/);
   assert.match(seam, /app\.getPath\("appData"\)/);
   assert.match(seam, /app\.getPath\("userData"\)/);
   assert.match(seam, /app\.getPath\("sessionData"\)/);
+});
+
+test("fresh-profile authority rejects renderer, route, alias and dynamic consumers", async () => {
+  for (const file of ["app/features/review/bypass.ts", "app/api/internal/bypass/route.ts", "desktop/runtime.ts"])
+    for (const source of ['import {createInitialProfile} from "@/desktop/profile-initialization.ts";',
+      'export * from "@/desktop/profile-initialization.ts";', 'const create = require("@/desktop/profile-initialization.ts");',
+      'const create = await import("@/desktop/profile-initialization.ts");'])
+      assert.ok(violations(file, source).includes("initialization_authority_outside_main"));
+  const initial = await readFile(path.join(root, "desktop/profile-initialization.ts"), "utf8");
+  assert.doesNotMatch(initial, /"replace"|unlinkSync|rmSync|process\.env|process\.cwd|initializeDiagnosticRuntime|appendCapturedAttempt/);
 });
 
 test("future filesystem repository boundary accepts resolved Host config, rejects arbitrary root", () => {

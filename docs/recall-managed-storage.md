@@ -61,7 +61,7 @@ bootstrap 缺失时先检查 Host 提供的默认 profile，不直接解释成�
 首次 adoption 只写少量 metadata；不读/写 IndexedDB 内容，不移动用户文件，也不解密或重加密凭据。
 anchor 发布成功而 bootstrap 发布中断时，下一次仍使用同一 anchor。
 删除 bootstrap 不产生新 UUID；同时删除 anchor 与 bootstrap 超出该恢复保证，不能据此承诺恢复原身份。
-不自动扫描磁盘上的其他 profiles；多 profile 与新安装的显式初始化入口均为 follow-up。
+不自动扫描磁盘上的其他 profiles；多 profile 仍为 follow-up。F5 Slice 2 的 Main 原生显式初始化、orphan 拒绝与只读 readiness gate 见 [Trusted Fresh Profile Bootstrap](recall-fresh-profile-bootstrap.md)。
 
 ## Trusted configuration 与 Host path
 

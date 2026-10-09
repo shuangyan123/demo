@@ -25,6 +25,11 @@ export function initializeDiagnosticRuntime(): DiagnosticRuntime {
 /** Owner 只读 startup/commit 已验证的索引；admission 内不初始化、不读文件。 */
 export function diagnosticOwnerAttempt(attemptId: string) { return serverGlobal[RUNTIME_KEY]?.resolveAttempt(attemptId); }
 
+/** startup 确认只读既有 runtime 的确认结果；绝不 compose、initialize、issue 或读写历史。 */
+export function readDiagnosticRuntimeReadiness() {
+  return { kind: serverGlobal[RUNTIME_KEY]?.readiness().kind ?? "storage_config_unavailable" };
+}
+
 /** F4 read composition 不调用 startup initializer；缺失 runtime 不能借读取创建空 domain。 */
 export function readDiagnosticSourceHistory() {
   return serverGlobal[RUNTIME_KEY]?.readHistory()

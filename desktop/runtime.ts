@@ -8,6 +8,8 @@ import { app } from "electron";
 import { classifyRuntimeSpawnFailure, isRetryableRuntimeSpawnFailure, type RuntimeSpawnFailureCode } from "./runtime-spawn.js";
 import type { ManagedStorageHostConfig } from "../app/platform/managed-storage.js";
 import { serializeStorageRuntimeConfig } from "./storage-runtime-config.js";
+import { confirmDesktopDiagnosticReadiness } from "./diagnostic-readiness.js";
+import { desktopRuntimeEnvironment } from "./runtime-environment.js";
 
 type IntegrityManifest = {
   algorithm: "sha256";
@@ -95,7 +97,7 @@ async function startDesktopRuntimeAttempt(root: string, attempt: number, storage
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
-        ...process.env,
+        ...desktopRuntimeEnvironment(process.env),
         NODE_ENV: "production",
         HOSTNAME: "127.0.0.1",
         PORT: String(port),
@@ -109,6 +111,7 @@ async function startDesktopRuntimeAttempt(root: string, attempt: number, storage
   const baseUrl = `http://127.0.0.1:${port}`;
   try {
     await waitForRuntime(child, baseUrl, token, attempt);
+    await confirmDesktopDiagnosticReadiness(baseUrl, token);
   } catch (error) {
     await stopChild(child);
     throw error;

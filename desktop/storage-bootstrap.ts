@@ -4,6 +4,7 @@ import path from "node:path";
 import type { ManagedStorageResolution } from "../app/platform/managed-storage.js";
 import { configFromStorageRecord, isCanonicalStoragePath, parseStorageRecord, sameStorageIdentity, type StorageBootstrapRecord, type StorageIdentity } from "./storage-bootstrap-record.ts";
 import { readStorageFile, writeStorageRecord, type StorageRecordIO } from "./storage-bootstrap-io.ts";
+import { hasUnanchoredStorage, isPristineProfile, storagePathBinding } from "./storage-inspection.ts";
 
 /** 仅 Electron Host 提供；不得来自 renderer、环境变量或工作目录猜测。 */
 export type StorageHostPaths = Readonly<{ appData: string; defaultUserData: string; defaultSessionData: string }>;
@@ -51,9 +52,14 @@ export function resolveManagedStorage(paths: StorageHostPaths, io?: StorageRecor
 }
 
 function resolveLegacyStorage(paths: StorageHostPaths, io?: StorageRecordIO): ManagedStorageResolution {
+  if (paths.defaultSessionData !== paths.defaultUserData) return unavailable("legacy_profile_unavailable");
   const state = directoryState(paths.defaultUserData);
-  if (state === "missing") return directoryState(path.dirname(paths.defaultUserData)) === "available"
-    ? { kind: "uninitialized" } : unavailable("legacy_parent_unavailable");
+  if (state === "missing") {
+    try {
+      if (hasUnanchoredStorage(paths)) return unavailable("initialization_remnants");
+      return directoryState(path.dirname(paths.defaultUserData)) === "available" ? { kind: "uninitialized" } : unavailable("legacy_parent_unavailable");
+    } catch { return unavailable("legacy_profile_unavailable"); }
+  }
   if (state !== "available" || paths.defaultSessionData !== paths.defaultUserData) return unavailable("legacy_profile_unavailable");
   const anchorFile = storageIdentityPath(paths.defaultUserData);
   const anchor = readStorageFile(anchorFile);
@@ -65,12 +71,14 @@ function resolveLegacyStorage(paths: StorageHostPaths, io?: StorageRecordIO): Ma
     identity = parsed.record;
   } else {
     try {
+      if (hasUnanchoredStorage(paths)) return unavailable("initialization_remnants");
       const entries = readdirSync(paths.defaultUserData);
-      if (entries.length === 0) return { kind: "uninitialized" };
+      if (entries.length === 0 || isPristineProfile(paths.defaultUserData)) return { kind: "uninitialized" };
       // 只认既有持久 partition；非空但无法识别的目录保留原状，不能猜成新安装。
       const partitions = ["review-workspace", "review-fenbi"];
       if (!partitions.some((name) => directoryState(path.join(paths.defaultUserData, "Partitions", name)) === "available"))
         return unavailable("unrecognized_legacy_profile");
+      storagePathBinding(paths);
       identity = Object.freeze({ formatVersion: 1, profileId: randomUUID(), epochId: randomUUID() });
       mkdirSync(path.dirname(anchorFile), { recursive: true });
       writeStorageRecord(anchorFile, identity, "create", io);

@@ -37,13 +37,14 @@ import "../../server/diagnostic/reconstruction-restart.contract.test.ts";
 import "./diagnostic-reconstruction-boundary.contract.test.ts";
 import "../../server/diagnostic/resume-view.contract.test.ts";
 import "./diagnostic-resume-boundary.contract.test.ts";
+import "../../server/diagnostic/startup-readiness.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
 const DIAGNOSTIC_HISTORY_LOADER = path.join(APP_ROOT, "server/diagnostic/learning-history.ts");
 const DIAGNOSTIC_RECONSTRUCTION = path.join(APP_ROOT, "server/diagnostic/state-reconstruction.ts");
 const DIAGNOSTIC_RECONSTRUCTION_TYPES = path.join(APP_ROOT, "server/diagnostic/reconstruction-types.ts");
 const DIAGNOSTIC_RECONSTRUCTION_TESTS = new Set(["state-reconstruction.contract.test.ts", "reconstruction-failure.contract.test.ts",
-  "reconstruction-restart.contract.test.ts", "resume-view.contract.test.ts"].map(name => path.join(APP_ROOT, "server/diagnostic", name)));
+  "reconstruction-restart.contract.test.ts", "resume-view.contract.test.ts", "startup-readiness.contract.test.ts"].map(name => path.join(APP_ROOT, "server/diagnostic", name)));
 
 /** 递归读取应用源码，用于建立不依赖第三方工具的架构守卫。 */
 async function sourceFiles(directory: string, includeJavaScript = false, includeTests = false): Promise<string[]> {
@@ -560,6 +561,7 @@ const DIAGNOSTIC_RUNTIME_EDGES = new Map([
   [path.join(APP_ROOT, "diagnostic/page.tsx"), ["next/link", "../server/diagnostic/assessment-store.ts"]],
   [path.join(APP_ROOT, "diagnostic/resume/page.tsx"), ["next/link", "../../server/diagnostic/resume-view.ts"]],
   [path.join(APP_ROOT, "api/diagnostic/submit/route.ts"), ["../../../server/http/route-security.ts", "../../../server/diagnostic/assessment-submission.ts"]],
+  [path.join(APP_ROOT, "api/internal/diagnostic-ready/route.ts"), ["node:crypto", "../../../server/diagnostic/runtime.ts"]],
 ]);
 
 function diagnosticRuntimeImportViolations(file: string, source: string): string[] {

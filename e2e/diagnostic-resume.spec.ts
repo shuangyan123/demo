@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, existsSync } from "node:fs";
 import { createServer } from "node:net";
 import os from "node:os";
@@ -8,6 +9,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { diagnosticStorageFixture } from "../test-support/diagnostic-storage.ts";
 import type { DiagnosticHistorySnapshotV1 } from "../app/types/domains/diagnostic-history.ts";
 import type { DiagnosticStateReconstruction } from "../app/server/diagnostic/reconstruction-types.ts";
+import { confirmDesktopDiagnosticReadiness } from "../desktop/diagnostic-readiness.ts";
 
 type Fixture = ReturnType<typeof diagnosticStorageFixture>;
 type Application = { child: ChildProcess; url: string; pid: number };
@@ -39,11 +41,11 @@ async function stop(app: Application) {
   });
   expect(app.child.exitCode !== null || app.child.signalCode !== null).toBe(true);
 }
-async function launch(fixture: Fixture): Promise<Application> {
+async function launch(fixture: Fixture, token = ""): Promise<Application> {
   const port = await freePort();
   const child = spawn(process.execPath, ["scripts/start-next-standalone.mjs"], { cwd: process.cwd(), windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOSTNAME: "127.0.0.1", PORT: String(port),
-      REVIEW_DESKTOP_RUNTIME_TOKEN: "", RECALL_MANAGED_STORAGE_BOOTSTRAP: fixture.payload } });
+      REVIEW_DESKTOP_RUNTIME_TOKEN: token, RECALL_MANAGED_STORAGE_BOOTSTRAP: fixture.payload } });
   let output = "";
   child.stdout?.on("data", chunk => { output = (output + chunk).slice(-16000); });
   child.stderr?.on("data", chunk => { output = (output + chunk).slice(-16000); });
@@ -52,7 +54,8 @@ async function launch(fixture: Fixture): Promise<Application> {
   try {
     for (let attempt = 0; attempt < 120; attempt++) {
       if (child.exitCode !== null || child.signalCode !== null) throw new Error(`application exited: ${output}`);
-      try { if ((await fetch(app.url, { signal: AbortSignal.timeout(500) })).ok) return app; } catch { /* 等待本测试拥有的服务就绪。 */ }
+      try { if ((await fetch(app.url, { signal: AbortSignal.timeout(500),
+        headers: token ? { "x-review-runtime-token": token } : {} })).ok) return app; } catch { /* 等待本测试拥有的服务就绪。 */ }
       await delay(250);
     }
     throw new Error(`application startup timeout: ${output}`);
@@ -90,8 +93,35 @@ function allStopped(apps: Application[]) {
   return apps.every(app => app.child.exitCode !== null || app.child.signalCode !== null);
 }
 
-test("dashboard → durable five → independent A/B restart → exact recovery → explicit four counterevidence", async ({ browser }, testInfo) => {
-  const fixture = diagnosticStorageFixture(); const apps: Application[] = []; let context: BrowserContext | undefined;
+test("desktop readiness requires both authenticated gates, is readonly, and blocks incomplete startup despite HTTP success", async () => {
+  const fixture = diagnosticStorageFixture(true); const web = diagnosticStorageFixture(true); const apps: Application[] = [];
+  const token = randomBytes(32).toString("base64url");
+  const endpoint = "/api/internal/diagnostic-ready";
+  try {
+    const a = await launch(fixture, token); apps.push(a);
+    const bytes = readFileSync(fixture.file, "utf8");
+    expect((await fetch(a.url + endpoint)).status).toBe(403);
+    expect((await fetch(a.url + endpoint, { headers: { "x-review-runtime-token": token } })).status).toBe(403);
+    expect((await fetch(a.url + endpoint, { headers: { "x-review-startup-token": token } })).status).toBe(403);
+    await confirmDesktopDiagnosticReadiness(a.url, token);
+    expect(readFileSync(fixture.file, "utf8")).toBe(bytes);
+    expect(snapshot(fixture).captures).toEqual([]);
+    const ordinary = await launch(web); apps.push(ordinary);
+    expect((await fetch(ordinary.url + endpoint, { headers: { "x-review-startup-token": token } })).status).toBe(404);
+    await stop(a);
+    const backup = fixture.file + ".preserved"; assertTestPath(fixture, backup); renameSync(fixture.file, backup);
+    const b = await launch(fixture, token); apps.push(b);
+    expect((await fetch(b.url, { headers: { "x-review-runtime-token": token } })).status).toBe(200);
+    await expect(confirmDesktopDiagnosticReadiness(b.url, token)).rejects.toMatchObject({ kind: "history_incomplete" });
+    expect(existsSync(fixture.file)).toBe(false); expect(readFileSync(backup, "utf8")).toBe(bytes);
+  } finally {
+    for (const app of apps.reverse()) await stop(app);
+    if (allStopped(apps)) { fixture.cleanup(); web.cleanup(); }
+  }
+});
+
+for (const fresh of [false, true]) test(`${fresh ? "fresh authorized profile" : "legacy profile"}: dashboard → durable five → independent A/B restart → exact recovery → explicit four counterevidence`, async ({ browser }, testInfo) => {
+  const fixture = diagnosticStorageFixture(fresh); const apps: Application[] = []; let context: BrowserContext | undefined;
   try {
     const a = await launch(fixture); apps.push(a);
     context = await browser.newContext({ baseURL: a.url, viewport: { width: 1440, height: 900 } });

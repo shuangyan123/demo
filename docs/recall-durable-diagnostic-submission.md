@@ -7,6 +7,7 @@ production source 到 durable capture → admission → Evidence → reveal。Ph
 ## Trusted process composition
 
 Main 在 single-instance lock 后、session/runtime 创建前完成 Slice 1 storage gate。
+后续 F5 [Trusted Fresh Profile Bootstrap](recall-fresh-profile-bootstrap.md) 只将 eligible fresh candidate 延至原生确认；Main 创建并确认 Host metadata 后，仍由本 runtime 初始化 diagnostic generation zero，再通过 authenticated read-only readiness gate 进入 workspace。
 `startDesktopRuntime(storageState.config)` 的 child env 显式覆盖 `RECALL_MANAGED_STORAGE_BOOTSTRAP`，不信继承的同名值。
 payload 仅含 `formatVersion:1`、profileId、epochId、managedRoot、profileRoot、managedFilesRoot；不含题目、key、历史或凭据。
 

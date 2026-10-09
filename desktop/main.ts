@@ -11,7 +11,9 @@ import { initializeFenbiSession } from "./fenbi-session.js";
 import { installFenbiSessionIpc } from "./fenbi-session-ipc.js";
 import { createFenbiWebContentsController } from "./fenbi-web-contents-controller.js";
 import { installFenbiWebContentsIpc } from "./fenbi-web-contents-ipc.js";
-import { resolveDesktopManagedStorage } from "./managed-storage.js";
+import { createDesktopInitialProfile, inspectDesktopInitialProfile, resolveDesktopManagedStorage } from "./managed-storage.js";
+import { completeInitialProfileDecision, type FreshProfileCandidate } from "./profile-initialization.ts";
+import { DiagnosticStartupFailure } from "./diagnostic-readiness.js";
 import type { ManagedStorageHostConfig } from "../app/platform/managed-storage.js";
 
 registerDesktopScheme();
@@ -133,12 +135,50 @@ async function launchMainWindowWithRecovery(storageConfig: ManagedStorageHostCon
       return;
     } catch (error) {
       await cleanupFailedLaunch();
+      if (error instanceof DiagnosticStartupFailure) {
+        showStorageFailure(error.kind);
+        app.quit();
+        return;
+      }
       const response = await showRuntimeFailure(error);
       if (response === 0) continue;
       app.quit();
       return;
     }
   }
+}
+
+function showStorageFailure(kind: string): void {
+  dialog.showErrorBox("本地学习资料无法确认", `启动已停止，现有资料已保留。\n状态：${kind}`);
+}
+
+async function launchInitialProfile(candidate: FreshProfileCandidate): Promise<void> {
+  // 开发服务器不拥有 Main composition；不能写完 metadata 后假称 diagnostic 已可用。
+  if (!isPackagedDesktop()) { showStorageFailure("desktop_runtime_required"); app.quit(); return; }
+  const result = await completeInitialProfileDecision(candidate, async () => {
+    const decision = await dialog.showMessageBox({ type: "question", title: "创建本地学习资料",
+      message: "是否在这台设备上创建本地学习资料？", detail: "已有或无法确认的资料不会被覆盖。",
+      buttons: ["创建本地资料", "取消"], defaultId: 1, cancelId: 1, noLink: true });
+    return decision.response === 0;
+  }, createDesktopInitialProfile);
+  if (result.kind === "ready") await launchMainWindowWithRecovery(result.config);
+  else { if (result.kind !== "cancelled") showStorageFailure("reason" in result ? result.reason : result.kind); app.quit(); }
+}
+
+function installApplicationLifecycle(): void {
+  app.on("second-instance", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+  app.on("window-all-closed", () => app.quit());
+  app.on("before-quit", (event) => {
+    if (!runtime) return;
+    event.preventDefault();
+    const activeRuntime = runtime;
+    runtime = undefined;
+    void activeRuntime.stop().finally(() => app.quit());
+  });
 }
 
 if (isSquirrelLifecycleInvocation(process.argv)) {
@@ -151,24 +191,18 @@ if (isSquirrelLifecycleInvocation(process.argv)) {
     // 存储失败不进入 renderer/runtime 重试循环；禁止默认空 profile 隐式替代已有历史。
     const storageState = resolveDesktopManagedStorage();
     if (storageState.kind !== "ready" && storageState.kind !== "legacy_existing_profile") {
-      app.exit(1);
+      if (storageState.kind === "uninitialized") {
+        const inspected = inspectDesktopInitialProfile();
+        if (inspected.kind === "eligible") {
+          installApplicationLifecycle();
+          app.whenReady().then(() => launchInitialProfile(inspected.candidate)).catch(() => app.quit());
+        } else { showStorageFailure("reason" in inspected ? inspected.reason : inspected.kind); app.exit(1); }
+      } else { showStorageFailure("reason" in storageState ? storageState.reason : storageState.kind); app.exit(1); }
     } else {
-      app.on("second-instance", () => {
-        if (!mainWindow) return;
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.focus();
-      });
+      installApplicationLifecycle();
       app.whenReady()
         .then(() => launchMainWindowWithRecovery(storageState.config))
         .catch(() => app.quit());
-      app.on("window-all-closed", () => app.quit());
-      app.on("before-quit", (event) => {
-        if (!runtime) return;
-        event.preventDefault();
-        const activeRuntime = runtime;
-        runtime = undefined;
-        void activeRuntime.stop().finally(() => app.quit());
-      });
     }
   }
 }

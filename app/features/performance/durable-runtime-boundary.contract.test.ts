@@ -7,7 +7,7 @@ import ts from "typescript";
 const root = process.cwd();
 const runtimeRoot = path.join(root, "app/server/diagnostic");
 const testFiles = new Set(["assessment-runtime.contract.test.ts", "durable-submission.contract.test.ts", "state-reconstruction.contract.test.ts",
-  "reconstruction-failure.contract.test.ts", "reconstruction-restart.contract.test.ts", "resume-view.contract.test.ts"].map(name => path.join(runtimeRoot, name)));
+  "reconstruction-failure.contract.test.ts", "reconstruction-restart.contract.test.ts", "resume-view.contract.test.ts", "startup-readiness.contract.test.ts"].map(name => path.join(runtimeRoot, name)));
 const internal = (file: string) => path.join(runtimeRoot, file);
 const edges = new Map<string, Map<string, string[]>>([
   [internal("assessment-store.ts"), new Map([["runtime", ["initializeDiagnosticRuntime", "diagnosticOwnerAttempt"]]])],
@@ -23,6 +23,7 @@ const edges = new Map<string, Map<string, string[]>>([
   [path.join(root, "app/diagnostic/page.tsx"), new Map([["assessment-store", ["issueDiagnostic", "readDiagnostic"]]])],
   [path.join(root, "app/diagnostic/resume/page.tsx"), new Map([["resume-view", ["loadDiagnosticResumeView"]]])],
   [path.join(root, "app/api/diagnostic/submit/route.ts"), new Map([["assessment-submission", ["commitDiagnosticSubmission"]]])],
+  [path.join(root, "app/api/internal/diagnostic-ready/route.ts"), new Map([["runtime", ["readDiagnosticRuntimeReadiness"]]])],
 ]);
 
 function violations(file: string, source: string) {
@@ -82,6 +83,8 @@ test("durable seam guard rejects renderer aliases, hidden imports and production
   assert.ok(violations(path.join(runtimeRoot, "state-reconstruction.ts"), 'import { loadDiagnosticLearningHistoryWith } from "./learning-history.ts";').length);
   assert.ok(violations(outside, 'import { reconstructDiagnosticLearnerState } from "../../server/diagnostic/state-reconstruction.ts";').length);
   assert.ok(violations(outside, 'import { loadDiagnosticResumeView } from "../../server/diagnostic/resume-view.ts";').length);
+  assert.ok(violations(outside, 'import { readDiagnosticRuntimeReadiness } from "../../server/diagnostic/runtime.ts";').length);
+  assert.ok(violations(path.join(root, "app/api/internal/diagnostic-ready/route.ts"), 'import { initializeDiagnosticRuntime } from "../../../server/diagnostic/runtime.ts";').length);
   assert.ok(violations(path.join(root, "app/diagnostic/resume/page.tsx"), 'import { projectDiagnosticResumeView } from "../../server/diagnostic/resume-view.ts";').length);
   assert.ok(violations(outside, 'const root = process.env.RECALL_MANAGED_STORAGE_BOOTSTRAP;').includes("process_transport_outside_boundary"));
 });
@@ -90,7 +93,9 @@ test("Main explicitly transports trusted config and startup owner resolution nev
   const desktop = await readFile(path.join(root, "desktop/runtime.ts"), "utf8");
   assert.match(main, /launchMainWindowWithRecovery\(storageState\.config\)/);
   assert.match(main, /startDesktopRuntime\(storageConfig\)/);
-  assert.ok(desktop.indexOf("...process.env") < desktop.indexOf("RECALL_MANAGED_STORAGE_BOOTSTRAP: serializeStorageRuntimeConfig(storageConfig)"));
+  const inherited = desktop.indexOf("...desktopRuntimeEnvironment(process.env)");
+  const transported = desktop.indexOf("RECALL_MANAGED_STORAGE_BOOTSTRAP: serializeStorageRuntimeConfig(storageConfig)");
+  assert.ok(inherited >= 0 && transported > inherited);
   const instrumentation = await readFile(path.join(root, "instrumentation.ts"), "utf8");
   assert.match(instrumentation, /NEXT_RUNTIME === "nodejs"/);
   assert.match(instrumentation, /initializeDiagnosticRuntime\(\)/);

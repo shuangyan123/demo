@@ -15,6 +15,8 @@ F5 的 [Diagnostic-first Resume Slice 1](recall-diagnostic-resume.md) 增加总�
 固定 server facade 只投影 F4 的安全展示字段；renderer 不接 authority 或 raw history。
 显式再次作答复用既有 source，不增加 WHAT/WHEN/HOW。仅支持已有有效 managed profiles。
 
+F5 [Trusted Fresh Profile Bootstrap Slice 2](recall-fresh-profile-bootstrap.md) 为 eligible fresh candidate 增加 Main 原生授权、重新检查、create-only metadata 确认与 authenticated read-only diagnostic readiness。取消不创建 Recall 记录；损坏或残留资料 fail closed，既有 profile、legacy adoption 与 anchor recovery 继续沿用原有路径。
+
 ## Electron 桌面架构（2026-07-28）
 
 ```text
