@@ -17,6 +17,9 @@ import { createDiagnosticHistoryRepository } from "./repository-core.ts";
 import { diagnosticHistoryIO, diagnosticDurabilityFailure, diagnosticReplacementObservation, diagnosticIOFailure, type DiagnosticHistoryIO } from "./io.ts";
 import { DIAGNOSTIC_HISTORY_MAX_BYTES, DIAGNOSTIC_HISTORY_MAX_CAPTURES, encodeDiagnosticSnapshot } from "./record.ts";
 
+import { createRepositoryRenameFixture, type RepositoryRenameFixture } from "../../../../test-support/repository-rename-fixture.ts";
+import { createRepositoryRenameObservation, renameDigest } from "../../../../test-support/repository-rename-observation.ts";
+
 type Context = { after: (fn: () => void) => void };
 const instant = Date.parse("2026-10-07T01:02:03.000Z");
 function capture(id: string, option = "four", now = instant, controlled = true): IssuedDiagnosticCapturedAttemptV1 {
@@ -42,9 +45,9 @@ function complete(repository: DiagnosticHistoryRepository): DiagnosticHistorySna
   if (result.kind !== "complete") throw new Error("expected complete snapshot");
   return result.snapshot;
 }
-function fixture(t: Context, ids?: Readonly<{ profileId: string; epochId: string }>) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "recall-history-contract-"));
-  t.after(() => {
+function fixture(t: Context, ids?: Readonly<{ profileId: string; epochId: string }>, owned?: RepositoryRenameFixture) {
+  const root = owned?.root ?? mkdtempSync(path.join(os.tmpdir(), "recall-history-contract-"));
+  if (!owned) t.after(() => {
     assert.equal(path.dirname(root), path.resolve(os.tmpdir()));
     assert.ok(path.basename(root).startsWith("recall-history-contract-"));
     rmSync(root, { recursive: true, force: true });
@@ -355,8 +358,8 @@ function ioError(code: string, syscall: string, errno = -4048) {
     code, syscall, errno, path: "C:/private/source", dest: "C:/private/destination", cause: "private cause",
   });
 }
-function instrumentedFixture(t: Context, override: Partial<DiagnosticHistoryIO>) {
-  const base = fixture(t);
+function instrumentedFixture(t: Context, override: Partial<DiagnosticHistoryIO>, owned?: RepositoryRenameFixture) {
+  const base = fixture(t, undefined, owned);
   assert.equal(base.repository.initialize().kind, "complete");
   base.repository.close();
   return { ...base, repository: opened(t, createDiagnosticHistoryRepository(base.config, { ...diagnosticHistoryIO, ...override })) };
@@ -422,31 +425,100 @@ test("instrumentation distinguishes first link publication and preserves reserva
 
 for (const afterPublication of [false, true]) {
   test(`instrumentation retains rename failure; exact NEW ${afterPublication} controls bounded recovery`, async t => {
-    const { repository, file } = instrumentedFixture(t, { replacementPlatform: "win32", async waitForReplacementRetry() {}, publishReplacement(from, to) {
-      if (afterPublication) diagnosticHistoryIO.publishReplacement(from, to);
-      throw ioError("EPERM", "rename");
-    } });
-    const result = (await repository.appendCapturedAttempt(capture("rename-attempt")));
-    const replacement = diagnosticReplacementObservation(result);
-    assert.equal(replacement?.failures[0].io.ioCode, "EPERM");
-    assert.equal(replacement?.terminalReason, afterPublication ? "already_published" : "attempt_cap_exhausted");
-    assert.equal(replacement?.attemptCount, afterPublication ? 1 : 9);
-    if (afterPublication) {
-      assert.equal(result.kind, "committed");
-      assert.equal(diagnosticDurabilityFailure(result), null);
-      assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, 1);
-      return;
+    const owned = afterPublication ? createRepositoryRenameFixture(t) : undefined;
+    const observation = owned ? createRepositoryRenameObservation(t, owned, "native_recovery") : undefined;
+    let failed = false, originalError: unknown;
+    try {
+      const override: Partial<DiagnosticHistoryIO> = { replacementPlatform: "win32", async waitForReplacementRetry() {}, publishReplacement(from, to) {
+        observation?.publishStarted(from, to);
+        if (afterPublication) {
+          observation?.native("native_started", from, to);
+          try { diagnosticHistoryIO.publishReplacement(from, to); }
+          catch (error) { observation?.native("native_threw", from, to, error); throw error; }
+          observation?.native("native_returned", from, to);
+        }
+        observation?.synthetic();
+        throw ioError("EPERM", "rename");
+      } };
+      const storage = instrumentedFixture(t, observation ? observation.wrap(override) : override, owned);
+      const { repository, file } = storage;
+      if (owned) assert.equal(storage.file, owned.target);
+      observation?.bind(storage.config);
+      const result = (await repository.appendCapturedAttempt(capture("rename-attempt")));
+      observation?.settled(result);
+      const replacement = diagnosticReplacementObservation(result);
+      assert.equal(replacement?.failures[0].io.ioCode, "EPERM");
+      assert.equal(replacement?.terminalReason, afterPublication ? "already_published" : "attempt_cap_exhausted");
+      assert.equal(replacement?.attemptCount, afterPublication ? 1 : 9);
+      if (afterPublication) {
+        assert.equal(result.kind, "committed");
+        assert.equal(diagnosticDurabilityFailure(result), null);
+        assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, 1);
+        assert.equal(replacement?.failures[0].diskState, "expected_new");
+        assert.deepEqual(observation?.summary(), { nativeAttempts: 1, syntheticCount: 1, waitCount: 0, confirmationReadCount: 1 });
+        return;
+      }
+      assert.deepEqual(result, unconfirmed);
+      const detail = diagnosticDurabilityFailure(result);
+      assert.equal(detail?.stage, "replacement_rename"); assert.equal(detail?.operation, "renameSync");
+      assert.equal(detail?.publication, "reported_failure"); assert.equal(detail?.mode, "replace");
+      assert.equal(detail?.io?.ioCode, "EPERM"); assert.equal(detail?.confirmationFailure, null);
+      assert.equal(detail?.publicationFailure?.sourceExists, !afterPublication);
+      assert.equal(detail?.publicationFailure?.destinationExists, true);
+      assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, afterPublication ? 1 : 0);
+    } catch (error) { failed = true; originalError = error; throw error; }
+    finally {
+      // before fixture after-hook：只复制失败现场，不拦截生产 cleanup，也不取消正常 fixture 删除。
+      if (observation?.finish(failed, originalError) && !failed) throw new Error("repository_rename_evidence_failure");
     }
-    assert.deepEqual(result, unconfirmed);
-    const detail = diagnosticDurabilityFailure(result);
-    assert.equal(detail?.stage, "replacement_rename"); assert.equal(detail?.operation, "renameSync");
-    assert.equal(detail?.publication, "reported_failure"); assert.equal(detail?.mode, "replace");
-    assert.equal(detail?.io?.ioCode, "EPERM"); assert.equal(detail?.confirmationFailure, null);
-    assert.equal(detail?.publicationFailure?.sourceExists, !afterPublication);
-    assert.equal(detail?.publicationFailure?.destinationExists, true);
-    assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, afterPublication ? 1 : 0);
   });
 }
+
+// B 只替换 publishReplacement；其他 IO 真实执行，观察代理不改变其返回值。
+test("controlled canonical NEW recovers synthetic EPERM without native rename", async t => {
+  const owned = createRepositoryRenameFixture(t);
+  const observation = createRepositoryRenameObservation(t, owned, "controlled_new");
+  let failed = false, primary: unknown;
+  try {
+    const override: Partial<DiagnosticHistoryIO> = { replacementPlatform: "win32", async waitForReplacementRetry() {},
+      publishReplacement(from, to) {
+        observation.publishStarted(from, to);
+        // 准备失败原样传播；NEW 确认、source 删除及不存在检查均成功后才注入固定 EPERM。
+        const prepared = owned.establishCanonicalNew(from, to, (error, operation) => {
+          observation.event("controlled_NEW_preparation_threw", { ...diagnosticIOFailure(error, operation) });
+        });
+        assert.equal(prepared.sourceAbsence.file, from);
+        assert.equal(prepared.sourceAbsence.exists, false);
+        assert.equal(prepared.sourceAbsence.operation, "lstatSync");
+        assert.equal(prepared.sourceAbsence.ioCode, "ENOENT");
+        observation.event("controlled_NEW_prepared", {
+          candidate: renameDigest(prepared.candidateBytes, "actual_candidate_raw_file_read"),
+          canonical: renameDigest(prepared.confirmedBytes, "independent_canonical_raw_file_read"),
+          sourceAbsence: prepared.sourceAbsence,
+          provesAtomicRename: false, provesCrashConsistency: false,
+        });
+        observation.synthetic();
+        throw ioError("EPERM", "rename");
+      },
+    };
+    const { repository, file, config } = instrumentedFixture(t, observation.wrap(override), owned);
+    assert.equal(file, owned.target); observation.bind(config);
+    const result = await repository.appendCapturedAttempt(capture("rename-attempt"));
+    observation.settled(result);
+    const replacement = diagnosticReplacementObservation(result);
+    assert.equal(replacement?.failures[0].io.ioCode, "EPERM");
+    assert.equal(replacement?.terminalReason, "already_published");
+    assert.equal(replacement?.attemptCount, 1);
+    assert.equal(result.kind, "committed");
+    assert.equal(diagnosticDurabilityFailure(result), null);
+    assert.equal(JSON.parse(readFileSync(file, "utf8")).generation, 1);
+    assert.equal(replacement?.failures[0].diskState, "expected_new");
+    assert.deepEqual(observation.summary(), { nativeAttempts: 0, syntheticCount: 1, waitCount: 0, confirmationReadCount: 1 });
+  } catch (error) { failed = true; primary = error; throw error; }
+  finally {
+    if (observation.finish(failed, primary) && !failed) throw new Error("repository_rename_evidence_failure");
+  }
+});
 
 test("cleanup failure is secondary and cannot override primary rename failure", async t => {
   const calls: string[] = [];
