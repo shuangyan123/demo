@@ -376,7 +376,7 @@ test("Forge and package metadata keep the Windows installer identity stable", ()
     /setupExe: `ReviewWorkspace-\$\{process\.env\.npm_package_version \?\? "0\.3\.1"\}-Windows-x64-Setup\.exe`/,
   );
 
-  assert.equal(packageLock.packages["node_modules/electron"].version, "43.4.1");
+  assert.equal(packageLock.packages["node_modules/electron"].version, "43.5.0");
   assert.equal(packageLock.packages["node_modules/@electron-forge/maker-squirrel"].version, "7.11.2");
   assert.equal(packageLock.packages["node_modules/electron-winstaller"].version, "5.4.4");
 });

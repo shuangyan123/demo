@@ -58,7 +58,7 @@ export async function collectNsisProductionEvidence() {
   assertEqual(packageJson.version, "0.3.1", "package version");
   assertEqual(process.env.CSC_IDENTITY_AUTO_DISCOVERY, "false", "CSC_IDENTITY_AUTO_DISCOVERY");
   assertEqual(packageJson.devDependencies["electron-builder"], "26.16.0", "electron-builder version");
-  assertEqual(packageJson.devDependencies.electron, "43.4.1", "Electron version");
+  assertEqual(packageJson.devDependencies.electron, "43.5.0", "Electron version");
 
   requireFile(executablePath, "unpacked executable");
   requireFile(asarPath, "app.asar");
@@ -249,9 +249,9 @@ export function assertNsisProductionEvidence(evidence) {
   assertEqual(evidence.platform, "Windows", "evidence platform");
   assertEqual(evidence.productName, "错题复盘", "evidence product name");
   assertEqual(evidence.packageName, "review-workspace", "evidence package name");
-  assertEqual(evidence.electronVersion, "43.4.1", "evidence Electron version");
+  assertEqual(evidence.electronVersion, "43.5.0", "evidence Electron version");
   assert(evidence.electronRuntime?.pass === true, "evidence Electron runtime readback must pass");
-  assertEqual(evidence.electronRuntime.embeddedNodeVersion, "24.18.1", "evidence Electron embedded Node version");
+  assertEqual(evidence.electronRuntime.embeddedNodeVersion, "24.19.0", "evidence Electron embedded Node version");
   assertEqual(evidence.electronRuntime.method, "Electron main process process.versions", "evidence Electron runtime readback method");
   assertEqual(evidence.electronBuilderVersion, "26.16.0", "evidence electron-builder version");
   assertEqual(evidence.bundledNodeVersion, "24.20.0", "evidence bundled Node version");

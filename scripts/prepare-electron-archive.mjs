@@ -111,9 +111,12 @@ if (!await isVerifiedArchive(archivePath)) {
 
 // npm cache 在 CI 上可能只有经过校验的 ZIP；runtime readback 需要实际的
 // Electron executable，因此把同一归档展开到受控缓存目录。
-const electronExecutablePath = path.join(archiveDirectory, "electron.exe");
+// 按版本隔离解压结果；升级不能因平铺缓存中已有旧 executable 而继续分发旧 runtime。
+const runtimeDirectory = path.join(archiveDirectory, electronPackage.version);
+const electronExecutablePath = path.join(runtimeDirectory, "electron.exe");
 if (!await isFile(electronExecutablePath)) {
-  await execFileAsync("tar.exe", ["-xf", archivePath, "-C", archiveDirectory], { windowsHide: true });
+  await mkdir(runtimeDirectory, { recursive: true });
+  await execFileAsync("tar.exe", ["-xf", archivePath, "-C", runtimeDirectory], { windowsHide: true });
 }
 if (!await isFile(electronExecutablePath)) {
   throw new Error(`Electron runtime executable missing after extraction: ${electronExecutablePath}`);

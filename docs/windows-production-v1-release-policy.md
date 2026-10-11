@@ -87,7 +87,7 @@ Unsigned 不降低 SEC-04。Production-v1 必须保留：
 electron-builder + NSIS production-equivalent installer。Forge/MakerSquirrel
 仍保留在仓库，作为历史 0.2.x、迁移、回滚和兼容性验证路径；它不再是
 production/default builder。当前 package/runtime baseline 为 `0.3.1` / Electron
-`43.4.1`；M5-F 的实际 Electron main-process readback 记录 embedded Node
+`43.5.0`（GHSA-qmv3-fv6v-rmhq 安全修复 source candidate，尚未集成或发布）；M5-F 的历史 Electron `43.4.1` main-process readback 记录 embedded Node
 `24.18.1`，bundled application/sidecar Node 仍为 `24.20.0`。首个 NSIS
 production recovery source candidate 为 `0.3.1`；M5-F 的 `0.3.0` tuple 只保留为
 历史 freeze 与后续失败候选证据。
@@ -121,8 +121,8 @@ merge and must be followed by an exact post-freeze `main` CI pass.
 | installer filename | `ReviewWorkspace-0.3.1-Windows-x64-Setup.exe` |
 | platform / architecture | Windows / x64 |
 | channel / installer | stable / NSIS / per-user |
-| Electron | `43.4.1` |
-| Electron embedded Node | `24.18.1` actual main-process readback |
+| Electron | `43.5.0` security source candidate; requires the later reviewed re-freeze |
+| Electron embedded Node | `24.19.0` actual main-process readback for the security source candidate |
 | bundled Node | `24.20.0` |
 | electron-builder | `26.16.0` |
 | app identity | appId `com.squirrel.review_workspace.review-workspace`; productName `错题复盘`; executable `review-workspace` |
@@ -243,7 +243,14 @@ Production-v1 不引入 `electron-updater`、`autoUpdater`、
 3. M5-I — complete the release/rollback/operator runbook；
 4. M5-J — operator publication and post-release verification。
 
-Electron 保持已接受的 `43.4.1`，除非出现具体 security/compatibility 原因。
+GHSA-qmv3-fv6v-rmhq 是具体安全原因：当前 source candidate 将 Electron 从
+`43.4.1` 升级至已验证候选 `43.5.0`，Recall 当前最低安全准入版本保持 `43.5.0`。
+[Electron 项目维护者公告](https://github.com/electron/electron/security/advisories/GHSA-qmv3-fv6v-rmhq)
+的 43.x 修复版本列出 `43.4.2`；
+[GitHub Advisory Database](https://github.com/advisories/GHSA-qmv3-fv6v-rmhq)
+列出 `43.5.0`。两处来源的版本记录存在差异，不代表 Recall 已验证或准入 `43.4.2`。
+旧 M5-F/F5 artifact 与历史验收记录保持原版本；
+当前本地安全候选仍需独立账户的实际 production-entry 启动验证和后续发布门禁。
 当前受控 NSIS builder 为 `electron-builder 26.16.0`；M5-F 已单独冻结最终 tuple。
 不得以 prerelease/alpha 规避 tuple 验收。最终 tuple 必须分别记录 Electron version、
 Electron embedded Node、bundled application/sidecar Node `24.20.0`、stable

@@ -12,10 +12,11 @@
 `workflow_run` 驱动，并创建待人工确认的 Draft Release。历史
 `.github/workflows/desktop-release.yml` 已从当前 tree 删除，GitHub Actions
 API 当前状态为 `deleted`，仅保留为 SEC-04 历史证据。当前 package/runtime recovery
-candidate 为 `0.3.1` / Electron `43.4.1`；原 `v0.3.0`（SHA
+candidate 为 `0.3.1` / Electron `43.5.0`（GHSA-qmv3-fv6v-rmhq 安全修复，尚未集成或发布）；原 `v0.3.0`（SHA
 `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3`）是 unpublished failed candidate，必须
-保持 immutable、不得 retag；实际 Electron embedded Node readback
-为 `24.18.1`，bundled Node 为 `24.20.0`；生产/default installer 现为
+保持 immutable、不得 retag；历史 Electron `43.4.1` 的 embedded Node readback
+为 `24.18.1`，当前 Electron `43.5.0` 的实际 main-process readback 为 `24.19.0`，
+bundled Node 为 `24.20.0`；生产/default installer 现为
 electron-builder + bundled NSIS，
 Forge/MakerSquirrel Squirrel 仅保留作历史、迁移和回滚兼容路径；production-v1
 不引入 updater。M5-E 已完成 final staged-byte SHA-256/manifest self-verification、

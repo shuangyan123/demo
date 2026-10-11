@@ -76,7 +76,7 @@ test("M0 unpacked artifact preserves app.asar, runtime, preload, identity, and s
   assert.equal(executableInfo.ProductName, "错题复盘");
   assert.equal(executableInfo.FileDescription, "错题复盘");
   assert.equal(executableInfo.InternalName, "review-workspace");
-  assert.equal(readFileSync(join(artifactRoot, "version"), "utf8").trim(), "43.4.1");
+  assert.equal(readFileSync(join(artifactRoot, "version"), "utf8").trim(), "43.5.0");
 
   const files = asar.listPackage(asarPath).map((file) => file.replaceAll("\\", "/").replace(/^\/+/, ""));
   assert.ok(files.includes(".desktop/main.js"));

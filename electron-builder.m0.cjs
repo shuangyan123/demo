@@ -3,7 +3,7 @@ const path = require("node:path");
 const { flipFuses, FuseV1Options, FuseVersion } = require("@electron/fuses");
 
 const projectRoot = __dirname;
-const electronVersion = "43.4.1";
+const electronVersion = "43.5.0";
 const recallWindowsIconPath = path.join(projectRoot, "public", "brand", "recall", "app", "recall.ico");
 
 /**
@@ -38,7 +38,7 @@ module.exports = {
   productName: "错题复盘",
   executableName: "review-workspace",
   electronVersion,
-  electronDist: path.join(projectRoot, ".cache", "electron"),
+  electronDist: path.join(projectRoot, ".cache", "electron", electronVersion),
   directories: {
     app: path.join(projectRoot, ".desktop-app"),
     output: path.join(projectRoot, "out", "builder-m0"),
