@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -7,6 +7,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const electronProbeSource = [
   'const { app } = require("electron");',
+  'const fs = require("node:fs");',
+  'const path = require("node:path");',
+  'const profile = path.join(__dirname, "profile");',
+  'fs.mkdirSync(profile, { recursive: true });',
+  'app.setPath("appData", __dirname);',
+  'app.setPath("userData", profile);',
+  'app.setPath("sessionData", profile);',
   "app.whenReady().then(() => {",
   "  const versions = {",
   "    electronVersion: process.versions.electron,",
@@ -24,8 +31,9 @@ export function getElectronRuntimeExecutablePath({ workspaceRoot: root = workspa
     throw new Error("Electron runtime readback requires a Windows runner");
   }
 
+  const electronVersion = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).devDependencies.electron;
   const candidates = [
-    path.join(root, ".cache", "electron", "electron.exe"),
+    path.join(root, ".cache", "electron", electronVersion, "electron.exe"),
     path.join(root, "node_modules", "electron", "dist", "electron.exe"),
   ];
   const executablePath = candidates.find((candidate) => existsSync(candidate));
@@ -80,6 +88,10 @@ export function readElectronRuntimeVersions({
       `Electron embedded Node runtime readback failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   } finally {
+    if (path.dirname(probeDirectory) !== path.resolve(os.tmpdir())
+      || !path.basename(probeDirectory).startsWith("review-workspace-electron-runtime-")) {
+      throw new Error("Refusing to remove an unowned Electron probe directory");
+    }
     rmSync(probeDirectory, { force: true, recursive: true });
   }
 }

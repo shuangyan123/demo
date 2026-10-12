@@ -15,11 +15,16 @@ bundled Node.js `24.20.0` 与 Electron Windows x64 归档。当前 PR #125 是
 **M5-G RECOVERY FIX**，source candidate package version 为 `0.3.1`，仍为
 **NOT YET FROZEN / NOT TAGGED / NOT ACTIVATED**；原 `v0.3.0` 位于
 `6e7ccc35e69c6a6b4f0337ebf77f27f8dd4ab1e3`，是 immutable unpublished failed
-candidate，必须保持 exact tag 不变，不能 retag；Electron `43.4.1` 的 embedded Node 是通过实际
+candidate，必须保持 exact tag 不变，不能 retag；历史 Electron `43.4.1` 的 embedded Node 是通过实际
 Electron main-process `process.versions` readback 确认的 `24.18.1`，不能从
 bundled Node 推断。Node 归档使用代码中固定的官方 SHA-256，Electron 归档从 npm
 安装缓存复制并按 `electron/checksums.json` 校验；缓存命中时打包不再次访问下载站。
-缓存位于 `.cache/desktop-runtime` 和 `.cache/electron`，组装结果位于
+当前安全修复 source candidate 将 Electron 固定为 `43.5.0`，用于修复
+`GHSA-qmv3-fv6v-rmhq`；实际 main-process readback 的 embedded Node 为 `24.19.0`。
+该变更不代表 main 集成、发布 tuple freeze 或安装验收。
+Electron ZIP 位于 `.cache/electron`，builder 与 runtime readback 只使用
+`.cache/electron/<electronVersion>` 的解压结果，避免复用旧版本的平铺缓存；
+runtime readback 使用自有临时 profile。Node 缓存位于 `.cache/desktop-runtime`，组装结果位于
 `.desktop-runtime`，均不提交。
 
 安装包首次与后续安装共用 Electron `persist:review-workspace` partition。安装流程不得清理 Electron 用户数据目录。当前 production/default 构建使用 per-user NSIS；Forge/MakerSquirrel 的 `desktop:make` 仅用于历史 Squirrel、迁移和回滚兼容验证。

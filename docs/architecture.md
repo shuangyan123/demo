@@ -1,5 +1,22 @@
 # 应用架构
 
+Recall Phase F Slice 1 的 Host bootstrap、稳定 profile/epoch identity、legacy adoption、startup availability gate 和
+storage policy registry 见 [Managed Data Root Foundation](recall-managed-storage.md)。当前 production profile relocation deferred，
+既有 Dexie v16、partition、origin、凭据与 Vault 数据路径保持不变。
+
+Recall Phase F Slice 2 的 [Diagnostic Durable Capture Repository](recall-diagnostic-history.md) 保存并严格恢复 source-owned captures。
+Slice 3 的 [Production Durable Diagnostic Submission & Owner Recovery](recall-durable-diagnostic-submission.md)
+接通 trusted Main→Next composition、启动完整快照、durable-confirmed owner index 与 submit→Evidence→reveal。
+Slice 4 的 [Complete Diagnostic History → Learner State → WHAT](recall-diagnostic-state-reconstruction.md)
+接通当前 profile/epoch/source 的完整 durable generation→重新准入→canonical target history→State→WHAT 内部只读 API。
+完整源验证后才分组；失败不等于空 Evidence 或 unknown state。派生结果不落盘；位置迁移与全局 backup/reset integration 仍未实现。
+
+F5 的 [Diagnostic-first Resume Slice 1](recall-diagnostic-resume.md) 增加总览入口与独立只读恢复页。
+固定 server facade 只投影 F4 的安全展示字段；renderer 不接 authority 或 raw history。
+显式再次作答复用既有 source，不增加 WHAT/WHEN/HOW。仅支持已有有效 managed profiles。
+
+F5 [Trusted Fresh Profile Bootstrap Slice 2](recall-fresh-profile-bootstrap.md) 为 eligible fresh candidate 增加 Main 原生授权、重新检查、create-only metadata 确认与 authenticated read-only diagnostic readiness。取消不创建 Recall 记录；损坏或残留资料 fail closed，既有 profile、legacy adoption 与 anchor recovery 继续沿用原有路径。
+
 ## Electron 桌面架构（2026-07-28）
 
 ```text
@@ -30,7 +47,7 @@ desktop/
 - API：保留原有同源 Route Handler 契约；桌面令牌是 loopback 内部传输头，不属于公开业务 API。
 - 公考开发示例按学习数据、复盘、知识训练和面试模块分别注册；总览不提供示例。匹配场景时仍先于业务 controller 分流到纯内存 fixture。
 - 表格使用显式 `cellStart` / `cellCenter` 语义类，不依赖列序号猜测内容。
-- GitHub 使用共享 Web CI 与当前 `Trusted Desktop Release` 工作流：PR 验证同一份业务代码和桌面壳契约，成功的 `CI` main `workflow_run` 才能进入受信任的 Windows 发布路径，并按 exact authorized SHA 创建带 SHA-256 清单的 Draft Release。M5-G 还会 read back 实际 Draft metadata，按 asset ID 下载两个 Release assets 到独立目录并完成 canonical/round-trip reconciliation；历史 `desktop-release.yml` 已删除，仅保留为 SEC-04 historical evidence。当前 runtime 为 Electron `43.4.1`，production/default installer 为 electron-builder + bundled NSIS；Forge/MakerSquirrel Squirrel 保留为历史/迁移/回滚兼容路径，production-v1 intentionally unsigned 且没有 auto-updater。
+- GitHub 使用共享 Web CI 与当前 `Trusted Desktop Release` 工作流：PR 验证同一份业务代码和桌面壳契约，成功的 `CI` main `workflow_run` 才能进入受信任的 Windows 发布路径，并按 exact authorized SHA 创建带 SHA-256 清单的 Draft Release。M5-G 还会 read back 实际 Draft metadata，按 asset ID 下载两个 Release assets 到独立目录并完成 canonical/round-trip reconciliation；历史 `desktop-release.yml` 已删除，仅保留为 SEC-04 historical evidence。当前 source candidate runtime 为 Electron `43.5.0`（GHSA-qmv3-fv6v-rmhq 安全修复；不代表已集成或发布），production/default installer 为 electron-builder + bundled NSIS；Forge/MakerSquirrel Squirrel 保留为历史/迁移/回滚兼容路径，production-v1 intentionally unsigned 且没有 auto-updater。
 - 桌面发布与 Web 部署只通过 Git commit SHA 关联；M5-E finalizer 从最终 staged installer bytes 生成并自校验 SHA-256 manifest，校验实际 unsigned Authenticode 边界，并在 Draft 创建前重新校验下载的 exact-SHA Actions artifact；M5-G recovery pipeline 已实现，但 PR #125 合并后的 exact main CI 仍必须先经过独立的 `0.3.1` production tuple re-freeze、review/merge freeze change 和 exact post-freeze main CI，之后才可按 owner authorization protocol 进入真实 tag/Draft activation。安装包、`.desktop-runtime`、Forge `out/` 和签名材料不进入仓库。
 
 ## 0.8 Windows distribution Phase 1（2026-08-14）

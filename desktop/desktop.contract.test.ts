@@ -3,9 +3,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import "./vault.contract.test.ts";
 import "./runtime-spawn.contract.test.ts";
+import "./runtime-environment.contract.test.ts";
 import "./squirrel-lifecycle.contract.test.ts";
 import "./fenbi-session.contract.test.ts";
 import "./fenbi-web-contents.contract.test.ts";
+import "./storage-bootstrap.contract.test.ts";
+import "./profile-initialization.contract.test.ts";
+import "./profile-native.contract.test.ts";
+import "./protocol.contract.test.ts";
+import "./protocol-diagnostic-backend.contract.test.ts";
 
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 const runtime = readFileSync(new URL("./runtime.ts", import.meta.url), "utf8");

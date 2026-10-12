@@ -1,4 +1,4 @@
-import { net, protocol, type Protocol } from "electron";
+import { protocol, type Protocol } from "electron";
 
 const DESKTOP_SCHEME = "review-app";
 const DESKTOP_HOST = "workspace";
@@ -36,7 +36,8 @@ export function installDesktopProtocol(baseUrl: string, token: string, targetPro
       redirect: "manual",
       duplex: "half",
     } as RequestInit & { duplex: "half" };
-    return net.fetch(new Request(target, init));
+    // 内部 loopback 用 Node fetch 保留请求元数据；net.fetch 会添加 Chromium 的 site:none，误拒绝原生 POST。
+    return fetch(new Request(target, init));
   });
 }
 

@@ -35,12 +35,12 @@ test("production builder config is the canonical bundled NSIS path", () => {
   assert.equal(config.appId, "com.squirrel.review_workspace.review-workspace");
   assert.equal(config.productName, "错题复盘");
   assert.equal(config.executableName, "review-workspace");
-  assert.equal(config.electronVersion, "43.4.1");
+  assert.equal(config.electronVersion, "43.5.0");
   assert.equal(config.asar, true);
   assert.deepEqual(config.files, [".desktop/**/*"]);
   assert.equal(config.directories.app, resolve(workspaceRoot, ".desktop-app"));
   assert.equal(config.directories.output, resolve(workspaceRoot, "out", "builder-nsis"));
-  assert.equal(config.electronDist, resolve(workspaceRoot, ".cache", "electron"));
+  assert.equal(config.electronDist, resolve(workspaceRoot, ".cache", "electron", config.electronVersion));
   assert.deepEqual(config.extraResources, [{
     from: resolve(workspaceRoot, ".desktop-runtime"),
     to: ".desktop-runtime",

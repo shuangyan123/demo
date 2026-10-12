@@ -4,6 +4,15 @@
 
 本文描述 ReviewWorkspace 从 `0.2.x` 功能快速迭代阶段进入产品化阶段的版本边界。它不是功能愿望清单：每个阶段都包含目标、非目标、风险、验收标准和回滚边界。
 
+Recall Phase E 已在其限定来源闭环内 COMPLETE；Phase F Slice 1 交付范围为
+[Managed Data Root Foundation](recall-managed-storage.md)。它只建立 Host metadata/configuration/registry，
+不表示 Phase F 整体完成。后续 [Slice 2 Diagnostic Durable Capture Repository](recall-diagnostic-history.md)
+已建立独立 durable repository；[Slice 3 Production Durable Diagnostic Submission & Owner Recovery](recall-durable-diagnostic-submission.md)
+已接通 production submit/owner reload→Evidence；[Slice 4 Complete Diagnostic History → Learner State → WHAT](recall-diagnostic-state-reconstruction.md)
+已接通当前 profile/epoch/source 内完整 target history 的只读重建与 WHAT。
+[F5 Diagnostic-first Resume Slice 1](recall-diagnostic-resume.md) 提供已有有效 profile 的总览入口、只读恢复展示与显式重复作答。
+新 profile onboarding、位置迁移和全局 backup/reset integration 仍未交付；不表示 Phase F 整体完成。
+
 通用约束：
 
 - 保持 Electron、Next.js、React、Dexie 和 local-first 技术路线。

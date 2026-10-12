@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { getElectronRuntimeExecutablePath } from "./read-electron-runtime-version.mjs";
 
 const workspaceRoot = process.cwd();
 const read = (relativePath) => readFileSync(resolve(workspaceRoot, relativePath), "utf8");
@@ -26,7 +28,7 @@ test("M5-G recovery candidate keeps the current production package and installer
   const fallback = metadataSource.match(/process\.env\.npm_package_version\s*\?\?\s*["']([^"']+)["']/)?.[1];
   assert.equal(fallback, packageJson.version);
 
-  assert.equal(packageJson.devDependencies.electron, "43.4.1");
+  assert.equal(packageJson.devDependencies.electron, "43.5.0");
   assert.equal(packageJson.devDependencies["electron-builder"], "26.16.0");
   assert.equal(nsisConfig.electronVersion, packageJson.devDependencies.electron);
   assert.equal(nsisConfig.appId, "com.squirrel.review_workspace.review-workspace");
@@ -56,6 +58,37 @@ test("M5-F prepares the verified Electron archive executable for runtime readbac
   assert.match(electronArchivePreparationSource, /tar\.exe/);
   assert.match(electronArchivePreparationSource, /electronExecutablePath/);
   assert.match(electronArchivePreparationSource, /Electron runtime executable missing after extraction/);
+  assert.match(electronArchivePreparationSource, /path\.join\(archiveDirectory, electronPackage\.version\)/);
+  assert.match(electronArchivePreparationSource, /\["-xf", archivePath, "-C", runtimeDirectory\]/);
+});
+
+test("Electron version readback respects platform support and ignores stale flat caches", t => {
+  if (process.platform !== "win32") {
+    assert.throws(() => getElectronRuntimeExecutablePath(), /requires a Windows runner/);
+    return;
+  }
+  const root = mkdtempSync(join(os.tmpdir(), "recall-electron-cache-test-"));
+  t.after(() => {
+    assert.equal(dirname(root), resolve(os.tmpdir()));
+    assert.match(basename(root), /^recall-electron-cache-test-/);
+    rmSync(root, { recursive: true, force: true });
+  });
+  writeFileSync(join(root, "package.json"), JSON.stringify({ devDependencies: { electron: "43.5.0" } }));
+  const cache = join(root, ".cache", "electron");
+  mkdirSync(cache, { recursive: true });
+  writeFileSync(join(cache, "electron.exe"), "old 43.4.1 fixture");
+  assert.throws(() => getElectronRuntimeExecutablePath({ workspaceRoot: root }), /runtime executable is missing/);
+
+  const installed = join(root, "node_modules", "electron", "dist", "electron.exe");
+  mkdirSync(dirname(installed), { recursive: true });
+  writeFileSync(installed, "installed current fixture");
+  assert.equal(getElectronRuntimeExecutablePath({ workspaceRoot: root }), installed);
+
+  const prepared = join(cache, "43.5.0", "electron.exe");
+  mkdirSync(dirname(prepared), { recursive: true });
+  writeFileSync(prepared, "prepared current fixture");
+  assert.equal(getElectronRuntimeExecutablePath({ workspaceRoot: root }), prepared);
+  assert.equal(readFileSync(join(cache, "electron.exe"), "utf8"), "old 43.4.1 fixture");
 });
 
 test("M5-F preserves dynamic trusted main SHA and package-derived tag provenance", () => {
