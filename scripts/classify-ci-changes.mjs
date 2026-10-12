@@ -8,11 +8,8 @@ export const CI_CHANGE_GATES = Object.freeze([
   "windows_runtime_sensitive",
 ]);
 
-// 仅列出已有架构守卫保护的纯 shadow 模块；Phase D bridge 及其传递依赖仍有 runtime consumer。
+// 仅豁免已审计的测试、类型和无运行时消费者的 shadow 文件；传递导入守卫约束该名单。
 export const PURE_RECALL_CONTRACT_PATHS = Object.freeze([
-  "app/services/learning-kernel/derive-learner-state.ts",
-  "app/services/learning-kernel/learner-state-policy.ts",
-  "app/services/learning-kernel/verification-policy.ts",
   "app/services/learning-kernel/evidence-shadow.ts",
   "app/services/learning-kernel/derive-learner-state.contract.test.ts",
   "app/services/learning-kernel/learner-state-policy.contract.test.ts",
@@ -21,14 +18,18 @@ export const PURE_RECALL_CONTRACT_PATHS = Object.freeze([
   "app/services/learning-kernel/legacy-event-adapter.contract.test.ts",
   "app/services/learning-kernel/evidence.contract.test.ts",
   "app/services/learning-kernel/compatibility-snapshot.contract.test.ts",
-  "app/services/verification-source/verification-source-admission-core.ts",
-  "app/services/verification-source/verification-source-admission.ts",
   "app/services/verification-source/verification-source-admission.contract.test.ts",
   "app/types/domains/learning-kernel.ts",
   "app/types/domains/verification-source.ts",
 ]);
 const PURE_RECALL_PATHS = new Set(PURE_RECALL_CONTRACT_PATHS);
 const RECALL_RUNTIME_PATHS = new Set([
+  // Phase E/F 的诊断提交与历史重建已消费这些模块，必须验证浏览器和 Windows 路径。
+  "app/services/learning-kernel/derive-learner-state.ts",
+  "app/services/learning-kernel/learner-state-policy.ts",
+  "app/services/learning-kernel/verification-policy.ts",
+  "app/services/verification-source/verification-source-admission.ts",
+  "app/services/verification-source/verification-source-admission-core.ts",
   "app/services/learning-kernel/compatibility-snapshot.ts",
   "app/services/learning-kernel/derive-evidence.ts",
   "app/services/learning-kernel/evidence-policy.ts",

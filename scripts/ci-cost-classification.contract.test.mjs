@@ -17,6 +17,13 @@ const draftReleaseRoundTripPath = resolve(workspaceRoot, "scripts", "verify-draf
 const ci = readFileSync(ciPath, "utf8");
 const trustedRelease = readFileSync(trustedReleasePath, "utf8");
 const draftReleaseRoundTrip = readFileSync(draftReleaseRoundTripPath, "utf8");
+const diagnosticRuntimePaths = [
+  "app/services/learning-kernel/derive-learner-state.ts",
+  "app/services/learning-kernel/learner-state-policy.ts",
+  "app/services/learning-kernel/verification-policy.ts",
+  "app/services/verification-source/verification-source-admission.ts",
+  "app/services/verification-source/verification-source-admission-core.ts",
+];
 
 function allGates(value) {
   return {
@@ -103,6 +110,10 @@ test("workflow, dependency, empty, malformed, and unknown inputs fail safe", () 
   assert.deepEqual(classifyChangedFiles(["scripts/template.css"]), allGates(true));
   assert.deepEqual(classifyChangedFiles(["../README.md"]), allGates(true));
   assert.deepEqual(classifyChangedFiles([null]), allGates(true));
+  for (const file of ["", "./", "C:/README.md", "C:\\README.md", "//server/share/README.md",
+    "docs/../README.md", "docs//README.md", "docs/README.md\0package.json"])
+    assert.deepEqual(classifyChangedFiles([file]), allGates(true), file);
+  assert.deepEqual(classifyChangedFiles([".\\docs\\architecture.md"]), allGates(false));
 });
 
 test("only exact pure Recall contracts avoid environmental gates, including mixed documentation", () => {
@@ -113,7 +124,7 @@ test("only exact pure Recall contracts avoid environmental gates, including mixe
   }
   assert.deepEqual(classifyChangedFiles([
     "app/services/learning-kernel/derive-learner-state.ts", "app/features/review/review-workspace.tsx",
-  ]), { ...allGates(false), browser_runtime_sensitive: true });
+  ]), { ...allGates(false), browser_runtime_sensitive: true, windows_runtime_sensitive: true });
   for (const file of [
     "app/services/learning-kernel/compatibility-snapshot.ts",
     "app/services/learning-kernel/learning-event.ts",
@@ -128,6 +139,14 @@ test("only exact pure Recall contracts avoid environmental gates, including mixe
     assert.equal(result.browser_runtime_sensitive, true, file);
     assert.equal(result.windows_runtime_sensitive, true, file);
   }
+});
+
+for (const file of diagnosticRuntimePaths) test(`diagnostic runtime module requires browser and Windows gates: ${file}`, () => {
+  assert.ok(existsSync(resolve(workspaceRoot, file)), `${file} must exist`);
+  assert.ok(!PURE_RECALL_CONTRACT_PATHS.includes(file), `${file} must not receive a pure exemption`);
+  const expected = { ...allGates(false), browser_runtime_sensitive: true, windows_runtime_sensitive: true };
+  assert.deepEqual(classifyChangedFiles([file]), expected);
+  assert.deepEqual(classifyChangedFiles([file, "docs/architecture.md"]), expected);
 });
 
 test("Windows risks include shared storage, credentials, Host consumers and Windows scripts", () => {
@@ -226,8 +245,7 @@ test("actual job expressions separate PR classification from main push, failing 
   const jobs = ["e2e", "windows-e2e", "windows-m3", "windows-nsis-production"];
   const cases = [
     [["docs/architecture.md"], []],
-    [["app/services/learning-kernel/derive-learner-state.ts"], []],
-    [["app/services/verification-source/verification-source-admission.ts"], []],
+    ...diagnosticRuntimePaths.map((file) => [[file], ["e2e", "windows-e2e"]]),
     [["app/features/shared/ui-primitives.tsx"], ["e2e"]],
     [["desktop/preload.cts"], ["windows-e2e", "windows-nsis-production"]],
     [["electron-builder.nsis.cjs"], ["windows-e2e", "windows-m3", "windows-nsis-production"]],
@@ -235,7 +253,7 @@ test("actual job expressions separate PR classification from main push, failing 
     [["playwright.config.ts"], jobs], [["next.config.ts"], jobs],
     [["scripts/read-windows-authenticode-signature.ps1"], jobs],
     [["scripts/release-artifact-provenance.mjs"], jobs],
-    [["app/services/learning-kernel/derive-learner-state.ts", "app/features/shared/ui-primitives.tsx"], ["e2e"]],
+    [["app/services/learning-kernel/derive-learner-state.ts", "app/features/shared/ui-primitives.tsx"], ["e2e", "windows-e2e"]],
   ];
   for (const [files, expected] of cases) {
     const gates = classifyChangedFiles(files);
@@ -291,6 +309,10 @@ test("trusted-base shell rejects old, missing and malformed classifiers without 
   const scenarios = [
     { name: "trusted base wins over PR classifier", source: readFileSync(classifierPath, "utf8"), expected: allGates(true), changed: "package.json" },
     { name: "trusted docs-only classification", source: readFileSync(classifierPath, "utf8"), expected: allGates(false), changed: "README.md", keepPolicy: true },
+    ...diagnosticRuntimePaths.map((file) => ({ name: `trusted base preserves runtime gates: ${file}`,
+      source: readFileSync(classifierPath, "utf8"), changed: file, keepPolicy: true,
+      expected: { ...allGates(false), browser_runtime_sensitive: true, windows_runtime_sensitive: true } })),
+    { name: "empty classifier output", source: cli(""), expected: allGates(true) },
     { name: "old three-output base safely boots the fourth gate", source: cli("installer_sensitive=false\nmigration_sensitive=false\nbrowser_runtime_sensitive=false\n"), expected: allGates(true) },
     { name: "unreadable base revision", source: cli(rows(allGates(false))), expected: allGates(true), missingBase: true },
     { name: "missing base classifier", expected: allGates(true) },
@@ -312,6 +334,7 @@ test("trusted-base shell rejects old, missing and malformed classifiers without 
     git("add", ".");
     git("commit", "-m", "trusted base");
     const base = git("rev-parse", "HEAD");
+    mkdirSync(dirname(join(root, scenario.changed ?? "README.md")), { recursive: true });
     writeFileSync(join(root, scenario.changed ?? "README.md"), "PR change\n");
     // PR 中的 classifier 永远声明 safe，用于证明它没有获得自我降门禁权限。
     if (!scenario.keepPolicy) writeFileSync(join(root, "scripts", "classify-ci-changes.mjs"), cli(rows(allGates(false))));

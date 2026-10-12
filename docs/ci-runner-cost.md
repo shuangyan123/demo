@@ -1,8 +1,10 @@
 # GitHub-hosted runner cost policy
 
-Scope: CI scheduling and setup only. Product code, Playwright assertions/config,
-release authority, NSIS provenance and dependency-audit failure semantics stay
-unchanged. The implementation is delivered as a Draft PR; merge is not authorized.
+Scope: CI scheduling and setup policy. Playwright assertions/config, release
+authority, NSIS provenance and dependency-audit failure semantics remain enforced.
+The accompanying model-picker focus repair and workspace-readiness helpers do
+not grant CI exemptions. The original proposal remains a Draft PR; local
+integration and validation do not authorize remote delivery or merge.
 
 ## Validation placement
 
@@ -33,7 +35,8 @@ The four outputs are `browser_runtime_sensitive`, `windows_runtime_sensitive`,
 | --- | --- | --- | --- | --- |
 | Documentation / repository-only Recall artwork | no | no | no | no |
 | Exact pure Recall allowlist | no | no | no | no |
-| Exact verification-source admission contracts | no | no | no | no |
+| Dedicated verification-source admission contract tests | no | no | no | no |
+| Learner-state derivation/policies and verification-source admission runtime modules | yes | yes | no | no |
 | Ordinary Web View/style | yes | no | no | no |
 | Shared business, DB, types, server/API, platform | yes | yes | no | no |
 | Settings, Fenbi, native shell/titlebar consumers | yes | yes | no | no |
@@ -46,12 +49,21 @@ The four outputs are `browser_runtime_sensitive`, `windows_runtime_sensitive`,
 | Pure Recall + runtime consumer | runtime file determines the union of gates | | | |
 
 The pure allowlist contains exact existing files, not `app/services/**` or
-`app/types/**`: learner-state derivation/authority, verification policy, Evidence
-shadow report, admission core/entry, their dedicated contracts and the two
-type-only domain files. Existing architecture guards prevent state/admission
-runtime adoption and preserve purity; classifier contracts additionally scan
-production imports transitively and require allowlisted domain files to remain
-type-only. Host importers must classify as Windows sensitive.
+`app/types/**`: the Evidence shadow report without external runtime consumers,
+eight dedicated contract tests and the two type-only domain files. Classifier
+contracts scan production imports transitively and require allowlisted domain
+files to remain type-only. A new direct or transitive runtime consumer fails the
+guard and requires removal from the exemption. Host importers must classify as
+Windows sensitive.
+
+Phase E/F diagnostic assessment submission and durable-history reconstruction
+now consume learner-state derivation/policies and verification-source admission.
+The audited runtime list therefore includes `derive-learner-state.ts`,
+`learner-state-policy.ts`, `verification-policy.ts`,
+`verification-source-admission.ts` and `verification-source-admission-core.ts`.
+Changing any one of them enables browser and Windows E2E, while leaving installer
+and migration gates false. Pure functional implementation alone does not justify
+a runtime exemption.
 
 Phase D `compatibility-snapshot` is already used by `learner-state-service`.
 Its Evidence, adapter and event dependencies are therefore excluded from the
@@ -126,14 +138,19 @@ measured 22s installation. Static/classifier contract overhead and hosted-runner
 variation can change these estimates; exact-head measurements should be reported
 separately. M3/NSIS durations are represented below as M/N because #143 did not
 start them; a fabricated zero-duration installer baseline would be misleading.
+These figures describe the historical 2026-10-05 workload, before Phase E/F and
+the current runtime tuple; they are not measurements of this refreshed
+integration. Runner savings also do not resolve Artifact storage quotas. Upload
+requirements and retention settings remain unchanged.
 
 | Scenario | Before started jobs | After started jobs | Linux saving | Windows saving |
 | --- | --- | --- | --- | --- |
-| A: pure Kernel | checkout, static, audit, build, two Linux E2E, Windows E2E | checkout, static, audit, build | ~10.53 min (14.20 -> 3.67) | ~7.27 min (7.27 -> 0) |
+| A: audited shadow/type/contract-only files | checkout, static, audit, build, two Linux E2E, Windows E2E | checkout, static, audit, build | ~10.53 min (14.20 -> 3.67) | ~7.27 min (7.27 -> 0) |
 | B: ordinary Web UI | same as A | checkout, static, audit, build, combined Linux E2E | ~2.02 min (14.20 -> 12.18) | ~7.27 min (7.27 -> 0) |
 | C: desktop/preload | checkout, static, audit, build, Windows E2E, NSIS | same jobs | ~0.37 min | 0 (7.27 + N retained) |
 | D: installer config | checkout, static, audit, build, Windows E2E, M3, NSIS | same jobs | ~0.37 min | 0 (7.27 + M + N retained) |
 | E: merge-to-main | static, audit, build, two Linux E2E | static, audit, build | ~10.68 min (14.20 -> 3.52) | 0 (already none) |
+| F: Recall state/admission runtime modules | same as A | checkout, static, audit, build, combined Linux E2E, Windows E2E | ~2.02 min | 0 (Windows retained) |
 
 Normal Web UI keeps both Linux projects; Windows verification remains on actual
 Host/credential/storage/desktop risks. Pure source changes retain full direct
