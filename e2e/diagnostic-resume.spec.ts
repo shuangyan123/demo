@@ -1,7 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, renameSync, existsSync } from "node:fs";
 import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -14,7 +14,8 @@ import { confirmDesktopDiagnosticReadiness } from "../desktop/diagnostic-readine
 type Fixture = ReturnType<typeof diagnosticStorageFixture>;
 type Application = { child: ChildProcess; url: string; pid: number };
 function assertTestPath(fixture: Fixture, target: string) {
-  expect(path.dirname(fixture.root)).toBe(path.resolve(os.tmpdir()));
+  // 与 Host fixture 一致：Windows TEMP 的短名称必须先解析为真实父目录。
+  expect(path.dirname(fixture.root)).toBe(realpathSync.native(os.tmpdir()));
   expect(path.basename(fixture.root)).toMatch(/^recall-durable-submission-test-/);
   const relative = path.relative(fixture.root, target);
   expect(path.isAbsolute(target)).toBe(true); expect(relative).not.toBe("");

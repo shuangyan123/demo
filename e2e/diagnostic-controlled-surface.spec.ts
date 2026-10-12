@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { readFileSync, renameSync } from "node:fs";
+import { readFileSync, realpathSync, renameSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
@@ -68,13 +68,15 @@ test("offline managed profile locks the answer and manual continuation confirms 
     root: string; managedRoot: string; file: string;
   };
   // 故障只作用于本次 launcher 创建的临时 profile，先核对两个 rename 目标的绝对边界。
-  expect(path.dirname(fixture.root)).toBe(path.resolve(os.tmpdir()));
+  // 与 Host fixture 一致：Windows TEMP 的短名称必须先解析为真实父目录。
+  expect(path.dirname(fixture.root)).toBe(realpathSync.native(os.tmpdir()));
   expect(path.basename(fixture.root)).toMatch(/^recall-durable-submission-test-/);
   const offline = fixture.managedRoot + "-offline";
   for (const target of [fixture.managedRoot, offline, fixture.file]) {
     expect(path.isAbsolute(target)).toBe(true);
     expect(path.relative(fixture.root, target)).not.toMatch(/^\.\./);
     expect(path.relative(fixture.root, target)).not.toBe("");
+    expect(path.isAbsolute(path.relative(fixture.root, target))).toBe(false);
   }
   await page.goto("/diagnostic");
   await page.locator('input[value="four"]').check();
