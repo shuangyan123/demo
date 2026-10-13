@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { configureCustomTextConnection, setCustomDefaultTextModel } from "./helpers/configure-custom-ai";
 import { startMockAiProvider, type MockAiRequest } from "./helpers/mock-ai-provider";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
+import { waitForWorkspaceViewReady } from "./helpers/workspace-readiness";
 
 function mockLearningResponse(request: MockAiRequest): string {
   const payload = JSON.stringify(request.body);
@@ -56,7 +57,9 @@ test("P1 辅导对话完成讲解与微测，面试按真实阶段进入复盘",
 
     await ensureDetailsOpen(page.locator("summary").filter({ hasText: "面试与辅导" }).first());
     await page.getByRole("button", { name: "开始对话辅导" }).click();
-    await expect(page.getByRole("button", { name: "实时辅导" })).toHaveAttribute("aria-current", "page");
+    const tutoringNavigation = page.getByRole("button", { name: "实时辅导" });
+    await waitForWorkspaceViewReady(tutoringNavigation);
+    await expect(tutoringNavigation).toHaveAttribute("aria-current", "page");
     await expect(page.getByText("本轮目标")).toBeVisible();
     const input = page.getByRole("textbox", { name: "对话输入" });
     await input.fill("我总把基期量公式和增长量公式混淆。");

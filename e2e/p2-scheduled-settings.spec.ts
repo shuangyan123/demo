@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
+import { waitForWorkspaceViewReady } from "./helpers/workspace-readiness";
 
 test("P2 桌面已安排与设置在浅色和深色模式下保持主从布局", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
@@ -7,8 +8,9 @@ test("P2 桌面已安排与设置在浅色和深色模式下保持主从布局",
   await page.goto("/");
 
   await page.getByRole("button", { name: "已安排" }).first().click();
-  await expect(page.getByRole("heading", { name: "已安排", exact: true })).toBeVisible();
-  const scheduledTopOffset = await page.getByRole("heading", { name: "已安排", exact: true }).evaluate((heading) => {
+  const scheduledHeading = page.getByRole("heading", { name: "已安排", exact: true });
+  await waitForWorkspaceViewReady(scheduledHeading);
+  const scheduledTopOffset = await scheduledHeading.evaluate((heading) => {
     const main = heading.closest("main");
     return main ? heading.getBoundingClientRect().top - main.getBoundingClientRect().top : -1;
   });
@@ -29,6 +31,7 @@ test("P2 桌面已安排与设置在浅色和深色模式下保持主从布局",
   await page.screenshot({ path: testInfo.outputPath("p2-settings-desktop-dark-1536x1024.png"), fullPage: false });
   await page.getByRole("button", { name: "返回应用" }).click();
   await page.getByRole("button", { name: "已安排" }).first().click();
+  await waitForWorkspaceViewReady(scheduledHeading);
   await page.screenshot({ path: testInfo.outputPath("p2-scheduled-desktop-dark-1536x1024.png"), fullPage: false });
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
