@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -7,9 +7,10 @@ import test from "node:test";
 import { waitForInitialProfileRuntime } from "./profile-runtime-readiness.ts";
 
 function fixture(t: { after: (callback: () => void) => void }) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "recall-runtime-readiness-test-"));
+  const temporaryRoot = realpathSync.native(os.tmpdir());
+  const root = mkdtempSync(path.join(temporaryRoot, "recall-runtime-readiness-test-"));
   t.after(() => {
-    assert.equal(path.dirname(root), path.resolve(os.tmpdir())); assert.match(path.basename(root), /^recall-runtime-readiness-test-/);
+    assert.equal(path.dirname(root), temporaryRoot); assert.match(path.basename(root), /^recall-runtime-readiness-test-/);
     rmSync(root, { recursive: true, force: true });
   });
   const appData = path.join(root, "appData"); const profile = path.join(appData, "profile");

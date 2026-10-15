@@ -11,6 +11,7 @@ test("Windows exact-head gate runs real Electron first-profile regressions befor
   const native = job.indexOf("name: Native first-profile startup regressions");
   assert.ok(native > job.indexOf("name: Verify exact PR head"));
   assert.ok(native < job.indexOf("name: Full E2E tests with CI=1"));
+  assert.match(job, /node scripts\/prepare-electron-archive\.mjs/);
   assert.match(job, /npm run desktop:compile/);
   assert.match(job, /node --test --experimental-strip-types desktop\/profile-native\.contract\.test\.ts desktop\/profile-runtime-readiness\.contract\.test\.ts desktop\/profile-initialization\.contract\.test\.ts/);
   assert.doesNotMatch(job, /continue-on-error|ELECTRON_SKIP_BINARY_DOWNLOAD/);

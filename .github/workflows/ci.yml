@@ -292,6 +292,8 @@ jobs:
       - name: Native first-profile startup regressions
         shell: pwsh
         run: |
+          node scripts/prepare-electron-archive.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run desktop:compile
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test --experimental-strip-types desktop/profile-native.contract.test.ts desktop/profile-runtime-readiness.contract.test.ts desktop/profile-initialization.contract.test.ts

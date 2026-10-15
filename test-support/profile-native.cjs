@@ -7,7 +7,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const root = path.resolve(process.argv[2]);
 const mode = process.argv[3];
-assert.equal(path.dirname(root), path.resolve(os.tmpdir()));
+assert.equal(path.dirname(root), fs.realpathSync.native(os.tmpdir()));
 assert.match(path.basename(root), /^recall-native-profile-test-/);
 const appData = path.join(root, 'appData'); const profile = path.join(appData, 'profile');
 fs.mkdirSync(appData, { recursive: true });
@@ -15,6 +15,7 @@ fs.mkdirSync(appData, { recursive: true });
 app.setPath('appData', appData); app.setPath('userData', profile); app.setPath('sessionData', profile);
 assert.equal(app.requestSingleInstanceLock(), true);
 const load = name => require(path.resolve('.desktop', name));
+assert.equal(process.versions.electron, JSON.parse(fs.readFileSync(path.resolve('node_modules/electron/package.json'), 'utf8')).version);
 const observations = [];
 function observe(stage) {
   const describe = target => {

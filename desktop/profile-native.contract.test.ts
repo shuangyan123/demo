@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,12 +8,16 @@ import { inspectInitialProfile } from "./profile-initialization.ts";
 import { resolveManagedStorage } from "./storage-bootstrap.ts";
 
 function nativeFixture(t: { after: (callback: () => void) => void }) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "recall-native-profile-test-"));
+  const temporaryRoot = realpathSync.native(os.tmpdir());
+  const root = mkdtempSync(path.join(temporaryRoot, "recall-native-profile-test-"));
   t.after(() => {
-    assert.equal(path.dirname(root), path.resolve(os.tmpdir())); assert.match(path.basename(root), /^recall-native-profile-test-/);
+    assert.equal(path.dirname(root), temporaryRoot); assert.match(path.basename(root), /^recall-native-profile-test-/);
     rmSync(root, { recursive: true, force: true });
   });
-  const launch = (mode: string) => JSON.parse(execFileSync(path.resolve("node_modules/electron/dist/electron.exe"),
+  const version = JSON.parse(readFileSync(path.resolve("node_modules/electron/package.json"), "utf8")).version;
+  const executable = path.resolve(".cache/electron", version, "electron.exe");
+  assert.ok(existsSync(executable), "Run scripts/prepare-electron-archive.mjs before Windows native tests");
+  const launch = (mode: string) => JSON.parse(execFileSync(executable,
     ["test-support/profile-native.cjs", root, mode], { cwd: process.cwd(), windowsHide: true, encoding: "utf8", timeout: 40000 }).trim());
   return { root, launch };
 }
