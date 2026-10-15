@@ -1,5 +1,7 @@
+import { policyFetch } from "../http/policy-fetch.ts";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { classifyIpAddress } from "../http/ip-address-classification.ts";
 import { parseAcquisitionDocument, type ParsedAcquisitionDocument } from "./document-parser.ts";
 
 const MAX_RESPONSE_BYTES = 1_048_576;
@@ -30,28 +32,10 @@ export function normalizeAllowedOrigin(value: string): string | undefined {
   }
 }
 
-function parseIpv4(address: string): number[] | undefined {
-  const parts = address.split(".").map(Number);
-  return parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) ? parts : undefined;
-}
-
-/** 阻止环回、私网、链路本地、CGNAT、保留地址和 IPv4 映射 IPv6。 */
+/** 采集只允许公网；保留既有 192.0/16 限制，不因共享分类器而扩大允许范围。 */
 export function isPrivateAddress(address: string): boolean {
-  const normalized = address.toLowerCase().split("%")[0];
-  const mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1];
-  const ipv4 = parseIpv4(mapped ?? normalized);
-  if (ipv4) {
-    const [a, b] = ipv4;
-    return a === 0 || a === 10 || a === 127 || a >= 224
-      || (a === 100 && b >= 64 && b <= 127)
-      || (a === 169 && b === 254)
-      || (a === 172 && b >= 16 && b <= 31)
-      || (a === 192 && b === 0)
-      || (a === 192 && b === 168)
-      || (a === 198 && (b === 18 || b === 19));
-  }
-  if (isIP(normalized) !== 6) return true;
-  return normalized === "::" || normalized === "::1" || normalized.startsWith("fc") || normalized.startsWith("fd") || /^fe[89ab]/.test(normalized);
+  const { kind, ipv4 } = classifyIpAddress(address);
+  return kind !== "public" || (ipv4?.[0] === 192 && ipv4[1] === 0);
 }
 
 async function assertSafeUrl(rawUrl: string, allowedOrigins: Set<string>, lookupImpl: (hostname: string) => Promise<LookupResult>): Promise<URL> {
@@ -96,7 +80,7 @@ async function readBodyWithinLimit(response: Response): Promise<string> {
 export async function safeFetchAcquisition(input: { url: string; allowedOrigins: string[]; now?: Date } & SafeFetchDependencies): Promise<SafeFetchResult> {
   const allowedOrigins = new Set(input.allowedOrigins.map(normalizeAllowedOrigin).filter((value): value is string => Boolean(value)));
   const lookupImpl = input.lookupImpl ?? ((hostname) => lookup(hostname, { all: true, verbatim: true }));
-  const fetchImpl = input.fetchImpl ?? fetch;
+  const fetchImpl = input.fetchImpl ?? ((url, init) => policyFetch(url, init, { allowLoopback: false, allowPrivateNetwork: false, acquisition: true }));
   if (!allowedOrigins.size) throw new Error("必须提供至少一个有效的允许域名");
   let currentUrl = input.url;
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
@@ -108,6 +92,7 @@ export async function safeFetchAcquisition(input: { url: string; allowedOrigins:
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
+      await response.body?.cancel();
       if (!location) throw new Error("来源返回了缺少 Location 的重定向");
       if (redirectCount === MAX_REDIRECTS) throw new Error("来源重定向次数超过安全上限");
       currentUrl = new URL(location, safeUrl).toString();

@@ -1,5 +1,4 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import path from "node:path";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
 /**
@@ -28,7 +27,7 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 }
 
-test("四页审查数据在 390×844 保持移动步骤、详情层与完整操作", async ({ page }) => {
+test("四页审查数据在 390×844 保持移动步骤、详情层与完整操作", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.goto("/?ui-review=1");
   const drawer = await openDrawer(page);
@@ -48,7 +47,7 @@ test("四页审查数据在 390×844 保持移动步骤、详情层与完整操�
   await expect(page.getByRole("button", { name: "2 草稿" })).toBeVisible();
   await expect(page.getByRole("button", { name: "3 确认" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
-  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/import-console-390.png"), fullPage: false });
+  await page.screenshot({ path: testInfo.outputPath("import-console-390.png"), fullPage: false });
 
   await page.reload();
   const pluginDrawer = await openDrawer(page);
@@ -72,10 +71,10 @@ test("四页审查数据在 390×844 保持移动步骤、详情层与完整操�
   await expect(page.getByRole("region", { name: "已保存连接" }).getByRole("article")).toHaveCount(3);
   await expect(page.getByRole("button", { name: "删除" })).toHaveCount(3);
   await expectNoHorizontalOverflow(page);
-  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/ai-connections-390.png"), fullPage: false });
+  await page.screenshot({ path: testInfo.outputPath("ai-connections-390.png"), fullPage: false });
   const reviewDrawer = await openDrawer(page);
   await reviewDrawer.locator(".sample-scenario-trigger").dispatchEvent("click");
-  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/settings-review-launcher-390.png"), fullPage: false });
+  await page.screenshot({ path: testInfo.outputPath("settings-review-launcher-390.png"), fullPage: false });
   await expectNoFrameworkOverlay(page);
   expectNoRuntimeErrors(runtimeErrors);
 });

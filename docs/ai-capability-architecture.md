@@ -107,6 +107,8 @@ Provider-specific request fields are created only by `app/server/ai/provider-ada
 
 The seven native registrations are OpenAI Responses, Google model-routed GenerateContent/Interactions, Anthropic Messages, DeepSeek Chat Completions, GLM/Zhipu Chat Completions, MiniMax Messages, and xAI Responses. Unknown or user-defined connections use the explicit custom Chat Completions compatibility boundary; they are not silently treated as a native provider.
 
+Provider HTTP uses the request-scoped DNS/socket binding described in [the private Pilot security boundary](recall-0.3.1-windows-pilot.md#aud-10-security-boundary). Google Interactions uses its existing HTTP protocol adapter because the installed SDK drops the custom dispatcher when constructing a standard Request. Protocol selection, visible completion, `store:false`, normalization and zero automatic generation retries remain unchanged.
+
 ## Normalized response
 
 `AiGenerateResult` contains only:

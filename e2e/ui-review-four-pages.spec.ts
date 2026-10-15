@@ -1,5 +1,4 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import path from "node:path";
 import { collectRuntimeErrors, expectNoFrameworkOverlay, expectNoRuntimeErrors } from "./helpers/runtime-errors";
 
 const UI_REVIEW_HYDRATION_TIMEOUT = 80_000;
@@ -74,16 +73,16 @@ test("五个 UI 审查场景通过真实页面载入、持久化并阻止外联"
   await page.getByRole("button", { name: "粉笔导入" }).first().click();
   await expect(page.getByRole("button", { name: /有问题 4|有问题 5/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /草稿详情/ })).toBeVisible();
-  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/import-console-1536.png"), fullPage: false });
+  await page.screenshot({ path: testInfo.outputPath("import-console-1536.png"), fullPage: false });
 
   await openAiConnections(page);
   await loadCurrentScenario(page, "settings-ai-connections-dense");
   await openAiConnections(page);
   await expect(page.getByRole("region", { name: "已保存连接" }).getByRole("article")).toHaveCount(3);
   await expect(page.getByRole("combobox", { name: "默认语音连接" })).toContainText("openai-prod");
-  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/ai-connections-1536.png"), fullPage: false });
+  await page.screenshot({ path: testInfo.outputPath("ai-connections-1536.png"), fullPage: false });
   await page.locator(".sample-scenario-trigger").click();
-  await page.screenshot({ path: path.join(process.cwd(), "docs/design/ui-review-four-pages/settings-review-launcher-1536.png"), fullPage: false });
+  await page.screenshot({ path: testInfo.outputPath("settings-review-launcher-1536.png"), fullPage: false });
   await page.locator(".sample-scenario-trigger").click();
 
   await page.locator(".sample-scenario-trigger").click();

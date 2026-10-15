@@ -1,6 +1,11 @@
 # Windows production-v1 release policy
 
-状态：**M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
+当前私有 Pilot 状态（2026-10-15）：见 [Recall 0.3.1 Windows Pilot](recall-0.3.1-windows-pilot.md)。
+PR #125 已于 2026-09-07 合并；当前 `main` 包含 Electron `43.5.0`，但这不代表真实 Setup 生命周期验收或发行授权。
+PR #126 仍为历史 Draft，不能重放其旧运行时 tuple。本次没有 tag/Release/公开发布，仍需独立审查。
+以下 M5-G 阶段标签及记录保留其历史上下文，不能作为当前 Pilot 的通过证据。
+
+历史 M5-G 状态：**M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
 NOT TAGGED / NOT ACTIVATED; PR #125 DRAFT / WINDOWS PRODUCTION RELEASE NOT READY**。
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
