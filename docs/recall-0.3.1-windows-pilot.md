@@ -11,6 +11,7 @@ No tag, GitHub Release, signing purchase, production credential or paid model ca
 - #127's P1/P2 lazy-module readiness fixes are already represented by #146. Do not merge the historical branch again.
 - #126 describes an older Electron tuple. Do not copy its obsolete runtime values or present its historical checks as current acceptance. Current tuple contracts derive version/runtime facts from this tree.
 - The learning recommendation keyboard regression now waits for its disclosure to render before the original bounded Tab traversal. Tab budgets, focus outline, Enter expansion and navigation assertions remain unchanged.
+- The dual-model collection E2E waits for a persisted successful run and its disputed summary before navigating. A model-request counter is incremented before the response and cannot prove that proposal persistence finished. A controlled delayed-response diagnostic reproduced the missing-proposal failure before this barrier and passed after it; the remote trace was unavailable because artifact quota blocked upload, so this does not establish the unique cause of the hosted failure.
 
 ## AUD-10 security boundary
 
