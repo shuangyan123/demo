@@ -9,6 +9,7 @@ import "./fenbi-session.contract.test.ts";
 import "./fenbi-web-contents.contract.test.ts";
 import "./storage-bootstrap.contract.test.ts";
 import "./profile-initialization.contract.test.ts";
+import "./profile-runtime-readiness.contract.test.ts";
 import "./profile-native.contract.test.ts";
 import "./protocol.contract.test.ts";
 import "./protocol-diagnostic-backend.contract.test.ts";

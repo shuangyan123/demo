@@ -56,6 +56,12 @@ For v0.2.2 upgrade, use the retained v0.2.2 Setup in the disposable environment,
 
 ## Lifecycle evidence limitation
 
+### First-launch correction after the reported Setup trial
+
+The operator reported successful installation of the `0b224189e965d833219d679a7b77a3f079801058` CI Setup (SHA-256 `9ae157162df203d40e3eadfd94a871a60778b6d60e86fa52675f98b8ee42237a`) in Windows account `3`, followed by `initialization_candidate_changed` on Create. That account's 490-byte `Local State`, absent identity/bootstrap and all other account data are preserved; this task does not access or clean accounts 1/2/3.
+
+An isolated real packaged Main reproduces the failure when Electron first flushes `Local State` while native confirmation is open. Directory, lock and Host bindings remain unchanged. The correction waits for that first strict runtime-only publication after Ready and before generating a one-use candidate or asking for authorization; all existing create-only, binding, namespace and identity verification remains intact. See [fresh-profile bootstrap](recall-fresh-profile-bootstrap.md). Old Setup hashes and account-3 failure evidence must not be used as acceptance evidence for the new source or rebuilt artifacts. A new empty disposable Windows profile must exercise Setup first launch, delayed confirmation, cancel/relaunch/create and independent restart; account 3 is retained for a separate in-place recovery trial with the new verified Setup and no AppData cleanup. Full upgrade/uninstall/reinstall/recovery acceptance remains required.
+
 On the inspected build host, HKCU already registers a real v0.2.2 installation and the user's learning-data directory exists. Windows Sandbox is unavailable. No current-user install/uninstall/upgrade is performed against that state. First install, real v0.2.2-to-candidate upgrade, uninstall, reinstall and recovery remain **NOT EXECUTED** until a disposable Windows environment is available. Native Electron contracts and browser backup/restore tests do not substitute for this gate. Consequently the private Pilot remains blocked even when source checks and packaging pass.
 
 ## Rollback and decision

@@ -11,8 +11,8 @@ import { initializeFenbiSession } from "./fenbi-session.js";
 import { installFenbiSessionIpc } from "./fenbi-session-ipc.js";
 import { createFenbiWebContentsController } from "./fenbi-web-contents-controller.js";
 import { installFenbiWebContentsIpc } from "./fenbi-web-contents-ipc.js";
-import { createDesktopInitialProfile, inspectDesktopInitialProfile, resolveDesktopManagedStorage } from "./managed-storage.js";
-import { completeInitialProfileDecision, type FreshProfileCandidate } from "./profile-initialization.ts";
+import { createDesktopInitialProfile, inspectReadyDesktopInitialProfile, resolveDesktopManagedStorage } from "./managed-storage.js";
+import { completeInitialProfileDecision } from "./profile-initialization.ts";
 import { DiagnosticStartupFailure } from "./diagnostic-readiness.js";
 import type { ManagedStorageHostConfig } from "../app/platform/managed-storage.js";
 
@@ -152,10 +152,14 @@ function showStorageFailure(kind: string): void {
   dialog.showErrorBox("本地学习资料无法确认", `启动已停止，现有资料已保留。\n状态：${kind}`);
 }
 
-async function launchInitialProfile(candidate: FreshProfileCandidate): Promise<void> {
+async function launchInitialProfile(): Promise<void> {
   // 开发服务器不拥有 Main composition；不能写完 metadata 后假称 diagnostic 已可用。
   if (!isPackagedDesktop()) { showStorageFailure("desktop_runtime_required"); app.quit(); return; }
-  const result = await completeInitialProfileDecision(candidate, async () => {
+  const inspected = await inspectReadyDesktopInitialProfile();
+  if (inspected.kind !== "eligible") {
+    showStorageFailure("reason" in inspected ? inspected.reason : inspected.kind); app.quit(); return;
+  }
+  const result = await completeInitialProfileDecision(inspected.candidate, async () => {
     const decision = await dialog.showMessageBox({ type: "question", title: "创建本地学习资料",
       message: "是否在这台设备上创建本地学习资料？", detail: "已有或无法确认的资料不会被覆盖。",
       buttons: ["创建本地资料", "取消"], defaultId: 1, cancelId: 1, noLink: true });
@@ -192,11 +196,8 @@ if (isSquirrelLifecycleInvocation(process.argv)) {
     const storageState = resolveDesktopManagedStorage();
     if (storageState.kind !== "ready" && storageState.kind !== "legacy_existing_profile") {
       if (storageState.kind === "uninitialized") {
-        const inspected = inspectDesktopInitialProfile();
-        if (inspected.kind === "eligible") {
-          installApplicationLifecycle();
-          app.whenReady().then(() => launchInitialProfile(inspected.candidate)).catch(() => app.quit());
-        } else { showStorageFailure("reason" in inspected ? inspected.reason : inspected.kind); app.exit(1); }
+        installApplicationLifecycle();
+        app.whenReady().then(() => launchInitialProfile()).catch(() => app.quit());
       } else { showStorageFailure("reason" in storageState ? storageState.reason : storageState.kind); app.exit(1); }
     } else {
       installApplicationLifecycle();

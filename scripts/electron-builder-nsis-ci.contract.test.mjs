@@ -5,6 +5,17 @@ import test from "node:test";
 
 const workflow = readFileSync(resolve(process.cwd(), ".github", "workflows", "ci.yml"), "utf8");
 
+test("Windows exact-head gate runs real Electron first-profile regressions before browser E2E", () => {
+  const job = workflow.match(/  windows-e2e:[\s\S]*?(?=\n  [a-zA-Z0-9_-]+:|$)/)?.[0];
+  assert.ok(job);
+  const native = job.indexOf("name: Native first-profile startup regressions");
+  assert.ok(native > job.indexOf("name: Verify exact PR head"));
+  assert.ok(native < job.indexOf("name: Full E2E tests with CI=1"));
+  assert.match(job, /npm run desktop:compile/);
+  assert.match(job, /node --test --experimental-strip-types desktop\/profile-native\.contract\.test\.ts desktop\/profile-runtime-readiness\.contract\.test\.ts desktop\/profile-initialization\.contract\.test\.ts/);
+  assert.doesNotMatch(job, /continue-on-error|ELECTRON_SKIP_BINARY_DOWNLOAD/);
+});
+
 test("Windows CI independently rebuilds and reads back the exact PR-head production artifact", () => {
   const job = workflow.match(/  windows-nsis-production:[\s\S]*?(?=\n  [a-zA-Z0-9_-]+:|$)/)?.[0];
   assert.ok(job, "Windows NSIS production job is missing");

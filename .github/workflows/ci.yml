@@ -289,6 +289,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Native first-profile startup regressions
+        shell: pwsh
+        run: |
+          npm run desktop:compile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test --experimental-strip-types desktop/profile-native.contract.test.ts desktop/profile-runtime-readiness.contract.test.ts desktop/profile-initialization.contract.test.ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Production build
         run: npm run build
 
