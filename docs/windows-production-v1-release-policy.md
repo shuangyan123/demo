@@ -1,6 +1,11 @@
 # Windows production-v1 release policy
 
-状态：**M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
+当前私有 Pilot 状态（2026-10-15）：见 [Recall 0.3.1 Windows Pilot](recall-0.3.1-windows-pilot.md)。
+PR #125 已于 2026-09-07 合并；当前 `main` 包含 Electron `43.5.0`，但这不代表真实 Setup 生命周期验收或发行授权。
+PR #126 仍为历史 Draft，不能重放其旧运行时 tuple。本次没有 tag/Release/公开发布，仍需独立审查。
+以下 M5-G 阶段标签及记录保留其历史上下文，不能作为当前 Pilot 的通过证据。
+
+历史 M5-G 状态：**M5-G RECOVERY FIX / 0.3.1 SOURCE CANDIDATE / NOT YET FROZEN /
 NOT TAGGED / NOT ACTIVATED; PR #125 DRAFT / WINDOWS PRODUCTION RELEASE NOT READY**。
 
 本文是首个 Windows production-v1 发布的签名、完整性、发布流程与剩余
@@ -222,6 +227,14 @@ publisher identity。
 
 ## Version, channel, and updater
 
+### First supported Windows installer scope — owner-attested historical exception (2026-10-16)
+
+The owner attests that Squirrel v0.2.2 was installed only on the owner's computer and **was not distributed to outside users**. The first intended publicly supported Windows installer is the **v0.3.1 per-user NSIS** build; no historical Squirrel release is a supported public upgrade baseline. Forge/Squirrel paths and M3 evidence remain preserved for historical testing and audit only, not a customer migration guarantee.
+
+The observed retained v0.2.2 Squirrel files in the owner's internal disposable upgrade environment are **accepted as unsupported historical installation residue**. No production NSIS hook or migration cleanup is added; no old `Update.exe --uninstall` command, manual filesystem/registry surgery, or v0.2.4-pinned M3 cleaner is authorized for that v0.2.2 installation. If external Squirrel users or a new promise of Squirrel→NSIS compatibility are identified, review and reauthorize that separate support scope.
+
+This scope decision removes **only the requirement to clean up a never-distributed legacy installer**. All existing source/hash/signing controls and supported NSIS fresh-install, launch/restart, same-version reinstall, current-profile data/credential safety, real release-asset verification, Level 3 acceptance, rollback and publication gates remain in force. Unexpected active legacy processes or path collisions discovered during a supported scenario are still hard stops.
+
 - current recovery NSIS source candidate：`0.3.1`；
 - expected recovery tag：`v0.3.1`，继续遵循 `v${package.version}`；本轮不创建实际 tag；
 - initial channel：stable only；
@@ -262,8 +275,7 @@ exact main SHA、tag 和 package version。
 最终 exact Draft Release asset 仍必须进行真实 Windows Level 3 replay：fresh
 install、launch/close/restart/process-tree closure、closed-app uninstall、exact
 candidate reinstall、same-account/profile userData 与 safeStorage/DPAPI continuity、
-disposable credential live use、running-app uninstall、supported Squirrel baseline
-迁移以及 final recovery。证据不得包含真实 credential。
+disposable credential live use、running-app uninstall、**any actually supported predecessor installer migration (currently none: private Squirrel v0.2.2 is explicitly out of public support scope)** 以及 final recovery。证据不得包含真实 credential。旧版 v0.2.2 的历史迁移成功仅为内部测试证据，不得宣称已验证正式用户升级。
 
 除既有 lifecycle hard stop 外，以下情况必须停止：candidate/source/tag/hash 不匹配、
 distributed bytes 与 tested bytes 不同、unexpected signing certificate、checksum

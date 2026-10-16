@@ -1,3 +1,4 @@
+import { policyFetch } from "../http/policy-fetch.ts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { validateOutboundNetworkTarget } from "../http/outbound-network-policy.ts";
@@ -43,7 +44,11 @@ export async function withMcpClient<T>(input: McpConnectionInput, task: (client:
   });
   const headers = input.token ? { Authorization: `Bearer ${input.token}` } : undefined;
   const transport = new StreamableHTTPClientTransport(endpoint, {
-    requestInit: { headers, redirect: "manual", signal: AbortSignal.timeout(MCP_TIMEOUT_MS) },
+    fetch: (url, init) => {
+      if (new URL(url instanceof Request ? url.url : url.toString()).origin !== endpoint.origin) throw new Error("MCP 请求不能离开已授权 origin");
+      return policyFetch(url, { ...init, redirect: "error" }, { allowLoopback: true, allowPrivateNetwork: input.allowPrivateNetwork === true });
+    },
+    requestInit: { headers, redirect: "error", signal: AbortSignal.timeout(MCP_TIMEOUT_MS) },
   });
   const client = new Client({ name: "review-workspace", version: "0.1.0" }, { capabilities: {} });
   try {

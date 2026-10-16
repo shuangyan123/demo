@@ -1,3 +1,4 @@
+import { policyFetch } from "../http/policy-fetch.ts";
 import type {
   AiQuotaAdapterInput,
   AiQuotaErrorCode,
@@ -34,7 +35,7 @@ async function requestJson(url: string | URL, init: RequestInit, signal?: AbortS
   const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
   let response: Response;
   try {
-    response = await fetch(url, { ...init, cache: "no-store", signal: combinedSignal });
+    response = await policyFetch(url, { ...init, cache: "no-store", signal: combinedSignal }, { allowLoopback: false, allowPrivateNetwork: false });
   } catch {
     throw new QuotaAdapterError("provider_unavailable", "厂商额度接口连接失败", 502);
   }

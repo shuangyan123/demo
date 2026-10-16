@@ -188,6 +188,12 @@ test("双模型事实分歧进入争议并阻止确认", async ({ page }) => {
     await card.getByRole("button", { name: /面试采集/ }).click();
     await page.getByRole("button", { name: "立即运行" }).click();
     await expect.poll(() => provider.requests.length).toBe(2);
+    // 请求到达早于响应解析和提案落库；等持久化终态后才允许离开页面。
+    const completedRun = page.locator('article[data-status="succeeded"]').filter({ hasText: "面试采集" });
+    await expect(completedRun).toContainText("已生成 1 条外部知识提案");
+    await expect(completedRun.getByLabel("采集运行摘要")).toContainText("争议 1");
+    await completedRun.getByRole("button", { name: /查看详情/ }).click();
+    await expect(completedRun).toContainText("复核 有分歧");
     await page.goto("/");
     await page.locator(".dashboard-configuration-health > summary").click();
     await page.locator(".dashboard-configuration-health").getByRole("button", { name: "连接 Obsidian" }).click();

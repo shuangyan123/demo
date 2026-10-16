@@ -1,3 +1,4 @@
+import { policyFetch } from "../http/policy-fetch.ts";
 import type { AiSpeechRequest } from "../../services/api-client";
 
 type ProviderHttpRequest = {
@@ -172,7 +173,7 @@ export async function parseSpeechJsonResponse(parseMode: Exclude<SpeechParseMode
   const audioUrl = asRecord(asRecord(root.output).audio).url;
   if (typeof audioUrl !== "string") throw new Error("通义语音未返回可下载音频");
   await validateOutboundNetworkTarget(audioUrl, { allowLoopback: false, allowPrivateNetwork: false });
-  const response = await fetch(audioUrl, { cache: "no-store", redirect: "error" });
+  const response = await policyFetch(audioUrl, { cache: "no-store", redirect: "error" }, { allowLoopback: false, allowPrivateNetwork: false });
   if (!response.ok) throw new Error("通义语音音频下载失败");
   return new Uint8Array(await response.arrayBuffer());
 }
