@@ -43,6 +43,32 @@ async function conversationPartitionId(page: Page, id: string): Promise<string |
   }), id);
 }
 
+async function partitionCount(page: Page, label: string): Promise<number> {
+  return page.evaluate(async (partitionLabel) => new Promise<number>((resolve, reject) => {
+    const request = indexedDB.open("review_workspace");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction("aiConversationFolders", "readonly");
+      const records = transaction.objectStore("aiConversationFolders").getAll();
+      records.onerror = () => reject(records.error);
+      records.onsuccess = () => resolve(records.result.filter((item) => item.label === partitionLabel).length);
+      transaction.oncomplete = () => database.close();
+    };
+  }), label);
+}
+
+/** 创建结束同时要求真实落库、表单关闭和刷新后的树行可见。 */
+async function createPartition(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "新建分区" }).click();
+  await page.getByLabel("分区名称").fill(name);
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect.poll(() => partitionCount(page, name)).toBe(1);
+  await expect(page.getByRole("form", { name: "新建分区" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: `${name} 操作` })).toBeVisible();
+  await expect(page.getByRole("button", { name: "新建分区" })).toBeEnabled();
+}
+
 /** 使用真实指针轨迹驱动 dnd-kit，覆盖激活距离与碰撞检测。 */
 async function pointerDrag(page: Page, sourceSelector: string, targetSelector: string): Promise<void> {
   const source = page.locator(sourceSelector);
@@ -103,15 +129,8 @@ test("公考默认折叠，新对话保持草稿且普通文本不显示 caret",
 test("对话分区可通过右键菜单行内重命名、移动和删除", async ({ page }) => {
   await page.goto("/");
   await page.locator("summary").filter({ hasText: "公考" }).first().click();
-  const createPartition = async (name: string) => {
-    await page.getByRole("button", { name: "新建分区" }).click();
-    await page.getByLabel("分区名称").fill(name);
-    await page.getByRole("button", { name: "创建" }).click();
-    await expect(page.getByRole("button", { name: `${name} 操作` })).toBeVisible();
-  };
-
-  await createPartition("目标分类");
-  await createPartition("临时分类");
+  await createPartition(page, "目标分类");
+  await createPartition(page, "临时分类");
   const temporaryPartition = page.locator('[data-partition-id]').filter({ hasText: "临时分类" }).first();
   await temporaryPartition.click({ button: "right" });
   const drawer = page.getByRole("menu", { name: "分区和对话操作" });
@@ -157,15 +176,77 @@ test("对话分区可通过右键菜单行内重命名、移动和删除", async
   await expect(page.getByRole("button", { name: "待移动分类 操作" })).toHaveCount(0);
 });
 
+test("分区创建提交期间保持单次操作，完成后可连续创建并重启保留", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("summary").filter({ hasText: "公考" }).first().click();
+  // 用持续的真实 IDB 请求控制提交边界，不能用固定等待掩盖竞态。
+  await page.evaluate(() => {
+    const runtime = window as typeof window & { partitionCommitGate?: { held: boolean; completed: boolean; release: () => void } };
+    let released = false;
+    let armed = true;
+    let transaction: IDBTransaction | undefined;
+    let commitRequested = false;
+    const gate = { held: false, completed: false, release: () => { released = true; } };
+    runtime.partitionCommitGate = gate;
+    const commit = IDBTransaction.prototype.commit;
+    IDBTransaction.prototype.commit = function () {
+      // Dexie 会显式 commit；仅保活请求不足以控制实际提交。
+      if (this === transaction && !released) { commitRequested = true; return; }
+      commit.call(this);
+    };
+    const add = IDBObjectStore.prototype.add;
+    IDBObjectStore.prototype.add = function (...args: Parameters<typeof add>) {
+      const result = add.apply(this, args);
+      if (this.name === "aiConversationFolders" && armed) {
+        armed = false;
+        transaction = this.transaction;
+        transaction.addEventListener("complete", () => { gate.completed = true; });
+        gate.held = true;
+        const keepAlive = () => {
+          const request = this.get("partition-commit-gate");
+          request.onsuccess = () => {
+            if (!released) keepAlive();
+            else if (commitRequested) commit.call(this.transaction);
+          };
+        };
+        keepAlive();
+      }
+      return result;
+    };
+  });
+  await page.getByRole("button", { name: "新建分区" }).click();
+  await page.getByLabel("分区名称").fill("提交中的分区");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { partitionCommitGate?: { held: boolean } }).partitionCommitGate?.held)).toBe(true);
+  const form = page.getByRole("form", { name: "新建分区" });
+  try {
+    expect(await page.evaluate(() => (window as typeof window & { partitionCommitGate?: { completed: boolean } }).partitionCommitGate?.completed)).toBe(false);
+    await expect(page.getByRole("button", { name: "新建分区" })).toBeDisabled();
+    await expect(form).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByLabel("分区名称")).toBeDisabled();
+    await expect(form.getByRole("button", { name: "创建", exact: true })).toBeDisabled();
+    await expect(form.getByRole("button", { name: "取消", exact: true })).toBeDisabled();
+  } finally {
+    await page.evaluate(() => (window as typeof window & { partitionCommitGate?: { release: () => void } }).partitionCommitGate?.release());
+  }
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { partitionCommitGate?: { completed: boolean } }).partitionCommitGate?.completed)).toBe(true);
+  await expect(form).toHaveCount(0);
+  await expect.poll(() => partitionCount(page, "提交中的分区")).toBe(1);
+  await expect(page.getByRole("button", { name: "提交中的分区 操作" })).toBeVisible();
+  await createPartition(page, "后续分区");
+  await page.reload();
+  const project = page.locator("summary").filter({ hasText: "公考" }).first();
+  await expect(project).toBeVisible();
+  if (!await project.evaluate((element) => element.parentElement?.hasAttribute("open"))) await project.click();
+  await expect(page.getByRole("button", { name: "提交中的分区 操作" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "后续分区 操作" })).toBeVisible();
+});
+
 test("桌面名称区域可将持久化对话移入分区并拖回项目根目录", async ({ page }) => {
   await page.goto("/");
   await page.locator("summary").filter({ hasText: "公考" }).first().click();
-  await page.getByRole("button", { name: "新建分区" }).click();
-  await page.getByLabel("分区名称").fill("拖拽目标");
-  await page.getByRole("button", { name: "创建" }).click();
-  await page.getByRole("button", { name: "新建分区" }).click();
-  await page.getByLabel("分区名称").fill("嵌套分区");
-  await page.getByRole("button", { name: "创建" }).click();
+  await createPartition(page, "拖拽目标");
+  await createPartition(page, "嵌套分区");
 
   const targetRootPartition = page.locator('[data-partition-id]').filter({ hasText: "拖拽目标" }).first();
   const nestedRootPartition = page.locator('[data-partition-id]').filter({ hasText: "嵌套分区" }).first();

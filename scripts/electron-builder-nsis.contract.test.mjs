@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import test from "node:test";
+import "./read-electron-runtime-version.contract.test.mjs";
 
 const workspaceRoot = process.cwd();
 const require = createRequire(import.meta.url);

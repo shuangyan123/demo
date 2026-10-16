@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -25,6 +25,16 @@ const electronProbeSource = [
   "  app.exit(1);",
   "});",
 ].join("\n");
+
+/** 只记录探针白名单上下文；子进程输出有界并脱敏，不展开环境变量或原始 Error。 */
+function diagnosticText(value) {
+  return String(value ?? "")
+    .replace(/\b(Bearer\s+)\S+/gi, "$1[REDACTED]")
+    .replace(/((?:authorization|api[_-]?key|password|token)\s*[=:]\s*)[^\s,;]+/gi, "$1[REDACTED]")
+    .replace(/(https?:\/\/)[^/\s@]+@/gi, "$1[REDACTED]@")
+    .replace(/(https?:\/\/[^\s?#]+)[?#][^\s]*/gi, "$1?[REDACTED]")
+    .slice(0, 4096);
+}
 
 export function getElectronRuntimeExecutablePath({ workspaceRoot: root = workspaceRoot } = {}) {
   if (process.platform !== "win32") {
@@ -54,17 +64,22 @@ export function readElectronRuntimeVersions({
   const probeDirectory = mkdtempSync(path.join(os.tmpdir(), "review-workspace-electron-runtime-"));
   const probePath = path.join(probeDirectory, "probe.cjs");
   writeFileSync(probePath, `${electronProbeSource}\n`, "utf8");
+  const canonicalProbeDirectory = realpathSync.native(probeDirectory);
 
+  let phase = "launch";
+  let output = "";
   try {
     const environment = { ...process.env };
     delete environment.ELECTRON_RUN_AS_NODE;
-    const output = execFileSync(executablePath, [probePath], {
+    output = execFileSync(executablePath, [probePath], {
       cwd: root,
       encoding: "utf8",
       env: environment,
       timeout: 30_000,
       windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
     });
+    phase = "decode";
     const lines = output.trim().split(/\r?\n/).filter(Boolean);
     const readback = JSON.parse(lines.at(-1) ?? "");
     if (
@@ -84,9 +99,22 @@ export function readElectronRuntimeVersions({
       pass: true,
     };
   } catch (error) {
-    throw new Error(
-      `Electron embedded Node runtime readback failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    // 旧包装只保留 message，丢失 NTSTATUS/信号和管道输出，无法判断启动还是协议失败。
+    const diagnostics = {
+      phase,
+      status: error?.status ?? null,
+      windowsStatusHex: Number.isInteger(error?.status) ? `0x${(error.status >>> 0).toString(16).padStart(8, "0")}` : null,
+      signal: error?.signal ?? null,
+      code: error?.code ?? null,
+      pid: error?.pid ?? null,
+      stdout: diagnosticText(error?.stdout ?? output),
+      stderr: diagnosticText(error?.stderr),
+      message: diagnosticText(error instanceof Error ? error.message : error),
+      launch: { executablePath, probePath, cwd: root, canonicalProbeDirectory,
+        timeoutMs: 30_000, windowsHide: true, parentNodeVersion: process.versions.node,
+        nodeOptionsPresent: Boolean(process.env.NODE_OPTIONS), electronRunAsNodeRemoved: true },
+    };
+    throw Object.assign(new Error(`Electron embedded Node runtime readback failed: ${JSON.stringify(diagnostics)}`), { diagnostics });
   } finally {
     if (path.dirname(probeDirectory) !== path.resolve(os.tmpdir())
       || !path.basename(probeDirectory).startsWith("review-workspace-electron-runtime-")) {
