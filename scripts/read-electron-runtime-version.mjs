@@ -26,14 +26,28 @@ const electronProbeSource = [
   "});",
 ].join("\n");
 
-/** 只记录探针白名单上下文；子进程输出有界并脱敏，不展开环境变量或原始 Error。 */
-function diagnosticText(value) {
-  return String(value ?? "")
-    .replace(/\b(Bearer\s+)\S+/gi, "$1[REDACTED]")
-    .replace(/((?:authorization|api[_-]?key|password|token)\s*[=:]\s*)[^\s,;]+/gi, "$1[REDACTED]")
-    .replace(/(https?:\/\/)[^/\s@]+@/gi, "$1[REDACTED]@")
-    .replace(/(https?:\/\/[^\s?#]+)[?#][^\s]*/gi, "$1?[REDACTED]")
-    .slice(0, 4096);
+const diagnosticCodes = new Set([
+  "ENOENT", "EACCES", "EPERM", "EAGAIN", "EMFILE", "ENFILE", "ENOMEM", "EINVAL",
+  "ETIMEDOUT", "ENOBUFS", "UNKNOWN", "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+]);
+const diagnosticSignals = new Set([
+  "SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGABRT", "SIGBUS", "SIGFPE",
+  "SIGKILL", "SIGUSR1", "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGBREAK",
+]);
+
+function failureField(error, key) {
+  // 不执行不可信 Error 上的 getter，也不保留其原型、cause 或自定义字段。
+  try { return Object.getOwnPropertyDescriptor(error, key)?.value; } catch { return undefined; }
+}
+
+function diagnosticInteger(value, minimum, maximum) {
+  return Number.isInteger(value) && value >= minimum && value <= maximum ? value : null;
+}
+
+function outputMetadata(value) {
+  // 输出正文永不进入异常或日志；长度封顶，不尝试识别任意格式的秘密。
+  const bytes = typeof value === "string" ? Buffer.byteLength(value) : Buffer.isBuffer(value) ? value.length : 0;
+  return { present: bytes > 0, bytes: Math.min(bytes, 1_048_576), capped: bytes > 1_048_576 };
 }
 
 export function getElectronRuntimeExecutablePath({ workspaceRoot: root = workspaceRoot } = {}) {
@@ -64,7 +78,7 @@ export function readElectronRuntimeVersions({
   const probeDirectory = mkdtempSync(path.join(os.tmpdir(), "review-workspace-electron-runtime-"));
   const probePath = path.join(probeDirectory, "probe.cjs");
   writeFileSync(probePath, `${electronProbeSource}\n`, "utf8");
-  const canonicalProbeDirectory = realpathSync.native(probeDirectory);
+  const probeDirectoryCanonical = realpathSync.native(probeDirectory) === probeDirectory;
 
   let phase = "launch";
   let output = "";
@@ -99,18 +113,20 @@ export function readElectronRuntimeVersions({
       pass: true,
     };
   } catch (error) {
-    // 旧包装只保留 message，丢失 NTSTATUS/信号和管道输出，无法判断启动还是协议失败。
+    // 严格白名单：禁止复制 message/stack/stdout/stderr 正文、路径或任意错误字符串。
+    const status = phase === "decode" ? 0 : diagnosticInteger(failureField(error, "status"), -0x80000000, 0xffffffff);
+    const code = failureField(error, "code");
+    const signal = failureField(error, "signal");
     const diagnostics = {
       phase,
-      status: error?.status ?? null,
-      windowsStatusHex: Number.isInteger(error?.status) ? `0x${(error.status >>> 0).toString(16).padStart(8, "0")}` : null,
-      signal: error?.signal ?? null,
-      code: error?.code ?? null,
-      pid: error?.pid ?? null,
-      stdout: diagnosticText(error?.stdout ?? output),
-      stderr: diagnosticText(error?.stderr),
-      message: diagnosticText(error instanceof Error ? error.message : error),
-      launch: { executablePath, probePath, cwd: root, canonicalProbeDirectory,
+      errorType: phase === "decode" ? "invalid_readback" : "child_process_failed",
+      status,
+      windowsStatusHex: status === null ? null : `0x${(status >>> 0).toString(16).padStart(8, "0")}`,
+      signal: diagnosticSignals.has(signal) ? signal : null,
+      code: diagnosticCodes.has(code) ? code : null,
+      pid: diagnosticInteger(failureField(error, "pid"), 1, 0xffffffff),
+      output: { stdout: outputMetadata(failureField(error, "stdout") ?? output), stderr: outputMetadata(failureField(error, "stderr")) },
+      launch: { probeDirectoryCanonical,
         timeoutMs: 30_000, windowsHide: true, parentNodeVersion: process.versions.node,
         nodeOptionsPresent: Boolean(process.env.NODE_OPTIONS), electronRunAsNodeRemoved: true },
     };
