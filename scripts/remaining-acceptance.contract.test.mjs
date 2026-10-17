@@ -34,6 +34,13 @@ if (process.platform === "win32") test("both native scripts refuse execution out
   }
 });
 
+if (process.platform === "win32") test("artifact ZIP requests use JSON negotiation while release assets explicitly use octet-stream", () => {
+  // 只提取下载函数并注入无网络 fake；绝不执行安装或整段 hosted 脚本。
+  const command = `$ErrorActionPreference='Stop'; $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/download-install-acceptance.ps1'),[ref]$null,[ref]$null); $fn=$ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Save-Artifact'},$true); Invoke-Expression $fn.Extent.Text; $headers=@{Accept='application/vnd.github+json'}; $script:seen=@(); function Invoke-WebRequest {param($Headers,$Uri,$OutFile,$TimeoutSec) $script:seen+=,$Headers.Accept}; function Get-FileHash {param($LiteralPath,$Algorithm) @{Hash='ABC'}}; Save-Artifact 'https://api.github.com/repos/owned/repo/actions/artifacts/1/zip' 'unused' 'abc'; Save-Artifact 'https://api.github.com/repos/owned/repo/releases/assets/1' 'unused' 'abc' 'application/octet-stream'; ConvertTo-Json -InputObject $script:seen -Compress`;
+  const result = execFileSync("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" });
+  assert.deepEqual(JSON.parse(result), ["application/vnd.github+json", "application/octet-stream"]);
+});
+
 test("uninstall assertions precede fixture cleanup and cleanup cannot fake uninstall success", () => {
   const script = source("./windows-nsis-install-acceptance.ps1");
   assert.match(script, /Installer SHA256 rechecked immediately before execution/);

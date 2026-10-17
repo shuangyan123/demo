@@ -8,9 +8,9 @@ New-Item -ItemType Directory -Path (Join-Path $root 'evidence') | Out-Null
 $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
 $api = "https://api.github.com/repos/$($policy.repository)"
 function Read-Api($suffix) { Invoke-RestMethod -Headers $headers -Uri "$api/$suffix" -TimeoutSec 30 }
-function Save-Artifact($uri, $destination, $expected) {
+function Save-Artifact($uri, $destination, $expected, $mediaType = 'application/vnd.github+json') {
   $binaryHeaders = $headers.Clone()
-  $binaryHeaders.Accept = 'application/octet-stream'
+  $binaryHeaders.Accept = $mediaType
   Invoke-WebRequest -Headers $binaryHeaders -Uri $uri -OutFile $destination -TimeoutSec 120
   if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw "SHA256 mismatch: $destination" }
 }
@@ -38,9 +38,12 @@ try {
     $tagRef = Read-Api "git/ref/tags/$($policy.previous.tag)"
     $tag = Read-Api "git/tags/$($tagRef.object.sha)"
     if ($old.Count -ne 1 -or $old[0].digest -ne "sha256:$($policy.previous.sha256)" -or $tag.object.sha -ne $policy.previous.commit) { throw 'Previous release identity mismatch' }
-    Save-Artifact "$api/releases/assets/$($policy.previous.assetId)" (Join-Path $root 'previous.exe') $policy.previous.sha256
+    Save-Artifact "$api/releases/assets/$($policy.previous.assetId)" (Join-Path $root 'previous.exe') $policy.previous.sha256 'application/octet-stream'
     $upgrade = @{ status = 'PLANNED'; trusted = $true; tag = $policy.previous.tag; commit = $policy.previous.commit; sha256 = $policy.previous.sha256; provenance = 'Owned release API digest and fixed tag commit; unsigned, no publisher signature claim' }
   } catch { $upgrade.reason = $_.Exception.Message }
   $upgrade | ConvertTo-Json | Set-Content (Join-Path $root 'evidence/upgrade-provenance.json')
   @{ sourceCommit = $policy.sourceCommit; runId = $policy.runId; artifactId = $policy.artifactId; archiveSha256 = $policy.artifactDigest; installerSha256 = $policy.installerSha256; status = 'PASS' } | ConvertTo-Json | Set-Content (Join-Path $root 'evidence/artifact-verification.json')
+} catch {
+  @{ status = 'FAIL'; phase = 'artifact-download'; reason = $_.Exception.Message } | ConvertTo-Json | Set-Content (Join-Path $root 'evidence/download-failure.json')
+  throw
 } finally { Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue }
