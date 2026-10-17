@@ -63,9 +63,13 @@ test("connector pins fallback addresses and verifies remote address before relea
   let released = false;
   const socket = new Socket();
   Object.defineProperties(socket, { remoteAddress: { value: "127.0.0.1" }, remotePort: { value: 443 } });
-  const factory: typeof buildConnector = options => { settings = options; return (_options, callback) => callback(null, socket); };
+  const factory: typeof buildConnector = options => { settings = options; return (connection, callback) => {
+    assert.equal(connection.servername, "identity.test", "call-level override cannot change certificate identity");
+    assert.equal(connection.host, "identity.test");
+    callback(null, socket);
+  }; };
   const connect = createPinnedConnector(target, factory);
-  connect({ hostname: "identity.test", protocol: "https:", port: "443" }, (error, socketResult) => { assert.equal(socketResult, null); released = true; assert.match(String(error), /绑定批准地址/); });
+  connect({ hostname: "identity.test", host: "foreign.test", servername: "foreign.test", protocol: "https:", port: "443" }, (error, socketResult) => { assert.equal(socketResult, null); released = true; assert.match(String(error), /绑定批准地址/); });
   assert.equal(released, true);
   assert.equal(socket.destroyed, true);
   assert.equal(settings?.servername, "identity.test");
@@ -74,6 +78,15 @@ test("connector pins fallback addresses and verifies remote address before relea
   const lookup = pinnedLookup(target);
   await new Promise<void>((resolve, reject) => lookup("identity.test", { all: true }, (error, addresses) => { if (error) return reject(error); assert.deepEqual(addresses, target.addresses); resolve(); }));
   await new Promise<void>(resolve => lookup("other.test", {}, error => { assert.ok(error); resolve(); }));
+});
+
+test("conflicting Host is rejected before DNS or transport even for an otherwise allowed public target", async context => {
+  let calls = 0;
+  context.mock.method(outboundTransport, "fetch", async () => { calls++; throw new Error("must not send"); });
+  try {
+    await assert.rejects(outboundFetch("https://identity.test", { headers: { Host: "foreign.test" } }, { lookupAll: async () => { calls++; return [{ address: "8.8.8.8", family: 4 }]; } }), /Host 与已授权地址不一致/);
+    assert.equal(calls, 0);
+  } finally { context.mock.restoreAll(); }
 });
 
 test("explicit LAN authorization reaches only the approved private peer and keeps TLS identity", async () => {

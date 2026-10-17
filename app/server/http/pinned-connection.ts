@@ -47,7 +47,8 @@ export function createPinnedConnector(target: ApprovedNetworkTarget, connector =
       callback(new RouteSecurityError("outbound_binding_mismatch", "外联连接目标不匹配", 400), null);
       return;
     }
-    connect(options, (error, socket) => {
+    // buildConnector 的调用级 servername 优先于构造选项，不能让 Host/调用方覆盖原目标身份。
+    connect({ ...options, host: target.url.host, servername: isIP(target.hostname) ? "" : target.hostname }, (error, socket) => {
       if (error || !socket) { callback(error ?? new Error("missing outbound socket"), null); return; }
       if (!socket.remoteAddress || socket.remotePort !== target.port
         || !target.addresses.some(item => addressIdentity(item.address) === addressIdentity(socket.remoteAddress!))) {

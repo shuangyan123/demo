@@ -35,6 +35,10 @@ async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T
 /** 最终 URL、全部 DNS 答案和实际 socket 共用授权；每次调用重新解析，绝不自动重试。 */
 export async function outboundFetch(input: string | URL | Request, init: RequestInit = {}, policy: OutboundFetchOptions = {}): Promise<Response> {
   const url = new URL(input instanceof Request ? input.url : input.toString());
+  const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
+  if (headers.has("host") && headers.get("host")?.toLowerCase() !== url.host.toLowerCase()) {
+    throw new RouteSecurityError("outbound_authority_mismatch", "请求 Host 与已授权地址不一致", 400);
+  }
   assertDirectConnection(url);
   const signal = AbortSignal.any([AbortSignal.timeout(policy.timeoutMs ?? 60_000), ...(init.signal ? [init.signal] : []), ...(input instanceof Request ? [input.signal] : [])]);
   signal.throwIfAborted();
