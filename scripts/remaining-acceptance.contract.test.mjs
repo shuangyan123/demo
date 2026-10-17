@@ -51,6 +51,11 @@ if (process.platform === "win32") test("installation location is read from the i
   assert.equal(execFileSync("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" }).trim(), "PASS");
 });
 
+if (process.platform === "win32") test("installed-file identity uses an existing file handle and rejects nonexistent targets", () => {
+  const command = `$ErrorActionPreference='Stop'; $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/windows-nsis-install-acceptance.ps1'),[ref]$null,[ref]$null); $fn=$ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Resolve-Installed-File'},$true); Invoke-Expression $fn.Extent.Text; $exe=(Get-Command node.exe).Source; $same=Join-Path (Split-Path $exe) './node.exe'; if((Resolve-Installed-File $exe) -ne (Resolve-Installed-File $same)){throw 'Equivalent existing paths must identify the same file'}; $failed=$false; try{Resolve-Installed-File ($exe+'.not-present')}catch{$failed=$true}; if(-not $failed){throw 'Nonexistent targets cannot pass'}; 'PASS'`;
+  assert.equal(execFileSync("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" }).trim(), "PASS");
+});
+
 test("uninstall assertions precede fixture cleanup and cleanup cannot fake uninstall success", () => {
   const script = source("./windows-nsis-install-acceptance.ps1");
   assert.match(script, /Installer SHA256 rechecked immediately before execution/);

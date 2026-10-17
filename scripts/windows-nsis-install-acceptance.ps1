@@ -58,6 +58,30 @@ function Installation-Registry($record) {
   if ($null -eq $value.PSObject.Properties['InstallLocation'] -or [string]::IsNullOrWhiteSpace($value.InstallLocation)) { throw 'Missing application installation location' }
   [pscustomobject]@{ key = $key; location = $value.InstallLocation }
 }
+function Resolve-Installed-File($file) {
+  if (-not ('RecallAcceptanceFilePath' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+public static class RecallAcceptanceFilePath {
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+  private static extern uint GetFinalPathNameByHandle(SafeFileHandle file, StringBuilder value, uint length, uint flags);
+  public static string Resolve(string path) {
+    using (var file = File.OpenRead(path)) {
+      var value = new StringBuilder(32768);
+      var length = GetFinalPathNameByHandle(file.SafeFileHandle, value, (uint)value.Capacity, 0);
+      if (length == 0 || length >= value.Capacity) throw new IOException("Unable to confirm installed file path");
+      return value.ToString();
+    }
+  }
+}
+'@
+  }
+  [RecallAcceptanceFilePath]::Resolve($file)
+}
 function Run-Owned($file, $arguments, $seconds = 120) {
   $process = Start-Process -FilePath $file -ArgumentList $arguments -WindowStyle Hidden -PassThru
   if (-not $process.WaitForExit($seconds * 1000)) { throw 'Installer process deadline exceeded' }
@@ -96,9 +120,18 @@ function Install-Fixed {
   Check ((Get-Item -LiteralPath (Join-Path $install 'review-workspace.exe')).VersionInfo.ProductVersion -like '0.3.1*') 'Installed executable version'
   $records | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'installed-registration.json')
   $shell = New-Object -ComObject WScript.Shell
+  $links = @()
   foreach ($shortcut in $shortcutPaths) {
     Check (Test-Path -LiteralPath $shortcut) "Shortcut created: $(Split-Path $shortcut -Leaf)"
-    Check ($shell.CreateShortcut($shortcut).TargetPath -eq (Join-Path $install 'review-workspace.exe')) 'Shortcut target is isolated executable'
+    $link = $shell.CreateShortcut($shortcut)
+    $target = $link.TargetPath
+    $expected = Join-Path $install 'review-workspace.exe'
+    $links += @{ shortcut = $shortcut; target = $target; expected = $expected; arguments = $link.Arguments }
+    ConvertTo-Json -InputObject $links -Depth 4 | Set-Content (Join-Path $evidence 'installed-shortcuts.json')
+    # Windows 可返回 8.3 路径；确认打开的真实文件路径，不能靠字符串或相同 hash 接受别处的 EXE。
+    try { $same = (Resolve-Installed-File $target) -eq (Resolve-Installed-File $expected) } catch { $same = $false }
+    try { Check $same 'Shortcut target is isolated executable' }
+    catch { Write-Output 'Shortcut assertion retained as FAIL; continue independent installed-executable checks' }
   }
 }
 function Launch-Probe($exe, $mode, $name, $fresh) {
@@ -177,6 +210,7 @@ try {
     Clean-Synthetic-Data
   } else { $upgrade | ConvertTo-Json | Set-Content (Join-Path $evidence 'upgrade-result.json') }
   Check (@(Registry-Entries).Count -eq 0) 'No remaining Recall uninstall registrations'
+  Check (@($assertions | Where-Object { -not $_.pass }).Count -eq 0) 'Every recorded assertion passed'
   $complete = $true
 } catch {
   @{ status = 'FAIL'; error = $_.Exception.Message; stack = $_.ScriptStackTrace } | ConvertTo-Json | Set-Content (Join-Path $evidence 'failure.json')
