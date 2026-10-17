@@ -22,6 +22,7 @@ jobs:
       installer_sensitive: ${{ steps.classify.outputs.installer_sensitive }}
       migration_sensitive: ${{ steps.classify.outputs.migration_sensitive }}
       browser_runtime_sensitive: ${{ steps.classify.outputs.browser_runtime_sensitive }}
+      windows_runtime_sensitive: ${{ steps.classify.outputs.windows_runtime_sensitive }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -30,7 +31,9 @@ jobs:
     steps:
       - name: Authenticated full-history checkout without persisted credentials
         uses: actions/checkout@v5
+        # Exact task SHA is also used for static and build jobs.
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -58,7 +61,8 @@ jobs:
             printf '%s\n' \
               'installer_sensitive=true' \
               'migration_sensitive=true' \
-              'browser_runtime_sensitive=true' >> "$GITHUB_OUTPUT"
+              'browser_runtime_sensitive=true' \
+              'windows_runtime_sensitive=true' >> "$GITHUB_OUTPUT"
           }
           if ! git cat-file -e "${PR_BASE_SHA}^{commit}" 2>/dev/null || ! git cat-file -e "${PR_HEAD_SHA}^{commit}" 2>/dev/null; then
             fail_safe
@@ -69,10 +73,11 @@ jobs:
             fail_safe
           elif ! node "$classifier" < "$changed_paths" > "$classification_output"; then
             fail_safe
-          elif [ "$(wc -l < "$classification_output")" -ne 3 ] \
+          elif [ "$(wc -l < "$classification_output")" -ne 4 ] \
             || ! grep -Eq '^installer_sensitive=(true|false)$' "$classification_output" \
             || ! grep -Eq '^migration_sensitive=(true|false)$' "$classification_output" \
-            || ! grep -Eq '^browser_runtime_sensitive=(true|false)$' "$classification_output"; then
+            || ! grep -Eq '^browser_runtime_sensitive=(true|false)$' "$classification_output" \
+            || ! grep -Eq '^windows_runtime_sensitive=(true|false)$' "$classification_output"; then
             fail_safe
           else
             cat "$classification_output" >> "$GITHUB_OUTPUT"
@@ -87,6 +92,9 @@ jobs:
       # 固定官方 Node 24.20.0 LTS 环境，并复用 npm 下载缓存。
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -125,20 +133,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 24.20.0
           cache: npm
-      - name: Install dependencies
-        run: npm ci --no-audit
       - name: Audit production dependencies
         run: npm run audit:prod
 
   windows-m3:
     name: Windows M3 Migration Contracts
     needs: private-release-checkout
-    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.migration_sensitive == 'true')
+    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.migration_sensitive != 'false')
     runs-on: windows-latest
     timeout-minutes: 10
     permissions:
@@ -195,6 +204,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
@@ -216,20 +228,19 @@ jobs:
           if-no-files-found: error
 
   e2e:
-    name: E2E (${{ matrix.project }})
+    name: E2E (Chromium + Mobile)
     needs: [build, private-release-checkout]
-    if: always() && needs.build.result == 'success' && (github.event_name != 'pull_request' || needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.browser_runtime_sensitive == 'true')
+    if: github.event_name == 'pull_request' && always() && needs.build.result == 'success' && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.browser_runtime_sensitive != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        project:
-          - chromium
-          - chromium-mobile
+    env:
+      CI: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
@@ -243,20 +254,21 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: E2E tests
-        run: npm run test:e2e -- --project=${{ matrix.project }}
+        run: npm run test:e2e
 
       - name: Upload Playwright evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-${{ matrix.project }}
+          name: playwright-linux
           path: .playwright-results
+          include-hidden-files: true
           if-no-files-found: ignore
 
   windows-e2e:
     name: Windows Full E2E (Node 24.20.0)
     needs: private-release-checkout
-    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.browser_runtime_sensitive == 'true' || needs.private-release-checkout.outputs.installer_sensitive == 'true')
+    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.windows_runtime_sensitive != 'false' || needs.private-release-checkout.outputs.installer_sensitive != 'false')
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:
@@ -320,7 +332,7 @@ jobs:
   windows-nsis-production:
     name: Windows NSIS Production
     needs: private-release-checkout
-    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.installer_sensitive == 'true')
+    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.installer_sensitive != 'false')
     runs-on: windows-latest
     timeout-minutes: 45
     permissions:
