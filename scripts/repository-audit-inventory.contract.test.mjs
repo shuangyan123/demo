@@ -92,3 +92,4 @@ test("all checkout contracts have an eligible normal-CI path or exact reviewed o
   const result = readCheckoutContractCoverage();
   assert.deepEqual(result.errors, [], result.errors.join("\n"));
 });
+import "./remaining-acceptance.contract.test.mjs";
