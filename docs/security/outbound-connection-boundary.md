@@ -23,7 +23,7 @@
 | Registry/quota/realtime credential exchange/Fenbi | 固定业务主机，公网连接绑定，禁止重定向；不把用户输入当作 URL authority |
 | GLM WSS | 固定主机、独占 HTTPS Agent 和批准 lookup，保留 hostname TLS、15 秒握手、禁止重定向；关闭时销毁 Agent |
 
-Desktop 对自己拥有的 Next runtime 的内部 loopback 请求仍由现有 runtime token/Host 边界保护，不将其当成用户提供的外部目标，不扩大 preload/IPC。
+Desktop 协议代理只允许 Main 自己创建的 `http://127.0.0.1:<port>` authority；通过 URL setters 赋值 path/query，禁止把 `//host` 或反斜杠路径当成新的 authority。先核验来源 scheme/host/凭据再注入 runtime token，内部转发保留 manual redirect、取消与 60 秒预算。启动探活禁止重定向并限制单次 5 秒。真实 Electron fixture 验证恶意 authority 形状的 GET/POST 只到自建 runtime，另一自建目标收到零请求。不扩大 preload/IPC。
 
 ## 代理兼容性
 
