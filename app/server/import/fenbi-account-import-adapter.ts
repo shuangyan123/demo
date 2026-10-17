@@ -1,3 +1,4 @@
+import { outboundFetch } from "../http/outbound-fetch.ts";
 import { normalizeFenbiDraft, type FenbiDraftInput } from "../../services/fenbi-parser.ts";
 import type { FenbiSyncScope } from "../../types/domains/fenbi-import.ts";
 import type { ImportDraft } from "../../types/domains/import.ts";
@@ -128,7 +129,7 @@ export class FenbiAccountImportAdapter {
   private duplicateCount = 0;
 
   constructor(options: AdapterOptions = {}) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = options.fetchImpl ?? ((input, init) => outboundFetch(input, init, { allowLoopback: false, allowPrivateNetwork: false, timeoutMs: REQUEST_TIMEOUT_MS }));
     this.sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.requestTimeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
   }

@@ -1,3 +1,4 @@
+import { outboundFetch } from "../http/outbound-fetch.ts";
 import type { McpCatalogEntry, McpRegistryPage } from "../../types/domains/mcp.ts";
 
 const REGISTRY_ORIGIN = "https://registry.modelcontextprotocol.io";
@@ -64,13 +65,13 @@ export async function queryOfficialMcpRegistry(input: { query?: string; cursor?:
   url.searchParams.set("version", "latest");
   if (query) url.searchParams.set("search", query);
   if (cursor) url.searchParams.set("cursor", cursor);
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     headers: { Accept: "application/json" },
     cache: "no-store",
     redirect: "error",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-  if (!response.ok) throw new Error(`MCP Registry 暂时不可用（${response.status}）`);
+  }, { allowLoopback: false, allowPrivateNetwork: false });
+  if (!response.ok) { await response.body?.cancel(); throw new Error(`MCP Registry 暂时不可用（${response.status}）`); }
   const length = Number(response.headers.get("content-length") ?? 0);
   if (length > MAX_RESPONSE_BYTES) throw new Error("MCP Registry 响应超过安全上限");
   const text = await response.text();
