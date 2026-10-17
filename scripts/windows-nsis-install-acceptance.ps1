@@ -180,6 +180,27 @@ try {
   $complete = $true
 } catch {
   @{ status = 'FAIL'; error = $_.Exception.Message; stack = $_.ScriptStackTrace } | ConvertTo-Json | Set-Content (Join-Path $evidence 'failure.json')
+  # 只采集本轮拥有的安装进程窗口；失败时保留原生对话框证据，不截图宿主其他应用。
+  try {
+    if ($null -ne $current -and -not $current.HasExited) {
+      Add-Type -AssemblyName UIAutomationClient
+      Add-Type -AssemblyName UIAutomationTypes
+      Add-Type -AssemblyName System.Drawing
+      $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $current.Id))
+      $details = @(); $index = 0
+      foreach ($window in $windows) {
+        $controls = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)
+        $details += @{ title = $window.Current.Name; controls = @($controls | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+        $bounds = $window.Current.BoundingRectangle
+        if ($bounds.Width -gt 0 -and $bounds.Height -gt 0) {
+          $bitmap = [Drawing.Bitmap]::new([int]$bounds.Width, [int]$bounds.Height); $graphics = [Drawing.Graphics]::FromImage($bitmap)
+          try { $graphics.CopyFromScreen([int]$bounds.X, [int]$bounds.Y, 0, 0, $bitmap.Size); $bitmap.Save((Join-Path $evidence "failure-owned-window-$index.png")) } finally { $graphics.Dispose(); $bitmap.Dispose() }
+        }
+        $index++
+      }
+      ConvertTo-Json -InputObject $details -Depth 4 | Set-Content (Join-Path $evidence 'failure-owned-windows.json')
+    }
+  } catch { Write-Output 'Owned-window diagnostics unavailable; original failure retained' }
   throw
 } finally {
   # 不用强制清理伪造卸载成功；失败现场与断言留在 artifact，runner 任务后整体销毁。
