@@ -47,3 +47,9 @@
 - Axios 的 [HTTP/2 DNS/proxy 绕过](https://github.com/advisories/GHSA-3pq3-5fj3-cg6v)与 [fetch adapter 重定向绕过](https://github.com/advisories/GHSA-r4gj-5m52-g5wh)由 1.20.0 修复；shell-quote 的 [命令注入](https://github.com/advisories/GHSA-pqg4-j6r4-53mv)由 1.11.0 修复。
 - 本轮查询的生产审计为 0 high / 0 critical / 10 moderate；全依赖审计仍为 3 low / 18 moderate / 34 high / 1 critical，命令非零退出。Axios 与 shell-quote 已不在审计发现列表。剩余项主要位于 Forge/打包/开发工具链，包括 `tar@6.2.1`；这是实际残余风险，不是自动获批的例外，也不代表工具链已完成安全验收。生产 moderate 项也未在本轮获得新的风险接受。
 - 不通过强制 audit fix、major 打包迁移或放宽门禁消除报告；完整发布安全验收仍需单独核对剩余公告的可达路径与兼容修复。本轮只形成综合 Draft PR，不发布版本。
+
+### PR #148 剩余验收与兼容修复
+
+- 后续同线修复将完整审计降至 3 low / 10 moderate / 25 high / 1 critical，生产审计降至 3 moderate / 0 high / 0 critical。原审计和后续审计属于不同锁文件快照，不能覆盖历史结果。
+- 全部 56 个原包级 findings、53 个公告的分类及剩余阻断见 [逐项审查](security/dependency-risk-review-2026-10-17.md)。没有未经批准接受 high/critical，也没有用 dev 标记当作不可达证明。
+- 固定提交的安装验收使用 [临时 hosted Windows 入口](security/windows-install-acceptance.md)，不得在用户主机或现有 Pilot 上执行；该二进制证据不能替代后续新依赖 HEAD 的验证。

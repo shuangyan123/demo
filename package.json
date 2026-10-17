@@ -13,20 +13,26 @@
   "overrides": {
     "@hono/node-server": "2.0.11",
     "fast-uri": "3.1.8",
-    "hono": "4.12.34",
-    "ip-address": "10.4.0",
+    "hono": "4.13.13",
+    "ip-address": "10.7.4",
     "nanoid": "3.3.18",
     "undici": "7.29.1",
     "@eslint/eslintrc": {
       "js-yaml": "4.3.2"
     },
-    "brace-expansion@1.1.15": "1.1.16",
-    "brace-expansion@5.0.6": "5.0.8",
     "next": {
       "postcss": "8.5.23"
     },
     "axios": "1.20.0",
-    "shell-quote": "1.11.0"
+    "shell-quote": "1.11.0",
+    "brace-expansion@1": "1.1.21",
+    "brace-expansion@2": "2.1.7",
+    "brace-expansion@5": "5.0.12",
+    "browserslist": "4.29.3",
+    "baseline-browser-mapping": "2.11.29",
+    "http-cache-semantics": "4.3.0",
+    "joi": "18.3.0",
+    "@xmldom/xmldom@^0.9.0": "0.9.12"
   },
   "scripts": {
     "dev": "next dev",
@@ -82,7 +88,7 @@
     "cron-parser": "^5.10.0",
     "dexie": "^4.4.5",
     "geist": "1.7.2",
-    "js-yaml": "^5.3.0",
+    "js-yaml": "^5.5.0",
     "lucide-react": "^1.33.0",
     "mammoth": "^1.12.1",
     "next": "^16.3.8",
