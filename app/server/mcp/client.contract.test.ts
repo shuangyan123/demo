@@ -57,3 +57,25 @@ test("AUD-09 MCP: DNS 与 SDK connect 均 mock，LAN 授权不包含特殊网络
     syncBuiltinESMExports();
   }
 });
+
+test("HTTP .local MCP cannot use DNS to forward its bearer token to a public address", async context => {
+  let addresses = [{ address: "8.8.8.8", family: 4 }];
+  let connects = 0;
+  context.mock.method(dns, "lookup", async (hostname: string) => { assert.equal(hostname, "bridge.local"); return addresses; });
+  syncBuiltinESMExports();
+  context.mock.method(Client.prototype, "connect", async () => { connects++; });
+  context.mock.method(Client.prototype, "close", async () => undefined);
+  try {
+    const input = { endpoint: "http://bridge.local/mcp", allowPrivateNetwork: true, token: "manufactured-token" };
+    await assert.rejects(withMcpClient(input, async () => undefined), /公网服务必须使用 HTTPS/);
+    addresses = [{ address: "10.0.0.9", family: 4 }, { address: "8.8.8.8", family: 4 }];
+    await assert.rejects(withMcpClient(input, async () => undefined), /公网服务必须使用 HTTPS/);
+    assert.equal(connects, 0);
+    addresses = [{ address: "10.0.0.9", family: 4 }, { address: "fd00::9", family: 6 }];
+    await withMcpClient(input, async () => undefined);
+    assert.equal(connects, 1);
+    addresses = [{ address: "8.8.8.8", family: 4 }];
+    await withMcpClient({ ...input, endpoint: "https://bridge.local/mcp" }, async () => undefined);
+    assert.equal(connects, 2);
+  } finally { context.mock.restoreAll(); syncBuiltinESMExports(); }
+});

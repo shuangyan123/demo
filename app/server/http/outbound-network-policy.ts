@@ -6,6 +6,7 @@ import { RouteSecurityError, validateOutboundHttpUrl } from "./route-security.ts
 export type OutboundNetworkPolicy = {
   allowPrivateNetwork?: boolean;
   allowLoopback?: boolean;
+  allowPublicNetwork?: boolean;
   purpose?: "acquisition";
 };
 
@@ -38,6 +39,7 @@ function assertAllowedClassification(
   policy: OutboundNetworkPolicy,
 ): void {
   if (classification === "blocked") throw new RouteSecurityError("blocked_outbound_target", "禁止访问链路本地、元数据或特殊网络地址", 400);
+  if (classification === "public" && policy.allowPublicNetwork === false) throw new RouteSecurityError("public_network_not_allowed", "明文连接只能访问已批准的本机或局域网地址，公网服务必须使用 HTTPS", 400);
   if (classification === "loopback" && policy.allowLoopback === false) throw new RouteSecurityError("loopback_not_allowed", "当前功能不允许访问本机地址", 400);
   if (classification === "private" && !policy.allowPrivateNetwork) throw new RouteSecurityError("private_network_confirmation_required", "访问局域网地址前必须显式开启“允许本地网络”", 400);
 }

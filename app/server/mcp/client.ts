@@ -38,12 +38,15 @@ type McpConnectionInput = {
 /** 为单次请求建立 MCP 会话；不在服务端缓存 Token 或原始工具结果。 */
 export async function withMcpClient<T>(input: McpConnectionInput, task: (client: Client) => Promise<T>): Promise<T> {
   const endpoint = validateMcpEndpoint(input.endpoint, input.allowPrivateNetwork === true);
-  await validateOutboundNetworkTarget(endpoint.href, {
+  const policy = {
     allowLoopback: true,
     allowPrivateNetwork: input.allowPrivateNetwork === true,
-  });
+    // .local 只是语法入口，不是 LAN 授权事实；其全部 DNS 答案也必须位于本机/私网。
+    allowPublicNetwork: endpoint.protocol !== "http:",
+  };
+  await validateOutboundNetworkTarget(endpoint.href, policy);
   const deadline = AbortSignal.timeout(MCP_TIMEOUT_MS);
-  const safeFetch = endpointFetch(endpoint, { allowLoopback: true, allowPrivateNetwork: input.allowPrivateNetwork === true, timeoutMs: MCP_TIMEOUT_MS });
+  const safeFetch = endpointFetch(endpoint, { ...policy, timeoutMs: MCP_TIMEOUT_MS });
   const headers = input.token ? { Authorization: `Bearer ${input.token}` } : undefined;
   const transport = new StreamableHTTPClientTransport(endpoint, {
     fetch: (url, init) => safeFetch(url, { ...init, signal: AbortSignal.any([deadline, ...(init?.signal ? [init.signal] : [])]) }),

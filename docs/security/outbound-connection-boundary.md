@@ -19,7 +19,7 @@
 | Acquisition | 精确 origin，每跳重新授权和绑定，最多 3 跳，10 秒/跳、1MB 内容预算；取消上一跳 body |
 | Provider generate/stream/models | 最终 adapter URL 按连接 LAN 许可绑定，禁止自动重定向；官方 Google Interactions 使用已有 HTTP wire adapter，保持 `store:false`、零重试、原 SSE/可见终态契约 |
 | Speech/transcribe | 最终地址（包括 speechEndpoint）重新授权、绑定和取消，禁止重定向；Qwen 音频下载仅公网、15 秒、16MB |
-| MCP SDK | 公开 custom fetch 覆盖 POST/GET/DELETE；每次只允许原 endpoint 的 origin/path/query，拒绝所有重定向，关闭 SSE 自动恢复重试；15 秒会话 deadline 与 finally close |
+| MCP SDK | 公开 custom fetch 覆盖 POST/GET/DELETE；每次只允许原 endpoint 的 origin/path/query，拒绝所有重定向，关闭 SSE 自动恢复重试；HTTP 的全部批准地址必须是 loopback/已授权私网，`.local` 名称不能让 DNS 公网答案接收 Token；15 秒会话 deadline 与 finally close |
 | Registry/quota/realtime credential exchange/Fenbi | 固定业务主机，公网连接绑定，禁止重定向；不把用户输入当作 URL authority |
 | GLM WSS | 固定主机、独占 HTTPS Agent 和批准 lookup，保留 hostname TLS、15 秒握手、禁止重定向；关闭时销毁 Agent |
 
