@@ -18,6 +18,7 @@ $assertions = [Collections.Generic.List[object]]::new()
 $ownedData = $false
 $current = $null
 $complete = $false
+$installRegistration = $null
 function Check($condition, $name) {
   $assertions.Add(@{ assertion = $name; pass = [bool]$condition })
   if (-not $condition) { throw "Assertion failed: $name" }
@@ -40,12 +41,22 @@ function Registry-Entries {
         $v = Get-ItemProperty -LiteralPath $_.PSPath
         if ($null -ne $v -and $null -ne $v.PSObject.Properties['DisplayName'] -and $v.DisplayName -match '错题复盘|ReviewWorkspace|review.workspace') {
           $version = if ($null -ne $v.PSObject.Properties['DisplayVersion']) { $v.DisplayVersion } else { '' }
-          $location = if ($null -ne $v.PSObject.Properties['InstallLocation']) { $v.InstallLocation } else { '' }
-          [pscustomobject]@{ key = $_.PSPath; hive = $hive; values = [pscustomobject]@{ DisplayName = $v.DisplayName; DisplayVersion = $version; InstallLocation = $location } }
+          $values = [ordered]@{ DisplayName = $v.DisplayName; DisplayVersion = $version }
+          foreach ($name in @('InstallLocation', 'UninstallString', 'QuietUninstallString', 'DisplayIcon')) { $values[$name] = if ($null -ne $v.PSObject.Properties[$name]) { $v.$name } else { '' } }
+          [pscustomobject]@{ key = $_.PSPath; hive = $hive; values = [pscustomobject]$values }
         }
       }
     }
   }
+}
+function Installation-Registry($record) {
+  # electron-builder 把 InstallLocation 存在 Software\APP_GUID，卸载键只保存命令/显示信息。
+  $guid = Split-Path $record.key -Leaf
+  if ($record.hive -ne 'HKCU:' -or $guid -notmatch '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$') { throw 'Unexpected NSIS registry identity' }
+  $key = "HKCU:\Software\$guid"
+  $value = Get-ItemProperty -LiteralPath $key -ErrorAction Stop
+  if ($null -eq $value.PSObject.Properties['InstallLocation'] -or [string]::IsNullOrWhiteSpace($value.InstallLocation)) { throw 'Missing application installation location' }
+  [pscustomobject]@{ key = $key; location = $value.InstallLocation }
 }
 function Run-Owned($file, $arguments, $seconds = 120) {
   $process = Start-Process -FilePath $file -ArgumentList $arguments -WindowStyle Hidden -PassThru
@@ -78,7 +89,10 @@ function Install-Fixed {
   $records = @(Registry-Entries | Where-Object { $_.values.DisplayVersion -eq '0.3.1' })
   Check ($records.Count -eq 1) 'One current-version uninstall registration'
   Check ($records[0].hive -eq 'HKCU:') 'Per-user registration, no elevation'
-  Check ([IO.Path]::GetFullPath($records[0].values.InstallLocation).TrimEnd('\') -eq $install) 'Registry installation location matches isolated target'
+  $script:installRegistration = Installation-Registry $records[0]
+  Check ([IO.Path]::GetFullPath($script:installRegistration.location).TrimEnd('\') -eq $install) 'Registry installation location matches isolated target'
+  Check ($records[0].values.UninstallString.StartsWith('"' + $install + '\Uninstall', [StringComparison]::OrdinalIgnoreCase)) 'Registered uninstall command targets owned payload'
+  Check ($records[0].values.DisplayIcon.StartsWith($install + '\', [StringComparison]::OrdinalIgnoreCase)) 'Registered icon targets owned payload'
   Check ((Get-Item -LiteralPath (Join-Path $install 'review-workspace.exe')).VersionInfo.ProductVersion -like '0.3.1*') 'Installed executable version'
   $records | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'installed-registration.json')
   $shell = New-Object -ComObject WScript.Shell
@@ -117,6 +131,7 @@ function Uninstall-Fixed {
   while ([DateTime]::UtcNow -lt $until -and ((Test-Path -LiteralPath (Join-Path $install 'review-workspace.exe')) -or @(Registry-Entries | Where-Object { $_.values.DisplayVersion -eq '0.3.1' }).Count)) { Start-Sleep -Milliseconds 250 }
   Check (-not (Test-Path -LiteralPath $install) -or @(Get-ChildItem -LiteralPath $install -Force).Count -eq 0) 'Installed payload removed by uninstaller'
   Check (@(Registry-Entries | Where-Object { $_.values.DisplayVersion -eq '0.3.1' }).Count -eq 0) 'Current uninstall registration removed'
+  Check (-not (Test-Path -LiteralPath $script:installRegistration.key)) 'Application installation registration removed'
   foreach ($shortcut in $shortcutPaths) { Check (-not (Test-Path -LiteralPath $shortcut)) 'Installed shortcut removed' }
   Check (Test-Path -LiteralPath (Join-Path $bootstrap 'bootstrap.json')) 'Uninstall preserves synthetic user profile metadata'
 }

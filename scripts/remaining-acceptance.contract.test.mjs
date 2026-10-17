@@ -46,6 +46,11 @@ if (process.platform === "win32") test("registry discovery handles empty keys an
   assert.equal(execFileSync("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" }).trim(), "PASS");
 });
 
+if (process.platform === "win32") test("installation location is read from the independent NSIS application key and missing location fails", () => {
+  const command = `$ErrorActionPreference='Stop'; Set-StrictMode -Version Latest; $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/windows-nsis-install-acceptance.ps1'),[ref]$null,[ref]$null); $fn=$ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Installation-Registry'},$true); Invoke-Expression $fn.Extent.Text; $guid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; $record=[pscustomobject]@{key=('Microsoft.PowerShell.Core\\Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\'+$guid);hive='HKCU:'}; $script:missing=$false; function Get-ItemProperty {param($LiteralPath,$ErrorAction) if($LiteralPath -ne ('HKCU:\\Software\\'+$guid)){throw 'Wrong registry branch'}; if($script:missing){[pscustomobject]@{}}else{[pscustomobject]@{InstallLocation='D:\\owned\\installed'}}}; $r=Installation-Registry $record; if($r.location -ne 'D:\\owned\\installed'){throw 'Wrong installation location'}; $script:missing=$true; $failed=$false; try{Installation-Registry $record}catch{if($_.Exception.Message -eq 'Missing application installation location'){$failed=$true}else{throw}}; if(-not $failed){throw 'Missing location must fail'}; 'PASS'`;
+  assert.equal(execFileSync("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" }).trim(), "PASS");
+});
+
 test("uninstall assertions precede fixture cleanup and cleanup cannot fake uninstall success", () => {
   const script = source("./windows-nsis-install-acceptance.ps1");
   assert.match(script, /Installer SHA256 rechecked immediately before execution/);
