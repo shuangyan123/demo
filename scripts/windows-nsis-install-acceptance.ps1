@@ -38,8 +38,10 @@ function Registry-Entries {
     foreach ($branch in @('Software\Microsoft\Windows\CurrentVersion\Uninstall', 'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall')) {
       Get-ChildItem "$hive\$branch" -ErrorAction SilentlyContinue | ForEach-Object {
         $v = Get-ItemProperty -LiteralPath $_.PSPath
-        if (($v.PSObject.Properties.Name -contains 'DisplayName') -and $v.DisplayName -match '错题复盘|ReviewWorkspace|review.workspace') {
-          [pscustomobject]@{ key = $_.PSPath; hive = $hive; values = $v }
+        if ($null -ne $v -and $null -ne $v.PSObject.Properties['DisplayName'] -and $v.DisplayName -match '错题复盘|ReviewWorkspace|review.workspace') {
+          $version = if ($null -ne $v.PSObject.Properties['DisplayVersion']) { $v.DisplayVersion } else { '' }
+          $location = if ($null -ne $v.PSObject.Properties['InstallLocation']) { $v.InstallLocation } else { '' }
+          [pscustomobject]@{ key = $_.PSPath; hive = $hive; values = [pscustomobject]@{ DisplayName = $v.DisplayName; DisplayVersion = $version; InstallLocation = $location } }
         }
       }
     }

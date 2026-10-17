@@ -41,6 +41,11 @@ if (process.platform === "win32") test("artifact ZIP requests use JSON negotiati
   assert.deepEqual(JSON.parse(result), ["application/vnd.github+json", "application/octet-stream"]);
 });
 
+if (process.platform === "win32") test("registry discovery handles empty keys and absent optional values under strict mode without touching the host registry", () => {
+  const command = `$ErrorActionPreference='Stop'; Set-StrictMode -Version Latest; $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/windows-nsis-install-acceptance.ps1'),[ref]$null,[ref]$null); $fn=$ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Registry-Entries'},$true); Invoke-Expression $fn.Extent.Text; function Get-ChildItem {param($Path,$ErrorAction) @('empty','null','ordinary','recall')|ForEach-Object {[pscustomobject]@{PSPath=$_}}}; function Get-ItemProperty {param($LiteralPath) switch($LiteralPath){empty{[pscustomobject]@{}} null{$null} ordinary{[pscustomobject]@{DisplayName='Other App'}} recall{[pscustomobject]@{DisplayName='ReviewWorkspace'}}}}; $entries=@(Registry-Entries); if($entries.Count -ne 4){throw 'Expected one fixture per hive/view'}; if(@($entries|Where-Object {$_.values.DisplayVersion -ne '' -or $_.values.InstallLocation -ne ''}).Count){throw 'Optional values must normalize'}; 'PASS'`;
+  assert.equal(execFileSync("pwsh.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" }).trim(), "PASS");
+});
+
 test("uninstall assertions precede fixture cleanup and cleanup cannot fake uninstall success", () => {
   const script = source("./windows-nsis-install-acceptance.ps1");
   assert.match(script, /Installer SHA256 rechecked immediately before execution/);
