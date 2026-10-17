@@ -163,3 +163,15 @@ exemption and pass the import/architecture guards; Windows shared-code categorie
 intentionally sacrifice some possible savings. A combined job's wall-clock can
 be longer than either old matrix leg, while total runner usage falls. Release
 build/compile duplication and cross-job build reuse are deferred.
+
+## Superseded PR cancellation
+
+Heavyweight job conditions use `!cancelled()` rather than job-level `always()`.
+The former still overrides implicit success-only dependency handling, so a failed
+or malformed classifier conservatively enables validation, but an explicitly
+cancelled/superseded PR run releases its runners. The expression contracts execute
+both classifier-failure and cancellation cases. Job-level `always()` otherwise
+survives ordinary workflow cancellation, as specified by [GitHub's cancellation
+reference](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation).
+Artifact cleanup/readback assertions are not weakened, and a cancelled old SHA is
+never counted as validation of a new SHA.

@@ -232,11 +232,11 @@ test("production Host importers cannot silently become Linux-only", () => {
   }
 });
 
-function gateRuns(jobId, event, gates, result = "success", buildResult = "success") {
+function gateRuns(jobId, event, gates, result = "success", buildResult = "success", isCancelled = false) {
   const job = workflowJobs()[jobId];
   const outputs = Object.fromEntries(Object.entries(gates).map(([key, value]) => [key, String(value)]));
   return runInNewContext(String(job.if).replaceAll("needs.private-release-checkout", 'needs["private-release-checkout"]'), {
-    github: { event_name: event }, always: () => true,
+    github: { event_name: event }, always: () => true, cancelled: () => isCancelled,
     needs: { "private-release-checkout": { result, outputs }, build: { result: buildResult } },
   });
 }
@@ -410,7 +410,7 @@ test("main keeps correctness, audit and build while environmental gates run only
   assert.equal(windowsE2e["runs-on"], "windows-latest");
   assert.equal(windowsE2e.needs, "private-release-checkout");
   assert.match(String(windowsE2e.if), /github\.event_name == 'pull_request'/);
-  assert.match(String(windowsE2e.if), /always\(\)/);
+  assert.match(String(windowsE2e.if), /!cancelled\(\)/);
   assert.match(String(windowsE2e.if), /windows_runtime_sensitive != 'false'/);
   assert.doesNotMatch(String(windowsE2e.if), /browser_runtime_sensitive/);
   assert.match(String(windowsE2e.if), /installer_sensitive != 'false'/);
@@ -420,7 +420,7 @@ test("main keeps correctness, audit and build while environmental gates run only
   const nsis = record(jobs["windows-nsis-production"], "Windows NSIS job");
   for (const [job, output] of [[m3, "migration_sensitive"], [nsis, "installer_sensitive"]]) {
     assert.equal(job.needs, "private-release-checkout");
-    assert.match(String(job.if), /always\(\)/);
+    assert.match(String(job.if), /!cancelled\(\)/);
     assert.match(String(job.if), new RegExp(`needs\\.private-release-checkout\\.outputs\\.${output} != 'false'`));
     assert.match(String(job.if), /needs\.private-release-checkout\.result != 'success'/);
     assert.match(String(job.if), /github\.event_name == 'pull_request'/);
@@ -474,4 +474,12 @@ test("trusted desktop release workflow remains exact-SHA based and delegates Dra
   assert.match(draftReleaseRoundTrip, /--draft/);
   assert.match(draftReleaseRoundTrip, /--verify-tag/);
   assert.doesNotMatch(draftReleaseRoundTrip, /--clobber/);
+});
+
+test("heavyweight jobs remain fail-safe on classifier failure but release runners when the PR run is cancelled", () => {
+  for (const job of ["e2e", "windows-e2e", "windows-m3", "windows-nsis-production"]) {
+    assert.equal(gateRuns(job, "pull_request", {}, "failure", "success", false), true, job);
+    assert.equal(gateRuns(job, "pull_request", allGates(true), "success", "success", true), false, job);
+    assert.equal(gateRuns(job, "pull_request", {}, "failure", "success", true), false, job);
+  }
 });

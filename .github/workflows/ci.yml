@@ -147,7 +147,7 @@ jobs:
   windows-m3:
     name: Windows M3 Migration Contracts
     needs: private-release-checkout
-    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.migration_sensitive != 'false')
+    if: github.event_name == 'pull_request' && !cancelled() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.migration_sensitive != 'false')
     runs-on: windows-latest
     timeout-minutes: 10
     permissions:
@@ -230,7 +230,7 @@ jobs:
   e2e:
     name: E2E (Chromium + Mobile)
     needs: [build, private-release-checkout]
-    if: github.event_name == 'pull_request' && always() && needs.build.result == 'success' && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.browser_runtime_sensitive != 'false')
+    if: github.event_name == 'pull_request' && !cancelled() && needs.build.result == 'success' && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.browser_runtime_sensitive != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -268,7 +268,7 @@ jobs:
   windows-e2e:
     name: Windows Full E2E (Node 24.20.0)
     needs: private-release-checkout
-    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.windows_runtime_sensitive != 'false' || needs.private-release-checkout.outputs.installer_sensitive != 'false')
+    if: github.event_name == 'pull_request' && !cancelled() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.windows_runtime_sensitive != 'false' || needs.private-release-checkout.outputs.installer_sensitive != 'false')
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:
@@ -332,7 +332,7 @@ jobs:
   windows-nsis-production:
     name: Windows NSIS Production
     needs: private-release-checkout
-    if: github.event_name == 'pull_request' && always() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.installer_sensitive != 'false')
+    if: github.event_name == 'pull_request' && !cancelled() && (needs.private-release-checkout.result != 'success' || needs.private-release-checkout.outputs.installer_sensitive != 'false')
     runs-on: windows-latest
     timeout-minutes: 45
     permissions:
