@@ -27,10 +27,13 @@ function initialRuntimeEntryBinding(profile: string, entry: string): string | un
   if (process.platform !== "win32" || (entry !== "lockfile" && entry !== "Local State")) return;
   const file = path.join(profile, entry); const stat = lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink()) return;
-  if (entry === "lockfile") return stat.size === 0 ? `${file}:${stat.dev}:${stat.ino}` : undefined;
+  if (entry === "lockfile") return stat.size === 0 ? "empty_runtime_lock" : undefined;
   if (stat.size === 0 || stat.size > 4096) return;
   const bytes = readFileSync(file); const text = bytes.toString("utf8");
-  if (bytes.length !== stat.size || !Buffer.from(text, "utf8").equals(bytes)) return;
+  const after = lstatSync(file);
+  if (!after.isFile() || after.isSymbolicLink() || after.dev !== stat.dev || after.ino !== stat.ino
+    || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs
+    || bytes.length !== stat.size || !Buffer.from(text, "utf8").equals(bytes)) return;
   let value: unknown;
   try { value = JSON.parse(text); } catch { return; }
   // Chromium 写入紧凑 JSON；round-trip 同时拒绝被 JSON.parse 隐藏的重复字段。
@@ -42,7 +45,8 @@ function initialRuntimeEntryBinding(profile: string, entry: string): string | un
     || typeof installation !== "string" || !/^[0-9]{1,20}$/.test(installation)) return;
   const key = Buffer.from(crypt.encrypted_key, "base64");
   if (key.length <= 5 || key.toString("base64") !== crypt.encrypted_key || key.subarray(0, 5).toString("ascii") !== "DPAPI") return;
-  return `${file}:${stat.dev}:${stat.ino}:${createHash("sha256").update(bytes).digest("hex")}`;
+  // Chromium 可延后首次落盘、原子替换文件或更新 audit flag；已有 key/date 仍不能被静默换掉。
+  return createHash("sha256").update(JSON.stringify([crypt.encrypted_key, installation])).digest("hex");
 }
 
 export function isInitialRuntimeEntry(profile: string, entry: string): boolean {
@@ -56,15 +60,17 @@ export function isPristineProfile(profile: string): boolean {
   return readdirSync(profile).every(entry => isInitialRuntimeEntry(profile, entry));
 }
 
-/** 仅首次创建绑定 Local State 的 inode 与完整字节；既有 legacy/anchor 恢复规则保持原样。 */
-export function initialProfileBinding(paths: StorageHostPaths): readonly string[] {
-  const binding = [...storagePathBinding(paths)];
+export type InitialProfileBinding = Readonly<{ directories: readonly string[]; localState?: string }>;
+
+/** 目录身份与运行时状态分离；Local State 缺失可转为已识别状态，已有安全材料仍保留绑定。 */
+export function initialProfileBinding(paths: StorageHostPaths): InitialProfileBinding {
+  const directories = storagePathBinding(paths);
+  let localState: string | undefined;
   if (exists(path.join(paths.defaultUserData, "Local State"))) {
-    const localState = initialRuntimeEntryBinding(paths.defaultUserData, "Local State");
+    localState = initialRuntimeEntryBinding(paths.defaultUserData, "Local State");
     if (!localState) throw new Error("unsafe_initial_runtime_file");
-    binding.push(localState);
   }
-  return Object.freeze(binding);
+  return Object.freeze({ directories, localState });
 }
 
 /** 绑定已存在的 Host ancestors；拒绝 junction/symlink 和可观察的位置替换。
@@ -97,7 +103,6 @@ export function storagePathBinding(paths: StorageHostPaths): readonly string[] {
   if (exists(lockFile)) {
     const lock = lstatSync(lockFile);
     if (!lock.isFile() || lock.isSymbolicLink() || lock.size !== 0) throw new Error("unsafe_lockfile");
-    binding.push(`${lockFile}:${lock.dev}:${lock.ino}`);
   }
   return Object.freeze(binding);
 }

@@ -5,38 +5,31 @@ import type { ManagedStorageResolution } from "../app/platform/managed-storage.j
 import { storageBootstrapPath, storageIdentityPath, type StorageHostPaths } from "./storage-bootstrap.ts";
 import { configFromStorageRecord, parseStorageRecord, type StorageBootstrapRecord, type StorageIdentity } from "./storage-bootstrap-record.ts";
 import { readStorageFile, writeStorageRecord, type StorageRecordIO } from "./storage-bootstrap-io.ts";
-import { hasUnanchoredStorage, initialProfileBinding, isInitialRuntimeEntry, isPristineProfile } from "./storage-inspection.ts";
+import { hasUnanchoredStorage, initialProfileBinding, isInitialRuntimeEntry, isPristineProfile, type InitialProfileBinding } from "./storage-inspection.ts";
 
 export type FreshProfileCandidate = Readonly<{ kind: "fresh_profile_candidate" }>;
-type CandidateState = { paths: StorageHostPaths; binding: readonly string[] };
+type CandidateState = { paths: StorageHostPaths; binding: InitialProfileBinding };
 const candidates = new WeakMap<FreshProfileCandidate, CandidateState>();
 const failure = (reason: string): ManagedStorageResolution => ({ kind: "unavailable", code: "storage_unavailable", reason });
 
 // Fixed diagnostic labels only. Never log path identities, binding values, runtime JSON,
 // file names from profile enumeration, exception strings or cryptographic material.
 type RevalidationCategory =
-  | "host_paths_changed" | "local_state_appeared" | "local_state_disappeared"
-  | "local_state_binding_changed" | "lockfile_binding_changed"
+  | "host_paths_changed" | "local_state_disappeared" | "local_state_binding_changed"
   | "directory_binding_changed" | "binding_inspection_unavailable"
   | "recall_namespace_present" | "profile_not_pristine";
 function reportInitialProfileRevalidation(category: RevalidationCategory): void {
   console.error(`RECALL_INITIAL_PROFILE_REVALIDATION:${category}`);
 }
-function categorizeBindingChange(
-  saved: readonly string[], current: readonly string[], paths: StorageHostPaths,
-): RevalidationCategory {
-  const localStatePrefix = `${path.join(paths.defaultUserData, "Local State")}:`;
-  const lockfilePrefix = `${path.join(paths.defaultUserData, "lockfile")}:`;
-  const bindingFor = (values: readonly string[], prefix: string) => values.find(value => value.startsWith(prefix));
-  const beforeLocalState = bindingFor(saved, localStatePrefix);
-  const afterLocalState = bindingFor(current, localStatePrefix);
-  if (beforeLocalState !== afterLocalState) {
-    if (!beforeLocalState) return "local_state_appeared";
-    if (!afterLocalState) return "local_state_disappeared";
+function runtimeBindingChange(saved: InitialProfileBinding, current: InitialProfileBinding): RevalidationCategory | undefined {
+  if (saved.localState !== undefined && saved.localState !== current.localState) {
+    if (current.localState === undefined) return "local_state_disappeared";
     return "local_state_binding_changed";
   }
-  if (bindingFor(saved, lockfilePrefix) !== bindingFor(current, lockfilePrefix)) return "lockfile_binding_changed";
-  return "directory_binding_changed";
+}
+function categorizeBindingChange(saved: InitialProfileBinding, current: InitialProfileBinding): RevalidationCategory | undefined {
+  if (JSON.stringify(saved.directories) !== JSON.stringify(current.directories)) return "directory_binding_changed";
+  return runtimeBindingChange(saved, current);
 }
 
 /** 只读候选检查；absence 是可创建现场，不是从未使用过的证明。 */
@@ -75,14 +68,15 @@ export function createInitialProfile(candidate: FreshProfileCandidate, current: 
       reportInitialProfileRevalidation("host_paths_changed");
       return failure("initialization_candidate_changed");
     }
-    let observedBinding: readonly string[];
+    let observedBinding: InitialProfileBinding;
     try { observedBinding = initialProfileBinding(current); }
     catch {
       reportInitialProfileRevalidation("binding_inspection_unavailable");
       return failure("initialization_unconfirmed"); // Same fail-closed exception outcome as before.
     }
-    if (JSON.stringify(observedBinding) !== JSON.stringify(saved.binding)) {
-      reportInitialProfileRevalidation(categorizeBindingChange(saved.binding, observedBinding, current));
+    const changed = categorizeBindingChange(saved.binding, observedBinding);
+    if (changed) {
+      reportInitialProfileRevalidation(changed);
       return failure("initialization_candidate_changed");
     }
     if (hasUnanchoredStorage(current)) {
@@ -101,18 +95,23 @@ export function createInitialProfile(candidate: FreshProfileCandidate, current: 
     }
     mkdirSync(path.dirname(storageIdentityPath(current.defaultUserData)), { mode: 0o700 });
     mkdirSync(path.dirname(storageBootstrapPath(current)), { mode: 0o700 });
-    const binding = initialProfileBinding(current);
+    let binding = initialProfileBinding(current);
+    // 仅允许本次 exclusive mkdir 增加目录；已观察的祖先/profile 身份不得因预留过程被替换。
+    if (!observedBinding.directories.every(value => binding.directories.includes(value))
+      || runtimeBindingChange(observedBinding, binding)) throw new Error("storage_path_changed");
     const identity: StorageIdentity = Object.freeze({ formatVersion: 1, profileId: randomUUID(), epochId: randomUUID() });
     const record: StorageBootstrapRecord = Object.freeze({ ...identity, activeManagedRoot: current.defaultUserData, profileLayout: "legacy-root" });
     writeStorageRecord(storageIdentityPath(current.defaultUserData), identity, "create", io);
     verifyMetadata(storageIdentityPath(current.defaultUserData), identity);
     verifyCreatedNamespaces(current, false);
-    if (JSON.stringify(initialProfileBinding(current)) !== JSON.stringify(binding)) throw new Error("storage_path_changed");
+    const afterIdentity = initialProfileBinding(current);
+    if (categorizeBindingChange(binding, afterIdentity)) throw new Error("storage_path_changed");
+    binding = afterIdentity; // 一旦看到 Local State，后续 checkpoint 保留其 key/date 绑定。
     writeStorageRecord(storageBootstrapPath(current), record, "create", io);
     verifyMetadata(storageBootstrapPath(current), record);
     verifyMetadata(storageIdentityPath(current.defaultUserData), identity);
     verifyCreatedNamespaces(current, true);
-    if (JSON.stringify(initialProfileBinding(current)) !== JSON.stringify(binding)) throw new Error("storage_path_changed");
+    if (categorizeBindingChange(binding, initialProfileBinding(current))) throw new Error("storage_path_changed");
     return { kind: "ready", config: configFromStorageRecord(record) };
   } catch { return failure("initialization_unconfirmed"); }
 }

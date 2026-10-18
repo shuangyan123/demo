@@ -307,6 +307,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Windows native first-profile and storage regressions (synthetic profiles only)
+        shell: pwsh
+        run: |
+          npm run desktop:compile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test --experimental-strip-types desktop/profile-initialization.contract.test.ts desktop/storage-bootstrap.contract.test.ts desktop/profile-native.contract.test.ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Production build
         run: npm run build
 

@@ -61,7 +61,7 @@ if (process.platform === "win32") test("installed-file identity uses an existing
 });
 
 test("uninstall assertions precede fixture cleanup and cleanup cannot fake uninstall success", () => {
-  const script = source("./windows-nsis-install-acceptance.ps1");
+  const script = source("./windows-nsis-install-acceptance.ps1").replace(/\r\n/g, "\n");
   assert.match(script, /Installer SHA256 rechecked immediately before execution/);
   assert.match(script, /\/S \/currentuser \/D=/);
   assert.match(script, /ReparsePoint/);

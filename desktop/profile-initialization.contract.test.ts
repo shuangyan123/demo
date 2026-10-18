@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -112,7 +112,7 @@ if (process.platform === "win32") test("Local State filename cannot admit unknow
   }
 });
 
-if (process.platform === "win32") test("Local State changes after native inspection or during publication stop creation without overwrite", t => {
+if (process.platform === "win32") test("Local State security material changes after inspection or during publication stop creation without overwrite", t => {
   for (const stage of ["confirmation", "publication"]) {
     const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
     const file = path.join(paths.defaultUserData, "Local State"); writeFileSync(file, runtimeLocalState());
@@ -263,7 +263,7 @@ if (process.platform === "win32") test("actual Windows ACL denial stops authoriz
   } finally { execFileSync("icacls.exe", [paths.defaultUserData, "/remove:d", account], { windowsHide: true }); }
 });
 
-if (process.platform === "win32") test("Electron-ready Local State cannot inherit a stale pre-ready candidate, but fresh consent stays strict", t => {
+if (process.platform === "win32") test("Electron-ready profile directory cannot inherit a stale absent-directory candidate", t => {
   const { paths } = fixture(t);
   const stale = candidate(paths); // userData absent, as on a true first install
   mkdirSync(paths.defaultUserData);
@@ -273,7 +273,7 @@ if (process.platform === "win32") test("Electron-ready Local State cannot inheri
   assert.equal(createInitialProfile(stale, paths).kind, "unavailable"); // never waive mutation
   assert.equal(readdirSync(paths.appData).includes("recall-storage"), false);
   assert.equal(resolveManagedStorage(paths).kind, "uninitialized");
-  const inspectedAfterReady = candidate(paths); // reclassify, reject unknowns, bind exact bytes
+  const inspectedAfterReady = candidate(paths); // reclassify, reject unknowns, bind existing security material
   assert.equal(createInitialProfile(inspectedAfterReady, paths).kind, "ready");
   assert.equal(readFileSync(file, "utf8"), localState);
   assert.equal(resolveManagedStorage(paths).kind, "ready");
@@ -313,7 +313,7 @@ test("revalidation reports bounded internal category without exposing Host paths
   }
 });
 
-if (process.platform === "win32") test("revalidation distinguishes Local State creation, removal, content change and lockfile mutation", t => {
+if (process.platform === "win32") test("revalidation distinguishes Local State removal and security material changes", t => {
   const capture = (callback: () => ReturnType<typeof createInitialProfile>) => {
     const originalError = console.error;
     const messages: string[] = [];
@@ -322,27 +322,122 @@ if (process.platform === "win32") test("revalidation distinguishes Local State c
       return { result: callback(), messages };
     } finally { console.error = originalError; }
   };
-  for (const kind of ["appeared", "disappeared", "modified", "lockfile"] as const) {
+  for (const kind of ["disappeared", "modified"] as const) {
     const { paths } = fixture(t);
     mkdirSync(paths.defaultUserData);
     const state = path.join(paths.defaultUserData, "Local State");
-    const lock = path.join(paths.defaultUserData, "lockfile");
-    if (kind === "disappeared" || kind === "modified") writeFileSync(state, runtimeLocalState());
-    if (kind === "lockfile") writeFileSync(lock, "");
+    writeFileSync(state, runtimeLocalState());
     const initial = candidate(paths);
-    if (kind === "appeared") writeFileSync(state, runtimeLocalState());
     if (kind === "disappeared") rmSync(state);
     if (kind === "modified") writeFileSync(state, runtimeLocalState("2"));
-    if (kind === "lockfile") rmSync(lock);
     const { result, messages } = capture(() => createInitialProfile(initial, paths));
     const category = {
-      appeared: "local_state_appeared",
       disappeared: "local_state_disappeared",
       modified: "local_state_binding_changed",
-      lockfile: "lockfile_binding_changed",
     }[kind];
     assert.equal("reason" in result && result.reason, "initialization_candidate_changed");
     assert.deepEqual(messages, [`RECALL_INITIAL_PROFILE_REVALIDATION:${category}`]);
     assert.equal(readdirSync(paths.appData).includes("recall-storage"), false);
   }
+});
+
+if (process.platform === "win32") test("recognized runtime transitions during consent and either metadata publication retain directory and identity checks", async t => {
+  for (const stage of ["consent", "identity", "bootstrap"]) for (const transition of ["state-appears", "state-replaced", "audit-updated", "lock-appears", "lock-removed", "lock-replaced"]) {
+    const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
+    const state = path.join(paths.defaultUserData, "Local State"); const lock = path.join(paths.defaultUserData, "lockfile");
+    if (transition === "state-replaced") writeFileSync(state, runtimeLocalState());
+    if (transition === "audit-updated") writeFileSync(state, runtimeLocalState().replace('"audit_enabled":true', '"audit_enabled":false'));
+    if (transition === "lock-removed" || transition === "lock-replaced") writeFileSync(lock, "");
+    const mutate = () => {
+      if (transition === "state-appears") writeFileSync(state, runtimeLocalState());
+      if (transition === "audit-updated") writeFileSync(state, runtimeLocalState());
+      if (transition === "lock-appears") writeFileSync(lock, "");
+      if (transition === "lock-removed") rmSync(lock);
+      if (transition === "state-replaced" || transition === "lock-replaced") {
+        const target = transition === "state-replaced" ? state : lock;
+        const before = lstatSync(target).ino;
+        const temporary = path.join(paths.appData, "runtime-replacement");
+        writeFileSync(temporary, readFileSync(target)); renameSync(temporary, target);
+        assert.notEqual(lstatSync(target).ino, before);
+      }
+    };
+    const inspected = candidate(paths);
+    const result = await completeInitialProfileDecision(inspected, async () => {
+      if (stage === "consent") mutate(); return true;
+    }, value => createInitialProfile(value, paths, { ...storageRecordIO, publishNew(from, to) {
+      storageRecordIO.publishNew(from, to);
+      if (to === (stage === "identity" ? storageIdentityPath(paths.defaultUserData) : stage === "bootstrap" ? storageBootstrapPath(paths) : "")) mutate();
+    } }));
+    assert.equal(result.kind, "ready", `${stage}/${transition}`);
+    assert.deepEqual(resolveManagedStorage(paths), result);
+    const identity = JSON.parse(readFileSync(storageIdentityPath(paths.defaultUserData), "utf8"));
+    const bootstrap = JSON.parse(readFileSync(storageBootstrapPath(paths), "utf8"));
+    assert.equal(identity.profileId, bootstrap.profileId); assert.equal(identity.epochId, bootstrap.epochId);
+  }
+});
+
+if (process.platform === "win32") test("new runtime names never admit malformed files, links, unknown data or changed existing keys at any checkpoint", t => {
+  for (const stage of ["consent", "identity", "bootstrap"]) for (const mutation of ["malformed", "nonempty-lock", "runtime-junction", "key-changed", "foreign", "partition"]) {
+    const { root, paths } = fixture(t); mkdirSync(paths.defaultUserData);
+    const state = path.join(paths.defaultUserData, "Local State");
+    if (mutation === "key-changed") writeFileSync(state, runtimeLocalState());
+    const inspected = candidate(paths);
+    const mutate = () => {
+      if (mutation === "malformed") writeFileSync(state, "{partial");
+      if (mutation === "nonempty-lock") writeFileSync(path.join(paths.defaultUserData, "lockfile"), "preserve");
+      if (mutation === "runtime-junction") { const other = path.join(root, "other"); mkdirSync(other); symlinkSync(other, state, "junction"); }
+      if (mutation === "key-changed") {
+        const changed = JSON.parse(runtimeLocalState());
+        changed.os_crypt.encrypted_key = Buffer.concat([Buffer.from("DPAPI"), Buffer.alloc(64, 1)]).toString("base64");
+        writeFileSync(state, JSON.stringify(changed));
+      }
+      if (mutation === "foreign") writeFileSync(path.join(paths.defaultUserData, "foreign"), "preserve");
+      if (mutation === "partition") mkdirSync(path.join(paths.defaultUserData, "Partitions", "review-workspace"), { recursive: true });
+    };
+    if (stage === "consent") mutate();
+    const result = createInitialProfile(inspected, paths, { ...storageRecordIO, publishNew(from, to) {
+      storageRecordIO.publishNew(from, to);
+      if (to === (stage === "identity" ? storageIdentityPath(paths.defaultUserData) : stage === "bootstrap" ? storageBootstrapPath(paths) : "")) mutate();
+    } });
+    assert.equal(result.kind, "unavailable", `${stage}/${mutation}`);
+    if (mutation === "malformed") assert.equal(readFileSync(state, "utf8"), "{partial");
+    if (mutation === "foreign") assert.equal(readFileSync(path.join(paths.defaultUserData, "foreign"), "utf8"), "preserve");
+    if (stage === "identity") assert.deepEqual(readdirSync(path.dirname(storageBootstrapPath(paths))), []);
+    if (stage === "consent") assert.equal(readdirSync(paths.appData).includes("recall-storage"), false);
+  }
+});
+
+test("profile and bootstrap namespace replacements during publication cannot return a ready profile", t => {
+  for (const replaced of ["profile", "bootstrap"]) {
+    const { paths } = fixture(t); const inspected = candidate(paths);
+    const result = createInitialProfile(inspected, paths, { ...storageRecordIO, publishNew(from, to) {
+      storageRecordIO.publishNew(from, to);
+      if (to !== storageIdentityPath(paths.defaultUserData)) return;
+      const target = replaced === "profile" ? paths.defaultUserData : path.dirname(storageBootstrapPath(paths));
+      renameSync(target, `${target}-preserved`); mkdirSync(target);
+      if (replaced === "profile") {
+        mkdirSync(path.dirname(storageIdentityPath(target)));
+        writeFileSync(storageIdentityPath(target), readFileSync(storageIdentityPath(`${target}-preserved`)));
+      }
+    } });
+    assert.equal(result.kind, "unavailable");
+    assert.deepEqual(readdirSync(path.dirname(storageBootstrapPath(paths))), []);
+    const original = replaced === "profile" ? storageIdentityPath(`${paths.defaultUserData}-preserved`) : storageIdentityPath(paths.defaultUserData);
+    assert.equal(JSON.parse(readFileSync(original, "utf8")).formatVersion, 1);
+  }
+});
+
+if (process.platform === "win32") test("Local State first observed after identity publication becomes bound before bootstrap confirmation", t => {
+  const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
+  const state = path.join(paths.defaultUserData, "Local State");
+  const result = createInitialProfile(candidate(paths), paths, { ...storageRecordIO, publishNew(from, to) {
+    storageRecordIO.publishNew(from, to);
+    if (to === storageIdentityPath(paths.defaultUserData)) writeFileSync(state, runtimeLocalState());
+    if (to === storageBootstrapPath(paths)) writeFileSync(state, runtimeLocalState("2"));
+  } });
+  assert.equal(result.kind, "unavailable");
+  assert.equal(readFileSync(state, "utf8"), runtimeLocalState("2"));
+  const identity = JSON.parse(readFileSync(storageIdentityPath(paths.defaultUserData), "utf8"));
+  const bootstrap = JSON.parse(readFileSync(storageBootstrapPath(paths), "utf8"));
+  assert.equal(identity.profileId, bootstrap.profileId); assert.equal(identity.epochId, bootstrap.epochId);
 });

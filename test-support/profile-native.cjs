@@ -31,20 +31,36 @@ async function run() {
   const readyState = host.resolveDesktopManagedStorage();
   assert.equal(readyState.kind, 'uninitialized');
   const inspected = host.inspectDesktopInitialProfile(); assert.equal(inspected.kind, 'eligible');
+  let runtimePublication;
   const result = await core.completeInitialProfileDecision(inspected.candidate, async () => {
     assert.equal(app.isReady(), true);
+    // 等待真实 Chromium 文件事件再点击；不写 Local State，也不用固定延时模拟故障。
+    const published = mode === 'runtime-write' ? new Promise(resolve => {
+      const file = path.join(profile, 'Local State');
+      assert.equal(fs.existsSync(file), false);
+      const started = performance.now();
+      const watcher = fs.watch(profile, (_event, name) => {
+        if (name !== 'Local State' || !fs.existsSync(file)) return;
+        if (!load('storage-inspection.js').isInitialRuntimeEntry(profile, 'Local State')) return;
+        watcher.close();
+        runtimePublication = { writer: 'Electron', appearedAfterReady: true, elapsedMs: Math.round(performance.now() - started) };
+        resolve();
+      });
+    }) : Promise.resolve();
+    const answerPromise = dialog.showMessageBox({ title: 'Recall native contract fixture', message: 'Owned temporary profile only',
+      buttons: ['Create fixture', 'Cancel fixture'], defaultId: 1, cancelId: 1, noLink: true });
+    await published;
     const clicker = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.resolve('test-support/click-native-dialog.ps1'),
       '-TaskProcessId', String(process.pid), '-Button', mode === 'cancel' ? 'Cancel fixture' : 'Create fixture'], { windowsHide: true });
     const clicked = new Promise((resolve, reject) => {
       clicker.once('error', reject); clicker.once('exit', code => code === 0 ? resolve() : reject(new Error('native click failed')));
     });
-    const answer = await dialog.showMessageBox({ title: 'Recall native contract fixture', message: 'Owned temporary profile only',
-      buttons: ['Create fixture', 'Cancel fixture'], defaultId: 1, cancelId: 1, noLink: true });
+    const answer = await answerPromise;
     await clicked;
     if (mode === 'changed') fs.writeFileSync(path.join(profile, 'foreign'), 'preserve');
     return answer.response === 0;
   }, host.createDesktopInitialProfile);
   // 与 packaged Main 一样正常退出；父进程必须检查 Chromium 退出后落盘的文件。
-  console.log(JSON.stringify({ result, entries: fs.readdirSync(profile) })); clearTimeout(timer); app.quit();
+  console.log(JSON.stringify({ result, entries: fs.readdirSync(profile), runtimePublication })); clearTimeout(timer); app.quit();
 }
 run().catch(error => { console.error(error); clearTimeout(timer); app.exit(1); });

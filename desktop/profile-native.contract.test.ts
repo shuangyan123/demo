@@ -50,6 +50,16 @@ if (process.platform === "win32") test("actual Electron Cancel exits, then a new
   assert.deepEqual(readFileSync(path.join(profile, "Local State")), localState);
 });
 
+if (process.platform === "win32") test("actual Electron publishes Local State while native consent is open, then creation and restart succeed", t => {
+  const { launch } = nativeFixture(t);
+  const observed = launch("runtime-write");
+  assert.equal(observed.runtimePublication.writer, "Electron");
+  assert.equal(observed.runtimePublication.appearedAfterReady, true);
+  t.diagnostic(JSON.stringify({ result: observed.result.kind, runtimePublication: observed.runtimePublication }));
+  assert.equal(observed.result.kind, "ready");
+  assert.deepEqual(launch("restart").config, observed.result.config);
+});
+
 test("packaged Main inspects fresh storage only after app.whenReady, retaining native consent", () => {
   const main = readFileSync(path.resolve("desktop/main.ts"), "utf8");
   assert.match(main, /app\.whenReady\(\)\.then\(launchFreshProfileAfterReady\)/);

@@ -11,7 +11,7 @@ An opaque, one-use candidate binds the inspected paths and existing directory id
 ## Native lifecycle and confirmation order
 
 1. Squirrel handling → single-instance lock → synchronous existing storage resolution.
-2. Existing valid profiles continue normally. Invalid or ambiguous storage stops. Only an inspected eligible `uninitialized` candidate waits for `app.whenReady()`.
+2. Existing valid profiles continue normally. Invalid or ambiguous storage stops. `uninitialized` waits for `app.whenReady()`, then Main resolves again and inspects an eligible one-use candidate before presenting consent.
 3. Main presents **Create local profile / Cancel**, with Cancel as the default and escape choice.
 4. Confirmation recaptures effective Host paths and rechecks binding, absent/empty or recognized runtime-only contents, and missing Recall namespaces.
 5. Exclusive directory reservations precede generating one profile/epoch pair. The existing V1 anchor is published create-only and independently reread.
@@ -47,7 +47,24 @@ The workspace protocol forwards its authenticated loopback requests with Node's 
 
 The desktop aggregator includes an actual Electron form POST contract backed by the existing diagnostic HTTP handler in an isolated child runtime. It verifies pre-fix rejection, successful 303 navigation, durable evidence and public resume projection, independent runtime/Electron restart, expired session rejection and a distinct explicit repeat identity. Foreign origins and fetch-site metadata remain rejected. This contract does not itself claim packaged acceptance or reproduce the installed Next renderer; the separate packaged acceptance scope is recorded below.
 
-New contracts are imported by the existing full and desktop aggregators. Tests use owned temporary roots, deterministic publication failures, independent Node processes, competing initialization processes and Windows ACL denial. Actual Electron tests exercise pre-ready inspection, a real native dialog, Cancel/Create selection, post-choice changes and an independent Electron restart. The Cancel regression inspects files after the native process exits, then authorizes Create in a new process without deleting `Local State`, verifies its bytes are preserved, and restarts with the original profile/epoch. Fresh creation binds any recognized `Local State` inode and complete-byte hash before the native choice and rechecks it during publication; changed contents stop creation. Test-only path overrides isolate these processes from the developer's profile; no production path override or IPC was added.
+New contracts are imported by the existing full and desktop aggregators. Tests use owned temporary roots, deterministic publication failures, independent Node processes, competing initialization processes and Windows ACL denial. Actual Electron tests exercise pre-ready classification, post-ready inspection, a real native dialog, Cancel/Create selection, post-choice changes and an independent Electron restart. The Cancel regression inspects files after the native process exits, then authorizes Create in a new process without deleting `Local State`, verifies its bytes are preserved, and restarts with the original profile/epoch. Test-only path overrides isolate these processes from the developer's profile; no production path override or IPC was added.
+
+### Runtime publication during native consent
+
+The former binding combined stable directory identities with the `Local State` inode/full-byte hash and the empty `lockfile` inode. A Windows Electron 43.5.0 experiment against `d7e9239` opened native consent after `whenReady()` and used a filesystem event to wait for Electron itself to publish `Local State`. No test code wrote that file. Publication occurred about ten seconds after readiness; choosing Create then returned `initialization_candidate_changed` and logged `RECALL_INITIAL_PROFILE_REVALIDATION:local_state_appeared`. The same behavioral test succeeds with the separated model and independently reopens the same identity. Readiness is not a runtime-file quiescence barrier. The earlier installed failure screenshot shows the same error, but that binary had no category diagnostic; its exact historical filesystem transition was not recorded.
+
+Candidate checks now distinguish these states at consent and both metadata publication checkpoints:
+
+| Observed state | Policy |
+| --- | --- |
+| Host paths or existing ancestor/profile/namespace directory identity changes | Stop; preserve data and reservations. |
+| Empty regular runtime `lockfile` appears, disappears or is replaced | Revalidate its type/size when present; it does not supply directory or user-data identity. |
+| Strictly recognized `Local State` first appears | Accept the runtime transition; bind its existing encrypted-key and installation-date fingerprint at this checkpoint. |
+| Recognized `Local State` is atomically replaced or its Boolean audit flag changes | Revalidate the complete narrow format; retain the existing key/date binding independently of inode and audit flag. |
+| Previously observed `Local State` disappears or its key/date changes | Stop without deleting or rewriting it. |
+| Malformed/unknown runtime content, links, persistent partitions, unknown files or unanchored Recall namespaces | Stop; missing metadata never authorizes replacement. |
+
+The key/date fingerprint stays process-local; keys are never decrypted, logged or returned. Recognition is a bounded file-format rule, not proof of the writer or historical newness. A stable read additionally checks the file's identity, size and timestamps around reading. Publication remains create-only, with strict independent metadata rereads and no automatic retry, delay, reset or cleanup. Regression fixtures exercise runtime transitions and hostile mutations during consent, identity publication and bootstrap publication, including a late-observed `Local State` whose subsequent security-material change must fail. The existing exact-head Windows E2E job runs these storage and real-native-dialog contracts before its browser tests; this adds no installation, new job, matrix or acceptance trigger.
 
 Those unpackaged Electron tests and standalone browser restart tests alone do not validate installer behavior, packaged Main execution or default OS paths in a fresh Windows account.
 
@@ -61,7 +78,7 @@ The following limitations remain explicit:
 
 - The B1 single-attempt snapshot was not independently recorded and remains unverified; the two-attempt A→C result does not supply a retrospective PASS.
 - The historical F4 intermittent `unavailable` remains unexplained. Bounded repetitions did not reproduce it; test-only failure diagnostics improve future evidence and do not establish a historical cause or change production replacement behavior.
-- The NSIS Setup installer itself was not executed. Isolated packaged startup checks are not installer acceptance.
+- The earlier scoped F5 evidence did not execute NSIS Setup. PR #148 subsequently recorded a real installed first-launch failure in run `39117755780`. The runtime-state fix has isolated Windows regression evidence; a new fixed-source NSIS acceptance remains required and needs separate user approval.
 - Desktop dependency security advisories and hosted CI remain separate release gates. Scoped F5 Slice 2 readiness is not `RELEASE_READY`.
 
 Path checks reject stable junctions/symlinks and observable changes to bound directory identities. They do not promise race-free protection against a malicious concurrent OS owner. The established single-writer assumptions, staged recovery limits and record formats remain unchanged. This is not cross-file ACID, general multi-process write coordination or arbitrary power-loss protection. There is no new reset, migration, root selection, backup recovery, cloud account, evidence authority or automatic scheduling.
