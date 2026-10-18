@@ -68,6 +68,8 @@ The key/date fingerprint stays process-local; keys are never decrypted, logged o
 
 Those unpackaged Electron tests and standalone browser restart tests alone do not validate installer behavior, packaged Main execution or default OS paths in a fresh Windows account.
 
+Windows fixture roots use the native real path of TEMP, including on hosted accounts whose environment supplies an 8.3 alias such as `RUNNER~1`; the production rejection of non-canonical/redirection paths stays unchanged. The Windows CI step explicitly invokes the locked Electron package's on-demand binary download entry before launching the exe, rather than assuming `npm ci` downloaded it. Download failure fails the job; no native test is skipped or replaced with a mock.
+
 ### Completed scoped acceptance and remaining gates
 
 F5 Slice 2 has completed its agreed local functional acceptance and is `F5_SLICE2_READY` within that tested scope. Packaged Windows A→C recovery used a new Main process C and preserved the original profile/epoch, two attempt identities and provenance, three identical historical snapshot hashes, two restored Evidence records, reconstructed learner state and WHAT. Packaged UI review and clean exit also passed.

@@ -310,6 +310,9 @@ jobs:
       - name: Windows native first-profile and storage regressions (synthetic profiles only)
         shell: pwsh
         run: |
+          # Electron 43 downloads its binary on demand; the fixture starts the exe directly.
+          node node_modules/electron/install.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run desktop:compile
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test --experimental-strip-types desktop/profile-initialization.contract.test.ts desktop/storage-bootstrap.contract.test.ts desktop/profile-native.contract.test.ts
