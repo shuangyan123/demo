@@ -165,6 +165,28 @@ async function launchInitialProfile(candidate: FreshProfileCandidate): Promise<v
   else { if (result.kind !== "cancelled") showStorageFailure("reason" in result ? result.reason : result.kind); app.quit(); }
 }
 
+/**
+ * The pre-ready resolver only classifies historical storage. Electron itself may
+ * create the pristine profile directory / Local State while becoming ready.
+ * Capture the one-use candidate only after this Host-owned runtime transition,
+ * then preserve the normal post-consent candidate and path revalidation.
+ */
+async function launchFreshProfileAfterReady(): Promise<void> {
+  const state = resolveDesktopManagedStorage();
+  if (state.kind !== "uninitialized") {
+    showStorageFailure("reason" in state ? state.reason : state.kind);
+    app.quit();
+    return;
+  }
+  const inspected = inspectDesktopInitialProfile();
+  if (inspected.kind !== "eligible") {
+    showStorageFailure("reason" in inspected ? inspected.reason : inspected.kind);
+    app.quit();
+    return;
+  }
+  await launchInitialProfile(inspected.candidate);
+}
+
 function installApplicationLifecycle(): void {
   app.on("second-instance", () => {
     if (!mainWindow) return;
@@ -192,11 +214,8 @@ if (isSquirrelLifecycleInvocation(process.argv)) {
     const storageState = resolveDesktopManagedStorage();
     if (storageState.kind !== "ready" && storageState.kind !== "legacy_existing_profile") {
       if (storageState.kind === "uninitialized") {
-        const inspected = inspectDesktopInitialProfile();
-        if (inspected.kind === "eligible") {
-          installApplicationLifecycle();
-          app.whenReady().then(() => launchInitialProfile(inspected.candidate)).catch(() => app.quit());
-        } else { showStorageFailure("reason" in inspected ? inspected.reason : inspected.kind); app.exit(1); }
+        installApplicationLifecycle();
+        app.whenReady().then(launchFreshProfileAfterReady).catch(() => app.quit());
       } else { showStorageFailure("reason" in storageState ? storageState.reason : storageState.kind); app.exit(1); }
     } else {
       installApplicationLifecycle();

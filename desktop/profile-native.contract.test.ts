@@ -49,3 +49,15 @@ if (process.platform === "win32") test("actual Electron Cancel exits, then a new
   assert.deepEqual(launch("restart").config, created.config);
   assert.deepEqual(readFileSync(path.join(profile, "Local State")), localState);
 });
+
+test("packaged Main inspects fresh storage only after app.whenReady, retaining native consent", () => {
+  const main = readFileSync(path.resolve("desktop/main.ts"), "utf8");
+  assert.match(main, /app\.whenReady\(\)\.then\(launchFreshProfileAfterReady\)/);
+  assert.match(main, /async function launchFreshProfileAfterReady\(\)/);
+  const afterReady = main.slice(main.indexOf("async function launchFreshProfileAfterReady()"), main.indexOf("function installApplicationLifecycle()"));
+  assert.ok(afterReady.indexOf("resolveDesktopManagedStorage()") >= 0);
+  assert.ok(afterReady.indexOf("inspectDesktopInitialProfile()") > afterReady.indexOf("resolveDesktopManagedStorage()"));
+  assert.ok(afterReady.indexOf("launchInitialProfile(inspected.candidate)") > afterReady.indexOf("inspectDesktopInitialProfile()"));
+  assert.match(main, /completeInitialProfileDecision\(candidate/);
+  assert.doesNotMatch(main.slice(main.indexOf("const storageState = resolveDesktopManagedStorage()")), /app\.whenReady\(\)\.then\(\(\) => launchInitialProfile\(inspected\.candidate\)\)/);
+});

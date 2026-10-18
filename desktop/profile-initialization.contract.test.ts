@@ -262,3 +262,19 @@ if (process.platform === "win32") test("actual Windows ACL denial stops authoriz
     assert.deepEqual(readdirSync(paths.defaultUserData), []);
   } finally { execFileSync("icacls.exe", [paths.defaultUserData, "/remove:d", account], { windowsHide: true }); }
 });
+
+if (process.platform === "win32") test("Electron-ready Local State cannot inherit a stale pre-ready candidate, but fresh consent stays strict", t => {
+  const { paths } = fixture(t);
+  const stale = candidate(paths); // userData absent, as on a true first install
+  mkdirSync(paths.defaultUserData);
+  const localState = runtimeLocalState();
+  const file = path.join(paths.defaultUserData, "Local State");
+  writeFileSync(file, localState);
+  assert.equal(createInitialProfile(stale, paths).kind, "unavailable"); // never waive mutation
+  assert.equal(readdirSync(paths.appData).includes("recall-storage"), false);
+  assert.equal(resolveManagedStorage(paths).kind, "uninitialized");
+  const inspectedAfterReady = candidate(paths); // reclassify, reject unknowns, bind exact bytes
+  assert.equal(createInitialProfile(inspectedAfterReady, paths).kind, "ready");
+  assert.equal(readFileSync(file, "utf8"), localState);
+  assert.equal(resolveManagedStorage(paths).kind, "ready");
+});

@@ -25,8 +25,12 @@ async function run() {
     assert.equal(state.kind, 'ready'); console.log(JSON.stringify(state)); clearTimeout(timer); app.exit(0); return;
   }
   assert.equal(state.kind, 'uninitialized');
-  const inspected = host.inspectDesktopInitialProfile(); assert.equal(inspected.kind, 'eligible');
   await app.whenReady();
+  // Match packaged Main's post-ready candidate capture; runtime-created Local State
+  // cannot be interpreted as an unexpected mutation of a pre-ready snapshot.
+  const readyState = host.resolveDesktopManagedStorage();
+  assert.equal(readyState.kind, 'uninitialized');
+  const inspected = host.inspectDesktopInitialProfile(); assert.equal(inspected.kind, 'eligible');
   const result = await core.completeInitialProfileDecision(inspected.candidate, async () => {
     assert.equal(app.isReady(), true);
     const clicker = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.resolve('test-support/click-native-dialog.ps1'),
