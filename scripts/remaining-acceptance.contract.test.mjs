@@ -24,12 +24,12 @@ test("install workflow uses a PR-only explicit trigger, fixed binary, one hosted
   assert.match(job.if, /run_attempt == 1/);
   assert.equal(Object.keys(workflow.jobs).length, 1);
   assert.equal(job.steps.some(step => /npm ci|desktop:builder|--allusers|pull_request_target/.test(step.run ?? "")), false);
-  assert.equal(policy.sourceCommit, "98178f3b286f65341677e05c1f4abf70e599a310");
-  assert.equal(policy.runId, 39114236172);
-  assert.equal(policy.artifactId, 12132012074);
-  assert.equal(policy.artifactDigest, "c374a7f234cad9e39d6e01d77821aaaa6f26e9fbebbb60ada0b1bced4415b78b");
-  assert.equal(policy.installerSha256, "e7e2e9a3625ffc4c87ef324ebc746aa6d7da0310d562c2108e31a9cc77635b40");
-  assert.equal(policy.label, "recall-install-acceptance-98178f3");
+  assert.equal(policy.sourceCommit, "1be3f28eca90bb9a9ac63c4036e275cb42a48889");
+  assert.equal(policy.runId, 39121611474);
+  assert.equal(policy.artifactId, 12133559719);
+  assert.equal(policy.artifactDigest, "6bad4fec47d18aa70de0f1f1f00fadebad9226441240dda275e6d3311a8e57a9");
+  assert.equal(policy.installerSha256, "f81b0d70bbd142446c90b5818375fd129f8e411dfc6be79eb8544761864fb36b");
+  assert.equal(policy.label, "recall-install-acceptance-1be3f28");
 });
 
 if (process.platform === "win32") test("both native scripts refuse execution outside GitHub-hosted Windows before creating a directory", () => {
@@ -148,4 +148,26 @@ test("native helper preflight is wired before immutable artifact download and in
   const ci = source("../.github/workflows/ci.yml");
   assert.match(ci.slice(ci.indexOf("  windows-m3:"),ci.indexOf("  build:")), /Compile native install-acceptance helper before hosted installation/);
   assert.match(source("./windows-nsis-install-acceptance.ps1"), /RECT buttonRect = default\(RECT\), dialogRect = default\(RECT\);/);
+});
+
+test("hosted full installation acceptance exercises native runtime publication, cancel/recreate and uninstall distinctly", () => {
+  const script = source("./windows-nsis-install-acceptance.ps1").replace(/\r\n/g, "\n");
+  const detector = source("./observe-install-acceptance-runtime.mjs");
+  assert.match(script, /observe-install-acceptance-runtime\.mjs/);
+  assert.match(script, /Electron Local State verified during owned native prompt/);
+  assert.match(script, /'fresh-launch' \$true 'create' \$true/);
+  assert.match(script, /'cancel-native' \$true 'cancel' \$true/);
+  assert.match(script, /'create-after-cancel' \$true/);
+  assert.match(script, /'restart-after-cancel' \$false/);
+  assert.match(script, /Cancel creates no Recall identity/);
+  assert.match(script, /Cancel creates no Recall bootstrap/);
+  assert.match(script, /Cancel retains one Electron runtime profile/);
+  assert.match(script, /Uninstall-Fixed\n  Clean-Synthetic-Data/);
+  assert.match(detector, /RUNNER_ENVIRONMENT/);
+  assert.match(detector, /RUNNER_OS/);
+  assert.match(detector, /APPDATA/);
+  assert.match(detector, /encrypted_key/);
+  assert.match(detector, /installation_date2/);
+  assert.match(detector, /fileWasAbsentWhenPromptOpened/);
+  assert.doesNotMatch(detector, /JSON\.stringify\(.*(?:encrypted_key|readFileSync)/);
 });

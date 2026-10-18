@@ -1,6 +1,13 @@
 # 固定产物 Windows 安装验收
 
-## 首次启动修复的下一次验收（尚未授权执行）
+## 新修复安装验收（已批准、准备执行一次）
+
+### 本轮固定对象与执行边界
+
+- 新产品源码 `1be3f28eca90bb9a9ac63c4036e275cb42a48889`，成功 CI `39121611474`，finalized artifact `12133559719`。
+- ZIP SHA256 `6bad4fec47d18aa70de0f1f1f00fadebad9226441240dda275e6d3311a8e57a9`；EXE SHA256 `f81b0d70bbd142446c90b5818375fd129f8e411dfc6be79eb8544761864fb36b`，两者已独立与 manifest 核对。
+- 本次只允许一次性 GitHub-hosted Windows runner，包含新装（原生窗口等待合法 Electron Local State 实际出现后创建）、重启读回、卸载、取消后重新创建及可信 v0.2.2 Squirrel-to-NSIS 数据交接。不可在本机/Pilot 运行。
+- 旧安装源仍被保留为历史证据，新的执行策略必须指向上述新源码。未完成实际验收前全部保持 Draft/NOT_RUN。
 
 旧 run `39117755780` 的安装、来源核验和原生确认已执行，但工作台启动失败。`d7e9239` 的普通 CI、Windows E2E 或 NSIS 构建成功均不能关闭该失败。新修复用真实 Windows Electron 证明：原生确认仍打开时，Electron 可在 ready 后约十秒才发布 `Local State`；旧实现误把该运行时转换当成候选资料变更。旧安装包没有分类诊断，不能追认其确切文件变化。
 

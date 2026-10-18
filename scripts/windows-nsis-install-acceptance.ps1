@@ -82,12 +82,12 @@ public static class RecallAcceptanceFilePath {
   }
   [RecallAcceptanceFilePath]::Resolve($file)
 }
-function Invoke-OwnedNativeButton($element, $expectedProcessId) {
+function Invoke-OwnedNativeButton($element, $expectedProcessId, $expectedName) {
   # UIA exposes this TaskDialog child as ControlType.Pane with no patterns.
   # Never activate arbitrary windows: validate the exact native HWND, parent,
   # process, title, class, geometry, foreground and hit test on hosted Windows.
   $control = $element.Current
-  if ($control.Name -ne '创建本地资料' -or $control.ClassName -ne 'CCPushButton' -or
+  if ($control.Name -ne $expectedName -or $control.ClassName -ne 'CCPushButton' -or
       $control.ProcessId -ne $expectedProcessId -or -not $control.IsEnabled -or
       $control.IsOffscreen -or $control.NativeWindowHandle -le 0) {
     throw 'Native confirmation target identity mismatch'
@@ -239,7 +239,9 @@ function Install-Fixed {
     catch { Write-Output 'Shortcut assertion retained as FAIL; continue independent installed-executable checks' }
   }
 }
-function Launch-Probe($exe, $mode, $name, $fresh) {
+function Launch-Probe($exe, $mode, $name, $fresh, $decision = 'create', $observeRuntime = $false) {
+  if ($decision -notin @('create', 'cancel')) { throw 'Unsupported native decision' }
+  if ($observeRuntime -and -not $fresh) { throw 'Runtime publication requires native confirmation' }
   $port = Get-Random -Minimum 30000 -Maximum 45000
   # An installed app may need a visible native first-run dialog; hiding its window masks the acceptance surface.
   $script:current = Start-Process -FilePath $exe -ArgumentList "--remote-debugging-address=127.0.0.1 --remote-debugging-port=$port --force-renderer-accessibility" -PassThru -RedirectStandardOutput (Join-Path $evidence "$name.stdout.log") -RedirectStandardError (Join-Path $evidence "$name.stderr.log")
@@ -253,7 +255,8 @@ function Launch-Probe($exe, $mode, $name, $fresh) {
       $dialogs = @($windows | Where-Object { $_.Current.Name -eq '创建本地学习资料' -and $_.Current.ProcessId -eq $script:current.Id })
       if ($dialogs.Count -gt 1) { throw 'Ambiguous owned native confirmation dialogs' }
       foreach ($window in $dialogs) {
-        $named = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, '创建本地资料'))
+        $targetName = if ($decision -eq 'cancel') { '取消' } else { '创建本地资料' }
+        $named = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $targetName))
         $candidateDetails = @()
         foreach ($control in $named) {
           $candidateDetails += @{
@@ -268,20 +271,27 @@ function Launch-Probe($exe, $mode, $name, $fresh) {
           }
         }
         @{ dialogTitle = $window.Current.Name; ownerProcessId = $script:current.Id; dialogProcessId = $window.Current.ProcessId; candidates = $candidateDetails } |
-          ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'fresh-profile-native-controls.json')
+          ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence "$name-native-controls.json")
         # TaskDialog can expose a non-Button control type; match the exact owned dialog,
         # unique enabled visible label and process, then require a supported action.
         $candidates = @($named | Where-Object { $_.Current.ProcessId -eq $script:current.Id -and $_.Current.IsEnabled -and -not $_.Current.IsOffscreen })
         if ($candidates.Count -gt 1) { throw 'Ambiguous native confirmation controls' }
         if ($candidates.Count -eq 1) {
           $button = $candidates[0]
+          if ($observeRuntime) {
+            # Wait only on a recognized Chromium runtime file while the owned native prompt is open.
+            # No fixed-delay inference and no contents, key or real profile path in the evidence.
+            & node (Join-Path $PSScriptRoot 'observe-install-acceptance-runtime.mjs') (Join-Path $evidence "$name-runtime-publication.json")
+            Check ($LASTEXITCODE -eq 0) "Electron Local State verified during owned native prompt: $name"
+            Check (-not $script:current.HasExited) "Native confirmation app remains running: $name"
+          }
           $pattern = $null
           if ($button.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
             ([Windows.Automation.InvokePattern]$pattern).Invoke()
           } else {
-            Invoke-OwnedNativeButton $button $script:current.Id
+            Invoke-OwnedNativeButton $button $script:current.Id $targetName
             'verified CCPushButton native pointer activation sent; workspace/storage remains unverified' |
-              Set-Content (Join-Path $evidence 'fresh-profile-native-action.txt')
+              Set-Content (Join-Path $evidence "$name-native-action.txt")
           }
           $clicked = $true
           break
@@ -289,7 +299,21 @@ function Launch-Probe($exe, $mode, $name, $fresh) {
       }
       if (-not $clicked) { Start-Sleep -Milliseconds 250 }
     }
-    Check $clicked 'Fresh-profile native confirmation exercised'
+    Check $clicked "Fresh-profile native confirmation exercised: $name ($decision)"
+  }
+  if ($decision -eq 'cancel') {
+    Check ($script:current.WaitForExit(30000)) "Cancel exits owned installed application: $name"
+    Check ($script:current.ExitCode -eq 0) "Cancel exit code zero: $name"
+    Check (-not (Test-Path -LiteralPath $bootstrap)) "Cancel creates no Recall bootstrap: $name"
+    foreach ($profile in $profiles) {
+      Check (-not (Test-Path -LiteralPath (Join-Path $profile '.recall-storage'))) "Cancel creates no Recall identity: $name"
+      Check (-not (Test-Path -LiteralPath (Join-Path $profile 'managed-files'))) "Cancel creates no managed files: $name"
+    }
+    Check (@($profiles | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'Local State') }).Count -eq 1) "Cancel retains one Electron runtime profile: $name"
+    @{ status = 'PASS'; scenario = 'cancel'; ownedProcessExited = $true; metadataAbsent = $true; localStateRetained = $true } |
+      ConvertTo-Json | Set-Content (Join-Path $evidence "$name.json")
+    $script:current = $null
+    return
   }
   & node (Join-Path $PSScriptRoot 'install-acceptance-cdp.mjs') "$port" $mode (Join-Path $evidence "$name.json")
   Check ($LASTEXITCODE -eq 0) "Installed workspace and synthetic storage: $name"
@@ -313,13 +337,27 @@ try {
   Check (@(Registry-Entries).Count -eq 0) 'No previous Recall installation on disposable runner'
   foreach ($candidate in @($profiles) + @($bootstrap, $oldRoot) + $shortcutPaths) { Check (-not (Test-Path -LiteralPath $candidate)) "No pre-existing fixture path: $candidate" }
   $ownedData = $true
+  # Scenario A: fresh creation with a genuinely late Chromium Local State publication.
   Install-Fixed
-  Launch-Probe (Join-Path $install 'review-workspace.exe') 'write' 'fresh-launch' $true
+  Launch-Probe (Join-Path $install 'review-workspace.exe') 'write' 'fresh-launch' $true 'create' $true
   $record = Get-Content -Raw (Join-Path $bootstrap 'bootstrap.json') | ConvertFrom-Json
   Check ($record.activeManagedRoot -in $profiles) 'Main created managed profile in the expected synthetic namespace'
   $anchorHash = (Get-FileHash -LiteralPath (Join-Path $record.activeManagedRoot '.recall-storage/identity.json')).Hash
   Launch-Probe (Join-Path $install 'review-workspace.exe') 'read' 'restart-retention' $false
   Check ((Get-FileHash -LiteralPath (Join-Path $record.activeManagedRoot '.recall-storage/identity.json')).Hash -eq $anchorHash) 'Restart retains profile identity'
+  Uninstall-Fixed
+  Clean-Synthetic-Data
+
+  # Scenario B: cancel a native first-run confirmation, exit completely, and
+  # create later using the preserved OS runtime file without deleting it.
+  Install-Fixed
+  Launch-Probe (Join-Path $install 'review-workspace.exe') 'read' 'cancel-native' $true 'cancel' $true
+  Launch-Probe (Join-Path $install 'review-workspace.exe') 'write' 'create-after-cancel' $true
+  $cancelRecord = Get-Content -Raw (Join-Path $bootstrap 'bootstrap.json') | ConvertFrom-Json
+  Check ($cancelRecord.activeManagedRoot -in $profiles) 'Create after cancel uses expected profile'
+  $cancelIdentity = (Get-FileHash -LiteralPath (Join-Path $cancelRecord.activeManagedRoot '.recall-storage/identity.json')).Hash
+  Launch-Probe (Join-Path $install 'review-workspace.exe') 'read' 'restart-after-cancel' $false
+  Check ((Get-FileHash -LiteralPath (Join-Path $cancelRecord.activeManagedRoot '.recall-storage/identity.json')).Hash -eq $cancelIdentity) 'Cancel then create retains profile identity'
   Uninstall-Fixed
   Clean-Synthetic-Data
   $upgrade = Get-Content -Raw (Join-Path $evidence 'upgrade-provenance.json') | ConvertFrom-Json
