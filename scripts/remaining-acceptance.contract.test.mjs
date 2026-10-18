@@ -103,3 +103,18 @@ test("new unclassified advisories, missing dependency edges and invalid audit re
   assert.throws(() => reviewDependencies({ vulnerabilities: {}, metadata: { vulnerabilities: { total: 0 } } }, report({})), /Invalid audit/);
   assert.throws(() => reviewDependencies(report({ cycle: { ...leaf, via: ["cycle"] } }), report({})), /Invalid finding/);
 });
+
+test("hosted native consent probes the owned TaskDialog only and retains post-click lifecycle checks", () => {
+  const script = source("./windows-nsis-install-acceptance.ps1");
+  assert.doesNotMatch(script, /LegacyIAccessiblePattern/);
+  assert.match(script, /ClassName -ne 'CCPushButton'/);
+  assert.match(script, /buttonPid == \(uint\)expectedPid/);
+  assert.match(script, /dialogPid == \(uint\)expectedPid/);
+  assert.match(script, /title\.ToString\(\) == "创建本地学习资料"/);
+  assert.match(script, /GetForegroundWindow\(\) == dialog/);
+  assert.match(script, /WindowFromPoint/);
+  assert.match(script, /Fresh-profile native confirmation exercised/);
+  assert.match(script, /Installed workspace and synthetic storage/);
+  assert.match(script, /Restart retains profile identity/);
+  assert.match(script, /Uninstall-Fixed/);
+});

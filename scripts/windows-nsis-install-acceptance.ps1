@@ -83,41 +83,81 @@ public static class RecallAcceptanceFilePath {
   [RecallAcceptanceFilePath]::Resolve($file)
 }
 function Invoke-OwnedNativeButton($element, $expectedProcessId) {
-  $handle = $element.Current.NativeWindowHandle
-  if ($handle -le 0) { return $false }
+  # UIA exposes this TaskDialog child as ControlType.Pane with no patterns.
+  # Never activate arbitrary windows: validate the exact native HWND, parent,
+  # process, title, class, geometry, foreground and hit test on hosted Windows.
+  $control = $element.Current
+  if ($control.Name -ne '创建本地资料' -or $control.ClassName -ne 'CCPushButton' -or
+      $control.ProcessId -ne $expectedProcessId -or -not $control.IsEnabled -or
+      $control.IsOffscreen -or $control.NativeWindowHandle -le 0) {
+    throw 'Native confirmation target identity mismatch'
+  }
   if (-not ('RecallAcceptanceNativeButton' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 public static class RecallAcceptanceNativeButton {
-  [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  [StructLayout(LayoutKind.Sequential)] private struct POINT { public int X, Y; }
+  [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)]
   private static extern int GetClassName(IntPtr handle, StringBuilder name, int length);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)]
   private static extern int GetWindowText(IntPtr handle, StringBuilder name, int length);
-  [DllImport("user32.dll", SetLastError = true)]
-  private static extern uint GetWindowThreadProcessId(IntPtr handle, out uint pid);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr handle, out uint pid);
+  [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr handle, uint flags);
   [DllImport("user32.dll")] private static extern bool IsWindowEnabled(IntPtr handle);
   [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr handle);
-  [DllImport("user32.dll", SetLastError = true)]
-  private static extern IntPtr SendMessageTimeout(IntPtr handle, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeoutMs, out IntPtr result);
-  public static bool Click(int handle, int expectedPid) {
-    var window = new IntPtr(handle);
-    if (handle <= 0 || !IsWindowEnabled(window) || !IsWindowVisible(window)) return false;
-    uint pid;
-    if (GetWindowThreadProcessId(window, out pid) == 0 || pid != (uint)expectedPid) return false;
-    var className = new StringBuilder(256);
-    var caption = new StringBuilder(256);
-    if (GetClassName(window, className, className.Capacity) == 0 || className.ToString() != "Button") return false;
-    if (GetWindowText(window, caption, caption.Capacity) == 0 || caption.ToString() != "创建本地资料") return false;
-    IntPtr ignored;
-    // BM_CLICK; bound the call so a stalled native UI cannot hang acceptance forever.
-    return SendMessageTimeout(window, 0x00F5u, IntPtr.Zero, IntPtr.Zero, 0x0002u, 5000u, out ignored) != IntPtr.Zero;
+  [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr handle, out RECT rect);
+  [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr handle);
+  [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(POINT point);
+  [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+  private static void Require(bool condition, string stage) {
+    if (!condition) throw new InvalidOperationException("Owned native button: " + stage);
+  }
+  public static void Click(int handle, int expectedPid) {
+    var button = new IntPtr(handle);
+    uint buttonPid, dialogPid;
+    Require(handle > 0 && GetWindowThreadProcessId(button, out buttonPid) != 0 &&
+      buttonPid == (uint)expectedPid, "button PID");
+    Require(IsWindowVisible(button) && IsWindowEnabled(button), "button visibility/enabled");
+    var className = new StringBuilder(128);
+    Require(GetClassName(button, className, className.Capacity) > 0 &&
+      className.ToString() == "CCPushButton", "button class");
+    var dialog = GetAncestor(button, 2u); // GA_ROOT
+    Require(dialog != IntPtr.Zero && GetWindowThreadProcessId(dialog, out dialogPid) != 0 &&
+      dialogPid == (uint)expectedPid, "dialog PID");
+    var title = new StringBuilder(256);
+    Require(GetWindowText(dialog, title, title.Capacity) > 0 &&
+      title.ToString() == "创建本地学习资料", "dialog title");
+    Require(IsWindowVisible(dialog) && IsWindowEnabled(dialog), "dialog visibility/enabled");
+    RECT buttonRect, dialogRect;
+    Require(GetWindowRect(button, out buttonRect) && GetWindowRect(dialog, out dialogRect),
+      "window rectangles");
+    int x = buttonRect.Left + (buttonRect.Right - buttonRect.Left) / 2;
+    int y = buttonRect.Top + (buttonRect.Bottom - buttonRect.Top) / 2;
+    Require(buttonRect.Right > buttonRect.Left && buttonRect.Bottom > buttonRect.Top &&
+      x > dialogRect.Left && x < dialogRect.Right &&
+      y > dialogRect.Top && y < dialogRect.Bottom, "button geometry");
+    if (GetForegroundWindow() != dialog) SetForegroundWindow(dialog);
+    Thread.Sleep(100);
+    Require(GetForegroundWindow() == dialog, "foreground owner");
+    Require(SetCursorPos(x, y), "cursor placement");
+    Thread.Sleep(75);
+    Require(WindowFromPoint(new POINT { X = x, Y = y }) == button, "hit-tested HWND");
+    // Genuine bounded desktop interaction with the sole verified owned control.
+    // A successful gesture is not an acceptance PASS: CDP and storage tests follow.
+    mouse_event(0x0002u, 0, 0, 0, UIntPtr.Zero); // LEFTDOWN
+    Thread.Sleep(60);
+    mouse_event(0x0004u, 0, 0, 0, UIntPtr.Zero); // LEFTUP
   }
 }
 '@
   }
-  return [RecallAcceptanceNativeButton]::Click([int]$handle, [int]$expectedProcessId)
+  [RecallAcceptanceNativeButton]::Click([int]$control.NativeWindowHandle, [int]$expectedProcessId)
 }
 function Run-Owned($file, $arguments, $seconds = 120) {
   $process = Start-Process -FilePath $file -ArgumentList $arguments -WindowStyle Hidden -PassThru
@@ -234,10 +274,10 @@ function Launch-Probe($exe, $mode, $name, $fresh) {
           $pattern = $null
           if ($button.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
             ([Windows.Automation.InvokePattern]$pattern).Invoke()
-          } elseif ($button.TryGetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern, [ref]$pattern)) {
-            ([Windows.Automation.LegacyIAccessiblePattern]$pattern).DoDefaultAction()
-          } elseif (-not (Invoke-OwnedNativeButton $button $script:current.Id)) {
-            throw 'Owned native confirmation control does not expose a supported safe activation'
+          } else {
+            Invoke-OwnedNativeButton $button $script:current.Id
+            'verified CCPushButton native pointer activation sent; workspace/storage remains unverified' |
+              Set-Content (Join-Path $evidence 'fresh-profile-native-action.txt')
           }
           $clicked = $true
           break
