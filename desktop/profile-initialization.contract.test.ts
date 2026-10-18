@@ -280,7 +280,7 @@ if (process.platform === "win32") test("Electron-ready Local State cannot inheri
 });
 
 test("revalidation reports bounded internal category without exposing Host paths, file bytes or binding", t => {
-  const capture = (callback: () => ManagedStorageResolution) => {
+  const capture = (callback: () => ReturnType<typeof createInitialProfile>) => {
     const originalError = console.error;
     const messages: string[] = [];
     try {
@@ -314,7 +314,7 @@ test("revalidation reports bounded internal category without exposing Host paths
 });
 
 if (process.platform === "win32") test("revalidation distinguishes Local State creation, removal, content change and lockfile mutation", t => {
-  const capture = (callback: () => ManagedStorageResolution) => {
+  const capture = (callback: () => ReturnType<typeof createInitialProfile>) => {
     const originalError = console.error;
     const messages: string[] = [];
     try {
