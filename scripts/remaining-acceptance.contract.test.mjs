@@ -108,6 +108,10 @@ test("hosted native consent probes the owned TaskDialog only and retains post-cl
   const script = source("./windows-nsis-install-acceptance.ps1");
   assert.doesNotMatch(script, /LegacyIAccessiblePattern/);
   assert.match(script, /ClassName -ne 'CCPushButton'/);
+  // Do not compare the UIA provider's ClassName to the actual Win32 HWND class.
+  assert.doesNotMatch(script, /className\.ToString\(\) == "CCPushButton"/);
+  assert.match(script, /native HWND class unreadable/);
+  assert.match(script, /Owned native confirmation HWND class \(diagnostic\)/);
   assert.match(script, /buttonPid == \(uint\)expectedPid/);
   assert.match(script, /dialogPid == \(uint\)expectedPid/);
   assert.match(script, /title\.ToString\(\) == "创建本地学习资料"/);
