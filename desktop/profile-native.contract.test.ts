@@ -67,5 +67,5 @@ test("packed first-profile diagnostics use only a fixed category, never path or 
   assert.match(script, /RECALL_INITIAL_PROFILE_REVALIDATION:/);
   assert.match(script, /local_state_binding_changed/);
   assert.match(script, /recall_namespace_present/);
-  assert.doesNotMatch(script, /console\\.error\\([^)]*(?:paths\\.|binding\\.|readFileSync|current\\.)/);
+  assert.doesNotMatch(script, /console\.error\([^)]*(?:paths\.|binding\.|readFileSync|current\.)/);
 });
