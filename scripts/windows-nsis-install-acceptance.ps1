@@ -126,7 +126,22 @@ function Install-Fixed {
     $link = $shell.CreateShortcut($shortcut)
     $target = $link.TargetPath
     $expected = Join-Path $install 'review-workspace.exe'
-    $links += @{ shortcut = $shortcut; target = $target; expected = $expected; arguments = $link.Arguments }
+    # Independent Shell.Application read is diagnostic only: it cannot turn an empty
+    # WScript TargetPath into a passing shortcut identity assertion.
+    $shellLinkTarget = ''
+    $shellLinkError = ''
+    try {
+      $folder = (New-Object -ComObject Shell.Application).NameSpace((Split-Path $shortcut -Parent))
+      $item = $folder.ParseName((Split-Path $shortcut -Leaf))
+      if ($null -ne $item -and $item.IsLink) {
+        $linkItem = $item.GetLink
+        if ($null -ne $linkItem.Target) { $shellLinkTarget = $linkItem.Target.Path }
+      }
+    } catch { $shellLinkError = $_.Exception.Message }
+    $shortcutFile = Get-Item -LiteralPath $shortcut -Force
+    $links += @{ shortcut = $shortcut; target = $target; expected = $expected; arguments = $link.Arguments;
+      shellLinkTarget = $shellLinkTarget; shellLinkError = $shellLinkError;
+      bytes = $shortcutFile.Length; sha256 = (Get-FileHash -LiteralPath $shortcut -Algorithm SHA256).Hash.ToLowerInvariant() }
     ConvertTo-Json -InputObject $links -Depth 4 | Set-Content (Join-Path $evidence 'installed-shortcuts.json')
     # Windows 可返回 8.3 路径；确认打开的真实文件路径，不能靠字符串或相同 hash 接受别处的 EXE。
     try { $same = (Resolve-Installed-File $target) -eq (Resolve-Installed-File $expected) } catch { $same = $false }
@@ -136,7 +151,8 @@ function Install-Fixed {
 }
 function Launch-Probe($exe, $mode, $name, $fresh) {
   $port = Get-Random -Minimum 30000 -Maximum 45000
-  $script:current = Start-Process -FilePath $exe -ArgumentList "--remote-debugging-address=127.0.0.1 --remote-debugging-port=$port --force-renderer-accessibility" -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $evidence "$name.stdout.log") -RedirectStandardError (Join-Path $evidence "$name.stderr.log")
+  # An installed app may need a visible native first-run dialog; hiding its window masks the acceptance surface.
+  $script:current = Start-Process -FilePath $exe -ArgumentList "--remote-debugging-address=127.0.0.1 --remote-debugging-port=$port --force-renderer-accessibility" -PassThru -RedirectStandardOutput (Join-Path $evidence "$name.stdout.log") -RedirectStandardError (Join-Path $evidence "$name.stderr.log")
   if ($fresh) {
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
