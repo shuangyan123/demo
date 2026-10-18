@@ -82,6 +82,43 @@ public static class RecallAcceptanceFilePath {
   }
   [RecallAcceptanceFilePath]::Resolve($file)
 }
+function Invoke-OwnedNativeButton($element, $expectedProcessId) {
+  $handle = $element.Current.NativeWindowHandle
+  if ($handle -le 0) { return $false }
+  if (-not ('RecallAcceptanceNativeButton' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class RecallAcceptanceNativeButton {
+  [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  private static extern int GetClassName(IntPtr handle, StringBuilder name, int length);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  private static extern int GetWindowText(IntPtr handle, StringBuilder name, int length);
+  [DllImport("user32.dll", SetLastError = true)]
+  private static extern uint GetWindowThreadProcessId(IntPtr handle, out uint pid);
+  [DllImport("user32.dll")] private static extern bool IsWindowEnabled(IntPtr handle);
+  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr handle);
+  [DllImport("user32.dll", SetLastError = true)]
+  private static extern IntPtr SendMessageTimeout(IntPtr handle, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeoutMs, out IntPtr result);
+  public static bool Click(int handle, int expectedPid) {
+    var window = new IntPtr(handle);
+    if (handle <= 0 || !IsWindowEnabled(window) || !IsWindowVisible(window)) return false;
+    uint pid;
+    if (GetWindowThreadProcessId(window, out pid) == 0 || pid != (uint)expectedPid) return false;
+    var className = new StringBuilder(256);
+    var caption = new StringBuilder(256);
+    if (GetClassName(window, className, className.Capacity) == 0 || className.ToString() != "Button") return false;
+    if (GetWindowText(window, caption, caption.Capacity) == 0 || caption.ToString() != "创建本地资料") return false;
+    IntPtr ignored;
+    // BM_CLICK; bound the call so a stalled native UI cannot hang acceptance forever.
+    return SendMessageTimeout(window, 0x00F5u, IntPtr.Zero, IntPtr.Zero, 0x0002u, 5000u, out ignored) != IntPtr.Zero;
+  }
+}
+'@
+  }
+  return [RecallAcceptanceNativeButton]::Click([int]$handle, [int]$expectedProcessId)
+}
 function Run-Owned($file, $arguments, $seconds = 120) {
   $process = Start-Process -FilePath $file -ArgumentList $arguments -WindowStyle Hidden -PassThru
   if (-not $process.WaitForExit($seconds * 1000)) { throw 'Installer process deadline exceeded' }
@@ -169,20 +206,38 @@ function Launch-Probe($exe, $mode, $name, $fresh) {
     $clicked = $false
     while ([DateTime]::UtcNow -lt $until -and -not $clicked) {
       $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $script:current.Id))
-      foreach ($window in $windows) {
-        if ($window.Current.Name -ne '创建本地学习资料') { continue }
+      $dialogs = @($windows | Where-Object { $_.Current.Name -eq '创建本地学习资料' -and $_.Current.ProcessId -eq $script:current.Id })
+      if ($dialogs.Count -gt 1) { throw 'Ambiguous owned native confirmation dialogs' }
+      foreach ($window in $dialogs) {
         $named = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, '创建本地资料'))
-        $buttons = @($named | Where-Object { $_.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $_.Current.IsEnabled })
-        if ($buttons.Count -gt 1) { throw 'Ambiguous native confirmation buttons' }
-        if ($buttons.Count -eq 1) {
-          $button = $buttons[0]
+        $candidateDetails = @()
+        foreach ($control in $named) {
+          $candidateDetails += @{
+            name = $control.Current.Name
+            controlType = $control.Current.ControlType.ProgrammaticName
+            className = $control.Current.ClassName
+            nativeWindowHandle = $control.Current.NativeWindowHandle
+            processId = $control.Current.ProcessId
+            isEnabled = $control.Current.IsEnabled
+            isOffscreen = $control.Current.IsOffscreen
+            patterns = @($control.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
+          }
+        }
+        @{ dialogTitle = $window.Current.Name; ownerProcessId = $script:current.Id; dialogProcessId = $window.Current.ProcessId; candidates = $candidateDetails } |
+          ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'fresh-profile-native-controls.json')
+        # TaskDialog can expose a non-Button control type; match the exact owned dialog,
+        # unique enabled visible label and process, then require a supported action.
+        $candidates = @($named | Where-Object { $_.Current.ProcessId -eq $script:current.Id -and $_.Current.IsEnabled -and -not $_.Current.IsOffscreen })
+        if ($candidates.Count -gt 1) { throw 'Ambiguous native confirmation controls' }
+        if ($candidates.Count -eq 1) {
+          $button = $candidates[0]
           $pattern = $null
           if ($button.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
             ([Windows.Automation.InvokePattern]$pattern).Invoke()
           } elseif ($button.TryGetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern, [ref]$pattern)) {
             ([Windows.Automation.LegacyIAccessiblePattern]$pattern).DoDefaultAction()
-          } else {
-            throw 'Owned native confirmation button does not expose a supported activation pattern'
+          } elseif (-not (Invoke-OwnedNativeButton $button $script:current.Id)) {
+            throw 'Owned native confirmation control does not expose a supported safe activation'
           }
           $clicked = $true
           break
