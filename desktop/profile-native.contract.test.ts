@@ -61,3 +61,11 @@ test("packaged Main inspects fresh storage only after app.whenReady, retaining n
   assert.match(main, /completeInitialProfileDecision\(candidate/);
   assert.doesNotMatch(main.slice(main.indexOf("const storageState = resolveDesktopManagedStorage()")), /app\.whenReady\(\)\.then\(\(\) => launchInitialProfile\(inspected\.candidate\)\)/);
 });
+
+test("packed first-profile diagnostics use only a fixed category, never path or secret values", () => {
+  const script = readFileSync(path.resolve("desktop/profile-initialization.ts"), "utf8");
+  assert.match(script, /RECALL_INITIAL_PROFILE_REVALIDATION:/);
+  assert.match(script, /local_state_binding_changed/);
+  assert.match(script, /recall_namespace_present/);
+  assert.doesNotMatch(script, /console\\.error\\([^)]*(?:paths\\.|binding\\.|readFileSync|current\\.)/);
+});

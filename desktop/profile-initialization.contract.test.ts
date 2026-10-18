@@ -278,3 +278,71 @@ if (process.platform === "win32") test("Electron-ready Local State cannot inheri
   assert.equal(readFileSync(file, "utf8"), localState);
   assert.equal(resolveManagedStorage(paths).kind, "ready");
 });
+
+test("revalidation reports bounded internal category without exposing Host paths, file bytes or binding", t => {
+  const capture = (callback: () => ManagedStorageResolution) => {
+    const originalError = console.error;
+    const messages: string[] = [];
+    try {
+      console.error = (...parts: unknown[]) => { messages.push(parts.map(String).join(" ")); };
+      return { result: callback(), messages };
+    } finally { console.error = originalError; }
+  };
+  for (const scenario of ["host", "directory", "foreign", "namespace"] as const) {
+    const { paths } = fixture(t);
+    mkdirSync(paths.defaultUserData);
+    const inspected = candidate(paths);
+    let current = paths;
+    if (scenario === "host") current = { ...paths, defaultSessionData: path.join(paths.appData, "other") };
+    if (scenario === "directory") { renameSync(paths.defaultUserData, `${paths.defaultUserData}-old`); mkdirSync(paths.defaultUserData); }
+    if (scenario === "foreign") writeFileSync(path.join(paths.defaultUserData, "private-user-file"), "confidential 987654");
+    if (scenario === "namespace") mkdirSync(path.join(paths.defaultUserData, "managed-files"));
+    const { result, messages } = capture(() => createInitialProfile(inspected, current));
+    assert.equal(result.kind, "unavailable");
+    assert.equal("reason" in result && result.reason, "initialization_candidate_changed");
+    const expected = {
+      host: "host_paths_changed",
+      directory: "directory_binding_changed",
+      foreign: "profile_not_pristine",
+      namespace: "recall_namespace_present",
+    }[scenario];
+    assert.deepEqual(messages, [`RECALL_INITIAL_PROFILE_REVALIDATION:${expected}`]);
+    assert.ok(messages.every(value => !value.includes(paths.appData) && !value.includes("private-user-file")
+      && !value.includes("confidential") && !value.includes("987654")));
+    assert.equal(readdirSync(paths.appData).includes("recall-storage"), false);
+  }
+});
+
+if (process.platform === "win32") test("revalidation distinguishes Local State creation, removal, content change and lockfile mutation", t => {
+  const capture = (callback: () => ManagedStorageResolution) => {
+    const originalError = console.error;
+    const messages: string[] = [];
+    try {
+      console.error = (...parts: unknown[]) => { messages.push(parts.map(String).join(" ")); };
+      return { result: callback(), messages };
+    } finally { console.error = originalError; }
+  };
+  for (const kind of ["appeared", "disappeared", "modified", "lockfile"] as const) {
+    const { paths } = fixture(t);
+    mkdirSync(paths.defaultUserData);
+    const state = path.join(paths.defaultUserData, "Local State");
+    const lock = path.join(paths.defaultUserData, "lockfile");
+    if (kind === "disappeared" || kind === "modified") writeFileSync(state, runtimeLocalState());
+    if (kind === "lockfile") writeFileSync(lock, "");
+    const initial = candidate(paths);
+    if (kind === "appeared") writeFileSync(state, runtimeLocalState());
+    if (kind === "disappeared") rmSync(state);
+    if (kind === "modified") writeFileSync(state, runtimeLocalState("2"));
+    if (kind === "lockfile") rmSync(lock);
+    const { result, messages } = capture(() => createInitialProfile(initial, paths));
+    const category = {
+      appeared: "local_state_appeared",
+      disappeared: "local_state_disappeared",
+      modified: "local_state_binding_changed",
+      lockfile: "lockfile_binding_changed",
+    }[kind];
+    assert.equal("reason" in result && result.reason, "initialization_candidate_changed");
+    assert.deepEqual(messages, [`RECALL_INITIAL_PROFILE_REVALIDATION:${category}`]);
+    assert.equal(readdirSync(paths.appData).includes("recall-storage"), false);
+  }
+});
