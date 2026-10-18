@@ -179,6 +179,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Compile native install-acceptance helper before hosted installation
+        shell: pwsh
+        run: ./scripts/preflight-install-acceptance.ps1
+
       - name: M3 migration helper contracts
         shell: pwsh
         run: |

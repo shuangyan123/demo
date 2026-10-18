@@ -35,6 +35,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24.20.0
+      - name: Compile native helper before downloading installer
+        shell: pwsh
+        run: ./scripts/preflight-install-acceptance.ps1
       - name: Download and verify immutable owned artifacts
         shell: pwsh
         env:

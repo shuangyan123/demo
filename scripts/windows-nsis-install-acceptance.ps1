@@ -120,7 +120,7 @@ public static class RecallAcceptanceNativeButton {
   }
   public static void Click(int handle, int expectedPid) {
     var button = new IntPtr(handle);
-    uint buttonPid, dialogPid;
+    uint buttonPid = 0, dialogPid = 0;
     Require(handle > 0 && GetWindowThreadProcessId(button, out buttonPid) != 0 &&
       buttonPid == (uint)expectedPid, "button PID");
     Require(IsWindowVisible(button) && IsWindowEnabled(button), "button visibility/enabled");
@@ -134,7 +134,7 @@ public static class RecallAcceptanceNativeButton {
     Require(GetWindowText(dialog, title, title.Capacity) > 0 &&
       title.ToString() == "创建本地学习资料", "dialog title");
     Require(IsWindowVisible(dialog) && IsWindowEnabled(dialog), "dialog visibility/enabled");
-    RECT buttonRect, dialogRect;
+    RECT buttonRect = default(RECT), dialogRect = default(RECT);
     Require(GetWindowRect(button, out buttonRect) && GetWindowRect(dialog, out dialogRect),
       "window rectangles");
     int x = buttonRect.Left + (buttonRect.Right - buttonRect.Left) / 2;

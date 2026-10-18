@@ -118,3 +118,18 @@ test("hosted native consent probes the owned TaskDialog only and retains post-cl
   assert.match(script, /Restart retains profile identity/);
   assert.match(script, /Uninstall-Fixed/);
 });
+
+test("native helper preflight is wired before immutable artifact download and inside Windows CI", () => {
+  const harness = source("./preflight-install-acceptance.ps1");
+  assert.match(harness, /Add-Type -TypeDefinition/);
+  assert.match(harness, /Native button helper failed to compile/);
+  assert.doesNotMatch(harness, /Start-Process|Invoke-OwnedNativeButton\s+\$/);
+  const workflow = load(source("../.github/workflows/recall-install-acceptance.yml"));
+  const steps = workflow.jobs["fixed-install"].steps;
+  const preflightIndex = steps.findIndex(step => step.run?.includes("./scripts/preflight-install-acceptance.ps1"));
+  const downloadIndex = steps.findIndex(step => step.run?.includes("./scripts/download-install-acceptance.ps1"));
+  assert.ok(preflightIndex > 0 && preflightIndex < downloadIndex);
+  const ci = source("../.github/workflows/ci.yml");
+  assert.match(ci.slice(ci.indexOf("  windows-m3:"),ci.indexOf("  build:")), /Compile native install-acceptance helper before hosted installation/);
+  assert.match(source("./windows-nsis-install-acceptance.ps1"), /RECT buttonRect = default\(RECT\), dialogRect = default\(RECT\);/);
+});
