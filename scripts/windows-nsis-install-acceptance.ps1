@@ -126,8 +126,9 @@ function Install-Fixed {
     $link = $shell.CreateShortcut($shortcut)
     $target = $link.TargetPath
     $expected = Join-Path $install 'review-workspace.exe'
-    # Independent Shell.Application read is diagnostic only: it cannot turn an empty
-    # WScript TargetPath into a passing shortcut identity assertion.
+    # Shell.Application independently resolves the real Shell Link target. WScript.Shell
+    # can return an empty TargetPath for this installed Unicode-named link on hosted Windows.
+    # An existing expected EXE must be proved by file handles, never assumed from a string.
     $shellLinkTarget = ''
     $shellLinkError = ''
     try {
@@ -143,8 +144,16 @@ function Install-Fixed {
       shellLinkTarget = $shellLinkTarget; shellLinkError = $shellLinkError;
       bytes = $shortcutFile.Length; sha256 = (Get-FileHash -LiteralPath $shortcut -Algorithm SHA256).Hash.ToLowerInvariant() }
     ConvertTo-Json -InputObject $links -Depth 4 | Set-Content (Join-Path $evidence 'installed-shortcuts.json')
-    # Windows 可返回 8.3 路径；确认打开的真实文件路径，不能靠字符串或相同 hash 接受别处的 EXE。
-    try { $same = (Resolve-Installed-File $target) -eq (Resolve-Installed-File $expected) } catch { $same = $false }
+    # Accept the independently resolved Shell Link only when its opened native file handle
+    # identifies the exact installed executable. If WScript also returns a target it must
+    # independently agree; mismatched, missing or foreign targets still FAIL.
+    $same = $false
+    try {
+      $expectedIdentity = Resolve-Installed-File $expected
+      $shellIdentity = Resolve-Installed-File $shellLinkTarget
+      $wscriptAgrees = [string]::IsNullOrWhiteSpace($target) -or ((Resolve-Installed-File $target) -eq $expectedIdentity)
+      $same = $shellIdentity -eq $expectedIdentity -and $wscriptAgrees -and [string]::IsNullOrEmpty($link.Arguments)
+    } catch { $same = $false }
     try { Check $same 'Shortcut target is isolated executable' }
     catch { Write-Output 'Shortcut assertion retained as FAIL; continue independent installed-executable checks' }
   }
@@ -161,8 +170,23 @@ function Launch-Probe($exe, $mode, $name, $fresh) {
     while ([DateTime]::UtcNow -lt $until -and -not $clicked) {
       $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $script:current.Id))
       foreach ($window in $windows) {
-        $button = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, '创建本地资料'))
-        if ($null -ne $button) { ([Windows.Automation.InvokePattern]$button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)).Invoke(); $clicked = $true; break }
+        if ($window.Current.Name -ne '创建本地学习资料') { continue }
+        $named = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, '创建本地资料'))
+        $buttons = @($named | Where-Object { $_.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $_.Current.IsEnabled })
+        if ($buttons.Count -gt 1) { throw 'Ambiguous native confirmation buttons' }
+        if ($buttons.Count -eq 1) {
+          $button = $buttons[0]
+          $pattern = $null
+          if ($button.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
+            ([Windows.Automation.InvokePattern]$pattern).Invoke()
+          } elseif ($button.TryGetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern, [ref]$pattern)) {
+            ([Windows.Automation.LegacyIAccessiblePattern]$pattern).DoDefaultAction()
+          } else {
+            throw 'Owned native confirmation button does not expose a supported activation pattern'
+          }
+          $clicked = $true
+          break
+        }
       }
       if (-not $clicked) { Start-Sleep -Milliseconds 250 }
     }
