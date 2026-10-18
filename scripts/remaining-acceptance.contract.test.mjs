@@ -24,8 +24,12 @@ test("install workflow uses a PR-only explicit trigger, fixed binary, one hosted
   assert.match(job.if, /run_attempt == 1/);
   assert.equal(Object.keys(workflow.jobs).length, 1);
   assert.equal(job.steps.some(step => /npm ci|desktop:builder|--allusers|pull_request_target/.test(step.run ?? "")), false);
-  assert.equal(policy.sourceCommit, "5c1e28c515b3779c1ddeb6030391f24201416f73");
-  assert.equal(policy.installerSha256, "ad1b2e64c01247238dbd1323f969a1d31e876691d44a4b800da3c259cdf06a4f");
+  assert.equal(policy.sourceCommit, "98178f3b286f65341677e05c1f4abf70e599a310");
+  assert.equal(policy.runId, 39114236172);
+  assert.equal(policy.artifactId, 12132012074);
+  assert.equal(policy.artifactDigest, "c374a7f234cad9e39d6e01d77821aaaa6f26e9fbebbb60ada0b1bced4415b78b");
+  assert.equal(policy.installerSha256, "e7e2e9a3625ffc4c87ef324ebc746aa6d7da0310d562c2108e31a9cc77635b40");
+  assert.equal(policy.label, "recall-install-acceptance-98178f3");
 });
 
 if (process.platform === "win32") test("both native scripts refuse execution outside GitHub-hosted Windows before creating a directory", () => {
@@ -121,6 +125,14 @@ test("hosted native consent probes the owned TaskDialog only and retains post-cl
   assert.match(script, /Installed workspace and synthetic storage/);
   assert.match(script, /Restart retains profile identity/);
   assert.match(script, /Uninstall-Fixed/);
+});
+
+test("CDP page discovery failure preserves synthetic-only target diagnostics", () => {
+  const probe = source("./install-acceptance-cdp.mjs");
+  assert.match(probe, /phase: "workspace-page-discovery"/);
+  assert.match(probe, /successfulDiscoveryPolls, failedDiscoveryPolls/);
+  assert.match(probe, /lastTargets: seenTargetKinds/);
+  assert.doesNotMatch(probe, /lastTargets: targets/);
 });
 
 test("native helper preflight is wired before immutable artifact download and inside Windows CI", () => {

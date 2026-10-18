@@ -26,14 +26,30 @@ async function run() {
   const endpoint = `http://127.0.0.1:${portText}`;
   const deadline = Date.now() + 90_000;
   let target;
+  let seenTargetKinds = [];
+  let successfulDiscoveryPolls = 0;
+  let failedDiscoveryPolls = 0;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`${endpoint}/json/list`, { signal: AbortSignal.timeout(2000) });
-      target = (await response.json()).find(t => t.type === "page" && t.url.startsWith("review-app://workspace/"));
+      const targets = await response.json();
+      assert.ok(Array.isArray(targets), "Owned CDP target discovery must return a list");
+      successfulDiscoveryPolls++;
+      // Keep only target kind and a coarse origin category; no runtime tokens or raw URLs.
+      seenTargetKinds = targets.map(t => ({
+        type: String(t.type ?? "unknown"),
+        origin: typeof t.url === "string" && t.url.startsWith("review-app://workspace/")
+          ? "review-app://workspace/" : t.url?.startsWith("devtools://") ? "devtools://" : "other",
+      }));
+      target = targets.find(t => t.type === "page" && typeof t.url === "string" && t.url.startsWith("review-app://workspace/"));
       if (target) break;
-    } catch { /* bounded readiness polling of the owned process */ }
+    } catch { failedDiscoveryPolls++; /* bounded readiness polling of the owned process */ }
     await new Promise(resolve => setTimeout(resolve, 250));
   }
+  if (!target) writeFileSync(output, JSON.stringify({
+    status: "FAIL", phase: "workspace-page-discovery",
+    successfulDiscoveryPolls, failedDiscoveryPolls, lastTargets: seenTargetKinds,
+  }, null, 2));
   assert.ok(target, "Installed app must expose its loaded workspace page");
   const url = new URL(target.webSocketDebuggerUrl);
   assert.ok(["127.0.0.1", "localhost"].includes(url.hostname));
