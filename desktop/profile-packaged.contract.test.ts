@@ -62,7 +62,11 @@ if (process.platform === "win32") test("ASAR production Main with NSIS fuses and
       { stdio: ["ignore", log, log], env: environment, timeout: 25000 });
     await runFixtureProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.resolve("test-support/wait-owned-electron.ps1"), "-OwnedRoot", root],
       { timeout: 15000 });
-  } catch { throw new Error("Owned packaged startup fixture failed; raw paths and CDP endpoints withheld"); }
+  } catch {
+    const observation = path.join(root, "observation.json");
+    if (existsSync(observation)) t.diagnostic(readFileSync(observation, "utf8"));
+    throw new Error("Owned packaged startup fixture failed; raw paths and CDP endpoints withheld");
+  }
   finally { closeSync(log); }
   const observed = JSON.parse(readFileSync(path.join(root, "observation.json"), "utf8"));
   t.diagnostic(JSON.stringify(observed));

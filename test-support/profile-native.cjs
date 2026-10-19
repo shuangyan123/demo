@@ -13,10 +13,14 @@ const appData = path.join(root, 'appData'); const profile = path.join(appData, '
 fs.mkdirSync(profile, { recursive: true });
 // 测试专用覆盖：仅触及 owned temp fixture，不使用开发者真实 Electron profile。
 app.setPath('appData', appData); app.setPath('userData', profile); app.setPath('sessionData', profile);
-assert.equal(app.requestSingleInstanceLock(), true);
 const load = name => require(path.resolve('.desktop', name));
+let phase = 'pre_ready_resolution';
+let observed;
+function expect(result, kind, stage) { phase = stage; observed = result; assert.equal(result.kind, kind); }
 const timer = setTimeout(() => { console.error('native fixture timeout'); app.exit(1); }, 20000);
 async function run() {
+  phase = 'single_instance_lock'; assert.equal(app.requestSingleInstanceLock(), true);
+  phase = 'pre_ready_resolution';
   assert.equal(app.isReady(), false);
   const host = load('managed-storage.js');
   const core = load('profile-initialization.js');
@@ -25,15 +29,16 @@ async function run() {
     fs.writeFileSync(path.join(root, 'owned-processes.json'), JSON.stringify([process.pid]));
     assert.equal(state.kind, 'ready'); console.log(JSON.stringify(state)); clearTimeout(timer); app.exit(0); return;
   }
-  assert.equal(state.kind, 'uninitialized');
+  expect(state, 'uninitialized', 'pre_ready_resolution');
   await app.whenReady();
   // Match packaged Main's post-ready candidate capture; runtime-created Local State
   // cannot be interpreted as an unexpected mutation of a pre-ready snapshot.
   const readyState = host.resolveDesktopManagedStorage();
-  assert.equal(readyState.kind, 'uninitialized');
-  const inspected = host.inspectDesktopInitialProfile(); assert.equal(inspected.kind, 'eligible');
+  expect(readyState, 'uninitialized', 'post_ready_resolution');
+  const inspected = host.inspectDesktopInitialProfile(); expect(inspected, 'eligible', 'candidate_inspection');
   let runtimePublication;
   const result = await core.completeInitialProfileDecision(inspected.candidate, async () => {
+    phase = 'native_choice';
     assert.equal(app.isReady(), true);
     // 等待真实 Chromium 文件事件再点击；不写 Local State，也不用固定延时模拟故障。
     const published = mode === 'runtime-write' ? new Promise(resolve => {
@@ -60,9 +65,16 @@ async function run() {
     await clicked;
     if (mode === 'changed') fs.writeFileSync(path.join(profile, 'foreign'), 'preserve');
     return answer.response === 0;
-  }, host.createDesktopInitialProfile);
+  }, candidate => { phase = 'creation'; observed = host.createDesktopInitialProfile(candidate); return observed; });
   // 与 packaged Main 一样正常退出；父进程必须检查 Chromium 退出后落盘的文件。
   fs.writeFileSync(path.join(root, 'owned-processes.json'), JSON.stringify(app.getAppMetrics().map(metric => metric.pid)));
   console.log(JSON.stringify({ result, entries: fs.readdirSync(profile), runtimePublication })); clearTimeout(timer); app.quit();
 }
-run().catch(error => { console.error(error); clearTimeout(timer); app.exit(1); });
+run().catch(() => {
+  const reasons = new Set(['profile_not_pristine', 'unrecognized_legacy_profile', 'initialization_inspection_failed',
+    'initialization_candidate_changed', 'initialization_unconfirmed', 'initialization_remnants']);
+  fs.writeFileSync(path.join(root, 'native-failure.json'), JSON.stringify({ phase,
+    kind: ['uninitialized', 'eligible', 'ready', 'unavailable'].includes(observed?.kind) ? observed.kind : 'other',
+    reason: reasons.has(observed?.reason) ? observed.reason : 'other' }));
+  clearTimeout(timer); app.exit(1);
+});

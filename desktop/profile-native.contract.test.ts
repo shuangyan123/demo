@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -16,15 +16,25 @@ function nativeFixture(t: { after: (callback: () => void) => void }) {
   const launch = (mode: string) => {
     const executable = path.resolve("node_modules/electron/dist/electron.exe");
     const output = path.join(root, "native-result.json");
+    const failure = path.join(root, "native-failure.json"); if (existsSync(failure)) rmSync(failure);
     const stdout = openSync(output, "w"); const stderr = openSync(path.join(root, "native-stderr.log"), "w");
+    let phase = "launch";
     try {
       // 子进程可继承标准流；用 owned 文件避免其管道寿命被误当作 Main 进程寿命。
       execFileSync(executable, ["test-support/profile-native.cjs", root, mode, ...(mode.startsWith("cdp-") ?
         ["--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--force-renderer-accessibility"] : [])],
       { cwd: process.cwd(), windowsHide: true, stdio: ["ignore", stdout, stderr], timeout: 25000 });
+      phase = "owned_exit";
       execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.resolve("test-support/wait-owned-electron.ps1"),
         "-OwnedRoot", root, "-ExpectedExecutable", executable], { windowsHide: true, stdio: "pipe", timeout: 15000 });
-    } catch { throw new Error("Owned native Electron fixture failed; raw paths and CDP endpoints withheld"); }
+    } catch (error) {
+      const detail = existsSync(failure) ? JSON.parse(readFileSync(failure, "utf8")) : {};
+      const categories = readFileSync(path.join(root, "native-stderr.log"), "utf8").match(/RECALL_INITIAL_PROFILE_(?:INSPECTION|REVALIDATION):[a-z_]+/g) ?? [];
+      const stderrText = (error as { stderr?: Buffer }).stderr?.toString() ?? "";
+      const helper = stderrText.includes("Process ownership changed") ? "ownership_changed"
+        : stderrText.includes("Owned Electron process did not exit") ? "exit_not_observed" : "other";
+      throw new Error(`Owned native fixture failed: ${JSON.stringify({ parentPhase: phase, ...detail, categories, helper })}`);
+    }
     finally { closeSync(stdout); closeSync(stderr); }
     return JSON.parse(readFileSync(output, "utf8").trim());
   };
@@ -61,6 +71,22 @@ if (process.platform === "win32") test("actual Electron Cancel exits, then a new
   assert.deepEqual(readFileSync(path.join(profile, "Local State")), localState);
   assert.deepEqual(launch("restart").config, created.config);
   assert.deepEqual(readFileSync(path.join(profile, "Local State")), localState);
+});
+
+if (process.platform === "win32") test("native rejection diagnostics expose only fixed phases and categories while retaining unknown data", t => {
+  const { root, launch } = nativeFixture(t);
+  const profile = path.join(root, "appData", "profile"); mkdirSync(profile, { recursive: true });
+  const privateName = "private-learner-notes"; const contents = "synthetic-private-content";
+  writeFileSync(path.join(profile, privateName), contents);
+  assert.throws(() => launch("authorize"), error => {
+    assert.ok(error instanceof Error);
+    assert.ok(error.message.includes('"phase":"pre_ready_resolution"'));
+    assert.ok(error.message.includes('"reason":"unrecognized_legacy_profile"'));
+    for (const forbidden of [root, privateName, contents]) assert.equal(error.message.includes(forbidden), false);
+    return true;
+  });
+  assert.equal(readFileSync(path.join(profile, privateName), "utf8"), contents);
+  assert.equal(existsSync(path.join(profile, ".recall-storage")), false);
 });
 
 if (process.platform === "win32") test("actual Electron publishes Local State while native consent is open, then creation and restart succeed", t => {
