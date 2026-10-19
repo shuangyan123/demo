@@ -14,7 +14,7 @@ export function resolveDesktopManagedStorage(): ManagedStorageResolution {
     const paths = hostPaths();
     const result = gateManagedStorageStartup(resolveManagedStorage(paths), paths);
     if (result.kind === "unavailable" && result.reason === "unrecognized_legacy_profile") {
-      const rejected = initialProfileRejection(paths.defaultUserData);
+      const rejected = initialProfileRejection(paths.defaultUserData, "candidate");
       if (rejected) console.error(`RECALL_INITIAL_PROFILE_INSPECTION:${rejected}`);
     }
     return result;

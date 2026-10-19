@@ -17,7 +17,14 @@ const load = name => require(path.resolve('.desktop', name));
 let phase = 'pre_ready_resolution';
 let observed;
 function expect(result, kind, stage) { phase = stage; observed = result; assert.equal(result.kind, kind); }
-const timer = setTimeout(() => { console.error('native fixture timeout'); app.exit(1); }, 20000);
+function reportFailure(trigger) {
+  const reasons = new Set(['profile_not_pristine', 'unrecognized_legacy_profile', 'initialization_inspection_failed',
+    'initialization_candidate_changed', 'initialization_unconfirmed', 'initialization_remnants']);
+  fs.writeFileSync(path.join(root, 'native-failure.json'), JSON.stringify({ trigger, phase,
+    kind: ['uninitialized', 'eligible', 'ready', 'unavailable'].includes(observed?.kind) ? observed.kind : 'other',
+    reason: reasons.has(observed?.reason) ? observed.reason : 'other' }));
+}
+const timer = setTimeout(() => { reportFailure('watchdog'); app.exit(1); }, 20000);
 async function run() {
   phase = 'single_instance_lock'; assert.equal(app.requestSingleInstanceLock(), true);
   phase = 'pre_ready_resolution';
@@ -30,12 +37,12 @@ async function run() {
     assert.equal(state.kind, 'ready'); console.log(JSON.stringify(state)); clearTimeout(timer); app.exit(0); return;
   }
   expect(state, 'uninitialized', 'pre_ready_resolution');
-  await app.whenReady();
+  phase = 'waiting_ready'; await app.whenReady();
   // Match packaged Main's post-ready candidate capture; runtime-created Local State
   // cannot be interpreted as an unexpected mutation of a pre-ready snapshot.
-  const readyState = host.resolveDesktopManagedStorage();
+  phase = 'post_ready_resolution'; const readyState = host.resolveDesktopManagedStorage();
   expect(readyState, 'uninitialized', 'post_ready_resolution');
-  const inspected = host.inspectDesktopInitialProfile(); expect(inspected, 'eligible', 'candidate_inspection');
+  phase = 'candidate_inspection'; const inspected = host.inspectDesktopInitialProfile(); expect(inspected, 'eligible', 'candidate_inspection');
   let runtimePublication;
   const result = await core.completeInitialProfileDecision(inspected.candidate, async () => {
     phase = 'native_choice';
@@ -56,12 +63,14 @@ async function run() {
     const answerPromise = dialog.showMessageBox({ title: 'Recall native contract fixture', message: 'Owned temporary profile only',
       buttons: ['Create fixture', 'Cancel fixture'], defaultId: 1, cancelId: 1, noLink: true });
     await published;
+    phase = 'native_click';
     const clicker = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.resolve('test-support/click-native-dialog.ps1'),
       '-TaskProcessId', String(process.pid), '-Button', mode === 'cancel' || mode === 'cdp-cancel' ? 'Cancel fixture' : 'Create fixture'], { windowsHide: true });
     const clicked = new Promise((resolve, reject) => {
       clicker.once('error', reject); clicker.once('exit', code => code === 0 ? resolve() : reject(new Error('native click failed')));
     });
     const answer = await answerPromise;
+    phase = 'native_click_completion';
     await clicked;
     if (mode === 'changed') fs.writeFileSync(path.join(profile, 'foreign'), 'preserve');
     return answer.response === 0;
@@ -71,10 +80,6 @@ async function run() {
   console.log(JSON.stringify({ result, entries: fs.readdirSync(profile), runtimePublication })); clearTimeout(timer); app.quit();
 }
 run().catch(() => {
-  const reasons = new Set(['profile_not_pristine', 'unrecognized_legacy_profile', 'initialization_inspection_failed',
-    'initialization_candidate_changed', 'initialization_unconfirmed', 'initialization_remnants']);
-  fs.writeFileSync(path.join(root, 'native-failure.json'), JSON.stringify({ phase,
-    kind: ['uninitialized', 'eligible', 'ready', 'unavailable'].includes(observed?.kind) ? observed.kind : 'other',
-    reason: reasons.has(observed?.reason) ? observed.reason : 'other' }));
+  reportFailure('exception');
   clearTimeout(timer); app.exit(1);
 });

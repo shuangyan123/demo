@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { completeInitialProfileDecision, createInitialProfile, inspectInitialProfile } from "./profile-initialization.ts";
 import { resolveManagedStorage } from "./storage-bootstrap.ts";
+import { isInitialRuntimeEntry } from "./storage-inspection.ts";
 
 function nativeFixture(t: { after: (callback: () => void) => void }) {
   const root = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "recall-native-profile-test-"));
@@ -34,7 +35,8 @@ function nativeFixture(t: { after: (callback: () => void) => void }) {
       const stderrText = (error as { stderr?: Buffer }).stderr?.toString() ?? "";
       const helper = stderrText.includes("Process ownership changed") ? "ownership_changed"
         : stderrText.includes("Owned Electron process did not exit") ? "exit_not_observed" : "other";
-      throw new Error(`Owned native fixture failed: ${JSON.stringify({ parentPhase: phase, ...detail, categories, helper })}`);
+      const processFailure = (error as { code?: string }).code === "ETIMEDOUT" ? "timeout" : "unsuccessful_exit";
+      throw new Error(`Owned native fixture failed: ${JSON.stringify({ parentPhase: phase, ...detail, categories, helper, processFailure })}`);
     }
     finally { closeSync(stdout); closeSync(stderr); }
     return JSON.parse(readFileSync(output, "utf8").trim());
@@ -138,6 +140,24 @@ if (process.platform === "win32") test("actual Electron replaces debugger discov
     });
   assert.equal(result.kind, "ready");
   if (result.kind !== "ready") throw new Error("Owned runtime creation failed");
+  assert.deepEqual(launch("restart").config, result.config);
+});
+
+if (process.platform === "win32") test("actual Electron completes a pending discovery record during native consent before metadata publication", async t => {
+  const { root, launch } = nativeFixture(t);
+  const appData = path.join(root, "appData"); const profile = path.join(appData, "profile"); mkdirSync(profile, { recursive: true });
+  writeFileSync(path.join(profile, "DevToolsActivePort"), ""); // 合成的发布中状态；后续正文仅由真实 Electron 写入。
+  const paths = { appData, defaultUserData: profile, defaultSessionData: profile };
+  const inspected = inspectInitialProfile(paths); assert.equal(inspected.kind, "eligible");
+  if (inspected.kind !== "eligible") throw new Error("Owned pending candidate unavailable");
+  const result = await completeInitialProfileDecision(inspected.candidate, async () => launch("cdp-runtime-consent").confirmed, value => {
+    assert.equal(isInitialRuntimeEntry(profile, "DevToolsActivePort"), true);
+    assert.equal(existsSync(path.join(profile, ".recall-storage")), false);
+    assert.equal(existsSync(path.join(appData, "recall-storage")), false);
+    return createInitialProfile(value, paths);
+  });
+  assert.equal(result.kind, "ready");
+  if (result.kind !== "ready") throw new Error("Owned completed runtime creation failed");
   assert.deepEqual(launch("restart").config, result.config);
 });
 

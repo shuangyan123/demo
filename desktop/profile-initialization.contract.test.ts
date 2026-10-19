@@ -460,7 +460,7 @@ if (process.platform === "win32") test("Local State first observed after identit
 const debugRecord = (port = "33872") => `${port}\n/devtools/browser/10979ea8-1096-4e92-84c4-78f012c3f2a8`;
 
 if (process.platform === "win32") test("debugger discovery is strictly typed runtime metadata, never a filename-only admission", t => {
-  const malformed = ["", "user notes", debugRecord("0"), debugRecord("65536"), debugRecord("033872"),
+  const malformed = ["user notes", debugRecord("0"), debugRecord("65536"), debugRecord("033872"),
     `${debugRecord()}\n`, debugRecord().replace("\n", "\r\n"), `${debugRecord()}?token=private`,
     debugRecord().replace("/devtools/browser/", "ws://localhost/devtools/browser/"), " ".repeat(4097), Buffer.from([0xff])];
   for (const contents of malformed) {
@@ -503,23 +503,78 @@ if (process.platform === "win32") test("valid debugger metadata cannot admit unk
   }
 });
 
-if (process.platform === "win32") test("typed debugger discovery may appear, disappear or change at checkpoints; malformed data stops publication", t => {
-  for (const stage of ["consent", "identity", "bootstrap"]) for (const mutation of ["appears", "changed", "removed", "malformed"]) {
+if (process.platform === "win32") test("typed debugger discovery may change at checkpoints; pending or malformed data stops publication", t => {
+  for (const stage of ["consent", "identity", "bootstrap"]) for (const mutation of ["appears", "changed", "removed", "malformed", "pending"]) {
     const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
     const file = path.join(paths.defaultUserData, "DevToolsActivePort");
     if (mutation !== "appears") writeFileSync(file, debugRecord());
     const inspected = candidate(paths);
     const mutate = () => mutation === "removed" ? rmSync(file) : writeFileSync(file,
-      mutation === "malformed" ? "preserve" : debugRecord(mutation === "changed" ? "33873" : "33872"));
+      mutation === "pending" ? "" : mutation === "malformed" ? "preserve" : debugRecord(mutation === "changed" ? "33873" : "33872"));
     if (stage === "consent") mutate();
     const result = createInitialProfile(inspected, paths, { ...storageRecordIO, publishNew(from, to) {
       storageRecordIO.publishNew(from, to);
       if (to === (stage === "identity" ? storageIdentityPath(paths.defaultUserData) : stage === "bootstrap" ? storageBootstrapPath(paths) : "")) mutate();
     } });
-    assert.equal(result.kind, mutation === "malformed" ? "unavailable" : "ready", `${stage}/${mutation}`);
-    if (mutation !== "malformed") assert.deepEqual(resolveManagedStorage(paths), result);
-    if (stage === "identity" && mutation === "malformed") assert.deepEqual(readdirSync(path.dirname(storageBootstrapPath(paths))), []);
+    const unconfirmed = mutation === "malformed" || mutation === "pending";
+    assert.equal(result.kind, unconfirmed ? "unavailable" : "ready", `${stage}/${mutation}`);
+    if (!unconfirmed) assert.deepEqual(resolveManagedStorage(paths), result);
+    if (stage === "identity" && unconfirmed) assert.deepEqual(readdirSync(path.dirname(storageBootstrapPath(paths))), []);
   }
+});
+
+if (process.platform === "win32") test("pending debugger publication permits only a candidate, never metadata or an exception for adjacent history", async t => {
+  const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
+  const record = path.join(paths.defaultUserData, "DevToolsActivePort"); writeFileSync(record, "");
+  assert.equal(initialProfileRejection(paths.defaultUserData), "debug_port_record_pending");
+  assert.equal(initialProfileRejection(paths.defaultUserData, "candidate"), undefined);
+  assert.equal(isInitialRuntimeEntry(paths.defaultUserData, "DevToolsActivePort"), false);
+  assert.equal(resolveManagedStorage(paths).kind, "uninitialized");
+  let writes = 0;
+  assert.deepEqual(await completeInitialProfileDecision(candidate(paths), async () => false, value => {
+    writes++; return createInitialProfile(value, paths);
+  }), { kind: "cancelled" });
+  assert.equal(writes, 0);
+  const blocked = createInitialProfile(candidate(paths), paths);
+  assert.equal("reason" in blocked && blocked.reason, "initialization_unconfirmed");
+  assert.equal(existsSync(storageIdentityPath(paths.defaultUserData)), false);
+  assert.equal(existsSync(path.dirname(storageBootstrapPath(paths))), false);
+  for (const contents of ["private learner facts", "{malformed"]) {
+    writeFileSync(record, contents);
+    assert.equal(inspectInitialProfile(paths).kind, "unavailable");
+    assert.equal(readFileSync(record, "utf8"), contents);
+  }
+  writeFileSync(record, ""); writeFileSync(path.join(paths.defaultUserData, "private-facts"), "preserve");
+  assert.equal(initialProfileRejection(paths.defaultUserData, "candidate"), "unknown_profile_entry");
+  assert.equal(initialProfileRejection(paths.defaultUserData), "unknown_profile_entry");
+  assert.equal(inspectInitialProfile(paths).kind, "unavailable");
+  assert.equal(readFileSync(path.join(paths.defaultUserData, "private-facts"), "utf8"), "preserve");
+  assert.equal(existsSync(storageIdentityPath(paths.defaultUserData)), false);
+});
+
+if (process.platform === "win32") test("an exclusively held empty debugger record permits consent inspection but cannot publish metadata", t => {
+  const { root, paths } = fixture(t); mkdirSync(paths.defaultUserData);
+  const record = path.join(paths.defaultUserData, "DevToolsActivePort"); writeFileSync(record, "");
+  const probe = path.join(root, "exclusive-record-probe.mjs");
+  writeFileSync(probe, `
+    import {existsSync} from 'node:fs';
+    import {resolveManagedStorage,storageIdentityPath,storageBootstrapPath} from ${JSON.stringify(new URL("./storage-bootstrap.ts", import.meta.url).href)};
+    import {inspectInitialProfile,createInitialProfile} from ${JSON.stringify(new URL("./profile-initialization.ts", import.meta.url).href)};
+    const paths=JSON.parse(process.env.RECALL_TEST_PATHS);
+    const state=resolveManagedStorage(paths); const candidate=inspectInitialProfile(paths);
+    const result=candidate.kind==='eligible'?createInitialProfile(candidate.candidate,paths):candidate;
+    console.log(JSON.stringify({state:state.kind,candidate:candidate.kind,reason:result.reason,
+      identity:existsSync(storageIdentityPath(paths.defaultUserData)),bootstrap:existsSync(storageBootstrapPath(paths))}));
+  `);
+  // 持有与 Chromium CREATE_ALWAYS 一样的独占共享模式；不写正文，也不等待、重试或改变文件。
+  const script = "$taskStream=[System.IO.File]::Open($env:RECALL_TEST_RECORD,'Open','Write','None'); "
+    + "try { & $env:RECALL_TEST_NODE --experimental-strip-types $env:RECALL_TEST_PROBE; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE} } finally {$taskStream.Dispose()}";
+  const output = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    windowsHide: true, encoding: "utf8", timeout: 10000, env: { ...process.env, RECALL_TEST_RECORD: record,
+      RECALL_TEST_NODE: process.execPath, RECALL_TEST_PROBE: probe, RECALL_TEST_PATHS: JSON.stringify(paths) },
+  });
+  assert.deepEqual(JSON.parse(output), { state: "uninitialized", candidate: "eligible", reason: "initialization_unconfirmed", identity: false, bootstrap: false });
+  assert.equal(readFileSync(record, "utf8"), "");
 });
 
 if (process.platform === "win32") test("Windows file and directory symlinks never authorize profile creation or overwrite their targets", t => {

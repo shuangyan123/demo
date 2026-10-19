@@ -5,7 +5,7 @@ import type { ManagedStorageResolution } from "../app/platform/managed-storage.j
 import { storageBootstrapPath, storageIdentityPath, type StorageHostPaths } from "./storage-bootstrap.ts";
 import { configFromStorageRecord, parseStorageRecord, type StorageBootstrapRecord, type StorageIdentity } from "./storage-bootstrap-record.ts";
 import { readStorageFile, writeStorageRecord, type StorageRecordIO } from "./storage-bootstrap-io.ts";
-import { hasUnanchoredStorage, initialProfileBinding, initialProfileRejection, isInitialRuntimeEntry, isPristineProfile, type InitialProfileBinding } from "./storage-inspection.ts";
+import { hasUnanchoredStorage, initialProfileBinding, initialProfileRejection, isInitialRuntimeEntry, type InitialProfileBinding } from "./storage-inspection.ts";
 
 export type FreshProfileCandidate = Readonly<{ kind: "fresh_profile_candidate" }>;
 type CandidateState = { paths: StorageHostPaths; binding: InitialProfileBinding };
@@ -17,6 +17,7 @@ const failure = (reason: string): ManagedStorageResolution => ({ kind: "unavaila
 type RevalidationCategory =
   | "host_paths_changed" | "local_state_disappeared" | "local_state_binding_changed"
   | "directory_binding_changed" | "binding_inspection_unavailable"
+  | "runtime_record_pending"
   | "recall_namespace_present" | "profile_not_pristine";
 function reportInitialProfileRevalidation(category: RevalidationCategory): void {
   console.error(`RECALL_INITIAL_PROFILE_REVALIDATION:${category}`);
@@ -37,7 +38,7 @@ export function inspectInitialProfile(paths: StorageHostPaths): { kind: "eligibl
   try {
     const binding = initialProfileBinding(paths);
     if (hasUnanchoredStorage(paths)) return failure("initialization_remnants");
-    const rejected = initialProfileRejection(paths.defaultUserData);
+    const rejected = initialProfileRejection(paths.defaultUserData, "candidate");
     if (rejected) {
       console.error(`RECALL_INITIAL_PROFILE_INSPECTION:${rejected}`);
       return failure("profile_not_pristine");
@@ -87,9 +88,11 @@ export function createInitialProfile(candidate: FreshProfileCandidate, current: 
       reportInitialProfileRevalidation("recall_namespace_present");
       return failure("initialization_candidate_changed");
     }
-    if (!isPristineProfile(current.defaultUserData)) {
-      reportInitialProfileRevalidation("profile_not_pristine");
-      return failure("initialization_candidate_changed");
+    const rejected = initialProfileRejection(current.defaultUserData);
+    if (rejected) {
+      const pending = rejected === "debug_port_record_pending";
+      reportInitialProfileRevalidation(pending ? "runtime_record_pending" : "profile_not_pristine");
+      return failure(pending ? "initialization_unconfirmed" : "initialization_candidate_changed");
     }
     // exclusive reservation 保留中断现场；目录存在、竞争或未知副作用均停止，不广泛清理。
     try { lstatSync(current.defaultUserData); }
