@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { spawn, type SpawnOptions } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -13,6 +13,15 @@ import { createPackageWithOptions, extractFile, getRawHeader } from "@electron/a
 import { getCurrentFuseWire, FuseState, FuseV1Options } from "@electron/fuses";
 
 const require = createRequire(import.meta.url);
+
+function runFixtureProcess(command: string, args: string[], options: SpawnOptions = {}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { windowsHide: true, stdio: "ignore", ...options });
+    child.once("error", () => reject(new Error("Owned packaged fixture process could not start")));
+    // 关闭进程资源后再清理映像；同步启动器返回不作为 Windows 句柄关闭的替代证据。
+    child.once("close", code => code === 0 ? resolve() : reject(new Error("Owned packaged fixture process did not exit successfully")));
+  });
+}
 
 if (process.platform === "win32") test("ASAR production Main with NSIS fuses and acceptance CDP flags reaches real native consent without admitting history", async t => {
   const root = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "recall-packaged-profile-test-"));
@@ -42,17 +51,17 @@ if (process.platform === "win32") test("ASAR production Main with NSIS fuses and
   assert.equal(wire[FuseV1Options.EnableEmbeddedAsarIntegrityValidation], FuseState.ENABLE);
   const payload = path.join(root, "integrity.json");
   writeFileSync(payload, JSON.stringify([{ file: "resources\\app.asar", alg: "SHA256", value: createHash("sha256").update(getRawHeader(archive).headerString).digest("hex") }]));
-  execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.resolve("scripts/embed-electron-asar-integrity.ps1"), "-ExecutablePath", executable, "-IntegrityPayloadPath", payload], { windowsHide: true, stdio: "pipe" });
+  await runFixtureProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.resolve("scripts/embed-electron-asar-integrity.ps1"), "-ExecutablePath", executable, "-IntegrityPayloadPath", payload], { timeout: 15000 });
   const server = createServer(); await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const port = address.port; await new Promise<void>(resolve => server.close(() => resolve()));
   const environment = { ...process.env }; delete environment.ELECTRON_RUN_AS_NODE;
   const log = openSync(path.join(root, "packaged-process.log"), "w");
   try {
-    execFileSync(executable, [`--recall-owned-test-root=${root}`, "--remote-debugging-address=127.0.0.1", `--remote-debugging-port=${port}`, "--force-renderer-accessibility"],
-      { windowsHide: true, stdio: ["ignore", log, log], env: environment, timeout: 25000 });
-    execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.resolve("test-support/wait-owned-electron.ps1"), "-OwnedRoot", root],
-      { windowsHide: true, stdio: "pipe", timeout: 15000 });
+    await runFixtureProcess(executable, [`--recall-owned-test-root=${root}`, "--remote-debugging-address=127.0.0.1", `--remote-debugging-port=${port}`, "--force-renderer-accessibility"],
+      { stdio: ["ignore", log, log], env: environment, timeout: 25000 });
+    await runFixtureProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.resolve("test-support/wait-owned-electron.ps1"), "-OwnedRoot", root],
+      { timeout: 15000 });
   } catch { throw new Error("Owned packaged startup fixture failed; raw paths and CDP endpoints withheld"); }
   finally { closeSync(log); }
   const observed = JSON.parse(readFileSync(path.join(root, "observation.json"), "utf8"));
