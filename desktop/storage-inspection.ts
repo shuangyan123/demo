@@ -39,7 +39,7 @@ function initialRuntimeEntryBinding(profile: string, entry: string): string | un
     // 不接受 URL、额外行、任意内容或仅凭文件名的例外；该记录不提供 profile identity。
     const port = /^([1-9][0-9]{0,4})\n\/devtools\/browser\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(text);
     return stat.size <= BigInt(64) && port && Number(port[1]) <= 65535
-      ? createHash("sha256").update(bytes).digest("hex") : undefined;
+      ? "debugger_discovery_record" : undefined;
   }
   let value: unknown;
   try { value = JSON.parse(text); } catch { return; }
@@ -78,7 +78,7 @@ export function isPristineProfile(profile: string): boolean {
   return initialProfileRejection(profile) === undefined;
 }
 
-export type InitialProfileBinding = Readonly<{ directories: readonly string[]; localState?: string; debugPort?: string }>;
+export type InitialProfileBinding = Readonly<{ directories: readonly string[]; localState?: string }>;
 
 /** 目录身份与运行时状态分离；Local State 缺失可转为已识别状态，已有安全材料仍保留绑定。 */
 export function initialProfileBinding(paths: StorageHostPaths): InitialProfileBinding {
@@ -88,12 +88,8 @@ export function initialProfileBinding(paths: StorageHostPaths): InitialProfileBi
     localState = initialRuntimeEntryBinding(paths.defaultUserData, "Local State");
     if (!localState) throw new Error("unsafe_initial_runtime_file");
   }
-  let debugPort: string | undefined;
-  if (exists(path.join(paths.defaultUserData, "DevToolsActivePort"))) {
-    debugPort = initialRuntimeEntryBinding(paths.defaultUserData, "DevToolsActivePort");
-    if (!debugPort) throw new Error("unsafe_initial_runtime_file");
-  }
-  return Object.freeze({ directories, localState, debugPort });
+  // CDP endpoint 每次进程启动都会更替，不是资料身份；其类型和结构在 pristine/namespace 检查中复核。
+  return Object.freeze({ directories, localState });
 }
 
 /** 绑定已存在的 Host ancestors；拒绝 junction/symlink 和可观察的位置替换。

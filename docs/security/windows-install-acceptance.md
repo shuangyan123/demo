@@ -11,7 +11,7 @@
 
 旧 run `39117755780` 的安装、来源核验和原生确认已执行，但工作台启动失败。`d7e9239` 的普通 CI、Windows E2E 或 NSIS 构建成功均不能关闭该失败。新修复用真实 Windows Electron 证明：原生确认仍打开时，Electron 可在 ready 后约十秒才发布 `Local State`；旧实现误把该运行时转换当成候选资料变更。旧安装包没有分类诊断，不能追认其确切文件变化。
 
-最近一次 `39123883282` 在确认之前失败，属于不同现场。其证据没有目录分类，不能归因为 Local State。按验收的 CDP 参数启动生产 Main 的隔离 ASAR 实验，已复现旧 pristine predicate 拒绝 Chromium 生成的 `DevToolsActivePort`；该记录与实验进程真实 CDP 端点一致。新增严格格式识别及记录绑定后，同一 ASAR 实验能进入真实原生确认并取消。来源、格式、安全边界和历史证据限制见 [首次创建设计](../recall-fresh-profile-bootstrap.md#debugger-discovery-before-native-consent)。此实验未执行 Setup，也未验证 installed 工作台。
+最近一次 `39123883282` 在确认之前失败，属于不同现场。其证据没有目录分类，不能归因为 Local State。按验收的 CDP 参数启动生产 Main 的隔离 ASAR 实验，已复现旧 pristine predicate 拒绝 Chromium 生成的 `DevToolsActivePort`；该记录与实验进程真实 CDP 端点一致。新增严格格式识别、维持目录与 Local State 安全材料绑定后，同一 ASAR 实验能进入真实原生确认并取消。运行时端点记录的正常更替不承担资料身份。来源、格式、安全边界和历史证据限制见 [首次创建设计](../recall-fresh-profile-bootstrap.md#debugger-discovery-before-native-consent)。此实验未执行 Setup，也未验证 installed 工作台。
 
 再次安装前必须先取得用户批准。批准应明确一次性 GitHub-hosted Windows runner、精确产品 source SHA、验收 harness SHA，以及是否包括卸载与旧版交接；不得在开发机执行。具体顺序为：
 

@@ -4,7 +4,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { inspectInitialProfile } from "./profile-initialization.ts";
+import { completeInitialProfileDecision, createInitialProfile, inspectInitialProfile } from "./profile-initialization.ts";
 import { resolveManagedStorage } from "./storage-bootstrap.ts";
 
 function nativeFixture(t: { after: (callback: () => void) => void }) {
@@ -21,7 +21,8 @@ function nativeFixture(t: { after: (callback: () => void) => void }) {
     let phase = "launch";
     try {
       // 子进程可继承标准流；用 owned 文件避免其管道寿命被误当作 Main 进程寿命。
-      execFileSync(executable, ["test-support/profile-native.cjs", root, mode, ...(mode.startsWith("cdp-") ?
+      const entry = mode === "cdp-runtime-consent" ? "test-support/profile-runtime-writer.cjs" : "test-support/profile-native.cjs";
+      execFileSync(executable, [entry, root, mode, ...(mode.startsWith("cdp-") ?
         ["--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--force-renderer-accessibility"] : [])],
       { cwd: process.cwd(), windowsHide: true, stdio: ["ignore", stdout, stderr], timeout: 25000 });
       phase = "owned_exit";
@@ -118,6 +119,26 @@ if (process.platform === "win32") test("actual Electron CDP Cancel then CDP Crea
   const created = launch("cdp-authorize").result;
   assert.equal(created.kind, "ready");
   assert.deepEqual(launch("restart").config, created.config);
+});
+
+if (process.platform === "win32") test("actual Electron replaces debugger discovery between inspection and native Create without changing profile identity", async t => {
+  const { root, launch } = nativeFixture(t);
+  assert.equal(launch("cdp-cancel").result.kind, "cancelled");
+  const appData = path.join(root, "appData"); const profile = path.join(appData, "profile");
+  const paths = { appData, defaultUserData: profile, defaultSessionData: profile };
+  const before = readFileSync(path.join(profile, "DevToolsActivePort"));
+  const inspected = inspectInitialProfile(paths); assert.equal(inspected.kind, "eligible");
+  if (inspected.kind !== "eligible") throw new Error("Owned runtime candidate unavailable");
+  const result = await completeInitialProfileDecision(inspected.candidate, async () => launch("cdp-runtime-consent").confirmed,
+    candidate => {
+      assert.equal(existsSync(path.join(profile, ".recall-storage")), false);
+      assert.equal(existsSync(path.join(appData, "recall-storage")), false);
+      assert.notDeepEqual(readFileSync(path.join(profile, "DevToolsActivePort")), before);
+      return createInitialProfile(candidate, paths);
+    });
+  assert.equal(result.kind, "ready");
+  if (result.kind !== "ready") throw new Error("Owned runtime creation failed");
+  assert.deepEqual(launch("restart").config, result.config);
 });
 
 test("packaged Main inspects fresh storage only after app.whenReady, retaining native consent", () => {

@@ -16,7 +16,6 @@ const failure = (reason: string): ManagedStorageResolution => ({ kind: "unavaila
 // file names from profile enumeration, exception strings or cryptographic material.
 type RevalidationCategory =
   | "host_paths_changed" | "local_state_disappeared" | "local_state_binding_changed"
-  | "debug_port_record_binding_changed"
   | "directory_binding_changed" | "binding_inspection_unavailable"
   | "recall_namespace_present" | "profile_not_pristine";
 function reportInitialProfileRevalidation(category: RevalidationCategory): void {
@@ -27,7 +26,6 @@ function runtimeBindingChange(saved: InitialProfileBinding, current: InitialProf
     if (current.localState === undefined) return "local_state_disappeared";
     return "local_state_binding_changed";
   }
-  if (saved.debugPort !== undefined && saved.debugPort !== current.debugPort) return "debug_port_record_binding_changed";
 }
 function categorizeBindingChange(saved: InitialProfileBinding, current: InitialProfileBinding): RevalidationCategory | undefined {
   if (JSON.stringify(saved.directories) !== JSON.stringify(current.directories)) return "directory_binding_changed";

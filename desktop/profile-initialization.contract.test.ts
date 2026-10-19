@@ -503,7 +503,7 @@ if (process.platform === "win32") test("valid debugger metadata cannot admit unk
   }
 });
 
-if (process.platform === "win32") test("debugger record may first appear at a checkpoint but observed records cannot disappear or change", t => {
+if (process.platform === "win32") test("typed debugger discovery may appear, disappear or change at checkpoints; malformed data stops publication", t => {
   for (const stage of ["consent", "identity", "bootstrap"]) for (const mutation of ["appears", "changed", "removed", "malformed"]) {
     const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
     const file = path.join(paths.defaultUserData, "DevToolsActivePort");
@@ -516,8 +516,8 @@ if (process.platform === "win32") test("debugger record may first appear at a ch
       storageRecordIO.publishNew(from, to);
       if (to === (stage === "identity" ? storageIdentityPath(paths.defaultUserData) : stage === "bootstrap" ? storageBootstrapPath(paths) : "")) mutate();
     } });
-    assert.equal(result.kind, mutation === "appears" ? "ready" : "unavailable", `${stage}/${mutation}`);
-    if (mutation === "appears") assert.deepEqual(resolveManagedStorage(paths), result);
-    if (stage === "identity" && mutation !== "appears") assert.deepEqual(readdirSync(path.dirname(storageBootstrapPath(paths))), []);
+    assert.equal(result.kind, mutation === "malformed" ? "unavailable" : "ready", `${stage}/${mutation}`);
+    if (mutation !== "malformed") assert.deepEqual(resolveManagedStorage(paths), result);
+    if (stage === "identity" && mutation === "malformed") assert.deepEqual(readdirSync(path.dirname(storageBootstrapPath(paths))), []);
   }
 });
