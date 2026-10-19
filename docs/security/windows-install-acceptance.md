@@ -1,3 +1,10 @@
+### 2026-10-19：已完成单次真实安装，取消重启后的存储读回仍待定位
+
+- [run 39226496070](https://github.com/shuangyan123/demo/actions/runs/39226496070) 对 264bb11 固定 NSIS 产物的首次 Create/重启读回、卸载、Cancel/再 Create 均已通过。
+- `restart-after-cancel` 的 IndexedDB 访问返回 `SecurityError`，后续可信旧版交接未执行；整体验收仍 FAIL，不得标记 Ready/合并。
+- 本次只修改 CDP 验收探针及合成测试：先只读确认目标 origin、document.readyState 和实际工作台已加载，再 **仅一次** 执行合成 IndexedDB/localStorage 检查；若实际权限仍拒绝，继续 FAIL 并记录脱敏诊断，不清理、不重试、不修改产品启动逻辑。
+- 本次没有新一轮安装授权，固定产物策略与已有 label 不变，必须等独立批准后才能重新执行 hosted NSIS 安装及卸载。
+
 # 固定产物 Windows 安装验收
 
 ## 当前状态：新修复已获单次 hosted Windows 完整安装验收批准，尚未执行

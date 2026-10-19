@@ -17,6 +17,35 @@ export function storageExpression(mode) {
   })()`;
 }
 
+// Only inspect a settled, expected application document here. Accessing IndexedDB
+// before navigation commits can throw SecurityError even when the page target URL
+// already starts with review-app://workspace/. This phase never opens storage.
+export function workspaceReadinessExpression() {
+  return `(() => {
+    const text = document.body?.innerText ?? "";
+    return {
+      origin: location.origin, ready: document.readyState,
+      textLength: text.length, workspace: /错题|学习|设置/.test(text),
+      secureContext: globalThis.isSecureContext === true,
+      indexedDBAvailable: typeof indexedDB !== "undefined"
+    };
+  })()`;
+}
+
+export async function waitForWorkspaceReady(send, deadline, pause = ms => new Promise(resolve => setTimeout(resolve, ms))) {
+  while (Date.now() < deadline) {
+    const response = await send("Runtime.evaluate", {
+      expression: workspaceReadinessExpression(), returnByValue: true
+    });
+    assert.equal(response.exceptionDetails, undefined, "Read-only workspace readiness probe must not throw");
+    const state = response.result?.value;
+    if (state?.origin === "review-app://workspace" && state.ready === "complete"
+      && state.workspace === true && state.textLength > 200) return state;
+    await pause(250);
+  }
+  return null;
+}
+
 async function run() {
   assert.equal(process.env.GITHUB_ACTIONS, "true", "Never run installed-app probes on a local host");
   assert.equal(process.env.RUNNER_ENVIRONMENT, "github-hosted");
@@ -73,16 +102,33 @@ async function run() {
     socket.send(JSON.stringify({ id, method, params }));
   });
   try {
-    let value;
-    while (Date.now() < deadline) {
-      const result = await send("Runtime.evaluate", { expression: storageExpression(mode), awaitPromise: true, returnByValue: true });
-      assert.equal(result.exceptionDetails, undefined, "Storage probe must not throw");
-      value = result.result.value;
-      if (value?.workspace && value.textLength > 200 && value.ready === "complete") break;
-      await new Promise(resolve => setTimeout(resolve, 250));
+    const readiness = await waitForWorkspaceReady(send, deadline);
+    if (!readiness) {
+      writeFileSync(output, JSON.stringify({ status: "FAIL", phase: "workspace-not-ready" }, null, 2));
+      assert.fail("Installed workspace was not ready before synthetic storage access");
     }
-    assert.equal(value.workspace, true, "Actual installed workspace rendered");
-    assert.ok(value.textLength > 200);
+    // One storage operation after a read-only readiness gate. No retry, reset,
+    // or synthetic write in read mode; a genuine IndexedDB denial is still FAIL.
+    const result = await send("Runtime.evaluate", {
+      expression: storageExpression(mode), awaitPromise: true, returnByValue: true
+    });
+    if (result.exceptionDetails) {
+      const details = result.exceptionDetails;
+      const classification = details.exception?.className === "SecurityError"
+        || /SecurityError/.test(String(details.text ?? "")) ? "storage_security_denied" : "storage_evaluation_error";
+      writeFileSync(output, JSON.stringify({
+        status: "FAIL", phase: "storage-access", classification, mode,
+        origin: readiness.origin, ready: readiness.ready,
+        workspace: readiness.workspace, secureContext: readiness.secureContext,
+        indexedDBAvailable: readiness.indexedDBAvailable
+      }, null, 2));
+      assert.fail("Synthetic storage probe failed after verified workspace readiness");
+    }
+    const value = result.result?.value;
+    assert.equal(value?.origin, readiness.origin, "Storage evaluation must keep the verified app origin");
+    assert.equal(value?.ready, "complete", "Storage evaluation must remain in a fully loaded document");
+    assert.equal(value?.workspace, true, "Actual installed workspace rendered");
+    assert.ok(value?.textLength > 200);
     assert.deepEqual(value.data, { id: "synthetic-only", text: "Recall disposable upgrade fixture", count: 17 });
     assert.deepEqual(value.config, { theme: "synthetic", version: 1 });
     const screenshot = await send("Page.captureScreenshot", { format: "png" });

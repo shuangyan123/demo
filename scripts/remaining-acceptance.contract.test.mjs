@@ -6,7 +6,7 @@ import vm from "node:vm";
 import { indexedDB } from "fake-indexeddb";
 import { load } from "js-yaml";
 import { reviewDependencies } from "./dependency-risk-review.mjs";
-import { storageExpression } from "./install-acceptance-cdp.mjs";
+import { storageExpression, workspaceReadinessExpression, waitForWorkspaceReady } from "./install-acceptance-cdp.mjs";
 
 const source = file => readFileSync(new URL(file, import.meta.url), "utf8");
 const workflow = load(source("../.github/workflows/recall-install-acceptance.yml"));
@@ -69,6 +69,57 @@ test("uninstall assertions precede fixture cleanup and cleanup cannot fake unins
   assert.doesNotMatch(script, /Remove-Item.*HKCU|Remove-Item.*HKLM|--delete-app-data|Verb RunAs/);
   assert.match(source("./download-install-acceptance.ps1"), /artifactDigest/);
   assert.match(source("./download-install-acceptance.ps1"), /Unexpected archive entries/);
+});
+
+test("workspace readiness probe waits for the committed document without opening IndexedDB", async () => {
+  let calls = 0;
+  let opened = 0;
+  const stages = [
+    { origin: "null", ready: "loading", text: "" },
+    { origin: "review-app://workspace", ready: "loading", text: "学习".repeat(150) },
+    { origin: "review-app://workspace", ready: "complete", text: "学习".repeat(150) }
+  ];
+  const send = async (method, params) => {
+    assert.equal(method, "Runtime.evaluate");
+    assert.equal(params.returnByValue, true);
+    assert.doesNotMatch(params.expression, /indexedDB\.open\(/);
+    const stage = stages[Math.min(calls++, stages.length - 1)];
+    const context = vm.createContext({
+      location: { origin: stage.origin },
+      document: { readyState: stage.ready, body: { innerText: stage.text } },
+      isSecureContext: true,
+      indexedDB: { open() { opened++; throw new Error("SecurityError"); } }
+    });
+    return { result: { value: vm.runInContext(params.expression, context) } };
+  };
+  const ready = await waitForWorkspaceReady(send, Date.now() + 10_000, async () => {});
+  assert.equal(calls, 3);
+  assert.equal(opened, 0);
+  assert.equal(ready.origin, "review-app://workspace");
+  assert.equal(ready.ready, "complete");
+  assert.equal(ready.workspace, true);
+  assert.equal(ready.indexedDBAvailable, true);
+  assert.match(workspaceReadinessExpression(), /document\.readyState/);
+  assert.doesNotMatch(workspaceReadinessExpression(), /indexedDB\.open\(/);
+});
+
+test("storage probe is ordered after readiness and a denied IndexedDB access remains an error", async () => {
+  const script = source("./install-acceptance-cdp.mjs");
+  assert.ok(script.indexOf("await waitForWorkspaceReady(send, deadline)") <
+    script.indexOf("expression: storageExpression(mode)"));
+  assert.match(script, /phase: "storage-access"/);
+  assert.match(script, /storage_security_denied/);
+  assert.match(script, /assert\.fail\("Synthetic storage probe failed/);
+  assert.doesNotMatch(script, /catch\s*\([^)]*\)\s*\{\s*continue/);
+  const context = vm.createContext({
+    indexedDB: { open() { throw new Error("SecurityError: IndexedDB denied"); } },
+    localStorage: { getItem: () => null },
+    location: { origin: "review-app://workspace" },
+    document: { readyState: "complete", body: { innerText: "学习".repeat(150) } }
+  });
+  await assert.rejects(vm.runInContext(storageExpression("read"), context), /SecurityError/);
+  assert.equal(await waitForWorkspaceReady(async () => { throw new Error("should not poll expired deadline"); },
+    Date.now() - 1, async () => {}), null);
 });
 
 test("synthetic browser storage survives separate contexts while read mode cannot synthesize missing records", async () => {
