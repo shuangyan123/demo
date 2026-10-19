@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,8 +13,21 @@ function nativeFixture(t: { after: (callback: () => void) => void }) {
     assert.equal(path.dirname(root), realpathSync.native(os.tmpdir())); assert.match(path.basename(root), /^recall-native-profile-test-/);
     rmSync(root, { recursive: true, force: true });
   });
-  const launch = (mode: string) => JSON.parse(execFileSync(path.resolve("node_modules/electron/dist/electron.exe"),
-    ["test-support/profile-native.cjs", root, mode], { cwd: process.cwd(), windowsHide: true, encoding: "utf8", timeout: 25000 }).trim());
+  const launch = (mode: string) => {
+    const executable = path.resolve("node_modules/electron/dist/electron.exe");
+    const output = path.join(root, "native-result.json");
+    const stdout = openSync(output, "w"); const stderr = openSync(path.join(root, "native-stderr.log"), "w");
+    try {
+      // 子进程可继承标准流；用 owned 文件避免其管道寿命被误当作 Main 进程寿命。
+      execFileSync(executable, ["test-support/profile-native.cjs", root, mode, ...(mode.startsWith("cdp-") ?
+        ["--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--force-renderer-accessibility"] : [])],
+      { cwd: process.cwd(), windowsHide: true, stdio: ["ignore", stdout, stderr], timeout: 25000 });
+      execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.resolve("test-support/wait-owned-electron.ps1"),
+        "-OwnedRoot", root, "-ExpectedExecutable", executable], { windowsHide: true, stdio: "pipe", timeout: 15000 });
+    } catch { throw new Error("Owned native Electron fixture failed; raw paths and CDP endpoints withheld"); }
+    finally { closeSync(stdout); closeSync(stderr); }
+    return JSON.parse(readFileSync(output, "utf8").trim());
+  };
   return { root, launch };
 }
 
@@ -58,6 +71,27 @@ if (process.platform === "win32") test("actual Electron publishes Local State wh
   t.diagnostic(JSON.stringify({ result: observed.result.kind, runtimePublication: observed.runtimePublication }));
   assert.equal(observed.result.kind, "ready");
   assert.deepEqual(launch("restart").config, observed.result.config);
+});
+
+if (process.platform === "win32") test("actual Electron CDP launch creates after real native consent and retains identity on independent restart", t => {
+  const { root, launch } = nativeFixture(t);
+  const result = launch("cdp-authorize").result;
+  assert.equal(result.kind, "ready");
+  const record = path.join(root, "appData", "profile", "DevToolsActivePort");
+  const before = readFileSync(record);
+  assert.deepEqual(launch("restart").config, result.config);
+  assert.deepEqual(readFileSync(record), before);
+});
+
+if (process.platform === "win32") test("actual Electron CDP Cancel then CDP Create preserves runtime files and confirms the same identity on restart", t => {
+  const { root, launch } = nativeFixture(t);
+  assert.equal(launch("cdp-cancel").result.kind, "cancelled");
+  const profile = path.join(root, "appData", "profile");
+  assert.equal(existsSync(path.join(profile, "DevToolsActivePort")), true);
+  assert.equal(existsSync(path.join(profile, ".recall-storage")), false);
+  const created = launch("cdp-authorize").result;
+  assert.equal(created.kind, "ready");
+  assert.deepEqual(launch("restart").config, created.config);
 });
 
 test("packaged Main inspects fresh storage only after app.whenReady, retaining native consent", () => {

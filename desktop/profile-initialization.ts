@@ -5,7 +5,7 @@ import type { ManagedStorageResolution } from "../app/platform/managed-storage.j
 import { storageBootstrapPath, storageIdentityPath, type StorageHostPaths } from "./storage-bootstrap.ts";
 import { configFromStorageRecord, parseStorageRecord, type StorageBootstrapRecord, type StorageIdentity } from "./storage-bootstrap-record.ts";
 import { readStorageFile, writeStorageRecord, type StorageRecordIO } from "./storage-bootstrap-io.ts";
-import { hasUnanchoredStorage, initialProfileBinding, isInitialRuntimeEntry, isPristineProfile, type InitialProfileBinding } from "./storage-inspection.ts";
+import { hasUnanchoredStorage, initialProfileBinding, initialProfileRejection, isInitialRuntimeEntry, isPristineProfile, type InitialProfileBinding } from "./storage-inspection.ts";
 
 export type FreshProfileCandidate = Readonly<{ kind: "fresh_profile_candidate" }>;
 type CandidateState = { paths: StorageHostPaths; binding: InitialProfileBinding };
@@ -16,6 +16,7 @@ const failure = (reason: string): ManagedStorageResolution => ({ kind: "unavaila
 // file names from profile enumeration, exception strings or cryptographic material.
 type RevalidationCategory =
   | "host_paths_changed" | "local_state_disappeared" | "local_state_binding_changed"
+  | "debug_port_record_binding_changed"
   | "directory_binding_changed" | "binding_inspection_unavailable"
   | "recall_namespace_present" | "profile_not_pristine";
 function reportInitialProfileRevalidation(category: RevalidationCategory): void {
@@ -26,6 +27,7 @@ function runtimeBindingChange(saved: InitialProfileBinding, current: InitialProf
     if (current.localState === undefined) return "local_state_disappeared";
     return "local_state_binding_changed";
   }
+  if (saved.debugPort !== undefined && saved.debugPort !== current.debugPort) return "debug_port_record_binding_changed";
 }
 function categorizeBindingChange(saved: InitialProfileBinding, current: InitialProfileBinding): RevalidationCategory | undefined {
   if (JSON.stringify(saved.directories) !== JSON.stringify(current.directories)) return "directory_binding_changed";
@@ -37,7 +39,11 @@ export function inspectInitialProfile(paths: StorageHostPaths): { kind: "eligibl
   try {
     const binding = initialProfileBinding(paths);
     if (hasUnanchoredStorage(paths)) return failure("initialization_remnants");
-    if (!isPristineProfile(paths.defaultUserData)) return failure("profile_not_pristine");
+    const rejected = initialProfileRejection(paths.defaultUserData);
+    if (rejected) {
+      console.error(`RECALL_INITIAL_PROFILE_INSPECTION:${rejected}`);
+      return failure("profile_not_pristine");
+    }
     const candidate: FreshProfileCandidate = Object.freeze({ kind: "fresh_profile_candidate" });
     candidates.set(candidate, { paths: Object.freeze({ ...paths }), binding });
     return { kind: "eligible", candidate };

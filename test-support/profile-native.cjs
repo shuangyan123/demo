@@ -22,6 +22,7 @@ async function run() {
   const core = load('profile-initialization.js');
   const state = host.resolveDesktopManagedStorage();
   if (mode === 'restart') {
+    fs.writeFileSync(path.join(root, 'owned-processes.json'), JSON.stringify([process.pid]));
     assert.equal(state.kind, 'ready'); console.log(JSON.stringify(state)); clearTimeout(timer); app.exit(0); return;
   }
   assert.equal(state.kind, 'uninitialized');
@@ -51,7 +52,7 @@ async function run() {
       buttons: ['Create fixture', 'Cancel fixture'], defaultId: 1, cancelId: 1, noLink: true });
     await published;
     const clicker = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.resolve('test-support/click-native-dialog.ps1'),
-      '-TaskProcessId', String(process.pid), '-Button', mode === 'cancel' ? 'Cancel fixture' : 'Create fixture'], { windowsHide: true });
+      '-TaskProcessId', String(process.pid), '-Button', mode === 'cancel' || mode === 'cdp-cancel' ? 'Cancel fixture' : 'Create fixture'], { windowsHide: true });
     const clicked = new Promise((resolve, reject) => {
       clicker.once('error', reject); clicker.once('exit', code => code === 0 ? resolve() : reject(new Error('native click failed')));
     });
@@ -61,6 +62,7 @@ async function run() {
     return answer.response === 0;
   }, host.createDesktopInitialProfile);
   // 与 packaged Main 一样正常退出；父进程必须检查 Chromium 退出后落盘的文件。
+  fs.writeFileSync(path.join(root, 'owned-processes.json'), JSON.stringify(app.getAppMetrics().map(metric => metric.pid)));
   console.log(JSON.stringify({ result, entries: fs.readdirSync(profile), runtimePublication })); clearTimeout(timer); app.quit();
 }
 run().catch(error => { console.error(error); clearTimeout(timer); app.exit(1); });

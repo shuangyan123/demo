@@ -24,16 +24,23 @@ function exactKeys(value: unknown, keys: readonly string[]): value is Record<str
  * 不解密/传播 key、不重写文件；未知字段、非规范 JSON、link 与非空锁一律拒绝。
  */
 function initialRuntimeEntryBinding(profile: string, entry: string): string | undefined {
-  if (process.platform !== "win32" || (entry !== "lockfile" && entry !== "Local State")) return;
-  const file = path.join(profile, entry); const stat = lstatSync(file);
+  if (process.platform !== "win32" || !["lockfile", "Local State", "DevToolsActivePort"].includes(entry)) return;
+  const file = path.join(profile, entry); const stat = lstatSync(file, { bigint: true });
   if (!stat.isFile() || stat.isSymbolicLink()) return;
-  if (entry === "lockfile") return stat.size === 0 ? "empty_runtime_lock" : undefined;
-  if (stat.size === 0 || stat.size > 4096) return;
+  if (entry === "lockfile") return stat.size === BigInt(0) ? "empty_runtime_lock" : undefined;
+  if (stat.size === BigInt(0) || stat.size > BigInt(4096)) return;
   const bytes = readFileSync(file); const text = bytes.toString("utf8");
-  const after = lstatSync(file);
+  const after = lstatSync(file, { bigint: true });
   if (!after.isFile() || after.isSymbolicLink() || after.dev !== stat.dev || after.ino !== stat.ino
-    || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs
-    || bytes.length !== stat.size || !Buffer.from(text, "utf8").equals(bytes)) return;
+    || after.size !== stat.size || after.mtimeNs !== stat.mtimeNs || after.ctimeNs !== stat.ctimeNs
+    || BigInt(bytes.length) !== stat.size || !Buffer.from(text, "utf8").equals(bytes)) return;
+  if (entry === "DevToolsActivePort") {
+    // Electron 43 的 CDP 启动器交给 Chromium 写入：十进制端口 + 换行 + browser UUID 路径。
+    // 不接受 URL、额外行、任意内容或仅凭文件名的例外；该记录不提供 profile identity。
+    const port = /^([1-9][0-9]{0,4})\n\/devtools\/browser\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(text);
+    return stat.size <= BigInt(64) && port && Number(port[1]) <= 65535
+      ? createHash("sha256").update(bytes).digest("hex") : undefined;
+  }
   let value: unknown;
   try { value = JSON.parse(text); } catch { return; }
   // Chromium 写入紧凑 JSON；round-trip 同时拒绝被 JSON.parse 隐藏的重复字段。
@@ -54,13 +61,24 @@ export function isInitialRuntimeEntry(profile: string, entry: string): boolean {
 }
 
 /** Runtime-only 文件不证明历史新旧；仍需无 Recall 残留、Main 明确授权及重新检查。 */
+export type InitialProfileRejection = "profile_not_directory" | "local_state_invalid" | "runtime_lock_invalid"
+  | "debug_port_record_invalid" | "historical_partition_present" | "unknown_profile_entry";
+export function initialProfileRejection(profile: string): InitialProfileRejection | undefined {
+  if (!exists(profile)) return;
+  if (!lstatSync(profile).isDirectory()) return "profile_not_directory";
+  for (const entry of readdirSync(profile)) {
+    if (isInitialRuntimeEntry(profile, entry)) continue;
+    if (entry === "Local State") return "local_state_invalid";
+    if (entry === "lockfile") return "runtime_lock_invalid";
+    if (entry === "DevToolsActivePort") return "debug_port_record_invalid";
+    return entry === "Partitions" ? "historical_partition_present" : "unknown_profile_entry";
+  }
+}
 export function isPristineProfile(profile: string): boolean {
-  if (!exists(profile)) return true;
-  if (!lstatSync(profile).isDirectory()) return false;
-  return readdirSync(profile).every(entry => isInitialRuntimeEntry(profile, entry));
+  return initialProfileRejection(profile) === undefined;
 }
 
-export type InitialProfileBinding = Readonly<{ directories: readonly string[]; localState?: string }>;
+export type InitialProfileBinding = Readonly<{ directories: readonly string[]; localState?: string; debugPort?: string }>;
 
 /** 目录身份与运行时状态分离；Local State 缺失可转为已识别状态，已有安全材料仍保留绑定。 */
 export function initialProfileBinding(paths: StorageHostPaths): InitialProfileBinding {
@@ -70,7 +88,12 @@ export function initialProfileBinding(paths: StorageHostPaths): InitialProfileBi
     localState = initialRuntimeEntryBinding(paths.defaultUserData, "Local State");
     if (!localState) throw new Error("unsafe_initial_runtime_file");
   }
-  return Object.freeze({ directories, localState });
+  let debugPort: string | undefined;
+  if (exists(path.join(paths.defaultUserData, "DevToolsActivePort"))) {
+    debugPort = initialRuntimeEntryBinding(paths.defaultUserData, "DevToolsActivePort");
+    if (!debugPort) throw new Error("unsafe_initial_runtime_file");
+  }
+  return Object.freeze({ directories, localState, debugPort });
 }
 
 /** 绑定已存在的 Host ancestors；拒绝 junction/symlink 和可观察的位置替换。
@@ -93,7 +116,8 @@ export function storagePathBinding(paths: StorageHostPaths): readonly string[] {
   for (const directory of [path.join(paths.defaultUserData, ".recall-storage"), path.join(paths.appData, "recall-storage")])
     if (exists(directory)) directories.add(directory);
   const binding = [...directories].sort().map(directory => {
-    const stat = lstatSync(directory);
+    // NTFS 的 64 位文件 ID 可超出 Number 安全范围；舍入会把不同目录误认成同一目录。
+    const stat = lstatSync(directory, { bigint: true });
     const normalize = (value: string) => process.platform === "win32" ? value.toLowerCase() : value;
     if (!stat.isDirectory() || stat.isSymbolicLink() || normalize(realpathSync.native(directory)) !== normalize(directory))
       throw new Error("unsafe_storage_path");

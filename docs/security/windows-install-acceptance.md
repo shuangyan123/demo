@@ -1,25 +1,29 @@
 # 固定产物 Windows 安装验收
 
-## 新修复安装验收（已批准、准备执行一次）
+## 当前状态：上次验收失败，新修复等待单独批准
 
 ### 本轮固定对象与执行边界
 
-- 新产品源码 `1be3f28eca90bb9a9ac63c4036e275cb42a48889`，成功 CI `39121611474`，finalized artifact `12133559719`。
+- 上次被测产品源码 `1be3f28eca90bb9a9ac63c4036e275cb42a48889`，成功 CI `39121611474`，finalized artifact `12133559719`。
 - ZIP SHA256 `6bad4fec47d18aa70de0f1f1f00fadebad9226441240dda275e6d3311a8e57a9`；EXE SHA256 `f81b0d70bbd142446c90b5818375fd129f8e411dfc6be79eb8544761864fb36b`，两者已独立与 manifest 核对。
-- 本次只允许一次性 GitHub-hosted Windows runner，包含新装（原生窗口等待合法 Electron Local State 实际出现后创建）、重启读回、卸载、取消后重新创建及可信 v0.2.2 Squirrel-to-NSIS 数据交接。不可在本机/Pilot 运行。
-- 旧安装源仍被保留为历史证据，新的执行策略必须指向上述新源码。未完成实际验收前全部保持 Draft/NOT_RUN。
+- 上述产物的真实安装验收已执行：harness `888a9895f74d74f6cb52eb8f9220055bc4157cfb`，run `39123883282`，证据 artifact `12134708714`。来源/摘要、安装、文件、注册及快捷方式通过；原生确认出现前以 `profile_not_pristine` 停止。首次创建为 FAIL，后续取消重建、重启及交接未完成，不能标为 PASS。
+- 当前固定策略仍指向上述历史失败产物，不能直接用来验收本次新修复。PR 保持 Draft；本次代码修复不改验收 label/策略、不触发安装或卸载。
 
 旧 run `39117755780` 的安装、来源核验和原生确认已执行，但工作台启动失败。`d7e9239` 的普通 CI、Windows E2E 或 NSIS 构建成功均不能关闭该失败。新修复用真实 Windows Electron 证明：原生确认仍打开时，Electron 可在 ready 后约十秒才发布 `Local State`；旧实现误把该运行时转换当成候选资料变更。旧安装包没有分类诊断，不能追认其确切文件变化。
 
+最近一次 `39123883282` 在确认之前失败，属于不同现场。其证据没有目录分类，不能归因为 Local State。按验收的 CDP 参数启动生产 Main 的隔离 ASAR 实验，已复现旧 pristine predicate 拒绝 Chromium 生成的 `DevToolsActivePort`；该记录与实验进程真实 CDP 端点一致。新增严格格式识别及记录绑定后，同一 ASAR 实验能进入真实原生确认并取消。来源、格式、安全边界和历史证据限制见 [首次创建设计](../recall-fresh-profile-bootstrap.md#debugger-discovery-before-native-consent)。此实验未执行 Setup，也未验证 installed 工作台。
+
 再次安装前必须先取得用户批准。批准应明确一次性 GitHub-hosted Windows runner、精确产品 source SHA、验收 harness SHA，以及是否包括卸载与旧版交接；不得在开发机执行。具体顺序为：
 
-1. 等新修复的 exact-head CI 和 `Windows NSIS Production` 完成，获取 finalized artifact 的 run ID、artifact ID、ZIP digest、manifest、安装 EXE SHA-256，逐项核验 source commit、Node runtime 和同源产物。禁止复用下面仍指向 `98178f3` 的旧固定策略。
+1. 等新修复的 exact-head CI 和 `Windows NSIS Production` 完成，获取 finalized artifact 的 run ID、artifact ID、ZIP digest、manifest、安装 EXE SHA-256，逐项核验 source commit、Node runtime 和同源产物。禁止复用仍指向 `1be3f28` 的当前策略或更旧产物。
 2. 在单独的验收准备提交中，把 `scripts/nsis-install-acceptance.json` 的 source/run/artifact/digest/EXE SHA 和 workflow 的唯一 label 同步锁定新产物。先审查该提交和来源，再按批准范围触发一次 label 验收；本次修复不改 label、不触发安装。
 3. 首次创建至少包含一个保持原生确认打开直到观察到 Electron 自行发布 `Local State` 的场景；以文件事件为依据，不能只凭固定睡眠假设已发生。记录脱敏的发布/确认顺序，随后操作唯一属于被测进程的原生创建按钮。另验取消后完全退出，再启动并创建；不删除或改写 `Local State`。
-4. 成功标准：无“本地学习资料无法确认”；真实 installed EXE 加载工作台；identity/bootstrap 均严格可解析且 profileId/epochId 一致；合成 localStorage/IndexedDB 写入经独立 Main 进程重启读回；metadata identity 不变；退出状态正常。失败必须保留原生截图、CDP discovery、脱敏分类日志和退出状态，禁止 retry 改写结果。
+4. 使用相同 CDP 启动参数。成功标准：原生创建确认确实出现，无“本地学习资料无法确认”；真实 installed EXE 加载工作台；identity/bootstrap 均严格可解析且 profileId/epochId 一致；合成 localStorage/IndexedDB 写入经独立 Main 进程重启读回；metadata identity 不变；退出状态正常。取消退出不发布 Recall metadata，随后创建成功。不得删除 Local State 或 debugger discovery 记录来伪造可创建现场。失败必须保留原生截图、CDP discovery、脱敏分类日志和退出状态，禁止 retry 改写结果。
 5. 安装、首次创建、取消后创建、重启保留分别报告 PASS/FAIL。卸载、旧版交接只在明确获批时执行并独立报告；未执行项标为 NOT_RUN。只有新产物真实安装首次创建通过后，才可宣称首次安装缺陷解决。
 
-以下为现有旧产物入口的准确固定信息，不能直接作为新修复验收入口。
+## 更早固定产物入口的历史说明
+
+以下 `98178f3` 信息仅为更早验收的历史记录；当前策略已改为上文 `1be3f28`，两者都不能作为本次新修复的验收入口。
 
 本入口只用于 PR #148 的固定提交 `98178f3b286f65341677e05c1f4abf70e599a310`，不是发布或任意安装权限。禁止在开发机、用户现用主机或 Pilot 上调用安装/卸载/升级。PowerShell 和浏览器探针均检查 GitHub-hosted Windows 身份；安装脚本另核对 PR 与 label，且没有本机 override。
 
@@ -27,7 +31,7 @@
 
 新 `workflow_dispatch` 文件不在默认分支时不可依赖手动运行。本入口使用 `pull_request: labeled`，从 PR merge ref 加载 workflow，再 checkout 精确 PR head 的测试工具。PR head 可继续修复验收脚本，但固定被测产物仍来自上述 CI run；二者必须分别报告。显式 label `recall-install-acceptance-98178f3` 只对本仓库 PR #148、同仓库固定分支触发一个 `windows-latest` job，20 分钟上限、无矩阵、无自动重试、无 npm ci/打包/付费服务调用。默认 CI 的 synchronize 事件不受此 label 触发；只使用 read contents/actions 权限，不用 pull_request_target。
 
-测试工具可以随 PR head 审查，**被安装的二进制始终来自固定旧 run/artifact ID**，不把工具提交冒充产品源提交。固定策略锁定 CI run `39114236172` 的 finalized NSIS artifact `12132012074`，源提交 `98178f3b286f65341677e05c1f4abf70e599a310`，ZIP SHA-256 `c374a7f234cad9e39d6e01d77821aaaa6f26e9fbebbb60ada0b1bced4415b78b`，安装 EXE SHA-256 `e7e2e9a3625ffc4c87ef324ebc746aa6d7da0310d562c2108e31a9cc77635b40`。固定策略见 `scripts/nsis-install-acceptance.json`；下载时核对原 run 的精确 source SHA / success、artifact ID / digest / expiration、ZIP digest 与内容 allowlist、manifest 与 EXE SHA256。CI 构建的 EXE 摘要与同源本机重建包不同，不能混用。
+测试工具可以随 PR head 审查，**被安装的二进制始终来自固定旧 run/artifact ID**，不把工具提交冒充产品源提交。当时固定 CI run `39114236172` 的 finalized NSIS artifact `12132012074`，源提交 `98178f3b286f65341677e05c1f4abf70e599a310`，ZIP SHA-256 `c374a7f234cad9e39d6e01d77821aaaa6f26e9fbebbb60ada0b1bced4415b78b`，安装 EXE SHA-256 `e7e2e9a3625ffc4c87ef324ebc746aa6d7da0310d562c2108e31a9cc77635b40`。下载时核对原 run 的精确 source SHA / success、artifact ID / digest / expiration、ZIP digest 与内容 allowlist、manifest 与 EXE SHA256。CI 构建的 EXE 摘要与同源本机重建包不同，不能混用。
 
 ## 断言
 

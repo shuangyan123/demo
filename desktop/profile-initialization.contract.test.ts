@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { completeInitialProfileDecision, createInitialProfile, inspectInitialProfile } from "./profile-initialization.ts";
 import { gateManagedStorageStartup, resolveManagedStorage, storageBootstrapPath, storageIdentityPath, type StorageHostPaths } from "./storage-bootstrap.ts";
 import { storageRecordIO } from "./storage-bootstrap-io.ts";
+import { initialProfileRejection, isInitialRuntimeEntry, storagePathBinding } from "./storage-inspection.ts";
 
 function fixture(t: { after: (fn: () => void) => void }) {
   const root = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "recall-fresh-profile-test-"));
@@ -144,8 +145,22 @@ test("revalidation rejects new contents, changed Host paths, replaced directorie
     if (mutation === "paths") current = { ...paths, appData: path.join(paths.appData, "changed") };
     if (mutation === "directory") { renameSync(paths.defaultUserData, `${paths.defaultUserData}-old`); mkdirSync(paths.defaultUserData); }
     if (mutation === "session") current = { ...paths, defaultSessionData: path.join(paths.appData, "other") };
-    assert.equal(createInitialProfile(inspected, current).kind, "unavailable");
+    assert.equal(createInitialProfile(inspected, current).kind, "unavailable", mutation);
     assert.equal(readdirSync(paths.appData).includes("recall-storage"), false);
+  }
+});
+
+test("directory binding preserves exact filesystem IDs across real replacements", t => {
+  const { root, paths } = fixture(t);
+  mkdirSync(paths.defaultUserData);
+  for (let index = 0; index < 128; index++) {
+    const exact = lstatSync(paths.defaultUserData, { bigint: true });
+    assert.ok(storagePathBinding(paths).includes(`${paths.defaultUserData}:${exact.dev}:${exact.ino}`));
+    const inspected = candidate(paths);
+    renameSync(paths.defaultUserData, path.join(root, `preserved-${index}`)); mkdirSync(paths.defaultUserData);
+    assert.notEqual(lstatSync(paths.defaultUserData, { bigint: true }).ino, exact.ino);
+    assert.equal(createInitialProfile(inspected, paths).kind, "unavailable");
+    assert.equal(existsSync(storageIdentityPath(paths.defaultUserData)), false);
   }
 });
 
@@ -440,4 +455,69 @@ if (process.platform === "win32") test("Local State first observed after identit
   const identity = JSON.parse(readFileSync(storageIdentityPath(paths.defaultUserData), "utf8"));
   const bootstrap = JSON.parse(readFileSync(storageBootstrapPath(paths), "utf8"));
   assert.equal(identity.profileId, bootstrap.profileId); assert.equal(identity.epochId, bootstrap.epochId);
+});
+
+const debugRecord = (port = "33872") => `${port}\n/devtools/browser/10979ea8-1096-4e92-84c4-78f012c3f2a8`;
+
+if (process.platform === "win32") test("debugger discovery is strictly typed runtime metadata, never a filename-only admission", t => {
+  const malformed = ["", "user notes", debugRecord("0"), debugRecord("65536"), debugRecord("033872"),
+    `${debugRecord()}\n`, debugRecord().replace("\n", "\r\n"), `${debugRecord()}?token=private`,
+    debugRecord().replace("/devtools/browser/", "ws://localhost/devtools/browser/"), " ".repeat(4097), Buffer.from([0xff])];
+  for (const contents of malformed) {
+    const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
+    const file = path.join(paths.defaultUserData, "DevToolsActivePort"); writeFileSync(file, contents);
+    assert.equal(initialProfileRejection(paths.defaultUserData), "debug_port_record_invalid");
+    assert.equal(inspectInitialProfile(paths).kind, "unavailable");
+    assert.deepEqual(readFileSync(file), Buffer.from(contents));
+    assert.equal(readdirSync(paths.appData).includes("recall-storage"), false);
+  }
+  for (const port of ["1", "33872", "65535"]) {
+    const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
+    const file = path.join(paths.defaultUserData, "DevToolsActivePort"); writeFileSync(file, debugRecord(port));
+    assert.equal(isInitialRuntimeEntry(paths.defaultUserData, "DevToolsActivePort"), true);
+    assert.equal(createInitialProfile(candidate(paths), paths).kind, "ready");
+    assert.equal(readFileSync(file, "utf8"), debugRecord(port));
+  }
+});
+
+if (process.platform === "win32") test("valid debugger metadata cannot admit unknown files, history, malformed runtime, links or initialization remnants", t => {
+  for (const mutation of ["foreign", "history", "local-state", "lock", "junction", "profile-replaced", "managed-files", "identity-remnant", "bootstrap-remnant"]) {
+    const { paths, root } = fixture(t); mkdirSync(paths.defaultUserData);
+    const file = path.join(paths.defaultUserData, "DevToolsActivePort"); writeFileSync(file, debugRecord());
+    const inspected = candidate(paths);
+    if (mutation === "foreign") writeFileSync(path.join(paths.defaultUserData, "private-user-file"), "preserve");
+    if (mutation === "history") mkdirSync(path.join(paths.defaultUserData, "Partitions", "review-workspace"), { recursive: true });
+    if (mutation === "local-state") writeFileSync(path.join(paths.defaultUserData, "Local State"), "{partial");
+    if (mutation === "lock") writeFileSync(path.join(paths.defaultUserData, "lockfile"), "preserve");
+    if (mutation === "junction") { rmSync(file); const other = path.join(root, "other"); mkdirSync(other); symlinkSync(other, file, "junction"); }
+    if (mutation === "profile-replaced") { renameSync(paths.defaultUserData, `${paths.defaultUserData}-preserved`); mkdirSync(paths.defaultUserData); writeFileSync(file, debugRecord()); }
+    if (mutation === "managed-files") mkdirSync(path.join(paths.defaultUserData, "managed-files"));
+    if (mutation === "identity-remnant") mkdirSync(path.dirname(storageIdentityPath(paths.defaultUserData)));
+    if (mutation === "bootstrap-remnant") mkdirSync(path.dirname(storageBootstrapPath(paths)));
+    assert.equal(createInitialProfile(inspected, paths).kind, "unavailable", mutation);
+    if (mutation === "profile-replaced") {
+      // 新候选不承诺跨进程识别已移走的目录；原候选必须拒绝替换，并保留原现场。
+      assert.equal(readFileSync(path.join(`${paths.defaultUserData}-preserved`, "DevToolsActivePort"), "utf8"), debugRecord());
+    } else assert.equal(inspectInitialProfile(paths).kind, "unavailable", mutation);
+    assert.equal(existsSync(storageIdentityPath(paths.defaultUserData)), false);
+  }
+});
+
+if (process.platform === "win32") test("debugger record may first appear at a checkpoint but observed records cannot disappear or change", t => {
+  for (const stage of ["consent", "identity", "bootstrap"]) for (const mutation of ["appears", "changed", "removed", "malformed"]) {
+    const { paths } = fixture(t); mkdirSync(paths.defaultUserData);
+    const file = path.join(paths.defaultUserData, "DevToolsActivePort");
+    if (mutation !== "appears") writeFileSync(file, debugRecord());
+    const inspected = candidate(paths);
+    const mutate = () => mutation === "removed" ? rmSync(file) : writeFileSync(file,
+      mutation === "malformed" ? "preserve" : debugRecord(mutation === "changed" ? "33873" : "33872"));
+    if (stage === "consent") mutate();
+    const result = createInitialProfile(inspected, paths, { ...storageRecordIO, publishNew(from, to) {
+      storageRecordIO.publishNew(from, to);
+      if (to === (stage === "identity" ? storageIdentityPath(paths.defaultUserData) : stage === "bootstrap" ? storageBootstrapPath(paths) : "")) mutate();
+    } });
+    assert.equal(result.kind, mutation === "appears" ? "ready" : "unavailable", `${stage}/${mutation}`);
+    if (mutation === "appears") assert.deepEqual(resolveManagedStorage(paths), result);
+    if (stage === "identity" && mutation !== "appears") assert.deepEqual(readdirSync(path.dirname(storageBootstrapPath(paths))), []);
+  }
 });
