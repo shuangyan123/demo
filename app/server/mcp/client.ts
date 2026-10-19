@@ -1,3 +1,4 @@
+import { endpointFetch } from "../http/outbound-fetch.ts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { validateOutboundNetworkTarget } from "../http/outbound-network-policy.ts";
@@ -37,13 +38,20 @@ type McpConnectionInput = {
 /** 为单次请求建立 MCP 会话；不在服务端缓存 Token 或原始工具结果。 */
 export async function withMcpClient<T>(input: McpConnectionInput, task: (client: Client) => Promise<T>): Promise<T> {
   const endpoint = validateMcpEndpoint(input.endpoint, input.allowPrivateNetwork === true);
-  await validateOutboundNetworkTarget(endpoint.href, {
+  const policy = {
     allowLoopback: true,
     allowPrivateNetwork: input.allowPrivateNetwork === true,
-  });
+    // .local 只是语法入口，不是 LAN 授权事实；其全部 DNS 答案也必须位于本机/私网。
+    allowPublicNetwork: endpoint.protocol !== "http:",
+  };
+  await validateOutboundNetworkTarget(endpoint.href, policy);
+  const deadline = AbortSignal.timeout(MCP_TIMEOUT_MS);
+  const safeFetch = endpointFetch(endpoint, { ...policy, timeoutMs: MCP_TIMEOUT_MS });
   const headers = input.token ? { Authorization: `Bearer ${input.token}` } : undefined;
   const transport = new StreamableHTTPClientTransport(endpoint, {
-    requestInit: { headers, redirect: "manual", signal: AbortSignal.timeout(MCP_TIMEOUT_MS) },
+    fetch: (url, init) => safeFetch(url, { ...init, signal: AbortSignal.any([deadline, ...(init?.signal ? [init.signal] : [])]) }),
+    requestInit: { headers, redirect: "error", signal: deadline },
+    reconnectionOptions: { maxRetries: 0, initialReconnectionDelay: 1000, maxReconnectionDelay: 1000, reconnectionDelayGrowFactor: 1 },
   });
   const client = new Client({ name: "review-workspace", version: "0.1.0" }, { capabilities: {} });
   try {
@@ -60,5 +68,6 @@ export function toMcpError(error: unknown): string {
   if (/abort|timeout/i.test(message)) return "MCP 请求超时，请检查服务状态";
   if (/401|unauthor/i.test(message)) return "MCP 认证失败，请检查 Bearer Token";
   if (/403|forbidden/i.test(message)) return "MCP 服务拒绝访问";
-  return message.replace(/Bearer\s+\S+/gi, "Bearer ***").slice(0, 240);
+  // SDK 异常可能带有 endpoint query 或上游正文，不把它们回传给 UI。
+  return "MCP 请求失败，请检查端点、网络或服务配置";
 }

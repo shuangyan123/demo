@@ -1,3 +1,7 @@
+import { Agent } from "node:https";
+import { approveOutboundNetworkTarget } from "../http/outbound-network-policy.ts";
+import { pinnedLookup } from "../http/pinned-connection.ts";
+import { assertDirectConnection } from "../http/outbound-fetch.ts";
 import WebSocket from "ws";
 import type { RealtimeVoiceEvent } from "../../types/domains/voice.ts";
 
@@ -25,10 +29,17 @@ function enqueue(session: RelaySession, event: RealtimeVoiceEvent): void {
 }
 
 /** GLM 浏览器不能设置 WebSocket Authorization，因此由本地单实例进程持有短生命周期上游连接。 */
-export function startGlmRealtimeRelay(input: { apiKey: string; model: string; voiceId: string }): string {
+export async function startGlmRealtimeRelay(input: { apiKey: string; model: string; voiceId: string }): Promise<string> {
   cleanupGlmRealtimeRelays();
   const id = crypto.randomUUID();
-  const socket = new WebSocket("wss://open.bigmodel.cn/api/paas/v4/realtime", { headers: { Authorization: `Bearer ${input.apiKey}` } });
+  const url = new URL("https://open.bigmodel.cn/api/paas/v4/realtime");
+  assertDirectConnection(url);
+  const target = await approveOutboundNetworkTarget(url.href, { allowLoopback: false, allowPrivateNetwork: false });
+  // 独占 Agent 固定 DNS；WSS 保留原始域名的 Host、SNI 和证书校验，禁止跟随重定向。
+  const agent = new Agent({ lookup: pinnedLookup(target), keepAlive: false, rejectUnauthorized: true, maxCachedSessions: 0 });
+  const socket = new WebSocket(url.href.replace(/^https:/, "wss:"), { agent, followRedirects: false, handshakeTimeout: 15_000, headers: { Authorization: `Bearer ${input.apiKey}` } });
+  socket.once("close", () => agent.destroy());
+  socket.once("error", () => agent.destroy());
   const session: RelaySession = { socket, events: [{ type: "setup" }], touchedAt: Date.now() };
   sessions.set(id, session);
   socket.on("open", () => {

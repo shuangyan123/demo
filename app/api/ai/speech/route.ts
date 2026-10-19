@@ -1,3 +1,4 @@
+import { outboundFetch } from "../../../server/http/outbound-fetch.ts";
 import type { AiSpeechRequest } from "../../../services/api-client";
 import { buildSpeechProviderRequest, parseSpeechJsonResponse } from "../../../server/ai/provider-adapter.ts";
 import {
@@ -31,14 +32,16 @@ export async function POST(request: Request) {
     }
     await validateOutboundNetworkTarget(body.baseUrl, networkPolicyFromProviderOptions(body.providerOptions));
     const providerRequest = buildSpeechProviderRequest(body);
-    const response = await fetch(providerRequest.url, {
+    const response = await outboundFetch(providerRequest.url, {
       method: "POST",
       headers: providerRequest.headers,
       body: typeof providerRequest.body === "string" ? providerRequest.body : JSON.stringify(providerRequest.body),
       cache: "no-store",
       redirect: "error",
-    });
+      signal: request.signal,
+    }, networkPolicyFromProviderOptions(body.providerOptions));
     if (!response.ok) {
+      await response.body?.cancel();
       return apiErrorResponse(
         new RouteSecurityError("speech_provider_failed", `语音厂商请求失败（${response.status}）`, response.status, response.status >= 429),
         { code: "speech_provider_failed", message: "语音厂商请求失败", status: response.status },

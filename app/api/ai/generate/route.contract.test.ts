@@ -1,8 +1,23 @@
+import { outboundTransport } from "../../../server/http/outbound-fetch.ts";
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { afterEach, beforeEach } from "node:test";
+import dns from "node:dns/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { POST } from "./route.ts";
 import { AiProviderFailureError, type AiProviderFailure } from "../../../services/ai-provider-failure.ts";
 import { callAiGenerate, callAiGenerateStream, type AiGenerateRequest } from "../../../services/api-client.ts";
+
+// 测试同时替换 DNS 与 transport；未知主机直接失败，绝不依赖生产域名绕过或真实网络。
+beforeEach((context) => {
+  if (!("mock" in context)) throw new Error("fixture requires a test context");
+  context.mock.method(outboundTransport, "fetch", (input: string | URL | Request, init?: RequestInit) => globalThis.fetch(input, init));
+  context.mock.method(dns, "lookup", async (hostname: string) => {
+    assert.equal(hostname, "provider.example", "unexpected fixture DNS host");
+    return [{ address: "8.8.8.8", family: 4 }];
+  });
+  syncBuiltinESMExports();
+});
+afterEach((context) => { if ("mock" in context) context.mock.restoreAll(); syncBuiltinESMExports(); });
 
 const baseInput: AiGenerateRequest = {
   provider: "deepseek",
@@ -38,6 +53,25 @@ function providerFailure(overrides: Partial<AiProviderFailure> = {}): AiProvider
     ...overrides,
   };
 }
+
+test("AUD-09 route: fake DNS 拒绝测试域名私网，授权后只执行一次 mock transport", async (context) => {
+  let lookups = 0;
+  let transports = 0;
+  context.mock.method(dns, "lookup", async () => { lookups += 1; return [{ address: "192.168.0.9", family: 4 }]; });
+  syncBuiltinESMExports();
+  context.mock.method(globalThis, "fetch", async () => {
+    transports += 1;
+    return Response.json({ choices: [{ message: { content: "controlled fixture" }, finish_reason: "stop" }] });
+  });
+  const denied = await postGenerate();
+  assert.equal(denied.status, 400);
+  assert.equal((await denied.json()).code, "private_network_confirmation_required");
+  assert.equal(transports, 0);
+  const allowed = await postGenerate({ providerOptions: { allowPrivateNetwork: "true" } });
+  assert.equal(allowed.status, 200);
+  assert.equal(lookups, 3, "early validation and bound transport independently authorize the allowed request");
+  assert.equal(transports, 1);
+});
 
 test("route marks a normal incremental stream complete only after provider completion", async () => {
   const originalFetch = globalThis.fetch;

@@ -1,20 +1,46 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { inspectInitialProfile } from "./profile-initialization.ts";
+import { completeInitialProfileDecision, createInitialProfile, inspectInitialProfile } from "./profile-initialization.ts";
 import { resolveManagedStorage } from "./storage-bootstrap.ts";
+import { isInitialRuntimeEntry } from "./storage-inspection.ts";
 
 function nativeFixture(t: { after: (callback: () => void) => void }) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "recall-native-profile-test-"));
+  const root = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "recall-native-profile-test-"));
   t.after(() => {
-    assert.equal(path.dirname(root), path.resolve(os.tmpdir())); assert.match(path.basename(root), /^recall-native-profile-test-/);
+    assert.equal(path.dirname(root), realpathSync.native(os.tmpdir())); assert.match(path.basename(root), /^recall-native-profile-test-/);
     rmSync(root, { recursive: true, force: true });
   });
-  const launch = (mode: string) => JSON.parse(execFileSync(path.resolve("node_modules/electron/dist/electron.exe"),
-    ["test-support/profile-native.cjs", root, mode], { cwd: process.cwd(), windowsHide: true, encoding: "utf8", timeout: 25000 }).trim());
+  const launch = (mode: string) => {
+    const executable = path.resolve("node_modules/electron/dist/electron.exe");
+    const output = path.join(root, "native-result.json");
+    const failure = path.join(root, "native-failure.json"); if (existsSync(failure)) rmSync(failure);
+    const stdout = openSync(output, "w"); const stderr = openSync(path.join(root, "native-stderr.log"), "w");
+    let phase = "launch";
+    try {
+      // 子进程可继承标准流；用 owned 文件避免其管道寿命被误当作 Main 进程寿命。
+      const entry = mode === "cdp-runtime-consent" ? "test-support/profile-runtime-writer.cjs" : "test-support/profile-native.cjs";
+      execFileSync(executable, [entry, root, mode, ...(mode.startsWith("cdp-") ?
+        ["--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--force-renderer-accessibility"] : [])],
+      { cwd: process.cwd(), windowsHide: true, stdio: ["ignore", stdout, stderr], timeout: 25000 });
+      phase = "owned_exit";
+      execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.resolve("test-support/wait-owned-electron.ps1"),
+        "-OwnedRoot", root, "-ExpectedExecutable", executable], { windowsHide: true, stdio: "pipe", timeout: 15000 });
+    } catch (error) {
+      const detail = existsSync(failure) ? JSON.parse(readFileSync(failure, "utf8")) : {};
+      const categories = readFileSync(path.join(root, "native-stderr.log"), "utf8").match(/RECALL_INITIAL_PROFILE_(?:INSPECTION|REVALIDATION):[a-z_]+/g) ?? [];
+      const stderrText = (error as { stderr?: Buffer }).stderr?.toString() ?? "";
+      const helper = stderrText.includes("Process ownership changed") ? "ownership_changed"
+        : stderrText.includes("Owned Electron process did not exit") ? "exit_not_observed" : "other";
+      const processFailure = (error as { code?: string }).code === "ETIMEDOUT" ? "timeout" : "unsuccessful_exit";
+      throw new Error(`Owned native fixture failed: ${JSON.stringify({ parentPhase: phase, ...detail, categories, helper, processFailure })}`);
+    }
+    finally { closeSync(stdout); closeSync(stderr); }
+    return JSON.parse(readFileSync(output, "utf8").trim());
+  };
   return { root, launch };
 }
 
@@ -48,4 +74,109 @@ if (process.platform === "win32") test("actual Electron Cancel exits, then a new
   assert.deepEqual(readFileSync(path.join(profile, "Local State")), localState);
   assert.deepEqual(launch("restart").config, created.config);
   assert.deepEqual(readFileSync(path.join(profile, "Local State")), localState);
+});
+
+if (process.platform === "win32") test("native rejection diagnostics expose only fixed phases and categories while retaining unknown data", t => {
+  const { root, launch } = nativeFixture(t);
+  const profile = path.join(root, "appData", "profile"); mkdirSync(profile, { recursive: true });
+  const privateName = "private-learner-notes"; const contents = "synthetic-private-content";
+  writeFileSync(path.join(profile, privateName), contents);
+  assert.throws(() => launch("authorize"), error => {
+    assert.ok(error instanceof Error);
+    assert.ok(error.message.includes('"phase":"pre_ready_resolution"'));
+    assert.ok(error.message.includes('"reason":"unrecognized_legacy_profile"'));
+    for (const forbidden of [root, privateName, contents]) assert.equal(error.message.includes(forbidden), false);
+    return true;
+  });
+  assert.equal(readFileSync(path.join(profile, privateName), "utf8"), contents);
+  assert.equal(existsSync(path.join(profile, ".recall-storage")), false);
+});
+
+if (process.platform === "win32") test("actual Electron publishes Local State while native consent is open, then creation and restart succeed", t => {
+  const { launch } = nativeFixture(t);
+  const observed = launch("runtime-write");
+  assert.equal(observed.runtimePublication.writer, "Electron");
+  assert.equal(observed.runtimePublication.appearedAfterReady, true);
+  t.diagnostic(JSON.stringify({ result: observed.result.kind, runtimePublication: observed.runtimePublication }));
+  assert.equal(observed.result.kind, "ready");
+  assert.deepEqual(launch("restart").config, observed.result.config);
+});
+
+if (process.platform === "win32") test("actual Electron CDP launch creates after real native consent and retains identity on independent restart", t => {
+  const { root, launch } = nativeFixture(t);
+  const result = launch("cdp-authorize").result;
+  assert.equal(result.kind, "ready");
+  const record = path.join(root, "appData", "profile", "DevToolsActivePort");
+  const before = readFileSync(record);
+  assert.deepEqual(launch("restart").config, result.config);
+  assert.deepEqual(readFileSync(record), before);
+});
+
+if (process.platform === "win32") test("actual Electron CDP Cancel then CDP Create preserves runtime files and confirms the same identity on restart", t => {
+  const { root, launch } = nativeFixture(t);
+  assert.equal(launch("cdp-cancel").result.kind, "cancelled");
+  const profile = path.join(root, "appData", "profile");
+  assert.equal(existsSync(path.join(profile, "DevToolsActivePort")), true);
+  assert.equal(existsSync(path.join(profile, ".recall-storage")), false);
+  const created = launch("cdp-authorize").result;
+  assert.equal(created.kind, "ready");
+  assert.deepEqual(launch("restart").config, created.config);
+});
+
+if (process.platform === "win32") test("actual Electron replaces debugger discovery between inspection and native Create without changing profile identity", async t => {
+  const { root, launch } = nativeFixture(t);
+  assert.equal(launch("cdp-cancel").result.kind, "cancelled");
+  const appData = path.join(root, "appData"); const profile = path.join(appData, "profile");
+  const paths = { appData, defaultUserData: profile, defaultSessionData: profile };
+  const before = readFileSync(path.join(profile, "DevToolsActivePort"));
+  const inspected = inspectInitialProfile(paths); assert.equal(inspected.kind, "eligible");
+  if (inspected.kind !== "eligible") throw new Error("Owned runtime candidate unavailable");
+  const result = await completeInitialProfileDecision(inspected.candidate, async () => launch("cdp-runtime-consent").confirmed,
+    candidate => {
+      assert.equal(existsSync(path.join(profile, ".recall-storage")), false);
+      assert.equal(existsSync(path.join(appData, "recall-storage")), false);
+      assert.notDeepEqual(readFileSync(path.join(profile, "DevToolsActivePort")), before);
+      return createInitialProfile(candidate, paths);
+    });
+  assert.equal(result.kind, "ready");
+  if (result.kind !== "ready") throw new Error("Owned runtime creation failed");
+  assert.deepEqual(launch("restart").config, result.config);
+});
+
+if (process.platform === "win32") test("actual Electron completes a pending discovery record during native consent before metadata publication", async t => {
+  const { root, launch } = nativeFixture(t);
+  const appData = path.join(root, "appData"); const profile = path.join(appData, "profile"); mkdirSync(profile, { recursive: true });
+  writeFileSync(path.join(profile, "DevToolsActivePort"), ""); // 合成的发布中状态；后续正文仅由真实 Electron 写入。
+  const paths = { appData, defaultUserData: profile, defaultSessionData: profile };
+  const inspected = inspectInitialProfile(paths); assert.equal(inspected.kind, "eligible");
+  if (inspected.kind !== "eligible") throw new Error("Owned pending candidate unavailable");
+  const result = await completeInitialProfileDecision(inspected.candidate, async () => launch("cdp-runtime-consent").confirmed, value => {
+    assert.equal(isInitialRuntimeEntry(profile, "DevToolsActivePort"), true);
+    assert.equal(existsSync(path.join(profile, ".recall-storage")), false);
+    assert.equal(existsSync(path.join(appData, "recall-storage")), false);
+    return createInitialProfile(value, paths);
+  });
+  assert.equal(result.kind, "ready");
+  if (result.kind !== "ready") throw new Error("Owned completed runtime creation failed");
+  assert.deepEqual(launch("restart").config, result.config);
+});
+
+test("packaged Main inspects fresh storage only after app.whenReady, retaining native consent", () => {
+  const main = readFileSync(path.resolve("desktop/main.ts"), "utf8");
+  assert.match(main, /app\.whenReady\(\)\.then\(launchFreshProfileAfterReady\)/);
+  assert.match(main, /async function launchFreshProfileAfterReady\(\)/);
+  const afterReady = main.slice(main.indexOf("async function launchFreshProfileAfterReady()"), main.indexOf("function installApplicationLifecycle()"));
+  assert.ok(afterReady.indexOf("resolveDesktopManagedStorage()") >= 0);
+  assert.ok(afterReady.indexOf("inspectDesktopInitialProfile()") > afterReady.indexOf("resolveDesktopManagedStorage()"));
+  assert.ok(afterReady.indexOf("launchInitialProfile(inspected.candidate)") > afterReady.indexOf("inspectDesktopInitialProfile()"));
+  assert.match(main, /completeInitialProfileDecision\(candidate/);
+  assert.doesNotMatch(main.slice(main.indexOf("const storageState = resolveDesktopManagedStorage()")), /app\.whenReady\(\)\.then\(\(\) => launchInitialProfile\(inspected\.candidate\)\)/);
+});
+
+test("packed first-profile diagnostics use only a fixed category, never path or secret values", () => {
+  const script = readFileSync(path.resolve("desktop/profile-initialization.ts"), "utf8");
+  assert.match(script, /RECALL_INITIAL_PROFILE_REVALIDATION:/);
+  assert.match(script, /local_state_binding_changed/);
+  assert.match(script, /recall_namespace_present/);
+  assert.doesNotMatch(script, /console\.error\([^)]*(?:paths\.|binding\.|readFileSync|current\.)/);
 });

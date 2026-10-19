@@ -355,7 +355,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 /api/ai/generate
   -> ProviderAdapter（字段映射与归一化）
   -> ProviderTransport（超时、取消、流与目录）
-     -> Google 官方 Interactions：@google/genai，零自动重试
+     -> Google Interactions：既有 HTTP wire adapter + 受限 Undici connector，零自动重试
      -> 自定义代理/兼容厂商：HttpProviderTransport
 
 声明式扩展 JSON
@@ -479,7 +479,7 @@ Provider request、response、stream 与 failure 统一在 `app/server/ai/provid
 - 对话树操作状态仍归 `ConversationPartitionTree` 所有。右键与省略号解析同一行操作按钮矩形；桌面一级菜单固定 208px 并优先位于锚点右侧 8px，移动二级菜单固定 224px 并独立碰撞翻转；移动端将相同状态投影为带返回按钮的两级底部层。
 - 安全密钥库把“读取”与“创建”拆开。解密只调用 `readSecurePrimaryKey()`，缺失、损坏、旧 JWK 异常和密文/AAD 校验失败分别映射为稳定的 `CredentialSecurityError`，不会为不可解密记录生成新钥匙。
 - 安全导出升级为 `LocalDataExportV2`，采用显式表允许清单和递归敏感字段清理。旧 AI 设置、Vault 目录配置、密文、IV、掩码 Key、Token、Cookie 与厂商原始响应不进入导出；连接只保留非敏感元数据并标为 `reconfigure_required`。新增表默认不导出。
-- 出站策略默认允许公网 HTTPS 与 loopback，RFC1918/ULA 必须由自定义连接或 MCP 的 `allowPrivateNetwork` 明确授权；云元数据、链路本地、未指定、多播和 URL 内嵌凭据始终拒绝。服务端检查全部 DNS 结果，并以 `redirect: "error"` 拒绝未复核跳转。
+- 出站策略默认允许公网 HTTPS 与 loopback，RFC1918/ULA 必须由自定义连接或 MCP 的 `allowPrivateNetwork` 明确授权；云元数据、链路本地、未指定、多播和 URL 内嵌凭据始终拒绝。服务端检查全部 DNS 结果，并将批准集合交给请求独占 connector；交回 HTTP 层前核对实际 peer 地址，TLS 仍验证原始 hostname。Provider/MCP 使用 `redirect: "error"`，采集按 origin 逐跳重新绑定。详情见 [出站连接安全](security/outbound-connection-boundary.md)。
 - 完整重置关闭并删除 `review_workspace`、扩展数据库和独立安全密钥库，同时清理本应用 `review*` localStorage 键；数据库占用会返回可恢复提示。业务库继续保持 Dexie v16，低频动态加载边界不变。
 
 ## AI 连接保存恢复（2026-07-26）

@@ -10,7 +10,9 @@ import "./fenbi-web-contents.contract.test.ts";
 import "./storage-bootstrap.contract.test.ts";
 import "./profile-initialization.contract.test.ts";
 import "./profile-native.contract.test.ts";
+import "./profile-packaged.contract.test.ts";
 import "./protocol.contract.test.ts";
+import "./protocol-target.contract.test.ts";
 import "./protocol-diagnostic-backend.contract.test.ts";
 
 const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");

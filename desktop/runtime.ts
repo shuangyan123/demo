@@ -167,7 +167,7 @@ async function waitForRuntime(child: ChildProcess, baseUrl: string, token: strin
     }
     try {
       const response = await Promise.race([
-        fetch(baseUrl, { headers: { "x-review-runtime-token": token } }),
+        fetch(baseUrl, { headers: { "x-review-runtime-token": token }, redirect: "error", signal: AbortSignal.timeout(5000) }),
         spawnError,
       ]);
       if (response.ok) return;
