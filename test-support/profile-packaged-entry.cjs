@@ -14,18 +14,20 @@ const appData = path.join(root, 'appData'); const profile = path.join(appData, '
 fs.mkdirSync(profile, { recursive: true });
 // 仅测试 bootstrap 覆盖 Host 路径；后续执行原封不动的编译产物 Main，禁止写真实用户 profile。
 app.setPath('appData', appData); app.setPath('userData', profile); app.setPath('sessionData', profile);
+// 加载生成的 ASAR 产物，不是 test-support 目录中的源码模块；入口自身可被复制到包内。
+const loadDesktopArtifact = file => require(path.join(app.getAppPath(), '.desktop', file));
 const report = { packaged: app.isPackaged, electronVersion: process.versions.electron, promptObserved: false };
 let finishing = false;
 let quitting = false;
 const timer = setTimeout(() => app.exit(1), 20000);
 async function finish() {
   if (finishing) return; finishing = true;
-  const inspection = require('./storage-inspection.js');
+  const inspection = loadDesktopArtifact('storage-inspection.js');
   const rejected = fs.readdirSync(profile).filter(entry => !inspection.isInitialRuntimeEntry(profile, entry));
   report.rejection = rejected.length === 0 ? 'none' : rejected.length === 1 && rejected[0] === 'DevToolsActivePort'
     ? 'debug_port_record' : 'other_or_multiple_entries';
   if (report.failure) {
-    const result = require('./profile-initialization.js').inspectInitialProfile({ appData, defaultUserData: profile, defaultSessionData: profile });
+    const result = loadDesktopArtifact('profile-initialization.js').inspectInitialProfile({ appData, defaultUserData: profile, defaultSessionData: profile });
     report.candidateInspectionReason = result.reason;
   }
   const file = path.join(profile, 'DevToolsActivePort');
@@ -66,4 +68,4 @@ dialog.showMessageBox = async options => {
 app.on('before-quit', event => {
   if (!quitting) { event.preventDefault(); void finish().catch(() => app.exit(1)); }
 });
-require('./main.js');
+loadDesktopArtifact('main.js');
