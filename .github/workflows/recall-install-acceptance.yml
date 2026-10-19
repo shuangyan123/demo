@@ -11,7 +11,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: recall-install-acceptance-1be3f28
+  group: recall-install-acceptance-264bb11
   cancel-in-progress: false
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
       github.event.pull_request.draft == true &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'codex/recall-comprehensive-remediation' &&
-      github.event.label.name == 'recall-install-acceptance-1be3f28' &&
+      github.event.label.name == 'recall-install-acceptance-264bb11' &&
       github.run_attempt == 1
     runs-on: windows-latest
     timeout-minutes: 20
@@ -50,7 +50,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: recall-install-acceptance-1be3f28-${{ github.run_id }}
+          name: recall-install-acceptance-264bb11-${{ github.run_id }}
           path: ${{ runner.temp }}/recall-install-acceptance/evidence
           if-no-files-found: error
           retention-days: 7

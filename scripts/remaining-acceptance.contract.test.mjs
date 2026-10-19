@@ -24,12 +24,12 @@ test("install workflow uses a PR-only explicit trigger, fixed binary, one hosted
   assert.match(job.if, /run_attempt == 1/);
   assert.equal(Object.keys(workflow.jobs).length, 1);
   assert.equal(job.steps.some(step => /npm ci|desktop:builder|--allusers|pull_request_target/.test(step.run ?? "")), false);
-  assert.equal(policy.sourceCommit, "1be3f28eca90bb9a9ac63c4036e275cb42a48889");
-  assert.equal(policy.runId, 39121611474);
-  assert.equal(policy.artifactId, 12133559719);
-  assert.equal(policy.artifactDigest, "6bad4fec47d18aa70de0f1f1f00fadebad9226441240dda275e6d3311a8e57a9");
-  assert.equal(policy.installerSha256, "f81b0d70bbd142446c90b5818375fd129f8e411dfc6be79eb8544761864fb36b");
-  assert.equal(policy.label, "recall-install-acceptance-1be3f28");
+  assert.equal(policy.sourceCommit, "264bb1193b8b01b2aaa298df740b52bce288c08f");
+  assert.equal(policy.runId, 39200193208);
+  assert.equal(policy.artifactId, 12163412765);
+  assert.equal(policy.artifactDigest, "3cc3a4efc3879dd18689ae0e5056f7e56d8b4cb302b4289c6c5b0c4d04c917b1");
+  assert.equal(policy.installerSha256, "a31591ba9ca922a788e56c521f2e267b5337a7533468b00251891354e8bfd611");
+  assert.equal(policy.label, "recall-install-acceptance-264bb11");
 });
 
 if (process.platform === "win32") test("both native scripts refuse execution outside GitHub-hosted Windows before creating a directory", () => {
@@ -169,5 +169,9 @@ test("hosted full installation acceptance exercises native runtime publication, 
   assert.match(detector, /encrypted_key/);
   assert.match(detector, /installation_date2/);
   assert.match(detector, /fileWasAbsentWhenPromptOpened/);
+  assert.match(detector, /already_present_at_observation/);
+  assert.match(detector, /appeared_during_observation/);
+  assert.match(detector, /initiallyPresent\.filter\(Boolean\)\.length > 1/);
+  assert.doesNotMatch(detector, /if \(!fileWasAbsentWhenPromptOpened\) throw/);
   assert.doesNotMatch(detector, /JSON\.stringify\(.*(?:encrypted_key|readFileSync)/);
 });

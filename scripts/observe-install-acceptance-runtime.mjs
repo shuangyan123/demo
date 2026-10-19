@@ -23,7 +23,12 @@ function validLocalState(file) {
     if (!before.isFile() || before.isSymbolicLink() || before.size < 1 || before.size > 4096) return false;
     bytes = readFileSync(file);
     after = lstatSync(file);
-  } catch (e) { if (e?.code === "ENOENT") return false; throw new Error("runtime observation unavailable"); }
+  } catch (e) {
+    // Chromium may hold an exclusive write handle briefly. Do not accept the
+    // record until a later bounded poll reads and validates complete stable bytes.
+    if (["ENOENT", "EACCES", "EPERM", "EBUSY"].includes(e?.code)) return false;
+    throw new Error("runtime observation unavailable");
+  }
   if (!after.isFile() || after.isSymbolicLink() || after.dev !== before.dev || after.ino !== before.ino
     || after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs
     || bytes.length !== before.size) return false;
@@ -43,11 +48,17 @@ function validLocalState(file) {
 }
 
 const paths = profiles.map(profile => path.join(profile, "Local State"));
-const fileWasAbsentWhenPromptOpened = paths.every(file => {
-  try { lstatSync(file); return false; }
-  catch (error) { if (error?.code === "ENOENT") return true; throw new Error("initial runtime observation unavailable"); }
+// Electron is free to publish Local State BEFORE the native dialog appears.
+// Snapshot its presence at this point; do not require or pretend a late write.
+const initiallyPresent = paths.map(file => {
+  try { lstatSync(file); return true; }
+  catch (error) {
+    if (error?.code === "ENOENT") return false;
+    if (["EACCES", "EPERM", "EBUSY"].includes(error?.code)) return true;
+    throw new Error("initial runtime observation unavailable");
+  }
 });
-if (!fileWasAbsentWhenPromptOpened) throw new Error("Local State was present at native prompt observation start");
+if (initiallyPresent.filter(Boolean).length > 1) throw new Error("Multiple runtime profiles at native prompt");
 const started = Date.now();
 let observed;
 while (Date.now() - started < 45000) {
@@ -56,10 +67,14 @@ while (Date.now() - started < 45000) {
   if (found.length === 1) { observed = found[0]; break; }
   await new Promise(resolve => setTimeout(resolve, 250));
 }
-if (observed === undefined) throw new Error("Recognized Local State never appeared while native prompt remained open");
+if (observed === undefined) throw new Error("Recognized Local State not stable during bounded native prompt observation");
+if (initiallyPresent.some(Boolean) && !initiallyPresent[observed])
+  throw new Error("Unexpected runtime profile change during native prompt");
+const lifecycle = initiallyPresent[observed] ? "already_present_at_observation" : "appeared_during_observation";
 const record = { status: "PASS", recognizedElectronLocalState: true,
-  fileWasAbsentWhenPromptOpened, observedAfterDialogVisible: true,
-  profileLabel: observed === 0 ? "review-workspace" : "错题复盘",
+  fileWasAbsentWhenPromptOpened: !initiallyPresent[observed],
+  observedAfterDialogVisible: !initiallyPresent[observed],
+  lifecycle, profileLabel: observed === 0 ? "review-workspace" : "错题复盘",
   elapsedMs: Date.now() - started };
 writeFileSync(output, JSON.stringify(record, null, 2));
-console.log("PASS: owned native dialog remained open until Electron Local State appeared");
+console.log(`PASS: recognized Electron Local State during owned native prompt (${lifecycle})`);

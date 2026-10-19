@@ -1,23 +1,32 @@
 # 固定产物 Windows 安装验收
 
-## 当前状态：上次验收失败，新修复等待单独批准
+## 当前状态：新修复已获单次 hosted Windows 完整安装验收批准，尚未执行
 
-### 本轮固定对象与执行边界
+### 新版固定安装产物与执行边界
+
+- 产品源 SHA：`264bb1193b8b01b2aaa298df740b52bce288c08f`；8/8 CI：`39200193208`；private finalized artifact ID：`12163412765`。
+- ZIP SHA-256：`3cc3a4efc3879dd18689ae0e5056f7e56d8b4cb302b4289c6c5b0c4d04c917b1`；EXE SHA-256：`a31591ba9ca922a788e56c521f2e267b5337a7533468b00251891354e8bfd611`。已独立核对 ZIP、SHA256SUMS.txt 和 EXE。安装程序名称仍为 `ReviewWorkspace-0.3.1-Windows-x64-Setup.exe`。
+- 本轮新标签：`recall-install-acceptance-264bb11`；固定策略文件 `scripts/nsis-install-acceptance.json`。测试 harness HEAD 与二进制 source SHA 不相同，必须分别记录。
+- 用户已批准恰好一次 GitHub-hosted Windows 临时 runner 的安装、原生确认、合成资料重启读回、取消后重新创建、卸载和来源可信的 v0.2.2 Squirrel-to-NSIS 存储交接。不可在开发机或 Pilot 上执行。
+- 首次确认期间观察合法 `Local State`：**允许窗口可见之前就已存在**，或者窗口可见后出现；两种情况分别脱敏记录，均需完整稳定的文件格式。观察工具不会删除或修改运行时文件，也不声称之前存在的文件是后生成的。
+- 不以 CI 成功或安装成功代替真实工作台、meta identity、重启持久化、卸载/交接各阶段成功。任何失败禁止自动 retry，未运行阶段标为 NOT_RUN。PR 维持 Draft。
+
+### 上次失败产物的历史记录
 
 - 上次被测产品源码 `1be3f28eca90bb9a9ac63c4036e275cb42a48889`，成功 CI `39121611474`，finalized artifact `12133559719`。
 - ZIP SHA256 `6bad4fec47d18aa70de0f1f1f00fadebad9226441240dda275e6d3311a8e57a9`；EXE SHA256 `f81b0d70bbd142446c90b5818375fd129f8e411dfc6be79eb8544761864fb36b`，两者已独立与 manifest 核对。
 - 上述产物的真实安装验收已执行：harness `888a9895f74d74f6cb52eb8f9220055bc4157cfb`，run `39123883282`，证据 artifact `12134708714`。来源/摘要、安装、文件、注册及快捷方式通过；原生确认出现前以 `profile_not_pristine` 停止。首次创建为 FAIL，后续取消重建、重启及交接未完成，不能标为 PASS。
-- 当前固定策略仍指向上述历史失败产物，不能直接用来验收本次新修复。PR 保持 Draft；本次代码修复不改验收 label/策略、不触发安装或卸载。
+- 上述旧产物仅是历史失败来源；当前策略已换成 264bb11。不得重放旧标签以冒充本轮验收。
 
 旧 run `39117755780` 的安装、来源核验和原生确认已执行，但工作台启动失败。`d7e9239` 的普通 CI、Windows E2E 或 NSIS 构建成功均不能关闭该失败。新修复用真实 Windows Electron 证明：原生确认仍打开时，Electron 可在 ready 后约十秒才发布 `Local State`；旧实现误把该运行时转换当成候选资料变更。旧安装包没有分类诊断，不能追认其确切文件变化。
 
 最近一次 `39123883282` 在确认之前失败，属于不同现场。其证据没有目录分类，不能归因为 Local State。按验收的 CDP 参数启动生产 Main 的隔离 ASAR 实验，已复现旧 pristine predicate 拒绝 Chromium 生成的 `DevToolsActivePort`；该记录与实验进程真实 CDP 端点一致。新增严格格式识别、维持目录与 Local State 安全材料绑定后，同一 ASAR 实验能进入真实原生确认并取消。运行时端点记录的正常更替不承担资料身份。后续 hosted 原生回归 `39197889343` 还直接记录了取消重启后的 `post_ready_resolution` / `debug_port_record_invalid`：只接受稳定格式仍不足以处理 Chromium 的异步发布。候选检查因此单独承认有界、身份未变的空记录或完整格式尚不稳定的发布中状态；它只能进入原生确认，不能发布 metadata。用户确认后及各发布 checkpoint 必须完整稳定验证，未完成则停止并保留现场。未知非空内容和相邻历史资料继续拒绝，无等待或重试。来源、格式、安全边界和历史证据限制见 [首次创建设计](../recall-fresh-profile-bootstrap.md#debugger-discovery-before-native-consent)。这些实验未执行 Setup，也未验证 installed 工作台。
 
-再次安装前必须先取得用户批准。批准应明确一次性 GitHub-hosted Windows runner、精确产品 source SHA、验收 harness SHA，以及是否包括卸载与旧版交接；不得在开发机执行。具体顺序为：
+本轮已取得上述明确范围的单次授权，触发前仍须验证 harness 精确 HEAD 与来源签名、契约以及预检；不得在开发机执行。流程为：
 
-1. 等新修复的 exact-head CI 和 `Windows NSIS Production` 完成，获取 finalized artifact 的 run ID、artifact ID、ZIP digest、manifest、安装 EXE SHA-256，逐项核验 source commit、Node runtime 和同源产物。禁止复用仍指向 `1be3f28` 的当前策略或更旧产物。
-2. 在单独的验收准备提交中，把 `scripts/nsis-install-acceptance.json` 的 source/run/artifact/digest/EXE SHA 和 workflow 的唯一 label 同步锁定新产物。先审查该提交和来源，再按批准范围触发一次 label 验收；本次修复不改 label、不触发安装。
-3. 首次创建至少包含一个保持原生确认打开直到观察到 Electron 自行发布 `Local State` 的场景；以文件事件为依据，不能只凭固定睡眠假设已发生。记录脱敏的发布/确认顺序，随后操作唯一属于被测进程的原生创建按钮。另验取消后完全退出，再启动并创建；不删除或改写 `Local State`。
+1. 已核对 264bb11 的 exact-head CI、finalized artifact、ZIP/manifest/EXE SHA；触发脚本仍需对精确源 SHA、Run/Artifact、Node runtime 和同源产物重新验证，不能使用旧产物。
+2. 在独立验收准备提交中锁定新产物的 source/run/artifact/digest/EXE SHA 与唯一 label，审核 CI 与脚本后仅触发一次 label 验收，触发后立即移除 label 防止重复。
+3. 在原生确认可见时验证完整稳定的 Electron Local State：已存在与后出现是两种正常情形，分别记录，禁止要求一个已存在的文件重新出现；没有观察到新增事件不得声称观察到晚期发布。随后对唯一 owned 控件执行 Create，另验 Cancel 完全退出后重新创建；不删除或改写 Local State。
 4. 使用相同 CDP 启动参数。成功标准：原生创建确认确实出现，无“本地学习资料无法确认”；真实 installed EXE 加载工作台；identity/bootstrap 均严格可解析且 profileId/epochId 一致；合成 localStorage/IndexedDB 写入经独立 Main 进程重启读回；metadata identity 不变；退出状态正常。取消退出不发布 Recall metadata，随后创建成功。不得删除 Local State 或 debugger discovery 记录来伪造可创建现场。失败必须保留原生截图、CDP discovery、脱敏分类日志和退出状态，禁止 retry 改写结果。
 5. 安装、首次创建、取消后创建、重启保留分别报告 PASS/FAIL。卸载、旧版交接只在明确获批时执行并独立报告；未执行项标为 NOT_RUN。只有新产物真实安装首次创建通过后，才可宣称首次安装缺陷解决。
 
