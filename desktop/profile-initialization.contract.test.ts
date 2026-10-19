@@ -521,3 +521,28 @@ if (process.platform === "win32") test("typed debugger discovery may appear, dis
     if (stage === "identity" && mutation === "malformed") assert.deepEqual(readdirSync(path.dirname(storageBootstrapPath(paths))), []);
   }
 });
+
+if (process.platform === "win32") test("Windows file and directory symlinks never authorize profile creation or overwrite their targets", t => {
+  // 本机令牌无创建 symlink 权限时必须失败；不提权或 skip。默认管理员 hosted job 执行实际反例。
+  for (const [entry, contents] of [["lockfile", ""], ["Local State", runtimeLocalState()], ["DevToolsActivePort", debugRecord()]]) {
+    const { paths, root } = fixture(t); mkdirSync(paths.defaultUserData);
+    const targetRoot = path.join(root, "symbolic-target"); mkdirSync(targetRoot);
+    const target = path.join(targetRoot, entry); writeFileSync(target, contents);
+    assert.equal(isInitialRuntimeEntry(targetRoot, entry), true);
+    const inspected = candidate(paths); const link = path.join(paths.defaultUserData, entry);
+    symlinkSync(target, link, "file"); assert.equal(lstatSync(link).isSymbolicLink(), true);
+    assert.equal(createInitialProfile(inspected, paths).kind, "unavailable");
+    assert.equal(inspectInitialProfile(paths).kind, "unavailable");
+    assert.equal(readFileSync(target, "utf8"), contents);
+    assert.equal(existsSync(storageIdentityPath(paths.defaultUserData)), false);
+    assert.equal(existsSync(storageBootstrapPath(paths)), false);
+  }
+  const { paths, root } = fixture(t); mkdirSync(paths.defaultUserData); const inspected = candidate(paths);
+  renameSync(paths.defaultUserData, path.join(root, "preserved-profile"));
+  const target = path.join(root, "symbolic-directory"); mkdirSync(target); writeFileSync(path.join(target, "private-facts"), "preserve");
+  symlinkSync(target, paths.defaultUserData, "dir"); assert.equal(lstatSync(paths.defaultUserData).isSymbolicLink(), true);
+  assert.equal(createInitialProfile(inspected, paths).kind, "unavailable");
+  assert.equal(inspectInitialProfile(paths).kind, "unavailable");
+  assert.equal(readFileSync(path.join(target, "private-facts"), "utf8"), "preserve");
+  assert.equal(existsSync(storageIdentityPath(target)), false);
+});
