@@ -125,6 +125,8 @@ Cache、temp、OS secrets 与 logs 不默认迁移；将来 logs 需独立显式
 `diagnostic-history` 在 Slice 1 登记为 reserved；Slice 2 repository 实现后更新为 current。
 first-party-diagnostic owner、managed-durable、managed-files physical unit 与 backup/reset/migration relevance 不变；
 当前 backup/reset 标记 `not-implemented`；production durable submit/owner integration 已在 Slice 3 接通。
+现已提供 [独立只读 diagnostic-history 归档](diagnostic-history-portable-export.md)，不导出 Host identity；
+由于恢复未实现，backup/reset 标记不变，V2 也仍不包含此域。
 
 既有 V2 export/restore 与 resetAll 行为不变：
 

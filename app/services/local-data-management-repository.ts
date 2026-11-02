@@ -208,7 +208,7 @@ export async function inspectLocalDataRestore(source: string): Promise<LocalData
     incomingRecords: tableCounts.reduce((sum, item) => sum + item.incoming, 0),
     replacingRecords: tableCounts.reduce((sum, item) => sum + item.replacing, 0),
     tableCounts,
-    reminders: ["AI、额度、MCP 与粉笔凭据需要重新输入", "Obsidian Vault 需要重新选择"],
+    reminders: ["V2 不包含或恢复诊断学习历史（diagnostic-history）", "AI、额度、MCP 与粉笔凭据需要重新输入", "Obsidian Vault 需要重新选择"],
   };
 }
 

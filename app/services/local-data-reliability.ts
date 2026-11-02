@@ -97,7 +97,7 @@ export const NON_CORE_DATA_STORE_POLICIES = {
   "runtime.temporary-state": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "包括 diagnostic TTL sessions；无跨进程或重启持久保证" },
   "desktop.runtime-log": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "Desktop 运行日志不默认进入学习备份或迁移" },
   "runtime.diagnostic-state": { backup: "excluded", dataClass: "ephemeral", recoveryLevel: "R0", reason: "Desktop logs 位置的诊断 JSON 不作为学习事实；临时内存快照另归 runtime.temporary-state" },
-  "diagnostic-history": { backup: "excluded", dataClass: "authoritative", recoveryLevel: "R3", reason: "未来 reserved managed-files 域；durable repository 尚未实现，当前备份无此数据" },
+  "diagnostic-history": { backup: "excluded", dataClass: "authoritative", recoveryLevel: "R3", reason: "已实现的 managed-files 学习事实；V2 不包含此域，独立只读归档尚不支持恢复" },
 } as const satisfies Record<string, LocalDataStorePolicy>;
 
 export const LOCAL_DATA_SCHEMA_VERSIONS = { review_extensions: 1, review_workspace: 16 } as const;

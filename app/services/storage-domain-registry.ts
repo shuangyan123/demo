@@ -68,6 +68,7 @@ const nonCoreMetadata = {
   "runtime.temporary-state": { owner: "runtime", rootType: "runtime", physicalUnit: "process-memory", regenerable: false },
   "desktop.runtime-log": { owner: "desktop-runtime", rootType: "os-logs", physicalUnit: "desktop-logs", storageClass: "diagnostics" },
   "runtime.diagnostic-state": { owner: "runtime-diagnostics", rootType: "os-logs", physicalUnit: "desktop-logs", storageClass: "diagnostics" },
+  // 独立只读归档不等于可恢复备份；backup 状态在恢复协议验证前保持 not-implemented。
   "diagnostic-history": { owner: "first-party-diagnostic", rootType: "managed-files", physicalUnit: "managed-files", implementation: "current",
     backupCurrent: "not-implemented", resetCurrent: "not-implemented", migration: "managed-files" },
 } satisfies Record<keyof typeof NON_CORE_DATA_STORE_POLICIES, Metadata>;

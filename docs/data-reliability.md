@@ -2,6 +2,10 @@
 
 本文是 `0.4.x Data Reliability Phase 1–2` 的版本化事实源，适用于 `review_workspace` v16、`review_extensions` v1 与 `LocalDataExportV2`。它不授权 Dexie schema 升级、云同步或自动修复用户数据。
 
+覆盖边界：V2 不包含已经投入使用的 managed-files `diagnostic-history` 学习事实，不能称为全部学习历史备份。
+该域现提供独立只读归档，尚不能导入恢复；不复制源设备 profileId/epochId。
+格式、安全边界及恢复设计审查见 [diagnostic-history 只读归档](diagnostic-history-portable-export.md)。
+
 ## 数据分类与恢复等级
 
 | 分类 | 定义 | 默认恢复策略 |

@@ -40,6 +40,25 @@ import "./diagnostic-resume-boundary.contract.test.ts";
 import "../../server/diagnostic/startup-readiness.contract.test.ts";
 
 const APP_ROOT = path.resolve(process.cwd(), "app");
+
+test("diagnostic export is parameterless and cannot initialize, write or promote imported authority", async () => {
+  const source = await readFile(path.join(APP_ROOT, "server/diagnostic/history-export.ts"), "utf8");
+  const ast = ts.createSourceFile("history-export.ts", source, ts.ScriptTarget.Latest, true);
+  const entry = ast.statements.find((node): node is ts.FunctionDeclaration => ts.isFunctionDeclaration(node)
+    && node.name?.text === "exportDiagnosticHistory");
+  assert.equal(entry?.parameters.length, 0);
+  assert.doesNotMatch(source, /node:fs|node:path|process\.|initializeDiagnosticRuntime|composeDiagnosticRuntime|appendCapturedAttempt|\.initialize\(|admitVerifiedAssessment|deriveEvidence/);
+  const runtimeSource = await readFile(path.join(APP_ROOT, "server/diagnostic/runtime.ts"), "utf8");
+  const runtimeAst = ts.createSourceFile("runtime.ts", runtimeSource, ts.ScriptTarget.Latest, true);
+  const read = runtimeAst.statements.find((node): node is ts.FunctionDeclaration => ts.isFunctionDeclaration(node)
+    && node.name?.text === "readDiagnosticExportSnapshot");
+  assert.equal(read?.parameters.length, 0);
+  assert.doesNotMatch(read!.body!.getText(runtimeAst), /initialize|compose|parseDiagnosticStorageConfig/);
+  const core = await readFile(path.join(APP_ROOT, "server/diagnostic/runtime-core.ts"), "utf8");
+  const exportRead = core.slice(core.indexOf("readExportSnapshot()"), core.indexOf("readHistory()"));
+  assert.match(exportRead, /repository\?\.readCompleteSnapshot\(\)/);
+  assert.doesNotMatch(exportRead, /\bload\(|index\.|readiness\s*=|\.initialize\(|appendCapturedAttempt/);
+});
 const DIAGNOSTIC_HISTORY_LOADER = path.join(APP_ROOT, "server/diagnostic/learning-history.ts");
 const DIAGNOSTIC_RECONSTRUCTION = path.join(APP_ROOT, "server/diagnostic/state-reconstruction.ts");
 const DIAGNOSTIC_RECONSTRUCTION_TYPES = path.join(APP_ROOT, "server/diagnostic/reconstruction-types.ts");
@@ -220,6 +239,7 @@ const DIAGNOSTIC_RUNTIME_ROOT = path.join(APP_ROOT, "server/diagnostic");
 const DIAGNOSTIC_RUNTIME_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-runtime.contract.test.ts");
 const DIAGNOSTIC_DURABLE_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "durable-submission.contract.test.ts");
 const DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "replacement-submission.contract.test.ts");
+const DIAGNOSTIC_EXPORT_TEST = path.join(DIAGNOSTIC_RUNTIME_ROOT, "history-export.contract.test.ts");
 const DIAGNOSTIC_SOURCE_OWNER = path.join(DIAGNOSTIC_RUNTIME_ROOT, "source-owner.ts");
 const DIAGNOSTIC_SUBMISSION = path.join(DIAGNOSTIC_RUNTIME_ROOT, "assessment-submission.ts");
 
@@ -547,6 +567,7 @@ const DIAGNOSTIC_RUNTIME_EDGES = new Map([
     "../../types/domains/diagnostic-history.ts", "../../types/domains/first-party-diagnostic-capture.ts",
     "../../services/first-party-diagnostic/capture-authority.ts", "./history/repository.ts"]],
   [path.join(DIAGNOSTIC_RUNTIME_ROOT, "storage-config.ts"), ["node:path", "../../platform/managed-storage.js"]],
+  [path.join(DIAGNOSTIC_RUNTIME_ROOT, "history-export.ts"), ["node:crypto", "../../types/domains/diagnostic-history-export.ts", "./runtime.ts"]],
   [DIAGNOSTIC_SOURCE_OWNER, ["../../services/verification-source/verification-source-admission-core.ts",
     "../../services/first-party-diagnostic/spec-authority.ts", "./assessment-store.ts"]],
   [DIAGNOSTIC_SUBMISSION, ["./runtime.ts", "./runtime-core.ts", "../../services/verification-source/verification-source-admission.ts",
@@ -561,6 +582,7 @@ const DIAGNOSTIC_RUNTIME_EDGES = new Map([
   [path.join(APP_ROOT, "diagnostic/page.tsx"), ["next/link", "../server/diagnostic/assessment-store.ts"]],
   [path.join(APP_ROOT, "diagnostic/resume/page.tsx"), ["next/link", "../../server/diagnostic/resume-view.ts"]],
   [path.join(APP_ROOT, "api/diagnostic/submit/route.ts"), ["../../../server/http/route-security.ts", "../../../server/diagnostic/assessment-submission.ts"]],
+  [path.join(APP_ROOT, "api/diagnostic/export/route.ts"), ["../../../server/diagnostic/history-export.ts", "../../../server/http/route-security.ts"]],
   [path.join(APP_ROOT, "api/internal/diagnostic-ready/route.ts"), ["node:crypto", "../../../server/diagnostic/runtime.ts"]],
 ]);
 
@@ -582,9 +604,9 @@ function diagnosticRuntimeImportViolations(file: string, source: string): string
       if (!specifier.startsWith("node:") && target.startsWith(`${DIAGNOSTIC_RUNTIME_ROOT}${path.sep}`)) {
         const permitted = target.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`)
           ? file.startsWith(`${DIAGNOSTIC_HISTORY_ROOT}${path.sep}`) || file === DIAGNOSTIC_DURABLE_TEST
-            || file === DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST || file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "reconstruction-failure.contract.test.ts")
+            || file === DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST || file === DIAGNOSTIC_EXPORT_TEST || file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "reconstruction-failure.contract.test.ts")
             || (file === path.join(DIAGNOSTIC_RUNTIME_ROOT, "runtime-core.ts") && target === path.join(DIAGNOSTIC_HISTORY_ROOT, "repository"))
-          : file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || file === DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST
+          : file === DIAGNOSTIC_RUNTIME_TEST || file === DIAGNOSTIC_DURABLE_TEST || file === DIAGNOSTIC_REPLACEMENT_SUBMISSION_TEST || file === DIAGNOSTIC_EXPORT_TEST
             || DIAGNOSTIC_RECONSTRUCTION_TESTS.has(file) || DIAGNOSTIC_RUNTIME_EDGES.has(file)
             || (file === ADMISSION_ENTRY && target === DIAGNOSTIC_SOURCE_OWNER.replace(/\.ts$/, ""));
         if (!permitted || target.endsWith(".test")) violations.push("controlled_runtime_leak");

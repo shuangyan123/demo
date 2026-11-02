@@ -14,6 +14,7 @@ import {
 } from "../../services/local-data-management-repository";
 import { AppIcon } from "../shared/app-icon";
 import { Button } from "../shared/ui-primitives";
+import { requestDiagnosticHistoryExport } from "../../services/diagnostic-history-export-client";
 import styles from "../settings/settings-compact.module.css";
 
 type DataManagementPanelProps = { onChanged?: () => Promise<void> | void };
@@ -90,9 +91,22 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
     try {
       const source = await localDataManagementRepository.exportAll();
       downloadJson(source, `review-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`);
-      setNotice("备份已导出；凭据与 Vault 目录未包含");
+      setNotice("已请求下载 V2 备份；诊断学习历史、凭据与 Vault 内容未包含，请确认文件已保存。");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "导出备份失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function exportDiagnosticHistory(): Promise<void> {
+    setBusy("diagnostic-export");
+    try {
+      const source = await requestDiagnosticHistoryExport();
+      downloadJson(source, `recall-diagnostic-history-${new Date().toISOString().slice(0, 10)}.json`);
+      setNotice("已请求下载诊断学习历史，请确认文件已保存。此文件当前仅供归档，尚不能导入恢复。");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "诊断学习历史导出失败");
     } finally {
       setBusy("");
     }
@@ -241,8 +255,8 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
       <div className={styles.header}><div><h2>数据管理</h2><p>按数据范围清理，完整重置会删除全部本地数据和设置。</p></div>{notice ? <span className={styles.muted} role="status">{notice}</span> : null}</div>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-muted p-3">
         <div className="flex-1">
-          <strong className="block text-sm">浏览器 / Electron 数据迁移</strong>
-          <span className="mt-1 block text-xs text-muted">仅迁移安全业务数据；凭据与 Vault 目录始终排除。</span>
+          <strong className="block text-sm">浏览器 / Electron 数据备份（V2）</strong>
+          <span className="mt-1 block text-xs text-muted">V2 仅包含受支持的本地数据库记录，不包含诊断学习历史（diagnostic-history）、凭据、Vault 内容与目录授权，不能作为全部学习历史的备份。</span>
         </div>
         <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void inspectHealth()}>{busy === "health" ? "检查中" : "检查数据健康"}</Button>
         <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void exportBackup()}>导出备份</Button>
@@ -255,6 +269,10 @@ export function DataManagementPanel({ onChanged }: DataManagementPanelProps) {
           type="file"
           onChange={(event) => void inspectBackup(event.currentTarget.files?.[0])}
         />
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-line p-3">
+        <p className="flex-1 text-xs text-muted">诊断学习历史可单独导出当前设备已保存的作答记录。此文件当前仅供归档，尚不能导入恢复；历史不可用时不会生成空文件。</p>
+        <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => void exportDiagnosticHistory()}>{busy === "diagnostic-export" ? "导出中" : "导出诊断学习历史"}</Button>
       </div>
       {healthReport ? (
         <div className="mb-4 rounded-lg border border-line bg-surface-muted p-3 text-sm" role="status">
