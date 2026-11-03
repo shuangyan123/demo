@@ -30,6 +30,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "cross-env PORT=4320 HOSTNAME=127.0.0.1 node --experimental-strip-types scripts/start-diagnostic-test-server.mts",
+    env: { RECALL_UPDATE_MOCK_SCENARIO: "available" },
     url: "http://127.0.0.1:4320",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
