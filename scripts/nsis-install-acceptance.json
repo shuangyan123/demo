@@ -1,0 +1,18 @@
+{
+  "repository": "shuangyan123/demo",
+  "pullRequest": 148,
+  "label": "recall-install-acceptance-264bb11",
+  "sourceCommit": "264bb1193b8b01b2aaa298df740b52bce288c08f",
+  "runId": 39200193208,
+  "artifactId": 12163412765,
+  "artifactDigest": "3cc3a4efc3879dd18689ae0e5056f7e56d8b4cb302b4289c6c5b0c4d04c917b1",
+  "installer": "ReviewWorkspace-0.3.1-Windows-x64-Setup.exe",
+  "installerSha256": "a31591ba9ca922a788e56c521f2e267b5337a7533468b00251891354e8bfd611",
+  "previous": {
+    "tag": "v0.2.2",
+    "commit": "0cf71f99fe76fd4b91d1e445bcf905e2de75c231",
+    "assetId": 495279653,
+    "installer": "ReviewWorkspace-0.2.2-Windows-x64-Setup.exe",
+    "sha256": "43eeae284e54af0a67da976f112ed523551a02fccc8bc4daf7b35f24eb690f37"
+  }
+}

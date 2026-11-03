@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,8 +9,11 @@ import { storageRecordIO, writeStorageRecord } from "./storage-bootstrap-io.ts";
 
 const identity: StorageIdentity = { formatVersion: 1, profileId: "3422b8ea-6a32-4cdd-9e18-513156d01c72", epochId: "31e6d8b9-af01-4a35-b06c-67e8c01ac64d" };
 function fixture(t: { after: (fn: () => void) => void }) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "recall-storage-contract-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const root = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "recall-storage-contract-"));
+  t.after(() => {
+    assert.equal(path.dirname(root), realpathSync.native(os.tmpdir())); assert.match(path.basename(root), /^recall-storage-contract-/);
+    rmSync(root, { recursive: true, force: true });
+  });
   const appData = path.join(root, "os-config");
   mkdirSync(appData);
   const profile = path.join(appData, "legacy-profile");

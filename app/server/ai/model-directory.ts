@@ -1,3 +1,4 @@
+import { networkPolicyFromProviderOptions } from "../http/outbound-network-policy.ts";
 import type { AiModelDirectoryEntry, AiModelsRequest, AiModelsResult } from "../../services/api-client.ts";
 import { normalizeGoogleApiBaseUrl } from "../../services/google-connection.ts";
 import { miniMaxModelDirectoryHeaders, normalizeMiniMaxAnthropicBaseUrl } from "../../services/minimax-connection.ts";
@@ -206,7 +207,7 @@ function rawModel(provider: ApiProvider, item: JsonObject): RawModel | undefined
 }
 
 /** 读取完整官方目录；重复游标和超量分页会安全终止。 */
-export async function fetchProviderModelDirectory(input: AiModelsRequest, fetcher: typeof fetch = fetch): Promise<AiModelsResult> {
+export async function fetchProviderModelDirectory(input: AiModelsRequest, fetcher?: typeof fetch): Promise<AiModelsResult> {
   const fetchedAt = new Date().toISOString();
   const transport = new HttpProviderTransport(fetcher);
   const collected = new Map<string, AiModelDirectoryEntry>();
@@ -216,6 +217,7 @@ export async function fetchProviderModelDirectory(input: AiModelsRequest, fetche
 
   for (let pageIndex = 0; pageIndex < 20; pageIndex += 1) {
     const response = await transport.listModels({
+      networkPolicy: networkPolicyFromProviderOptions(input.providerOptions),
       url: providerModelDirectoryUrl(input, cursor),
       headers: providerModelDirectoryHeaders(input.provider, input.apiKey),
     });

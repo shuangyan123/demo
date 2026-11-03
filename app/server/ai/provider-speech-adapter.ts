@@ -1,3 +1,4 @@
+import { outboundFetch } from "../http/outbound-fetch.ts";
 import type { AiSpeechRequest } from "../../services/api-client";
 
 type ProviderHttpRequest = {
@@ -171,9 +172,22 @@ export async function parseSpeechJsonResponse(parseMode: Exclude<SpeechParseMode
   }
   const audioUrl = asRecord(asRecord(root.output).audio).url;
   if (typeof audioUrl !== "string") throw new Error("通义语音未返回可下载音频");
-  await validateOutboundNetworkTarget(audioUrl, { allowLoopback: false, allowPrivateNetwork: false });
-  const response = await fetch(audioUrl, { cache: "no-store", redirect: "error" });
-  if (!response.ok) throw new Error("通义语音音频下载失败");
-  return new Uint8Array(await response.arrayBuffer());
+  const response = await outboundFetch(audioUrl, { cache: "no-store", redirect: "error" }, { allowLoopback: false, allowPrivateNetwork: false, timeoutMs: 15_000 });
+  if (!response.ok) { await response.body?.cancel(); throw new Error("通义语音音频下载失败"); }
+  const limit = 16 * 1024 * 1024;
+  if (Number(response.headers.get("content-length") ?? 0) > limit) { await response.body?.cancel(); throw new Error("语音下载超过安全上限"); }
+  const chunks: Uint8Array[] = [];
+  const reader = response.body?.getReader();
+  let size = 0;
+  if (!reader) throw new Error("语音下载内容为空");
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) { await reader.cancel(); throw new Error("语音下载超过安全上限"); }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  return new Uint8Array(Buffer.concat(chunks));
 }
-import { validateOutboundNetworkTarget } from "../http/outbound-network-policy.ts";

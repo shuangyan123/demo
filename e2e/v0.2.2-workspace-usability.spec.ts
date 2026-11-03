@@ -72,18 +72,85 @@ test("UI 审查对话数据提供主题目录、阅读保护和跳到最新消�
   expectNoRuntimeErrors(runtimeErrors);
 });
 
-test("完整 UI 审查数据刷新后保留且可以精准清理", async ({ page }) => {
+test("完整 UI 审查数据刷新后保留且可以精准清理", async ({ page }, testInfo) => {
   await page.goto("/?ui-review=1");
-  await page.locator(".sample-scenario-trigger").click();
-  await page.getByRole("button", { name: "载入完整数据" }).click();
-  await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: 15_000 });
-  await page.locator("details.dashboard-disclosure").filter({ hasText: "六大板块" }).locator("summary").click();
+  const launcher = page.locator(".sample-scenario-trigger");
+  const installedCount = launcher.locator("em");
+  await launcher.click();
+  const installAll = page.getByRole("button", { name: "载入完整数据", exact: true });
+  await expect(installAll).toBeEnabled();
+  const previousWorkspace = await page.getByRole("main").elementHandle();
+  const previousInstallButton = await installAll.elementHandle();
+  if (!previousWorkspace || !previousInstallButton) throw new Error("安装前的工作台与按钮必须存在");
+
+  const busyTransition = await test.step("观察实际 busy 转换，不以已可见的 launcher 代表安装完成", async () => {
+    // 在 click 前观察原生 disabled 属性，快速安装也不会漏掉真实的 busy 阶段。
+    const observation = await previousInstallButton.evaluateHandle((element) => {
+      const button = element as HTMLButtonElement;
+      const state = { entered: false, connected: false, at: 0 };
+      const observer = new MutationObserver(() => {
+        if (!button.disabled) return;
+        state.entered = true;
+        state.connected = button.isConnected;
+        state.at = performance.now();
+        observer.disconnect();
+      });
+      observer.observe(button, { attributes: true, attributeFilter: ["disabled"] });
+      return { state, disconnect: () => observer.disconnect() };
+    });
+    try {
+      await installAll.click();
+      await expect.poll(() => observation.evaluate(({ state }) => state.entered)).toBe(true);
+      const state = await observation.evaluate(({ state }) => state);
+      expect(state.connected).toBe(true);
+      return state;
+    } finally {
+      await observation.evaluate(({ disconnect }) => disconnect());
+      await observation.dispose();
+      await previousInstallButton.dispose();
+    }
+  });
+
+  // installAll 完成后 controllerKey 有意换代；等待旧 main 脱离，再读取新工作台。
+  await expect.poll(() => previousWorkspace.evaluate((element) => element.isConnected), { timeout: 15_000 }).toBe(false);
+  const remountObservedAt = await page.evaluate(() => performance.now());
+  await previousWorkspace.dispose();
+  await expect(page.getByRole("heading", { name: "总览", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "学习详情", exact: true })).toBeVisible();
+  await expect(installedCount).toHaveText(/^[1-9]\d*$/);
+  const count = await installedCount.innerText();
+  const fixtureConversation = expect.objectContaining({ id: "ui-review:conversation-normal:conversation", projectId: "civil-service" });
+  await expect.poll(() => readReviewConversations(page)).toContainEqual(fixtureConversation);
+  await launcher.click();
+  const reviewDialog = page.getByRole("dialog", { name: "UI 审查数据", exact: true });
+  await expect(reviewDialog.getByRole("button", { name: "载入完整数据", exact: true })).toBeEnabled();
+  await expect(reviewDialog).toContainText(`已安装 ${count} 条，可精准清理`);
+  await reviewDialog.getByRole("button", { name: "关闭 UI 审查数据", exact: true }).click();
+  const readyAt = await page.evaluate(() => performance.now());
+  const readyWorkspace = await page.getByRole("main").elementHandle();
+  if (!readyWorkspace) throw new Error("安装后的工作台必须已就绪");
+
+  const disclosure = page.locator("details.dashboard-disclosure").filter({ hasText: "六大板块" });
+  const disclosureClickAt = await page.evaluate(() => performance.now());
+  await disclosure.locator("summary").click();
   await expect(page.getByText("今日队列", { exact: true })).toBeVisible();
   await expect(page.getByText("薄弱板块", { exact: true })).toBeVisible();
+  await expect(disclosure).toHaveAttribute("open", "");
+  const workspaceStillConnected = await readyWorkspace.evaluate((element) => element.isConnected);
+  expect(workspaceStillConnected).toBe(true);
+  await readyWorkspace.dispose();
 
   await page.reload();
   await expect(page.locator(".sample-scenario-trigger")).toBeVisible({ timeout: 15_000 });
+  await expect(installedCount).toHaveText(count);
+  await expect.poll(() => readReviewConversations(page)).toContainEqual(fixtureConversation);
   await page.locator(".sample-scenario-trigger").click();
   await page.getByRole("button", { name: "删除审查数据" }).click();
   await expect(page.getByRole("button", { name: "删除审查数据" })).toBeHidden();
+  await expect.poll(() => readReviewConversations(page)).toEqual([]);
+  await expect(installedCount).toHaveCount(0);
+  await testInfo.attach("ui-review-install-readiness", {
+    body: Buffer.from(JSON.stringify({ busyTransition, remountObservedAt, readyAt, disclosureClickAt, count, workspaceStillConnected, reloadPersisted: true, cleanupVerified: true })),
+    contentType: "application/json",
+  });
 });

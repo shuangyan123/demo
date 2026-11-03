@@ -1,4 +1,5 @@
-import { safeFetchAcquisition } from "../../../server/acquisition/safe-fetch";
+import { safeFetchAcquisition } from "../../../server/acquisition/safe-fetch.ts";
+import { acquisitionOrigins } from "../../../server/acquisition/origin-policy.ts";
 import { apiErrorResponse, apiJsonResponse, readRouteJson } from "../../../server/http/route-security.ts";
 
 type AcquisitionFetchRequest = { url?: string; allowedOrigins?: string[] };
@@ -7,10 +8,10 @@ type AcquisitionFetchRequest = { url?: string; allowedOrigins?: string[] };
 export async function POST(request: Request) {
   try {
     const body = await readRouteJson<AcquisitionFetchRequest>(request, 64 * 1024);
-    if (!body.url || !Array.isArray(body.allowedOrigins)) {
+    if (typeof body.url !== "string" || !body.url || !Array.isArray(body.allowedOrigins) || !body.allowedOrigins.every(value => typeof value === "string")) {
       return apiErrorResponse(undefined, { code: "invalid_acquisition_request", message: "缺少来源 URL 或允许域名", status: 400 });
     }
-    const result = await safeFetchAcquisition({ url: body.url, allowedOrigins: body.allowedOrigins });
+    const result = await safeFetchAcquisition({ url: body.url, allowedOrigins: acquisitionOrigins(body.allowedOrigins) });
     return apiJsonResponse(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "来源抓取失败";

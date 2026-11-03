@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import "./outbound-network-policy.contract.test.ts";
 import {
   RouteSecurityError,
   apiErrorResponse,
@@ -50,7 +51,7 @@ test("外联地址只允许 HTTP(S) 且不接受内嵌凭据", () => {
 
 test("外联网络策略默认拒绝局域网并始终阻止元数据和链路本地地址", async () => {
   const lookupPrivate = async () => [{ address: "192.168.1.9", family: 4 }];
-  const lookupPublic = async () => [{ address: "203.0.113.8", family: 4 }];
+  const lookupPublic = async () => [{ address: "8.8.8.8", family: 4 }];
   await assert.rejects(
     validateOutboundNetworkTarget("https://lan.example.invalid", {}, lookupPrivate),
     (error) => error instanceof RouteSecurityError && error.code === "private_network_confirmation_required",
@@ -73,10 +74,10 @@ test("外联网络策略默认拒绝局域网并始终阻止元数据和链路�
   );
 });
 
-test("外联网络策略拒绝包含任一私网结果的 DNS rebinding 响应", async () => {
+test("外联网络策略在 DNS 预检中拒绝包含任一私网的混合响应", async () => {
   await assert.rejects(
     validateOutboundNetworkTarget("https://rebind.example.invalid", {}, async () => [
-      { address: "203.0.113.8", family: 4 },
+      { address: "8.8.8.8", family: 4 },
       { address: "10.0.0.7", family: 4 },
     ]),
     (error) => error instanceof RouteSecurityError && error.code === "private_network_confirmation_required",

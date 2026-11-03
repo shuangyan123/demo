@@ -1,4 +1,5 @@
 import { protocol, type Protocol } from "electron";
+import { desktopProtocolTarget } from "./protocol-target.js";
 
 const DESKTOP_SCHEME = "review-app";
 const DESKTOP_HOST = "workspace";
@@ -21,9 +22,8 @@ export function registerDesktopScheme(): void {
 export function installDesktopProtocol(baseUrl: string, token: string, targetProtocol: Protocol = protocol): void {
   if (targetProtocol.isProtocolHandled(DESKTOP_SCHEME)) targetProtocol.unhandle(DESKTOP_SCHEME);
   targetProtocol.handle(DESKTOP_SCHEME, async (request) => {
-    const source = new URL(request.url);
-    if (source.host !== DESKTOP_HOST) return new Response("Not found", { status: 404 });
-    const target = new URL(`${source.pathname}${source.search}`, baseUrl);
+    const target = desktopProtocolTarget(request.url, baseUrl);
+    if (!target) return new Response("Not found", { status: 404 });
     const headers = new Headers(request.headers);
     headers.set("x-review-runtime-token", token);
     headers.delete("origin");
@@ -34,6 +34,7 @@ export function installDesktopProtocol(baseUrl: string, token: string, targetPro
       headers,
       body: bodyAllowed ? request.body : undefined,
       redirect: "manual",
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),
       duplex: "half",
     } as RequestInit & { duplex: "half" };
     // 内部 loopback 用 Node fetch 保留请求元数据；net.fetch 会添加 Chromium 的 site:none，误拒绝原生 POST。

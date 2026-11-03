@@ -1,4 +1,5 @@
-param([int]$TaskProcessId, [string]$Button)
+param([int]$TaskProcessId, [string]$Button,
+  [string]$DialogTitle = 'Recall native contract fixture')
 $ErrorActionPreference = 'Stop'
 Add-Type @'
 using System;
@@ -11,12 +12,12 @@ public static class RecallFixtureDialog {
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
-  public static bool Click(uint pid, string button) {
+  public static bool Click(uint pid, string button, string dialogTitle) {
     IntPtr found = IntPtr.Zero;
     EnumWindows((window, arg) => {
       uint owner; GetWindowThreadProcessId(window, out owner);
       var title = new StringBuilder(256); GetWindowText(window, title, title.Capacity);
-      if(owner != pid || title.ToString() != "Recall native contract fixture") return true;
+      if(owner != pid || title.ToString() != dialogTitle) return true;
       EnumChildWindows(window, (child, ignored) => {
         var label = new StringBuilder(256); GetWindowText(child, label, label.Capacity);
         if(label.ToString().Replace("&", "") == button) { found = child; return false; }
@@ -32,7 +33,7 @@ public static class RecallFixtureDialog {
 '@
 $taskDeadline = [DateTime]::UtcNow.AddSeconds(10)
 while ([DateTime]::UtcNow -lt $taskDeadline) {
-  if ([RecallFixtureDialog]::Click([uint32]$TaskProcessId, $Button)) { exit 0 }
+  if ([RecallFixtureDialog]::Click([uint32]$TaskProcessId, $Button, $DialogTitle)) { exit 0 }
   Start-Sleep -Milliseconds 50
 }
 throw 'Owned fixture dialog button was not found.'

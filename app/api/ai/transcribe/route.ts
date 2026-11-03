@@ -1,3 +1,4 @@
+import { outboundFetch } from "../../../server/http/outbound-fetch.ts";
 import type { AiTranscriptionRequest } from "../../../services/api-client";
 import { buildTranscriptionProviderRequest, parseTranscriptionProviderResponse } from "../../../server/ai/provider-adapter.ts";
 import {
@@ -35,14 +36,16 @@ export async function POST(request: Request) {
     }
     await validateOutboundNetworkTarget(body.baseUrl, networkPolicyFromProviderOptions(body.providerOptions));
     const providerRequest = buildTranscriptionProviderRequest(body);
-    const response = await fetch(providerRequest.url, {
+    const response = await outboundFetch(providerRequest.url, {
       method: "POST",
       headers: providerRequest.headers,
       body: JSON.stringify(providerRequest.body),
       cache: "no-store",
       redirect: "error",
-    });
+      signal: request.signal,
+    }, networkPolicyFromProviderOptions(body.providerOptions));
     if (!response.ok) {
+      await response.body?.cancel();
       return apiErrorResponse(
         new RouteSecurityError("transcription_provider_failed", "Gemini 转写请求失败", response.status, response.status >= 429),
         { code: "transcription_provider_failed", message: "Gemini 转写请求失败", status: response.status },

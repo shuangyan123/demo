@@ -1,12 +1,27 @@
+import { outboundTransport } from "../http/outbound-fetch.ts";
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { afterEach, beforeEach } from "node:test";
+import dns from "node:dns/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { buildGenerateProviderRequest, buildSpeechProviderRequest, buildTranscriptionProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent, parseSpeechJsonResponse, parseTranscriptionProviderResponse } from "./provider-adapter.ts";
 import type { AiGenerateRequest, AiSpeechRequest, AiTranscriptionRequest } from "../../services/api-client.ts";
 import { POST as modelsPost } from "../../api/ai/models/route.ts";
 import { executeProviderGenerate } from "./execute-provider-generate.ts";
 import { POST as speechPost } from "../../api/ai/speech/route.ts";
 import { getProviderAdapter, providerAdapterRegistry } from "./provider-adapter-registry.ts";
-import { GoogleInteractionsSdkTransport, type GoogleInteractionsInvoker } from "./provider-transport.ts";
+import { HttpProviderTransport } from "./provider-transport.ts";
+
+// 路由 fixture 只解析受控主机；与既有 mock fetch 配对，避免依赖系统 DNS。
+beforeEach((context) => {
+  if (!("mock" in context)) throw new Error("fixture requires a test context");
+  context.mock.method(outboundTransport, "fetch", (input: string | URL | Request, init?: RequestInit) => globalThis.fetch(input, init));
+  context.mock.method(dns, "lookup", async (hostname: string) => {
+    assert.ok(["api.minimaxi.com", "generativelanguage.googleapis.com", "provider.example"].includes(hostname), "unexpected fixture DNS host");
+    return [{ address: "8.8.8.8", family: 4 }];
+  });
+  syncBuiltinESMExports();
+});
+afterEach((context) => { if ("mock" in context) context.mock.restoreAll(); syncBuiltinESMExports(); });
 
 const baseGenerate: Omit<AiGenerateRequest, "provider"> = {
   apiKey: "fixture-key",
@@ -82,34 +97,24 @@ test("Google Interactions stream maps step.delta and interaction.completed", () 
   );
 });
 
-test("Google 官方 Interactions SDK 单次请求关闭自动重试并保持 store:false", async () => {
+test("Google 官方 Interactions wire transport 单次请求保持 store:false 且不重试", async () => {
   let callCount = 0;
-  let observedRetries = -1;
   let observedStore: unknown;
-  const invoker: GoogleInteractionsInvoker = {
-    async create(input, options) {
-      callCount += 1;
-      observedRetries = options.maxRetries;
-      observedStore = input.store;
-      return { id: "int_sdk", steps: [{ type: "model_output", content: [{ type: "text", text: "SDK OK" }] }] };
-    },
-    async createStream() {
-      throw new Error("本用例不应进入流式调用");
-    },
-  };
-  const transport = new GoogleInteractionsSdkTransport(() => invoker);
-  const response = await transport.generate({
-    ...baseGenerate,
-    provider: "google",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    generationProtocol: "google_interactions",
+  const transport = new HttpProviderTransport(async (url, init) => {
+    callCount++;
+    assert.equal(String(url), "https://generativelanguage.googleapis.com/v1beta/interactions");
+    assert.equal(init?.redirect, "error");
+    observedStore = JSON.parse(String(init?.body)).store;
+    return Response.json({ id: "int_wire", steps: [{ type: "model_output", content: [{ type: "text", text: "OK" }] }] });
   });
+  const response = await transport.generate({ ...baseGenerate, provider: "google", baseUrl: "https://generativelanguage.googleapis.com/v1beta", generationProtocol: "google_interactions" });
   assert.equal(response.status, 200);
-  assert.equal(response.headers.get("x-provider-transport"), "google-sdk");
   assert.equal(callCount, 1);
-  assert.equal(observedRetries, 0);
   assert.equal(observedStore, false);
-  assert.equal((await response.json() as { id?: string }).id, "int_sdk");
+  assert.equal((await response.json() as { id?: string }).id, "int_wire");
+  const failureTransport = new HttpProviderTransport(async () => { callCount++; throw new Error("uncertain terminal state"); });
+  await assert.rejects(failureTransport.generate({ ...baseGenerate, provider: "google", generationProtocol: "google_interactions" }), /uncertain terminal/);
+  assert.equal(callCount, 2, "uncertain failure must not retry");
 });
 
 test("Google connection test retries once only on explicit Interactions-only error", async () => {

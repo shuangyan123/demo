@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "file": "app/server/diagnostic/history/windows-filesystem.contract.test.ts",
+      "kind": "explicit-windows-compatibility",
+      "command": "node --test --experimental-strip-types app/server/diagnostic/history/windows-filesystem.contract.test.ts",
+      "reason": "Windows-only native short/long-path compatibility observation; file explicitly excludes aggregator, hosted CI and release gate. It does not prove general durability."
+    },
+    {
+      "file": "scripts/electron-builder-m0-artifact.contract.test.mjs",
+      "kind": "historical-package-artifact",
+      "command": "npm run test:desktop:builder:m0",
+      "reason": "Historical alternate builder artifact suite requires separately constructed M0 artifact; current production NSIS source/artifact gates remain in CI."
+    },
+    {
+      "file": "scripts/squirrel-package.contract.test.mjs",
+      "kind": "compatibility-package-artifact",
+      "command": "npm run test:desktop:artifact",
+      "reason": "Forge/Squirrel compatibility package checks require an owned built artifact; NSIS is current production path. Do not implicitly build/install historical packages."
+    }
+  ]
+}

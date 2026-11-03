@@ -1,0 +1,56 @@
+name: Recall fixed-artifact install acceptance
+
+# A PR label event loads the merge-ref workflow; workflow_dispatch would need
+# the workflow on the default branch. Only the owned PR and explicit label run.
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: recall-install-acceptance-264bb11
+  cancel-in-progress: false
+
+jobs:
+  fixed-install:
+    if: >-
+      github.repository == 'shuangyan123/demo' &&
+      github.event.pull_request.number == 148 &&
+      github.event.pull_request.state == 'open' &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'codex/recall-comprehensive-remediation' &&
+      github.event.label.name == 'recall-install-acceptance-264bb11' &&
+      github.run_attempt == 1
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.20.0
+      - name: Compile native helper before downloading installer
+        shell: pwsh
+        run: ./scripts/preflight-install-acceptance.ps1
+      - name: Download and verify immutable owned artifacts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/download-install-acceptance.ps1
+      - name: Disposable Windows install, first launch, retention and uninstall
+        shell: pwsh
+        run: ./scripts/windows-nsis-install-acceptance.ps1
+      - name: Upload synthetic acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recall-install-acceptance-264bb11-${{ github.run_id }}
+          path: ${{ runner.temp }}/recall-install-acceptance/evidence
+          if-no-files-found: error
+          retention-days: 7

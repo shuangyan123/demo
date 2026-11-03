@@ -1,3 +1,6 @@
+import dns from "node:dns/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { outboundTransport } from "../http/outbound-fetch.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getQuotaProviderAdapter, serializeQuotaError } from "./quota-adapters.ts";
@@ -38,3 +41,15 @@ test("额度适配器把鉴权与限流错误归一化", async () => {
     (error) => serializeQuotaError(error).code === "insufficient_permission",
   );
 });
+
+// DNS 和 HTTP 成对 mock，未登记主机立即失败，测试不使用真实网络。
+test.beforeEach(context => {
+  if (!("mock" in context)) throw new Error("fixture requires TestContext");
+  context.mock.method(outboundTransport, "fetch", (input: string | URL | Request, init?: RequestInit) => globalThis.fetch(input, init));
+  context.mock.method(dns, "lookup", async (hostname: string) => {
+    assert.ok(["api.openai.com", "api.anthropic.com", "api.deepseek.com", "api.x.ai", "management-api.x.ai"].includes(hostname), `unexpected fixture host: ${hostname}`);
+    return [{ address: "8.8.8.8", family: 4 }];
+  });
+  syncBuiltinESMExports();
+});
+test.afterEach(context => { if ("mock" in context) context.mock.restoreAll(); syncBuiltinESMExports(); });

@@ -229,3 +229,16 @@ Terminal outcome matrix:
 ## Evidence
 
 Direct fixtures cover all seven native registrations and the custom compatibility path for requests, non-stream responses, incremental streams, hidden-reasoning exclusion, usage edge cases, representative provider failures, malformed responses, route interruption, client error reconstruction, and capability/business validation separation. Live paid-provider calls are intentionally outside the local contract suite.
+
+## Outbound transport boundary
+
+All generation protocols, including official Google Interactions, use the existing
+HTTP wire adapters through `outboundFetch`. The installed GenAI SDK constructs a
+new `Request` before fetch, which drops Node's custom dispatcher; it is therefore
+not used for generation transport. Request bodies, `store:false`, SSE parsing,
+visible terminal content, typed provider failure and zero automatic retry/fallback
+remain the existing contracts. No provider-private SDK state is persisted.
+
+The final adapter URL is authorized again at connection time. The server validates
+all DNS answers, pins the connector to the approved set, and retains original
+Host/SNI/certificate identity. See [outbound connection boundary](security/outbound-connection-boundary.md).

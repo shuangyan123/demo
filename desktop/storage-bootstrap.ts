@@ -73,7 +73,7 @@ function resolveLegacyStorage(paths: StorageHostPaths, io?: StorageRecordIO): Ma
     try {
       if (hasUnanchoredStorage(paths)) return unavailable("initialization_remnants");
       const entries = readdirSync(paths.defaultUserData);
-      if (entries.length === 0 || isPristineProfile(paths.defaultUserData)) return { kind: "uninitialized" };
+      if (entries.length === 0 || isPristineProfile(paths.defaultUserData, "candidate")) return { kind: "uninitialized" };
       // 只认既有持久 partition；非空但无法识别的目录保留原状，不能猜成新安装。
       const partitions = ["review-workspace", "review-fenbi"];
       if (!partitions.some((name) => directoryState(path.join(paths.defaultUserData, "Partitions", name)) === "available"))

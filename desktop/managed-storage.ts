@@ -2,6 +2,7 @@ import { app } from "electron";
 import { gateManagedStorageStartup, resolveManagedStorage } from "./storage-bootstrap.ts";
 import type { ManagedStorageResolution } from "../app/platform/managed-storage.js";
 import { createInitialProfile, inspectInitialProfile, type FreshProfileCandidate } from "./profile-initialization.ts";
+import { initialProfileRejection } from "./storage-inspection.ts";
 
 function hostPaths() {
   return { appData: app.getPath("appData"), defaultUserData: app.getPath("userData"), defaultSessionData: app.getPath("sessionData") };
@@ -11,7 +12,12 @@ function hostPaths() {
 export function resolveDesktopManagedStorage(): ManagedStorageResolution {
   try {
     const paths = hostPaths();
-    return gateManagedStorageStartup(resolveManagedStorage(paths), paths);
+    const result = gateManagedStorageStartup(resolveManagedStorage(paths), paths);
+    if (result.kind === "unavailable" && result.reason === "unrecognized_legacy_profile") {
+      const rejected = initialProfileRejection(paths.defaultUserData, "candidate");
+      if (rejected) console.error(`RECALL_INITIAL_PROFILE_INSPECTION:${rejected}`);
+    }
+    return result;
   } catch { return { kind: "unavailable", code: "storage_unavailable", reason: "host_paths_unavailable" }; }
 }
 

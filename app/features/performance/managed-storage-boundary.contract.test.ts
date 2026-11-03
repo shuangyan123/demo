@@ -82,7 +82,7 @@ test("managed storage guard rejects Kernel/filesystem and renderer path authorit
   assert.ok(violations("app/services/learning-kernel/evidence.ts", 'import { readFile } from "node:fs";').includes("kernel_storage_dependency"));
 });
 
-test("startup gate resolves synchronously after single-instance lock and before ready/session/runtime", async () => {
+test("startup gate synchronously classifies history; fresh candidate is captured only after ready", async () => {
   const main = await readFile(path.join(root, "desktop/main.ts"), "utf8");
   const seam = await readFile(path.join(root, "desktop/managed-storage.ts"), "utf8");
   const lifecycle = main.indexOf("if (isSquirrelLifecycleInvocation(process.argv))");
@@ -90,9 +90,19 @@ test("startup gate resolves synchronously after single-instance lock and before 
   const resolve = main.indexOf("const storageState = resolveDesktopManagedStorage()", lock);
   const ready = main.indexOf("app.whenReady()", resolve);
   assert.ok(lifecycle >= 0 && lock > lifecycle && resolve > lock && ready > resolve);
-  assert.match(main.slice(resolve, ready), /storageState\.kind !== "ready" && storageState\.kind !== "legacy_existing_profile"[\s\S]*storageState\.kind === "uninitialized"[\s\S]*inspected\.kind === "eligible"/);
+  assert.match(main.slice(resolve, ready), /storageState\.kind !== "ready" && storageState\.kind !== "legacy_existing_profile"[\s\S]*storageState\.kind === "uninitialized"/);
+  assert.doesNotMatch(main.slice(resolve, ready), /inspectDesktopInitialProfile\(\)/);
+  const freshStart = main.indexOf("async function launchFreshProfileAfterReady()");
+  const freshEnd = main.indexOf("function installApplicationLifecycle()", freshStart);
+  assert.ok(freshStart > 0 && freshEnd > freshStart);
+  const fresh = main.slice(freshStart, freshEnd);
+  assert.match(fresh, /const state = resolveDesktopManagedStorage\(\);[\s\S]*state\.kind !== "uninitialized"/);
+  assert.match(fresh, /const inspected = inspectDesktopInitialProfile\(\);[\s\S]*inspected\.kind !== "eligible"/);
+  assert.match(fresh, /await launchInitialProfile\(inspected\.candidate\)/);
+  assert.match(fresh, /showStorageFailure\([\s\S]*app\.quit\(\)/);
+  assert.match(main, /completeInitialProfileDecision\(candidate/);
   assert.match(main, /else \{ showStorageFailure\([\s\S]*?app\.exit\(1\)/);
-  assert.match(main, /app\.whenReady\(\)\.then\(\(\) => launchInitialProfile\(inspected\.candidate\)\)/);
+  assert.match(main, /app\.whenReady\(\)\.then\(launchFreshProfileAfterReady\)/);
   assert.match(main, /defaultId: 1, cancelId: 1/);
   assert.doesNotMatch(seam, /\basync\b|whenReady|fromPartition|process\.env|process\.cwd|resourcesPath/);
   assert.doesNotMatch(main + seam, /app\.setPath\s*\(/);
