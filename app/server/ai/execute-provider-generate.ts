@@ -7,7 +7,7 @@ export async function executeProviderGenerate(body: AiGenerateRequest, context?:
   let effectiveBody = body;
 
   async function send(input: AiGenerateRequest): Promise<Response> {
-    const transport = getProviderTransport(input);
+    const transport = getProviderTransport();
     return input.stream ? transport.stream(input, context) : transport.generate(input, context);
   }
 

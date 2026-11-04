@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import dns from "node:dns/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { createServer } from "node:http";
+import { once } from "node:events";
 import "./registry-client.contract.test.ts";
 // 复用已纳入门禁的服务端安全测试入口，确保路由与外联策略不会被遗漏。
 import "../http/route-security.contract.test.ts";
-import { toMcpError, validateMcpEndpoint } from "./client.ts";
+import { toMcpError, validateMcpEndpoint, withMcpClient } from "./client.ts";
 
 test("MCP 地址只允许远程 HTTPS 与 loopback HTTP", () => {
   assert.equal(validateMcpEndpoint("https://mcp.example.com/path#fragment").href, "https://mcp.example.com/path");
@@ -18,4 +23,64 @@ test("MCP 地址只允许远程 HTTPS 与 loopback HTTP", () => {
 test("MCP 错误会过滤 Bearer 凭据并限制长度", () => {
   assert.equal(toMcpError(new Error("401 Unauthorized Bearer abc-secret")), "MCP 认证失败，请检查 Bearer Token");
   assert.equal(toMcpError(new Error("request timeout")), "MCP 请求超时，请检查服务状态");
+});
+
+test("AUD-09 MCP: DNS 与 SDK connect 均 mock，LAN 授权不包含特殊网络", async (context) => {
+  let address = "192.168.0.9";
+  let connects = 0;
+  context.mock.method(dns, "lookup", async (hostname: string) => {
+    assert.equal(hostname, "mcp.test");
+    return [{ address, family: address.includes(":") ? 6 : 4 }];
+  });
+  syncBuiltinESMExports();
+  context.mock.method(Client.prototype, "connect", async () => { connects += 1; });
+  context.mock.method(Client.prototype, "close", async () => undefined);
+  try {
+    await assert.rejects(withMcpClient({ endpoint: "https://mcp.test" }, async () => "fixture"), /显式开启/);
+    assert.equal(connects, 0);
+    assert.equal(await withMcpClient({ endpoint: "https://mcp.test", allowPrivateNetwork: true }, async () => "fixture"), "fixture");
+    assert.equal(connects, 1);
+    address = "::ffff:a00:1";
+    await withMcpClient({ endpoint: "https://mcp.test", allowPrivateNetwork: true }, async () => "fixture");
+    assert.equal(connects, 2);
+    for (address of ["100.64.0.1", "198.18.0.1", "169.254.169.254"]) {
+      await assert.rejects(withMcpClient({ endpoint: "https://mcp.test", allowPrivateNetwork: true }, async () => "fixture"), /特殊网络/);
+      assert.equal(connects, 2);
+    }
+    await withMcpClient({ endpoint: "http://127.0.0.1:8765/mcp" }, async () => "fixture");
+    await withMcpClient({ endpoint: "http://[::1]:8765/mcp" }, async () => "fixture");
+    await withMcpClient({ endpoint: "http://10.0.0.1/mcp", allowPrivateNetwork: true }, async () => "fixture");
+    assert.equal(connects, 5);
+    // HTTP 语法授权保持既有范围；共享分类器不能扩大 MCP 的明文 LAN 入口。
+    assert.throws(() => validateMcpEndpoint("http://[fd00::1]/mcp", true), /必须使用 HTTPS/);
+    assert.throws(() => validateMcpEndpoint("http://[::ffff:7f00:1]/mcp"), /必须使用 HTTPS/);
+  } finally {
+    context.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+});
+
+test("AUD-10 MCP: real SDK initialization and tool listing use the protected local transport", async (context) => {
+  const methods: string[] = [];
+  const server = createServer(async (request, response) => {
+    if (request.method === "GET") { response.writeHead(405); response.end(); return; }
+    let text = "";
+    for await (const chunk of request) text += String(chunk);
+    const message = JSON.parse(text) as { id?: number; method: string };
+    methods.push(message.method);
+    if (message.id === undefined) { response.writeHead(202); response.end(); return; }
+    const result = message.method === "initialize"
+      ? { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "local-fixture", version: "1" } }
+      : { tools: [{ name: "fixture", description: "local only", inputSchema: { type: "object" } }] };
+    response.writeHead(200, { "content-type": "application/json", "mcp-session-id": "fixture-session" });
+    response.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  context.after(() => { server.closeAllConnections(); server.close(); });
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const result = await withMcpClient({ endpoint: `http://127.0.0.1:${address.port}/mcp` }, (client) => client.listTools());
+  assert.equal(result.tools[0].name, "fixture");
+  assert.deepEqual(methods, ["initialize", "notifications/initialized", "tools/list"]);
 });

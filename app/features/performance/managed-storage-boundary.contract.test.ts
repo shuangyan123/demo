@@ -9,7 +9,7 @@ const allowed = new Set([
   "desktop/main.ts", "desktop/managed-storage.ts", "desktop/storage-bootstrap.ts", "desktop/storage-bootstrap-record.ts", "desktop/storage-bootstrap-io.ts",
   "app/server/diagnostic/history/repository.ts", "app/server/diagnostic/history/repository-core.ts",
   "desktop/runtime.ts", "desktop/storage-runtime-config.ts", "app/server/diagnostic/storage-config.ts", "app/server/diagnostic/runtime-core.ts",
-  "desktop/profile-initialization.ts", "desktop/storage-inspection.ts",
+  "desktop/profile-initialization.ts", "desktop/storage-inspection.ts", "desktop/profile-runtime-readiness.ts",
 ]);
 const isStorage = (target: string) => /(?:^|\/)(?:managed-storage|storage-bootstrap(?:-record|-io)?)(?:\.(?:d\.)?(?:ts|js))?$/.test(target);
 
@@ -90,11 +90,15 @@ test("startup gate resolves synchronously after single-instance lock and before 
   const resolve = main.indexOf("const storageState = resolveDesktopManagedStorage()", lock);
   const ready = main.indexOf("app.whenReady()", resolve);
   assert.ok(lifecycle >= 0 && lock > lifecycle && resolve > lock && ready > resolve);
-  assert.match(main.slice(resolve, ready), /storageState\.kind !== "ready" && storageState\.kind !== "legacy_existing_profile"[\s\S]*storageState\.kind === "uninitialized"[\s\S]*inspected\.kind === "eligible"/);
+  assert.match(main.slice(resolve, ready), /storageState\.kind !== "ready" && storageState\.kind !== "legacy_existing_profile"[\s\S]*storageState\.kind === "uninitialized"/);
+  assert.doesNotMatch(main.slice(resolve, ready), /inspect.*InitialProfile/);
   assert.match(main, /else \{ showStorageFailure\([\s\S]*?app\.exit\(1\)/);
-  assert.match(main, /app\.whenReady\(\)\.then\(\(\) => launchInitialProfile\(inspected\.candidate\)\)/);
+  assert.match(main, /app\.whenReady\(\)\.then\(\(\) => launchInitialProfile\(\)\)/);
+  assert.match(main, /const inspected = await inspectReadyDesktopInitialProfile\(\);[\s\S]*inspected\.kind !== "eligible"[\s\S]*completeInitialProfileDecision\(inspected\.candidate/);
   assert.match(main, /defaultId: 1, cancelId: 1/);
-  assert.doesNotMatch(seam, /\basync\b|whenReady|fromPartition|process\.env|process\.cwd|resourcesPath/);
+  const synchronousResolution = seam.slice(seam.indexOf("export function resolveDesktopManagedStorage"), seam.indexOf("export function inspectDesktopInitialProfile"));
+  assert.doesNotMatch(synchronousResolution, /\basync\b|\bawait\b/);
+  assert.doesNotMatch(seam, /whenReady|fromPartition|process\.env|process\.cwd|resourcesPath/);
   assert.doesNotMatch(main + seam, /app\.setPath\s*\(/);
   assert.match(seam, /app\.getPath\("appData"\)/);
   assert.match(seam, /app\.getPath\("userData"\)/);

@@ -73,3 +73,18 @@ test("directory URL and auth stay provider-specific", () => {
   assert.match(providerModelDirectoryUrl(request("siliconflow", "https://api.siliconflow.cn/v1")), /type=text/);
   assert.match(providerModelDirectoryUrl(request("kimi", "https://api.moonshot.cn/v1")), /\/v1\/models$/);
 });
+
+test("AUD-10 model directory default transport carries a request-scoped dispatcher", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (_url, init) => {
+    calls += 1;
+    assert.ok(init && "dispatcher" in init && init.dispatcher, "default fetch injection must not bypass policyFetch");
+    return Response.json({ data: [{ id: "controlled-model" }] });
+  };
+  try {
+    const result = await fetchProviderModelDirectory({ provider: "custom", baseUrl: "https://directory.test/v1", apiKey: "fixture-only" });
+    assert.equal(result.models[0].id, "controlled-model");
+    assert.equal(calls, 1);
+  } finally { globalThis.fetch = original; }
+});

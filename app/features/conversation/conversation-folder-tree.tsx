@@ -41,6 +41,7 @@ export function ConversationPartitionTree(props: ConversationPartitionTreeProps)
   const controller = useConversationTreeController();
   const [creatingParentId, setCreatingParentId] = useState<string | undefined>();
   const [creating, setCreating] = useState(false);
+  const [createPending, setCreatePending] = useState(false);
   const [draftLabel, setDraftLabel] = useState("");
   const [actionLabel, setActionLabel] = useState("");
   const [activeDragItem, setActiveDragItem] = useState<TreeDragItem | null>(null);
@@ -98,6 +99,9 @@ export function ConversationPartitionTree(props: ConversationPartitionTreeProps)
   }
 
   async function createPartition() {
+    if (createPending) return;
+    // 落库与父级刷新完成前保持单次操作，避免旧任务关闭后来打开的表单。
+    setCreatePending(true);
     try {
       const partition = await conversationRepository.createPartition({ projectId, parentId: creatingParentId, label: draftLabel });
       controller.expandPartition(partition.id);
@@ -107,6 +111,8 @@ export function ConversationPartitionTree(props: ConversationPartitionTreeProps)
       onNotice("分区已创建");
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "分区创建失败");
+    } finally {
+      setCreatePending(false);
     }
   }
 
@@ -279,7 +285,7 @@ export function ConversationPartitionTree(props: ConversationPartitionTreeProps)
         <div className="conversation-tree-drawer-title"><strong>{actionLabel}</strong><UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭操作菜单" onClick={() => closeAction()}><AppIcon name="close" size={16} /></button>}</UiHint></div>
         <button role="menuitem" type="button" onClick={() => { setRenaming(action); closeAction(false); }}><AppIcon name="edit" size={16} /><span>重命名</span></button>
         <button data-open-move role="menuitem" type="button" aria-haspopup="menu" aria-expanded={actionLevel === "move"} onClick={() => setActionLevel("move")}><AppIcon name="folder" size={16} /><span>移动到分区</span><AppIcon name="chevronRight" size={16} /></button>
-        {action.kind === "partition" ? <button role="menuitem" type="button" onClick={() => { setCreatingParentId(action.id); setCreating(true); setPartitionSectionOpen(true); controller.expandPartition(action.id); closeAction(false); }}><AppIcon name="folderPlus" size={16} /><span>新建子分区</span></button> : null}
+        {action.kind === "partition" ? <button role="menuitem" type="button" disabled={createPending} onClick={() => { setCreatingParentId(action.id); setCreating(true); setPartitionSectionOpen(true); controller.expandPartition(action.id); closeAction(false); }}><AppIcon name="folderPlus" size={16} /><span>新建子分区</span></button> : null}
         <button role="menuitem" className="is-danger" type="button" onClick={() => { const message = action.kind === "partition" ? "删除分区后，子项和对话会移动到上一级。确定继续吗？" : "确定永久删除这条对话及其消息吗？"; if (!window.confirm(message)) return; void run(async () => { if (action.kind === "partition") await conversationRepository.deletePartition(action.id); else await conversationRepository.deleteConversation(action.id); closeAction(false); }, "已删除"); }}><AppIcon name="trash" size={16} /><span>删除</span></button>
         {actionLevel === "move" ? <section ref={moveMenuRef} className="conversation-tree-move-menu" role="menu" aria-label="移动到分区" onKeyDown={(event) => handleMenuKeyDown(event, "move")}>
           <div className="conversation-tree-drawer-title"><UiHint label="返回" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="返回操作菜单" onClick={() => setActionLevel("root")}><AppIcon name="back" size={16} /></button>}</UiHint><strong>移动到</strong><UiHint label="关闭" placement="bottom">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="关闭操作菜单" onClick={() => closeAction()}><AppIcon name="close" size={16} /></button>}</UiHint></div>
@@ -292,8 +298,8 @@ export function ConversationPartitionTree(props: ConversationPartitionTreeProps)
   ) : null;
 
   const tree = <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={startDrag} onDragCancel={() => setActiveDragItem(null)} onDragEnd={finishDrag}><section className="conversation-tree conversation-partition-tree" aria-label="分区和对话">
-    <div className="conversation-tree-heading"><div className="conversation-tree-section-title"><button type="button" aria-expanded={partitionSectionOpen} aria-label={`${partitionSectionOpen ? "折叠" : "展开"}分区`} onClick={() => setPartitionSectionOpen((open) => !open)}><AppIcon name={partitionSectionOpen ? "chevronDown" : "chevronRight"} size={16} /></button><p>分区</p></div><UiHint label="新建分区" placement="right">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="新建分区" data-partition-create="true" onClick={() => { setCreatingParentId(undefined); setCreating(true); setPartitionSectionOpen(true); }}><AppIcon name="folderPlus" size={18} /></button>}</UiHint></div>
-    {creating ? <form className="conversation-tree-create" aria-label="新建分区" onSubmit={(event) => { event.preventDefault(); void createPartition(); }}><h3>新建分区</h3><label htmlFor="conversation-partition-name">分区名称</label><input id="conversation-partition-name" autoFocus aria-label="分区名称" placeholder="例如：资料分析" value={draftLabel} onChange={(event) => setDraftLabel(event.currentTarget.value)} /><div><button type="submit">创建</button><button type="button" onClick={() => { setCreating(false); setDraftLabel(""); setCreatingParentId(undefined); }}>取消</button></div></form> : null}
+    <div className="conversation-tree-heading"><div className="conversation-tree-section-title"><button type="button" aria-expanded={partitionSectionOpen} aria-label={`${partitionSectionOpen ? "折叠" : "展开"}分区`} onClick={() => setPartitionSectionOpen((open) => !open)}><AppIcon name={partitionSectionOpen ? "chevronDown" : "chevronRight"} size={16} /></button><p>分区</p></div><UiHint label="新建分区" placement="right">{({ describedBy }) => <button type="button" aria-describedby={describedBy} aria-label="新建分区" data-partition-create="true" disabled={createPending} onClick={() => { setCreatingParentId(undefined); setCreating(true); setPartitionSectionOpen(true); }}><AppIcon name="folderPlus" size={18} /></button>}</UiHint></div>
+    {creating ? <form className="conversation-tree-create" aria-label="新建分区" aria-busy={createPending} onSubmit={(event) => { event.preventDefault(); void createPartition(); }}><h3>新建分区</h3><label htmlFor="conversation-partition-name">分区名称</label><input id="conversation-partition-name" autoFocus aria-label="分区名称" placeholder="例如：资料分析" value={draftLabel} disabled={createPending} onChange={(event) => setDraftLabel(event.currentTarget.value)} /><div><button type="submit" disabled={createPending}>创建</button><button type="button" disabled={createPending} onClick={() => { setCreating(false); setDraftLabel(""); setCreatingParentId(undefined); }}>取消</button></div></form> : null}
     {activeDragItem ? <TreeDropZone dropId="root" dataDropRootTarget className="conversation-tree-root-target"><AppIcon name="back" size={16} /><span>移到根目录</span></TreeDropZone> : null}
     <TreeDropZone dropId="root-surface" dataDropRoot className="conversation-tree-root">
       {partitionSectionOpen ? rootPartitions.map((partition) => renderPartition(partition)) : null}{rootChats.map(renderConversation)}

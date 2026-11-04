@@ -258,6 +258,7 @@ test("键盘可展开推荐依据并进入具体复盘目标", async ({ page }) 
 
   const action = page.locator('[data-learning-action="review_mistakes"]');
   const disclosure = action.getByText("为什么推荐？", { exact: true });
+  await expect(disclosure).toBeVisible();
   await tabUntilFocused(page, disclosure);
   const disclosureFocus = await disclosure.evaluate((element) => {
     const style = getComputedStyle(element);

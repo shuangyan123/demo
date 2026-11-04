@@ -1,12 +1,25 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { afterEach, beforeEach } from "node:test";
+import dns from "node:dns/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { buildGenerateProviderRequest, buildSpeechProviderRequest, buildTranscriptionProviderRequest, parseGenerateProviderResponse, parseGenerateProviderStreamEvent, parseSpeechJsonResponse, parseTranscriptionProviderResponse } from "./provider-adapter.ts";
 import type { AiGenerateRequest, AiSpeechRequest, AiTranscriptionRequest } from "../../services/api-client.ts";
 import { POST as modelsPost } from "../../api/ai/models/route.ts";
 import { executeProviderGenerate } from "./execute-provider-generate.ts";
 import { POST as speechPost } from "../../api/ai/speech/route.ts";
 import { getProviderAdapter, providerAdapterRegistry } from "./provider-adapter-registry.ts";
-import { GoogleInteractionsSdkTransport, type GoogleInteractionsInvoker } from "./provider-transport.ts";
+import { HttpProviderTransport, getProviderTransport } from "./provider-transport.ts";
+
+// 路由 fixture 只解析受控主机；与既有 mock fetch 配对，避免依赖系统 DNS。
+beforeEach((context) => {
+  if (!("mock" in context)) throw new Error("fixture requires a test context");
+  context.mock.method(dns, "lookup", async (hostname: string) => {
+    assert.ok(["api.minimaxi.com", "generativelanguage.googleapis.com"].includes(hostname), "unexpected fixture DNS host");
+    return [{ address: "8.8.8.8", family: 4 }];
+  });
+  syncBuiltinESMExports();
+});
+afterEach((context) => { if ("mock" in context) context.mock.restoreAll(); syncBuiltinESMExports(); });
 
 const baseGenerate: Omit<AiGenerateRequest, "provider"> = {
   apiKey: "fixture-key",
@@ -82,34 +95,21 @@ test("Google Interactions stream maps step.delta and interaction.completed", () 
   );
 });
 
-test("Google 官方 Interactions SDK 单次请求关闭自动重试并保持 store:false", async () => {
-  let callCount = 0;
-  let observedRetries = -1;
-  let observedStore: unknown;
-  const invoker: GoogleInteractionsInvoker = {
-    async create(input, options) {
-      callCount += 1;
-      observedRetries = options.maxRetries;
-      observedStore = input.store;
-      return { id: "int_sdk", steps: [{ type: "model_output", content: [{ type: "text", text: "SDK OK" }] }] };
-    },
-    async createStream() {
-      throw new Error("本用例不应进入流式调用");
-    },
-  };
-  const transport = new GoogleInteractionsSdkTransport(() => invoker);
-  const response = await transport.generate({
-    ...baseGenerate,
-    provider: "google",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    generationProtocol: "google_interactions",
+test("Google Interactions uses bound HTTP, preserves store:false and never retries a failed POST", async () => {
+  let calls = 0;
+  const transport = new HttpProviderTransport(async (url, init) => {
+    calls += 1;
+    assert.equal(String(url), "https://generativelanguage.googleapis.com/v1beta/interactions");
+    assert.equal(init?.redirect, "error");
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.store, false);
+    return new Response("unavailable", { status: 503 });
   });
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get("x-provider-transport"), "google-sdk");
-  assert.equal(callCount, 1);
-  assert.equal(observedRetries, 0);
-  assert.equal(observedStore, false);
-  assert.equal((await response.json() as { id?: string }).id, "int_sdk");
+  const input: AiGenerateRequest = { ...baseGenerate, provider: "google", baseUrl: "https://generativelanguage.googleapis.com/v1beta", generationProtocol: "google_interactions" };
+  assert.ok(getProviderTransport() instanceof HttpProviderTransport);
+  const response = await transport.generate(input);
+  assert.equal(response.status, 503);
+  assert.equal(calls, 1);
 });
 
 test("Google connection test retries once only on explicit Interactions-only error", async () => {
