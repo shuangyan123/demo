@@ -36,6 +36,12 @@ export function readDiagnosticSourceHistory() {
     ?? { kind: "unavailable", code: "storage_unavailable", reason: "storage_config_unavailable" } as const;
 }
 
+/** 无初始化、写入或 owner admission 副作用的导出专用读取。 */
+export function readDiagnosticExportSnapshot() {
+  return serverGlobal[RUNTIME_KEY]?.readExportSnapshot()
+    ?? { kind: "unavailable", code: "storage_unavailable", reason: "storage_config_unavailable" } as const;
+}
+
 /** 关闭 runtime 生命周期（供独立进程/集成 contracts）；不删除 durable 文件。 */
 export function closeDiagnosticRuntime(): void {
   serverGlobal[RUNTIME_KEY]?.close();

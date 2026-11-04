@@ -3,6 +3,7 @@ import { initializeDiagnosticRuntime, closeDiagnosticRuntime } from "../app/serv
 import { issueDiagnostic, readDiagnostic } from "../app/server/diagnostic/assessment-store.ts";
 import { loadDiagnosticResumeView } from "../app/server/diagnostic/resume-view.ts";
 import { POST } from "../app/api/diagnostic/submit/route.ts";
+import { POST as exportHistory } from "../app/api/diagnostic/export/route.ts";
 import { authorizeProtocolDiagnosticBackend, protocolRequestAuthorized } from "./protocol-diagnostic-guard.ts";
 
 // IPC 父进程授权、fixture ownership/layout 与 token 必须全部通过，才能打开存储。
@@ -27,7 +28,8 @@ const server = createServer(async (incoming, outgoing) => {
     for await (const chunk of incoming) { bytes += chunk.length; if (bytes > 2048) { outgoing.writeHead(413); outgoing.end(); return; } chunks.push(chunk); }
     const headers = new Headers();
     for (const [name, value] of Object.entries(incoming.headers)) if (typeof value === "string" && name !== "x-review-runtime-token") headers.set(name, value);
-    const result = await POST(new Request(url, { method: "POST", headers, body: Buffer.concat(chunks) }));
+    const handler = url.pathname === "/api/diagnostic/export" ? exportHistory : POST;
+    const result = await handler(new Request(url, { method: "POST", headers, body: Buffer.concat(chunks) }));
     process.send?.({ method: "POST", status: result.status, site: headers.get("sec-fetch-site") });
     outgoing.writeHead(result.status, Object.fromEntries(result.headers)); outgoing.end(Buffer.from(await result.arrayBuffer())); return;
   }

@@ -402,6 +402,21 @@ test("恢复 preflight 拒绝伪造进入 V2 的 Vault conflict 正文", async (
   );
 });
 
+test("V2 stays database-only and rejects the independent diagnostic archive before mutation", async () => {
+  await resetDatabase();
+  await seedConversation();
+  const original = await localDataManagementRepository.exportAll();
+  const current = await localDataManagementRepository.inspectRestore(original);
+  assert.equal(current.payload.schemaVersion, 2);
+  assert.deepEqual(Object.keys(current.payload.databases).sort(), ["review_extensions", "review_workspace"]);
+  assert.ok(current.reminders.some(item => item.includes("diagnostic-history")));
+  await assert.rejects(localDataManagementRepository.inspectRestore(JSON.stringify({
+    format: "recall-diagnostic-history-export", formatVersion: 1, captures: [],
+    restoreSupport: "not_implemented", authority: "unverified_portable_copy",
+  })), /不支持的备份版本/);
+  assert.equal((await reviewDb.aiConversations.get("conversation"))?.title, "测试");
+});
+
 test("完整重置同时删除业务数据和不可导出主密钥", async () => {
   await resetDatabase();
   await encryptSecret("reset-secret", secretContext.aiConnection("reset"));

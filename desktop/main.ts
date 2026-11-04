@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { installPermissionBoundary } from "./permissions.js";
 import { DESKTOP_ENTRY_URL, installDesktopProtocol, registerDesktopScheme } from "./protocol.js";
-import { isPackagedDesktop, showRuntimeFailure, startDesktopRuntime, type DesktopRuntime } from "./runtime.js";
+import { showRuntimeFailure, startDesktopRuntime, type DesktopRuntime } from "./runtime.js";
 import { installDesktopCredentialStorageIpc } from "./credential-storage.js";
 import { installDesktopVaultIpc } from "./vault.js";
 import { isSquirrelLifecycleInvocation } from "./squirrel-lifecycle.js";
@@ -60,14 +60,15 @@ function disposeFenbiWebContents(): void {
 }
 
 async function createMainWindow(storageConfig: ManagedStorageHostConfig): Promise<void> {
-  const developmentUrl = process.env.ELECTRON_RENDERER_URL;
+  // 打包窗口必须使用 Main 启动的 runtime；开发 URL 不能绕过该宿主边界。
+  const developmentUrl = app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL;
   const partition = "persist:review-workspace";
   const workspaceSession = session.fromPartition(partition);
   initializeFenbiSession();
   installFenbiSessionIpc(developmentUrl);
   installDesktopCredentialStorageIpc(developmentUrl);
   installDesktopVaultIpc(developmentUrl);
-  if (isPackagedDesktop()) {
+  if (app.isPackaged) {
     runtime = await startDesktopRuntime(storageConfig);
     installDesktopProtocol(runtime.baseUrl, runtime.token, workspaceSession.protocol);
   }
@@ -154,7 +155,7 @@ function showStorageFailure(kind: string): void {
 
 async function launchInitialProfile(candidate: FreshProfileCandidate): Promise<void> {
   // 开发服务器不拥有 Main composition；不能写完 metadata 后假称 diagnostic 已可用。
-  if (!isPackagedDesktop()) { showStorageFailure("desktop_runtime_required"); app.quit(); return; }
+  if (!app.isPackaged) { showStorageFailure("desktop_runtime_required"); app.quit(); return; }
   const result = await completeInitialProfileDecision(candidate, async () => {
     const decision = await dialog.showMessageBox({ type: "question", title: "创建本地学习资料",
       message: "是否在这台设备上创建本地学习资料？", detail: "已有或无法确认的资料不会被覆盖。",

@@ -49,6 +49,11 @@ export function createDiagnosticRuntime(config: ManagedStorageHostConfig | undef
   }
   return Object.freeze({
     readiness: () => readiness,
+    // 导出只重验磁盘，不刷新 owner index/readiness；读取失败不能改变并发提交的运行状态。
+    readExportSnapshot() {
+      return repository?.readCompleteSnapshot()
+        ?? { kind: "unavailable", code: "storage_unavailable", reason: "storage_config_unavailable" } as const;
+    },
     readHistory() {
       if (!repository) return { kind: "unavailable", code: "storage_unavailable",
         reason: config ? "storage_open_failed" : "storage_config_unavailable" } as const;

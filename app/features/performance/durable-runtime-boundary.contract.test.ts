@@ -14,6 +14,7 @@ const edges = new Map<string, Map<string, string[]>>([
   [internal("assessment-submission.ts"), new Map([["runtime", ["initializeDiagnosticRuntime"]], ["runtime-core", ["DiagnosticRuntime"]]])],
   [internal("runtime.ts"), new Map([["runtime-core", ["createDiagnosticRuntime", "DiagnosticRuntime"]], ["storage-config", ["parseDiagnosticStorageConfig"]]])],
   [internal("source-owner.ts"), new Map([["assessment-store", ["resolveDiagnosticAttempt"]]])],
+  [internal("history-export.ts"), new Map([["runtime", ["readDiagnosticExportSnapshot"]]])],
   [internal("learning-history.ts"), new Map([["runtime", ["readDiagnosticSourceHistory"]],
     ["reconstruction-types", ["DiagnosticLearningHistory", "DiagnosticReconstructionFailure"]]])],
   [internal("state-reconstruction.ts"), new Map([["learning-history", ["loadCompleteDiagnosticLearningHistory"]],
@@ -23,6 +24,7 @@ const edges = new Map<string, Map<string, string[]>>([
   [path.join(root, "app/diagnostic/page.tsx"), new Map([["assessment-store", ["issueDiagnostic", "readDiagnostic"]]])],
   [path.join(root, "app/diagnostic/resume/page.tsx"), new Map([["resume-view", ["loadDiagnosticResumeView"]]])],
   [path.join(root, "app/api/diagnostic/submit/route.ts"), new Map([["assessment-submission", ["commitDiagnosticSubmission"]]])],
+  [path.join(root, "app/api/diagnostic/export/route.ts"), new Map([["history-export", ["exportDiagnosticHistory"]]])],
   [path.join(root, "app/api/internal/diagnostic-ready/route.ts"), new Map([["runtime", ["readDiagnosticRuntimeReadiness"]]])],
 ]);
 
@@ -39,7 +41,7 @@ function violations(file: string, source: string) {
     if (specifier) {
       const target = (specifier.startsWith("@/") ? path.resolve(root, specifier.slice(2)) : path.resolve(path.dirname(file), specifier)).replace(/\.(?:ts|js)$/, "");
       const protectedModules = ["runtime", "runtime-core", "storage-config", "assessment-store", "assessment-submission",
-        "learning-history", "state-reconstruction", "reconstruction-types", "resume-view"].map(name => path.join(runtimeRoot, name));
+        "learning-history", "state-reconstruction", "reconstruction-types", "resume-view", "history-export"].map(name => path.join(runtimeRoot, name));
       if (protectedModules.includes(target) && !testFiles.has(file)) {
         const startup = file === path.join(root, "instrumentation.ts") && target === path.join(runtimeRoot, "runtime")
           && ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword;
@@ -87,6 +89,10 @@ test("durable seam guard rejects renderer aliases, hidden imports and production
   assert.ok(violations(path.join(root, "app/api/internal/diagnostic-ready/route.ts"), 'import { initializeDiagnosticRuntime } from "../../../server/diagnostic/runtime.ts";').length);
   assert.ok(violations(path.join(root, "app/diagnostic/resume/page.tsx"), 'import { projectDiagnosticResumeView } from "../../server/diagnostic/resume-view.ts";').length);
   assert.ok(violations(outside, 'const root = process.env.RECALL_MANAGED_STORAGE_BOOTSTRAP;').includes("process_transport_outside_boundary"));
+  assert.ok(violations(outside, 'import { readDiagnosticExportSnapshot } from "../../server/diagnostic/runtime.ts";').length);
+  assert.ok(violations(outside, 'import { exportDiagnosticHistory } from "../../server/diagnostic/history-export.ts";').length);
+  assert.ok(violations(internal("history-export.ts"), 'import { composeDiagnosticRuntime } from "./runtime.ts";').length);
+  assert.ok(violations(path.join(root, "app/api/diagnostic/export/route.ts"), 'import { readDiagnosticExportSnapshot } from "../../../server/diagnostic/runtime.ts";').length);
 });
 test("Main explicitly transports trusted config and startup owner resolution never reads filesystem", async () => {
   const main = await readFile(path.join(root, "desktop/main.ts"), "utf8");

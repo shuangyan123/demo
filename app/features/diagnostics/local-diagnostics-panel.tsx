@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Chip, Panel, cx } from "../shared/ui-primitives";
 import type { LocalDiagnosticAction, LocalDiagnosticItem, LocalDiagnosticStatus, LocalDiagnostics } from "./use-local-diagnostics.ts";
 import { DataManagementPanel } from "./data-management-panel";
+import { UpdateCheckPanel } from "../settings/update-check-panel";
 
 type LocalDiagnosticsPanelProps = {
   diagnostics: LocalDiagnostics;
@@ -66,6 +67,7 @@ export function LocalDiagnosticsPanel({ diagnostics, onAction, onDataChanged, on
       </div>
 
       <div className="mt-6 grid gap-4">
+        <UpdateCheckPanel />
         <Panel title="当前诊断快照" eyebrow="Local Diagnostics">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>

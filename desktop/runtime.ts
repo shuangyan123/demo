@@ -341,7 +341,3 @@ export async function showRuntimeFailure(error: unknown): Promise<number> {
     clipboard.writeText(`${copy.message}\n${copy.detail}`);
   }
 }
-
-export function isPackagedDesktop(): boolean {
-  return app.isPackaged && !process.env.ELECTRON_RENDERER_URL;
-}

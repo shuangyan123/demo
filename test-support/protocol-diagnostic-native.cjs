@@ -38,6 +38,13 @@ app.whenReady().then(async () => {
   assert.match(win.webContents.getURL(), /^review-app:\/\/workspace\/diagnostic\?session=/);
   await navigate('document.querySelector("#resume").click()');
   const after = JSON.parse(await evaluate('document.querySelector("#view").textContent'));
-  console.log(JSON.stringify({ mainPid: process.pid, sessionId, before, after }));
+  const historyFile = path.join(root, 'os-config/test-profile/managed-files/diagnostic-history/history.json');
+  const beforeExport = fs.readFileSync(historyFile);
+  const exported = await evaluate(`fetch('/api/diagnostic/export', { method: 'POST',
+    headers: { 'x-recall-export-intent': 'diagnostic-history' }, credentials: 'same-origin', cache: 'no-store', redirect: 'error' })
+    .then(async response => ({ status: response.status, source: await response.text() }))`);
+  assert.equal(exported.status, 200, exported.source);
+  assert.deepEqual(fs.readFileSync(historyFile), beforeExport);
+  console.log(JSON.stringify({ mainPid: process.pid, sessionId, before, after, exported: JSON.parse(exported.source) }));
   clearTimeout(timer); win.destroy(); app.quit();
 }).catch(error => { console.error(error); clearTimeout(timer); app.exit(1); });
