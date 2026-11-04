@@ -33,3 +33,19 @@ test("Windows CI independently rebuilds and reads back the exact PR-head product
   assert.match(job, /CSC_IDENTITY_AUTO_DISCOVERY: "false"/);
   assert.doesNotMatch(job, /M1|Candidate|desktop:make|MakerSquirrel|release create|workflow_dispatch|tags:|Get-FileHash/);
 });
+
+test("experimental capability probe does not add desktop requirements to the NSIS production job", () => {
+  const job = workflow.match(/  windows-nsis-production:[\s\S]*?(?=\n  [a-zA-Z0-9_-]+:|$)/)?.[0];
+  assert.ok(job);
+  assert.doesNotMatch(job, /packaged-main-|continue-on-error|review-workspace\.exe|remote-debugging|--inspect|download-artifact/);
+  assert.equal(job.match(/npm run desktop:builder:nsis:unpacked/g)?.length, 1);
+  const experiment = readFileSync(resolve(process.cwd(), ".github/workflows/packaged-main-capability.yml"), "utf8");
+  assert.match(experiment, /name: Experimental Windows Capability Probe/);
+  assert.match(experiment, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+  assert.match(experiment, /persist-credentials: false/);
+  assert.match(experiment, /contents: read/);
+  assert.match(experiment, /node-version: 24\.20\.0/);
+  assert.match(experiment, /node --test scripts\/packaged-main-smoke-safety\.contract\.test\.mjs/);
+  assert.match(experiment, /packaged-main-runner-capability\.ps1 -SourceCommit \$env:CAPABILITY_SOURCE_COMMIT/);
+  assert.doesNotMatch(experiment, /continue-on-error|npm ci|npm install|desktop:prepare|desktop:builder|review-workspace\.exe|remote-debugging|--inspect|download-artifact|workflow_dispatch/);
+});

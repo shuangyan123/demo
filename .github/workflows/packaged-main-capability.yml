@@ -1,0 +1,47 @@
+name: Experimental Windows Capability Probe
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/packaged-main-capability.yml
+      - scripts/packaged-main-*
+      - scripts/electron-builder-nsis-ci.contract.test.mjs
+      - docs/packaged-main-smoke.md
+
+concurrency:
+  group: windows-capability-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  capability-probe:
+    name: Experimental capability only (no application launch)
+    runs-on: windows-latest
+    timeout-minutes: 6
+    env:
+      CAPABILITY_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact PR head without persisted credentials
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Setup Node 24.20.0
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.20.0
+
+      # Built-in Node/Windows APIs only; no dependency install or app build.
+      - name: Capability tool self-tests (Node fixtures only)
+        timeout-minutes: 3
+        run: node --test scripts/packaged-main-smoke-safety.contract.test.mjs
+
+      # Exit 2 means environment capability is insufficient, not a product regression.
+      # This workflow neither consumes an artifact nor claims packaged acceptance.
+      - name: Read-only Windows desktop capability probe
+        timeout-minutes: 2
+        shell: pwsh
+        run: ./scripts/packaged-main-runner-capability.ps1 -SourceCommit $env:CAPABILITY_SOURCE_COMMIT
