@@ -38,7 +38,6 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
   onSelect,
 }, ref) {
   const tabbingRef = useRef(false);
-  const selectorRef = useRef<HTMLDivElement | null>(null);
   const [mobileBottom, setMobileBottom] = useState(124);
   const [initialRuntimeDimension, setInitialRuntimeDimension] = useState<ConversationModelRuntimeDimension>();
   const [sessionProviderOrder, setSessionProviderOrder] = useState<readonly ApiProvider[]>([]);
@@ -113,19 +112,20 @@ export const ConversationModelSelector = forwardRef<ConversationModelSelectorHan
 
   return (
     <div
-      ref={selectorRef}
       className={styles.selector}
       style={{ "--model-picker-mobile-bottom": `${mobileBottom}px` } as CSSProperties}
       onFocusCapture={() => { tabbingRef.current = false; }}
       onBlurCapture={(event) => {
-        if (!tabbingRef.current) return;
-        const selector = event.currentTarget;
-        window.requestAnimationFrame(() => {
-          if (!selector.contains(document.activeElement)) closePicker(false);
-          tabbingRef.current = false;
-        });
+        const leavingViaTab = tabbingRef.current;
+        tabbingRef.current = false;
+        if (!leavingViaTab) return;
+        // 只消费这次 Tab 明确移到外部节点的关闭意图；内部换层或窗口失焦的 null 目标不算退出。
+        // 不排队 blur dismiss，避免旧回调把下一层或重新打开的 picker 关闭。
+        const nextFocus = event.relatedTarget;
+        if (nextFocus instanceof Node && !event.currentTarget.contains(nextFocus)) closePicker(false);
       }}
       onKeyDownCapture={(event) => { tabbingRef.current = event.key === "Tab"; }}
+      onKeyUpCapture={() => { tabbingRef.current = false; }}
     >
       <UiHint label="选择模型" badge="Ctrl+Shift+M" placement="top">{({ describedBy }) => <button
           ref={triggerRef}

@@ -4,7 +4,7 @@ import { seedConversationModelFixtures } from "./helpers/conversation-model-fixt
 
 const SETTINGS_SECTION_RENDER_TIMEOUT = 15_000;
 
-test("设置导航、厂商选择与弥散状态保持独立且可持久化", async ({ page }, testInfo) => {
+test("设置外观的弥散布局与 reload 持久化保持一致", async ({ page }, testInfo) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.setViewportSize({ width: 1536, height: 1024 });
   await page.goto("/");
@@ -81,6 +81,15 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await page.getByRole("switch", { name: "浅色主题弥散渐变" }).click();
   await expect(page.locator("body")).toHaveAttribute("data-diffuse-gradient", "false");
   await expect(page.locator(".chrome-topbar")).toHaveCSS("background-image", "none");
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});
+
+test("设置厂商列表与默认能力布局保持独立", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "设置" }).first().click();
 
   await page.getByRole("button", { name: "AI 连接" }).click();
   await page.getByRole("button", { name: "添加连接" }).click();
@@ -101,6 +110,15 @@ test("设置导航、厂商选择与弥散状态保持独立且可持久化", as
   await expect(page.getByText("默认多模态", { exact: true })).toBeVisible();
   await expect(page.getByText("默认语音", { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("settings-ai-connections-compact-desktop.png"), fullPage: false });
+  await expectNoFrameworkOverlay(page);
+  expectNoRuntimeErrors(runtimeErrors);
+});
+
+test("设置个性化、额度与诊断导航保持独立", async ({ page }, testInfo) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "设置" }).first().click();
   await page.getByRole("button", { name: "个性化", exact: true }).click();
   await expect(page.getByRole("button", { name: "个性化", exact: true })).toHaveClass(/bg-chrome-selected/);
   await expect(page.getByRole("heading", { name: "个性化", exact: true })).toBeVisible({ timeout: SETTINGS_SECTION_RENDER_TIMEOUT });
